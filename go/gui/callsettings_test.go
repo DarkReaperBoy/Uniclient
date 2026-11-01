@@ -1,11 +1,5 @@
 package gui
 
-// Calls settings (AyuGram parity slice 103): the settings rail gains a
-// Calls section with mic/speaker/camera pickers backed by the engine's real
-// OS device enumeration (GetAudioDevices) and the persisted device config
-// (SetCallAudioDevice) — plus the in-call noise-suppression toggle on the
-// group-call screen. Pure derivations locked here.
-
 import (
 	"testing"
 
@@ -14,12 +8,10 @@ import (
 )
 
 func TestDevPickerRows(t *testing.T) {
-	// Empty enumeration → the Default sentinel row only.
 	rows := devPickerRows(nil, "")
 	if len(rows) != 1 || rows[0].label != "Default" || !rows[0].selected {
 		t.Fatalf("empty devices: %+v", rows)
 	}
-	// Default sentinel first + devices; current marks the selected row.
 	rows = devPickerRows([]string{"HD Camera", "Mic"}, "Mic")
 	if len(rows) != 3 {
 		t.Fatalf("rows len = %d", len(rows))
@@ -33,12 +25,10 @@ func TestDevPickerRows(t *testing.T) {
 	if rows[2].label != "Mic" || !rows[2].selected {
 		t.Fatalf("row2 = %+v", rows[2])
 	}
-	// Current = "" (default device) selects the sentinel.
 	rows = devPickerRows([]string{"Mic"}, "")
 	if !rows[0].selected || rows[1].selected {
 		t.Fatalf("default selected: %+v", rows)
 	}
-	// Unknown current (stale config) → nothing crashes, nothing selected.
 	rows = devPickerRows([]string{"Mic"}, "Gone")
 	if rows[0].selected || rows[1].selected {
 		t.Fatalf("stale current must not select: %+v", rows)
@@ -55,7 +45,6 @@ func TestDevPickerLabel(t *testing.T) {
 }
 
 func TestDevPickerFor(t *testing.T) {
-	// The picker state covers the three device types; a nil state is inert.
 	st := &devPickerState{typ: "input"}
 	if st.deviceType() != "input" {
 		t.Fatalf("typ = %q", st.deviceType())
@@ -63,7 +52,6 @@ func TestDevPickerFor(t *testing.T) {
 }
 
 func TestCfgCallDevicesSnapshot(t *testing.T) {
-	// Config round-trip into the settings snapshot.
 	cfg := &utils.AppConfig{
 		CallInputDevice:  "Mic",
 		CallOutputDevice: "",
@@ -85,7 +73,6 @@ func TestGCNoiseToggleLabel(t *testing.T) {
 }
 
 func TestSettingsCallsSectionOrder(t *testing.T) {
-	// The rail is AyuGram's order; Calls sits between Appearance and Ayu.
 	found := -1
 	for i, s := range settingsSections {
 		if s == "Calls" {
@@ -96,7 +83,6 @@ func TestSettingsCallsSectionOrder(t *testing.T) {
 	if found == -1 {
 		t.Fatal("Calls section missing from the settings rail")
 	}
-	// slice 140: Language slots in after Calls (tdesktop's position).
 	if settingsSections[found-1] != "Appearance" || settingsSections[found+1] != "Language" {
 		t.Fatalf("Calls neighbors = %q / %q", settingsSections[found-1], settingsSections[found+1])
 	}

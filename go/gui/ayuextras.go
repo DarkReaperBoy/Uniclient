@@ -18,34 +18,10 @@ import (
 	"uniclient/engine"
 )
 
-// Ayu behavior extras (slice 173, primary source ayu_settings.h +
-// settings_general.cpp + ayu_helpers.cpp):
-//   - showMessageSeconds — message timestamps render HH:MM:SS
-//     (formatMessageTime semantics; chat-list rows stay minute-level).
-//   - filterZalgo — strip zalgo runs (3+ combining marks keep the first
-//     two) and bidi override controls from rendered message text and
-//     sender names (kZalgoPattern 1:1). Render-time only: cached data is
-//     never modified.
-//   - showChannel/Group/PrivateReactions — per-chat-type reaction-strip
-//     visibility (default OFF in our config = AyuGram toggle ON flips
-//     them; the AyuGram defaults are true, so our nil = false means the
-//     strips need the toggle or the config default flips to true).
-//   - sticker/gif/voice Confirmation — a confirm card before the send
-//     fires. Round-video notes have no send path in UniClient yet, so
-//     that toggle stays unshipped (§1.10: no dead UI).
-
-// ── message seconds ──────────────────────────────────────────────────────
-
-// msgShowSeconds is the process-wide effective toggle (set from the config
-// snapshot; fmtTime call sites for messages read it via msgTimeLabel).
 var msgShowSeconds atomic.Bool
 
 func setMsgShowSeconds(on bool) { msgShowSeconds.Store(on) }
 
-// msgTimeLabel renders a MESSAGE timestamp: HH:MM, or HH:MM:SS when the
-// Ayu showMessageSeconds toggle is on (AyuGram formatMessageTime).
-// Chat-list rows and day dividers keep fmtTime (AyuGram separates the
-// two formatters the same way).
 func msgTimeLabel(ms int64) string {
 	if ms == 0 {
 		return ""
@@ -56,26 +32,17 @@ func msgTimeLabel(ms int64) string {
 	return time.UnixMilli(ms).Format("15:04")
 }
 
-// ── zalgo / bidi filtering ───────────────────────────────────────────────
-
-// isBidiControl matches the second branch of AyuGram's kZalgoPattern:
-// directional embeddings/overrides and isolate marks that spoof text
-// direction.
 func isBidiControl(r rune) bool {
 	switch {
-	case r >= 0x202A && r <= 0x202E, // LRE..PDF overrides
-		r >= 0x2066 && r <= 0x2069, // isolates
-		r == 0x200E, r == 0x200F,   // LRM / RLM
-		r == 0x061C: // ALM
+	case r >= 0x202A && r <= 0x202E,
+		r >= 0x2066 && r <= 0x2069,
+		r == 0x200E, r == 0x200F,
+		r == 0x061C:
 		return true
 	}
 	return false
 }
 
-// stripZalgo removes zalgo runs and bidi controls from text (AyuGram
-// ayu_helpers.cpp filterZalgo 1:1): runs of 3+ combining marks (Mn) keep
-// their first two, everything past that drops; bidi controls drop whole.
-// Clean text returns unchanged (fast path scans without allocating).
 func stripZalgo(s string) string {
 	dirty := false
 	combos := 0
@@ -108,7 +75,7 @@ func stripZalgo(s string) string {
 		if unicode.Is(unicode.Mn, r) {
 			run++
 			if run > 2 {
-				continue // zalgo tail: keep first two marks only
+				continue
 			}
 		} else {
 			run = 0
@@ -118,7 +85,6 @@ func stripZalgo(s string) string {
 	return string(b)
 }
 
-// ayuFilterText applies the toggle to rendered text (message bodies).
 func ayuFilterText(s string, on bool) string {
 	if !on || s == "" {
 		return s
@@ -126,12 +92,6 @@ func ayuFilterText(s string, on bool) string {
 	return stripZalgo(s)
 }
 
-// ── reaction-strip visibility ────────────────────────────────────────────
-
-// reactionsVisible gates the under-bubble reaction strip by chat type and
-// the three Ayu toggles (showChannel/Group/PrivateReactions — AyuGram
-// defaults all three ON; a nil config key means ON, only an explicit
-// false hides).
 func reactionsVisible(chat engine.ChatInfo, cfg cfgSnapshot) bool {
 	switch chat.Type {
 	case engine.ChatTypeChanVal:
@@ -141,15 +101,10 @@ func reactionsVisible(chat engine.ChatInfo, cfg cfgSnapshot) bool {
 	default:
 		return cfg.AyuReactPrivate
 	}
-	// (cfgSnapshot carries the EFFECTIVE values — nil folded to true in
-	// cfgFromAppConfig.)
 }
 
-// ── send confirmations ───────────────────────────────────────────────────
-
-// mediaConfirmState is one pending confirmed send.
 type mediaConfirmState struct {
-	kind      string // "sticker" | "gif" | "voice"
+	kind      string
 	send      func()
 	ok        *widget.Clickable
 	cancelBtn *widget.Clickable
@@ -160,8 +115,6 @@ var (
 	mediaConfirm   *mediaConfirmState
 )
 
-// confirmKindTitle: the card headline per media kind (AyuGram
-// lng-style phrasing).
 func confirmKindTitle(kind string) string {
 	switch kind {
 	case "sticker":
@@ -174,8 +127,6 @@ func confirmKindTitle(kind string) string {
 	return "Send this?"
 }
 
-// maybeConfirmMedia fires the send directly, or parks it behind the
-// confirm card when the Ayu confirmation toggle is on.
 func (a *App) maybeConfirmMedia(kind string, on bool, send func()) {
 	if !on {
 		send()
@@ -192,15 +143,12 @@ func (a *App) maybeConfirmMedia(kind string, on bool, send func()) {
 	a.invalidate()
 }
 
-// mediaConfirmActive reports whether the card is open.
 func mediaConfirmActive() bool {
 	mediaConfirmMu.Lock()
 	defer mediaConfirmMu.Unlock()
 	return mediaConfirm != nil
 }
 
-// layoutMediaConfirm renders the centered confirm card + scrim over the
-// chat pane (the callsConfirmCard pattern, checkbox-free).
 func (a *App) layoutMediaConfirm(gtx layout.Context) layout.Dimensions {
 	mediaConfirmMu.Lock()
 	mc := mediaConfirm
@@ -224,7 +172,6 @@ func (a *App) layoutMediaConfirm(gtx layout.Context) layout.Dimensions {
 		return layout.Dimensions{}
 	}
 
-	// Scrim behind the card.
 	paint.FillShape(gtx.Ops, color.NRGBA{R: 0, G: 0, B: 0, A: 0x66},
 		clip.Rect{Max: image.Pt(gtx.Constraints.Max.X, gtx.Constraints.Max.Y)}.Op())
 

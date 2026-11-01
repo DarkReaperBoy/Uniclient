@@ -15,24 +15,13 @@ import (
 	"uniclient/engine"
 )
 
-// Admin log / Recent Actions panel (slice 177, parity row "Moderation
-// (admin log, restrictions)" — tdesktop's Recent Actions window): a
-// searchable, filterable, paginated event list over the engine's
-// GetAdminLogEvents (channels.getAdminLog). Opened from the chat-header
-// ⋮ menu for admins of groups/channels. Message events render their
-// media preview inline (ActionData's stripped thumb); change events show
-// old → new values.
-
 var adminPanelTag = new(struct{})
 
-// adminFilterDef is one filter chip (channels.getAdminLogEventsFilter).
 type adminFilterDef struct {
 	id    string
 	label string
 }
 
-// adminFilterDefs mirrors tdesktop's admin-log filter box (the events
-// filter surface the core accepts).
 var adminFilterDefs = []adminFilterDef{
 	{"join", "Joined"},
 	{"leave", "Left"},
@@ -54,13 +43,10 @@ var adminFilterDefs = []adminFilterDef{
 	{"invites", "Invite links"},
 }
 
-// adminToggleFilter flips one filter in the active set (pure).
 func adminToggleFilter(active map[string]bool, id string) {
 	active[id] = !active[id]
 }
 
-// adminLogMaxID returns the paging cursor: the smallest event ID seen
-// (pure).
 func adminLogMaxID(events []cores.AdminLogEvent) int64 {
 	if len(events) == 0 {
 		return 0
@@ -74,7 +60,6 @@ func adminLogMaxID(events []cores.AdminLogEvent) int64 {
 	return min
 }
 
-// adminEventHeadline: the acting admin's name (row title).
 func adminEventHeadline(e cores.AdminLogEvent) string {
 	if e.UserName != "" {
 		return e.UserName
@@ -82,17 +67,14 @@ func adminEventHeadline(e cores.AdminLogEvent) string {
 	return "Admin " + userIDStr(e.UserID)
 }
 
-// adminEventActionText: the action sentence.
 func adminEventActionText(e cores.AdminLogEvent) string {
 	return e.Action
 }
 
-// adminEventSub: the one-line detail under the action.
 func adminEventSub(e cores.AdminLogEvent) string {
 	return e.Detail
 }
 
-// adminEventChanges: the old/new pair when the event is a change.
 func adminEventChanges(e cores.AdminLogEvent) []string {
 	if e.OldValue == "" && e.NewValue == "" {
 		return nil
@@ -106,8 +88,6 @@ func adminEventChanges(e cores.AdminLogEvent) []string {
 	return []string{e.OldValue, e.NewValue}
 }
 
-// adminEventMedia extracts the message-event media type + stripped thumb
-// from ActionData (pure).
 func adminEventMedia(e cores.AdminLogEvent) (int, string) {
 	if e.ActionData == nil {
 		return 0, ""
@@ -120,12 +100,10 @@ func adminEventMedia(e cores.AdminLogEvent) (int, string) {
 	return mt, tb
 }
 
-// adminEventHasMessage reports whether the row shows a message preview.
 func adminEventHasMessage(e cores.AdminLogEvent) bool {
 	return e.MsgText != "" || e.MessageID != 0
 }
 
-// openAdminPanel loads the first page for the open chat.
 func (a *App) openAdminPanel() {
 	a.mu.Lock()
 	k := a.selected
@@ -145,7 +123,6 @@ func (a *App) openAdminPanel() {
 	a.adminLogFetch(k.AccountID, k.ChatID, 0, "", nil)
 }
 
-// closeAdminPanel dismisses it.
 func (a *App) closeAdminPanel() {
 	a.mu.Lock()
 	if !a.adminPanel {
@@ -159,7 +136,6 @@ func (a *App) closeAdminPanel() {
 	a.invalidate()
 }
 
-// adminToggleFilterNow flips a chip and refetches.
 func (a *App) adminToggleFilterNow(id string) {
 	a.mu.Lock()
 	if a.adminFilters == nil {
@@ -182,7 +158,6 @@ func (a *App) adminToggleFilterNow(id string) {
 	a.adminLogFetch(k.AccountID, k.ChatID, 0, a.wid.adminSearchEd.Text(), active)
 }
 
-// adminLogSearch refetches with the field's query.
 func (a *App) adminLogSearch() {
 	a.mu.Lock()
 	k := a.adminFor
@@ -205,7 +180,6 @@ func (a *App) adminLogSearch() {
 	a.adminLogFetch(k.AccountID, k.ChatID, 0, q, active)
 }
 
-// adminLoadMore pages with the smallest seen ID as the cursor.
 func (a *App) adminLoadMore() {
 	a.mu.Lock()
 	k := a.adminFor
@@ -230,7 +204,6 @@ func (a *App) adminLoadMore() {
 	a.adminLogFetch(k.AccountID, k.ChatID, maxID, a.wid.adminSearchEd.Text(), active)
 }
 
-// adminLogFetch runs one page fetch and merges the result.
 func (a *App) adminLogFetch(accountID, chatID string, maxID int64, query string, filters map[string]bool) {
 	go func() {
 		events, err := a.eng.GetAdminLogEvents(accountID, chatID, 50, query, maxID, filters, nil)
@@ -262,8 +235,6 @@ func (a *App) adminLogFetch(accountID, chatID string, maxID int64, query string,
 	}()
 }
 
-// layoutAdminPanel: the Recent Actions surface (chat pane replacement,
-// like the scheduled-messages panel).
 func (a *App) layoutAdminPanel(gtx layout.Context, f frame, chat *engine.ChatInfo) layout.Dimensions {
 	{
 		stack := clip.Rect{Max: image.Pt(gtx.Constraints.Max.X, gtx.Constraints.Max.Y)}.Push(gtx.Ops)
@@ -301,7 +272,6 @@ func (a *App) layoutAdminPanel(gtx layout.Context, f frame, chat *engine.ChatInf
 	}
 
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		// Header.
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Top: unit.Dp(8), Bottom: unit.Dp(8), Left: unit.Dp(8), Right: unit.Dp(12)}.Layout(gtx,
 				func(gtx layout.Context) layout.Dimensions {
@@ -324,7 +294,6 @@ func (a *App) layoutAdminPanel(gtx layout.Context, f frame, chat *engine.ChatInf
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.ui.Divider(gtx)
 		}),
-		// Search + filters.
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Top: unit.Dp(8), Left: unit.Dp(12), Right: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
@@ -347,7 +316,6 @@ func (a *App) layoutAdminPanel(gtx layout.Context, f frame, chat *engine.ChatInf
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.ui.Divider(gtx)
 		}),
-		// List.
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			if f.adminLoad && len(f.adminEvents) == 0 {
 				return centerLayout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -381,7 +349,7 @@ func (a *App) layoutAdminPanel(gtx layout.Context, f frame, chat *engine.ChatInf
 			return layout.UniformInset(unit.Dp(6)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				n := len(f.adminEvents)
 				if !f.adminLoadedAll && !f.adminLoad {
-					n++ // the load-more row rides the list
+					n++
 				}
 				return a.wid.adminPanelList.Layout(gtx, n, func(gtx layout.Context, i int) layout.Dimensions {
 					if i == len(f.adminEvents) {
@@ -394,7 +362,6 @@ func (a *App) layoutAdminPanel(gtx layout.Context, f frame, chat *engine.ChatInf
 	)
 }
 
-// adminFilterStrip: horizontal chip row (active chips tinted).
 func (a *App) adminFilterStrip(gtx layout.Context, f frame) layout.Dimensions {
 	growClickables(&a.wid.adminFilterBtns, len(adminFilterDefs))
 	return layout.Inset{Top: unit.Dp(6), Bottom: unit.Dp(6), Left: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -421,7 +388,6 @@ func (a *App) adminFilterStrip(gtx layout.Context, f frame) layout.Dimensions {
 	})
 }
 
-// adminMoreRow: the load-more row.
 func (a *App) adminMoreRow(gtx layout.Context) layout.Dimensions {
 	return layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -437,7 +403,6 @@ func (a *App) adminMoreRow(gtx layout.Context) layout.Dimensions {
 	})
 }
 
-// adminEventRow: one event card.
 func (a *App) adminEventRow(gtx layout.Context, e cores.AdminLogEvent) layout.Dimensions {
 	when := ""
 	if e.Date > 0 {
@@ -519,7 +484,6 @@ func (a *App) adminEventRow(gtx layout.Context, e cores.AdminLogEvent) layout.Di
 		})
 }
 
-// adminMsgPreview: the inline message bubble for message events.
 func (a *App) adminMsgPreview(gtx layout.Context, e cores.AdminLogEvent) layout.Dimensions {
 	_, thumb := adminEventMedia(e)
 	return layout.Inset{Top: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -549,8 +513,6 @@ func (a *App) adminMsgPreview(gtx layout.Context, e cores.AdminLogEvent) layout.
 	})
 }
 
-// UserIDstr / UserIDstr2: small formatting helpers (kept local so the
-// pure tests can pin them).
 func userIDStr(id int64) string {
 	if id == 0 {
 		return ""
@@ -558,7 +520,6 @@ func userIDStr(id int64) string {
 	return itoa64(id)
 }
 
-// itoa64 formats an int64.
 func itoa64(v int64) string {
 	if v == 0 {
 		return "0"

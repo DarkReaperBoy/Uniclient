@@ -1,13 +1,5 @@
 package gui
 
-// Stories (AyuGram parity slice 104): the chat list gains the horizontal
-// story-circles row (unread first; accent ring for unseen, dim for seen)
-// and the story viewer overlay — progress segments, tap zones, caption and
-// views meta, video stories handed to the system player (in-app playback
-// waits on engine streaming). All data comes from engine.FetchPeerStories;
-// an honest loading state covers the fetch, an honest error card its
-// failure (§1.10 — nothing simulated).
-
 import (
 	"encoding/json"
 	"fmt"
@@ -31,8 +23,6 @@ import (
 	"uniclient/engine"
 )
 
-// storyItem mirrors the engine's FetchPeerStories JSON contract (the
-// fields the viewer renders).
 type storyItem struct {
 	ID           int    `json:"id"`
 	Date         int64  `json:"date"`
@@ -44,7 +34,6 @@ type storyItem struct {
 	SentReaction string `json:"sent_reaction,omitempty"`
 }
 
-// storyViewerState is the open story viewer (slice 104).
 type storyViewerState struct {
 	accountID string
 	chatID    string
@@ -53,20 +42,15 @@ type storyViewerState struct {
 	cur       int
 	loading   bool
 	err       string
-	reactOpen bool // the emoji strip is armed (slice 164)
-	replyOn   bool // the reply a.wid.composer is armed (slice 164)
+	reactOpen bool
+	replyOn   bool
 }
 
-// slice 164 widgets: reaction heart / reply / share + the emoji strip
-// pills + the inline reply a.wid.composer.
-
-// storyStripChats picks the chats that appear in the stories row — only
-// chats with stories, unread first (AyuGram order).
 func storyStripChats(chats []engine.ChatInfo) []engine.ChatInfo {
 	var unread, seen []engine.ChatInfo
 	for _, c := range chats {
 		if c.StoryCount <= 0 {
-			continue // zero-count + dangling unread flag stays hidden
+			continue
 		}
 		if c.HasUnreadStory {
 			unread = append(unread, c)
@@ -77,10 +61,8 @@ func storyStripChats(chats []engine.ChatInfo) []engine.ChatInfo {
 	return append(unread, seen...)
 }
 
-// storyRingUnread: ring style keys off the chat's unread flag.
 func storyRingUnread(c engine.ChatInfo) bool { return c.HasUnreadStory }
 
-// parseStories decodes the engine's stories JSON.
 func parseStories(s string) ([]storyItem, error) {
 	var items []storyItem
 	if err := json.Unmarshal([]byte(s), &items); err != nil {
@@ -89,13 +71,10 @@ func parseStories(s string) ([]storyItem, error) {
 	return items, nil
 }
 
-// isVideoStory: video media type or an .mp4 local path (the engine writes
-// .mp4 for non-jpeg story media).
 func isVideoStory(s storyItem) bool {
 	return s.MediaType == "video" || strings.HasSuffix(strings.ToLower(s.LocalPath), ".mp4")
 }
 
-// storyStep clamps navigation (caller closes when stepping past the end).
 func storyStep(cur, delta, n int) int {
 	next := cur + delta
 	if next < 0 {
@@ -107,7 +86,6 @@ func storyStep(cur, delta, n int) int {
 	return next
 }
 
-// storyMetaLine renders the views/date line.
 func storyMetaLine(s storyItem, now time.Time) string {
 	var parts []string
 	if s.Views > 0 {
@@ -124,15 +102,12 @@ func storyMetaLine(s storyItem, now time.Time) string {
 	return strings.Join(parts, " · ")
 }
 
-// ── state transitions ─────────────────────────────────────────────────────
-
 var (
-	storyTapL   = new(bool) // left tap zone
-	storyTapR   = new(bool) // right tap zone
-	storyKeyTag = new(bool) // viewer keyboard layer
+	storyTapL   = new(bool)
+	storyTapR   = new(bool)
+	storyKeyTag = new(bool)
 )
 
-// openStoryViewer fetches a chat's stories and opens the viewer (slice 104).
 func (a *App) openStoryViewer(c engine.ChatInfo) {
 	a.mu.Lock()
 	a.storyView = &storyViewerState{
@@ -141,7 +116,7 @@ func (a *App) openStoryViewer(c engine.ChatInfo) {
 		title:     c.Title,
 		loading:   true,
 	}
-	a.storyViewGen++ // R54: new viewer session — in-flight fetch tails retire
+	a.storyViewGen++
 	gen := a.storyViewGen
 	a.mu.Unlock()
 	a.invalidate()
@@ -151,9 +126,6 @@ func (a *App) openStoryViewer(c engine.ChatInfo) {
 	}()
 }
 
-// storyFetchDone installs the fetch result (extracted from the open
-// goroutine; stage-1 body is the original in-place tail — the shape
-// the R53 pin proves racy).
 func (a *App) storyFetchDone(gen int, accountID, chatID, raw string, err error) {
 	if !a.updateStoryView(func(sv *storyViewerState) bool {
 		if a.storyViewGen != gen || sv.accountID != accountID || sv.chatID != chatID {
@@ -177,11 +149,6 @@ func (a *App) storyFetchDone(gen int, accountID, chatID, raw string, err error) 
 	a.invalidate()
 }
 
-// closeStoryViewer dismisses the overlay. R55: the reply draft is
-// viewer-session state — cleared on close so the next open (any chat)
-// starts empty, never showing another story's half-written reply.
-// GUI-loop-only (storyReplyEd); every caller is a viewer key, click or
-// tap.
 func (a *App) closeStoryViewer() {
 	a.mu.Lock()
 	a.storyView = nil
@@ -191,8 +158,6 @@ func (a *App) closeStoryViewer() {
 	a.invalidate()
 }
 
-// storyAdvance steps the viewer; stepping past the last story closes it
-// (AyuGram behavior).
 func (a *App) storyAdvance(delta int) {
 	last := false
 	if !a.updateStoryView(func(sv *storyViewerState) bool {
@@ -209,10 +174,6 @@ func (a *App) storyAdvance(delta int) {
 	a.invalidate()
 }
 
-// updateStoryView copy-on-write installs a mutated story-viewer head.
-// R53: storyViewerState is frame-carried as a POINTER, so the frame and
-// the head share the struct — every writer goes through here so a
-// frame's snapshot stays immutable while background tails run.
 func (a *App) updateStoryView(fn func(sv *storyViewerState) bool) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -227,10 +188,6 @@ func (a *App) updateStoryView(fn func(sv *storyViewerState) bool) bool {
 	return true
 }
 
-// flipStoryReaction installs SentReaction=to on the story currently
-// showing `from` (deep item copy — the frame's items slice stays
-// untouched, the R38 rule). False when the viewer moved on, the story
-// is gone, or a newer reaction already replaced ours.
 func (a *App) flipStoryReaction(accountID, chatID string, storyID int, from, to string) bool {
 	return a.updateStoryView(func(sv *storyViewerState) bool {
 		if sv.accountID != accountID || sv.chatID != chatID {
@@ -253,10 +210,6 @@ func (a *App) flipStoryReaction(accountID, chatID string, storyID int, from, to 
 	})
 }
 
-// ── strip layout ──────────────────────────────────────────────────────────
-
-// layoutStoryStrip renders the horizontal story circles above the chat
-// list (AyuGram's stories row). Hidden entirely when no chat has stories.
 func (a *App) layoutStoryStrip(gtx layout.Context, f frame) layout.Dimensions {
 	chats := storyStripChats(f.chats)
 	if len(chats) == 0 {
@@ -299,7 +252,6 @@ func (a *App) layoutStoryStrip(gtx layout.Context, f frame) layout.Dimensions {
 	})
 }
 
-// storyStripName clips long names to one line.
 func storyStripName(name string) string {
 	r := []rune(name)
 	if len(r) > 9 {
@@ -308,8 +260,6 @@ func storyStripName(name string) string {
 	return name
 }
 
-// storyCircle renders one strip avatar with its story ring. The corner
-// shape follows the chat (slice 215: forums keep their native rounding).
 func (a *App) storyCircle(gtx layout.Context, f frame, c engine.ChatInfo) layout.Dimensions {
 	size := unit.Dp(56)
 	sizePx := gtx.Dp(size)
@@ -320,7 +270,6 @@ func (a *App) storyCircle(gtx layout.Context, f frame, c engine.ChatInfo) layout
 	} else {
 		d = a.ui.AvatarShaped(gtx, c.Title, size, dotNone, radius)
 	}
-	// Ring: accent for unread stories, dim for seen (AyuGram).
 	ringCol := a.ui.p.TextFaint
 	if storyRingUnread(c) {
 		ringCol = a.ui.p.Accent
@@ -329,7 +278,6 @@ func (a *App) storyCircle(gtx layout.Context, f frame, c engine.ChatInfo) layout
 	return d
 }
 
-// paintRing strokes a circular ring of the given color around size.
 func paintRing(gtx layout.Context, c color.NRGBA, size int, w int) {
 	if w < 1 {
 		w = 1
@@ -339,8 +287,6 @@ func paintRing(gtx layout.Context, c color.NRGBA, size int, w int) {
 	stroke := clip.Stroke{Path: spec, Width: float32(w)}
 	paint.FillShape(gtx.Ops, c, stroke.Op())
 }
-
-// storyStripBtn pools the strip clickables.
 
 func (a *App) storyStripBtn(key string) *widget.Clickable {
 	if btn, ok := a.wid.storyStripBtns[key]; ok {
@@ -354,18 +300,12 @@ func (a *App) storyStripBtn(key string) *widget.Clickable {
 	return btn
 }
 
-// ── viewer layout ─────────────────────────────────────────────────────────
-
-// layoutStoryViewer: full-window story playback overlay (slice 104).
 func (a *App) layoutStoryViewer(gtx layout.Context, f frame) layout.Dimensions {
 	sv := f.storyView
-	// Slice 164: the reply a.wid.composer owns the keyboard while armed —
-	// keep its focus instead of clearing it.
 	if !sv.replyOn {
 		gtx.Execute(key.FocusCmd{Tag: nil})
 	}
 
-	// Keyboard: Esc closes, arrows navigate.
 	{
 		stack := clip.Rect{Max: gtx.Constraints.Max}.Push(gtx.Ops)
 		event.Op(gtx.Ops, storyKeyTag)
@@ -386,7 +326,7 @@ func (a *App) layoutStoryViewer(gtx layout.Context, f frame) layout.Dimensions {
 				a.closeStoryViewer()
 			case key.NameLeftArrow:
 				if sv.replyOn {
-					continue // the reply a.wid.composer owns the caret keys
+					continue
 				}
 				a.storyAdvance(-1)
 			case key.NameRightArrow:
@@ -398,7 +338,6 @@ func (a *App) layoutStoryViewer(gtx layout.Context, f frame) layout.Dimensions {
 		}
 	}
 
-	// Backdrop.
 	paintFill(gtx.Ops, color.NRGBA{R: 0x05, G: 0x08, B: 0x0C, A: 0xF6}, gtx.Constraints.Max)
 
 	if a.wid.storyCloseBtn.Clicked(gtx) {
@@ -412,7 +351,7 @@ func (a *App) layoutStoryViewer(gtx layout.Context, f frame) layout.Dimensions {
 	}
 	if a.wid.storyPlayBtn.Clicked(gtx) {
 		if it := sv.current(); it != nil && isVideoStory(*it) && it.LocalPath != "" {
-			go a.openMedia(it.LocalPath, true) // system player (slice 86 pipeline)
+			go a.openMedia(it.LocalPath, true)
 		}
 	}
 
@@ -452,7 +391,6 @@ func (a *App) layoutStoryViewer(gtx layout.Context, f frame) layout.Dimensions {
 	it := sv.current()
 
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		// Progress segments + title + close.
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Top: unit.Dp(12), Left: unit.Dp(16), Right: unit.Dp(16)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
@@ -492,11 +430,9 @@ func (a *App) layoutStoryViewer(gtx layout.Context, f frame) layout.Dimensions {
 				)
 			})
 		}),
-		// Media area + tap zones.
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
 				layout.Flexed(0.2, func(gtx layout.Context) layout.Dimensions {
-					// Left tap zone: previous story.
 					for {
 						ev, ok := gtx.Source.Event(pointer.Filter{Target: storyTapL, Kinds: pointer.Press})
 						if !ok {
@@ -515,7 +451,6 @@ func (a *App) layoutStoryViewer(gtx layout.Context, f frame) layout.Dimensions {
 					return a.storyMedia(gtx, f, sv, it)
 				}),
 				layout.Flexed(0.2, func(gtx layout.Context) layout.Dimensions {
-					// Right tap zone: next story / close past the last.
 					for {
 						ev, ok := gtx.Source.Event(pointer.Filter{Target: storyTapR, Kinds: pointer.Press})
 						if !ok {
@@ -532,7 +467,6 @@ func (a *App) layoutStoryViewer(gtx layout.Context, f frame) layout.Dimensions {
 				}),
 			)
 		}),
-		// Caption + meta.
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Left: unit.Dp(24), Right: unit.Dp(24), Bottom: unit.Dp(20)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
@@ -561,39 +495,27 @@ func (a *App) layoutStoryViewer(gtx layout.Context, f frame) layout.Dimensions {
 				)
 			})
 		}),
-		// Action row (slice 164): reactions + reply + share — the
-		// tdesktop story-viewer bottom bar.
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.storyActionRow(gtx, f, sv, it)
 		}),
 	)
 }
 
-// storyViewerOwn: the viewed story belongs to the account itself.
 func storyViewerOwn(f frame, sv *storyViewerState) bool {
 	return sv.chatID != "" && sv.chatID == accountByID(f, sv.accountID).SelfUserID
 }
 
-// storyHeartAction: tdesktop heart-tap semantics — no reaction yet →
-// open the picker; a sent reaction → tap-again removes it.
 func storyHeartAction(sent string) (emoji string, openPicker bool) {
 	if sent == "" {
 		return "", true
 	}
-	return "", false // remove (empty emoji = ReactionEmpty)
+	return "", false
 }
 
-// storyReplyID formats the engine ReplyToID for a story reply (the
-// InputReplyToStory convention in cores.SendMessage).
 func storyReplyID(storyID int) string {
 	return fmt.Sprintf("story:%d", storyID)
 }
 
-// storyActionRow: the viewer bottom bar — views/reactions counts left;
-// the reaction heart, reply toggle and share right. Own stories hide
-// react/reply (you cannot react to or reply your own story, §1.10) and
-// keep share. Arming the heart opens the emoji strip; arming reply
-// opens the inline a.wid.composer (InputReplyToStory).
 func (a *App) storyActionRow(gtx layout.Context, f frame, sv *storyViewerState, it *storyItem) layout.Dimensions {
 	if it == nil {
 		return layout.Dimensions{}
@@ -634,8 +556,6 @@ func (a *App) storyActionRow(gtx layout.Context, f frame, sv *storyViewerState, 
 		a.updateStoryView(func(s *storyViewerState) bool { s.replyOn = false; return true })
 		a.invalidate()
 	}
-	// Enter submits the reply (Shift+Enter newline — the a.wid.composer idiom).
-	// Editor events come from Editor.Update, not key.Filters.
 	for {
 		ev, ok := a.wid.storyReplyEd.Update(gtx)
 		if !ok {
@@ -648,7 +568,6 @@ func (a *App) storyActionRow(gtx layout.Context, f frame, sv *storyViewerState, 
 
 	return layout.Inset{Left: unit.Dp(24), Right: unit.Dp(24), Bottom: unit.Dp(24)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical, Alignment: layout.End}.Layout(gtx,
-			// Reply a.wid.composer above the bar.
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				if !sv.replyOn || own {
 					return layout.Dimensions{}
@@ -657,7 +576,6 @@ func (a *App) storyActionRow(gtx layout.Context, f frame, sv *storyViewerState, 
 					return a.storyReplyComposer(gtx)
 				})
 			}),
-			// Emoji strip above the bar.
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				if !sv.reactOpen || own {
 					return layout.Dimensions{}
@@ -666,7 +584,6 @@ func (a *App) storyActionRow(gtx layout.Context, f frame, sv *storyViewerState, 
 					return a.storyReactStrip(gtx, f, sv, it)
 				})
 			}),
-			// The bar itself.
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -712,8 +629,6 @@ func (a *App) storyActionRow(gtx layout.Context, f frame, sv *storyViewerState, 
 	})
 }
 
-// storyHeartButton: the reaction pill — the sent emoji filled on the
-// accent circle when reacted, a dim heart otherwise.
 func (a *App) storyHeartButton(gtx layout.Context, it *storyItem) layout.Dimensions {
 	emoji := it.SentReaction
 	if emoji == "" {
@@ -735,8 +650,6 @@ func (a *App) storyHeartButton(gtx layout.Context, it *storyItem) layout.Dimensi
 	})
 }
 
-// storyReactStrip: the emoji pills (the account's available reactions,
-// the same source as the message quick-reaction bar).
 func (a *App) storyReactStrip(gtx layout.Context, f frame, sv *storyViewerState, it *storyItem) layout.Dimensions {
 	emojis := favoriteReactionChoices(a.availEmojisFor(sv.accountID))
 	growClickables(&a.wid.storyReactEmojiBtn, len(emojis))
@@ -772,7 +685,6 @@ func (a *App) storyReactStrip(gtx layout.Context, f frame, sv *storyViewerState,
 	})
 }
 
-// storyReplyComposer: the inline reply field + send + cancel.
 func (a *App) storyReplyComposer(gtx layout.Context) layout.Dimensions {
 	return roundedFill(gtx, color.NRGBA{R: 0x20, G: 0x2A, B: 0x35, A: 0xFF}, 20, func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(unit.Dp(4)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -814,8 +726,6 @@ func (a *App) storyReplyComposer(gtx layout.Context) layout.Dimensions {
 	})
 }
 
-// storyReact sends (or removes) the story reaction — optimistic local
-// flip, revert + toast on error.
 func (a *App) storyReact(sv *storyViewerState, it *storyItem, emoji string) {
 	accountID, chatID, storyID, prev := sv.accountID, sv.chatID, it.ID, it.SentReaction
 	if !a.flipStoryReaction(accountID, chatID, storyID, prev, emoji) {
@@ -828,10 +738,6 @@ func (a *App) storyReact(sv *storyViewerState, it *storyItem, emoji string) {
 	}()
 }
 
-// storyReactDone reverts the optimistic flip when the engine call
-// failed. R53: only while the same viewer still shows OUR emoji — a
-// newer reaction must not be stomped, and a closed/reopened viewer is
-// not touched (the error still toasts — the react really was sent).
 func (a *App) storyReactDone(accountID, chatID string, storyID int, emoji string, err error) {
 	if err != nil {
 		a.flipStoryReaction(accountID, chatID, storyID, emoji, "")
@@ -840,8 +746,6 @@ func (a *App) storyReactDone(accountID, chatID string, storyID int, emoji string
 	}
 }
 
-// storySendReply sends the a.wid.composer text as a reply to the current story
-// (the "story:<id>" ReplyToID convention → InputReplyToStory).
 func (a *App) storySendReply(sv *storyViewerState, it *storyItem) {
 	text := strings.TrimSpace(a.wid.storyReplyEd.Text())
 	if text == "" {
@@ -861,8 +765,6 @@ func (a *App) storySendReply(sv *storyViewerState, it *storyItem) {
 	}()
 }
 
-// storyShare exports the story's public link and copies it to the
-// clipboard (tdesktop's share/copy-link surface).
 func (a *App) storyShare(sv *storyViewerState, it *storyItem) {
 	go func() {
 		link, err := a.eng.ExportStoryLink(sv.accountID, sv.chatID, it.ID)
@@ -875,8 +777,6 @@ func (a *App) storyShare(sv *storyViewerState, it *storyItem) {
 	}()
 }
 
-// loadAvailEmojis lazily loads the account's available reactions (the
-// menu.go idiom, reused by the story strip).
 func (a *App) loadAvailEmojis(accountID string) {
 	if a.availForLocked() == accountID {
 		return
@@ -893,8 +793,6 @@ func (a *App) loadAvailEmojis(accountID string) {
 	}()
 }
 
-// availEmojisFor: the cached emoji list for the account (defaults while
-// loading — honest, Telegram's built-in set).
 func (a *App) availEmojisFor(accountID string) []string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -904,7 +802,6 @@ func (a *App) availEmojisFor(accountID string) []string {
 	return defaultQuickReactions
 }
 
-// current returns the active story (nil-safe).
 func (sv *storyViewerState) current() *storyItem {
 	if sv == nil || sv.cur < 0 || sv.cur >= len(sv.items) {
 		return nil
@@ -912,7 +809,6 @@ func (sv *storyViewerState) current() *storyItem {
 	return &sv.items[sv.cur]
 }
 
-// storyChatAvatarPath resolves the viewer header avatar path.
 func storyChatAvatarPath(f frame, sv *storyViewerState) string {
 	for _, c := range f.chats {
 		if c.AccountID == sv.accountID && c.ChatID == sv.chatID {
@@ -922,7 +818,6 @@ func storyChatAvatarPath(f frame, sv *storyViewerState) string {
 	return ""
 }
 
-// storyProgress renders the segment bar (one per story, active accent).
 func (a *App) storyProgress(gtx layout.Context, sv *storyViewerState) layout.Dimensions {
 	n := len(sv.items)
 	if n == 0 {
@@ -946,8 +841,6 @@ func (a *App) storyProgress(gtx layout.Context, sv *storyViewerState) layout.Dim
 	return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, children...)
 }
 
-// storyMedia renders the current story's media: image inline (async
-// decode), video via an honest card + system-player handoff.
 func (a *App) storyMedia(gtx layout.Context, f frame, sv *storyViewerState, it *storyItem) layout.Dimensions {
 	if it == nil {
 		return layout.Dimensions{}
@@ -992,7 +885,6 @@ func (a *App) storyMedia(gtx layout.Context, f frame, sv *storyViewerState, it *
 		a.decodeFileAsync(it.LocalPath)
 	}
 	if img == nil {
-		// Still decoding: stable box.
 		return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return roundedFill(gtx, color.NRGBA{A: 0x20}, 12, func(gtx layout.Context) layout.Dimensions {
 				w := gtx.Dp(unit.Dp(240))
@@ -1028,7 +920,6 @@ func (a *App) storyMedia(gtx layout.Context, f frame, sv *storyViewerState, it *
 	})
 }
 
-// storyCentered is the loading/error/empty card.
 func (a *App) storyCentered(gtx layout.Context, w layout.Widget) layout.Dimensions {
 	return layout.Center.Layout(gtx, w)
 }

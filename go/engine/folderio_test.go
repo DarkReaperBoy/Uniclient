@@ -1,8 +1,5 @@
 package engine
 
-// Folder export/import (slice 94, matrix row 67): pure encode/parse
-// round-trips, validation, and the create-skip semantics.
-
 import (
 	"strings"
 	"testing"
@@ -64,18 +61,15 @@ func TestParseFoldersExportValidation(t *testing.T) {
 	if _, err := parseFoldersExport("not json at all"); err == nil {
 		t.Error("garbage accepted")
 	}
-	// Wrong / missing version marker.
 	if _, err := parseFoldersExport(`{"folders":[{"name":"x"}]}`); err == nil {
 		t.Error("missing version accepted")
 	}
 	if _, err := parseFoldersExport(`{"uniclient_folders":99,"folders":[{"name":"x"}]}`); err == nil {
 		t.Error("wrong version accepted")
 	}
-	// Empty folder list.
 	if _, err := parseFoldersExport(`{"uniclient_folders":1,"folders":[]}`); err == nil {
 		t.Error("empty list accepted")
 	}
-	// Nameless folder.
 	if _, err := parseFoldersExport(`{"uniclient_folders":1,"folders":[{"name":"  "}]}`); err == nil {
 		t.Error("nameless folder accepted")
 	}

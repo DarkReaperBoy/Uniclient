@@ -15,10 +15,6 @@ import (
 	"uniclient/engine"
 )
 
-// Contacts screen (AyuGram parity, matrix #299): the account's contact
-// book with search, per-contact jump-to-chat, and the add-contact dialog.
-// Data comes from engine.GetContacts; adding goes through engine.AddContact.
-
 var (
 	contactsBackBtn widget.Clickable
 	contactsAddBtn  widget.Clickable
@@ -26,7 +22,6 @@ var (
 	contactsSearch  widget.Editor
 	contactsList    widget.List
 
-	// add-contact dialog
 	addDlgCancel widget.Clickable
 	addDlgSave   widget.Clickable
 	addPhoneEd   widget.Editor
@@ -38,8 +33,6 @@ func init() {
 	contactsList.Axis = layout.Vertical
 }
 
-// contactMatches reports whether a contact matches the (case-insensitive)
-// query across display name, username, and phone.
 func contactMatches(c engine.ContactInfo, q string) bool {
 	q = strings.ToLower(strings.TrimSpace(q))
 	if q == "" {
@@ -57,7 +50,6 @@ func contactMatches(c engine.ContactInfo, q string) bool {
 	return false
 }
 
-// contactSubtitle: username / phone, else a hint.
 func contactSubtitle(c engine.ContactInfo) string {
 	if c.Username != "" {
 		return "@" + c.Username
@@ -68,7 +60,6 @@ func contactSubtitle(c engine.ContactInfo) string {
 	return ""
 }
 
-// contactBadge: the small status text on the row.
 func contactBadge(c engine.ContactInfo) string {
 	if c.IsBot {
 		return "bot"
@@ -79,7 +70,6 @@ func contactBadge(c engine.ContactInfo) string {
 	return ""
 }
 
-// sortContacts orders by display name (case-insensitive, stable).
 func sortContacts(list []engine.ContactInfo) {
 	for i := 1; i < len(list); i++ {
 		for j := i; j > 0; j-- {
@@ -93,7 +83,6 @@ func sortContacts(list []engine.ContactInfo) {
 	}
 }
 
-// openContacts shows the contacts screen for an account and loads the list.
 func (a *App) openContacts(accountID string) {
 	a.mu.Lock()
 	a.contactsOpen = true
@@ -126,7 +115,6 @@ func (a *App) openContacts(accountID string) {
 	}()
 }
 
-// closeContacts dismisses the contacts screen (and its dialog).
 func (a *App) closeContacts() {
 	a.mu.Lock()
 	a.contactsOpen = false
@@ -135,8 +123,6 @@ func (a *App) closeContacts() {
 	a.invalidate()
 }
 
-// contactChat finds the DM chat row for a contact (Telegram peers: a user's
-// DM chat is keyed by the user ID).
 func contactChat(chats []engine.ChatInfo, accountID, userID string) (engine.ChatInfo, bool) {
 	for _, c := range chats {
 		if c.AccountID == accountID && c.ChatID == userID && c.Type == engine.ChatTypeDMVal {
@@ -146,7 +132,6 @@ func contactChat(chats []engine.ChatInfo, accountID, userID string) (engine.Chat
 	return engine.ChatInfo{}, false
 }
 
-// submitAddContact adds a contact by phone (async, engine.AddContact).
 func (a *App) submitAddContact() {
 	phone := strings.TrimSpace(addPhoneEd.Text())
 	first := strings.TrimSpace(addFirstEd.Text())
@@ -173,7 +158,6 @@ func (a *App) submitAddContact() {
 			return
 		}
 		a.setToast("Contact added")
-		// Reload the list on success.
 		acc2 := acc
 		go func() {
 			list, err := a.eng.GetContacts(acc2)
@@ -192,9 +176,6 @@ func (a *App) submitAddContact() {
 	}()
 }
 
-// layoutContacts renders the contacts screen: header (back / title / add),
-// search field, and the contact rows (or loading/empty states). The
-// add-contact dialog overlays as a centered card.
 func (a *App) layoutContacts(gtx layout.Context, f frame) layout.Dimensions {
 	if contactsBackBtn.Clicked(gtx) {
 		a.closeContacts()
@@ -206,7 +187,6 @@ func (a *App) layoutContacts(gtx layout.Context, f frame) layout.Dimensions {
 		a.invalidate()
 	}
 
-	// Visible (filtered) rows.
 	visible := make([]engine.ContactInfo, 0, len(f.contacts))
 	q := contactsSearch.Text()
 	for _, c := range f.contacts {
@@ -216,7 +196,6 @@ func (a *App) layoutContacts(gtx layout.Context, f frame) layout.Dimensions {
 	}
 	growClickables(&contactsRows, len(visible))
 
-	// Row clicks → open the DM.
 	for i, c := range visible {
 		i, c := i, c
 		if contactsRows[i].Clicked(gtx) {
@@ -237,7 +216,6 @@ func (a *App) layoutContacts(gtx layout.Context, f frame) layout.Dimensions {
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return a.ui.Divider(gtx)
 				}),
-				// Search field.
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return insetAll(gtx, unit.Dp(8), unit.Dp(12), 6, unit.Dp(12), func(gtx layout.Context) layout.Dimensions {
 						return roundedFill(gtx, a.ui.p.SurfaceHi, 10, func(gtx layout.Context) layout.Dimensions {
@@ -253,7 +231,6 @@ func (a *App) layoutContacts(gtx layout.Context, f frame) layout.Dimensions {
 				}),
 			)
 		}),
-		// Add-contact dialog (centered card over a scrim).
 		layout.Expanded(func(gtx layout.Context) layout.Dimensions {
 			if !f.addDlgOpen {
 				return layout.Dimensions{}
@@ -300,7 +277,6 @@ func (a *App) contactsHeader(gtx layout.Context, f frame) layout.Dimensions {
 	)
 }
 
-// contactsAccountLabel: the account scope label under the title.
 func (a *App) contactsAccountLabel(f frame) string {
 	for _, acc := range f.accounts {
 		if acc.ID == f.contactsFor {
@@ -394,7 +370,6 @@ func (a *App) contactRow(gtx layout.Context, c engine.ContactInfo, btn *widget.C
 	)
 }
 
-// addContactDialog: centered card (phone + names) over a scrim.
 func (a *App) addContactDialog(gtx layout.Context, f frame) layout.Dimensions {
 	if addDlgCancel.Clicked(gtx) {
 		a.mu.Lock()
@@ -406,7 +381,6 @@ func (a *App) addContactDialog(gtx layout.Context, f frame) layout.Dimensions {
 		a.submitAddContact()
 	}
 
-	// Scrim behind the card.
 	paint.FillShape(gtx.Ops, color.NRGBA{R: 0, G: 0, B: 0, A: 0x66},
 		clip.Rect{Max: image.Pt(gtx.Constraints.Max.X, gtx.Constraints.Max.Y)}.Op())
 

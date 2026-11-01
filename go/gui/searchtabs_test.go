@@ -13,9 +13,6 @@ func searchFixtureRows() []sbRow {
 	return buildSearchRows(visible, msgs, nil, global, "")
 }
 
-// Search results tabs (slice 57): All keeps the unified sections, Chats
-// keeps chat+global sections, the message tabs keep only message rows,
-// and the invite row survives everywhere.
 func TestFilterSearchRows(t *testing.T) {
 	rows := searchFixtureRows()
 
@@ -25,7 +22,7 @@ func TestFilterSearchRows(t *testing.T) {
 	}
 
 	chats := filterSearchRows(rows, searchTabChats)
-	if len(chats) != 5 { // Chats header + 2 chats + Global header + 1 global
+	if len(chats) != 5 {
 		t.Fatalf("chats tab = %d rows: %+v", len(chats), chats)
 	}
 	for _, r := range chats {
@@ -35,7 +32,7 @@ func TestFilterSearchRows(t *testing.T) {
 	}
 
 	msgs := filterSearchRows(rows, searchTabMsgs)
-	if len(msgs) != 3 { // Messages header + 2 hits
+	if len(msgs) != 3 {
 		t.Fatalf("messages tab = %d rows: %+v", len(msgs), msgs)
 	}
 	for _, r := range msgs {
@@ -54,7 +51,7 @@ func TestFilterSearchRows(t *testing.T) {
 	if len(inv) == 0 || inv[0].kind != sbRowInvite {
 		t.Fatalf("invite row lost: %+v", inv)
 	}
-	if len(inv) != 4 { // invite + Messages header + 2 hits
+	if len(inv) != 4 {
 		t.Fatalf("files tab w/ invite = %d rows", len(inv))
 	}
 }

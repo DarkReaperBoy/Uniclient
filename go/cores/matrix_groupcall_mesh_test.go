@@ -7,21 +7,12 @@ import (
 	"maunium.net/go/mautrix/id"
 )
 
-// B-6 → F-62, mesh decision layer (slice 296): everything that decides
-// WHICH peers get a peer-connection and WHO offers, without touching a
-// socket — the SDP fan-out (slice 297) consumes these.
-//
-// Seam-RED (WORKLOG 296): undefined: groupPeersToConnect.
-
 func TestGroupPeerKey(t *testing.T) {
 	if got := groupPeerKey("@a:t", "DEV"); got != "@a:t|DEV" {
 		t.Fatalf("peer key = %q", got)
 	}
 }
 
-// TestGroupShouldOfferNoGlare: for any pair EXACTLY one side offers
-// (lexicographic tie-break) — the rule that makes glare impossible in
-// the N×(N−1) mesh. A key never offers to itself.
 func TestGroupShouldOfferNoGlare(t *testing.T) {
 	pairs := [][2]string{
 		{"@a:t|D1", "@b:t|D1"},
@@ -41,21 +32,19 @@ func TestGroupShouldOfferNoGlare(t *testing.T) {
 	}
 }
 
-// TestGroupPeersToConnect: live devices everywhere except OUR device;
-// expired entries dropped; deterministic order (sorted by peer key).
 func TestGroupPeersToConnect(t *testing.T) {
 	const now int64 = 1_760_000_000_000
 	members := map[id.UserID]matrixCallMemberContent{
 		"@alice:test": {Calls: []matrixCallMemberCall{{CallID: "c", Devices: []matrixCallDevice{
-			{DeviceID: "SELF", ExpiresTS: now + 10_000},   // ours → excluded
-			{DeviceID: "ALICE2", ExpiresTS: now + 10_000}, // our OTHER device → included
+			{DeviceID: "SELF", ExpiresTS: now + 10_000},
+			{DeviceID: "ALICE2", ExpiresTS: now + 10_000},
 		}}}},
 		"@bob:test": {Calls: []matrixCallMemberCall{{CallID: "c", Devices: []matrixCallDevice{
 			{DeviceID: "BOB1", ExpiresTS: now + 10_000},
 			{DeviceID: "BOB-EXPIRED", ExpiresTS: now - 1},
 		}}}},
 		"@carol:test": {Calls: []matrixCallMemberCall{{CallID: "c", Devices: []matrixCallDevice{
-			{DeviceID: "CAROL1", ExpiresTS: now - 1}, // expired → dropped
+			{DeviceID: "CAROL1", ExpiresTS: now - 1},
 		}}}},
 	}
 	got := groupPeersToConnect("@alice:test", "SELF", members, now)
@@ -72,8 +61,6 @@ func TestGroupPeersToConnect(t *testing.T) {
 	}
 }
 
-// TestConfIDFromRaw: the 1:1 vs group dispatch discriminator on raw
-// event content.
 func TestConfIDFromRaw(t *testing.T) {
 	if confIDFromRaw(map[string]interface{}{"conf_id": "conf_x"}) != "conf_x" {
 		t.Fatal("conf_id not read")
@@ -89,8 +76,6 @@ func TestConfIDFromRaw(t *testing.T) {
 	}
 }
 
-// TestWithConfID: outgoing 1:1-shaped content gains conf_id without
-// losing any field (the group transport rides the same m.call.* names).
 func TestWithConfID(t *testing.T) {
 	type invite struct {
 		CallID string `json:"call_id"`
@@ -103,7 +88,6 @@ func TestWithConfID(t *testing.T) {
 	if out["conf_id"] != "conf_z" || out["call_id"] != "c1" || out["offer"] != "v=0" {
 		t.Fatalf("merged content = %#v", out)
 	}
-	// Round-trips through JSON like the real send path.
 	raw, err := json.Marshal(out)
 	if err != nil {
 		t.Fatalf("marshal: %v", err)

@@ -7,10 +7,6 @@ import (
 	"uniclient/engine"
 )
 
-// Paid-media star wall (slice 181, GUI half): pure logic — parsePaidMedia
-// over the cached Extra, wall gating (locked → wall, unlocked → normal
-// media bubble), star text. Layout verified by compile + review.
-
 func paidMessage(extra map[string]interface{}) *engine.CachedMessage {
 	env := struct {
 		Extra map[string]interface{} `json:"extra"`
@@ -50,7 +46,6 @@ func TestParsePaidMedia(t *testing.T) {
 		t.Fatal("locked media parsed as unlocked")
 	}
 
-	// Unlocked: the wall never renders; the real media bubble does.
 	m2 := paidMessage(map[string]interface{}{
 		"invoice_is_paid_media": true,
 		"paid_stars":            float64(25),
@@ -67,7 +62,6 @@ func TestParsePaidMedia(t *testing.T) {
 		t.Fatal("locked paid media must render the wall")
 	}
 
-	// Plain invoice (a bot invoice, not paid media) → no wall.
 	m3 := paidMessage(map[string]interface{}{})
 	if parsePaidMedia(m3) != nil {
 		t.Fatal("non-paid-media message parsed as paid")

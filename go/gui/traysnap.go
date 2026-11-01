@@ -1,22 +1,15 @@
 package gui
 
-// traysnap.go — slice 137: the pure state projection the system tray
-// renders from (per-account unread counts, the ghost/streamer toggles).
-// Cross-platform and unit-tested; the platform tray controller (tray.go)
-// consumes it.
-
 import (
 	"uniclient/engine"
 )
 
-// trayAccount is one account row in the tray menu.
 type trayAccount struct {
 	ID     string
 	Name   string
 	Unread int
 }
 
-// traySnapshot is everything the tray displays at a moment.
 type traySnapshot struct {
 	Accounts    []trayAccount
 	TotalUnread int
@@ -24,7 +17,6 @@ type traySnapshot struct {
 	Streamer    bool
 }
 
-// traySnapshotFrom projects app state into the tray snapshot. Pure.
 func traySnapshotFrom(accounts []engine.AccountInfo, chats []engine.ChatInfo, cfg cfgSnapshot) traySnapshot {
 	unread := make(map[string]int, len(accounts))
 	total := 0
@@ -50,8 +42,6 @@ func traySnapshotFrom(accounts []engine.AccountInfo, chats []engine.ChatInfo, cf
 	}
 }
 
-// trayAccountDisplayName renders an account's menu label basis: display
-// name, else @username, else phone, else the platform title. Pure.
 func trayAccountDisplayName(acc engine.AccountInfo) string {
 	if acc.DisplayName != "" {
 		return acc.DisplayName
@@ -65,8 +55,6 @@ func trayAccountDisplayName(acc engine.AccountInfo) string {
 	return platformTitle(acc.Platform)
 }
 
-// trayAccountLabel formats one account row's label with its unread count.
-// Pure.
 func trayAccountLabel(name string, unread int) string {
 	if unread <= 0 {
 		return name

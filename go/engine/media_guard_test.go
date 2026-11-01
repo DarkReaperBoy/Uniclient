@@ -1,16 +1,5 @@
 package engine
 
-// tests-first for slice 230 — the stream/download file-write guard.
-// Found by auditing slice 228/229: OpenMediaStream cancels QUEUED
-// downloads, but MediaManager.Cancel does nothing to a job a worker has
-// already dequeued, and cores download files with os.Create = O_TRUNC.
-// So a download landing during playback would truncate the very sparse
-// file the stream's bitmap says is present → the player reads short/
-// EOF mid-picture (broken playback), and two writers raced one path.
-// These tests pin the mutual exclusion in BOTH directions plus the
-// complete-row idempotence (an already-downloaded file must complete
-// instantly instead of re-downloading over the file being read).
-
 import (
 	"errors"
 	"os"
@@ -22,15 +11,13 @@ import (
 	"uniclient/cores"
 )
 
-// guardCore is a core with BOTH halves of the collision: a DownloadFile
-// spy (os.Create semantics, like every real core) and a ranged source.
 type guardCore struct {
 	cores.StubCore
 
 	mu      sync.Mutex
 	dlCalls int
 	part    *fakePartSource
-	dlErr   error // F-78 test hook: write a partial to dest, then fail
+	dlErr   error
 }
 
 func (g *guardCore) DownloadFile(_ cores.FileRef, dest string, _ func(int64, int64)) error {
@@ -40,7 +27,6 @@ func (g *guardCore) DownloadFile(_ cores.FileRef, dest string, _ func(int64, int
 	dlErr := g.dlErr
 	g.mu.Unlock()
 	if dlErr != nil {
-		// Simulate a core that wrote bytes and THEN failed (F-78).
 		os.WriteFile(dest, []byte("partial-bytes"), 0o644)
 		return dlErr
 	}
@@ -60,8 +46,6 @@ func (g *guardCore) downloads() int {
 	return g.dlCalls
 }
 
-// newGuardEngine wires an engine with the fake core, a media manager and
-// one seeded streaming-eligible row (msgID m1, seq 0).
 func newGuardEngine(t *testing.T) (*Engine, *guardCore, []byte) {
 	t.Helper()
 	e := newTestEngine(t)
@@ -74,10 +58,6 @@ func newGuardEngine(t *testing.T) (*Engine, *guardCore, []byte) {
 	return e, core, data
 }
 
-// TestRequestDownloadRefusedWhileStreamOpen: the stream IS the download
-// for that file — a second writer must not enqueue, and closing the
-// reader must hand the key back (the fallback flow closes first, then
-// requests, so it must land in the queue).
 func TestRequestDownloadRefusedWhileStreamOpen(t *testing.T) {
 	e, _, _ := newGuardEngine(t)
 
@@ -106,10 +86,6 @@ func TestRequestDownloadRefusedWhileStreamOpen(t *testing.T) {
 	}
 }
 
-// TestOpenMediaStreamRefusedWhileDownloadActive: the reverse direction.
-// A download a worker already dequeued holds the key (MediaManager.Cancel
-// cannot touch it), so opening a stream must fail with a distinct error
-// — the GUI then honestly falls back to download-then-play.
 func TestOpenMediaStreamRefusedWhileDownloadActive(t *testing.T) {
 	e, _, _ := newGuardEngine(t)
 	key := mediaGuardKey("a1", "c1", "m1", 0)
@@ -129,11 +105,6 @@ func TestOpenMediaStreamRefusedWhileDownloadActive(t *testing.T) {
 	s.Close()
 }
 
-// TestExecuteDownloadSkipsWhileStreamOpen: the worker-side check. A job
-// that was enqueued (or dequeued) before the stream opened must not
-// touch the row or the file while the stream owns the key — os.Create
-// would truncate the sparse file mid-playback. Once the stream closes,
-// the same job runs normally.
 func TestExecuteDownloadSkipsWhileStreamOpen(t *testing.T) {
 	e, core, _ := newGuardEngine(t)
 
@@ -175,10 +146,6 @@ func TestExecuteDownloadSkipsWhileStreamOpen(t *testing.T) {
 	}
 }
 
-// TestRequestDownloadCompletesInstantlyWhenFileOnDisk: idempotence. The
-// row is complete and the file exists — "download it" must complete on
-// the spot (event for any marker, no queue, no network) instead of
-// os.Create-truncating the completed file that a player may be reading.
 func TestRequestDownloadCompletesInstantlyWhenFileOnDisk(t *testing.T) {
 	e, core, data := newGuardEngine(t)
 
@@ -190,7 +157,6 @@ func TestRequestDownloadCompletesInstantlyWhenFileOnDisk(t *testing.T) {
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	// newGuardEngine already seeded the row — flip it to complete.
 	if _, err := e.db.Exec(
 		`UPDATE media SET download_state=?, local_path=?
 		 WHERE account_id='a1' AND chat_id='c1' AND msg_id='m1' AND seq=0`,
@@ -216,9 +182,6 @@ func TestRequestDownloadCompletesInstantlyWhenFileOnDisk(t *testing.T) {
 	}
 }
 
-// TestStreamGuardSurvivesDoubleClose: Close is idempotent and the guard
-// refcount must not go negative or stick — after any close sequence the
-// download side must be able to claim the key.
 func TestStreamGuardSurvivesDoubleClose(t *testing.T) {
 	e, _, _ := newGuardEngine(t)
 	key := mediaGuardKey("a1", "c1", "m1", 0)
@@ -231,7 +194,7 @@ func TestStreamGuardSurvivesDoubleClose(t *testing.T) {
 		t.Error("download claimed the key while the stream held it")
 	}
 	s.Close()
-	s.Close() // second close: no double release
+	s.Close()
 
 	s2, _, _, err := e.OpenMediaStream("a1", "c1", "m1", 0)
 	if err != nil {
@@ -244,8 +207,6 @@ func TestStreamGuardSurvivesDoubleClose(t *testing.T) {
 	e.releaseDownload(key)
 }
 
-// getAccountCore hands back this test's fake core (asserting the wiring
-// it depends on).
 func (e *Engine) getAccountCore(t *testing.T) *guardCore {
 	t.Helper()
 	acc, ok := e.getAccount("a1")
@@ -259,7 +220,6 @@ func (e *Engine) getAccountCore(t *testing.T) *guardCore {
 	return c
 }
 
-// evRecorder captures pushed events as strings.
 type evRecorder struct {
 	mu  sync.Mutex
 	got []string

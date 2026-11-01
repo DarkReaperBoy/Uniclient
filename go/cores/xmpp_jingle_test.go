@@ -2,11 +2,6 @@ package cores
 
 import "testing"
 
-// TestJingleCodecTables pins the XEP-0266/0299 recommended codec
-// tables (deadcode: unreachable even with tests — the XMPP call path
-// builds its SDP elsewhere). Kept as protocol reference per the B-18
-// table doctrine, with the values locked so a silent edit can't drift
-// them away from the spec.
 func TestJingleCodecTables(t *testing.T) {
 	audio := JingleAudioCodecs()
 	wantAudio := []map[string]string{

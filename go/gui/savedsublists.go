@@ -16,30 +16,12 @@ import (
 	"uniclient/cores"
 )
 
-// Saved Messages sublists (slice 197, tdesktop 5.16 parity): the saved
-// chat gains a header button that opens the sublists pane (the right
-// sidebar — one row per dialog the user saved messages from, "All
-// messages" on top, pinned first), and picking a sublist scopes the
-// message view to it (bar under the header: back → the whole saved
-// chat; the page reads the messages cache filtered by saved_peer, fed
-// by messages.getSavedHistory on first open and the live update stream
-// after). Sending while scoped keeps the plain self-chat target
-// (tdesktop: a new note lands in "My Notes", not the filtered peer).
-
-// savedScopeState: the open sublist/tag scope (nil = the whole saved
-// chat). A tag scope (tag != "") pages through the server-side
-// reaction-tag search; a sublist scope through the saved_peer cache
-// filter.
 type savedScopeState struct {
-	peerID string // the sublist peer (the saved_peer filter value)
-	title  string // display title (bar + window title)
-	tag    string // reaction-tag emoji (non-empty = tag scope, peerID "")
+	peerID string
+	title  string
+	tag    string
 }
 
-// sortSavedSublists: pinned rows first (in the SERVER pin order —
-// slice 204: reorder must be visible, and messages.getSavedDialogs
-// returns the pin order), then the unpinned tail by last activity
-// (newest first). Pure — locked by tests.
 func sortSavedSublists(lists []cores.SavedSublistInfo) []cores.SavedSublistInfo {
 	pinned := make([]cores.SavedSublistInfo, 0, len(lists))
 	tail := make([]cores.SavedSublistInfo, 0, len(lists))
@@ -54,8 +36,6 @@ func sortSavedSublists(lists []cores.SavedSublistInfo) []cores.SavedSublistInfo 
 	return append(pinned, tail...)
 }
 
-// sortSavedByTimeDesc is a tiny stable insertion sort (small n).
-// Pure.
 func sortSavedByTimeDesc(rows []cores.SavedSublistInfo) {
 	for i := 1; i < len(rows); i++ {
 		for j := i; j > 0 && rows[j].LastMsgTime > rows[j-1].LastMsgTime; j-- {
@@ -64,8 +44,6 @@ func sortSavedByTimeDesc(rows []cores.SavedSublistInfo) {
 	}
 }
 
-// savedScopeBarTitle: "Saved from <name>" (generic when unknown).
-// Pure — locked by tests.
 func savedScopeBarTitle(title string) string {
 	title = strings.TrimSpace(title)
 	if title == "" {
@@ -74,8 +52,6 @@ func savedScopeBarTitle(title string) string {
 	return "Saved from " + title
 }
 
-// savedSublistRowTitle: the row title with the honest fallback.
-// Pure — locked by tests.
 func savedSublistRowTitle(l cores.SavedSublistInfo) string {
 	if t := strings.TrimSpace(l.PeerName); t != "" {
 		return t
@@ -83,8 +59,6 @@ func savedSublistRowTitle(l cores.SavedSublistInfo) string {
 	return "Saved messages"
 }
 
-// savedSublistPreview: the top message's text, trimmed for the row.
-// Pure — locked by tests.
 func savedSublistPreview(l cores.SavedSublistInfo) string {
 	p := strings.TrimSpace(l.LastMsgText)
 	if len(p) > 58 {
@@ -93,8 +67,6 @@ func savedSublistPreview(l cores.SavedSublistInfo) string {
 	return p
 }
 
-// savedTagBarTitle: the open tag scope's bar title — "Tag · <title>"
-// (the emoji alone when the tag has no name). Pure — locked by tests.
 func savedTagBarTitle(emoji, title string) string {
 	title = strings.TrimSpace(title)
 	if title == "" {
@@ -103,8 +75,6 @@ func savedTagBarTitle(emoji, title string) string {
 	return "Tag " + emoji + " · " + title
 }
 
-// savedTagRowLabel: one tag row's title — the tag's name, else the bare
-// emoji. Pure — locked by tests.
 func savedTagRowLabel(tg cores.SavedReactionTagInfo) string {
 	if tg.Title != "" {
 		return tg.Title
@@ -115,15 +85,10 @@ func savedTagRowLabel(tg cores.SavedReactionTagInfo) string {
 	return "tag"
 }
 
-// tagsSectionVisible: the Lists pane shows the Tags section only for
-// premium accounts with tags on the server (honest gating — dead UI
-// banned, §1.10). Pure — locked by tests.
 func tagsSectionVisible(accountPremium bool, tags []cores.SavedReactionTagInfo) bool {
 	return accountPremium && len(tags) > 0
 }
 
-// savedScopeFor returns the open saved-sublist scope when the selected
-// chat is the saved chat it belongs to (nil = none).
 func (a *App) savedScopeFor(k *chatKey) *savedScopeState {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -136,7 +101,6 @@ func (a *App) savedScopeFor(k *chatKey) *savedScopeState {
 	return a.savedScope
 }
 
-// toggleSavedLists opens/closes the sublists pane (and loads the list).
 func (a *App) toggleSavedLists(k chatKey) {
 	a.mu.Lock()
 	open := !a.savedListOpen
@@ -148,9 +112,6 @@ func (a *App) toggleSavedLists(k chatKey) {
 	a.invalidate()
 }
 
-// loadSavedSublists fetches the account's sublists (and, for premium
-// accounts, the reaction tags) through the engine (async — the pane
-// shows an honest loading state meanwhile).
 func (a *App) loadSavedSublists(k chatKey) {
 	go func() {
 		lists, _, err := a.eng.GetSavedSublists(k.AccountID, 100, 0, 0, false)
@@ -165,8 +126,6 @@ func (a *App) loadSavedSublists(k chatKey) {
 		}
 		a.mu.Unlock()
 		a.invalidate()
-		// Reaction tags (slice 199): premium surface, fetched separately so
-		// a tag-list failure never blocks the sublists.
 		go func() {
 			tags, err := a.eng.GetSavedReactionTags(k.AccountID, "")
 			a.mu.Lock()
@@ -183,15 +142,13 @@ func (a *App) loadSavedSublists(k chatKey) {
 	}()
 }
 
-// openSavedTag scopes the saved chat's view to one reaction tag (the
-// server-side tag search — premium).
 func (a *App) openSavedTag(emoji, title string) {
 	a.mu.Lock()
 	k := a.selected
 	a.savedScope = &savedScopeState{title: title, tag: emoji}
 	a.savedListOpen = false
 	a.messages = nil
-	a.uiGen++ // R31: loaders still in flight for the previous view are stale
+	a.uiGen++
 	a.loadingMsgs = true
 	a.olderDone = false
 	a.loadingOlder = false
@@ -219,14 +176,13 @@ func (a *App) openSavedTag(emoji, title string) {
 	}()
 }
 
-// openSavedSublist scopes the saved chat's view to one sublist.
 func (a *App) openSavedSublist(peerID, title string) {
 	a.mu.Lock()
 	k := a.selected
 	a.savedScope = &savedScopeState{peerID: peerID, title: title}
 	a.savedListOpen = false
 	a.messages = nil
-	a.uiGen++ // R31: loaders still in flight for the previous view are stale
+	a.uiGen++
 	a.loadingMsgs = true
 	a.olderDone = false
 	a.loadingOlder = false
@@ -253,13 +209,12 @@ func (a *App) openSavedSublist(peerID, title string) {
 	}()
 }
 
-// closeSavedSublist returns to the whole saved-chat view.
 func (a *App) closeSavedSublist() {
 	a.mu.Lock()
 	k := a.selected
 	a.savedScope = nil
 	a.messages = nil
-	a.uiGen++ // R31: the sublist's in-flight loaders are stale now
+	a.uiGen++
 	a.loadingMsgs = true
 	a.mu.Unlock()
 	a.invalidate()
@@ -269,8 +224,6 @@ func (a *App) closeSavedSublist() {
 	go a.refreshMessages()
 }
 
-// layoutSavedScopeBar: the open sublist's identity strip under the
-// header (back → the whole saved chat).
 func (a *App) layoutSavedScopeBar(gtx layout.Context, f frame) layout.Dimensions {
 	if a.wid.savedBackBtn.Clicked(gtx) {
 		a.closeSavedSublist()
@@ -304,11 +257,7 @@ func (a *App) layoutSavedScopeBar(gtx layout.Context, f frame) layout.Dimensions
 	})
 }
 
-// layoutSavedListsPane renders the sublists sidebar column (the right
-// pane while savedListOpen): "All messages" + one row per sublist, the
-// honest loading/empty/error states below the title.
 func (a *App) layoutSavedListsPane(gtx layout.Context, f frame) layout.Dimensions {
-	// Slice 204: secondary-press routing (row context menu).
 	a.processSavedListsEvents(gtx, f)
 	lists := sortSavedSublists(f.savedLists)
 	for len(a.wid.savedListRowBtns) < len(lists)+1 {
@@ -350,8 +299,6 @@ func (a *App) layoutSavedListsPane(gtx layout.Context, f frame) layout.Dimension
 			})
 		}))
 	}
-	// "All messages" row + one row per sublist (bounds tracked for the
-	// row context menu — display rows 1..n map to lists[0..n-1]).
 	for idx := 0; idx <= len(lists); idx++ {
 		rows = append(rows, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			dims := a.savedSublistRow(gtx, f, lists, idx)
@@ -361,8 +308,6 @@ func (a *App) layoutSavedListsPane(gtx layout.Context, f frame) layout.Dimension
 			return dims
 		}))
 	}
-	// Reaction tags (slice 199): the premium tag rows under their own
-	// header — picking one scopes the view to the tagged messages.
 	if f.selected != nil && tagsSectionVisible(accountByID(f, f.selected.AccountID).IsPremium, f.savedTags) {
 		rows = append(rows, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Top: unit.Dp(10), Bottom: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -399,8 +344,6 @@ func (a *App) layoutSavedListsPane(gtx layout.Context, f frame) layout.Dimension
 	return menuDims
 }
 
-// savedSublistRow renders one pane row: idx 0 = "All messages", else
-// the (idx-1)th sublist (pinned glyph, title, preview).
 func (a *App) savedSublistRow(gtx layout.Context, f frame, lists []cores.SavedSublistInfo, idx int) layout.Dimensions {
 	btn := &a.wid.savedListRowBtns[idx]
 	title, preview, pinned := "All messages", "every saved message", false
@@ -464,9 +407,6 @@ func (a *App) savedSublistRow(gtx layout.Context, f frame, lists []cores.SavedSu
 	})
 }
 
-// savedTagRow renders one reaction-tag row: the emoji glyph, the tag
-// name, and the count. Picking it scopes the view to the tagged
-// messages (the server-side tag search).
 func (a *App) savedTagRow(gtx layout.Context, f frame, idx int) layout.Dimensions {
 	for len(a.wid.savedTagRowBtns) < len(f.savedTags) {
 		a.wid.savedTagRowBtns = append(a.wid.savedTagRowBtns, widget.Clickable{})
@@ -504,8 +444,6 @@ func (a *App) savedTagRow(gtx layout.Context, f frame, idx int) layout.Dimension
 	})
 }
 
-// savedHeaderBtn renders the saved chat's "Lists" header button (the
-// pane toggle — bookmark glyph; accent while the pane is open).
 func (a *App) savedHeaderBtn(gtx layout.Context, f frame, k chatKey) layout.Dimensions {
 	if a.wid.savedListBtn.Clicked(gtx) {
 		a.toggleSavedLists(k)
@@ -520,31 +458,18 @@ func (a *App) savedHeaderBtn(gtx layout.Context, f frame, k chatKey) layout.Dime
 	})
 }
 
-// ---- slice 204: row context menu (pin toggle / move / delete) ----
-
-// savedListsPaneTag is the pointer-interest tag for the Lists pane
-// (row context menu routing).
 var savedListsPaneTag = new(struct{})
 
-// savedSublistMenuTarget is the open row context menu (display-list row
-// index + anchor point, callsbox-style).
 type savedSublistMenuTarget struct {
 	row int
 	pos image.Point
 }
 
-// savedDelDlgState is the open delete-confirm dialog (nil when closed).
 type savedDelDlgState struct {
 	list cores.SavedSublistInfo
 	busy bool
 }
 
-// savedSublistMenuActions (pure): the row menu entries. Pinned rows get
-// the move entries bounded by the pinned-block edges; every row gets
-// the pin toggle and the destructive delete. separate: Delete needs its
-// confirm card (savedDelDlg), a main-branch window modal — the
-// saved-lists pane renders in every window, so the entry is dropped in
-// separate windows (R30); pin/move are direct engine actions and stay.
 func savedSublistMenuActions(pinned, canUp, canDown, separate bool) []string {
 	out := make([]string, 0, 4)
 	if pinned {
@@ -564,9 +489,6 @@ func savedSublistMenuActions(pinned, canUp, canDown, separate bool) []string {
 	return out
 }
 
-// savedSublistMovePeers (pure): the new pinned order after moving the
-// row at display index row by delta (±1) within the pinned block.
-// Edge moves (or unpinned rows) are no-ops — the input order returns.
 func savedSublistMovePeers(lists []cores.SavedSublistInfo, row, delta int) []string {
 	peers := make([]string, 0, len(lists))
 	for _, l := range lists {
@@ -595,8 +517,6 @@ func savedSublistMovePeers(lists []cores.SavedSublistInfo, row, delta int) []str
 	return peers
 }
 
-// savedPinnedBlockBounds (pure): how many display rows are pinned, and
-// whether the row at index row can move up/down within the block.
 func savedPinnedBlockBounds(lists []cores.SavedSublistInfo) (pinned int) {
 	for _, l := range lists {
 		if l.IsPinned {
@@ -606,9 +526,6 @@ func savedPinnedBlockBounds(lists []cores.SavedSublistInfo) (pinned int) {
 	return pinned
 }
 
-// processSavedListsEvents registers the pane pointer interest and routes
-// secondary presses to the row context menu; any press outside an open
-// menu dismisses it (the callsbox pattern).
 func (a *App) processSavedListsEvents(gtx layout.Context, f frame) {
 	stack := clip.Rect{Max: gtx.Constraints.Max}.Push(gtx.Ops)
 	event.Op(gtx.Ops, savedListsPaneTag)
@@ -650,7 +567,6 @@ func (a *App) processSavedListsEvents(gtx layout.Context, f frame) {
 	}
 }
 
-// savedSublistAct runs one row-menu action (async engine call + reload).
 func (a *App) savedSublistAct(k chatKey, lists []cores.SavedSublistInfo, row, action int) {
 	acc := k.AccountID
 	a.mu.Lock()
@@ -693,9 +609,6 @@ func (a *App) savedSublistAct(k chatKey, lists []cores.SavedSublistInfo, row, ac
 	}
 }
 
-// submitSavedDelete confirms the delete dialog: engine call (the
-// messages.deleteSavedHistory + local cache purge), reload, and if the
-// open scope IS the deleted sublist, back out to the whole saved chat.
 func (a *App) submitSavedDelete(k chatKey) {
 	d := a.savedDelDlg
 	if d == nil || d.busy {
@@ -728,7 +641,6 @@ func (a *App) submitSavedDelete(k chatKey) {
 	}()
 }
 
-// closeSavedDeleteDialog drops the confirm without acting.
 func (a *App) closeSavedDeleteDialog() {
 	a.mu.Lock()
 	a.savedDelDlg = nil
@@ -736,8 +648,6 @@ func (a *App) closeSavedDeleteDialog() {
 	a.invalidate()
 }
 
-// layoutSavedSublistMenu renders the row context menu anchored at the
-// press point (callsbox row-menu pattern).
 func (a *App) layoutSavedSublistMenu(gtx layout.Context, f frame) layout.Dimensions {
 	m := f.savedSublistMenu
 	lists := sortSavedSublists(f.savedLists)
@@ -823,8 +733,6 @@ func (a *App) layoutSavedSublistMenu(gtx layout.Context, f frame) layout.Dimensi
 	return dims
 }
 
-// layoutSavedDeleteDialog: the destructive-action confirm card (the
-// slice-190 clear-history box pattern).
 func (a *App) layoutSavedDeleteDialog(gtx layout.Context, f frame) layout.Dimensions {
 	d := f.savedDelDlg
 	if a.wid.savedDelCancel.Clicked(gtx) {

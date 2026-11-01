@@ -12,14 +12,6 @@ import (
 	"gioui.org/widget/material"
 )
 
-// Message auto-delete / TTL (AyuGram parity, matrix "Chat menu"):
-// the header ⋮ menu gains "Auto-delete…" which opens a small dialog with
-// Telegram's period choices (Off / 24 hours / 7 days / 1 month); the
-// engine's SetChatTTL persists it server-side and updates the cached
-// chat row, and the profile panel shows the active period. Received
-// per-message TTL rendering (the countdown) is a later slice.
-
-// ttlChoice is one auto-delete option.
 type ttlChoice struct {
 	label string
 	secs  int
@@ -32,7 +24,6 @@ var ttlChoices = []ttlChoice{
 	{"1 month", 30 * 24 * 3600},
 }
 
-// ttlLabel renders a TTL period for display (profile rows, toasts).
 func ttlLabel(secs int) string {
 	switch secs {
 	case 0:
@@ -53,7 +44,6 @@ func ttlLabel(secs int) string {
 	return itoa(secs) + "s"
 }
 
-// ttlDlgState is the open auto-delete dialog.
 type ttlDlgState struct {
 	accountID string
 	chatID    string
@@ -66,7 +56,6 @@ var (
 	ttlDlgKeyTag    = new(struct{})
 )
 
-// closeTtlDialog dismisses it.
 func (a *App) closeTtlDialog() {
 	a.mu.Lock()
 	a.ttlDlg = nil
@@ -74,7 +63,6 @@ func (a *App) closeTtlDialog() {
 	a.invalidate()
 }
 
-// applyChatTTL sets the chat's auto-delete period (async + toast).
 func (a *App) applyChatTTL(accountID, chatID string, secs int) {
 	go func() {
 		if err := a.eng.SetChatTTL(accountID, chatID, secs); err != nil {
@@ -85,13 +73,10 @@ func (a *App) applyChatTTL(accountID, chatID string, secs int) {
 	}()
 }
 
-// layoutTtlDialog renders the period picker (content-pane replacement,
-// like the other header dialogs).
 func (a *App) layoutTtlDialog(gtx layout.Context, f frame) layout.Dimensions {
 	st := f.ttlDlg
 	growClickables(&ttlDlgRowBtns, len(ttlChoices))
 
-	// Esc closes (self-handled).
 	{
 		stack := clip.Rect{Max: image.Pt(gtx.Constraints.Max.X, gtx.Constraints.Max.Y)}.Push(gtx.Ops)
 		event.Op(gtx.Ops, ttlDlgKeyTag)

@@ -1,11 +1,5 @@
 package cores
 
-// telegram_wallpaper_test.go — slice 218 pins: wire normalization of the
-// wallPaper constructor (document coords + settings incl. the pattern
-// intensity and the multi-color fills), the settings round-trip used by
-// the set/install RPCs, and the service-message Extra extraction that the
-// engine mirrors onto chats.wallpaper_json.
-
 import (
 	"encoding/json"
 	"testing"
@@ -79,8 +73,6 @@ func TestWallpaperFromWireFillColors(t *testing.T) {
 
 func TestWallpaperFromWireNoFile(t *testing.T) {
 	tcore := &TelegramCore{}
-	// wallPaperNoFile and non-WallPaper classes normalize to the zero
-	// info (the caller treats that as "no wallpaper").
 	if info := tcore.wallpaperFromWire(&tg.WallPaperNoFile{ID: 9}); info.ID != 0 {
 		t.Fatalf("no-file wallpaper produced %+v", info)
 	}
@@ -120,8 +112,6 @@ func TestWallpaperSettingsRoundTrip(t *testing.T) {
 			t.Fatalf("color[%d] = %06X, want %06X", i, got, want)
 		}
 	}
-	// Round-trip back through the wire normalizer with flags armed the
-	// way the API returns them.
 	wp := &tg.WallPaper{ID: 5, Settings: s}
 	wp.SetSettings(s)
 	info2 := (&TelegramCore{}).wallpaperFromWire(wp)
@@ -132,8 +122,6 @@ func TestWallpaperSettingsRoundTrip(t *testing.T) {
 }
 
 func TestWallpaperExtraJSONRoundTrip(t *testing.T) {
-	// The engine stores Extra["chat_wallpaper"] as marshaled
-	// WallpaperInfo — pinned here so the GUI-side parse never drifts.
 	info := WallpaperInfo{
 		ID: 42, AccessHash: 4242, DocID: 1001, DocHash: 2002,
 		Blurred: true, Pattern: false, Colors: []int{0x336699},
@@ -153,8 +141,6 @@ func TestWallpaperExtraJSONRoundTrip(t *testing.T) {
 }
 
 func TestWallpaperSettingsFromInfoEmpty(t *testing.T) {
-	// Zero info must produce a valid settings struct with no color flags
-	// armed (the RPC accepts it — blur/motion off).
 	s := wallpaperSettingsFromInfo(WallpaperInfo{})
 	if s.Flags.Has(0) || s.Flags.Has(4) || s.Flags.Has(5) || s.Flags.Has(6) || s.Flags.Has(3) {
 		t.Fatalf("empty info armed color flags: %+v", s.Flags)

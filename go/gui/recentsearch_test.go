@@ -4,8 +4,6 @@ import (
 	"testing"
 )
 
-// Recent searches (AyuGram parity slice 37).
-
 func TestTrimRecentSearch(t *testing.T) {
 	got := trimRecentSearch([]string{" alice ", "", "bob", "  ", "carol"})
 	want := []string{"alice", "bob", "carol"}

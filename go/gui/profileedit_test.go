@@ -4,21 +4,17 @@ import (
 	"testing"
 )
 
-// Edit-profile validation (AyuGram parity slice 71): client-side checks
-// mirror the server rules so bad values never leave the device. Pure
-// functions locked here.
-
 func TestValidateUsername(t *testing.T) {
 	cases := []struct {
 		in   string
 		want string
 	}{
-		{"", ""},                         // empty = no change
-		{"abc", "at least 5 characters"}, // too short
+		{"", ""},
+		{"abc", "at least 5 characters"},
 		{"ab", "at least 5 characters"},
-		{"abcdefghijklmnopqrstuvwxyz1234567", "at most 32 characters"}, // 33
+		{"abcdefghijklmnopqrstuvwxyz1234567", "at most 32 characters"},
 		{"valid_user", ""},
-		{"ValidUser", ""}, // gets lowercased, still valid
+		{"ValidUser", ""},
 		{"_leading", "must start with a letter"},
 		{"9numbers", "must start with a letter"},
 		{"has-dash", "only letters, digits and _"},
@@ -53,21 +49,17 @@ func stringOf(c byte, n int) string {
 }
 
 func TestParseBirthday(t *testing.T) {
-	// All empty = clear.
 	d, m, y, err := parseBirthday("", "", "")
 	if err != "" || d != 0 || m != 0 || y != 0 {
 		t.Fatalf("empty = clear, got %d/%d/%d %q", d, m, y, err)
 	}
-	// Valid full date.
 	d, m, y, err = parseBirthday("14", "03", "1990")
 	if err != "" || d != 14 || m != 3 || y != 1990 {
 		t.Fatalf("valid date, got %d/%d/%d %q", d, m, y, err)
 	}
-	// Partial is invalid.
 	if _, _, _, err := parseBirthday("14", "", ""); err == "" {
 		t.Fatal("partial date must error")
 	}
-	// Out-of-range values.
 	if _, _, _, err := parseBirthday("32", "1", "1990"); err == "" {
 		t.Fatal("day 32 must error")
 	}
@@ -80,11 +72,9 @@ func TestParseBirthday(t *testing.T) {
 	if _, _, _, err := parseBirthday("1", "1", "1790"); err == "" {
 		t.Fatal("year 1790 must error")
 	}
-	// Year optional (Telegram hides the year by default).
 	if _, _, _, err := parseBirthday("1", "1", ""); err != "" {
 		t.Fatalf("year-less date must pass, got %q", err)
 	}
-	// Non-numeric.
 	if _, _, _, err := parseBirthday("ab", "1", "1990"); err == "" {
 		t.Fatal("non-numeric day must error")
 	}

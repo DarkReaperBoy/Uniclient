@@ -1,15 +1,5 @@
 package gui
 
-// 1:1 call overlay (AyuGram parity slice 101): DM calls surfaced from the
-// engine's complete call API. The chat header gains phone/video buttons for
-// callable DMs (capability-gated), StartCall raises the full-window call
-// panel, EventIncomingCall raises the ringing overlay with accept/decline,
-// and EventCallState drives ringing → connecting → active → ended. Controls
-// dispatch real engine calls: SetCallMuted, ToggleCamera, EndCall/DeclineCall.
-// The panel auto-dismisses a few seconds after the call ends (AyuGram shows
-// the ended state briefly). No simulated audio levels — the panel shows only
-// what the engine reports.
-
 import (
 	"image/color"
 	"time"
@@ -27,29 +17,24 @@ import (
 	"uniclient/engine"
 )
 
-// callUI is the 1:1 (DM) call session driving the overlay (slice 101).
 type callUI struct {
 	accountID string
 	callID    string
 	chatID    string
 	peerName  string
 	video     bool
-	incoming  bool // ringing from the peer (vs. our outgoing call)
+	incoming  bool
 
-	state     string    // cores.CallState string
-	startedAt time.Time // stamped on the first active transition
-	endedAt   time.Time // stamped on the ended transition
+	state     string
+	startedAt time.Time
+	endedAt   time.Time
 
-	muted bool // local mirror of SetCallMuted
-	camOn bool // local mirror of ToggleCamera
+	muted bool
+	camOn bool
 }
 
-// callDismissDelay is how long the ended panel stays up before closing.
 const callDismissDelay = 4 * time.Second
 
-// dmCallButtons decides whether the chat header shows the 1:1 call buttons.
-// Only DMs on accounts with the CALLS capability and non-bot peers — groups
-// and channels use the group-call bar instead (slice 70).
 func dmCallButtons(c engine.ChatInfo, caps []string) (voice, video bool) {
 	if c.Type != engine.ChatTypeDMVal || c.IsBot {
 		return false, false
@@ -60,7 +45,6 @@ func dmCallButtons(c engine.ChatInfo, caps []string) (voice, video bool) {
 	return true, true
 }
 
-// capContains reports whether caps contains want.
 func capContains(caps []string, want string) bool {
 	for _, c := range caps {
 		if c == want {
@@ -70,7 +54,6 @@ func capContains(caps []string, want string) bool {
 	return false
 }
 
-// newOutgoingCall builds the panel state for a call we placed.
 func newOutgoingCall(accountID, chatID, peerName string, video bool, callID string) *callUI {
 	return &callUI{
 		accountID: accountID,
@@ -83,7 +66,6 @@ func newOutgoingCall(accountID, chatID, peerName string, video bool, callID stri
 	}
 }
 
-// callUIFromSession builds the panel state for an incoming ringing call.
 func callUIFromSession(accountID string, cs *cores.CallSession, peerName string, video bool) *callUI {
 	if peerName == "" {
 		peerName = "Unknown caller"
@@ -102,15 +84,10 @@ func callUIFromSession(accountID string, cs *cores.CallSession, peerName string,
 	}
 }
 
-// matches reports whether an event belongs to this call session.
 func (c *callUI) matches(accountID, callID string) bool {
 	return c.accountID == accountID && c.callID == callID
 }
 
-// applyEvent folds one engine call-state transition into the session.
-// Monotonic: ended is terminal, stale ringing never rewinds an active call,
-// and startedAt is stamped exactly once (the elapsed timer is stable).
-// Returns whether anything changed (caller invalidates).
 func (c *callUI) applyEvent(state string, now time.Time) bool {
 	switch state {
 	case string(cores.CallStateEnded):
@@ -137,7 +114,7 @@ func (c *callUI) applyEvent(state string, now time.Time) bool {
 		return true
 	case string(cores.CallStateRinging):
 		if c.state != "" {
-			return false // initial only
+			return false
 		}
 		c.state = state
 		return true
@@ -145,12 +122,10 @@ func (c *callUI) applyEvent(state string, now time.Time) bool {
 	return false
 }
 
-// statusLine renders the panel's status text for the current state.
 func (c *callUI) statusLine(now time.Time) string {
 	switch c.state {
 	case string(cores.CallStateEnded):
 		if !c.startedAt.IsZero() {
-			// Frozen at the moment the call ended.
 			return "Call ended · " + fmtDur(int(c.endedAt.Sub(c.startedAt).Seconds()))
 		}
 		return "Call ended"
@@ -167,17 +142,15 @@ func (c *callUI) statusLine(now time.Time) string {
 	return ""
 }
 
-// callControls is the visible control set for the current state.
 type callControls struct {
-	accept  bool // incoming ringing: green answer button
-	decline bool // incoming ringing: red hang-up button
-	mute    bool // active: mic toggle
-	camera  bool // active video: camera toggle
-	end     bool // ringing/connecting/active: red hang-up
-	close   bool // ended: dismiss
+	accept  bool
+	decline bool
+	mute    bool
+	camera  bool
+	end     bool
+	close   bool
 }
 
-// controls derives the buttons from the call state.
 func (c *callUI) controls() callControls {
 	var ct callControls
 	switch c.state {
@@ -202,27 +175,18 @@ func (c *callUI) controls() callControls {
 	return ct
 }
 
-// dismissible reports whether the ended panel may auto-close.
 func (c *callUI) dismissible(now time.Time) bool {
 	return c.state == string(cores.CallStateEnded) && !c.endedAt.IsZero() && now.Sub(c.endedAt) >= callDismissDelay
 }
 
-// callElapsedTickerWanted: the 1s invalidation loop runs only while this
-// exact call session is active (the timer needs a redraw every second).
 func callElapsedTickerWanted(c *callUI, accountID, callID string) bool {
 	return c != nil && c.matches(accountID, callID) && c.state == string(cores.CallStateActive)
 }
 
-// ── button pool ───────────────────────────────────────────────────────────
-
 var (
-	callKeyTag = new(bool) // overlay keyboard layer
+	callKeyTag = new(bool)
 )
 
-// ── state transitions ─────────────────────────────────────────────────────
-
-// loadHdrCaps caches the open chat's account capabilities for the header's
-// call buttons (slice 101). One fetch per account per session.
 func (a *App) loadHdrCaps(k chatKey) {
 	a.mu.Lock()
 	cur := a.hdrCapsFor
@@ -239,7 +203,6 @@ func (a *App) loadHdrCaps(k chatKey) {
 	}()
 }
 
-// startDMCall places a 1:1 call from the chat header (slice 101).
 func (a *App) startDMCall(chat engine.ChatInfo, video bool) {
 	go func() {
 		id, err := a.eng.StartCall(chat.AccountID, chat.ChatID, video)
@@ -254,10 +217,6 @@ func (a *App) startDMCall(chat engine.ChatInfo, video bool) {
 	}()
 }
 
-// onIncomingCallEvent: EventIncomingCall → ringing overlay (slice 101).
-// The peer name resolves from the loaded chat list; the avatar follows at
-// render time from the same source. Only one 1:1 call surface at a time —
-// a second ringing call is dropped (the engine keeps its own state).
 func (a *App) onIncomingCallEvent(accountID string, cs *cores.CallSession) {
 	a.mu.Lock()
 	if a.call != nil {
@@ -276,7 +235,6 @@ func (a *App) onIncomingCallEvent(accountID string, cs *cores.CallSession) {
 	a.invalidate()
 }
 
-// onCallStateEvent: EventCallState → state machine (slice 101).
 func (a *App) onCallStateEvent(accountID string, cs *cores.CallSession) {
 	a.mu.Lock()
 	c := a.call
@@ -297,20 +255,15 @@ func (a *App) onCallStateEvent(accountID string, cs *cores.CallSession) {
 		a.startCallElapsedTicker(accountID, cs.ID)
 	}
 	if ended {
-		go a.loadCalls() // the history row appears server-side
+		go a.loadCalls()
 		go a.scheduleCallDismiss()
-		// Rating dialog (slice 179): only calls that connected and
-		// lasted minRateCallDur (missed/declined never did). R30: the rating
-		// card is a main-branch window modal — the call overlay renders in
-		// every window, so separate windows skip the offer (no dead dialog).
 		if callRateable(c, now) && mainOnlySurfaceShown(a) {
-			a.openRateCall(c) // consolidated (B-18): identical state + own lock
+			a.openRateCall(c)
 		}
 	}
 	a.invalidate()
 }
 
-// startCallElapsedTicker redraws every second while the call is active.
 func (a *App) startCallElapsedTicker(accountID, callID string) {
 	go func() {
 		t := time.NewTicker(time.Second)
@@ -327,7 +280,6 @@ func (a *App) startCallElapsedTicker(accountID, callID string) {
 	}()
 }
 
-// scheduleCallDismiss closes the ended panel after its brief display.
 func (a *App) scheduleCallDismiss() {
 	time.Sleep(callDismissDelay + 500*time.Millisecond)
 	a.mu.Lock()
@@ -338,7 +290,6 @@ func (a *App) scheduleCallDismiss() {
 	a.invalidate()
 }
 
-// acceptCall answers the ringing incoming call.
 func (a *App) acceptCall() {
 	a.mu.Lock()
 	c := a.call
@@ -346,8 +297,6 @@ func (a *App) acceptCall() {
 		a.mu.Unlock()
 		return
 	}
-	// Optimistic: the panel flips to connecting immediately; the engine's
-	// call-state event drives the rest.
 	c.applyEvent(string(cores.CallStateConnecting), time.Now())
 	accountID, callID := c.accountID, c.callID
 	a.mu.Unlock()
@@ -359,7 +308,6 @@ func (a *App) acceptCall() {
 	}()
 }
 
-// declineCall rejects the ringing incoming call and closes the panel.
 func (a *App) declineCall() {
 	a.mu.Lock()
 	c := a.call
@@ -376,8 +324,6 @@ func (a *App) declineCall() {
 	}()
 }
 
-// endCall hangs up the outgoing/active call; the panel stays for the ended
-// summary (the engine's ended event or the dismiss timer clears it).
 func (a *App) endCall() {
 	a.mu.Lock()
 	c := a.call
@@ -394,7 +340,6 @@ func (a *App) endCall() {
 	}()
 }
 
-// toggleCallMute flips the mic and applies it to the engine.
 func (a *App) toggleCallMute() {
 	a.mu.Lock()
 	c := a.call
@@ -413,7 +358,6 @@ func (a *App) toggleCallMute() {
 	}()
 }
 
-// toggleCallCamera flips the outgoing video track (video calls only).
 func (a *App) toggleCallCamera() {
 	a.mu.Lock()
 	c := a.call
@@ -432,7 +376,6 @@ func (a *App) toggleCallCamera() {
 	}()
 }
 
-// closeCallPanel dismisses the ended panel.
 func (a *App) closeCallPanel() {
 	a.mu.Lock()
 	if a.call != nil && a.call.state == string(cores.CallStateEnded) {
@@ -442,19 +385,11 @@ func (a *App) closeCallPanel() {
 	a.invalidate()
 }
 
-// ── layout ────────────────────────────────────────────────────────────────
-
-// layoutCallOverlay renders the 1:1 call surface over the whole window
-// (slice 101): dark backdrop, peer avatar, name, status/timer, controls.
 func (a *App) layoutCallOverlay(gtx layout.Context, f frame) layout.Dimensions {
 	c := f.call
 
-	// Keep keyboard focus out of the covered a.wid.composer.
 	gtx.Execute(key.FocusCmd{Tag: nil})
 
-	// Keyboard: Escape declines an incoming ring, cancels an outgoing
-	// ring/connect, dismisses the ended panel — never silently hangs up an
-	// active call (that needs the explicit red button).
 	{
 		stack := clip.Rect{Max: gtx.Constraints.Max}.Push(gtx.Ops)
 		event.Op(gtx.Ops, callKeyTag)
@@ -481,7 +416,6 @@ func (a *App) layoutCallOverlay(gtx layout.Context, f frame) layout.Dimensions {
 		}
 	}
 
-	// Full-window dark backdrop.
 	scrim := color.NRGBA{R: 0x08, G: 0x0D, B: 0x12, A: 0xF2}
 	paintFill(gtx.Ops, scrim, gtx.Constraints.Max)
 
@@ -513,7 +447,6 @@ func (a *App) layoutCallOverlay(gtx layout.Context, f frame) layout.Dimensions {
 
 	return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical, Alignment: layout.Middle}.Layout(gtx,
-			// Peer avatar: real userpic when the chat is loaded.
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return layout.Inset{Bottom: unit.Dp(18)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					if chat, ok := findChatByPeer(f, c.accountID, c.chatID); ok {
@@ -522,7 +455,6 @@ func (a *App) layoutCallOverlay(gtx layout.Context, f frame) layout.Dimensions {
 					return a.ui.Avatar(gtx, c.peerName, unit.Dp(128), dotNone)
 				})
 			}),
-			// Peer name (masked in streamer mode — identity leaks).
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				lbl := a.ui.H2(c.peerName)
 				lbl.Color = color.NRGBA{R: 0xFF, G: 0xFF, B: 0xFF, A: 0xFF}
@@ -531,7 +463,6 @@ func (a *App) layoutCallOverlay(gtx layout.Context, f frame) layout.Dimensions {
 				}
 				return lbl.Layout(gtx)
 			}),
-			// Video-call tag.
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				if !c.video {
 					return layout.Dimensions{}
@@ -542,7 +473,6 @@ func (a *App) layoutCallOverlay(gtx layout.Context, f frame) layout.Dimensions {
 					return lbl.Layout(gtx)
 				})
 			}),
-			// Status line / elapsed timer.
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return layout.Inset{Top: unit.Dp(6), Bottom: unit.Dp(36)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					lbl := a.ui.Dim(unit.Sp(15), status)
@@ -550,7 +480,6 @@ func (a *App) layoutCallOverlay(gtx layout.Context, f frame) layout.Dimensions {
 					return lbl.Layout(gtx)
 				})
 			}),
-			// Control row.
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return a.layoutCallControls(gtx, c, ct)
 			}),
@@ -558,7 +487,6 @@ func (a *App) layoutCallOverlay(gtx layout.Context, f frame) layout.Dimensions {
 	})
 }
 
-// layoutCallControls renders the round control buttons for the state.
 func (a *App) layoutCallControls(gtx layout.Context, c *callUI, ct callControls) layout.Dimensions {
 	var children []layout.FlexChild
 	add := func(btn *widget.Clickable, icon *widget.Icon, desc string, bg color.NRGBA, fg color.NRGBA) {
@@ -599,7 +527,6 @@ func (a *App) layoutCallControls(gtx layout.Context, c *callUI, ct callControls)
 	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx, children...)
 }
 
-// callRoundButton renders a 64dp circular icon button.
 func (a *App) callRoundButton(gtx layout.Context, btn *widget.Clickable, icon *widget.Icon, desc string, bg, fg color.NRGBA) layout.Dimensions {
 	b := material.IconButton(a.ui.Theme, btn, icon, desc)
 	b.Background = bg

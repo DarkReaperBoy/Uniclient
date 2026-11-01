@@ -1,14 +1,5 @@
 package cores
 
-// Telegram Business (tdesktop Settings → Telegram Business):
-// opening hours, location, greeting/away messages, quick replies and
-// the profile intro. Read path: users.getFullUser(self) + the quick
-// reply list; write path: the five account.updateBusiness* RPCs.
-//
-// All RPC methods follow the withAPI rule (never hold t.mu across an
-// RPC); all wire mapping lives in the pure helpers below (unit-tested
-// against the TL schema in telegram_business_test.go).
-
 import (
 	"context"
 	"fmt"
@@ -18,11 +9,6 @@ import (
 	"github.com/gotd/td/tg"
 )
 
-// ── pure wire mapping ────────────────────────────────────────────────────
-
-// businessRecipientsFromWire maps BusinessRecipients flags onto the
-// generic read model (bool flags only — the GUI recipient editors do
-// not target specific users, §1.10 honest scope).
 func businessRecipientsFromWire(r tg.BusinessRecipients) map[string]interface{} {
 	return map[string]interface{}{
 		"existing_chats":   r.ExistingChats,
@@ -33,8 +19,6 @@ func businessRecipientsFromWire(r tg.BusinessRecipients) map[string]interface{} 
 	}
 }
 
-// quickRepliesFromWire maps the messages.getQuickReplies payload onto
-// display rows; the top message text is resolved from the messages list.
 func quickRepliesFromWire(res *tg.MessagesQuickReplies) []QuickReplyInfo {
 	if res == nil {
 		return nil
@@ -57,7 +41,6 @@ func quickRepliesFromWire(res *tg.MessagesQuickReplies) []QuickReplyInfo {
 	return out
 }
 
-// timezonesFromWire maps help.getTimezonesList.
 func timezonesFromWire(res *tg.HelpTimezonesList) []TimezoneInfo {
 	if res == nil {
 		return nil
@@ -69,9 +52,6 @@ func timezonesFromWire(res *tg.HelpTimezonesList) []TimezoneInfo {
 	return out
 }
 
-// businessInfoFromWire assembles the full business read model from the
-// self userFull payload plus the quick reply list (for greeting/away
-// message texts and the shortcut manager).
 func businessInfoFromWire(full *tg.UserFull, self *tg.User, replies []QuickReplyInfo) map[string]interface{} {
 	out := map[string]interface{}{}
 	if self != nil {
@@ -137,8 +117,6 @@ func businessInfoFromWire(full *tg.UserFull, self *tg.User, replies []QuickReply
 	return out
 }
 
-// buildBusinessRecipients validates the recipient flag set. The server
-// requires at least one selection criterion.
 func buildBusinessRecipients(data map[string]interface{}) (tg.InputBusinessRecipients, error) {
 	r := tg.InputBusinessRecipients{
 		ExistingChats:   dataBool(data, "existing_chats"),
@@ -153,14 +131,10 @@ func buildBusinessRecipients(data map[string]interface{}) (tg.InputBusinessRecip
 	return r, nil
 }
 
-// buildWorkHours maps the editor model onto the wire schedule. An empty
-// model clears the feature (nil return). Interval minutes are
-// minute-of-week (0..7*24*60 start, 1..8*24*60 end — cross-midnight
-// friendly per the TL comment).
 func buildWorkHours(data map[string]interface{}) (*tg.BusinessWorkHours, error) {
 	raw, _ := data["weekly_open"].([]interface{})
 	if len(raw) == 0 {
-		return nil, nil // clear
+		return nil, nil
 	}
 	wh := &tg.BusinessWorkHours{
 		TimezoneID: dataStr(data, "timezone_id"),
@@ -183,19 +157,17 @@ func buildWorkHours(data map[string]interface{}) (*tg.BusinessWorkHours, error) 
 	return wh, nil
 }
 
-// buildLocation maps the location editor. Empty address + no geo point
-// clears the feature. Address is capped at 96 UTF-8 chars by the server.
 func buildLocation(data map[string]interface{}) (address string, geo *tg.InputGeoPoint, err error) {
 	address = strings.TrimSpace(dataStr(data, "address"))
 	lat, hasLat := dataFloat(data, "lat")
 	lon, hasLon := dataFloat(data, "lon")
 	if address == "" && !hasLat && !hasLon {
-		return "", nil, nil // clear
+		return "", nil, nil
 	}
 	if address == "" {
 		return "", nil, fmt.Errorf("address is required")
 	}
-	if len(address) > 96*4 { // byte-cap sanity; the server counts UTF-8 runes
+	if len(address) > 96*4 {
 		return "", nil, fmt.Errorf("address too long (max 96 chars)")
 	}
 	if hasLat || hasLon {
@@ -204,9 +176,6 @@ func buildLocation(data map[string]interface{}) (address string, geo *tg.InputGe
 	return address, geo, nil
 }
 
-// buildGreeting maps the greeting editor. A nil/empty data map clears
-// the feature; no_activity_days defaults to tdesktop's 7 and must be
-// one of 7/14/21/28.
 func buildGreeting(data map[string]interface{}) (*tg.InputBusinessGreetingMessage, error) {
 	if len(data) == 0 {
 		return nil, nil
@@ -230,8 +199,6 @@ func buildGreeting(data map[string]interface{}) (*tg.InputBusinessGreetingMessag
 	}, nil
 }
 
-// buildAway maps the away editor. Schedule: always | outside_work_hours |
-// custom (start_date/end_date unix seconds).
 func buildAway(data map[string]interface{}) (*tg.InputBusinessAwayMessage, error) {
 	if len(data) == 0 {
 		return nil, nil
@@ -262,15 +229,13 @@ func buildAway(data map[string]interface{}) (*tg.InputBusinessAwayMessage, error
 	return msg, nil
 }
 
-// buildIntro maps the profile-introduction editor. Both title and
-// description are mandatory on the wire; an empty title clears.
 func buildIntro(data map[string]interface{}) (*tg.InputBusinessIntro, error) {
 	if len(data) == 0 {
 		return nil, nil
 	}
 	title := strings.TrimSpace(dataStr(data, "title"))
 	if title == "" {
-		return nil, nil // clear
+		return nil, nil
 	}
 	desc := strings.TrimSpace(dataStr(data, "description"))
 	if desc == "" {
@@ -282,9 +247,6 @@ func buildIntro(data map[string]interface{}) (*tg.InputBusinessIntro, error) {
 	return &tg.InputBusinessIntro{Title: title, Description: desc}, nil
 }
 
-// sanitizeShortcutName clamps a shortcut name to the wire rules:
-// non-empty, ≤12 chars, letters/digits/underscore/hyphen only; falls
-// back when nothing usable remains.
 func sanitizeShortcutName(name, fallback string) string {
 	var b strings.Builder
 	for _, r := range strings.TrimSpace(name) {
@@ -302,8 +264,6 @@ func sanitizeShortcutName(name, fallback string) string {
 	return b.String()
 }
 
-// dataBool/dataStr/dataInt/dataFloat read leniently from the generic
-// editor maps (JSON-ish values float64/int/string/bool).
 func dataBool(m map[string]interface{}, k string) bool {
 	switch v := m[k].(type) {
 	case bool:
@@ -366,11 +326,8 @@ func dataFloat(m map[string]interface{}, k string) (float64, bool) {
 	return 0, false
 }
 
-// ── RPC surface (withAPI rule: never hold t.mu) ─────────────────────────
-
-// GetTimezones returns the server's timezone list (help.getTimezonesList).
 func (t *TelegramCore) GetTimezones() ([]TimezoneInfo, error) {
-	api, ctx, err := t.withAPI() // withAPI rule: RPCs run unlocked
+	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -380,14 +337,13 @@ func (t *TelegramCore) GetTimezones() ([]TimezoneInfo, error) {
 	}
 	list, ok := res.(*tg.HelpTimezonesList)
 	if !ok {
-		return nil, nil // notModified with hash 0 never happens, be honest anyway
+		return nil, nil
 	}
 	return timezonesFromWire(list), nil
 }
 
-// GetQuickReplies lists the account's quick reply shortcuts.
 func (t *TelegramCore) GetQuickReplies() ([]QuickReplyInfo, error) {
-	api, ctx, err := t.withAPI() // withAPI rule: RPCs run unlocked
+	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -403,10 +359,8 @@ func (t *TelegramCore) GetQuickReplies() ([]QuickReplyInfo, error) {
 	return quickRepliesFromWire(list), nil
 }
 
-// GetBusinessInfo implements the engine's businessInfoGetter: the full
-// business read model for the Settings page.
 func (t *TelegramCore) GetBusinessInfo() (map[string]interface{}, error) {
-	api, ctx, err := t.withAPI() // withAPI rule: RPCs run unlocked
+	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -432,14 +386,8 @@ func (t *TelegramCore) GetBusinessInfo() (map[string]interface{}, error) {
 	return businessInfoFromWire(&res.FullUser, self, replies), nil
 }
 
-// SetBusinessFeature implements the engine's businessFeatureSetter:
-// feature = work_hours | location | greeting | away | intro; an absent
-// or empty data map clears the feature. Greeting/away editors pass the
-// message text in "message" and the desired shortcut name in
-// "shortcut_name"; the referenced quick-reply shortcut is created or
-// rewritten before the feature is pointed at it (tdesktop's flow).
 func (t *TelegramCore) SetBusinessFeature(feature string, data map[string]interface{}) error {
-	api, ctx, err := t.withAPI() // withAPI rule: RPCs run unlocked
+	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
 	}
@@ -541,16 +489,11 @@ func (t *TelegramCore) SetBusinessFeature(feature string, data map[string]interf
 	}
 }
 
-// ensureShortcutMessage guarantees the referenced shortcut exists and
-// carries exactly the given text before a feature is (re)wired to it:
-// an existing shortcut's messages are replaced; a missing shortcut is
-// created by name and its fresh ID resolved. Returns the final ID.
 func (t *TelegramCore) ensureShortcutMessage(api *tg.Client, ctx context.Context, shortcutID int, text, name string) (int, error) {
 	if text = strings.TrimSpace(text); text == "" {
 		return 0, fmt.Errorf("message text is required")
 	}
 	if shortcutID > 0 {
-		// Replace the shortcut's messages: fetch IDs, delete, re-send.
 		if res, err := api.MessagesGetQuickReplyMessages(ctx, &tg.MessagesGetQuickReplyMessagesRequest{
 			ShortcutID: shortcutID,
 		}); err == nil {
@@ -578,7 +521,6 @@ func (t *TelegramCore) ensureShortcutMessage(api *tg.Client, ctx context.Context
 		}
 		return shortcutID, nil
 	}
-	// Create a new shortcut (creation rides the name variant).
 	if _, err := api.MessagesSendMessage(ctx, &tg.MessagesSendMessageRequest{
 		Peer:               &tg.InputPeerSelf{},
 		Message:            text,
@@ -587,7 +529,6 @@ func (t *TelegramCore) ensureShortcutMessage(api *tg.Client, ctx context.Context
 	}); err != nil {
 		return 0, fmt.Errorf("create quick reply: %w", err)
 	}
-	// Resolve the fresh shortcut's ID so the feature points at it.
 	qr, err := api.MessagesGetQuickReplies(ctx, 0)
 	if err != nil {
 		return 0, fmt.Errorf("resolve new shortcut: %w", err)
@@ -604,10 +545,8 @@ func (t *TelegramCore) ensureShortcutMessage(api *tg.Client, ctx context.Context
 	return 0, fmt.Errorf("created shortcut %q not found", name)
 }
 
-// CreateQuickReply creates a shortcut with its first message and returns
-// the new shortcut ID (0 when the list refresh cannot find it).
 func (t *TelegramCore) CreateQuickReply(name, text string) (int, error) {
-	api, ctx, err := t.withAPI() // withAPI rule: RPCs run unlocked
+	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 0, err
 	}
@@ -640,9 +579,8 @@ func (t *TelegramCore) CreateQuickReply(name, text string) (int, error) {
 	return 0, nil
 }
 
-// RenameQuickReply renames a shortcut (messages.editQuickReplyShortcut).
 func (t *TelegramCore) RenameQuickReply(id int, name string) error {
-	api, ctx, err := t.withAPI() // withAPI rule: RPCs run unlocked
+	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
 	}

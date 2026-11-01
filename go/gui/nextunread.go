@@ -10,15 +10,6 @@ import (
 	"uniclient/engine"
 )
 
-// Floating next-unread button (AyuGram parity slice 30).
-//
-// Telegram shows a round ⬇ floating at the bottom-center of the chat list
-// while any chat in the current scope holds unread messages; clicking it
-// jumps to (and opens) the next unread chat below the viewport,
-// wrapping around.
-
-// nextUnreadIndex returns the index of the next chat with unread content
-// at or after `from`, wrapping around once; -1 when none is unread.
 func nextUnreadIndex(chats []engine.ChatInfo, from int) int {
 	n := len(chats)
 	if n == 0 {
@@ -36,7 +27,6 @@ func nextUnreadIndex(chats []engine.ChatInfo, from int) int {
 	return -1
 }
 
-// hasUnreadChats reports whether any chat in the scope is unread.
 func hasUnreadChats(chats []engine.ChatInfo) bool {
 	for _, c := range chats {
 		if c.UnreadCount > 0 || c.UnreadMark {
@@ -46,8 +36,6 @@ func hasUnreadChats(chats []engine.ChatInfo) bool {
 	return false
 }
 
-// gotoNextUnread scrolls the chat list to the next unread chat below the
-// viewport and opens it (Telegram ⬇ behavior). Runs on the GUI goroutine.
 func (a *App) gotoNextUnread(visible []engine.ChatInfo) {
 	from := sidebarChatsList.Position.First + 1
 	idx := nextUnreadIndex(visible, from)
@@ -55,16 +43,12 @@ func (a *App) gotoNextUnread(visible []engine.ChatInfo) {
 		return
 	}
 	c := visible[idx]
-	// Scroll the row into view before opening (openChat replaces state but
-	// not the sidebar scroll position).
 	sidebarChatsList.Position.First = idx
 	sidebarChatsList.Position.Offset = 0
 	sidebarChatsList.Position.BeforeEnd = true
 	a.openChat(chatKey{c.AccountID, c.ChatID}, c.Title)
 }
 
-// layoutNextUnreadBtn overlays the floating ⬇ button on the chat list,
-// bottom-center, when the scope has unread chats and no search is active.
 func (a *App) layoutNextUnreadBtn(gtx layout.Context, f frame, visible []engine.ChatInfo) {
 	if f.search != "" || len(f.accounts) == 0 || len(visible) == 0 {
 		return

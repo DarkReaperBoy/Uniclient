@@ -8,10 +8,6 @@ import (
 	"uniclient/engine"
 )
 
-// In-app voice player (slice 113): the pure helpers — playback time
-// formatting, the speed chip label ladder, waveform normalization
-// bounds — plus the engine-side waveform extraction the bubble reads.
-
 func TestFmtPlaybackTime(t *testing.T) {
 	cases := []struct {
 		pos, total float64
@@ -42,8 +38,6 @@ func TestFmtSpeed(t *testing.T) {
 	}
 }
 
-// TestVoiceWaveformExtraction pins the ContentRaw → Extra.waveform →
-// base64 → bytes path the bubble's bars come from.
 func TestVoiceWaveformExtraction(t *testing.T) {
 	wf := []byte{0, 5, 31, 12, 7}
 	b64, err := json.Marshal(map[string]any{
@@ -63,7 +57,6 @@ func TestVoiceWaveformExtraction(t *testing.T) {
 		}
 	}
 
-	// Absent waveform → nil (the bubble must draw the plain track).
 	m2 := &engine.CachedMessage{ContentRaw: []byte(`{"extra":{}}`)}
 	if m2.VoiceWaveform() != nil {
 		t.Fatal("absent waveform must be nil")
@@ -78,9 +71,6 @@ func TestVoiceWaveformExtraction(t *testing.T) {
 	}
 }
 
-// TestMediaPlayClickableStable pins the per-control clickable identity:
-// same message → same clickable (state survives across frames), and
-// the reset guard keeps the map bounded.
 func TestMediaPlayClickableStable(t *testing.T) {
 	a := &App{}
 	a.wid.init()
@@ -90,7 +80,6 @@ func TestMediaPlayClickableStable(t *testing.T) {
 	if c1 != c2 {
 		t.Fatal("clickable must be stable per key")
 	}
-	// Distinct controls (play button vs speed chip) get distinct ones.
 	if a.mediaPlayClickable(key+"|speed") == c1 {
 		t.Fatal("speed chip must have its own clickable")
 	}

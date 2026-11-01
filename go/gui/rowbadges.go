@@ -12,15 +12,6 @@ import (
 	"uniclient/engine"
 )
 
-// Sidebar-row badges (AyuGram parity slice 68). Next to the row title the
-// same peer badges the chat header shows (slice 28): verified check,
-// premium star, and the scam/fake warning tags Telegram renders as small
-// text labels. At the row's trailing edge the badge stack becomes
-// @-mentions → unread reactions → unread count/mark (Telegram's order).
-
-// rowTitleBadges derives the title-adjacent badges for a chat row.
-// Verified/premium render as icons; scam/fake as colored text tags
-// (icon == nil signals the pill renderer).
 func rowTitleBadges(c engine.ChatInfo) []hdrBadge {
 	var out []hdrBadge
 	if c.IsVerified {
@@ -37,17 +28,12 @@ func rowTitleBadges(c engine.ChatInfo) []hdrBadge {
 	return out
 }
 
-// Trailing row-badge kinds (order matters — see trailingRowBadges).
 const (
 	rowBadgeMention   = "mention"
 	rowBadgeReactions = "reactions"
 	rowBadgeMuteTime  = "muteTime"
 )
 
-// trailingRowBadges lists the badges shown at the row's right edge, in
-// Telegram's order: timed-mute countdown first (tdesktop draws the clock
-// ahead of the unread area), then mentions, unread reactions, then the
-// unread count (or the explicit unread mark).
 func trailingRowBadges(c engine.ChatInfo) []string {
 	var out []string
 	if c.IsMuted && c.MuteUntil > 0 {
@@ -68,7 +54,6 @@ func trailingRowBadges(c engine.ChatInfo) []string {
 	return out
 }
 
-// layoutRowTitleBadges renders the mini badge row after a chat-row title.
 func (a *App) layoutRowTitleBadges(gtx layout.Context, badges []hdrBadge) layout.Dimensions {
 	if len(badges) == 0 {
 		return layout.Dimensions{}
@@ -80,7 +65,6 @@ func (a *App) layoutRowTitleBadges(gtx layout.Context, badges []hdrBadge) layout
 			return layout.Inset{Left: unit.Dp(4), Top: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				b := badges[i]
 				if b.icon == nil {
-					// Scam/fake text tag.
 					return tagPill(gtx, a.ui, b.label, b.col)
 				}
 				sz := gtx.Dp(unit.Dp(12))
@@ -92,7 +76,6 @@ func (a *App) layoutRowTitleBadges(gtx layout.Context, badges []hdrBadge) layout
 	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx, children...)
 }
 
-// tagPill draws a small uppercase warning tag (SCAM / FAKE).
 func tagPill(gtx layout.Context, u *UI, label string, col color.NRGBA) layout.Dimensions {
 	return roundedFill(gtx, col, 4, func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Top: unit.Dp(1), Bottom: unit.Dp(1), Left: unit.Dp(5), Right: unit.Dp(5)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -115,8 +98,6 @@ func upperASCII(s string) string {
 	return string(out)
 }
 
-// muteTimeBadge: the timed-mute countdown chip (tdesktop's clock badge) —
-// compact dim pill showing the remaining time ("3h").
 func muteTimeBadge(gtx layout.Context, u *UI, muteUntil int64) layout.Dimensions {
 	remain := time.Until(time.Unix(muteUntil, 0))
 	return roundedFill(gtx, u.p.SurfaceHi, 8, func(gtx layout.Context) layout.Dimensions {
@@ -129,7 +110,6 @@ func muteTimeBadge(gtx layout.Context, u *UI, muteUntil int64) layout.Dimensions
 	})
 }
 
-// mentionBadge: the accent "@" pill for unread mentions.
 func mentionBadge(gtx layout.Context, u *UI) layout.Dimensions {
 	return roundedFill(gtx, u.p.Accent, 9, func(gtx layout.Context) layout.Dimensions {
 		w := gtx.Dp(unit.Dp(18))
@@ -143,7 +123,6 @@ func mentionBadge(gtx layout.Context, u *UI) layout.Dimensions {
 	})
 }
 
-// reactionsBadge: the dim unread-reactions counter pill.
 func reactionsBadge(gtx layout.Context, u *UI, n int, muted bool) layout.Dimensions {
 	bg := u.p.TextFaint
 	txt := colorWhiteText
@@ -166,9 +145,6 @@ func reactionsBadge(gtx layout.Context, u *UI, n int, muted bool) layout.Dimensi
 	})
 }
 
-// muteRemainingLabel renders the remaining timed-mute duration the way
-// tdesktop's chat-list badge does: one unit, floored, minimum one minute
-// ("59m", "23h", "3d").
 func muteRemainingLabel(remain time.Duration) string {
 	if remain < time.Minute {
 		return "1m"
@@ -182,9 +158,6 @@ func muteRemainingLabel(remain time.Duration) string {
 	return itoa(int(remain.Hours()/24)) + "d"
 }
 
-// formatMutedUntil renders the profile row's "Muted until …" stamp:
-// clock-only for today, month-day + clock within the year, date with year
-// beyond it (tdesktop's short locale formats).
 func formatMutedUntil(muteUntil, nowUnix int64) string {
 	until := time.Unix(muteUntil, 0)
 	now := time.Unix(nowUnix, 0)
@@ -197,8 +170,6 @@ func formatMutedUntil(muteUntil, nowUnix int64) string {
 	return until.Format("Jan 2, 2006")
 }
 
-// mutedRowHasTimedMute reports whether any visible row carries a timed
-// mute — the sidebar uses it to schedule the one-minute countdown tick.
 func mutedRowHasTimedMute(chats []engine.ChatInfo) bool {
 	for i := range chats {
 		if chats[i].IsMuted && chats[i].MuteUntil > 0 {
@@ -208,7 +179,6 @@ func mutedRowHasTimedMute(chats []engine.ChatInfo) bool {
 	return false
 }
 
-// layoutTrailingRowBadges renders the mention/reactions/count stack.
 func (a *App) layoutTrailingRowBadges(gtx layout.Context, c engine.ChatInfo) layout.Dimensions {
 	kinds := trailingRowBadges(c)
 	if len(kinds) == 0 {
@@ -228,7 +198,7 @@ func (a *App) layoutTrailingRowBadges(gtx layout.Context, c engine.ChatInfo) lay
 					return muteTimeBadge(gtx, a.ui, c.MuteUntil)
 				case rowBadgeCount:
 					return unreadBadge(gtx, a.ui, c.UnreadCount, c.IsMuted)
-				default: // rowBadgeMark
+				default:
 					return unreadMarkDot(gtx, a.ui, c.IsMuted)
 				}
 			})

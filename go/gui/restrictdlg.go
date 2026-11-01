@@ -15,21 +15,11 @@ import (
 	"uniclient/engine"
 )
 
-// Restrict/ban boxes (slice 191, tdesktop's RestrictParticipantBox and the
-// ban box — parity row "Moderation (admin log, restrictions)"): opened from
-// the member menu. Restrict = duration ladder + one switch per
-// DefaultBannedRights permission (allowed ↔ banned inversion at the wire);
-// Ban = duration ladder + confirm. The box initializes from the member's
-// CURRENT server rights when the member list carried them (restricted
-// rows), else all-allowed (tdesktop fresh-restriction semantics).
-
-// restrictDuration is one row of the duration ladder.
 type restrictDuration struct {
 	label string
-	secs  int // 0 = forever
+	secs  int
 }
 
-// restrictDurations: tdesktop's restrict/ban duration ladder.
 var restrictDurations = []restrictDuration{
 	{"Forever", 0},
 	{"1 hour", 3600},
@@ -42,15 +32,11 @@ var restrictDurations = []restrictDuration{
 	{"1 year", 365 * 86400},
 }
 
-// restrictPermissionRow is one permission switch (field names match
-// engine.DefaultBannedRights 1:1).
 type restrictPermissionRow struct {
 	label string
 	field string
 }
 
-// restrictPermissionRows: tdesktop's restrict-box permission set, mapped to
-// the engine's DefaultBannedRights fields.
 func restrictPermissionRows() []restrictPermissionRow {
 	return []restrictPermissionRow{
 		{"Send messages", "SendPlain"},
@@ -71,8 +57,6 @@ func restrictPermissionRows() []restrictPermissionRow {
 	}
 }
 
-// banUntilDate (pure): the wire until-timestamp for a duration row. 0 secs
-// = forever = 0 on the wire (Telegram semantics).
 func banUntilDate(now time.Time, secs int) int {
 	if secs <= 0 {
 		return 0
@@ -80,9 +64,6 @@ func banUntilDate(now time.Time, secs int) int {
 	return int(now.Unix()) + secs
 }
 
-// bannedRightsFromAllowed inverts the GUI's allowed-switch map into the
-// wire's banned-rights struct (fields absent from the map = allowed —
-// partial maps never ban by omission). Pure.
 func bannedRightsFromAllowed(allowed map[string]bool) *engine.DefaultBannedRights {
 	br := &engine.DefaultBannedRights{}
 	for _, r := range restrictPermissionRows() {
@@ -124,8 +105,6 @@ func bannedRightsFromAllowed(allowed map[string]bool) *engine.DefaultBannedRight
 	return br
 }
 
-// initialRestrictRights resolves the box's starting state: the member's
-// current rights when the list carried them, else all allowed. Pure.
 func initialRestrictRights(m engine.MemberInfo) *engine.DefaultBannedRights {
 	if m.BannedRights != nil {
 		br := *m.BannedRights
@@ -134,8 +113,6 @@ func initialRestrictRights(m engine.MemberInfo) *engine.DefaultBannedRights {
 	return &engine.DefaultBannedRights{}
 }
 
-// fieldOfRights reads one DefaultBannedRights field by name (the banned
-// polarity: true = banned). Pure.
 func fieldOfRights(br *engine.DefaultBannedRights, field string) bool {
 	switch field {
 	case "SendPlain":
@@ -172,7 +149,6 @@ func fieldOfRights(br *engine.DefaultBannedRights, field string) bool {
 	return false
 }
 
-// restrictDlgState: open box (nil when closed). mode: "restrict" | "ban".
 type restrictDlgState struct {
 	chat   engine.ChatInfo
 	member engine.MemberInfo
@@ -181,8 +157,6 @@ type restrictDlgState struct {
 	busy   bool
 }
 
-// openRestrictDialog opens the restrict box for a member. The permission
-// switches start from the member's current rights (or all-allowed).
 func (a *App) openRestrictDialog(chat engine.ChatInfo, m engine.MemberInfo) {
 	br := initialRestrictRights(m)
 	rows := restrictPermissionRows()
@@ -197,7 +171,6 @@ func (a *App) openRestrictDialog(chat engine.ChatInfo, m engine.MemberInfo) {
 	a.invalidate()
 }
 
-// openBanDialog opens the ban box for a member.
 func (a *App) openBanDialog(chat engine.ChatInfo, m engine.MemberInfo) {
 	a.mu.Lock()
 	a.restrictDlg = &restrictDlgState{chat: chat, member: m, mode: "ban"}
@@ -206,7 +179,6 @@ func (a *App) openBanDialog(chat engine.ChatInfo, m engine.MemberInfo) {
 	a.invalidate()
 }
 
-// closeRestrictDialog dismisses (blocked while applying).
 func (a *App) closeRestrictDialog() {
 	a.mu.Lock()
 	if a.restrictDlg == nil || a.restrictDlg.busy {
@@ -218,9 +190,6 @@ func (a *App) closeRestrictDialog() {
 	a.invalidate()
 }
 
-// submitRestrictDialog applies the box (async): restrict →
-// RestrictMemberWithRights (rights + untilDate, the switch values read on
-// the GUI goroutine); ban → BanMemberUntil.
 func (a *App) submitRestrictDialog() {
 	a.mu.Lock()
 	if a.restrictDlg == nil || a.restrictDlg.busy {
@@ -232,7 +201,6 @@ func (a *App) submitRestrictDialog() {
 	if d.durIdx >= 0 && d.durIdx < len(restrictDurations) {
 		dur = restrictDurations[d.durIdx].secs
 	}
-	// Snapshot the switch values under the lock (GUI goroutine only).
 	var allowed map[string]bool
 	if d.mode == "restrict" {
 		rows := restrictPermissionRows()
@@ -267,12 +235,11 @@ func (a *App) submitRestrictDialog() {
 		k := a.panelChat
 		a.mu.Unlock()
 		if k.AccountID != "" {
-			go a.loadPanel(k) // refresh the member list
+			go a.loadPanel(k)
 		}
 	}()
 }
 
-// layoutRestrictDialog renders the box centered over the window.
 func (a *App) layoutRestrictDialog(gtx layout.Context, f frame) layout.Dimensions {
 	d := f.restrictDlg
 	if a.wid.restrictDlgCancel.Clicked(gtx) {
@@ -282,7 +249,6 @@ func (a *App) layoutRestrictDialog(gtx layout.Context, f frame) layout.Dimension
 		a.submitRestrictDialog()
 	}
 
-	// Scrim.
 	paint.FillShape(gtx.Ops, color.NRGBA{R: 0, G: 0, B: 0, A: 0x66},
 		clip.Rect{Max: image.Pt(gtx.Constraints.Max.X, gtx.Constraints.Max.Y)}.Op())
 
@@ -319,7 +285,6 @@ func (a *App) layoutRestrictDialog(gtx layout.Context, f frame) layout.Dimension
 						})
 					}),
 				)
-				// Duration chips.
 				children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Axis: layout.Horizontal, Spacing: layout.SpaceStart}.Layout(gtx,
 						flexChildrenOf(len(durs), func(gtx layout.Context, i int) layout.Dimensions {

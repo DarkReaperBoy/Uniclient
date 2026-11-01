@@ -1,13 +1,5 @@
 package gui
 
-// translatebar.go — slice 150: the chat-wide translate bar (tdesktop's
-// "Translate to …?" bar over the message list). Turning it on makes
-// every rendered text message fetch and show its translation under the
-// bubble (the slice-46 Ayu translator block); the bar carries the
-// target-language picker (persisted AppConfig.TranslateTarget) and the
-// Show-original toggle. Entry points: the header ⋮ menu and the bar
-// itself.
-
 import (
 	"strings"
 
@@ -20,14 +12,11 @@ import (
 	"uniclient/engine"
 )
 
-// transLang is one translation target language (tdesktop's picker list).
 type transLang struct {
 	code string
 	name string
 }
 
-// transLangs: the curated target list (tdesktop's translate picker,
-// Telegram's own most-common languages; ISO 639-1 codes).
 var transLangs = []transLang{
 	{"en", "English"},
 	{"ru", "Russian"},
@@ -51,8 +40,6 @@ var transLangs = []transLang{
 	{"vi", "Vietnamese"},
 }
 
-// transLangName resolves a code to its display name (code itself when
-// unknown). Pure — unit-tested.
 func transLangName(code string) string {
 	for _, l := range transLangs {
 		if l.code == code {
@@ -65,8 +52,6 @@ func transLangName(code string) string {
 	return "English"
 }
 
-// normalizeTransTarget clamps a stored target to a valid code
-// (empty/unknown → "en"). Pure — unit-tested.
 func normalizeTransTarget(code string) string {
 	if code == "" {
 		return "en"
@@ -79,15 +64,10 @@ func normalizeTransTarget(code string) string {
 	return "en"
 }
 
-// ── state ────────────────────────────────────────────────────────────────
-
-// transChatKey is the per-chat map key for the chat-wide flag.
 func transChatKey(accountID, chatID string) string {
 	return accountID + "|" + chatID
 }
 
-// chatTranslateOn reports whether chat-wide translation is on for the
-// open chat (frame read under the UI goroutine).
 func chatTranslateOn(f frame, k *chatKey) bool {
 	if k == nil {
 		return false
@@ -95,7 +75,6 @@ func chatTranslateOn(f frame, k *chatKey) bool {
 	return f.transChatOn[transChatKey(k.AccountID, k.ChatID)]
 }
 
-// toggleChatTranslate flips the chat-wide flag (header menu / bar).
 func (a *App) toggleChatTranslate(k chatKey) {
 	key := transChatKey(k.AccountID, k.ChatID)
 	a.mu.Lock()
@@ -105,22 +84,17 @@ func (a *App) toggleChatTranslate(k chatKey) {
 	on := !a.transChatOn[key]
 	a.transChatOn[key] = on
 	if !on {
-		// leave the fetched translations in place (per-message toggles
-		// still work); just stop auto-fetching
-		a.transAsked = make(map[string]bool) // allow a fresh cycle on re-enable
+		a.transAsked = make(map[string]bool)
 	}
 	a.mu.Unlock()
 	a.invalidate()
 }
 
-// setTransTarget persists a new target language and refreshes the
-// auto-translations of the open chat (if the bar is on).
 func (a *App) setTransTarget(code string) {
 	code = normalizeTransTarget(code)
 	a.mu.Lock()
 	a.transPickerOpen = false
 	a.transTarget = code
-	// reset the fetched/asked sets so the new target re-fetches
 	a.transAsked = make(map[string]bool)
 	a.translations = make(map[string]string)
 	a.mu.Unlock()
@@ -132,9 +106,6 @@ func (a *App) setTransTarget(code string) {
 	}()
 }
 
-// ensureAutoTranslation lazily fetches a message's translation while
-// the chat-wide bar is on (dedup per message; silent on failure — no
-// toast spam per message, §1.10 honest scope).
 func (a *App) ensureAutoTranslation(m *engine.CachedMessage) {
 	if m == nil || m.IsService {
 		return
@@ -167,7 +138,7 @@ func (a *App) ensureAutoTranslation(m *engine.CachedMessage) {
 	go func() {
 		out, err := a.eng.TranslateText(msg.AccountID, msg.ChatID, msg.MsgID, target, text)
 		if err != nil || strings.TrimSpace(out) == "" {
-			return // silent: the bubble just keeps its original text
+			return
 		}
 		a.mu.Lock()
 		if a.translations == nil {
@@ -179,23 +150,18 @@ func (a *App) ensureAutoTranslation(m *engine.CachedMessage) {
 	}()
 }
 
-// ── the bar ──────────────────────────────────────────────────────────────
-
-// layoutTranslateBar renders the chat-wide translate bar under the
-// header (tdesktop position): target language + picker + Show original.
 func (a *App) layoutTranslateBar(gtx layout.Context, f frame, k chatKey) layout.Dimensions {
 	if a.wid.transBarOffBtn.Clicked(gtx) {
 		a.toggleChatTranslate(k)
 	}
 	if a.wid.transBarLangBtn.Clicked(gtx) {
 		a.mu.Lock()
-		a.transPickerOpen = !a.transPickerOpen // per-window (R28)
+		a.transPickerOpen = !a.transPickerOpen
 		a.mu.Unlock()
 		a.invalidate()
 	}
 	target := normalizeTransTarget(f.transTarget)
 
-	// language picker (revealed under the bar)
 	var pickerDims layout.Dimensions
 	if f.transPickerOpen {
 		growClickables(&a.wid.transLangBtns, len(transLangs))
@@ -242,7 +208,6 @@ func (a *App) layoutTranslateBar(gtx layout.Context, f frame, k chatKey) layout.
 				return layout.Flex{Axis: layout.Vertical}.Layout(gtx, rows...)
 			})
 		})
-		// keep the frame ticking while the picker is open (chips re-render)
 		gtx.Execute(op.InvalidateCmd{})
 	}
 

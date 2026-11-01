@@ -1,9 +1,5 @@
 package gui
 
-// Export data wizard (slice 100, matrix row 208): pure helpers — option
-// group tables, size-limit parsing, progress percent, error text, and
-// dialog-surface wiring.
-
 import (
 	"testing"
 
@@ -11,8 +7,6 @@ import (
 )
 
 func TestExportOptionGroupsCoverSettings(t *testing.T) {
-	// Every option key maps to a real ExportSettings field name; the
-	// wizard is honest — no option without engine behavior.
 	groups := exportOptionGroups()
 	seen := map[string]bool{}
 	for _, g := range groups {
@@ -51,7 +45,7 @@ func TestParseExportSizeLimit(t *testing.T) {
 		{"  200 ", 200},
 		{"abc", 0},
 		{"-5", 0},
-		{"99999999", 8192}, // clamped to the engine's 8 GB ceiling
+		{"99999999", 8192},
 	}
 	for _, tc := range cases {
 		if got := parseExportSizeLimit(tc.in); got != tc.want {
@@ -68,7 +62,7 @@ func TestExportProgressPercent(t *testing.T) {
 	}{
 		{0, 4, 0.5, 0.125},
 		{3, 4, 1.0, 1.0},
-		{0, 0, 0.5, 0}, // no steps: never divide by zero
+		{0, 0, 0.5, 0},
 		{1, 4, 0, 0.25},
 	}
 	for _, tc := range cases {

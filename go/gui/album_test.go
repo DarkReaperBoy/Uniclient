@@ -7,8 +7,6 @@ import (
 	"uniclient/engine"
 )
 
-// Album pure helpers (gui/album.go + chrome.go grouping).
-
 func albumMsg(id, group string, mt int) engine.CachedMessage {
 	return engine.CachedMessage{
 		MsgID:     id,
@@ -51,7 +49,7 @@ func TestAlbumCells(t *testing.T) {
 		if len(cs) != 3 {
 			t.Fatalf("n=3 = %d cells", len(cs))
 		}
-		if cs[0].Dy() != H { // left tall
+		if cs[0].Dy() != H {
 			t.Fatalf("left cell not tall: %v", cs[0])
 		}
 		if cs[1].Dy() != (H-gap)/2 || cs[2].Min.Y < cs[1].Max.Y {
@@ -66,7 +64,6 @@ func TestAlbumCells(t *testing.T) {
 		}
 		halfW, halfH := (W-gap)/2, (H-gap)/2
 		for i, c := range cs {
-			// Right/bottom cells absorb integer rounding (up to 1px).
 			if c.Dx() < halfW || c.Dx() > halfW+1 || c.Dy() < halfH || c.Dy() > halfH+1 {
 				t.Fatalf("cell %d = %v, want ~half-size (%d×%d)", i, c, halfW, halfH)
 			}
@@ -115,11 +112,11 @@ func TestIsAlbumMedia(t *testing.T) {
 
 func TestBuildChatRowsAlbums(t *testing.T) {
 	msgs := []engine.CachedMessage{
-		albumMsg("a", "", engine.MediaImage), // lone photo
+		albumMsg("a", "", engine.MediaImage),
 		albumMsg("p1", "g1", engine.MediaImage),
 		albumMsg("p2", "g1", engine.MediaImage),
 		albumMsg("p3", "g1", engine.MediaVideo),
-		albumMsg("b", "", engine.MediaImage), // lone photo after the album
+		albumMsg("b", "", engine.MediaImage),
 	}
 	rows := buildChatRows(msgs, "")
 	var albums int
@@ -137,11 +134,10 @@ func TestBuildChatRowsAlbums(t *testing.T) {
 	if albums != 1 {
 		t.Fatalf("albums = %d, want 1", albums)
 	}
-	if len(rows) != 4 { // 1 day divider (same ts) + a + album row + b
+	if len(rows) != 4 {
 		t.Fatalf("rows = %d, want 4", len(rows))
 	}
 
-	// Jump: album members resolve to the album row.
 	if got := rowIndexOf(msgs, "p3", ""); got != 2 {
 		t.Errorf("rowIndexOf(p3) = %d, want 2 (album row)", got)
 	}

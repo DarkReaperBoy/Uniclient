@@ -1,9 +1,5 @@
 package gui
 
-// OS handoff (slice 86): URL admission, platform command mapping, and the
-// openOnDone flow — a tapped download hands its completed file to the
-// system player, link taps open the browser with a clipboard fallback.
-
 import (
 	"errors"
 	"slices"
@@ -87,8 +83,6 @@ func TestRevealArgsFor(t *testing.T) {
 	}
 }
 
-// TestOpenOnDoneFlow: mark → complete → exactly one open call, then the
-// mark is spent (a second completion opens nothing).
 func TestOpenOnDoneFlow(t *testing.T) {
 	a := &App{}
 	var opened []string
@@ -111,7 +105,6 @@ func TestOpenOnDoneFlow(t *testing.T) {
 		t.Error("second consume = true, want false (one-shot)")
 	}
 
-	// Full event path: mark again, deliver completion, assert the open.
 	a.setOpenOnDone("acct", "chat", "43", 0)
 	a.onDownloadComplete(engine.DownloadCompleteEvent{
 		AccountID: "acct", ChatID: "chat", MsgID: "43", Seq: 0, LocalPath: "/dl/43.ogg",
@@ -122,21 +115,18 @@ func TestOpenOnDoneFlow(t *testing.T) {
 	if a.toast != "Playing in system player" {
 		t.Errorf("toast = %q, want the playing toast", a.toast)
 	}
-	// The mark was consumed: a redelivery opens nothing.
 	a.onDownloadComplete(engine.DownloadCompleteEvent{
 		AccountID: "acct", ChatID: "chat", MsgID: "43", Seq: 0, LocalPath: "/dl/43.ogg",
 	})
 	if len(opened) != 1 {
 		t.Errorf("opened = %v after redelivery, want still one entry", opened)
 	}
-	// Unmarked downloads never hand off (photos keep the viewer path).
 	a.onDownloadComplete(engine.DownloadCompleteEvent{
 		AccountID: "acct", ChatID: "chat", MsgID: "44", Seq: 0, LocalPath: "/dl/44.jpg",
 	})
 	if len(opened) != 1 {
 		t.Errorf("unmarked completion opened %v, want none", opened)
 	}
-	// Opener failure is reported honestly.
 	errToReturn = errors.New("no handler")
 	a.setOpenOnDone("acct", "chat", "45", 0)
 	a.onDownloadComplete(engine.DownloadCompleteEvent{
@@ -147,8 +137,6 @@ func TestOpenOnDoneFlow(t *testing.T) {
 	}
 }
 
-// TestOpenLinkExternal: http links go to the opener; opener failure and
-// non-http schemes fall back to the clipboard copy.
 func TestOpenLinkExternal(t *testing.T) {
 	a := &App{}
 	var targets []string
@@ -175,9 +163,6 @@ func TestOpenLinkExternal(t *testing.T) {
 		t.Errorf("toast = %q, want Opened in browser", a.toast)
 	}
 
-	// slice 95: deep links route INSIDE — a t.me username link resolves
-	// through the global search (no account here → honest toast, and the
-	// browser opener must NOT have been attempted).
 	a.openLinkExternal("https://t.me/ayugram")
 	if len(targets) != 1 {
 		t.Fatalf("deep link went to the browser: %v", targets)
@@ -185,7 +170,6 @@ func TestOpenLinkExternal(t *testing.T) {
 	if a.toast != "Connect an account first" {
 		t.Errorf("toast = %q, want Connect an account first", a.toast)
 	}
-	// Invite links open the join flow (same honest no-account path).
 	a.openLinkExternal("https://t.me/+AbCdEf12345")
 	if len(targets) != 1 {
 		t.Fatalf("invite link went to the browser: %v", targets)
@@ -206,7 +190,6 @@ func TestOpenLinkExternal(t *testing.T) {
 	}
 }
 
-// TestRevealMedia: reveal failures and successes toast honestly.
 func TestRevealMedia(t *testing.T) {
 	a := &App{}
 	revealAsync = func(path string, done func(error)) {
@@ -221,11 +204,9 @@ func TestRevealMedia(t *testing.T) {
 	if a.toast != "Reveal failed: no file manager" {
 		t.Errorf("toast = %q, want reveal failure", a.toast)
 	}
-	a.revealMedia("") // no-op, no panic
+	a.revealMedia("")
 }
 
-// TestShowInFolderMenuAction: a message with a local file gains the OS
-// integration row; without one, no row.
 func TestShowInFolderMenuAction(t *testing.T) {
 	a := &App{}
 	m := engine.CachedMessage{
@@ -243,7 +224,6 @@ func TestShowInFolderMenuAction(t *testing.T) {
 	if !found {
 		t.Errorf("Show in Folder missing for a downloaded file; items: %v", menuLabels(items))
 	}
-	// No local file → no row.
 	m.MediaLocalPath = ""
 	f2 := frame{menu: &menuTarget{msg: m}}
 	for _, it := range a.menuActionsFor(f2, m) {

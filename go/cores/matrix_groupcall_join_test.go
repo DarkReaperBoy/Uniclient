@@ -14,20 +14,12 @@ import (
 	"maunium.net/go/mautrix/id"
 )
 
-// B-6 → F-62: JoinGroupCall against a scripted mini-homeserver.
-// Seam-RED (WORKLOG 295): the OLD body returned ErrNotSupported —
-// behavioral RED: `JoinGroupCall returned <not supported>` instead of
-// a real session.
-
 type statePut struct {
 	Type     string
 	StateKey string
 	Body     string
 }
 
-// newMiniHomeserver serves exactly what JoinGroupCall touches:
-// GET  .../state/<type>/<key>        → existingCallState (or 404)
-// PUT  .../state/<type>/<key>        → captured, {"event_id":"$ev"}
 func newMiniHomeserver(t *testing.T, existingCallState string) (*httptest.Server, *[]statePut) {
 	t.Helper()
 	var puts []statePut
@@ -35,7 +27,7 @@ func newMiniHomeserver(t *testing.T, existingCallState string) (*httptest.Server
 		p := r.URL.Path
 		const marker = "/state/"
 		if idx := strings.Index(p, marker); idx >= 0 && strings.Contains(p, "/rooms/") {
-			rest := p[idx+len(marker):] // "<type>/<key>" (key optional)
+			rest := p[idx+len(marker):]
 			parts := strings.SplitN(rest, "/", 2)
 			evType := parts[0]
 			stateKey := ""
@@ -104,7 +96,6 @@ func TestJoinGroupCallCreatesConfAndPublishesMembership(t *testing.T) {
 		t.Fatalf("session = %+v, want active group session with id", sess)
 	}
 
-	// Exactly: one m.call creation + one member publish.
 	var confPut, memberPut *statePut
 	for i := range *puts {
 		switch (*puts)[i].Type {

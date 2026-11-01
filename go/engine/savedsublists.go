@@ -6,22 +6,10 @@ import (
 	"uniclient/cores"
 )
 
-// Saved Messages sublists (slice 197): the scoped message page — the
-// self-chat cache filtered by the new messages.saved_peer column (fed
-// by every saved message the core converts, plus the fwd-from backfill),
-// with messages.getSavedHistory as the cold-start server feed. The
-// sublist LIST itself flows through the existing SavedSublistsFetcher
-// surface (cores.SavedSublistInfo). Mirrors the forum-topic layer's
-// shape: cache-fed scoped views stay current through the live update
-// stream.
-
-// savedHistoryCore is the server-side scoped fetch (messages.getSavedHistory).
 type savedHistoryCore interface {
 	GetSavedHistory(peerID string, offsetID, limit int) ([]cores.Message, error)
 }
 
-// SavedSublistsSupported reports whether the account's core exposes the
-// saved-sublist surface (the list fetcher; Telegram today).
 func (e *Engine) SavedSublistsSupported(accountID string) bool {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -31,13 +19,6 @@ func (e *Engine) SavedSublistsSupported(accountID string) bool {
 	return ok
 }
 
-// GetSavedSublistMessages returns one sublist's message page (newest
-// first, like GetMessages): the self-chat cache filtered by saved_peer.
-// peerID "" = the whole Saved Messages chat (all sublists). beforeMs = 0
-// loads the latest page. A cold cache is fed by a server fetch
-// (messages.getSavedHistory) before the filtered read, so the first open
-// shows real rows; paged reads (beforeMs > 0) stay cache-only — the
-// chat-wide loader keeps older rows coming (the forum-topic pattern).
 func (e *Engine) GetSavedSublistMessages(accountID, savedChatID, peerID string, beforeMs int64, limit int) ([]CachedMessage, error) {
 	if limit <= 0 {
 		limit = 50
@@ -50,7 +31,6 @@ func (e *Engine) GetSavedSublistMessages(accountID, savedChatID, peerID string, 
 	return e.readSavedRows(accountID, savedChatID, peerID, beforeMs, limit)
 }
 
-// readSavedRows is the saved_peer-filtered cache read.
 func (e *Engine) readSavedRows(accountID, savedChatID, peerID string, beforeMs int64, limit int) ([]CachedMessage, error) {
 	q := `SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
 			content_text, content_raw, content_rich, timestamp, edited_at,
@@ -87,7 +67,6 @@ func (e *Engine) readSavedRows(accountID, savedChatID, peerID string, beforeMs i
 	return e.applyAyuFilters(msgs), nil
 }
 
-// countSavedRows counts the scoped rows currently cached.
 func (e *Engine) countSavedRows(accountID, savedChatID, peerID string) int {
 	q := `SELECT COUNT(*) FROM messages WHERE account_id = ? AND chat_id = ?`
 	args := []interface{}{accountID, savedChatID}
@@ -100,9 +79,6 @@ func (e *Engine) countSavedRows(accountID, savedChatID, peerID string) int {
 	return n
 }
 
-// fetchSavedHistory pulls one sublist's (or the whole saved chat's)
-// history through the core and caches it under the self chat (the rows
-// carry their saved_peer, so the filter picks them up).
 func (e *Engine) fetchSavedHistory(accountID, peerID string, offsetID, limit int) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -125,8 +101,6 @@ func (e *Engine) fetchSavedHistory(accountID, peerID string, offsetID, limit int
 	}
 }
 
-// ToggleSavedSublistPin pins/unpins one Saved Messages sublist
-// (messages.toggleSavedDialogPin — the raw core wrapper already exists).
 func (e *Engine) ToggleSavedSublistPin(accountID, peerID string, pinned bool) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -142,9 +116,6 @@ func (e *Engine) ToggleSavedSublistPin(accountID, peerID string, pinned bool) er
 	return pt.ToggleSavedDialogPin(peerID, pinned)
 }
 
-// ReorderSavedSublists (slice 204) changes the pinned-sublist order
-// (messages.reorderPinnedSavedDialogs with force, so a stale server pin
-// outside the passed order unpins instead of corrupting it).
 func (e *Engine) ReorderSavedSublists(accountID string, peerIDs []string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {

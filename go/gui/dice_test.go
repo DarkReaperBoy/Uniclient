@@ -1,8 +1,5 @@
 package gui
 
-// Dice GUI helpers (slice 125): message parsing, the animated-emoji gate,
-// hold-last-frame semantics and player re-parse on source swap.
-
 import (
 	"testing"
 	"time"
@@ -58,12 +55,10 @@ func TestDiceHoldLastFrame(t *testing.T) {
 }
 
 func TestTgsFrameAtHold(t *testing.T) {
-	anim := &lottie.Animation{FrameRate: 30, InPoint: 0, OutPoint: 90} // 3s
-	// Looping mode wraps.
+	anim := &lottie.Animation{FrameRate: 30, InPoint: 0, OutPoint: 90}
 	if got := tgsFrameAt(anim, 7*time.Second, false); got != 30 {
 		t.Errorf("loop mode = %v, want 30", got)
 	}
-	// Hold mode clamps at the out point.
 	if got := tgsFrameAt(anim, 7*time.Second, true); got != 90 {
 		t.Errorf("hold mode = %v, want 90 (clamped)", got)
 	}
@@ -83,7 +78,6 @@ func TestTgsPlayerPathSwap(t *testing.T) {
 	if !p.parsed || p.path != "/cache/a.tgs" {
 		t.Fatalf("setAnim state wrong: parsed=%v path=%q", p.parsed, p.path)
 	}
-	// A new source file for the same message resets the player.
 	c.reset("m")
 	p = c.get("m")
 	if p.parsed || p.anim != nil || p.path != "" || p.failed {

@@ -2,27 +2,6 @@
 
 package gui
 
-// notify_windows.go — slice 200: the Windows native notification
-// transport (Windows.UI.Notifications toasts, pure-Go WinRT via
-// syscalls — the taskbar_windows.go COM pattern extended to Ro*).
-// ABI pinned against primary sources (research/windows_toast.md):
-// mingw-w64 windows.ui.notifications.h / windows.data.xml.dom.h for the
-// interface UUIDs + vtable order (IUnknown 0-2, IInspectable 3-5), and
-// valinet's pure-C toast gist for the activation flow.
-//
-// Slice 201: the AUMID is now OURS — resolvedToastAUMID registers the
-// per-user Start-Menu shortcut (IShellLinkW + IPropertyStore COM,
-// shortcut_windows.go) carrying "DarkReaperBoy.Uniclient", so the
-// source row shows "Uniclient"; PowerShell's pre-registered AUMID
-// remains the always-works fallback. Slice 202: click-through rides the
-// protocol launch attribute — the toast carries
-// activationType="protocol" launch="uniclient://open?…" (toastxml.go),
-// the shell activates the registered scheme (instance_windows.go), a
-// second process forwards the open to the running instance and exits.
-// onAction is still never invoked (protocol activation is not a Go
-// callback) — the in-app banner remains the direct click surface, and
-// failures fall back to it silently (never a crash, §1.10).
-
 import (
 	"sync"
 	"syscall"
@@ -41,7 +20,6 @@ var (
 	procWindowsDeleteString    = winstringDLL.NewProc("WindowsDeleteString")
 )
 
-// WinRT interface UUIDs (mingw-w64 headers — see file comment).
 var (
 	iidIToastNotificationManagerStatics = windows.GUID{
 		Data1: 0x50AC103F, Data2: 0xD235, Data3: 0x4598,
@@ -65,30 +43,21 @@ var (
 	}
 )
 
-// vtable slot offsets (IUnknown 0-2, IInspectable 3-5, then the
-// interface's own methods in declaration order — mingw-w64).
 const (
-	vtManagerCreateWithId = 7 // CreateToastNotifierWithId(aumid, out)
-	vtFactoryCreate       = 6 // CreateToastNotification(xml, out)
-	vtNotifierShow        = 6 // Show(toast)
-	vtXmlIOLoadXml        = 6 // LoadXml(hstring)
-	vtToast2PutTag        = 6 // IToastNotification2::put_Tag (comabi.go)
-	vtToast2PutGroup      = 8 // IToastNotification2::put_Group (comabi.go)
+	vtManagerCreateWithId = 7
+	vtFactoryCreate       = 6
+	vtNotifierShow        = 6
+	vtXmlIOLoadXml        = 6
+	vtToast2PutTag        = 6
+	vtToast2PutGroup      = 8
 )
 
-// toastGroup (slice 203): the shared toast group — every Uniclient
-// toast carries it; the per-chat Tag does the replacement
-// differentiation.
 const toastGroup = "uniclient"
 
-// powerShellAUMID: PowerShell's notification registration (Start
-// Menu shortcut) — the always-works fallback when our own shortcut
-// registration (shortcut_windows.go, slice 201) does not succeed.
 const powerShellAUMID = `1AC14E77-02E7-4E5D-B744-2EB1AE5198B7\WindowsPowerShell\v1.0`
 
 var toastMu sync.Mutex
 
-// hstring wraps WindowsCreateString/WindowsDeleteString.
 type hstring struct{ h uintptr }
 
 func newHString(s string) (hstring, error) {
@@ -114,13 +83,11 @@ func (h hstring) free() {
 	}
 }
 
-// vtableCall fetches slot idx from the interface's vtable.
 func vtableCall(itf uintptr, idx int) uintptr {
 	lpVtbl := *(*uintptr)(unsafe.Pointer(itf))
 	return *(*uintptr)(unsafe.Pointer(lpVtbl + uintptr(idx)*unsafe.Sizeof(uintptr(0))))
 }
 
-// comRelease is IUnknown::Release (slot 2).
 func comRelease(itf uintptr) {
 	if itf == 0 {
 		return
@@ -128,7 +95,6 @@ func comRelease(itf uintptr) {
 	syscall.SyscallN(vtableCall(itf, 2), itf)
 }
 
-// queryInterface wraps IUnknown::QueryInterface (slot 0).
 func queryInterface(itf uintptr, iid *windows.GUID) (uintptr, bool) {
 	var out uintptr
 	r, _, _ := syscall.SyscallN(vtableCall(itf, 0), itf,
@@ -136,7 +102,6 @@ func queryInterface(itf uintptr, iid *windows.GUID) (uintptr, bool) {
 	return out, r == 0 && out != 0
 }
 
-// roGetActivationFactory loads a WinRT class's factory interface.
 func roGetActivationFactory(class string, iid *windows.GUID) (uintptr, error) {
 	hs, err := newHString(class)
 	if err != nil {
@@ -155,15 +120,10 @@ func roGetActivationFactory(class string, iid *windows.GUID) (uintptr, error) {
 	return factory, nil
 }
 
-// notifyDesktop shows a native Windows toast. key/icon/actions/onAction
-// are unused in v1 (no click-through callback yet — the in-app banner
-// remains the click surface; see the file comment). Returns an error on
-// any WinRT failure so the caller keeps its banner path.
 func notifyDesktop(title, body, key, icon string, actions []string, onAction func(string)) error {
 	toastMu.Lock()
 	defer toastMu.Unlock()
 
-	// Manager → notifier (bound to the registered AUMID).
 	manager, err := roGetActivationFactory("Windows.UI.Notifications.ToastNotificationManager", &iidIToastNotificationManagerStatics)
 	if err != nil {
 		return err
@@ -182,7 +142,6 @@ func notifyDesktop(title, body, key, icon string, actions []string, onAction fun
 	}
 	defer comRelease(notifier)
 
-	// XmlDocument: activate the instance, QI the document + IO, LoadXml.
 	docClass, err := newHString("Windows.Data.Xml.Dom.XmlDocument")
 	if err != nil {
 		return err
@@ -204,10 +163,6 @@ func notifyDesktop(title, body, key, icon string, actions []string, onAction fun
 		return syscall.EINVAL
 	}
 	defer comRelease(docIO)
-	// Toast XML (slice 202): the launch attribute carries the chat so a
-	// toast click opens it (protocol activation → single-instance hop).
-	// Slice 203: the peer avatar rides the appLogoOverride slot; the
-	// toast itself is silent (the app's synthesized chime is the sound).
 	launch := ""
 	if acc, chat, ok := splitNotifyKey(key); ok {
 		launch = buildOpenURI(acc, chat)
@@ -222,7 +177,6 @@ func notifyDesktop(title, body, key, icon string, actions []string, onAction fun
 		return syscall.Errno(r)
 	}
 
-	// ToastNotification from the XML, then Show.
 	factory, err := roGetActivationFactory("Windows.UI.Notifications.ToastNotification", &iidIToastNotificationFactory)
 	if err != nil {
 		return err
@@ -235,10 +189,6 @@ func notifyDesktop(title, body, key, icon string, actions []string, onAction fun
 		return syscall.Errno(r)
 	}
 	defer comRelease(toast)
-	// Slice 203: tag the toast per chat (shared group) so a newer toast
-	// for the same chat replaces the older one in Action Center — the
-	// slice-141 "never stack for one chat" semantics. IToastNotification2
-	// (Win10+): QI fails harmlessly on ancient builds → skip tagging.
 	if tag := toastTag(key); tag != "" {
 		if t2, ok := queryInterface(toast, guidRef(&iidIToastNotification2)); ok {
 			defer comRelease(t2)

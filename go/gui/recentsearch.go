@@ -8,19 +8,11 @@ import (
 	"gioui.org/widget"
 )
 
-// Recent searches (AyuGram parity slice 37).
-//
-// Telegram remembers the last 8 submitted search queries and shows them
-// in a dropdown under the (focused, empty) search field. Submitting a
-// query (Enter) records it through the engine; picking a recent fills
-// the field; a clear row empties the list.
-
 var (
 	recentSearchBtns []widget.Clickable
 	recentClearBtn   widget.Clickable
 )
 
-// trimRecentSearch caps and normalizes the stored list for display.
 func trimRecentSearch(list []string) []string {
 	out := make([]string, 0, len(list))
 	for _, q := range list {
@@ -35,7 +27,6 @@ func trimRecentSearch(list []string) []string {
 	return out
 }
 
-// submitSearch records a query into the engine's recents and refreshes.
 func (a *App) submitSearch(query string) {
 	query = strings.TrimSpace(query)
 	if query == "" {
@@ -47,9 +38,6 @@ func (a *App) submitSearch(query string) {
 	}()
 }
 
-// layoutRecentSearches renders the recents dropdown below the search field
-// while the editor is focused and empty (Telegram behavior). Rows are
-// click-to-fill; the last row clears the list.
 func (a *App) layoutRecentSearches(gtx layout.Context, f frame) layout.Dimensions {
 	recents := trimRecentSearch(f.cfg.RecentSearches)
 	if len(recents) == 0 {
@@ -116,7 +104,6 @@ func (a *App) layoutRecentSearches(gtx layout.Context, f frame) layout.Dimension
 	})
 }
 
-// materialButtonFlat wraps a clickable as a quiet surface row (hover bg).
 func materialButtonFlat(gtx layout.Context, u *UI, btn *widget.Clickable) func(gtx layout.Context, w layout.Widget) layout.Dimensions {
 	bg := u.p.Surface
 	if btn.Hovered() {

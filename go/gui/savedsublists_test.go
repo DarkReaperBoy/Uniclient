@@ -6,14 +6,7 @@ import (
 	"uniclient/cores"
 )
 
-// Saved Messages sublists (slice 197): the pure GUI halves — the
-// sublist-row ordering (pinned first, then newest activity), the bar
-// title of an open sublist scope, and the row preview text.
-
 func TestSortSavedSublists(t *testing.T) {
-	// Slice 204: the pinned block preserves the SERVER order (the pin
-	// order — messages.getSavedDialogs returns it, and reordering must
-	// be visible); only the unpinned tail falls back to newest-first.
 	lists := []cores.SavedSublistInfo{
 		{PeerID: "1", PeerName: "older", LastMsgTime: 100},
 		{PeerID: "2", PeerName: "pinned old", IsPinned: true, LastMsgTime: 50},
@@ -25,15 +18,11 @@ func TestSortSavedSublists(t *testing.T) {
 		t.Fatalf("order = %v %v %v %v, want pinned server order (2,4) → newest(3) → older(1)",
 			got[0].PeerID, got[1].PeerID, got[2].PeerID, got[3].PeerID)
 	}
-	// Input not mutated.
 	if lists[0].PeerID != "1" {
 		t.Errorf("input slice was mutated")
 	}
 }
 
-// TestSavedSublistMenuActions (slice 204): pinned rows get the move
-// entries (bounded by the block edges), every row gets pin-toggle +
-// the destructive delete entry.
 func TestSavedSublistMenuActions(t *testing.T) {
 	if got := savedSublistMenuActions(true, false, true, false); len(got) != 3 ||
 		got[0] != "Unpin" || got[1] != "Move down" || got[2] != "Delete messages" {
@@ -52,8 +41,6 @@ func TestSavedSublistMenuActions(t *testing.T) {
 	}
 }
 
-// TestSavedSublistMovePeers (slice 204): moving inside the pinned block
-// swaps exactly the two neighbors; moving at the block edge is a no-op.
 func TestSavedSublistMovePeers(t *testing.T) {
 	lists := []cores.SavedSublistInfo{
 		{PeerID: "a", IsPinned: true},
@@ -118,7 +105,6 @@ func TestSavedSublistPreview(t *testing.T) {
 	}
 }
 
-// TestSavedTagBarTitle (slice 199): the tag scope's bar title.
 func TestSavedTagBarTitle(t *testing.T) {
 	if got := savedTagBarTitle("🔥", "Important"); got != "Tag 🔥 · Important" {
 		t.Errorf("titled = %q", got)
@@ -128,7 +114,6 @@ func TestSavedTagBarTitle(t *testing.T) {
 	}
 }
 
-// TestSavedTagRowLabel (slice 199): tag row titles with fallbacks.
 func TestSavedTagRowLabel(t *testing.T) {
 	if got := savedTagRowLabel(cores.SavedReactionTagInfo{Emoji: "❤", Title: "Favorites"}); got != "Favorites" {
 		t.Errorf("titled = %q", got)
@@ -138,7 +123,6 @@ func TestSavedTagRowLabel(t *testing.T) {
 	}
 }
 
-// TestTagsSectionVisible (slice 199): honest premium gating.
 func TestTagsSectionVisible(t *testing.T) {
 	tags := []cores.SavedReactionTagInfo{{Emoji: "🔥", Count: 3}}
 	if tagsSectionVisible(true, tags) != true {

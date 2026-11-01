@@ -7,18 +7,16 @@ import (
 	"rsc.io/qr"
 )
 
-// renderQR encodes text into an RGBA image (4px module margin), pure Go.
 func renderQR(text string) *image.RGBA {
 	code, err := qr.Encode(text, qr.M)
 	if err != nil {
 		return nil
 	}
 	const scale = 4
-	const quiet = 4 // modules of quiet zone
+	const quiet = 4
 	n := code.Size
 	size := (n + quiet*2) * scale
 	img := image.NewRGBA(image.Rect(0, 0, size, size))
-	// white background
 	white := color.RGBA{R: 255, G: 255, B: 255, A: 255}
 	black := color.RGBA{A: 255}
 	for y := 0; y < size; y++ {

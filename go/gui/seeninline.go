@@ -1,12 +1,5 @@
 package gui
 
-// seeninline.go — slice 152: the inline read receipt (tdesktop DM
-// behavior): the last own outgoing message in a DM carries a small
-// "Seen 12:34" row with the reader's avatar under the bubble meta. The
-// data rides the slice-98 engine surface (GetOutboxReadDate +
-// GetMessageReadParticipantsDetailed); privacy errors render nothing
-// (the Seen-by dialog keeps the honest sentence).
-
 import (
 	"strconv"
 	"time"
@@ -17,9 +10,6 @@ import (
 	"uniclient/engine"
 )
 
-// seenInlineGate (pure): the receipt renders on the LAST own outgoing
-// non-service message of a DM (channels broadcast, groups keep the
-// dialog-only receipt — tdesktop shows the avatar stack in DMs).
 func seenInlineGate(m engine.CachedMessage, chatType int, isLastOwn bool) bool {
 	if !m.IsOutgoing || m.IsService || !isLastOwn {
 		return false
@@ -27,8 +17,6 @@ func seenInlineGate(m engine.CachedMessage, chatType int, isLastOwn bool) bool {
 	return chatType == engine.ChatTypeDMVal
 }
 
-// seenInlineLabel (pure): "Seen HH:MM" (or plain "Seen" without a
-// resolved date).
 func seenInlineLabel(readDate int64, ok bool) string {
 	if !ok || readDate <= 0 {
 		return "Seen"
@@ -36,8 +24,6 @@ func seenInlineLabel(readDate int64, ok bool) string {
 	return "Seen " + time.Unix(readDate, 0).Format("15:04")
 }
 
-// seenInlineState is the per-chat cached receipt (one entry per chat;
-// keyed account|chat).
 type seenInlineState struct {
 	msgID      string
 	parts      []map[string]interface{}
@@ -47,8 +33,6 @@ type seenInlineState struct {
 	fetching   bool
 }
 
-// lastOwnMsgID (pure): the last outgoing non-service message in the
-// slice, "" when none.
 func lastOwnMsgID(msgs []engine.CachedMessage) string {
 	for i := len(msgs) - 1; i >= 0; i-- {
 		if msgs[i].IsOutgoing && !msgs[i].IsService {
@@ -58,8 +42,6 @@ func lastOwnMsgID(msgs []engine.CachedMessage) string {
 	return ""
 }
 
-// ensureSeenInline lazily fetches (and caches) the read receipt for the
-// chat's last own message; refetches when the message changes.
 func (a *App) ensureSeenInline(m *engine.CachedMessage) {
 	if m == nil {
 		return
@@ -113,7 +95,6 @@ func (a *App) ensureSeenInline(m *engine.CachedMessage) {
 	}()
 }
 
-// seenInlineFor returns the chat's cached receipt state (frame read).
 func seenInlineFor(f frame, m *engine.CachedMessage) *seenInlineState {
 	if m == nil {
 		return nil
@@ -121,26 +102,21 @@ func seenInlineFor(f frame, m *engine.CachedMessage) *seenInlineState {
 	return f.seenInline[m.AccountID+"|"+m.ChatID]
 }
 
-// layoutSeenInline renders the receipt row under the bubble meta:
-// tiny reader avatar(s) + "Seen …". Hidden for privacy errors and
-// while unread (readDate unknown + no parts = not seen yet — nothing
-// renders, same as tdesktop's pending state).
 func (a *App) layoutSeenInline(gtx layout.Context, f frame, m *engine.CachedMessage) layout.Dimensions {
 	st := seenInlineFor(f, m)
 	if st == nil || st.msgID != m.MsgID {
 		return layout.Dimensions{}
 	}
 	if st.privacy != "" && seenByPrivacyNote(st.privacy) != "" {
-		return layout.Dimensions{} // privacy: the dialog explains, the inline row stays silent
+		return layout.Dimensions{}
 	}
 	if st.privacy != "" {
-		return layout.Dimensions{} // other errors: silent too (the dialog surfaces them)
+		return layout.Dimensions{}
 	}
 	seen := st.readDateOK || len(st.parts) > 0
 	if !seen {
 		return layout.Dimensions{}
 	}
-	// readers: up to 3 avatars (DMs have one, the map stays general)
 	var names []string
 	for i, p := range st.parts {
 		if i >= 3 {
@@ -149,7 +125,7 @@ func (a *App) layoutSeenInline(gtx layout.Context, f frame, m *engine.CachedMess
 		names = append(names, seenByRowName(p))
 	}
 	if len(names) == 0 && st.readDateOK {
-		names = append(names, "") // date-only row, no avatar
+		names = append(names, "")
 	}
 	return layout.Inset{Top: unit.Dp(2)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		row := layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}

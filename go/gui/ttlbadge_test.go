@@ -7,11 +7,6 @@ import (
 	"uniclient/engine"
 )
 
-// TTL badges (slice 182, parity row "Expired/self-destruct media"):
-// pure logic — one-time media (media_ttl_seconds) → "One-time …" chip;
-// message auto-delete (ttl_seconds) → timer glyph + period text beside
-// the timestamp. Layout verified by compile + review.
-
 func ttlMessage(extra map[string]interface{}, mediaType int) *engine.CachedMessage {
 	env := struct {
 		Extra map[string]interface{} `json:"extra"`
@@ -36,7 +31,6 @@ func TestParseTTLExtras(t *testing.T) {
 	if msgTTL != 300 || mediaTTL != 5 {
 		t.Fatalf("ttl = %d/%d", msgTTL, mediaTTL)
 	}
-	// Absent → zeros.
 	m2 := ttlMessage(map[string]interface{}{}, engine.MediaImage)
 	if msg2, media2 := parseTTLExtras(m2); msg2 != 0 || media2 != 0 {
 		t.Fatalf("absent ttl = %d/%d", msg2, media2)
@@ -85,7 +79,6 @@ func TestOneTimeLabel(t *testing.T) {
 			t.Errorf("oneTimeLabel(%d) = %q, want %q", c.mediaType, got, c.want)
 		}
 	}
-	// The chip shows only when the media carries a TTL.
 	if oneTimeChipVisible(0, 5) {
 		t.Fatal("media TTL 0 must not show the chip")
 	}
@@ -95,7 +88,6 @@ func TestOneTimeLabel(t *testing.T) {
 	if oneTimeChipVisible(engine.MediaImage, 0) {
 		t.Fatal("photo without media TTL must not show the chip")
 	}
-	// File media never shows it (no one-time files).
 	if oneTimeChipVisible(engine.MediaFile, 5) {
 		t.Fatal("file media must not show the chip")
 	}

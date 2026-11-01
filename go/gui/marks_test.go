@@ -6,12 +6,12 @@ func TestDeletedMarkText(t *testing.T) {
 	cases := []struct {
 		text, mark, want string
 	}{
-		{"hello", "", "hello — deleted"},          // default mark
-		{"hello", "recalled", "hello recalled"},   // custom suffix
-		{"", "", "— deleted"},                     // no text, default
-		{"", "gone", "gone"},                      // no text, custom
-		{"  ", "gone", "gone"},                    // whitespace-only text
-		{"hello", "— deleted", "hello — deleted"}, // explicit default
+		{"hello", "", "hello — deleted"},
+		{"hello", "recalled", "hello recalled"},
+		{"", "", "— deleted"},
+		{"", "gone", "gone"},
+		{"  ", "gone", "gone"},
+		{"hello", "— deleted", "hello — deleted"},
 	}
 	for _, c := range cases {
 		if got := deletedMarkText(c.text, c.mark); got != c.want {

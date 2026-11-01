@@ -1,10 +1,5 @@
 package gui
 
-// musicattach_test.go — slice 210 tests: the music attach box's pure
-// helpers — query filtering (title/performer/file name), the collapsed
-// preview window + Show All, the selection-aware Send label, and the
-// send order (playlist order preserved, deduped by docID).
-
 import (
 	"testing"
 
@@ -51,7 +46,6 @@ func TestMusicAttachVisible(t *testing.T) {
 	if got := musicAttachVisible(all, true); len(got) != len(all) {
 		t.Errorf("show-all = %d rows, want %d", len(got), len(all))
 	}
-	// Shorter lists never pad or clip.
 	short := all[:2]
 	if got := musicAttachVisible(short, false); len(got) != 2 {
 		t.Errorf("short list collapsed = %d", len(got))
@@ -74,7 +68,6 @@ func TestMusicAttachSendOrder(t *testing.T) {
 	if len(got) != 2 || got[0].DocID != "7001" || got[1].DocID != "7004" {
 		t.Fatalf("send order = %+v (want playlist order 7001,7004)", got)
 	}
-	// Selection for tracks no longer in the list is ignored (stale docIDs).
 	sel["ghost"] = true
 	if got := musicAttachSendOrder(all, sel); len(got) != 2 {
 		t.Errorf("ghost selection leaked: %+v", got)

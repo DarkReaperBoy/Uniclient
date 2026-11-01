@@ -9,9 +9,6 @@ import (
 	"uniclient/engine"
 )
 
-// utf16 helpers under test: entity offsets are UTF-16 code units.
-
-// TestShotRunsPlain: no entities → one plain run.
 func TestShotRunsPlain(t *testing.T) {
 	runs := shotRunsFromEntities("hello world", nil)
 	if len(runs) != 1 || runs[0].text != "hello world" || runs[0].styled() {
@@ -19,10 +16,9 @@ func TestShotRunsPlain(t *testing.T) {
 	}
 }
 
-// TestShotRunsBold: a bold entity splits into plain+bold+plain.
 func TestShotRunsBold(t *testing.T) {
 	runs := shotRunsFromEntities("say **hi** now", []cores.TextEntity{
-		{Type: "bold", Offset: 4, Length: 6}, // "**hi**"
+		{Type: "bold", Offset: 4, Length: 6},
 	})
 	if len(runs) != 3 {
 		t.Fatalf("runs = %+v", runs)
@@ -38,13 +34,11 @@ func TestShotRunsBold(t *testing.T) {
 	}
 }
 
-// TestShotRunsOverlapping: bold+italic combine onto one run.
 func TestShotRunsOverlapping(t *testing.T) {
 	runs := shotRunsFromEntities("xxBASICxx", []cores.TextEntity{
 		{Type: "bold", Offset: 2, Length: 5},
 		{Type: "italic", Offset: 3, Length: 3},
 	})
-	// segments: xx | B | AS | I | C | xx — the overlap region AS has both
 	bold := 0
 	both := 0
 	for _, r := range runs {
@@ -63,10 +57,7 @@ func TestShotRunsOverlapping(t *testing.T) {
 	}
 }
 
-// TestShotRunsUTF16: entity offsets are UTF-16 code units — an emoji
-// before the entity occupies 2 units in the offset space but 1 rune.
 func TestShotRunsUTF16(t *testing.T) {
-	// "😀ab" — 😀 is 2 UTF-16 units; bold "ab" starts at offset 2.
 	runs := shotRunsFromEntities("😀ab", []cores.TextEntity{
 		{Type: "bold", Offset: 2, Length: 2},
 	})
@@ -81,7 +72,6 @@ func TestShotRunsUTF16(t *testing.T) {
 	}
 }
 
-// TestShotRunsLink: text_url becomes a link run carrying the URL.
 func TestShotRunsLink(t *testing.T) {
 	runs := shotRunsFromEntities("go there", []cores.TextEntity{
 		{Type: "text_url", Offset: 3, Length: 5, URL: "https://example.com"},
@@ -91,10 +81,7 @@ func TestShotRunsLink(t *testing.T) {
 	}
 }
 
-// TestWrapShotLines: greedy wrapping splits at word boundaries and
-// honors the width budget.
 func TestWrapShotLines(t *testing.T) {
-	// fixed-width measurer: each rune = 10px
 	measure := func(r shotRun, text string) int { return len([]rune(text)) * 10 }
 	runs := []shotRun{{text: "aaa bbb ccc"}, {text: " ddd"}}
 	lines := wrapShotLines(runs, 70, measure)
@@ -114,15 +101,12 @@ func TestWrapShotLines(t *testing.T) {
 			t.Fatalf("line over budget: %q", tx)
 		}
 	}
-	// the wrap space at the line break is consumed by the newline itself
 	joined := strings.Join(texts, "\n")
 	if joined != "aaa bbb\nccc ddd" {
 		t.Fatalf("content changed: %q", joined)
 	}
 }
 
-// TestWrapShotLinesLongWord: an unbreakable word longer than the budget
-// hard-splits instead of overflowing.
 func TestWrapShotLinesLongWord(t *testing.T) {
 	measure := func(r shotRun, text string) int { return len([]rune(text)) * 10 }
 	lines := wrapShotLines([]shotRun{{text: "aaaaaaaaaaaa"}}, 50, measure)
@@ -140,7 +124,6 @@ func TestWrapShotLinesLongWord(t *testing.T) {
 	}
 }
 
-// TestShotFilename: sanitized default save names.
 func TestShotFilename(t *testing.T) {
 	if got := shotFilename("Alice Bob"); got != "shot-Alice-Bob.png" {
 		t.Fatalf("name = %q", got)
@@ -153,9 +136,6 @@ func TestShotFilename(t *testing.T) {
 	}
 }
 
-// TestRenderMessageShot: a synthetic message renders to a non-trivial
-// image with sane geometry (sender + styled body + timestamp), and
-// encodes as PNG.
 func TestRenderMessageShot(t *testing.T) {
 	msg := engine.CachedMessage{
 		SenderName:    "Alice",
@@ -178,8 +158,6 @@ func TestRenderMessageShot(t *testing.T) {
 	}
 }
 
-// TestRenderMessageShotReplyAndForward: quote/forward blocks expand the
-// layout without changing the body.
 func TestRenderMessageShotReplyAndForward(t *testing.T) {
 	base := engine.CachedMessage{
 		SenderName:   "Bob",

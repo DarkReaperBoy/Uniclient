@@ -5,23 +5,6 @@ import (
 	"time"
 )
 
-// F-85 (slice 320): tsProof generalized to carry the broadcast's FULL
-// params (F-83/F-84's {name, clid} only matched a fixed key), so a
-// pending command can (a) match on whatever key IT dictates (invokerid
-// for channelcreate, cid for channeledit, clid for kick/move/update)
-// and (b) read result fields back from the proof — CreateChannel gets
-// its new cid from notifychannelcreated's params (in-client
-// channelcreate sends NO data row and NO ok-line: wire-proven,
-// WORKLOG 320).
-//
-// Also fixes ClientEdit, which built the `clientedit ...` command and
-// then returned nil WITHOUT SENDING IT (silent no-op).
-//
-// Seam-RED (WORKLOG 320): undefined: tsWant; existing F-84 tests fail
-// with "unknown field clid".
-
-// TestProofFieldsRowProvidesResultCID: the proof's params come back as
-// a result row — CreateChannel's rows[0]["cid"] extraction works.
 func TestProofFieldsRowProvidesResultCID(t *testing.T) {
 	core, tc, cleanup := newExecHarness(t)
 	defer cleanup()
@@ -42,9 +25,6 @@ func TestProofFieldsRowProvidesResultCID(t *testing.T) {
 	}
 }
 
-// TestProofKeyMismatchRejected: a broadcast whose params lack the
-// wanted key (or carry a different value) never satisfies the pending
-// command — B-24 false-ack guard at the generalized matcher.
 func TestProofKeyMismatchRejected(t *testing.T) {
 	core, tc, cleanup := newExecHarness(t)
 	defer cleanup()
@@ -54,8 +34,6 @@ func TestProofKeyMismatchRejected(t *testing.T) {
 
 	go func() {
 		time.Sleep(30 * time.Millisecond)
-		// right NAME, but no invokerid field (e.g. someone else's event
-		// parsed without it): must NOT match want{invokerid: "7"}.
 		tc.fireProof("notifychannelcreated", map[string]string{"cid": "7"})
 	}()
 	if _, err := core.tsExecProof("channelcreate channel_name=x",

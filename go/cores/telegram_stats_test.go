@@ -6,25 +6,17 @@ import (
 	"github.com/gotd/td/tg"
 )
 
-// Channel statistics (slice 184, parity row "Channel statistics
-// screens"): statsGraphJSON extracts the inline JSON or the async token
-// (the caller then loads it via stats.loadAsyncGraph); the broadcast
-// stats mapping stays pure so the GUI gets a flat result.
-
 func TestStatsGraphJSON(t *testing.T) {
-	// Inline graph → JSON directly, no token.
 	g := &tg.StatsGraph{JSON: tg.DataJSON{Data: `{"columns":[["x",1],["y",2]]}`}}
 	json, token := statsGraphJSON(g)
 	if json != `{"columns":[["x",1],["y",2]]}` || token != "" {
 		t.Fatalf("inline graph = %q / %q", json, token)
 	}
-	// Async graph → token only, JSON empty.
 	a := &tg.StatsGraphAsync{Token: "tok123"}
 	json2, token2 := statsGraphJSON(a)
 	if json2 != "" || token2 != "tok123" {
 		t.Fatalf("async graph = %q / %q", json2, token2)
 	}
-	// Unknown constructor → nothing.
 	json3, token3 := statsGraphJSON(nil)
 	if json3 != "" || token3 != "" {
 		t.Fatalf("nil graph = %q / %q", json3, token3)
@@ -87,7 +79,6 @@ func TestBroadcastStatsToResult(t *testing.T) {
 	if byTitle["Views by hour"].JSON == "" {
 		t.Fatalf("top hours graph = %+v", byTitle["Views by hour"])
 	}
-	// nil graph (InteractionsGraph) → simply absent.
 	if _, ok := byTitle["Interactions"]; ok {
 		t.Fatal("nil graph must be absent")
 	}

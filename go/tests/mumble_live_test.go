@@ -1,24 +1,5 @@
 //go:build live
 
-// Live integration test for the Mumble core against REAL public Mumble
-// servers (TCP control channel). The full pre-voice chain is exercised:
-// TCP+TLS connect (self-signed server certs accepted, client cert offered),
-// Version exchange, Authenticate, CryptSetup, ChannelState/UserState flood
-// and ServerSync. A public server that accepts guest logins yields FULL
-// success (ServerSync with session ID + welcome text); a server that
-// rejects guests yields a Reject message — which still proves the whole
-// framing/protobuf chain works 1:1. Not run in CI.
-//
-// Round-trip test: connects as a guest, lists channels, joins the root
-// channel (or the first joinable one), sends a text message and expects
-// the server to echo it back (Mumble broadcasts to all channel users,
-// including the sender) — proving TextMessage encode/decode + event flow
-// against a real Murmur.
-//
-// Run: cd go && go test -tags goolm,live ./tests/ -run TestMumbleLive -v -timeout 180s
-// Env: MUMBLE_LIVE_SERVER (default "murmur.libresilicon.com:64738"),
-//
-//	MUMBLE_LIVE_USERNAME (default a random throwaway).
 package tests
 
 import (
@@ -34,9 +15,6 @@ import (
 	"uniclient/utils"
 )
 
-// mumbleLiveGuest logs into a public server as a guest and returns the
-// connected core. Skips the test when the server rejects guest logins or
-// the network is unreachable.
 func mumbleLiveGuest(t *testing.T, server, username string) *cores.MumbleCore {
 	t.Helper()
 
@@ -75,18 +53,12 @@ func TestMumbleLiveConnectChain(t *testing.T) {
 	mumbleLiveGuest(t, server, username)
 }
 
-// TestMumbleLiveRoundTrip: channel list → join a channel → send a text
-// message from client A and receive it on client B. Murmur never echoes a
-// message back to its sender (msgTextMessage removes uSource from the
-// recipient set — verified in Murmur's Messages.cpp), so a two-client pair
-// is the honest round-trip proof.
 func TestMumbleLiveRoundTrip(t *testing.T) {
 	server := osGetenvDefault("MUMBLE_LIVE_SERVER", "murmur.libresilicon.com:64738")
 	usernameA := osGetenvDefault("MUMBLE_LIVE_USERNAME", fmt.Sprintf("uc-live-%d", rand.Intn(100000)))
 	coreA := mumbleLiveGuest(t, server, usernameA)
 	coreB := mumbleLiveGuest(t, server, usernameA+"-b")
 
-	// B collects incoming messages.
 	recv := make(chan *cores.Message, 16)
 	coreB.OnUpdate(func(u cores.Update) {
 		if u.Type == cores.UpdateNewMessage && u.Message != nil && !u.Message.IsOutgoing {
@@ -94,7 +66,6 @@ func TestMumbleLiveRoundTrip(t *testing.T) {
 		}
 	})
 
-	// 1. Channel list must be non-empty on both cores.
 	dialogs, err := coreA.GetDialogs(cores.PaginationOpts{Limit: 50})
 	if err != nil {
 		t.Fatalf("GetDialogs: %v", err)
@@ -104,7 +75,6 @@ func TestMumbleLiveRoundTrip(t *testing.T) {
 	}
 	t.Logf("server has %d channels", len(dialogs))
 
-	// Find the root channel.
 	target := ""
 	rootName := ""
 	for _, d := range dialogs {
@@ -120,7 +90,6 @@ func TestMumbleLiveRoundTrip(t *testing.T) {
 	}
 	t.Logf("joining channel %q (id %s)", rootName, target)
 
-	// 2. Both clients join the channel.
 	if err := coreA.MoveToChannel(parseU32(t, target)); err != nil {
 		t.Fatalf("MoveToChannel(A, %s): %v", target, err)
 	}
@@ -129,7 +98,6 @@ func TestMumbleLiveRoundTrip(t *testing.T) {
 	}
 	time.Sleep(700 * time.Millisecond)
 
-	// 3. A sends a text message to the channel; B must receive it.
 	text := fmt.Sprintf("uniclient live round-trip %d", time.Now().UnixNano()%1000000)
 	sent, err := coreA.SendMessage(target, cores.OutgoingMessage{Text: text})
 	if err != nil {
@@ -147,7 +115,6 @@ func TestMumbleLiveRoundTrip(t *testing.T) {
 		t.Fatal("B received no broadcast within 15s")
 	}
 
-	// 4. The message must appear in B's local message cache.
 	msgs, err := coreB.GetMessages(target, cores.PaginationOpts{Limit: 10})
 	if err != nil {
 		t.Fatalf("GetMessages: %v", err)
@@ -173,9 +140,6 @@ func parseU32(t *testing.T, s string) uint32 {
 	return uint32(v)
 }
 
-// TestMumbleLiveServerPing checks the raw UDP ping against a public server.
-// Gated separately because sandboxes commonly block egress UDP; on a network
-// with open UDP this must succeed.
 func TestMumbleLiveServerPing(t *testing.T) {
 	server := osGetenvDefault("MUMBLE_LIVE_SERVER", "murmur.libresilicon.com:64738")
 	host := server

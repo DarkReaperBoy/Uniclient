@@ -8,7 +8,6 @@ import (
 	"uniclient/cores"
 )
 
-// sponsoredStub: a core exposing the sponsored surfaces.
 type sponsoredStub struct {
 	cores.StubCore
 	fetches  int
@@ -60,7 +59,6 @@ func TestGetSponsoredMessagesCachesFiveMinutes(t *testing.T) {
 		"irc": {ID: "irc", Core: plainStub{}},
 	}
 
-	// First call fetches from the core.
 	items, posts, err := e.GetSponsoredMessages("tg", "-1001234")
 	if err != nil {
 		t.Fatalf("get: %v", err)
@@ -72,7 +70,6 @@ func TestGetSponsoredMessagesCachesFiveMinutes(t *testing.T) {
 		t.Fatalf("fetches = %d, want 1", stub.fetches)
 	}
 
-	// Second call inside the window is served from cache.
 	if _, _, err := e.GetSponsoredMessages("tg", "-1001234"); err != nil {
 		t.Fatalf("cached get: %v", err)
 	}
@@ -80,7 +77,6 @@ func TestGetSponsoredMessagesCachesFiveMinutes(t *testing.T) {
 		t.Fatalf("fetches after cached call = %d, want 1", stub.fetches)
 	}
 
-	// Different chat = different cache slot.
 	if _, _, err := e.GetSponsoredMessages("tg", "-1009999"); err != nil {
 		t.Fatalf("other chat: %v", err)
 	}
@@ -88,7 +84,6 @@ func TestGetSponsoredMessagesCachesFiveMinutes(t *testing.T) {
 		t.Fatalf("fetches for other chat = %d, want 2", stub.fetches)
 	}
 
-	// Expired entry refetches.
 	e.sponsoredMu.Lock()
 	if ent := e.sponsoredCache["tg|-1001234"]; ent != nil {
 		ent.fetchedAt = time.Now().Add(-6 * time.Minute)
@@ -101,11 +96,9 @@ func TestGetSponsoredMessagesCachesFiveMinutes(t *testing.T) {
 		t.Fatalf("fetches after expiry = %d, want 3", stub.fetches)
 	}
 
-	// Unsupported core → honest error.
 	if _, _, err := e.GetSponsoredMessages("irc", "-1001"); err == nil || !strings.Contains(err.Error(), "does not support sponsored messages") {
 		t.Fatalf("plain core error = %v", err)
 	}
-	// Missing account.
 	if _, _, err := e.GetSponsoredMessages("missing", "-1001"); err == nil || !strings.Contains(err.Error(), "account not found") {
 		t.Fatalf("missing account error = %v", err)
 	}
@@ -124,7 +117,6 @@ func TestMarkSponsoredViewedOncePerWindow(t *testing.T) {
 	if err := e.MarkSponsoredViewed("tg", "-1001", "aabb"); err != nil {
 		t.Fatalf("view: %v", err)
 	}
-	// Second report in the same window is suppressed.
 	if err := e.MarkSponsoredViewed("tg", "-1001", "aabb"); err != nil {
 		t.Fatalf("view2: %v", err)
 	}
@@ -173,7 +165,6 @@ func TestSponsoredActionsRoute(t *testing.T) {
 		t.Fatalf("toggled = %v, want [false]", stub.toggled)
 	}
 
-	// Unsupported core → honest errors.
 	if err := e.ClickSponsoredMessage("irc", "aabb", false, false); err == nil || !strings.Contains(err.Error(), "does not support") {
 		t.Fatalf("plain click error = %v", err)
 	}

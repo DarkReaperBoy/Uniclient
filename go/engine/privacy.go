@@ -4,12 +4,6 @@ import (
 	"fmt"
 )
 
-// Privacy scopes (AyuGram parity): the settings-style keys mirror AyuGram's
-// privacy rows; scopes are the simple four-value vocabulary the core
-// translates to/from Telegram privacy rules.
-
-// PrivacyScopeKeys is the ordered settings-style privacy key list shown on
-// the Privacy & Security page.
 var PrivacyScopeKeys = []string{
 	"last_seen",
 	"phone_number",
@@ -23,8 +17,6 @@ var PrivacyScopeKeys = []string{
 	"birthday",
 }
 
-// PrivacyScopeCloseFriends reports whether a key offers the "close friends"
-// scope (mirrors which Telegram rows show that option).
 func PrivacyScopeCloseFriends(key string) bool {
 	switch key {
 	case "last_seen", "profile_photo", "calls", "forwards",
@@ -34,7 +26,6 @@ func PrivacyScopeCloseFriends(key string) bool {
 	return false
 }
 
-// ValidPrivacyScope reports whether scope is one of the four known values.
 func ValidPrivacyScope(scope string) bool {
 	switch scope {
 	case "everybody", "contacts", "close_friends", "nobody":
@@ -51,9 +42,6 @@ type privacyScopeSetter interface {
 	SetPrivacyScope(key, scope string) error
 }
 
-// GetPrivacyScopes reads the current privacy scope per key for one account.
-// Keys the core cannot serve are reported with an empty scope string, so a
-// partial failure still renders the rest of the page.
 func (e *Engine) GetPrivacyScopes(accountID string) (map[string]string, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -74,7 +62,6 @@ func (e *Engine) GetPrivacyScopes(accountID string) (map[string]string, error) {
 	return scopes, nil
 }
 
-// SetPrivacyScope applies a privacy scope for one key on one account.
 func (e *Engine) SetPrivacyScope(accountID, key, scope string) error {
 	if !ValidPrivacyScope(scope) {
 		return fmt.Errorf("invalid privacy scope: %s", scope)

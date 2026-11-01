@@ -1,13 +1,5 @@
 package gui
 
-// Two-step verification (2FA cloud password) settings dialog, slice 120.
-// AyuGram parity: Privacy & Security gains a per-account "Two-Step
-// Verification" row (capability-gated) that opens this editor — state card
-// (On/Off, hint, recovery email, pending reset), set/change/disable flows,
-// and the recovery-email lifecycle (set → code → confirm, resend, cancel).
-// The whole core+engine surface already existed (cores CloudPassword*,
-// engine cache_users.go); this slice is the GUI half only.
-
 import (
 	"fmt"
 	"image"
@@ -25,16 +17,14 @@ import (
 	"uniclient/cores"
 )
 
-// dialog steps.
 const (
-	twofaStepMain      = 0 // state card + action list
-	twofaStepNew       = 1 // set / change password form
-	twofaStepDisable   = 2 // turn-off form (current password)
-	twofaStepEmail     = 3 // set / change recovery email
-	twofaStepEmailCode = 4 // enter the code sent to the new email
+	twofaStepMain      = 0
+	twofaStepNew       = 1
+	twofaStepDisable   = 2
+	twofaStepEmail     = 3
+	twofaStepEmailCode = 4
 )
 
-// semantic action ids for the main step (order matters, tests pin it).
 const (
 	twofaActSet          = "set_password"
 	twofaActChange       = "change_password"
@@ -51,19 +41,18 @@ var (
 	errTwoFAShort           = fmt.Errorf("password is too short")
 )
 
-// twofaDlgState is the open 2FA editor.
 type twofaDlgState struct {
 	accountID string
 	step      int
-	state     *cores.CloudPasswordState // nil until loaded
+	state     *cores.CloudPasswordState
 	loading   bool
-	busy      bool // a mutation is in flight
+	busy      bool
 	errMsg    string
-	emailSent string // address submitted in the email step (code follows)
+	emailSent string
 }
 
 var (
-	twofaRowBtns       []widget.Clickable // settings rows (slice 120)
+	twofaRowBtns       []widget.Clickable
 	twofaDlgTag        = new(struct{})
 	twofaBackBtn       widget.Clickable
 	twofaCancelBtn     widget.Clickable
@@ -87,8 +76,6 @@ func init() {
 	twofaNew2Ed.Mask = '*'
 }
 
-// twofaMainActions derives the main screen's action rows from live state.
-// Pure — pinned by tests.
 func twofaMainActions(st cores.CloudPasswordState) []string {
 	if !st.HasPassword {
 		return []string{twofaActSet}
@@ -105,7 +92,6 @@ func twofaMainActions(st cores.CloudPasswordState) []string {
 	return acts
 }
 
-// twofaValidateNew guards the set/change form. Pure.
 func twofaValidateNew(hasCur bool, cur, new1, new2 string) error {
 	if hasCur && cur == "" {
 		return errTwoFACurrentRequired
@@ -122,8 +108,6 @@ func twofaValidateNew(hasCur bool, cur, new1, new2 string) error {
 	return nil
 }
 
-// twofaLooksLikeEmail is a light sanity check (an "@" separating two
-// non-empty runs with a dot in the domain). Pure.
 func twofaLooksLikeEmail(s string) bool {
 	if strings.ContainsAny(s, " \t\n") {
 		return false
@@ -136,13 +120,11 @@ func twofaLooksLikeEmail(s string) bool {
 	return strings.Contains(domain, ".") && !strings.ContainsAny(domain, " @")
 }
 
-// twofaGoToEmailCode advances the dialog after an email submission.
 func twofaGoToEmailCode(d *twofaDlgState) bool {
 	d.step = twofaStepEmailCode
 	return true
 }
 
-// twofaStateSummary renders the state card's headline. Pure.
 func twofaStateSummary(st cores.CloudPasswordState) string {
 	if !st.HasPassword {
 		return "Off"
@@ -156,7 +138,6 @@ func twofaStateSummary(st cores.CloudPasswordState) string {
 	return "On"
 }
 
-// twofaRowValue renders the settings row value. Pure.
 func twofaRowValue(st cores.CloudPasswordState) string {
 	if st.HasPassword {
 		return "On"
@@ -164,7 +145,6 @@ func twofaRowValue(st cores.CloudPasswordState) string {
 	return "Off"
 }
 
-// twofaSupportedFor gates the settings row on the core capability.
 func twofaSupportedFor(a *App, accountID string) bool {
 	for _, c := range a.eng.AccountCapabilities(accountID) {
 		if c == cores.CapCloudPassword {
@@ -174,7 +154,6 @@ func twofaSupportedFor(a *App, accountID string) bool {
 	return false
 }
 
-// openTwoFADialog opens the 2FA editor and loads the live state.
 func (a *App) openTwoFADialog(accountID string) {
 	d := &twofaDlgState{accountID: accountID, loading: true}
 	a.mu.Lock()
@@ -199,7 +178,6 @@ func (a *App) openTwoFADialog(accountID string) {
 	}()
 }
 
-// closeTwoFADialog dismisses the editor.
 func (a *App) closeTwoFADialog() {
 	a.mu.Lock()
 	a.twofaDlg = nil
@@ -207,13 +185,6 @@ func (a *App) closeTwoFADialog() {
 	a.invalidate()
 }
 
-// updateTwoFADlg (R44): copy-on-write installer — the R34/R40 discipline.
-// fn mutates a COPY of the editor state (returning false leaves the head
-// alone); the copy is installed under a.mu, never an in-place mutation, so
-// a frame that captured the old pointer keeps a frozen view while the
-// load and mutation tails swap the head. Guards are accountID-based (the
-// pointer-identity guards the tails used pre-fix break under copy-on-write:
-// every install swaps the pointer); accountID is install-immutable.
 func (a *App) updateTwoFADlg(fn func(d *twofaDlgState) bool) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -227,7 +198,6 @@ func (a *App) updateTwoFADlg(fn func(d *twofaDlgState) bool) {
 	a.twofaDlg = &next
 }
 
-// twofaFinish applies a mutation and refreshes the state card on success.
 func (a *App) twofaFinish(d *twofaDlgState, what string, call func() error) {
 	accountID := d.accountID
 	a.updateTwoFADlg(func(cur *twofaDlgState) bool {
@@ -257,9 +227,6 @@ func (a *App) twofaFinish(d *twofaDlgState, what string, call func() error) {
 		} else {
 			a.setToast(what)
 		}
-		// Refresh the live state either way (server truth wins) — the dialog
-		// card AND the settings-row map (R45: the row behind the dialog stayed
-		// stale until settings was reopened).
 		if st, err := a.eng.GetCloudPasswordState(accountID); err == nil {
 			a.updateTwoFADlg(func(cur *twofaDlgState) bool {
 				if cur.accountID != accountID {
@@ -275,10 +242,6 @@ func (a *App) twofaFinish(d *twofaDlgState, what string, call func() error) {
 	}()
 }
 
-// refreshTwoFARowState (R45): install the fresh server truth into the
-// settings-row map. Copy-on-write — the R38 fresh-map rule: the frame
-// carries the map, so it is replaced, never mutated in place. A nil map
-// (privacy not loaded yet) stays nil.
 func (a *App) refreshTwoFARowState(accountID string, st cores.CloudPasswordState) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -293,12 +256,9 @@ func (a *App) refreshTwoFARowState(accountID string, st cores.CloudPasswordState
 	a.twofaStates = fresh
 }
 
-// layoutTwoFADialog renders the 2FA editor (content-pane replacement like
-// the other settings dialogs).
 func (a *App) layoutTwoFADialog(gtx layout.Context, f frame) layout.Dimensions {
 	d := f.twofaDlg
 
-	// Esc closes.
 	{
 		stack := clip.Rect{Max: image.Pt(gtx.Constraints.Max.X, gtx.Constraints.Max.Y)}.Push(gtx.Ops)
 		event.Op(gtx.Ops, twofaDlgTag)
@@ -355,7 +315,7 @@ func (a *App) layoutTwoFADialog(gtx layout.Context, f frame) layout.Dimensions {
 						if d.step == twofaStepMain {
 							return layout.Dimensions{}
 						}
-						_ = twofaBackBtn.Clicked(gtx) // processed above; drain for layout only (SA9003, slice-287)
+						_ = twofaBackBtn.Clicked(gtx)
 						return layout.Inset{Right: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							return a.ui.IconButton(&twofaBackBtn, iconNavigationBack, "Back").Layout(gtx)
 						})
@@ -376,7 +336,6 @@ func (a *App) layoutTwoFADialog(gtx layout.Context, f frame) layout.Dimensions {
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-// twofaMainBody: state card + action rows.
 func (a *App) twofaMainBody(gtx layout.Context, f frame, d *twofaDlgState) []layout.FlexChild {
 	var body []layout.FlexChild
 	if d.loading {
@@ -461,7 +420,6 @@ func (a *App) twofaMainBody(gtx layout.Context, f frame, d *twofaDlgState) []lay
 	return body
 }
 
-// twofaNewBody: the set/change password form.
 func (a *App) twofaNewBody(gtx layout.Context, f frame, d *twofaDlgState) []layout.FlexChild {
 	hasCur := d.state != nil && d.state.HasPassword
 	var body []layout.FlexChild
@@ -510,7 +468,6 @@ func (a *App) twofaNewBody(gtx layout.Context, f frame, d *twofaDlgState) []layo
 	return body
 }
 
-// twofaDisableBody: the turn-off form.
 func (a *App) twofaDisableBody(gtx layout.Context, f frame, d *twofaDlgState) []layout.FlexChild {
 	var body []layout.FlexChild
 	body = append(body,
@@ -550,7 +507,6 @@ func (a *App) twofaDisableBody(gtx layout.Context, f frame, d *twofaDlgState) []
 	return body
 }
 
-// twofaEmailBody: set/change recovery email.
 func (a *App) twofaEmailBody(gtx layout.Context, f frame, d *twofaDlgState) []layout.FlexChild {
 	hasCur := d.state != nil && d.state.HasPassword
 	var body []layout.FlexChild
@@ -599,7 +555,6 @@ func (a *App) twofaEmailBody(gtx layout.Context, f frame, d *twofaDlgState) []la
 	return body
 }
 
-// twofaFinishSendEmail submits the email then advances to the code step.
 func (a *App) twofaFinishSendEmail(d *twofaDlgState, cur, email string) {
 	accountID := d.accountID
 	a.updateTwoFADlg(func(c *twofaDlgState) bool {
@@ -633,7 +588,6 @@ func (a *App) twofaFinishSendEmail(d *twofaDlgState, cur, email string) {
 	}()
 }
 
-// twofaEmailCodeBody: enter / resend / cancel the confirmation code.
 func (a *App) twofaEmailCodeBody(gtx layout.Context, f frame, d *twofaDlgState) []layout.FlexChild {
 	pattern := ""
 	if d.state != nil && d.state.EmailUnconfirmedPattern != "" {
@@ -721,7 +675,6 @@ func (a *App) twofaEmailCodeBody(gtx layout.Context, f frame, d *twofaDlgState) 
 	return body
 }
 
-// twofaField renders one labeled editor row (masked when the editor says so).
 func (a *App) twofaField(gtx layout.Context, ed *widget.Editor, label string, plain bool) layout.Dimensions {
 	if plain {
 		ed.Mask = 0
@@ -755,7 +708,6 @@ func (a *App) twofaField(gtx layout.Context, ed *widget.Editor, label string, pl
 	})
 }
 
-// twofaErrNote renders the dialog error line (or nothing).
 func (a *App) twofaErrNote(gtx layout.Context, d *twofaDlgState) layout.Dimensions {
 	if d.errMsg == "" {
 		return layout.Dimensions{}
@@ -765,7 +717,6 @@ func (a *App) twofaErrNote(gtx layout.Context, d *twofaDlgState) layout.Dimensio
 	return layout.Inset{Top: unit.Dp(4), Left: unit.Dp(14), Right: unit.Dp(14)}.Layout(gtx, lbl.Layout)
 }
 
-// twofaClearEditors resets every form field (GUI thread).
 func twofaClearEditors() {
 	twofaCurEd.SetText("")
 	twofaNewEd.SetText("")

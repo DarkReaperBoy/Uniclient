@@ -6,10 +6,6 @@ import (
 	"uniclient/utils"
 )
 
-// Local-read marking (AyuGram LRead drawer toggle, slice 75): the config
-// flag gates the GUI's mark-on-open; round-trips through the same
-// UpdateConfigFromBridge path as every other ghost flag.
-
 func newLReadEngine(t *testing.T) *Engine {
 	dir := t.TempDir()
 	v, err := utils.CreateVault(dir+"/vault.db", "test")
@@ -36,7 +32,6 @@ func TestLocalReadMarkRoundTrip(t *testing.T) {
 	if e.GetConfig().LocalReadMark {
 		t.Fatal("LRead off did not persist")
 	}
-	// The SendReadReceipts (SRead) flag stays independent.
 	if e.GetConfig().SendReadReceipts != true {
 		t.Fatal("SRead must be untouched by an LRead change")
 	}

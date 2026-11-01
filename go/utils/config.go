@@ -6,8 +6,6 @@ import (
 	"os"
 )
 
-// ProxyConfig holds proxy connection settings. Mode: 0 = disabled,
-// 1 = system, 2 = custom (the fields below apply in custom mode).
 type ProxyConfig struct {
 	Mode     int    `json:"mode,omitempty"`
 	Type     string `json:"type"`
@@ -17,97 +15,51 @@ type ProxyConfig struct {
 	Password string `json:"password"`
 }
 
-// AppConfig holds the application configuration.
 type AppConfig struct {
-	// Display
-	Theme       string  `json:"theme"`
-	AccentColor string  `json:"accent_color"`
-	FontScale   float64 `json:"font_scale"`
-	Language    string  `json:"language"`
-	// Chat-wide translation target language (slice 150, tdesktop
-	// translate bar). ISO 639-1; empty = "en".
-	TranslateTarget string `json:"translate_target,omitempty"`
-	FontPath        string `json:"font_path,omitempty"`      // custom UI font file (slice 146)
-	MonoFontPath    string `json:"mono_font_path,omitempty"` // custom mono font file
+	Theme           string  `json:"theme"`
+	AccentColor     string  `json:"accent_color"`
+	FontScale       float64 `json:"font_scale"`
+	Language        string  `json:"language"`
+	TranslateTarget string  `json:"translate_target,omitempty"`
+	FontPath        string  `json:"font_path,omitempty"`
+	MonoFontPath    string  `json:"mono_font_path,omitempty"`
 
-	// In-app media playback gain, 0..1 (slice 224, parity row 276's
-	// volume control). A POINTER, deliberately: "never set" and
-	// "deliberately muted" must not collapse into the same zero, so nil
-	// reads as 1.0 while a stored 0 keeps meaning mute across restarts.
-	// encoding/json's omitempty omits only a nil pointer, never a
-	// pointer to 0, so mute round-trips.
 	MediaVolume *float64 `json:"media_volume,omitempty"`
 
-	// Composer submit mode (tdesktop Messages setting, slice 155):
-	// "" (default) = Enter sends, Shift+Enter newline; "ctrl-enter" =
-	// Enter newline, Ctrl+Enter sends.
 	ComposerSubmit string `json:"composer_submit,omitempty"`
-	// SwipeAction is the dialog-row swipe quick action: "mute" | "pin" |
-	// "read" | "archive" | "delete" | "disabled" (tdesktop default).
-	SwipeAction string `json:"swipe_action,omitempty"`
+	SwipeAction    string `json:"swipe_action,omitempty"`
 
-	// Corner reply button (tdesktop Messages setting cornerReply, slice
-	// 157): show the fast-reply pill on hovered incoming bubbles. Nil =
-	// tdesktop default ON.
-	CornerReply *bool `json:"corner_reply,omitempty"`
-	// CornerReaction gates the hover pill that toggles the favorite
-	// reaction (tdesktop cornerReaction, default ON → nil).
-	CornerReaction *bool `json:"corner_reaction,omitempty"`
-	// LocalPremium (AyuGram): per-account client-side premium view —
-	// the app treats the account as premium locally (star badge,
-	// presence rendering, premium page status); server-side perks stay
-	// server-truth. Keyed by account ID.
-	LocalPremium map[string]bool `json:"local_premium,omitempty"`
+	CornerReply    *bool           `json:"corner_reply,omitempty"`
+	CornerReaction *bool           `json:"corner_reaction,omitempty"`
+	LocalPremium   map[string]bool `json:"local_premium,omitempty"`
 
-	// Ayu "Improve link previews" (slice 155): rewrite outgoing links of
-	// big platforms to their preview-friendly mirrors (Ayu
-	// getBetterLinkPreview: fixupx / kktiktok / vxreddit / kkclip / phixiv).
-	AyuImproveLinkPreviews bool `json:"ayu_improve_link_previews,omitempty"`
-	// Ayu behavior extras (slice 173, ayu_settings.h).
-	AyuMsgSeconds     *bool `json:"ayu_msg_seconds,omitempty"`
-	AyuFilterZalgo    *bool `json:"ayu_filter_zalgo,omitempty"`
-	AyuReactChannels  *bool `json:"ayu_react_channels,omitempty"`
-	AyuReactGroups    *bool `json:"ayu_react_groups,omitempty"`
-	AyuReactPrivate   *bool `json:"ayu_react_private,omitempty"`
-	AyuConfirmSticker *bool `json:"ayu_confirm_sticker,omitempty"`
-	AyuConfirmGif     *bool `json:"ayu_confirm_gif,omitempty"`
-	AyuConfirmVoice   *bool `json:"ayu_confirm_voice,omitempty"`
+	AyuImproveLinkPreviews bool  `json:"ayu_improve_link_previews,omitempty"`
+	AyuMsgSeconds          *bool `json:"ayu_msg_seconds,omitempty"`
+	AyuFilterZalgo         *bool `json:"ayu_filter_zalgo,omitempty"`
+	AyuReactChannels       *bool `json:"ayu_react_channels,omitempty"`
+	AyuReactGroups         *bool `json:"ayu_react_groups,omitempty"`
+	AyuReactPrivate        *bool `json:"ayu_react_private,omitempty"`
+	AyuConfirmSticker      *bool `json:"ayu_confirm_sticker,omitempty"`
+	AyuConfirmGif          *bool `json:"ayu_confirm_gif,omitempty"`
+	AyuConfirmVoice        *bool `json:"ayu_confirm_voice,omitempty"`
 
-	// AyuGram similar-channels settings (slice 169, primary source
-	// ayu_settings.h): hideSimilarChannels (default false) never renders
-	// the recommendations block; collapseSimilarChannels (default TRUE)
-	// starts every channel's block collapsed — nil = collapsed.
 	AyuHideSimilarChannels     bool  `json:"ayu_hide_similar_channels,omitempty"`
 	AyuCollapseSimilarChannels *bool `json:"ayu_collapse_similar_channels,omitempty"`
 
-	// AyuGram app icon set (slice 170, ayu_settings.h appIcon): the
-	// selected icon-set ID; "" = default set.
-	AyuAppIcon string `json:"ayu_app_icon,omitempty"`
-	// AyuGram avatar corners (slice 215, ayu_settings.h
-	// avatarCorners + singleCornerRadius): slider value 0..23
-	// (kMaxAvatarCorners; nil = 23 = circle — AyuGram's default) and
-	// the "forums match chats" toggle (nil = false: forums keep
-	// tdesktop's native 30% rounding).
-	AyuAvatarCorners      *int  `json:"ayu_avatar_corners,omitempty"`
-	AyuSingleCornerRadius *bool `json:"ayu_single_corner_radius,omitempty"`
-	// Power saving (slice 135, tdesktop PowerSaving semantics)
-	PowerSavingFlags    int  `json:"power_saving_flags"`
-	PowerSavingForceAll bool `json:"power_saving_force_all"`
+	AyuAppIcon            string `json:"ayu_app_icon,omitempty"`
+	AyuAvatarCorners      *int   `json:"ayu_avatar_corners,omitempty"`
+	AyuSingleCornerRadius *bool  `json:"ayu_single_corner_radius,omitempty"`
+	PowerSavingFlags      int    `json:"power_saving_flags"`
+	PowerSavingForceAll   bool   `json:"power_saving_force_all"`
 
-	// Downloads
 	DownloadDir  string `json:"download_dir"`
-	MaxCacheSize int64  `json:"max_cache_size"` // bytes, 0 = unlimited, default 1GB
+	MaxCacheSize int64  `json:"max_cache_size"`
 
-	// Network
 	ProxyConfig  ProxyConfig       `json:"proxy_config"`
 	DNSOverrides map[string]string `json:"dns_overrides"`
 	DNSFallback  bool              `json:"dns_fallback"`
 
-	// Privacy / Ghost Mode
-	SendReadReceipts bool `json:"send_read_receipts"`
-	// Local read marking (AyuGram LRead): mark chats read locally when
-	// opened. SRead (SendReadReceipts) is independent — it controls whether
-	// read receipts are SENT to the server.
+	SendReadReceipts       bool `json:"send_read_receipts"`
 	LocalReadMark          bool `json:"local_read_mark"`
 	SendTyping             bool `json:"send_typing"`
 	SendUploadProgress     bool `json:"send_upload_progress"`
@@ -118,68 +70,43 @@ type AppConfig struct {
 	UseScheduledMessages   bool `json:"use_scheduled_messages"`
 	SendWithoutSound       bool `json:"send_without_sound"`
 
-	// Search
-	RecentSearches []string `json:"recent_searches,omitempty"` // last 8 queries
+	RecentSearches []string `json:"recent_searches,omitempty"`
 
-	// Streamer mode (Ayu): blur names and photos in the UI for streams.
 	StreamerMode bool `json:"streamer_mode"`
 
-	// System tray icon (slice 137): nil = default ON (tdesktop parity);
-	// the toggle starts/stops the tray controller live.
 	SystemTray *bool `json:"system_tray,omitempty"`
 
-	// Ayu mark strings (settings_ayu): "" = the GUI defaults
-	// ("— deleted", "edited ").
 	AyuDeletedMark string `json:"ayu_deleted_mark,omitempty"`
 	AyuEditedMark  string `json:"ayu_edited_mark,omitempty"`
 
-	// Anti-recall saving (AyuGram Ayu preferences). Nil = engine defaults
-	// (save deleted + history on, for bots off).
 	AyuSaveDeleted *bool `json:"ayu_save_deleted,omitempty"`
 	AyuSaveHistory *bool `json:"ayu_save_history,omitempty"`
 	AyuSaveForBots *bool `json:"ayu_save_for_bots,omitempty"`
 
-	// Bubble corner style (AyuGram appearance "Corners"). Nil = rounded.
-	// Legacy boolean kept for older configs; superseded by BubbleRadius.
 	BubbleCorners *bool `json:"bubble_corners,omitempty"`
 
-	// Layout tweak sliders (AyuGram appearance, slice 93).
-	// BubbleRadius: message-bubble corner radius, 0..18 dp; nil = derive
-	// from the legacy BubbleCorners toggle (true 12 / false 2).
-	// WideMultiplier: bubble max-width factor of the pane, 0.70..1.00;
-	// nil = 0.75 (the previous fixed 3/4).
 	BubbleRadius   *int     `json:"bubble_radius,omitempty"`
 	WideMultiplier *float64 `json:"wide_multiplier,omitempty"`
 
-	// Hide the "All chats" folder tab (AyuGram folder settings).
 	HideAllChats bool `json:"hide_all_chats,omitempty"`
 
-	// Drawer customization (Ayu "drawer" menu): ids of hidden rows.
 	DrawerHiddenItems []string `json:"drawer_hidden_items,omitempty"`
 
-	// Notifications
-	NotifyDMs          bool `json:"notify_dms"`
-	NotifyGroups       bool `json:"notify_groups"`
-	NotifyMentionsOnly bool `json:"notify_mentions_only"`
-	// Notification sound kind (""/default | gentle | none).
-	NotifySound string `json:"notify_sound,omitempty"`
+	NotifyDMs          bool   `json:"notify_dms"`
+	NotifyGroups       bool   `json:"notify_groups"`
+	NotifyMentionsOnly bool   `json:"notify_mentions_only"`
+	NotifySound        string `json:"notify_sound,omitempty"`
 
-	// Notification content privacy (AyuGram/Telegram "show previews"):
-	// nil = default (show message text in banners).
 	NotifyPreviews *bool `json:"notify_previews,omitempty"`
 
-	// Call Devices
-	CallOutputDevice string `json:"call_output_device,omitempty"`
-	CallInputDevice  string `json:"call_input_device,omitempty"`
-	CallCameraDevice string `json:"call_camera_device,omitempty"`
-	// Separate call-only audio devices (AyuGram callPlaybackDeviceId/callCaptureDeviceId).
-	// Empty means "use the same devices as the rest of the app" (the default).
+	CallOutputDevice         string `json:"call_output_device,omitempty"`
+	CallInputDevice          string `json:"call_input_device,omitempty"`
+	CallCameraDevice         string `json:"call_camera_device,omitempty"`
 	CallSeparateOutputDevice string `json:"call_separate_output_device,omitempty"`
 	CallSeparateInputDevice  string `json:"call_separate_input_device,omitempty"`
 	NoiseSuppression         bool   `json:"noise_suppression,omitempty"`
 }
 
-// DefaultConfig returns an AppConfig populated with sensible defaults.
 func DefaultConfig() AppConfig {
 	return AppConfig{
 		Theme:              "dark",
@@ -187,7 +114,7 @@ func DefaultConfig() AppConfig {
 		FontScale:          1.0,
 		Language:           "en",
 		DownloadDir:        "",
-		MaxCacheSize:       1 << 30, // 1GB
+		MaxCacheSize:       1 << 30,
 		ProxyConfig:        ProxyConfig{Type: "none", Host: "127.0.0.1", Port: "1080"},
 		DNSOverrides:       make(map[string]string),
 		DNSFallback:        true,
@@ -199,13 +126,10 @@ func DefaultConfig() AppConfig {
 		SendOnlinePackets:  true,
 		NotifyDMs:          true,
 		NotifyGroups:       true,
-		SwipeAction:        "disabled", // tdesktop quickDialogAction default
+		SwipeAction:        "disabled",
 	}
 }
 
-// LoadConfig reads a JSON config file from path. If the file does not exist,
-// it returns a pointer to DefaultConfig with no error. If the file contains
-// invalid JSON, it returns an error.
 func LoadConfig(path string) (*AppConfig, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -223,13 +147,10 @@ func LoadConfig(path string) (*AppConfig, error) {
 	return &cfg, nil
 }
 
-// NotifyPreviewsEnabled resolves the preview pointer (nil = default true:
-// message text shows in banners).
 func (c *AppConfig) NotifyPreviewsEnabled() bool {
 	return c.NotifyPreviews == nil || *c.NotifyPreviews
 }
 
-// MergeDefaults fills zero-valued fields in cfg with values from DefaultConfig.
 func MergeDefaults(cfg *AppConfig) {
 	defaults := DefaultConfig()
 	if cfg.Theme == "" {
@@ -258,10 +179,6 @@ func MergeDefaults(cfg *AppConfig) {
 	}
 }
 
-// ClampBubbleRadius bounds the bubble-corner slider (0..18 dp).
-// MediaVolumeValue returns the effective playback gain: an unset volume
-// reads as full, and stored values are clamped into 0..1 so a hand-edited
-// config file cannot mute the app by accident or multiply past unity.
 func (c *AppConfig) MediaVolumeValue() float64 {
 	if c == nil || c.MediaVolume == nil {
 		return 1
@@ -269,10 +186,6 @@ func (c *AppConfig) MediaVolumeValue() float64 {
 	return ClampMediaVolume(*c.MediaVolume)
 }
 
-// ClampMediaVolume bounds a gain to 0..1. Written so NaN — the one value
-// that fails every ordering comparison — lands on silence instead of
-// reaching the sample loop, where float→int16 of NaN is platform-defined.
-// Mirrors the other Clamp* helpers.
 func ClampMediaVolume(v float64) float64 {
 	if v >= 0 && v <= 1 {
 		return v
@@ -293,8 +206,6 @@ func ClampBubbleRadius(v int) int {
 	return v
 }
 
-// ClampAvatarCorners bounds the avatar-corners slider (0..23 — AyuGram
-// kMaxAvatarCorners, slice 215).
 func ClampAvatarCorners(v int) int {
 	if v < 0 {
 		return 0
@@ -305,7 +216,6 @@ func ClampAvatarCorners(v int) int {
 	return v
 }
 
-// ClampWideMultiplier bounds the bubble-width slider (0.70..1.00).
 func ClampWideMultiplier(v float64) float64 {
 	if v < 0.70 {
 		return 0.70
@@ -316,8 +226,6 @@ func ClampWideMultiplier(v float64) float64 {
 	return v
 }
 
-// EffectiveBubbleRadius resolves the active bubble radius: the new
-// slider value wins; older configs derive from the corners toggle. Pure.
 func EffectiveBubbleRadius(cfg AppConfig) int {
 	if cfg.BubbleRadius != nil {
 		return ClampBubbleRadius(*cfg.BubbleRadius)
@@ -328,8 +236,6 @@ func EffectiveBubbleRadius(cfg AppConfig) int {
 	return 12
 }
 
-// EffectiveAvatarCorners resolves the active avatar-corner count
-// (nil = 23 = circle, AyuGram's default look). Pure.
 func EffectiveAvatarCorners(cfg AppConfig) int {
 	if cfg.AyuAvatarCorners != nil {
 		return ClampAvatarCorners(*cfg.AyuAvatarCorners)
@@ -337,7 +243,6 @@ func EffectiveAvatarCorners(cfg AppConfig) int {
 	return 23
 }
 
-// EffectiveWideMultiplier resolves the active bubble-width factor. Pure.
 func EffectiveWideMultiplier(cfg AppConfig) float64 {
 	if cfg.WideMultiplier != nil {
 		return ClampWideMultiplier(*cfg.WideMultiplier)
@@ -345,15 +250,10 @@ func EffectiveWideMultiplier(cfg AppConfig) float64 {
 	return 0.75
 }
 
-// EffectiveSystemTray resolves whether the tray icon is on: nil defaults
-// to ON (tdesktop ships a tray by default). Pure.
 func EffectiveSystemTray(cfg AppConfig) bool {
 	return cfg.SystemTray == nil || *cfg.SystemTray
 }
 
-// EffectiveCollapseSimilar resolves the similar-channels initial state:
-// nil defaults to COLLAPSED (AyuGram ships collapseSimilarChannels ON).
-// Pure.
 func EffectiveCollapseSimilar(cfg AppConfig) bool {
 	return cfg.AyuCollapseSimilarChannels == nil || *cfg.AyuCollapseSimilarChannels
 }

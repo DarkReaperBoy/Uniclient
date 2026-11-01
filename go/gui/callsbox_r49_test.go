@@ -8,9 +8,6 @@ import (
 	"uniclient/engine"
 )
 
-// R49 + R50 pins (chunk 3, iteration 32 — callsbox.go read in full).
-
-// seedCallsBoxSession installs an open, current load session on a bare App.
 func seedCallsBoxSession(a *App, accountID string, gen int) {
 	a.mu.Lock()
 	a.callsBoxOpen = true
@@ -19,7 +16,6 @@ func seedCallsBoxSession(a *App, accountID string, gen int) {
 	a.mu.Unlock()
 }
 
-// r49Row builds a minimal grouped row keyed by message id.
 func r49Row(id, peer string, ts int64) callBoxRow {
 	return callBoxRow{
 		PeerID:   peer,
@@ -32,27 +28,20 @@ func r49Row(id, peer string, ts int64) callBoxRow {
 }
 
 func TestCallsBoxPageMergeBuildsFreshSlice(t *testing.T) {
-	// R49: the delete shift leaves spare capacity on the head's backing
-	// array; a page landing through append would write into (and sort) the
-	// same array an in-flight frame is still reading. The merge must build
-	// a fresh slice and leave the old one untouched.
 	a := &App{}
 	seedCallsBoxSession(a, "acc1", 1)
 	day := time.Date(2026, 9, 10, 15, 0, 0, 0, time.Local)
-	full := make([]callBoxRow, 3, 5) // len 3, cap 5: spare capacity — the post-delete shape
+	full := make([]callBoxRow, 3, 5)
 	full[0] = r49Row("30", "7", day.Unix())
 	full[1] = r49Row("20", "8", day.Unix())
 	full[2] = r49Row("10", "9", day.Unix())
 	a.mu.Lock()
 	a.callsBoxRows = full
-	frozen := a.callsBoxRows // what a frame snapshot built now would hold
+	frozen := a.callsBoxRows
 	a.mu.Unlock()
 	oldPtr := &frozen[0]
 	frozenCopy := append([]callBoxRow(nil), frozen...)
 
-	// One strictly-older entry (offset 30) whose id lands mid-list once
-	// sorted — so a pre-fix in-place sort would also permute the prefix
-	// the frozen view still reads.
 	a.applyCallsBoxPage("acc1", 1, 30, 100, []engine.CallHistoryEntry{
 		mkCall("25", "8", day.Add(-time.Hour).Unix(), false, false, false),
 	}, nil)
@@ -81,20 +70,15 @@ func TestCallsBoxPageMergeBuildsFreshSlice(t *testing.T) {
 }
 
 func TestCallsBoxLoadTailSessionGuarded(t *testing.T) {
-	// R50: a fetch racing a switch, reopen, or clear must drop instead of
-	// stomping — and must not touch busy (the newer session owns it) or
-	// toast its stale error.
 	page := []engine.CallHistoryEntry{
 		mkCall("5", "7", time.Now().Add(-2*time.Hour).Unix(), false, false, false),
 	}
 
-	// Stale session: clear-all bumped the gen and nilled the rows while the
-	// old session's load-more was still in flight.
 	a := &App{}
 	seedCallsBoxSession(a, "acc1", 2)
 	a.mu.Lock()
 	a.callsBoxRows = nil
-	a.callsBoxBusy = true // the new session's first page is in flight
+	a.callsBoxBusy = true
 	a.mu.Unlock()
 	a.applyCallsBoxPage("acc1", 1, 10, 100, page, nil)
 	a.mu.Lock()
@@ -106,7 +90,6 @@ func TestCallsBoxLoadTailSessionGuarded(t *testing.T) {
 	}
 	a.mu.Unlock()
 
-	// Foreign account: the box moved to another account mid-fetch.
 	a2 := &App{}
 	seedCallsBoxSession(a2, "acc2", 1)
 	a2.mu.Lock()
@@ -122,7 +105,6 @@ func TestCallsBoxLoadTailSessionGuarded(t *testing.T) {
 	}
 	a2.mu.Unlock()
 
-	// Closed box: close raced the fetch.
 	a3 := &App{}
 	seedCallsBoxSession(a3, "acc1", 1)
 	a3.mu.Lock()
@@ -136,7 +118,6 @@ func TestCallsBoxLoadTailSessionGuarded(t *testing.T) {
 	}
 	a3.mu.Unlock()
 
-	// A stale error must not toast.
 	a4 := &App{}
 	seedCallsBoxSession(a4, "acc1", 2)
 	a4.applyCallsBoxPage("acc1", 1, 0, 20, nil, errors.New("stale boom"))
@@ -146,7 +127,6 @@ func TestCallsBoxLoadTailSessionGuarded(t *testing.T) {
 	}
 	a4.mu.Unlock()
 
-	// The current session's error still toasts and recovers the flags.
 	a5 := &App{}
 	seedCallsBoxSession(a5, "acc1", 3)
 	a5.mu.Lock()
@@ -163,8 +143,6 @@ func TestCallsBoxLoadTailSessionGuarded(t *testing.T) {
 	}
 	a5.mu.Unlock()
 
-	// The current session applies: rows install, flags clear, a short page
-	// marks the history exhausted.
 	a6 := &App{}
 	seedCallsBoxSession(a6, "acc1", 3)
 	a6.mu.Lock()
@@ -188,9 +166,6 @@ func TestCallsBoxLoadTailSessionGuarded(t *testing.T) {
 }
 
 func TestCallsBoxPageMergeDedupeGuard(t *testing.T) {
-	// The strictly-older-than-offset filter survives the applyCallsBoxPage
-	// extraction: entries at or above the offset are dropped, so a re-fetch
-	// can't duplicate rows.
 	a := &App{}
 	seedCallsBoxSession(a, "acc1", 1)
 	now := time.Now()
@@ -198,9 +173,9 @@ func TestCallsBoxPageMergeDedupeGuard(t *testing.T) {
 	a.callsBoxRows = []callBoxRow{r49Row("50", "7", now.Add(-time.Hour).Unix())}
 	a.mu.Unlock()
 	a.applyCallsBoxPage("acc1", 1, 50, 100, []engine.CallHistoryEntry{
-		mkCall("60", "8", now.Add(-30*time.Minute).Unix(), false, false, false), // ≥ offset: dropped
-		mkCall("50", "7", now.Add(-time.Hour).Unix(), false, false, false),      // == offset: dropped
-		mkCall("40", "9", now.Add(-2*time.Hour).Unix(), false, false, false),    // < offset: kept
+		mkCall("60", "8", now.Add(-30*time.Minute).Unix(), false, false, false),
+		mkCall("50", "7", now.Add(-time.Hour).Unix(), false, false, false),
+		mkCall("40", "9", now.Add(-2*time.Hour).Unix(), false, false, false),
 	}, nil)
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -214,9 +189,6 @@ func TestCallsBoxPageMergeDedupeGuard(t *testing.T) {
 }
 
 func TestCallsBoxSessionGenBumps(t *testing.T) {
-	// R50 arming sites: every new load session bumps the gen — openCallsBox
-	// and clearCallsBoxAll. Bare harness: their engine calls error fast, so
-	// the tails land on the guarded error path and never touch the gen.
 	a := &App{eng: &engine.Engine{}}
 	if a.callsBoxGen != 0 {
 		t.Fatalf("fresh App gen = %d, want 0", a.callsBoxGen)
@@ -232,8 +204,6 @@ func TestCallsBoxSessionGenBumps(t *testing.T) {
 }
 
 func TestCallsBoxClearFailedRecovers(t *testing.T) {
-	// R50: a failed clear recovers the busy/loading flags — but only while
-	// its session still owns the box.
 	a := &App{}
 	seedCallsBoxSession(a, "acc1", 4)
 	a.mu.Lock()
@@ -247,7 +217,6 @@ func TestCallsBoxClearFailedRecovers(t *testing.T) {
 	}
 	a.mu.Unlock()
 
-	// A stale session leaves the newer one's flags alone.
 	b := &App{}
 	seedCallsBoxSession(b, "acc1", 5)
 	b.mu.Lock()

@@ -1,14 +1,5 @@
 package cores
 
-// deltachat_localserver_test.go — the §9 "dockerized server" rung for the
-// Delta Chat core, offline: emersion's go-imap imapserver + go-smtp server
-// libraries (independent server implementations, the same stack real Go
-// mail servers are built on) with self-signed STARTTLS. Verifies the FULL
-// chain: IMAP connect+login (STARTTLS, 3 connections incl. two IDLE),
-// DeltaChat folder LIST/CREATE, SMTP send (EHLO/AUTH PLAIN/MAIL/DATA) with
-// Delta Chat headers, and the receive path (SELECT + FETCH →
-// processIncomingEmail → chat list). No secrets, no network, runs in CI.
-
 import (
 	"bytes"
 	"crypto/ecdsa"
@@ -37,8 +28,6 @@ import (
 	"uniclient/utils"
 )
 
-// ── self-signed certificate ───────────────────────────────────────────────
-
 func selfSignedCert(t *testing.T) tls.Certificate {
 	t.Helper()
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -62,8 +51,6 @@ func selfSignedCert(t *testing.T) tls.Certificate {
 	}
 	return tls.Certificate{Certificate: [][]byte{der}, PrivateKey: key}
 }
-
-// ── mini IMAP server ──────────────────────────────────────────────────────
 
 type miniMsg struct {
 	uid    imap.UID
@@ -94,7 +81,6 @@ func (st *miniMailStore) add(mailbox string, m *miniMsg) {
 	st.mailboxes[mailbox] = append(st.mailboxes[mailbox], m)
 }
 
-// imapSession is one connection's view of the store.
 type imapSession struct {
 	store *miniMailStore
 	user  string
@@ -188,9 +174,6 @@ func (s *imapSession) Search(kind imapserver.NumKind, criteria *imap.SearchCrite
 func (s *imapSession) Fetch(w *imapserver.FetchWriter, numSet imap.NumSet, options *imap.FetchOptions) error {
 	s.store.mu.Lock()
 	defer s.store.mu.Unlock()
-	// The selected state is per-connection; the mini store's only selected
-	// mailbox in practice is INBOX or DeltaChat — serve from both (the
-	// first assignment was dead — SA4006, slice-287).
 	var all []*miniMsg
 	all = append(all, s.store.mailboxes["INBOX"]...)
 	all = append(all, s.store.mailboxes["DeltaChat"]...)
@@ -228,8 +211,6 @@ func (s *imapSession) Fetch(w *imapserver.FetchWriter, numSet imap.NumSet, optio
 				}
 			}
 		}
-		// FetchResponseWriter.Close must be called (ends the response and
-		// releases the connection's response encoder).
 		if err := mw.Close(); err != nil {
 			return err
 		}
@@ -270,8 +251,6 @@ func startMiniIMAP(t *testing.T, user, pass string, cert tls.Certificate) (*mini
 	t.Cleanup(func() { srv.Close() })
 	return store, ln.Addr().String()
 }
-
-// ── mini SMTP server ──────────────────────────────────────────────────────
 
 type smtpMail struct {
 	from string
@@ -361,10 +340,6 @@ func startMiniSMTP(t *testing.T, user, pass string, cert tls.Certificate) (*mini
 	return be, ln.Addr().String()
 }
 
-// ── the verification ──────────────────────────────────────────────────────
-
-// dcTestEmail builds a plain Delta Chat message (headers incl. the
-// Chat-Version marker + text body) as it would sit in a mailbox.
 func dcTestEmail(from, to, subject, body string, extra ...string) *miniMsg {
 	lines := []string{
 		"From: " + from,
@@ -395,16 +370,11 @@ func dcTestEmail(from, to, subject, body string, extra ...string) *miniMsg {
 	}
 }
 
-// TestDeltaChatFullChainLocalServer: IMAP auth (3 conns incl. IDLE pair) +
-// folder setup + SMTP send with DC headers + receive path (FETCH → chat).
 func TestDeltaChatFullChainLocalServer(t *testing.T) {
 	cert := selfSignedCert(t)
 	store, imapAddr := startMiniIMAP(t, "alice@example.test", "passw0rd", cert)
 	smtpBe, smtpAddr := startMiniSMTP(t, "alice@example.test", "passw0rd", cert)
 
-	// Pre-load one incoming chat email in INBOX — with a REAL Autocrypt
-	// key so the receive path exercises ingest → peerStates → encrypted
-	// second send (B-31 end-to-end, replacing the old log-only note).
 	bobKey, err := openpgp.NewEntity("Bob", "", "bob@example.test", nil)
 	if err != nil {
 		t.Fatalf("generate bob's key: %v", err)
@@ -444,7 +414,6 @@ func TestDeltaChatFullChainLocalServer(t *testing.T) {
 	}
 	t.Log("IMAP auth OK: STARTTLS + LOGIN + LIST + DeltaChat folder + IDLE pair connected")
 
-	// Send a chat message → SMTP chain.
 	if _, err := core.SendMessage("dm:bob@example.test", OutgoingMessage{Text: "hi over SMTP"}); err != nil {
 		t.Fatalf("SendMessage via mini SMTP: %v", err)
 	}
@@ -466,8 +435,6 @@ func TestDeltaChatFullChainLocalServer(t *testing.T) {
 	}
 	t.Logf("SMTP send OK: %d recipient(s), %d bytes, Chat-Version header present", len(mails[0].rcpt), len(got))
 
-	// Receive path: GetDialogs triggers syncMessages → SELECT + FETCH →
-	// processIncomingEmail → chat list from the pre-loaded email.
 	dlgs, err := core.GetDialogs(PaginationOpts{Limit: 10})
 	if err != nil {
 		t.Fatalf("GetDialogs: %v", err)
@@ -488,9 +455,6 @@ func TestDeltaChatFullChainLocalServer(t *testing.T) {
 	}
 	t.Log("RECEIVE PATH OK: SELECT + FETCH + processIncomingEmail built the chat from the incoming email")
 
-	// Autocrypt INGEST end-to-end (B-31): bob's folded key went through
-	// the lowercase-normalized header parse → updateAutocryptPeer →
-	// stored + parsed into an entity.
 	core.peerKeysMu.RLock()
 	bob := core.peerStates["bob@example.test"]
 	var pubLen int
@@ -508,7 +472,6 @@ func TestDeltaChatFullChainLocalServer(t *testing.T) {
 	}
 	t.Log("AUTOCRYPT INGEST OK: peer key stored and parsed (B-31 chain)")
 
-	// Second send now has a recipient key → must go out encrypted.
 	if _, err := core.SendMessage("dm:bob@example.test", OutgoingMessage{Text: "encrypted follow-up"}); err != nil {
 		t.Fatalf("SendMessage #2: %v", err)
 	}

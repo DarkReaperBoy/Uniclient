@@ -5,8 +5,6 @@ import (
 	"time"
 )
 
-// Login-code relay (AyuGram parity slice 31).
-
 func TestLoginCodeFresh(t *testing.T) {
 	now := time.Now()
 	if loginCodeFresh("", now, now) {

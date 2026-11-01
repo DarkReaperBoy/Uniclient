@@ -1,11 +1,5 @@
 package gui
 
-// Notification sounds (AyuGram parity, slice 121): pure-Go synthesized
-// chimes (no asset files, works on every platform with an audio backend —
-// PulseAudio / winmm / WebAudio; Android's honest stub means no sound
-// there until its audio layer lands), a settings picker with preview, and
-// per-chat overrides through the engine's peer-notify-settings surface.
-
 import (
 	"log"
 	"math"
@@ -21,10 +15,8 @@ import (
 	"uniclient/engine"
 )
 
-// notifySoundKinds: the picker's rows, in display order.
 var notifySoundKinds = []string{"default", "gentle", "none"}
 
-// notifySoundValid reports whether kind is one of the known values.
 func notifySoundValid(kind string) bool {
 	switch kind {
 	case "default", "gentle", "none":
@@ -33,7 +25,6 @@ func notifySoundValid(kind string) bool {
 	return false
 }
 
-// notifySoundLabel renders a kind for display; unknown → Default.
 func notifySoundLabel(kind string) string {
 	switch kind {
 	case "gentle":
@@ -44,9 +35,6 @@ func notifySoundLabel(kind string) string {
 	return "Default"
 }
 
-// notifySoundFor resolves the effective sound for one message: the
-// per-chat override wins over the global config; an empty global config
-// normalizes to "default".
 func notifySoundFor(cfgSound, chatSound string) string {
 	if notifySoundValid(chatSound) && chatSound != "" {
 		return chatSound
@@ -57,17 +45,10 @@ func notifySoundFor(cfgSound, chatSound string) string {
 	return "default"
 }
 
-// synthesizeNotifySound renders one chime as 48kHz mono int16 PCM.
-// Pure — pinned by tests. nil for "none"/unknown kinds.
-//
-//	default: two-tone ding (E6 → G6), exponential decay — the classic
-//	         message chime shape.
-//	gentle:  one soft tone (A5) with a slow attack and long decay.
 func synthesizeNotifySound(kind string) []int16 {
 	const rate = 48000
 	switch kind {
 	case "default":
-		// E6 130ms, G6 260ms, overlapping tail; ~0.45s total.
 		tone := func(freq float64, dur time.Duration, amp, decay float64) []int16 {
 			n := int(float64(rate) * dur.Seconds())
 			out := make([]int16, n)
@@ -80,7 +61,7 @@ func synthesizeNotifySound(kind string) []int16 {
 		}
 		a := tone(1318.51, 150*time.Millisecond, 0.45, 28)
 		b := tone(1567.98, 300*time.Millisecond, 0.45, 16)
-		total := len(a) + len(b) - int(float64(rate)*0.05) // 50ms overlap
+		total := len(a) + len(b) - int(float64(rate)*0.05)
 		out := make([]int16, total)
 		copy(out, a)
 		off := len(a) - int(float64(rate)*0.05)
@@ -95,14 +76,12 @@ func synthesizeNotifySound(kind string) []int16 {
 				out[off+i] = int16(mix)
 			}
 		}
-		// 10ms fade-in so the chime never clicks.
 		fade := rate / 100
 		for i := 0; i < fade && i < len(out); i++ {
 			out[i] = int16(int(out[i]) * i / fade)
 		}
 		return out
 	case "gentle":
-		// A5 with 20ms attack and a 0.6s exponential decay.
 		n := rate * 3 / 5
 		out := make([]int16, n)
 		const freq = 880
@@ -122,8 +101,6 @@ func synthesizeNotifySound(kind string) []int16 {
 	return nil
 }
 
-// ── player ────────────────────────────────────────────────────────────────
-
 var (
 	notifySndMu   sync.Mutex
 	notifySndSess *audio.Session
@@ -131,9 +108,6 @@ var (
 	notifySndPos  int
 )
 
-// playNotifySound synthesizes and plays one chime through the platform
-// audio backend. Overlapping triggers replace the running chime (never
-// stack); platforms without audio are skipped silently.
 func playNotifySound(kind string) {
 	if kind == "none" || !audio.Available() {
 		return
@@ -154,7 +128,7 @@ func playNotifySound(kind string) {
 	}
 	notifySndData = samples
 	notifySndPos = 0
-	notifySndSess.StopPlayback() // replace any running chime
+	notifySndSess.StopPlayback()
 	if err := notifySndSess.StartPlayback(func(out []int16) {
 		notifySndMu.Lock()
 		n := copy(out, notifySndData[notifySndPos:])
@@ -167,7 +141,6 @@ func playNotifySound(kind string) {
 		log.Printf("gui: notify sound: %v", err)
 		return
 	}
-	// Stop pulling once the chime has fully played.
 	time.AfterFunc(time.Duration(len(samples))*time.Second/48000+100*time.Millisecond, func() {
 		notifySndMu.Lock()
 		defer notifySndMu.Unlock()
@@ -177,14 +150,10 @@ func playNotifySound(kind string) {
 	})
 }
 
-// previewNotifySound plays a kind from the settings picker (same path as
-// real notifications so what you hear is what you get).
 func (a *App) previewNotifySound(kind string) {
 	go playNotifySound(kind)
 }
 
-// applyConfigNotifySound persists the global notification sound choice
-// (async) and refreshes the snapshot.
 func (a *App) applyConfigNotifySound(kind string) {
 	if !notifySoundValid(kind) {
 		return
@@ -200,15 +169,11 @@ func (a *App) applyConfigNotifySound(kind string) {
 	}()
 }
 
-// ── picker dialog (global + per-chat) ──────────────────────────────────────
-
-// soundPickerState is the open sound picker: mode "global" (the
-// Notifications section) or "chat" (the open chat's override, with Reset).
 type soundPickerState struct {
-	mode      string // "global" | "chat"
+	mode      string
 	accountID string
 	chatID    string
-	current   string // live kind ("" = unset for chats)
+	current   string
 }
 
 var (
@@ -216,10 +181,9 @@ var (
 	soundPickPlayBtn  []widget.Clickable
 	soundPickResetBt  widget.Clickable
 	soundPickCancelB  widget.Clickable
-	notifySoundRowBtn []widget.Clickable // settings row (slice 121)
+	notifySoundRowBtn []widget.Clickable
 )
 
-// openSoundPickerGlobal opens the settings picker (global kind).
 func (a *App) openSoundPickerGlobal() {
 	a.mu.Lock()
 	a.soundPicker = &soundPickerState{mode: "global", current: a.cfg.NotifySound}
@@ -227,8 +191,6 @@ func (a *App) openSoundPickerGlobal() {
 	a.invalidate()
 }
 
-// openSoundPickerChat opens the per-chat override picker and loads the
-// live kind from the engine.
 func (a *App) openSoundPickerChat(accountID, chatID string) {
 	d := &soundPickerState{mode: "chat", accountID: accountID, chatID: chatID}
 	a.mu.Lock()
@@ -249,7 +211,6 @@ func (a *App) openSoundPickerChat(accountID, chatID string) {
 	}()
 }
 
-// closeSoundPicker dismisses it.
 func (a *App) closeSoundPicker() {
 	a.mu.Lock()
 	a.soundPicker = nil
@@ -257,7 +218,6 @@ func (a *App) closeSoundPicker() {
 	a.invalidate()
 }
 
-// applySoundChoice persists the chosen kind for the picker's target.
 func (a *App) applySoundChoice(kind string) {
 	a.mu.Lock()
 	d := a.soundPicker
@@ -285,8 +245,6 @@ func (a *App) applySoundChoice(kind string) {
 	a.invalidate()
 }
 
-// resetSoundOverride resets the chat's notify settings to defaults
-// (engine ResetPeerNotifySettings) and closes the picker.
 func (a *App) resetSoundOverride() {
 	a.mu.Lock()
 	d := a.soundPicker
@@ -304,8 +262,6 @@ func (a *App) resetSoundOverride() {
 	a.closeSoundPicker()
 }
 
-// layoutSoundPicker renders the sound picker dialog (content-pane
-// replacement like the other settings dialogs).
 func (a *App) layoutSoundPicker(gtx layout.Context, f frame) layout.Dimensions {
 	d := f.soundPicker
 	kinds := notifySoundKinds
@@ -406,7 +362,6 @@ func (a *App) layoutSoundPicker(gtx layout.Context, f frame) layout.Dimensions {
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-// notifySoundRowLabel: row text; the chat picker's "" row is the reset.
 func notifySoundRowLabel(kind string) string {
 	if kind == "" {
 		return "Reset to global setting"

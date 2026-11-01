@@ -6,7 +6,6 @@ import (
 	"uniclient/engine"
 )
 
-// TTL label rendering (slice 60): Telegram presets + custom fallbacks.
 func TestTtlLabel(t *testing.T) {
 	cases := map[int]string{
 		0:              "Off",
@@ -24,8 +23,6 @@ func TestTtlLabel(t *testing.T) {
 	}
 }
 
-// TTL choices must cover Telegram's preset ladder, start with Off, and
-// stay ascending.
 func TestTtlChoices(t *testing.T) {
 	if len(ttlChoices) != 4 {
 		t.Fatalf("choices = %d", len(ttlChoices))
@@ -39,13 +36,12 @@ func TestTtlChoices(t *testing.T) {
 			t.Fatalf("not ascending: %+v", ttlChoices)
 		}
 		prev = ch.secs
-		if ttlLabel(ch.secs) == ch.label+"!" { // labels must render sanely
+		if ttlLabel(ch.secs) == ch.label+"!" {
 			t.Errorf("weird label for %+v", ch)
 		}
 	}
 }
 
-// The dialog's chat wiring compiles against a ChatInfo snapshot.
 func TestTtlDlgStateFields(t *testing.T) {
 	st := &ttlDlgState{accountID: "a1", chatID: "c1", title: "Chat"}
 	if st.accountID != "a1" || st.chatID != "c1" {

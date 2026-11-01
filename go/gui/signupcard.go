@@ -17,19 +17,12 @@ import (
 	"uniclient/engine"
 )
 
-// Signup card (slice 193, parity row "Signup (name/photo)" — tdesktop's
-// signup form): separate First/Last name fields (the old single-line
-// editor could never split "First Last" — the engine expects
-// "first\nlast", so last names silently merged into the first) plus an
-// optional photo picked from the OS that uploads as the profile picture
-// right after account creation (UploadProfilePhoto on the Ready hop).
-
 var (
 	signupFirstEd     widget.Editor
 	signupLastEd      widget.Editor
 	signupPhotoBtn    widget.Clickable
 	signupCreateBtn   widget.Clickable
-	signupLastEdFocus bool // request the focus hop after first name submits
+	signupLastEdFocus bool
 )
 
 func init() {
@@ -37,7 +30,6 @@ func init() {
 	signupLastEd.SingleLine = true
 }
 
-// signupNameInput composes the engine's "first\nlast" input. Pure.
 func signupNameInput(first, last string) string {
 	first = strings.TrimSpace(first)
 	last = strings.TrimSpace(last)
@@ -47,12 +39,10 @@ func signupNameInput(first, last string) string {
 	return first + "\n" + last
 }
 
-// signupNameValid: the first name is required. Pure.
 func signupNameValid(first string) bool {
 	return strings.TrimSpace(first) != ""
 }
 
-// signupPhotoHint: the photo circle's caption. Pure.
 func signupPhotoHint(path string) string {
 	if path == "" {
 		return "Add photo"
@@ -60,9 +50,6 @@ func signupPhotoHint(path string) string {
 	return "Change photo"
 }
 
-// signupPickPhoto opens the OS picker and stages the photo (base64 for
-// the circle preview via the shared avatar machinery; the temp path
-// rides App state until the Ready hop uploads it).
 func (a *App) signupPickPhoto() {
 	if a.expl == nil {
 		a.setToast("Photo: file picker unavailable on this platform")
@@ -90,12 +77,10 @@ func (a *App) signupPickPhoto() {
 	}()
 }
 
-// isUserDecline: picker cancels are silent.
 func isUserDecline(err error) bool {
 	return errors.Is(err, explorer.ErrUserDecline) || errors.Is(err, explorer.ErrNotAvailable)
 }
 
-// readFileB64: whole file as base64 ("" on any error).
 func readFileB64(path string) string {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -104,8 +89,6 @@ func readFileB64(path string) string {
 	return base64.StdEncoding.EncodeToString(data)
 }
 
-// signupSubmit validates + fires the name submit; the staged photo is
-// consumed by submitAuth's Ready hop.
 func (a *App) signupSubmit() {
 	if !signupNameValid(signupFirstEd.Text()) {
 		a.setToast("Enter your first name")
@@ -114,8 +97,6 @@ func (a *App) signupSubmit() {
 	a.submitAuth(signupNameInput(signupFirstEd.Text(), signupLastEd.Text()))
 }
 
-// signupConsumePhoto uploads the staged signup photo right after the
-// account reaches Ready (called from submitAuth). Cleans the temp file.
 func (a *App) signupConsumePhoto(accountID string) {
 	a.mu.Lock()
 	path := a.signupPhotoPath
@@ -142,7 +123,6 @@ func (a *App) signupConsumePhoto(accountID string) {
 	}()
 }
 
-// signupResetPhoto clears staged state (flow cancel / leaving signup).
 func (a *App) signupResetPhoto() {
 	a.mu.Lock()
 	temps := a.signupPhotoTemp
@@ -155,8 +135,6 @@ func (a *App) signupResetPhoto() {
 	}
 }
 
-// layoutSignupCard: the dedicated signup form (replaces the generic
-// single-input card for the signup state).
 func (a *App) layoutSignupCard(gtx layout.Context, f frame, st *engine.AuthState) layout.Dimensions {
 	for {
 		ev, ok := signupFirstEd.Update(gtx)
@@ -228,9 +206,6 @@ func (a *App) layoutSignupCard(gtx layout.Context, f frame, st *engine.AuthState
 	)
 }
 
-// signupPhotoCircle: the photo button — staged image preview (shared
-// avatar machinery: async decode, circle cover fit) or the initials
-// placeholder.
 func (a *App) signupPhotoCircle(gtx layout.Context, f frame) layout.Dimensions {
 	sizeDp := unit.Dp(84)
 	if f.signupPhotoB64 != "" {
@@ -250,7 +225,6 @@ func (a *App) signupPhotoCircle(gtx layout.Context, f frame) layout.Dimensions {
 	})
 }
 
-// labeledEditor: label + editor row.
 func (a *App) labeledEditor(gtx layout.Context, label string, ed *widget.Editor) layout.Dimensions {
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {

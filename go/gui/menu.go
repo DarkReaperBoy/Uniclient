@@ -19,45 +19,22 @@ import (
 	"uniclient/engine"
 )
 
-// Context menu + forward picker — the AyuGram message-action surface
-// (research/ayugram_parity.md §3/§4: message context menu, quick reactions,
-// forward box). Every visible entry dispatches a real engine action
-// asynchronously; nothing here fakes state (§1.10).
-
-// defaultQuickReactions mirrors Telegram's built-in default reaction set
-// (AyuGram shows the server-configured list; this is the offline fallback
-// while/when the server list is unavailable).
-// reactionMoreLabel is the "more reactions" ellipsis on the message
-// actions row. Const + test because the original literal shipped as
-// double-encoded mojibake (Latin-1 re-encode of ⋯ → raw U+008B
-// control char, BUGS.md B-14) — labels_test.go now scans the package
-// for that fingerprint.
 const reactionMoreLabel = "⋯"
 
 var defaultQuickReactions = []string{"👍", "👎", "❤️", "🔥", "🥰", "👏", "😁", "🤔", "😱", "😢", "🎉", "🙏"}
 
-// chatPaneTag receives pointer presses across the chat pane so right-clicks
-// open the message context menu anchored at the cursor (AyuGram behavior),
-// and any press outside an open menu dismisses it.
 var chatPaneTag = new(struct{})
 
-// menuTarget is an open context menu: the message it acts on (a copy) and
-// the anchor position in chat-pane coordinates.
 type menuTarget struct {
 	msg    engine.CachedMessage
 	pos    image.Point
-	picker bool // full reaction-grid mode (slice 55)
+	picker bool
 
-	// shadow-ban state of msg's sender in its chat (slice 91): nil =
-	// unknown (item hidden until resolved); set by openMenu's lookup.
 	senderBanned *bool
 
-	// edits-history availability (slice 96): nil = lookup pending
-	// (item hidden); set by openMenu's HasEditRevisions lookup.
 	hasEdits *bool
 }
 
-// menu button pools (grown per frame, repo style).
 var ()
 
 func growClickables(pool *[]widget.Clickable, n int) {
@@ -66,13 +43,6 @@ func growClickables(pool *[]widget.Clickable, n int) {
 	}
 }
 
-// ── pane press routing ───────────────────────────────────────────────────
-
-// processPaneEvents registers chat-pane pointer interest and routes presses:
-// right-click on a message row opens the context menu; any press outside an
-// open menu closes it. Context menus never block the chat (AyuGram).
-// Move/Enter/Leave events feed the corner-reply hover tracking (slice 157)
-// through the same rowBounds hit-test.
 func (a *App) processPaneEvents(gtx layout.Context, f frame) {
 	stack := clip.Rect{Max: gtx.Constraints.Max}.Push(gtx.Ops)
 	event.Op(gtx.Ops, chatPaneTag)
@@ -110,16 +80,14 @@ func (a *App) onPanePress(f frame, pe pointer.Event) {
 		if !pointInRect(pos, a.headerMenuRect) {
 			a.closeHeaderMenu()
 		}
-		return // presses inside the menu belong to its own buttons
+		return
 	}
 	if f.menu != nil {
 		if !pointInRect(pos, a.menuRect) {
 			a.closeMenu()
 		}
-		return // presses inside the menu belong to its own buttons
+		return
 	}
-	// Selection mode: any row press toggles its mark (AyuGram multi-select;
-	// taps are the pure-Go input surface here).
 	if f.selOn {
 		if idx := a.rowAt(pos); idx >= 0 && idx < len(f.messages) {
 			a.toggleMsgSel(f.messages[idx].MsgID)
@@ -136,13 +104,10 @@ func (a *App) onPanePress(f frame, pe pointer.Event) {
 	a.openMenu(f.messages[idx], pos)
 }
 
-// pointInRect reports whether p is inside r.
 func pointInRect(p image.Point, r image.Rectangle) bool {
 	return p.X >= r.Min.X && p.X < r.Max.X && p.Y >= r.Min.Y && p.Y < r.Max.Y
 }
 
-// rowAt maps a pane-space point to the index (in f.messages) of the message
-// row under it, using the row bounds recorded by the previous frame's layout.
 func (a *App) rowAt(pos image.Point) int {
 	for idx, r := range a.rowBounds {
 		if pointInRect(pos, r) {
@@ -152,16 +117,12 @@ func (a *App) rowAt(pos image.Point) int {
 	return -1
 }
 
-// ── menu state ───────────────────────────────────────────────────────────
-
 func (a *App) openMenu(msg engine.CachedMessage, pos image.Point) {
 	a.mu.Lock()
 	a.menu = &menuTarget{msg: msg, pos: pos}
 	a.mu.Unlock()
 	a.invalidate()
 
-	// Shadow-ban state (slice 91): resolve once per menu open so the
-	// action reflects the live ban state (label switches to Unban).
 	if msg.SenderID != "" && !msg.IsOutgoing && !msg.IsService {
 		go func() {
 			banned := a.eng.IsShadowBanned(msg.AccountID, msg.ChatID, msg.SenderID)
@@ -174,8 +135,6 @@ func (a *App) openMenu(msg engine.CachedMessage, pos image.Point) {
 		}()
 	}
 
-	// Edits-history availability (slice 96): resolve once per menu open;
-	// the item stays hidden while the lookup is in flight.
 	if msg.EditedAt != 0 && !msg.IsService {
 		go func() {
 			has, err := a.eng.HasEditRevisions(msg.AccountID, msg.ChatID, msg.MsgID)
@@ -234,8 +193,6 @@ func (a *App) availForLocked() string {
 	return a.availFor
 }
 
-// ── menu actions ─────────────────────────────────────────────────────────
-
 type menuAction struct {
 	label string
 	run   func(gtx layout.Context)
@@ -264,7 +221,6 @@ func (a *App) menuActionsFor(f frame, m engine.CachedMessage) []menuAction {
 			})
 		}})
 	}
-	// Ayu translator (AyuGram "translate message": inline under the bubble).
 	if acts.Translate {
 		label := "Translate"
 		if _, shown := a.translationFor(&m); shown {
@@ -274,15 +230,12 @@ func (a *App) menuActionsFor(f frame, m engine.CachedMessage) []menuAction {
 			a.toggleTranslation(&m)
 		}})
 	}
-	// Message shot (AyuGram "take message screenshot", slice 151):
-	// render the message into a shareable PNG via the save picker.
 	if strings.TrimSpace(m.ContentText) != "" || m.MediaThumbB64 != "" {
 		msg := m
 		items = append(items, menuAction{"Message shot…", func(gtx layout.Context) {
 			a.saveMessageShot(msg)
 		}})
 	}
-	// Copy link to message (AyuGram: t.me link for channel/group posts).
 	chat := chatOf(f, m)
 	if chat.Type == engine.ChatTypeChanVal || chat.Type == engine.ChatTypeGroupVal {
 		items = append(items, menuAction{"Copy Link", func(gtx layout.Context) {
@@ -296,9 +249,6 @@ func (a *App) menuActionsFor(f frame, m engine.CachedMessage) []menuAction {
 			}()
 		}})
 	}
-	// Save to Downloads (matrix row 158, slice 99): AyuGram's save-file /
-	// save-GIF / save-sound — copies the media into the user-visible
-	// downloads directory (downloading first when needed).
 	if saveToDownloadsMenuGate(m) {
 		msg := m
 		seq := 0
@@ -306,9 +256,6 @@ func (a *App) menuActionsFor(f frame, m engine.CachedMessage) []menuAction {
 			a.saveMediaToDownloads(msg.AccountID, msg.ChatID, msg.MsgID, seq)
 		}})
 	}
-	// Profile music (slice 206, tdesktop "Save music to"): songs gain the
-	// add/remove pin. Gated on the live own-ID state — hidden until the
-	// set has loaded (§1.10: never a wrong label).
 	if profileMusicMenuGate(m) && a.eng.ProfileMusicSupported(m.AccountID) {
 		if own := a.eng.OwnProfileMusicCached(m.AccountID); own != nil {
 			msg := m
@@ -341,8 +288,6 @@ func (a *App) menuActionsFor(f frame, m engine.CachedMessage) []menuAction {
 			}})
 		}
 	}
-	// OS integration (AyuGram row 159): reveal a downloaded media file in
-	// the platform file manager (slice 86).
 	if m.MediaLocalPath != "" {
 		path := m.MediaLocalPath
 		items = append(items, menuAction{"Show in Folder", func(gtx layout.Context) {
@@ -354,8 +299,6 @@ func (a *App) menuActionsFor(f frame, m engine.CachedMessage) []menuAction {
 			a.openForward([]engine.CachedMessage{m})
 		}})
 	}
-	// R20: a permanently failed send keeps its text in the failed
-	// bubble — Resend re-queues it through the engine's pending path.
 	if acts.Retry {
 		id := m.MsgID
 		items = append(items, menuAction{"Resend", func(gtx layout.Context) {
@@ -368,13 +311,11 @@ func (a *App) menuActionsFor(f frame, m engine.CachedMessage) []menuAction {
 			}()
 		}})
 	}
-	// Who reacted (AyuGram reactions list, slice 49).
 	if len(m.Reactions) > 0 {
 		items = append(items, menuAction{"Who reacted", func(gtx layout.Context) {
 			a.openReactors(&m, "")
 		}})
 	}
-	// Ayu local hide (AyuGram "hide message": gone from this client only).
 	if !m.IsService {
 		items = append(items, menuAction{"Hide Locally", func(gtx layout.Context) {
 			go func() {
@@ -387,56 +328,41 @@ func (a *App) menuActionsFor(f frame, m engine.CachedMessage) []menuAction {
 			}()
 		}})
 	}
-	// Ayu quick filter-add (matrix row 168): prefill a message filter
-	// from this message's text (regex-quoted, first line, capped).
-	// R30: the filters editor is a content-pane dialog (main-only) — the
-	// message menu renders in every window, so the row is dropped in
-	// separate windows.
 	if acts.Filter && mainOnlySurfaceShown(a) {
 		items = append(items, menuAction{"Filter Like This…", func(gtx layout.Context) {
 			a.openAyuFilterDialogPrefilled(quickFilterPattern(m.ContentText))
 		}})
 	}
-	// Read receipts (matrix row 97): who read an own message in a DM
-	// or group, with the chat's last-read date.
 	if seenByMenuGate(m, chat.Type) {
 		msg := m
 		items = append(items, menuAction{"Seen by", func(gtx layout.Context) {
 			a.openSeenByDialog(&msg)
 		}})
 	}
-	// Sticker pack info (AyuGram, slice 108): sticker messages with set keys.
 	if stickerPackMenuGate(m) {
 		msg := m
 		items = append(items, menuAction{"View sticker pack", func(gtx layout.Context) {
 			a.openStickerSetDialog(&msg)
 		}})
 	}
-	// Stop poll (AyuGram parity, slice 124): the creator of an open poll
-	// closes it from the context menu.
 	if stopPollMenuGate(&m) {
 		msg := m
 		items = append(items, menuAction{"Stop poll", func(gtx layout.Context) {
 			a.stopPollMessage(&msg)
 		}})
 	}
-	// Message details (AyuGram, slice 105): key/value rows from the cache.
 	if msgDetailMenuGate(m) {
 		msg := m
 		items = append(items, menuAction{"Message details", func(gtx layout.Context) {
 			a.openMsgDetailDialog(&msg)
 		}})
 	}
-	// Ayu edits history (matrix row 164): anti-recall kept revisions for
-	// this message — the dialog lists them newest-first.
 	if f.menu != nil && editsMenuGate(m, f.menu.hasEdits != nil, f.menu.hasEdits != nil && *f.menu.hasEdits) {
 		msg := m
 		items = append(items, menuAction{"Edits history", func(gtx layout.Context) {
 			a.openEditHistDialog(&msg)
 		}})
 	}
-	// Ayu shadow ban (matrix row 240): per-chat local ignore of the
-	// sender. Label flips once openMenu's lookup resolves the state.
 	if f.menu != nil && shadowBanMenuGate(m, f.menu.senderBanned != nil) {
 		banned := *f.menu.senderBanned
 		label := "Shadow-ban sender"
@@ -447,7 +373,6 @@ func (a *App) menuActionsFor(f frame, m engine.CachedMessage) []menuAction {
 			a.toggleShadowBan(m, !banned)
 		}})
 	}
-	// Ayu repeat (AyuGram "repeat message": resend as your own, no forward).
 	if !m.IsService && strings.TrimSpace(m.ContentText) != "" {
 		items = append(items, menuAction{"Repeat", func(gtx layout.Context) {
 			go func() {
@@ -457,13 +382,11 @@ func (a *App) menuActionsFor(f frame, m engine.CachedMessage) []menuAction {
 			}()
 		}})
 	}
-	// Enter selection mode (AyuGram message multi-select).
 	if !m.IsService {
 		items = append(items, menuAction{"Select", func(gtx layout.Context) {
 			a.startSelection(m.MsgID)
 		}})
 	}
-	// Report (AyuGram: incoming, non-service messages).
 	if canReport(m) {
 		items = append(items, menuAction{"Report", func(gtx layout.Context) {
 			a.openReportDialog([]engine.CachedMessage{m})
@@ -490,11 +413,6 @@ func (a *App) menuActionsFor(f frame, m engine.CachedMessage) []menuAction {
 	return items
 }
 
-// ── context menu rendering ───────────────────────────────────────────────
-
-// layoutContextMenu draws the open message context menu anchored at its press
-// position, clamped to the pane. Called after the chat content so it draws
-// on top. Records the rendered rect for outside-press dismissal.
 func (a *App) layoutContextMenu(gtx layout.Context, f frame) layout.Dimensions {
 	if f.menu.picker {
 		return a.layoutReactionPicker(gtx, f)
@@ -561,8 +479,6 @@ func (a *App) layoutContextMenu(gtx layout.Context, f frame) layout.Dimensions {
 	})
 }
 
-// quickReactions splits the available reactions into the quick bar
-// (max 7 pills) and whether more exist for the expandable picker.
 func quickReactions(reacts []string) ([]string, bool) {
 	if len(reacts) > 7 {
 		return reacts[:7], true
@@ -570,9 +486,6 @@ func quickReactions(reacts []string) ([]string, bool) {
 	return reacts, false
 }
 
-// menuReactionsRow renders the quick-reaction pills (emoji buttons) and,
-// when more reactions exist, the ⋯ toggle that swaps the menu into the
-// full picker (AyuGram quick bar + expandable grid).
 func (a *App) menuReactionsRow(gtx layout.Context, f frame, emojis []string, more bool, m *engine.CachedMessage) layout.Dimensions {
 	growClickables(&a.wid.menuReactBtns, len(emojis)+1)
 	return layout.Inset{
@@ -620,7 +533,6 @@ func (a *App) menuReactionsRow(gtx layout.Context, f frame, emojis []string, mor
 	})
 }
 
-// openReactionPicker swaps the open message menu into the full picker.
 func (a *App) openReactionPicker() {
 	a.mu.Lock()
 	if a.menu != nil {
@@ -630,10 +542,6 @@ func (a *App) openReactionPicker() {
 	a.invalidate()
 }
 
-// layoutReactionPicker: the full reaction grid (AyuGram expandable
-// picker) — every available reaction in an 8-column scrollable grid,
-// anchored at the message menu position. Tapping reacts and closes;
-// outside-press and Esc keep the menu dismissal paths (menuRect).
 func (a *App) layoutReactionPicker(gtx layout.Context, f frame) layout.Dimensions {
 	m := f.menu.msg
 	emojis := f.availEmojis
@@ -720,14 +628,13 @@ func (a *App) layoutReactionPicker(gtx layout.Context, f frame) layout.Dimension
 	})
 }
 
-// menuItemRow renders one menu action row (flat, ripple on press).
 func (a *App) menuItemRow(gtx layout.Context, btn *widget.Clickable, item menuAction, rowH int) layout.Dimensions {
 	if btn.Clicked(gtx) {
 		a.closeMenu()
 		item.run(gtx)
 	}
 	bl := material.ButtonLayout(a.ui.Theme, btn)
-	bl.Background = a.ui.p.Surface // invisible against the menu card
+	bl.Background = a.ui.p.Surface
 	bl.CornerRadius = 8
 	gtx.Constraints.Min.Y = rowH
 	return bl.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -738,11 +645,6 @@ func (a *App) menuItemRow(gtx layout.Context, btn *widget.Clickable, item menuAc
 	})
 }
 
-// ── forward picker (AyuGram ChooseRecipientBox, first pass) ──────────────
-
-// layoutForwardDialog replaces the chat-pane content while a forward target
-// is being picked (layout swap = no click-through). Handles single and
-// batch sources (selection mode).
 func (a *App) layoutForwardDialog(gtx layout.Context, f frame) layout.Dimensions {
 	if len(f.fwd) == 0 {
 		return layout.Dimensions{}
@@ -750,8 +652,6 @@ func (a *App) layoutForwardDialog(gtx layout.Context, f frame) layout.Dimensions
 	srcs := f.fwd
 	m := srcs[0]
 
-	// Candidates: chats on the same account as the source message, with the
-	// account's Saved Messages chat pinned first (slice 116).
 	candidates := buildForwardCandidates(f.chats, m, f.savedChatID[m.AccountID])
 	growClickables(&a.wid.fwdChatBtns, len(candidates))
 
@@ -782,7 +682,6 @@ func (a *App) layoutForwardDialog(gtx layout.Context, f frame) layout.Dimensions
 				})
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return a.ui.Divider(gtx) }),
-		// Forward options (AyuGram: hide sender / hide captions).
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Top: unit.Dp(8), Bottom: unit.Dp(8), Left: unit.Dp(16), Right: unit.Dp(16)}.Layout(gtx,
 				func(gtx layout.Context) layout.Dimensions {
@@ -802,8 +701,6 @@ func (a *App) layoutForwardDialog(gtx layout.Context, f frame) layout.Dimensions
 					)
 				})
 		}),
-		// Forward comment (AyuGram share sheet, slice 126): optional message
-		// shipped before the forwarded batch in each recipient chat.
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(8), Left: unit.Dp(16), Right: unit.Dp(16)}.Layout(gtx,
 				func(gtx layout.Context) layout.Dimensions {
@@ -828,7 +725,6 @@ func (a *App) layoutForwardDialog(gtx layout.Context, f frame) layout.Dimensions
 				c := candidates[i]
 				btn := &a.wid.fwdChatBtns[i]
 				if btn.Clicked(gtx) {
-					// Multi-pick (AyuGram, slice 41): rows toggle recipients.
 					a.fwdSel[c.ChatID] = !a.fwdSel[c.ChatID]
 					a.invalidate()
 				}
@@ -856,7 +752,6 @@ func (a *App) layoutForwardDialog(gtx layout.Context, f frame) layout.Dimensions
 				})
 			})
 		}),
-		// Send bar: commit the selection (slice 41).
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if a.wid.fwdSendBtn.Clicked(gtx) {
 				a.forwardToSelection(srcs, candidates)
@@ -884,7 +779,6 @@ func (a *App) layoutForwardDialog(gtx layout.Context, f frame) layout.Dimensions
 	)
 }
 
-// forwardToSelection forwards the batch to every selected recipient.
 func (a *App) forwardToSelection(srcs []engine.CachedMessage, candidates []engine.ChatInfo) {
 	var dsts []engine.ChatInfo
 	for _, c := range candidates {
@@ -909,7 +803,6 @@ func (a *App) forwardToSelection(srcs []engine.CachedMessage, candidates []engin
 		ok := 0
 		for _, dst := range dsts {
 			failed := false
-			// Comment first (Telegram share-sheet semantics), then the batch.
 			for _, step := range forwardCommitSteps(comment, ids) {
 				var err error
 				switch step.kind {

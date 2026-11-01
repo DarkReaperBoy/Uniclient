@@ -15,17 +15,6 @@ import (
 	"uniclient/engine"
 )
 
-// Right info panel — the AyuGram third pane (research/ayugram_parity.md §7):
-// profile for DMs (username/phone/bio, block, add-contact), member list for
-// groups/channels (role badges), shared-media counts + recent photos, and the
-// per-chat notifications toggle. Every row reads engine state; every action
-// dispatches a real engine call (§1.10).
-
-// panelSwitch pools the panel's mute toggle per chat — ON THE APP (R22):
-// the info panel renders in every window (layoutChatView → layoutInfoPanel
-// in both Root branches), and the pool used to be package-level maps; two
-// windows with panels open hit them from two GUI goroutines, and Go maps
-// are not concurrency-safe — a FATAL runtime panic, not a mere race.
 func (a *App) panelSwitch(key string) *widget.Bool {
 	if a.wid.panelSwitches == nil {
 		a.wid.panelSwitches = make(map[string]*widget.Bool)
@@ -43,16 +32,12 @@ func (a *App) panelSwitch(key string) *widget.Bool {
 	return s
 }
 
-// panelSyncedFor reports whether this window already one-shot-synced the
-// toggle for key (test seam for the per-window contract, R22).
 func (a *App) panelSyncedFor(key string) bool {
 	return a.wid.panelSynced[key]
 }
 
-// colorNRGBA aliases the color type for tests.
 type colorNRGBA = color.NRGBA
 
-// panelSectionsFor reports which sections a chat type shows.
 func panelSectionsFor(chatType int) (profile, members bool) {
 	switch chatType {
 	case engine.ChatTypeDMVal:
@@ -63,7 +48,6 @@ func panelSectionsFor(chatType int) (profile, members bool) {
 	return false, false
 }
 
-// roleBadgeLabel returns the badge text for a member role ("" = none).
 func roleBadgeLabel(role string) string {
 	switch role {
 	case "owner", "admin", "restricted", "banned":
@@ -72,7 +56,6 @@ func roleBadgeLabel(role string) string {
 	return ""
 }
 
-// roleBadgeColor maps a badged role to its color; unbaged roles are zero.
 func roleBadgeColor(role string) color.NRGBA {
 	switch role {
 	case "owner":
@@ -87,7 +70,6 @@ func roleBadgeColor(role string) color.NRGBA {
 	return color.NRGBA{}
 }
 
-// lastSeenLabel renders a presence label from a LastSeenKind.
 func lastSeenLabel(kind string) string {
 	switch kind {
 	case "online":
@@ -108,9 +90,6 @@ func lastSeenLabel(kind string) string {
 	return "offline"
 }
 
-// ── state actions ─────────────────────────────────────────────────────────
-
-// openPanel slides the info panel in for the selected chat and loads its data.
 func (a *App) openPanel() {
 	a.mu.Lock()
 	k := a.selected
@@ -126,7 +105,6 @@ func (a *App) openPanel() {
 	a.invalidate()
 }
 
-// closePanel slides the panel out.
 func (a *App) closePanel() {
 	a.mu.Lock()
 	a.panelOpen = false
@@ -134,7 +112,6 @@ func (a *App) closePanel() {
 	a.invalidate()
 }
 
-// loadPanel fetches profile / members / shared-media for the panel (async).
 func (a *App) loadPanel(k chatKey) {
 	var chatType int
 	var muted bool
@@ -161,12 +138,10 @@ func (a *App) loadPanel(k chatKey) {
 		}
 	}
 
-	// Groups in common (slice 107): DM peers only.
 	if chatType == engine.ChatTypeDMVal {
 		go a.loadCommonChats(k)
 	}
 
-	// Bot info panel (slice 133): the bot's chat commands.
 	var botCmds []engine.BotCommandInfo
 	if prof != nil && prof.IsBot {
 		if cmds, err := a.eng.GetChatBotCommands(k.AccountID, k.ChatID); err == nil {
@@ -174,9 +149,6 @@ func (a *App) loadPanel(k chatKey) {
 		}
 	}
 
-	// Profile music (slice 206): user peers only (bots carry none);
-	// supported accounts feed the panel's Music section. Unsupported
-	// platforms leave it hidden — no dead UI (§1.10).
 	var music []engine.MusicTrack
 	if showProfile && (prof == nil || !prof.IsBot) && a.eng.ProfileMusicSupported(k.AccountID) {
 		if tracks, err := a.eng.GetProfileMusic(k.AccountID, k.ChatID); err == nil {
@@ -185,13 +157,10 @@ func (a *App) loadPanel(k chatKey) {
 	}
 
 	counts, _ := a.eng.GetSharedMediaCounts(k.AccountID, k.ChatID)
-	// Photos tab is prefetched (60 cells); other tabs lazy-load on
-	// first activation (slice 78).
 	photos, _ := a.eng.GetSharedMedia(k.AccountID, k.ChatID, "image", 60, 0, "")
 
 	a.mu.Lock()
 	a.profile = prof
-	// Fresh profile fetch doubles as the header presence refresh (slice 28).
 	if prof != nil && a.selected != nil && a.selected.AccountID == k.AccountID && a.selected.ChatID == k.ChatID {
 		a.hdrPresence = prof
 	}
@@ -211,7 +180,6 @@ func (a *App) loadPanel(k chatKey) {
 	a.invalidate()
 }
 
-// setChatMuted applies the notifications toggle for the open chat.
 func (a *App) setChatMuted(k chatKey, muted bool) {
 	go func() {
 		if err := a.eng.MuteChat(k.AccountID, k.ChatID, muted, 0); err != nil {
@@ -220,7 +188,6 @@ func (a *App) setChatMuted(k chatKey, muted bool) {
 	}()
 }
 
-// panelBlockUser blocks/unblocks the DM peer.
 func (a *App) panelBlockUser(k chatKey, block bool) {
 	go func() {
 		var err error
@@ -236,8 +203,6 @@ func (a *App) panelBlockUser(k chatKey, block bool) {
 	}()
 }
 
-// vcardFor builds a minimal vCard for a contact (pure, tested) —
-// AyuGram's Share copies contact data as text.
 func vcardFor(u engine.CachedUser) string {
 	var b strings.Builder
 	b.WriteString("BEGIN:VCARD\nVERSION:3.0\n")
@@ -254,12 +219,10 @@ func vcardFor(u engine.CachedUser) string {
 	return b.String()
 }
 
-// panelShareContact copies the peer's vCard to the clipboard.
 func (a *App) panelShareContact(f frame, u engine.CachedUser) {
 	a.copyTextSoon(vcardFor(u))
 }
 
-// panelAddContact adds the DM peer to contacts.
 func (a *App) panelAddContact(k chatKey, u engine.CachedUser) {
 	go func() {
 		if _, err := a.eng.AddContactByUser(k.AccountID, u.UserID, u.DisplayName, "", "", "", false); err != nil {
@@ -269,8 +232,6 @@ func (a *App) panelAddContact(k chatKey, u engine.CachedUser) {
 	}()
 }
 
-// isPanelSubCount reports whether a panel subtitle is a count/channel
-// label (safe under streamer mode) rather than identity info.
 func isPanelSubCount(sub string) bool {
 	if sub == "channel" || sub == "online" || sub == "members" {
 		return true
@@ -278,10 +239,6 @@ func isPanelSubCount(sub string) bool {
 	return strings.Contains(sub, "member") || strings.Contains(sub, "online")
 }
 
-// ── layout ────────────────────────────────────────────────────────────────
-
-// layoutInfoPanel renders the panel as a full pane (narrow) or inside the
-// caller-provided column (desktop side pane).
 func (a *App) layoutInfoPanel(gtx layout.Context, f frame, chat *engine.ChatInfo, narrow bool) layout.Dimensions {
 	if a.wid.panelCloseBtn.Clicked(gtx) {
 		a.closePanel()
@@ -301,20 +258,15 @@ func (a *App) layoutInfoPanel(gtx layout.Context, f frame, chat *engine.ChatInfo
 			})
 	})
 
-	// Member admin menu (slice 106) renders over the panel on tap.
 	if f.memberMenu != nil {
 		a.layoutMemberMenu(gtx, f)
 	}
 
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		// header (AyuGram profile cover): back/close row, then a big centered
-		// photo (96dp; real userpic via the engine avatar pipeline, letter
-		// fallback), name and status below it.
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Top: unit.Dp(8), Bottom: unit.Dp(8), Left: unit.Dp(8), Right: unit.Dp(8)}.Layout(gtx,
 				func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-						// back (narrow) | spacer | close (desktop)
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 							return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -338,7 +290,6 @@ func (a *App) layoutInfoPanel(gtx layout.Context, f frame, chat *engine.ChatInfo
 								}),
 							)
 						}),
-						// big cover avatar.
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 							return layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 								return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -352,7 +303,6 @@ func (a *App) layoutInfoPanel(gtx layout.Context, f frame, chat *engine.ChatInfo
 								})
 							})
 						}),
-						// name + status, centered.
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 							return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 								lbl := a.ui.H3(title)
@@ -393,7 +343,6 @@ func (a *App) layoutInfoPanel(gtx layout.Context, f frame, chat *engine.ChatInfo
 	)
 }
 
-// panelSub derives the header sub-line.
 func (a *App) panelSub(f frame, chat *engine.ChatInfo) string {
 	if f.profile != nil && chat.Type == engine.ChatTypeDMVal {
 		if f.profile.IsOnline {
@@ -410,13 +359,11 @@ func (a *App) panelSub(f frame, chat *engine.ChatInfo) string {
 	return platformTitle(platformOf(f, chat.AccountID))
 }
 
-// panelBody renders the panel sections.
 func (a *App) panelBody(gtx layout.Context, f frame, chat *engine.ChatInfo, narrow bool) layout.Dimensions {
 	k := *f.selected
 	showProfile, showMembers := panelSectionsFor(chat.Type)
 	var children []layout.FlexChild
 
-	// Notifications toggle.
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		key := "panel:mute:" + k.ChatID
 		sw := a.panelSwitch(key)
@@ -432,14 +379,12 @@ func (a *App) panelBody(gtx layout.Context, f frame, chat *engine.ChatInfo, narr
 		return d
 	}))
 
-	// Auto-delete period (AyuGram profile info, slice 60).
 	if chat.TtlPeriod > 0 {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.panelValueRow(gtx, iconActionSchedule, "Auto-delete", ttlLabel(chat.TtlPeriod))
 		}))
 	}
 
-	// Profile rows (DM).
 	if showProfile && f.profile != nil {
 		p := *f.profile
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -460,12 +405,9 @@ func (a *App) panelBody(gtx layout.Context, f frame, chat *engine.ChatInfo, narr
 				return a.panelValueRow(gtx, iconActionInfo, "Bio", p.Bio)
 			}))
 		}
-		// Bot info sections (slice 133, tdesktop bot profile): description,
-		// commands (tap inserts into the a.wid.composer), privacy-policy link.
 		if p.IsBot {
 			children = append(children, a.botPanelSections(gtx, f, p)...)
 		}
-		// Block / unblock + add contact actions.
 		if a.wid.panelBlockBtn.Clicked(gtx) {
 			a.panelBlockUser(k, !p.IsBlocked)
 		}
@@ -502,19 +444,14 @@ func (a *App) panelBody(gtx layout.Context, f frame, chat *engine.ChatInfo, narr
 		}
 	}
 
-	// Profile music (slice 206, tdesktop MusicButton): first track +
-	// count, tap-through to the playlist view. Hidden when empty —
-	// tdesktop shows the section only for peers with pinned songs.
 	children = append(children, a.panelMusicSection(gtx, f)...)
 
-	// Groups in common (slice 107): DM profiles, hidden when empty.
 	if showProfile {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.layoutCommonGroups(gtx, f, k)
 		}))
 	}
 
-	// Members (groups/channels), with search (AyuGram, slice 40).
 	if showMembers {
 		shown := filterMembers(f.members, a.wid.memberSearchEd.Text())
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -554,7 +491,6 @@ func (a *App) panelBody(gtx layout.Context, f frame, chat *engine.ChatInfo, narr
 		}
 	}
 
-	// Shared media tabs (slice 78): chip bar + tabbed grids / lists.
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.sectionTitle(gtx, "Shared media")
 	}))
@@ -565,9 +501,7 @@ func (a *App) panelBody(gtx layout.Context, f frame, chat *engine.ChatInfo, narr
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-// panelValueRow renders an icon + label + value row.
 func (a *App) panelValueRow(gtx layout.Context, ic *widget.Icon, label, value string) layout.Dimensions {
-	// Copy on click (AyuGram info rows, slice 26).
 	btn := a.panelRowClickable(label)
 	if btn.Clicked(gtx) {
 		if value != "" {
@@ -607,8 +541,6 @@ func (a *App) panelValueRow(gtx layout.Context, ic *widget.Icon, label, value st
 	})
 }
 
-// a.wid.panelRowClickables: per-label copy clickables for info rows.
-
 func (a *App) panelRowClickable(label string) *widget.Clickable {
 	if c, ok := a.wid.panelRowClickables[label]; ok {
 		return c
@@ -621,8 +553,6 @@ func (a *App) panelRowClickable(label string) *widget.Clickable {
 	return c
 }
 
-// memberRow renders one member with an optional role badge. Tapping opens
-// the member admin menu (slice 106) when the viewer has admin rights.
 func (a *App) memberRow(gtx layout.Context, f frame, m engine.MemberInfo) layout.Dimensions {
 	if chat, ok := panelChatOf(f); ok {
 		if btn := a.memberRowBtn(m.UserID); btn.Clicked(gtx) {
@@ -681,7 +611,6 @@ func (a *App) memberRow(gtx layout.Context, f frame, m engine.MemberInfo) layout
 	})
 }
 
-// badgeChip renders a small colored text chip (role badges).
 func badgeChip(gtx layout.Context, u *UI, txt string, c color.NRGBA) layout.Dimensions {
 	return roundedFill(gtx, withAlpha(c, 0x30), 6, func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Top: unit.Dp(1), Bottom: unit.Dp(1), Left: unit.Dp(6), Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -692,16 +621,11 @@ func badgeChip(gtx layout.Context, u *UI, txt string, c color.NRGBA) layout.Dime
 	})
 }
 
-// withAlpha scales a color's alpha channel.
 func withAlpha(c color.NRGBA, alpha uint8) color.NRGBA {
 	c.A = uint8(uint32(c.A) * uint32(alpha) / 0xFF)
 	return c
 }
 
-// a.wid.photoGridClicks pools the info-panel gallery cell clickables.
-
-// filterMembers narrows the member list by a case-insensitive substring
-// match on display name, username, or id (AyuGram member search).
 func filterMembers(members []engine.MemberInfo, q string) []engine.MemberInfo {
 	q = strings.TrimSpace(strings.ToLower(q))
 	if q == "" {
@@ -718,15 +642,6 @@ func filterMembers(members []engine.MemberInfo, q string) []engine.MemberInfo {
 	return out
 }
 
-// a.wid.memberSearchEd filters the info panel's member list (slice 40).
-
-// botPanelCmdClickables pools the command-row clickables.
-
-// a.wid.botPrivacyBtn opens the bot's privacy policy.
-
-// botPanelSections builds the bot-only profile sections: "What can this
-// bot do?" description, the command list (tap → a.wid.composer insert, the
-// slice-76 wire), and the privacy-policy row (browser handoff).
 func (a *App) botPanelSections(gtx layout.Context, f frame, p engine.CachedUser) []layout.FlexChild {
 	var children []layout.FlexChild
 	if p.BotDescription != "" {

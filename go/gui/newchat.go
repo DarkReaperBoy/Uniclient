@@ -11,19 +11,12 @@ import (
 	"uniclient/engine"
 )
 
-// New group / channel creation (AyuGram parity, matrix #300): the drawer's
-// "New group" / "New channel" actions. Name (+ description for channels,
-// with a megagroup switch) → engine.CreateGroup / CreateChannel /
-// CreateMegagroup; the created chat opens on success.
-
-// newChatDlg: open dialog state (nil when closed).
 type newChatDlg struct {
-	kind       int // 0 = group, 1 = channel
+	kind       int
 	accountID  string
-	supergroup bool // channel only: create a megagroup
-	busy       bool // creation in flight
+	supergroup bool
+	busy       bool
 
-	// group member picker (slice 25): cached contacts + selected user IDs
 	members      map[string]bool
 	contacts     []engine.ContactInfo
 	contactsLoad bool
@@ -36,7 +29,7 @@ var (
 	newDlgNameEd widget.Editor
 	newDlgDescEd widget.Editor
 
-	newDlgMemberRows []widget.Clickable // group member picker
+	newDlgMemberRows []widget.Clickable
 	newDlgMemberList widget.List
 )
 
@@ -44,7 +37,6 @@ func init() {
 	newDlgMemberList.Axis = layout.Vertical
 }
 
-// openNewChat opens the creation dialog for kind on an account.
 func (a *App) openNewChat(kind int, accountID string) {
 	if accountID == "" {
 		a.setToast("Connect an account first")
@@ -76,7 +68,6 @@ func (a *App) openNewChat(kind int, accountID string) {
 	}
 }
 
-// closeNewChat dismisses the dialog.
 func (a *App) closeNewChat() {
 	a.mu.Lock()
 	if a.newDlg == nil {
@@ -84,7 +75,7 @@ func (a *App) closeNewChat() {
 		return
 	}
 	if a.newDlg.busy {
-		a.mu.Unlock() // don't abandon an in-flight creation
+		a.mu.Unlock()
 		return
 	}
 	a.newDlg = nil
@@ -92,9 +83,6 @@ func (a *App) closeNewChat() {
 	a.invalidate()
 }
 
-// submitNewChat performs the creation and schedules the chat to open (the
-// engine emits chat events too; the pending-open keeps it 1:1 with Ayu,
-// which drops you straight into the new conversation).
 func (a *App) submitNewChat() {
 	a.mu.Lock()
 	if a.newDlg == nil {
@@ -148,7 +136,6 @@ func (a *App) submitNewChat() {
 		}
 		a.newDlgErr = ""
 		a.newDlg = nil
-		// Open the created chat on the GUI goroutine (next frame).
 		a.pendingOpen = &chatKey{AccountID: info.AccountID, ChatID: info.ChatID}
 		a.pendingTitle = info.Title
 		a.mu.Unlock()
@@ -157,8 +144,6 @@ func (a *App) submitNewChat() {
 	}()
 }
 
-// layoutNewChatDialog renders the centered creation card over a scrim
-// (content pane; the sidebar stays interactive like the folder dialog).
 func (a *App) layoutNewChatDialog(gtx layout.Context, f frame) layout.Dimensions {
 	d := f.newDlg
 	if newDlgCancel.Clicked(gtx) {
@@ -190,7 +175,6 @@ func (a *App) layoutNewChatDialog(gtx layout.Context, f frame) layout.Dimensions
 						lbl := a.ui.H3(title)
 						return lbl.Layout(gtx)
 					}),
-					// Group member picker (slice 25).
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						if d.kind != 0 {
 							return layout.Dimensions{}
@@ -220,7 +204,6 @@ func (a *App) layoutNewChatDialog(gtx layout.Context, f frame) layout.Dimensions
 							})
 						})
 					}),
-					// Megagroup switch (channels).
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						if d.kind == 0 {
 							return layout.Dimensions{}
@@ -249,7 +232,6 @@ func (a *App) layoutNewChatDialog(gtx layout.Context, f frame) layout.Dimensions
 						}
 						return dims
 					}),
-					// Error line (last failure).
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						if f.newDlgErr == "" {
 							return layout.Dimensions{}
@@ -283,8 +265,6 @@ func (a *App) layoutNewChatDialog(gtx layout.Context, f frame) layout.Dimensions
 	})
 }
 
-// newDlgMemberPicker: contacts with toggle rows (group creation step 2,
-// AyuGram member picker). Selected IDs flow into CreateGroup.
 func (a *App) newDlgMemberPicker(gtx layout.Context, f frame) layout.Dimensions {
 	d := f.newDlg
 	contacts := d.contacts

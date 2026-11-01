@@ -6,9 +6,6 @@ import (
 	"uniclient/engine"
 )
 
-// Media-bubble pure helpers (AyuGram parity slice 2: media bubbles +
-// download progress). Tests lock the formatting / math before the widgets.
-
 func TestFmtBytes(t *testing.T) {
 	cases := []struct {
 		n    int64
@@ -56,15 +53,10 @@ func TestFitDims(t *testing.T) {
 		w0, h0, maxW, maxH int
 		wantW, wantH       int
 	}{
-		// landscape shrink into square box
 		{800, 600, 300, 300, 300, 225},
-		// portrait shrink
 		{600, 1200, 300, 300, 150, 300},
-		// square upscale to fill
 		{60, 60, 260, 320, 260, 260},
-		// degenerate: falls back to box
 		{0, 0, 300, 200, 300, 200},
-		// very wide strip: height floors at 1
 		{10000, 10, 300, 300, 300, 1},
 	}
 	for _, c := range cases {
@@ -96,8 +88,6 @@ func TestDlFraction(t *testing.T) {
 }
 
 func TestMediaBlockGating(t *testing.T) {
-	// The bubble type switch must never fall through to an empty widget:
-	// every engine media type renders one of the known blocks.
 	for mt := range mediaBlockKinds() {
 		if kind := mediaBlockKind(mt); kind == "" {
 			t.Errorf("mediaBlockKind(%d) empty", mt)
@@ -105,7 +95,6 @@ func TestMediaBlockGating(t *testing.T) {
 	}
 }
 
-// mediaBlockKinds returns every media type the GUI knows how to bubble.
 func mediaBlockKinds() map[int]string {
 	return map[int]string{
 		engine.MediaImage:     "photo",

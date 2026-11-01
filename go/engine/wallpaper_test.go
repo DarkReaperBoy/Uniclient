@@ -1,9 +1,5 @@
 package engine
 
-// wallpaper_test.go — slice 218: the wallpaper peer-mirror. The latest
-// messageActionSetChatWallPaper service row flips chats.wallpaper_json;
-// ChatInfo round-trips it for the GUI renderer.
-
 import (
 	"encoding/json"
 	"testing"
@@ -26,13 +22,11 @@ func TestWallpaperMirror(t *testing.T) {
 	e := newTestEngine(t)
 	seedChannelChat(t, e, "c1", ChatTypeDMVal)
 
-	// Ordinary messages never touch the wallpaper.
 	e.cacheMessage("a1", "c1", &cores.Message{ID: "m1", ChatID: "c1", Text: "hi", Timestamp: time.Now()})
 	if got := wallpaperJSON(t, e); got != "" {
 		t.Fatalf("plain message set wallpaper %q", got)
 	}
 
-	// A wallpaper service row mirrors its marshaled WallpaperInfo.
 	wp := cores.WallpaperInfo{ID: 42, AccessHash: 4242, DocID: 7, DocHash: 8, Blurred: true}
 	e.cacheMessage("a1", "c1", &cores.Message{
 		ID: "m2", ChatID: "c1", IsService: true, Text: "changed the chat wallpaper",
@@ -51,7 +45,6 @@ func TestWallpaperMirror(t *testing.T) {
 		t.Fatalf("mirror drift: %+v", back)
 	}
 
-	// A later service row with a different wallpaper replaces it.
 	e.cacheMessage("a1", "c1", &cores.Message{
 		ID: "m3", ChatID: "c1", IsService: true, Text: "changed the chat wallpaper",
 		Timestamp: time.Now().Add(2 * time.Second),
@@ -61,7 +54,6 @@ func TestWallpaperMirror(t *testing.T) {
 		t.Fatal("second wallpaper did not replace the first")
 	}
 
-	// ChatInfo round-trips the wallpaper for the renderer.
 	chats, err := e.GetChatList("a1", false, 10, 0)
 	if err != nil || len(chats) == 0 {
 		t.Fatalf("chat list: %v (%d)", err, len(chats))
@@ -74,7 +66,6 @@ func TestWallpaperMirror(t *testing.T) {
 		t.Fatalf("ChatInfo wallpaper = %q (%v)", chats[0].WallpaperJSON, err)
 	}
 
-	// Non-string extra values are skipped, not fatal.
 	e.cacheMessage("a1", "c1", &cores.Message{
 		ID: "m4", ChatID: "c1", IsService: true, Text: "wallpaper", Timestamp: time.Now().Add(3 * time.Second),
 		Extra: map[string]interface{}{"chat_wallpaper": 42},
@@ -84,7 +75,6 @@ func TestWallpaperMirror(t *testing.T) {
 	}
 }
 
-// jsonUnmarshalString is a tiny helper so the test reads clean.
 func jsonUnmarshalString(s string, v interface{}) error {
 	return json.Unmarshal([]byte(s), v)
 }

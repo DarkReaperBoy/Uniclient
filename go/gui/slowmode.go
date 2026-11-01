@@ -9,17 +9,8 @@ import (
 	"uniclient/engine"
 )
 
-// Composer gating (AyuGram parity slice 69): chats that the engine reports
-// as write-restricted swap the a.wid.composer for an honest notice bar, and
-// slow-mode chats show a live countdown that blocks sending until the wait
-// expires. Both states come straight from ChatInfo — the engine keeps them
-// in sync from the server.
-
 const composerRestrictedDefault = "You can't send messages in this chat"
 
-// composerRestricted reports whether the a.wid.composer must be replaced by a
-// notice bar, and which label to show. Not-joined channel previews keep the
-// JOIN bar (slice 19) — the two gates never overlap.
 func composerRestricted(c engine.ChatInfo) (bool, string) {
 	if c.NotJoined {
 		return false, ""
@@ -33,8 +24,6 @@ func composerRestricted(c engine.ChatInfo) (bool, string) {
 	return false, ""
 }
 
-// slowmodeRemain returns how long sending must wait. SlowmodeNextSendDate
-// is the server's unix-seconds timestamp of the next allowed send.
 func slowmodeRemain(c engine.ChatInfo, now time.Time) time.Duration {
 	if c.SlowmodeSeconds <= 0 || c.SlowmodeNextSendDate <= 0 {
 		return 0
@@ -47,7 +36,6 @@ func slowmodeRemain(c engine.ChatInfo, now time.Time) time.Duration {
 	return d
 }
 
-// slowmodeLabel renders the countdown chip text ("Slow mode: 12s").
 func slowmodeLabel(d time.Duration) string {
 	if d <= 0 {
 		return ""
@@ -63,7 +51,6 @@ func slowmodeLabel(d time.Duration) string {
 	}
 }
 
-// restrictedBar replaces the a.wid.composer when writing is disallowed.
 func (a *App) restrictedBar(gtx layout.Context, label string) layout.Dimensions {
 	return layout.Inset{Top: unit.Dp(10), Bottom: unit.Dp(10), Left: unit.Dp(16), Right: unit.Dp(16)}.Layout(gtx,
 		func(gtx layout.Context) layout.Dimensions {
@@ -82,8 +69,6 @@ func (a *App) restrictedBar(gtx layout.Context, label string) layout.Dimensions 
 		})
 }
 
-// slowmodeChip renders the countdown pill shown inside the a.wid.composer while
-// a slow-mode wait is active; it also requests the next-second redraw.
 func (a *App) slowmodeChip(gtx layout.Context, f frame, chat *engine.ChatInfo) layout.Dimensions {
 	remain := slowmodeRemain(*chat, f.now)
 	if remain <= 0 {
@@ -101,8 +86,6 @@ func (a *App) slowmodeChip(gtx layout.Context, f frame, chat *engine.ChatInfo) l
 	})
 }
 
-// scheduleSlowTick asks for a redraw when the countdown's next second flips.
-// One pending timer at a time; the frame guard keeps redraws cheap.
 func (a *App) scheduleSlowTick(remain time.Duration) {
 	a.mu.Lock()
 	pending := a.slowTickPending
@@ -125,7 +108,6 @@ func (a *App) scheduleSlowTick(remain time.Duration) {
 	})
 }
 
-// slowmodeToast explains a blocked send attempt.
 func (a *App) slowmodeToast(chat *engine.ChatInfo) {
 	if chat == nil {
 		return

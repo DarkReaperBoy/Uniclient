@@ -10,28 +10,13 @@ import (
 	"uniclient/engine"
 )
 
-// Group-call live bar (AyuGram parity slice 70): while the open chat has an
-// active group call (ChatInfo.HasActiveCall, kept current by the engine's
-// chat snapshots), a live bar sits under the chat header with the call's
-// title, participant count (engine.GetGroupCall, polled), and a JOIN
-// button that runs the real engine join (JoinGroupCall — or Create when
-// none exists) and flips to the Voice tab, where the call row already
-// renders (slice 64 surface). No simulated participants: numbers come from
-// the engine or the bar is omitted.
-
 const callPollInterval = 5 * time.Second
 
-// callBarPollNeeded reports whether the poll loop should fetch call info
-// for a chat (chats with a live call, or voice-room channels whose
-// occupancy changes as users join/leave).
 func callBarPollNeeded(c engine.ChatInfo, voiceRoom bool) bool {
 	return c.HasActiveCall || voiceRoom
 }
 
-// callBarSubtitle derives the bar's status line.
 func callBarSubtitle(c engine.ChatInfo, gc *engine.GroupCallInfo, voiceRoom bool) string {
-	// Talk-power block beats counts: the room LOOKS healthy but the
-	// server discards our voice (BUGS B-26) — say so.
 	if gc != nil && gc.TalkPowerBlocked {
 		if voiceRoom {
 			return "voice room · mic blocked (talk power)"
@@ -69,9 +54,6 @@ func callBarSubtitle(c engine.ChatInfo, gc *engine.GroupCallInfo, voiceRoom bool
 	return label
 }
 
-// voiceRoomChat reports whether the chat is a standing voice room
-// (Mumble/TeamSpeak channel): the bar shows even when empty because
-// joining an empty room is a real action.
 func voiceRoomChat(c engine.ChatInfo, caps []string) bool {
 	if c.Type == engine.ChatTypeDMVal {
 		return false
@@ -79,17 +61,10 @@ func voiceRoomChat(c engine.ChatInfo, caps []string) bool {
 	return capContains(caps, cores.CapVoiceRooms)
 }
 
-// callJoinedLabel is the toast shown after a successful join.
 func callJoinedLabel(title string) string {
 	return "Joined the group call in " + title
 }
 
-// callBar renders the live bar under the chat header. JOIN runs the real
-// engine join; once THIS window has joined THIS chat's call the button
-// becomes LEAVE (leaveJoinedCall) — in a separate window that bar is the
-// call's only visible surface (the Voice tab lives in the main window,
-// R30), and in the main window it is the honest shortcut back out when
-// the user returns to the chat mid-call.
 func (a *App) callBar(gtx layout.Context, f frame, chat *engine.ChatInfo) layout.Dimensions {
 	if a.wid.callJoinBtn.Clicked(gtx) {
 		if callBarInCall(*chat, f.joinedGC) {
@@ -138,14 +113,10 @@ func (a *App) callBar(gtx layout.Context, f frame, chat *engine.ChatInfo) layout
 	})
 }
 
-// callBarInCall reports whether THIS window has joined the open chat's
-// group call (pure) — the bar's JOIN button flips to LEAVE then.
 func callBarInCall(chat engine.ChatInfo, jc *joinedCall) bool {
 	return jc != nil && jc.accountID == chat.AccountID && jc.chatID == chat.ChatID
 }
 
-// callBarJoin runs the bar's JOIN action (the real engine join, then
-// applyCallJoinResult).
 func (a *App) callBarJoin(c engine.ChatInfo) {
 	go func() {
 		callID, err := a.eng.JoinGroupCall(c.AccountID, c.ChatID)
@@ -153,13 +124,6 @@ func (a *App) callBarJoin(c engine.ChatInfo) {
 	}()
 }
 
-// applyCallJoinResult records a successful group-call join (slice 102:
-// the joined-call state + its participant poll) or toasts the failure.
-// The Voice-tab flip (mode 1, where the group-call screen renders) is a
-// MAIN-window move — mode is a layoutMain-only surface, so a separate
-// window skips it: there the call bar itself is the in-call surface
-// (LEAVE via callBarInCall); flipping mode there painted nothing while
-// the call UI appeared in no window at all (R30).
 func (a *App) applyCallJoinResult(c engine.ChatInfo, callID string, err error) {
 	if err != nil {
 		a.setToast("Join failed: " + err.Error())
@@ -171,13 +135,12 @@ func (a *App) applyCallJoinResult(c engine.ChatInfo, callID string, err error) {
 		a.mu.Lock()
 		a.mode = 1
 		a.mu.Unlock()
-		go a.loadCalls() // Voice tab surface (slice 64)
+		go a.loadCalls()
 	}
 	a.invalidate()
 	a.pollGroupCallOnce(c.AccountID, c.ChatID)
 }
 
-// pollGroupCallOnce fetches call info for a chat and stores it.
 func (a *App) pollGroupCallOnce(accountID, chatID string) {
 	gc, err := a.eng.GetGroupCall(accountID, chatID)
 	a.mu.Lock()
@@ -190,9 +153,6 @@ func (a *App) pollGroupCallOnce(accountID, chatID string) {
 	a.invalidate()
 }
 
-// syncCallPoll starts/stops the background poll loop for the open chat.
-// Called on chat open and whenever the chat list refreshes (HasActiveCall
-// can flip at any time from engine events).
 func (a *App) syncCallPoll() {
 	a.mu.Lock()
 	selected := a.selected
@@ -218,7 +178,7 @@ func (a *App) syncCallPoll() {
 		return
 	}
 	if already != nil && *already == *target {
-		return // loop is already watching this chat
+		return
 	}
 	go func(k chatKey) {
 		a.pollGroupCallOnce(k.AccountID, k.ChatID)
@@ -237,8 +197,6 @@ func (a *App) syncCallPoll() {
 	}(*target)
 }
 
-// capsCached returns the cached account capabilities (the header caps
-// load keeps them fresh); an empty list is conservative and honest.
 func (a *App) capsCached(accountID string) []string {
 	a.mu.Lock()
 	defer a.mu.Unlock()

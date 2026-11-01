@@ -6,9 +6,6 @@ import (
 	"github.com/gotd/td/tg"
 )
 
-// reactionClassForKey (slice 172): the GUI reaction key ("👍" or
-// "custom_<docID>") parses into the wire ReactionClass — shared by
-// SetDefaultReaction; malformed custom keys fall back to plain emoji.
 func TestReactionClassForKey(t *testing.T) {
 	if r, ok := reactionClassForKey("👍").(*tg.ReactionEmoji); !ok || r.Emoticon != "👍" {
 		t.Errorf("plain emoji key should decode to ReactionEmoji, got %T", reactionClassForKey("👍"))
@@ -21,10 +18,6 @@ func TestReactionClassForKey(t *testing.T) {
 	}
 }
 
-// decodeDefaultReactionKey (slice 172): the server config's
-// reactions_default (tg.Config.ReactionsDefault) decodes into the GUI
-// favorite-reaction key — emoji, custom-emoji (by document id), or "" when
-// the server did not send one (tdesktop favoriteId semantics).
 func TestDecodeDefaultReactionKey(t *testing.T) {
 	if got := decodeDefaultReactionKey(nil); got != "" {
 		t.Errorf("nil reaction class = %q, want \"\"", got)

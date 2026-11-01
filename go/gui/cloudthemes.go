@@ -14,15 +14,6 @@ import (
 	"uniclient/cores"
 )
 
-// Cloud themes (AyuGram parity, matrix "Appearance"): the Appearance page
-// gains a "Cloud themes" section listing the account's server-side themes
-// (engine.GetCloudThemes — title/slug, creator badge). Tapping asks for
-// confirmation, then engine.InstallCloudTheme saves the choice
-// server-side (other Telegram clients pick it up) and the theme's accent
-// color is applied to this GUI through the standard accent pipeline —
-// an honest partial: full .attheme parsing is out of scope here.
-
-// cloudThemeDlgState is the open install-confirmation dialog.
 type cloudThemeDlgState struct {
 	accountID string
 	theme     cores.CloudThemeInfo
@@ -32,8 +23,6 @@ var (
 	cloudThemeDlgKeyTag = new(struct{})
 )
 
-// argbToHex converts a Telegram 0xAARRGGBB color to "#RRGGBB" (" " for
-// unset/zero).
 func argbToHex(argb int) string {
 	if argb == 0 {
 		return ""
@@ -50,8 +39,6 @@ func argbToHex(argb int) string {
 	})
 }
 
-// loadCloudThemes reads the first account's server-side theme list (once
-// per session, slice 66).
 func (a *App) loadCloudThemes() {
 	a.mu.Lock()
 	if a.cloudThemesOn {
@@ -70,11 +57,10 @@ func (a *App) loadCloudThemes() {
 		}
 	}
 	a.mu.Lock()
-	a.cloudThemesOn = true // none anywhere; don't retry every open
+	a.cloudThemesOn = true
 	a.mu.Unlock()
 }
 
-// openCloudThemeDialog asks to install one theme (slice 66).
 func (a *App) openCloudThemeDialog(accountID string, th cores.CloudThemeInfo) {
 	a.mu.Lock()
 	a.cloudDlg = &cloudThemeDlgState{accountID: accountID, theme: th}
@@ -82,7 +68,6 @@ func (a *App) openCloudThemeDialog(accountID string, th cores.CloudThemeInfo) {
 	a.invalidate()
 }
 
-// closeCloudThemeDialog dismisses it.
 func (a *App) closeCloudThemeDialog() {
 	a.mu.Lock()
 	a.cloudDlg = nil
@@ -90,8 +75,6 @@ func (a *App) closeCloudThemeDialog() {
 	a.invalidate()
 }
 
-// applyCloudTheme installs the theme server-side and applies its accent
-// color here (slice 66).
 func (a *App) applyCloudTheme(accountID string, th cores.CloudThemeInfo) {
 	go func() {
 		if err := a.eng.InstallCloudTheme(accountID, th.ID, th.IsDark); err != nil {
@@ -105,8 +88,6 @@ func (a *App) applyCloudTheme(accountID string, th cores.CloudThemeInfo) {
 	}
 }
 
-// layoutCloudThemeSection renders the Appearance page's cloud-theme rows
-// (slice 66).
 func (a *App) layoutCloudThemeSection(gtx layout.Context, f frame) layout.Dimensions {
 	growClickables(&a.wid.cloudThemeRowBtns, len(f.cloudThemes))
 	var children []layout.FlexChild
@@ -121,7 +102,7 @@ func (a *App) layoutCloudThemeSection(gtx layout.Context, f frame) layout.Dimens
 	}
 	if len(f.cloudThemes) == 0 {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return a.loadingNote(gtx) // quiet "none" hint, same dim style
+			return a.loadingNote(gtx)
 		}))
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 	}
@@ -183,12 +164,9 @@ func (a *App) layoutCloudThemeSection(gtx layout.Context, f frame) layout.Dimens
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-// layoutCloudThemeDialog renders the install confirmation (content-pane
-// replacement, like the other settings dialogs).
 func (a *App) layoutCloudThemeDialog(gtx layout.Context, f frame) layout.Dimensions {
 	st := f.cloudDlg
 
-	// Esc closes (self-handled).
 	{
 		stack := clip.Rect{Max: image.Pt(gtx.Constraints.Max.X, gtx.Constraints.Max.Y)}.Push(gtx.Ops)
 		event.Op(gtx.Ops, cloudThemeDlgKeyTag)

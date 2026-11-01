@@ -1,9 +1,5 @@
 package engine
 
-// Save-to-Downloads (slice 99, matrix row 158): copying a downloaded
-// message media file into the user's downloads directory with a
-// collision-safe name, and the honest not-downloaded sentinel.
-
 import (
 	"database/sql"
 	"errors"
@@ -60,7 +56,6 @@ func TestSaveMessageMediaToDownloadsCopiesFile(t *testing.T) {
 	if string(b) != "hello media" {
 		t.Fatalf("dest content = %q, want %q", b, "hello media")
 	}
-	// The cache copy is untouched (save is a copy, never a move).
 	if _, err := os.Stat(src); err != nil {
 		t.Fatalf("cache copy vanished: %v", err)
 	}
@@ -82,8 +77,6 @@ func TestSaveMessageMediaDedupNeverOverwrites(t *testing.T) {
 	if filepath.Base(d1) != "same.png" {
 		t.Fatalf("first save name = %q, want same.png", filepath.Base(d1))
 	}
-	// A different file already sits at same.png in Downloads — the second
-	// save must not clobber it.
 	if err := os.WriteFile(filepath.Join(dlDir, "same.png"), []byte("precious"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +118,6 @@ func TestSaveMessageMediaFileNameFallbacks(t *testing.T) {
 	dlDir := t.TempDir()
 	e.downloadDir = dlDir
 
-	// Empty stored file_name: derive from the cache path.
 	src := writeTempFile(t, srcDir, "9f2c.jpg", "img")
 	seedMediaRow(t, e, "m3", src, "")
 	dest, err := e.SaveMessageMediaToDownloads("a1", "c1", "m3", 0)
@@ -136,7 +128,6 @@ func TestSaveMessageMediaFileNameFallbacks(t *testing.T) {
 		t.Fatalf("fallback name = %q, want 9f2c.jpg", filepath.Base(dest))
 	}
 
-	// Stored file_name with path separators: sanitized to the base.
 	src2 := writeTempFile(t, srcDir, "x.bin", "bin")
 	seedMediaRow(t, e, "m4", src2, "..\\evil\\name.txt")
 	dest2, err := e.SaveMessageMediaToDownloads("a1", "c1", "m4", 0)
@@ -165,7 +156,6 @@ func TestUniqueDownloadPath(t *testing.T) {
 	if filepath.Base(p2) != "b.png" {
 		t.Fatalf("fresh name should stay: %q", filepath.Base(p2))
 	}
-	// Extension-less names still dedupe cleanly.
 	writeTempFile(t, dir, "notes", "x")
 	p3 := uniqueDownloadPath(dir, "notes")
 	if filepath.Base(p3) != "notes (1)" {
@@ -173,8 +163,6 @@ func TestUniqueDownloadPath(t *testing.T) {
 	}
 }
 
-// Ensure the SQL row scan keeps working with the exact query shape used
-// by SaveMessageMediaToDownloads (guards against schema drift).
 func TestSaveQueryShapeMatchesMediaTable(t *testing.T) {
 	e := newTestEngine(t)
 	var lp, fn sql.NullString
@@ -187,7 +175,6 @@ func TestSaveQueryShapeMatchesMediaTable(t *testing.T) {
 	}
 }
 
-// takeoutStub / plainStub: capability-probe fakes for SupportsTakeout.
 type takeoutStub struct{ cores.StubCore }
 
 func (takeoutStub) InitTakeout(contacts, msgUsers, msgChats, msgMegagroups, msgChannels, files bool, fileMaxSizeBytes int64) (int64, error) {

@@ -1,15 +1,5 @@
 package cores
 
-// telegram_dice.go — slice 125: dice sticker packs. Telegram dice messages
-// (MessageMediaDice: 🎲 🎯 ⚽ 🏀, slot machine 🎰) render as animated .tgs
-// stickers from a per-emoji special sticker set fetched via
-// messages.getStickerSet(inputStickerSetDice). The set's packs list maps
-// emoticons to documents — "#" is the rolling intro, "1".."6" the outcome
-// animations — mirroring tdesktop's chat_helpers/stickers_dice_pack.cpp
-// (verified against the tdesktop source, 2026-09-11). The GUI plays the
-// roll loop until the message edit lands the value, then switches to the
-// value's document and holds its last frame (tdesktop Dice behavior).
-
 import (
 	"fmt"
 	"strconv"
@@ -17,25 +7,20 @@ import (
 	"github.com/gotd/td/tg"
 )
 
-// DiceSticker is one dice-pack document mapped to its game value.
 type DiceSticker struct {
 	Value    int
-	FileID   string // document ID (remote_ref form)
-	Extra    string // FileRef.Extra form: "accessHash:base64(fileReference)"
+	FileID   string
+	Extra    string
 	ThumbB64 string
 	Width    int
 	Height   int
 }
 
-// DiceStickersResult is a dice emoji's resolved sticker pack.
 type DiceStickersResult struct {
 	Emoji    string
 	Stickers []DiceSticker
 }
 
-// diceValueFromEmoticon maps a dice-set pack emoticon to its value slot:
-// "#" → 0 (the rolling intro), "1".."6" → the outcome. Anything else is
-// not part of the dice vocabulary. Pure.
 func diceValueFromEmoticon(emoticon string) int {
 	switch emoticon {
 	case "#":
@@ -46,13 +31,9 @@ func diceValueFromEmoticon(emoticon string) int {
 	return -1
 }
 
-// mapDiceStickerSet folds a messages.stickerSet response into the
-// value→document mapping. Slot-machine sets (no pack emoticons) fall back
-// to positional indexing like tdesktop. Pure — unit-tested.
 func mapDiceStickerSet(emoji string, docs []tg.DocumentClass, packs []tg.StickerPack) *DiceStickersResult {
 	res := &DiceStickersResult{Emoji: emoji}
 
-	// Documents first (id → parsed sticker), stickers only.
 	byID := make(map[int64]DiceSticker, len(docs))
 	var order []int64
 	for _, dc := range docs {
@@ -84,7 +65,6 @@ func mapDiceStickerSet(emoji string, docs []tg.DocumentClass, packs []tg.Sticker
 	}
 
 	if len(packs) == 0 {
-		// Slot machine: positional values.
 		for _, id := range order {
 			ds := byID[id]
 			ds.Value = len(res.Stickers)
@@ -108,8 +88,6 @@ func mapDiceStickerSet(emoji string, docs []tg.DocumentClass, packs []tg.Sticker
 	return res
 }
 
-// GetDiceStickers fetches the dice sticker set for one game emoji
-// (🎲 🎯 ⚽ 🏀 🎰) and maps its documents to values.
 func (t *TelegramCore) GetDiceStickers(emoji string) (*DiceStickersResult, error) {
 	t.mu.RLock()
 	authed, api, ctx := t.authed, t.api, t.ctx

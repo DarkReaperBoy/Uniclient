@@ -1,13 +1,5 @@
 package gui
 
-// Ayu shadow ban (matrix row 240, slice 91): per-chat local ignore list.
-// The message context menu gains "Shadow-ban sender" / "Unshadow-ban
-// sender"; the header ⋮ menu gains "Shadow-banned users…" — a dialog
-// listing this chat's bans with per-row Unban. Banned senders' messages
-// are hidden locally only (engine shadow_bans table, GetMessages SQL
-// exclusion); nothing is deleted server-side and the sender is never
-// told.
-
 import (
 	"image"
 
@@ -21,7 +13,6 @@ import (
 	"uniclient/engine"
 )
 
-// shadowDlgState is the open shadow-ban manager (nil when closed).
 type shadowDlgState struct {
 	chat   chatKey
 	bans   []engine.ShadowBan
@@ -32,7 +23,6 @@ var (
 	shadowDlgKeyTag = new(struct{})
 )
 
-// openShadowDialog opens the manager for a chat and loads its bans.
 func (a *App) openShadowDialog(k chatKey) {
 	a.mu.Lock()
 	a.shadowDlg = &shadowDlgState{chat: k}
@@ -41,7 +31,6 @@ func (a *App) openShadowDialog(k chatKey) {
 	a.invalidate()
 }
 
-// closeShadowDialog dismisses the manager.
 func (a *App) closeShadowDialog() {
 	a.mu.Lock()
 	a.shadowDlg = nil
@@ -49,7 +38,6 @@ func (a *App) closeShadowDialog() {
 	a.invalidate()
 }
 
-// reloadShadowBans re-reads the ban list (after a mutation).
 func (a *App) reloadShadowBans(k chatKey) {
 	go func() {
 		bans := a.eng.ListShadowBans(k.AccountID, k.ChatID)
@@ -63,7 +51,6 @@ func (a *App) reloadShadowBans(k chatKey) {
 	}()
 }
 
-// toggleShadowBan (un)bans the message's sender and refreshes the chat.
 func (a *App) toggleShadowBan(m engine.CachedMessage, ban bool) {
 	go func() {
 		if err := a.eng.ShadowBanSender(m.AccountID, m.ChatID, m.SenderID, m.SenderName, ban); err != nil {
@@ -85,7 +72,6 @@ func (a *App) toggleShadowBan(m engine.CachedMessage, ban bool) {
 	}()
 }
 
-// shadowBanRowName (pure, testable): display name for one ban row.
 func shadowBanRowName(b engine.ShadowBan) string {
 	if b.SenderName != "" {
 		return b.SenderName
@@ -96,15 +82,10 @@ func shadowBanRowName(b engine.ShadowBan) string {
 	return "someone"
 }
 
-// shadowBanMenuGate (pure): when the context menu offers the shadow-ban
-// action — a foreign sender row with the ban state resolved (nil state
-// hides the item until openMenu's lookup lands).
 func shadowBanMenuGate(m engine.CachedMessage, stateKnown bool) bool {
 	return m.SenderID != "" && !m.IsOutgoing && !m.IsService && stateKnown
 }
 
-// layoutShadowDialog renders the per-chat ban manager (chat-view overlay,
-// like the reactors dialog).
 func (a *App) layoutShadowDialog(gtx layout.Context, f frame) layout.Dimensions {
 	d := f.shadowDlg
 	{
@@ -195,7 +176,6 @@ func (a *App) layoutShadowDialog(gtx layout.Context, f frame) layout.Dimensions 
 	})
 }
 
-// shadowBanRow: name + Unban.
 func (a *App) shadowBanRow(gtx layout.Context, b engine.ShadowBan, unban *widget.Clickable) layout.Dimensions {
 	return roundedFill(gtx, a.ui.p.SurfaceHi, 10, func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {

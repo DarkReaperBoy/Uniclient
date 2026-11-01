@@ -6,20 +6,6 @@ import (
 	"uniclient/cores"
 )
 
-// Compose-side markdown (AyuGram parity slice 33).
-//
-// Telegram clients convert typed markdown to entity formatting when
-// sending. Supported markers (Telegram Web/AyuGram set):
-//
-//	**bold**   __underline__   ||spoiler||   ~~strike~~
-//	*bold*     _italic_        ~strike~      `code`
-//	```pre block```
-//
-// Entities reference the cleaned text in UTF-16 code units — same as
-// cores.TextEntity. Nesting works (bold inside italic etc.); offsets of
-// inner entities are shifted to the outer text.
-
-// mdRule maps a marker pair to an entity type.
 type mdRule struct {
 	marker string
 	etype  string
@@ -37,7 +23,6 @@ var mdRules = []mdRule{
 	{"`", "code"},
 }
 
-// parseMarkdown converts marked-up text to clean text + entities.
 func parseMarkdown(text string) (string, []cores.TextEntity) {
 	var b strings.Builder
 	var ents []cores.TextEntity
@@ -50,7 +35,7 @@ func parseMarkdown(text string) (string, []cores.TextEntity) {
 			}
 			inner := i + len(r.marker)
 			close := strings.Index(text[inner:], r.marker)
-			if close <= 0 { // no closer, or empty content → literal
+			if close <= 0 {
 				continue
 			}
 			closeIdx := inner + close
@@ -80,8 +65,6 @@ func parseMarkdown(text string) (string, []cores.TextEntity) {
 	return b.String(), ents
 }
 
-// hasMarkdown reports whether the text contains any marker pair (cheap
-// pre-check so plain sends skip the parse).
 func hasMarkdown(text string) bool {
 	for _, r := range mdRules {
 		if strings.Count(text, r.marker) >= 2 {

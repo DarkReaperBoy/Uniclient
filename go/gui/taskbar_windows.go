@@ -2,16 +2,6 @@
 
 package gui
 
-// taskbar_windows.go — slice 153: the Windows taskbar overlay badge
-// (tdesktop's unread count on the taskbar button). Pure-Go COM:
-// ITaskbarList3::SetOverlayIcon (vtable index 18 — pinned against the
-// mingw-w64 shobjidl.h ABI: IUnknown 0-2, ITaskbarList 3-7
-// (HrInit/AddTab/DeleteTab/ActivateTab/SetActiveAlt),
-// ITaskbarList2::MarkFullscreenWindow 8, ITaskbarList3 9-20 with
-// SetOverlayIcon at 18). The overlay icon is composed in-process
-// (rounded accent tile + the tray glyph digits) and converted to an
-// HICON via CreateDIBSection + CreateIconIndirect.
-
 import (
 	"image"
 	"image/color"
@@ -37,28 +27,25 @@ var (
 	procCreateIconIndirect = windows.NewLazySystemDLL("user32.dll").NewProc("CreateIconIndirect")
 	procDestroyIcon        = windows.NewLazySystemDLL("user32.dll").NewProc("DestroyIcon")
 
-	// CLSID_TaskbarList {56FDF344-FD6D-11d0-958A-006097C9A090}
 	clsidTaskbarList = windows.GUID{
 		Data1: 0x56FDF344, Data2: 0xFD6D, Data3: 0x11D0,
 		Data4: [8]byte{0x95, 0x8A, 0x00, 0x60, 0x97, 0xC9, 0xA0, 0x90},
 	}
-	// IID_ITaskbarList3 {EA1AFB91-9E28-4B86-90E9-9E9F8A5EEFAF}
 	iidITaskbarList3 = windows.GUID{
 		Data1: 0xEA1AFB91, Data2: 0x9E28, Data3: 0x4B86,
 		Data4: [8]byte{0x90, 0xE9, 0x9E, 0x9F, 0x8A, 0x5E, 0xEF, 0xAF},
 	}
 
 	taskbarMu    sync.Mutex
-	taskbarHwnd  uintptr // captured from the gio Win32ViewEvent
-	taskbarList3 uintptr // ITaskbarList3* interface pointer
+	taskbarHwnd  uintptr
+	taskbarList3 uintptr
 	taskbarReady bool
-	taskbarLast  int     = -1 // last applied count
-	taskbarHICON uintptr      // live overlay HICON (0 = none)
-	taskbarColor uintptr      // bitmap/mask handles for cleanup
+	taskbarLast  int = -1
+	taskbarHICON uintptr
+	taskbarColor uintptr
 	taskbarMask  uintptr
 )
 
-// iconInfo mirrors the Win32 ICONINFO layout (x64).
 type iconInfo struct {
 	fIcon    uint32
 	xHotspot uint32
@@ -67,7 +54,6 @@ type iconInfo struct {
 	hbmColor uintptr
 }
 
-// bitmapInfoHeader mirrors BITMAPINFOHEADER.
 type bitmapInfoHeader struct {
 	Size          uint32
 	Width         int32
@@ -82,14 +68,11 @@ type bitmapInfoHeader struct {
 	ClrImportant  uint32
 }
 
-// vtable slot offsets (uintptr-sized).
 const (
 	vtHrInit         = 3
 	vtSetOverlayIcon = 18
 )
 
-// taskbarSetWindow captures the HWND from the gio ViewEvent and lazily
-// initializes the COM interface (called from ListenEvents).
 func taskbarSetWindow(ev app.ViewEvent) {
 	w32, ok := ev.(app.Win32ViewEvent)
 	if !ok || w32.HWND == 0 {
@@ -100,33 +83,27 @@ func taskbarSetWindow(ev app.ViewEvent) {
 	taskbarHwnd = w32.HWND
 	if taskbarList3 == 0 {
 		if !initTaskbarList3Locked() {
-			return // COM unavailable: overlays simply stay off (§1.10)
+			return
 		}
 	}
 	applyOverlayLocked(taskbarLast, defaultTaskbarAccent())
 }
 
-// defaultTaskbarAccent is the boot-time accent stand-in (the first real
-// updateTray call replaces it).
 func defaultTaskbarAccent() color.NRGBA { return color.NRGBA{R: 0x54, G: 0xA8, B: 0xF0, A: 0xFF} }
 
-// initTaskbarList3Locked CoCreates ITaskbarList3 and calls HrInit.
 func initTaskbarList3Locked() bool {
-	// CoInitializeEx is idempotent-per-mode; S_FALSE (already init) and
-	// RPC_E_CHANGED_MODE (STA already set by gio) are both fine here.
-	procCoInitializeEx.Call(0, 2 /*COINIT_APARTMENTTHREADED*/)
+	procCoInitializeEx.Call(0, 2)
 	var itf uintptr
 	r, _, _ := procCoCreateInstance.Call(
 		uintptr(unsafe.Pointer(&clsidTaskbarList)),
 		0,
-		0x17, // CLSCTX_ALL
+		0x17,
 		uintptr(unsafe.Pointer(&iidITaskbarList3)),
 		uintptr(unsafe.Pointer(&itf)),
 	)
 	if r != 0 || itf == 0 {
 		return false
 	}
-	// vtable call HrInit()
 	lpVtbl := *(*uintptr)(unsafe.Pointer(itf))
 	hrInit := *(*uintptr)(unsafe.Pointer(lpVtbl + vtHrInit*unsafe.Sizeof(uintptr(0))))
 	r2, _, _ := syscall.SyscallN(hrInit, itf)
@@ -139,7 +116,6 @@ func initTaskbarList3Locked() bool {
 	return true
 }
 
-// procRelease calls IUnknown::Release (vtable index 2).
 func procRelease(itf uintptr) {
 	if itf == 0 {
 		return
@@ -149,7 +125,6 @@ func procRelease(itf uintptr) {
 	syscall.SyscallN(release, itf)
 }
 
-// updateTaskbarBadge applies the unread count to the taskbar button.
 func updateTaskbarBadge(count int, accent color.NRGBA) {
 	taskbarMu.Lock()
 	defer taskbarMu.Unlock()
@@ -164,11 +139,9 @@ func updateTaskbarBadge(count int, accent color.NRGBA) {
 
 var taskbarAccentCache = color.NRGBA{}
 
-// applyOverlayLocked renders + installs (or clears) the overlay icon.
 func applyOverlayLocked(count int, accent color.NRGBA) {
 	taskbarLast = count
 	taskbarAccentCache = accent
-	// drop the previous overlay icon
 	setOverlayIcon(0, nil)
 	destroyOverlayIconLocked()
 	if count <= 0 {
@@ -184,7 +157,6 @@ func applyOverlayLocked(count int, accent color.NRGBA) {
 	setOverlayIcon(hicon, overlayDescription(count))
 }
 
-// overlayDescription builds the accessibility description ("3 unread").
 func overlayDescription(count int) *uint16 {
 	desc := "Unread messages"
 	if count > 0 {
@@ -194,7 +166,6 @@ func overlayDescription(count int) *uint16 {
 	return p
 }
 
-// setOverlayIcon calls ITaskbarList3::SetOverlayIcon (vtable 18).
 func setOverlayIcon(hicon uintptr, desc *uint16) {
 	if taskbarList3 == 0 || taskbarHwnd == 0 {
 		return
@@ -204,7 +175,6 @@ func setOverlayIcon(hicon uintptr, desc *uint16) {
 	syscall.SyscallN(setOverlay, taskbarList3, taskbarHwnd, hicon, uintptr(unsafe.Pointer(desc)))
 }
 
-// destroyOverlayIconLocked frees the live overlay HICON + bitmaps.
 func destroyOverlayIconLocked() {
 	if taskbarHICON != 0 {
 		procDestroyIcon.Call(taskbarHICON)
@@ -220,8 +190,6 @@ func destroyOverlayIconLocked() {
 	}
 }
 
-// stopTaskbar clears the overlay and releases the COM reference (app
-// exit / tray toggle off).
 func stopTaskbar() {
 	taskbarMu.Lock()
 	defer taskbarMu.Unlock()
@@ -234,46 +202,41 @@ func stopTaskbar() {
 	}
 }
 
-// rgbaToHICON converts an RGBA image into an HICON via
-// CreateDIBSection (32bpp top-down) + CreateIconIndirect.
 func rgbaToHICON(img *image.NRGBA) (hicon, bmColor, bmMask uintptr) {
 	w := img.Bounds().Dx()
 	h := img.Bounds().Dy()
 	if w <= 0 || h <= 0 {
 		return 0, 0, 0
 	}
-	// color bitmap: 32bpp BGRA, top-down (negative height)
 	var bits uintptr
 	bi := struct {
 		header bitmapInfoHeader
-		colors [1]uint32 // unused for 32bpp
+		colors [1]uint32
 	}{}
 	bi.header.Size = uint32(unsafe.Sizeof(bi.header))
 	bi.header.Width = int32(w)
-	bi.header.Height = int32(-h) // top-down
+	bi.header.Height = int32(-h)
 	bi.header.Planes = 1
 	bi.header.BitCount = 32
-	bi.header.Compression = 0 // BI_RGB
+	bi.header.Compression = 0
 	bmColor, _, _ = procCreateDIBSection.Call(
-		0, uintptr(unsafe.Pointer(&bi)), 0, /*DIB_RGB_COLORS*/
+		0, uintptr(unsafe.Pointer(&bi)), 0,
 		uintptr(unsafe.Pointer(&bits)), 0, 0,
 	)
 	if bmColor == 0 || bits == 0 {
 		return 0, 0, 0
 	}
-	// fill BGRA (RGBA → BGRA)
 	dst := (*[1 << 30]byte)(unsafe.Pointer(bits))[:w*h*4]
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {
 			i := img.PixOffset(x, y)
 			j := (y*w + x) * 4
-			dst[j] = img.Pix[i+2]   // B
-			dst[j+1] = img.Pix[i+1] // G
-			dst[j+2] = img.Pix[i]   // R
-			dst[j+3] = img.Pix[i+3] // A
+			dst[j] = img.Pix[i+2]
+			dst[j+1] = img.Pix[i+1]
+			dst[j+2] = img.Pix[i]
+			dst[j+3] = img.Pix[i+3]
 		}
 	}
-	// mask bitmap: 1bpp monochrome (all visible — the color alpha rules)
 	bmMask, _, _ = procCreateBitmap.Call(uintptr(w), uintptr(h), 1, 1, 0)
 	if bmMask == 0 {
 		procDeleteObject.Call(bmColor)

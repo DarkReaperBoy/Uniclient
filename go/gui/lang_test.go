@@ -1,10 +1,5 @@
 package gui
 
-// Language switch (slice 140): the localization core — pack-keyed string
-// lookup with embedded English fallback (tdesktop semantics: missing keys
-// fall back to the base language), the fixed settings-surface key set,
-// language row labels/badges and search filter.
-
 import (
 	"testing"
 
@@ -18,8 +13,6 @@ func TestLangTrFallback(t *testing.T) {
 	if got := langTr(map[string]string{}, "lng_cancel", "Cancel"); got != "Cancel" {
 		t.Fatalf("empty override = %q, want fallback", got)
 	}
-	// empty pack value falls back (GetLangStrings never emits those, but
-	// be robust)
 	if got := langTr(map[string]string{"lng_cancel": ""}, "lng_cancel", "Cancel"); got != "Cancel" {
 		t.Fatalf("empty value = %q, want fallback", got)
 	}
@@ -37,14 +30,11 @@ func TestLangTrOverride(t *testing.T) {
 	if got := langTr(ov, "lng_settings_language", "Language"); got != "Sprache" {
 		t.Fatalf("override = %q", got)
 	}
-	// unknown key: fallback untouched
 	if got := langTr(ov, "lng_unknown_key", "About"); got != "About" {
 		t.Fatalf("unknown key = %q", got)
 	}
 }
 
-// langKeysForSettings pins the key set requested from the cloud pack —
-// the keys this GUI surface actually consumes.
 func TestLangKeysForSettings(t *testing.T) {
 	keys := langKeysForSettings()
 	if len(keys) == 0 {
@@ -57,7 +47,6 @@ func TestLangKeysForSettings(t *testing.T) {
 		}
 		seen[k] = true
 	}
-	// the core settings keys are all present
 	for _, want := range []string{
 		"lng_settings_section_notify",
 		"lng_settings_section_privacy",
@@ -75,7 +64,6 @@ func TestLangKeysForSettings(t *testing.T) {
 	}
 }
 
-// settingsRailLabels renders the rail through the pack (fallback English).
 func TestSettingsRailLabels(t *testing.T) {
 	base := settingsRailLabels(nil)
 	if base[setSectionNotifications] != "Notifications" {
@@ -99,7 +87,6 @@ func TestSettingsRailLabels(t *testing.T) {
 	if de[setSectionAbout] != "Über" {
 		t.Fatalf("de about = %q", de[setSectionAbout])
 	}
-	// no key: stays English
 	if de[setSectionMain] != "Main" {
 		t.Fatalf("main drifted: %q", de[setSectionMain])
 	}
@@ -117,7 +104,6 @@ func TestLanguageRowLabel(t *testing.T) {
 	if title, sub := languageRowLabel(l); title != "Deutsch" || sub != "German · de" {
 		t.Fatalf("row = %q/%q", title, sub)
 	}
-	// no native name: name leads
 	l.NativeName = ""
 	if title, _ := languageRowLabel(l); title != "German" {
 		t.Fatalf("no-native title = %q", title)
@@ -172,7 +158,6 @@ func TestFilterLanguages(t *testing.T) {
 	}
 }
 
-// languageNameFor renders the current-language card line.
 func TestLanguageNameFor(t *testing.T) {
 	langs := []engine.LanguageInfo{{LangCode: "en", Name: "English", NativeName: "English"}}
 	if got := languageNameFor(langs, "en"); got != "English" {

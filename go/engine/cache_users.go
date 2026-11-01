@@ -15,7 +15,6 @@ import (
 	"github.com/gotd/td/tg"
 )
 
-// CachedUser is the user profile data returned to the UI from cache.
 type CachedUser struct {
 	AccountID              string `json:"account_id"`
 	UserID                 string `json:"user_id"`
@@ -51,7 +50,6 @@ type CachedUser struct {
 	BusinessHours          string `json:"business_hours,omitempty"`
 }
 
-// UpsertUser inserts or updates a user profile in the cache.
 func (e *Engine) UpsertUser(accountID string, u cores.User) error {
 	now := time.Now().UnixMilli()
 	var lastSeen sql.NullInt64
@@ -100,7 +98,6 @@ func (e *Engine) UpsertUser(accountID string, u cores.User) error {
 	return err
 }
 
-// GetUser retrieves a cached user profile.
 func (e *Engine) GetUser(accountID, userID string) (*CachedUser, error) {
 	var u CachedUser
 	var displayName, username, phone, bio, avatarPath, botMenuText sql.NullString
@@ -170,14 +167,12 @@ func (e *Engine) GetUser(accountID, userID string) (*CachedUser, error) {
 	return &u, nil
 }
 
-// GetOrFetchUser returns a cached user, fetching from core if not cached.
 func (e *Engine) GetOrFetchUser(accountID, userID string) (*CachedUser, error) {
 	u, err := e.GetUser(accountID, userID)
 	if err == nil {
 		return u, nil
 	}
 
-	// Not cached — try to fetch from core.
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
 		return nil, err
@@ -196,7 +191,6 @@ type fullUserProvider interface {
 	GetFullUser(userID string) (*cores.User, error)
 }
 
-// GetUserProfile returns a full user profile, fetching bio via GetFullUser if supported.
 func (e *Engine) GetUserProfile(accountID, userID string) (*CachedUser, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -255,8 +249,6 @@ type commonChatsGetter interface {
 	GetCommonChats(userID string, limit int) ([]cores.Dialog, error)
 }
 
-// GetCommonChats returns the groups and channels shared with a specific user
-// (backs the shared-media "N groups in common" button, AyuGram AddCommonGroupsButton).
 func (e *Engine) GetCommonChats(accountID, userID string, limit int) ([]cores.Dialog, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -398,34 +390,28 @@ func (e *Engine) HasFallbackPhoto(accountID string) (bool, error) {
 	return fm.HasFallbackPhoto()
 }
 
-// MemberInfo is the member data returned to the UI for a chat member list.
 type MemberInfo struct {
-	UserID       string `json:"user_id"`
-	Username     string `json:"username,omitempty"`
-	DisplayName  string `json:"display_name,omitempty"`
-	AvatarB64    string `json:"avatar_b64,omitempty"`
-	IsBot        bool   `json:"is_bot"`
-	IsOnline     bool   `json:"is_online"`
-	Role         string `json:"role"` // "owner", "admin", "member", "restricted", "banned"
-	LastSeenKind string `json:"last_seen_kind,omitempty"`
-	LastSeen     int64  `json:"last_seen,omitempty"`
-	CustomRank   string `json:"custom_rank,omitempty"`
-	PromotedBy   string `json:"promoted_by,omitempty"`
-	PromotedByID string `json:"promoted_by_id,omitempty"`
-	PromotedDate int64  `json:"promoted_date,omitempty"`
-	// Current banned rights for restricted/banned members (tdesktop
-	// EditRestrictedBox initializes from these; nil = all allowed) plus the
-	// restriction's until-timestamp (unix seconds, 0 = forever).
+	UserID       string               `json:"user_id"`
+	Username     string               `json:"username,omitempty"`
+	DisplayName  string               `json:"display_name,omitempty"`
+	AvatarB64    string               `json:"avatar_b64,omitempty"`
+	IsBot        bool                 `json:"is_bot"`
+	IsOnline     bool                 `json:"is_online"`
+	Role         string               `json:"role"`
+	LastSeenKind string               `json:"last_seen_kind,omitempty"`
+	LastSeen     int64                `json:"last_seen,omitempty"`
+	CustomRank   string               `json:"custom_rank,omitempty"`
+	PromotedBy   string               `json:"promoted_by,omitempty"`
+	PromotedByID string               `json:"promoted_by_id,omitempty"`
+	PromotedDate int64                `json:"promoted_date,omitempty"`
 	BannedRights *DefaultBannedRights `json:"banned_rights,omitempty"`
 	BannedUntil  int                  `json:"banned_until,omitempty"`
-	// Row-action gating flags (mirror AyuGram canAddOrEditAdmin/canRestrict/etc).
-	IsSelf       bool `json:"is_self,omitempty"`
-	IsCreator    bool `json:"is_creator,omitempty"`
-	CanEditAdmin bool `json:"can_edit_admin,omitempty"`
-	CanRestrict  bool `json:"can_restrict,omitempty"`
+	IsSelf       bool                 `json:"is_self,omitempty"`
+	IsCreator    bool                 `json:"is_creator,omitempty"`
+	CanEditAdmin bool                 `json:"can_edit_admin,omitempty"`
+	CanRestrict  bool                 `json:"can_restrict,omitempty"`
 }
 
-// GetChatMembers fetches members for a chat from the connected core.
 func (e *Engine) GetChatMembers(accountID, chatID string, limit, offset int) ([]MemberInfo, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -447,7 +433,6 @@ func (e *Engine) GetChatMembers(accountID, chatID string, limit, offset int) ([]
 		return nil, err
 	}
 
-	// Cache users and convert to MemberInfo.
 	members := make([]MemberInfo, 0, len(users))
 	for _, u := range users {
 		e.UpsertUser(accountID, u)
@@ -551,8 +536,6 @@ func (e *Engine) GetChatMembersByRole(accountID, chatID, role, query string, lim
 	return &ParticipantsByRoleResult{Members: members, Total: len(members)}, nil
 }
 
-// memberFromExtra mirrors one ParticipantExtra's permission/ban fields onto
-// a MemberInfo (pure — the GetParticipants mirror path, isolated for tests).
 func memberFromExtra(userID, role string, ex cores.ParticipantExtra) MemberInfo {
 	return MemberInfo{
 		UserID:       userID,
@@ -567,8 +550,6 @@ func memberFromExtra(userID, role string, ex cores.ParticipantExtra) MemberInfo 
 	}
 }
 
-// bannedRightsFromCores converts the core-facing rights struct into the
-// engine-facing one (field-identical, package-distinct). Pure.
 func bannedRightsFromCores(br *cores.DefaultBannedRights) *DefaultBannedRights {
 	if br == nil {
 		return nil
@@ -592,8 +573,6 @@ func bannedRightsFromCores(br *cores.DefaultBannedRights) *DefaultBannedRights {
 	}
 }
 
-// GetOnlineCount returns the number of online members in a chat.
-// Delegates to the platform core if it supports the operation.
 func (e *Engine) GetOnlineCount(accountID, chatID string) (int, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -611,7 +590,6 @@ func (e *Engine) GetOnlineCount(accountID, chatID string) (int, error) {
 	return 0, nil
 }
 
-// SimilarChannelInfo is the data returned to the UI for similar channels.
 type SimilarChannelInfo struct {
 	ChatID      string `json:"chat_id"`
 	Title       string `json:"title"`
@@ -619,7 +597,6 @@ type SimilarChannelInfo struct {
 	MemberCount int    `json:"member_count,omitempty"`
 }
 
-// GetSimilarChannels returns channels similar to the given channel.
 func (e *Engine) GetSimilarChannels(accountID, chatID string) ([]SimilarChannelInfo, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -651,9 +628,6 @@ func (e *Engine) GetSimilarChannels(accountID, chatID string) ([]SimilarChannelI
 	return result, nil
 }
 
-// ChatToSendInfo is a boost-eligible peer returned to the giveaway "Add Channel"
-// picker. Type is "channel" (broadcast) or "group" (megagroup) so the UI can
-// show the matching subscriber/member status line.
 type ChatToSendInfo struct {
 	ChatID      string `json:"chat_id"`
 	Title       string `json:"title"`
@@ -663,12 +637,6 @@ type ChatToSendInfo struct {
 	MemberCount int    `json:"member_count,omitempty"`
 }
 
-// GetChatsToSend returns channels and supergroups the user can include in a
-// boost giveaway, via stories.getChatsToSend. Mirrors AyuGram's
-// MyChannelsListController (giveaway_list_controllers.cpp:250-293) — the server
-// returns only peers the user can post to, so unlike the local chat cache it
-// excludes channels the user merely subscribes to and includes eligible
-// megagroups.
 func (e *Engine) GetChatsToSend(accountID string) ([]ChatToSendInfo, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -702,7 +670,6 @@ func (e *Engine) GetChatsToSend(accountID string) ([]ChatToSendInfo, error) {
 	return result, nil
 }
 
-// BotCommandInfo is a bot command returned to the UI for autocomplete.
 type BotCommandInfo struct {
 	Command     string `json:"command"`
 	Description string `json:"description"`
@@ -712,7 +679,6 @@ type BotCommandInfo struct {
 	AvatarB64   string `json:"avatar_b64,omitempty"`
 }
 
-// GetChatBotCommands returns bot commands available in a chat.
 func (e *Engine) GetChatBotCommands(accountID, chatID string) ([]BotCommandInfo, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -746,7 +712,6 @@ func (e *Engine) GetChatBotCommands(accountID, chatID string) ([]BotCommandInfo,
 	return result, nil
 }
 
-// ContactInfo is the contact data returned to the UI for the contacts list.
 type ContactInfo struct {
 	UserID          string `json:"user_id"`
 	Username        string `json:"username,omitempty"`
@@ -767,7 +732,6 @@ type ContactInfo struct {
 	StarsPerMessage int64  `json:"stars_per_message,omitempty"`
 }
 
-// GetContacts fetches the contact list from the connected core.
 func (e *Engine) GetContacts(accountID string) ([]ContactInfo, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -812,7 +776,6 @@ func (e *Engine) GetContacts(accountID string) ([]ContactInfo, error) {
 	return contacts, nil
 }
 
-// BulkUpsertUsers inserts/updates multiple user profiles in a single transaction.
 func (e *Engine) BulkUpsertUsers(accountID string, users []cores.User) error {
 	tx, err := e.db.Begin()
 	if err != nil {
@@ -849,7 +812,6 @@ func (e *Engine) BulkUpsertUsers(accountID string, users []cores.User) error {
 	return tx.Commit()
 }
 
-// BlockUser blocks a user via the core and updates local DB.
 func (e *Engine) BlockUser(accountID, userID string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -866,7 +828,6 @@ func (e *Engine) BlockUser(accountID, userID string) error {
 	return nil
 }
 
-// UnblockUser unblocks a user via the core and updates local DB.
 func (e *Engine) UnblockUser(accountID, userID string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -883,7 +844,6 @@ func (e *Engine) UnblockUser(accountID, userID string) error {
 	return nil
 }
 
-// SetUserNoForwardsFlags sets the AyuNoForwards flags for a user (local preference).
 func (e *Engine) SetUserNoForwardsFlags(accountID, userID string, myEnabled, peerEnabled bool) error {
 	_, err := e.db.Exec(
 		`UPDATE users SET no_forwards_my = ?, no_forwards_peer = ? WHERE account_id = ? AND user_id = ?`,
@@ -899,8 +859,6 @@ func (e *Engine) BanMember(accountID, chatID, userID string) error {
 	return acc.Core.BanMember(chatID, userID)
 }
 
-// BanMemberUntil bans a member until a unix timestamp (0 = forever).
-// Wraps the duration-aware core variant (slice 191 ban box).
 func (e *Engine) BanMemberUntil(accountID, chatID, userID string, untilDate int) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -923,9 +881,6 @@ func (e *Engine) RemoveMember(accountID, chatID, userID string) error {
 	return acc.Core.RemoveMember(chatID, userID)
 }
 
-// DeleteAllFromParticipant deletes every message a participant sent in a
-// channel/supergroup. Used by the delete-messages moderate panel's
-// "Delete All from X" checkbox. Mirrors AyuGram's deleteAllFromParticipant.
 func (e *Engine) DeleteAllFromParticipant(accountID, chatID, userID string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -940,9 +895,6 @@ func (e *Engine) DeleteAllFromParticipant(accountID, chatID, userID string) erro
 	return fmt.Errorf("platform does not support DeleteAllFromParticipant")
 }
 
-// ReportParticipantSpam reports a participant's messages as spam in a
-// channel/supergroup. Used by the moderate panel's "Report Spam" checkbox.
-// Mirrors AyuGram's Api::ReportSpam(participant, ids).
 func (e *Engine) ReportParticipantSpam(accountID, chatID, userID string, msgIDs []int) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -1027,9 +979,6 @@ func (e *Engine) UnbanMember(accountID, chatID, userID string) error {
 	return fmt.Errorf("platform does not support UnbanMember")
 }
 
-// ProcessJoinRequest approves or dismisses a pending join request for a user
-// in a channel/supergroup or basic group. Mirrors AyuGram's
-// RequestsBoxController::processRequest (messages.hideChatJoinRequest).
 func (e *Engine) ProcessJoinRequest(accountID, chatID, userID string, approved bool) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -1139,7 +1088,6 @@ func (e *Engine) RestrictMemberWithRights(accountID, chatID, userID string, righ
 	return fmt.Errorf("platform does not support RestrictMemberWithRights")
 }
 
-// ReportSpam reports a chat as spam via the core and blocks the sender.
 func (e *Engine) ReportSpam(accountID, chatID string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -1154,7 +1102,6 @@ func (e *Engine) ReportSpam(accountID, chatID string) error {
 	return nil
 }
 
-// GetPeerBarSettings returns the action bar flags for a peer as a JSON string.
 func (e *Engine) GetPeerBarSettings(accountID, chatID string) (string, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -1167,7 +1114,6 @@ func (e *Engine) GetPeerBarSettings(accountID, chatID string) (string, error) {
 	return tc.GetPeerBarSettings(chatID)
 }
 
-// SharePhoneWithPeer shares the current user's phone number with a peer.
 func (e *Engine) SharePhoneWithPeer(accountID, chatID string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -1180,7 +1126,6 @@ func (e *Engine) SharePhoneWithPeer(accountID, chatID string) error {
 	return tc.SharePhoneWithPeer(chatID)
 }
 
-// SetBotPhoto uploads a photo for a bot via the peer bar "Set Bot Photo" action.
 func (e *Engine) SetBotPhoto(accountID, chatID, filePath string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -1197,7 +1142,6 @@ func (e *Engine) SetBotPhoto(accountID, chatID, filePath string) error {
 	return tc.SetBotPhoto(chatID, data)
 }
 
-// HidePeerSettingsBar hides the action bar for a peer.
 func (e *Engine) HidePeerSettingsBar(accountID, chatID string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -1210,7 +1154,6 @@ func (e *Engine) HidePeerSettingsBar(accountID, chatID string) error {
 	return tc.HidePeerSettingsBar(chatID)
 }
 
-// GetLinkedChatId returns the linked discussion group ID for a channel.
 func (e *Engine) GetLinkedChatId(accountID, chatID string) (string, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -1226,12 +1169,6 @@ func (e *Engine) GetLinkedChatId(accountID, chatID string) (string, error) {
 	return d.LinkedChatId, nil
 }
 
-// GetNotifyConfig returns the server notification-delay config for an account
-// (notify cloud/default delays + online cloud timeout, all in milliseconds).
-// The notification System uses these for online-aware delivery delay — AyuGram
-// reads them from thread->session().serverConfig() (notifications_manager.cpp:385-392).
-// Non-Telegram cores have no such server config, so the Telegram MTProto defaults
-// are returned (matching the notification System's own fallback defaults).
 func (e *Engine) GetNotifyConfig(accountID string) (map[string]int, error) {
 	defaults := map[string]int{
 		"cloud_delay_ms":          30000,
@@ -1257,7 +1194,6 @@ func (e *Engine) GetNotifyConfig(accountID string) (map[string]int, error) {
 	}, nil
 }
 
-// AddContact adds a contact via the core and returns the new user ID (if available).
 func (e *Engine) AddContact(accountID, phone, firstName, lastName, note string) (string, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -1379,8 +1315,6 @@ func (e *Engine) UpdateContactNote(accountID, userID, note string) error {
 	return nil
 }
 
-// GetPeerColors fetches the extended peer color palette (help.peerColors) from the core.
-// Returns up to 64 color entries. Only works for Telegram accounts.
 func (e *Engine) GetPeerColors(accountID string) ([]cores.PeerColorEntry, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -1394,7 +1328,7 @@ func (e *Engine) GetPeerColors(accountID string) ([]cores.PeerColorEntry, error)
 	}
 	fetcher, ok := acc.Core.(peerColorFetcher)
 	if !ok {
-		return nil, nil // not a Telegram account, no peer colors
+		return nil, nil
 	}
 	return fetcher.GetPeerColorPalette()
 }
@@ -1954,7 +1888,6 @@ func (e *Engine) DownloadIVDocument(accountID string, docID int64, extra, mime s
 	return json.Marshal(map[string]string{"path": path})
 }
 
-// SendAsPeerInfo describes a peer the user can send messages as.
 type SendAsPeerInfo struct {
 	PeerID      string `json:"peer_id"`
 	DisplayName string `json:"display_name"`
@@ -1962,7 +1895,6 @@ type SendAsPeerInfo struct {
 	IsChannel   bool   `json:"is_channel"`
 }
 
-// GetSendAs returns the list of peers the user can send as in a given chat.
 func (e *Engine) GetSendAs(accountID, chatID string) ([]SendAsPeerInfo, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -2002,7 +1934,6 @@ func (e *Engine) GetSendAs(accountID, chatID string) ([]SendAsPeerInfo, error) {
 	return result, nil
 }
 
-// SaveDefaultSendAs sets the default send-as peer for a channel.
 func (e *Engine) SaveDefaultSendAs(accountID, chatID, peerID string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -2466,13 +2397,7 @@ func (e *Engine) SetCustomDeviceModel(accountID, model string) error {
 	if !ok {
 		return fmt.Errorf("not supported")
 	}
-	// Apply to the live core (takes effect on the next reconnect's initConnection).
 	s.SetCustomDeviceModel(model)
-	// Persist with the account credentials so the rename survives restarts and is
-	// re-applied to a fresh core on every connect — TelegramCore.Authenticate reads
-	// it back from cfg.Extra["device_model"] and feeds it to initConnection. This
-	// mirrors AyuGram persisting customDeviceModel() in settings and propagating it
-	// on reconnect (api_authorizations.cpp:59-61).
 	if creds, err := e.LoadCredentials(accountID); err == nil {
 		if creds.Extra == nil {
 			creds.Extra = map[string]string{}
@@ -2507,14 +2432,6 @@ type LanguageInfo struct {
 }
 
 func (e *Engine) GetLanguages(accountID string) ([]LanguageInfo, error) {
-	// During the intro/login flow the account's Core is still nil — the
-	// connected, auth-in-progress core lives in the auth flow (set in
-	// StartAuth, attached to the account only by finalizeAuth once login
-	// completes). The language picker only exists on the pre-auth intro, so
-	// fall back to the in-progress flow core, exactly the way GetLangStrings,
-	// onQRTokenUpdate and finalizeAuth reach it (authFlows is package-level in
-	// auth.go). Without this, langpack.getLanguages never reaches the core
-	// pre-auth and the picker is stuck on its embedded fallback list.
 	core := e.GetAccountCore(accountID)
 	if core == nil {
 		authFlowsMu.Lock()
@@ -2562,17 +2479,7 @@ func (e *Engine) SetLanguage(accountID, langCode string) error {
 	return nil
 }
 
-// GetLangStrings fetches specific cloud lang-pack strings (key→value) for a
-// language. Used by the intro/login screen localization — works pre-auth via
-// the core's preAuthAPI. Missing/deleted keys are omitted so the UI can fall
-// back to its embedded English baseline.
 func (e *Engine) GetLangStrings(accountID, langCode string, keys []string) (map[string]string, error) {
-	// During the intro/login flow the account's Core is still nil — the
-	// connected, auth-in-progress core lives in the auth flow (set in
-	// StartAuth, attached to the account only by finalizeAuth once login
-	// completes). The language picker only exists on the pre-auth intro, so
-	// fall back to the in-progress flow core, exactly the way onQRTokenUpdate
-	// and finalizeAuth reach it (authFlows is package-level in auth.go).
 	core := e.GetAccountCore(accountID)
 	if core == nil {
 		authFlowsMu.Lock()
@@ -2775,10 +2682,6 @@ type megagroupSizeMaxGetter interface {
 	GetMegagroupSizeMax() (int, error)
 }
 
-// GetMegagroupSizeMax returns the server-configured megagroup member cap
-// (help.getConfig megagroup_size_max). Always returns a usable value: it falls
-// back to the standard 200000 default when the account is not connected, the
-// core does not support the getter, or the lookup fails.
 func (e *Engine) GetMegagroupSizeMax(accountID string) (int, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {

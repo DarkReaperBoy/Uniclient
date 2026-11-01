@@ -1,11 +1,5 @@
 package webm
 
-// webm_test.go — tests-first (AGENTS.md §9): every parser behavior is
-// pinned here before the implementation. Fixtures are hand-built minimal
-// EBML trees assembled by the builder below; the real-vector end-to-end
-// pins (frame counts, dims, timecodes) live in the vp9anim package tests
-// against the committed official test streams.
-
 import (
 	"bytes"
 	"encoding/binary"
@@ -13,11 +7,9 @@ import (
 	"testing"
 )
 
-// ── tiny EBML builder (test-side) ─────────────────────────────────────────
-
 type el struct {
 	id   uint32
-	sub  []el // children (when data == nil)
+	sub  []el
 	data []byte
 }
 
@@ -38,8 +30,6 @@ func uvar(v uint64) []byte {
 	}
 }
 
-// vint encodes a value as an EBML vint WITH the length marker (used for
-// in-block track numbers).
 func vint(v uint64) []byte {
 	switch {
 	case v < 1<<7:
@@ -61,7 +51,6 @@ func be16(v int) []byte {
 
 func render(e el) []byte {
 	var buf bytes.Buffer
-	// element ID: minimal-length vint with marker kept
 	id := e.id
 	switch {
 	case id < 1<<8:
@@ -79,7 +68,6 @@ func render(e el) []byte {
 		buf.WriteByte(byte(id >> 8))
 		buf.WriteByte(byte(id))
 	}
-	// children render into the payload
 	var payload []byte
 	for _, c := range e.sub {
 		payload = append(payload, render(c)...)
@@ -87,7 +75,6 @@ func render(e el) []byte {
 	if e.data != nil {
 		payload = e.data
 	}
-	// size: minimal-length vint with the length marker set
 	n := len(payload)
 	switch {
 	case n < 1<<7:
@@ -109,7 +96,6 @@ func render(e el) []byte {
 	return buf.Bytes()
 }
 
-// Element IDs used only by the fixtures (the rest live in webm.go).
 const (
 	idEBML          = 0x1A45DFA3
 	idSeekHead      = 0x114D9B74
@@ -118,25 +104,23 @@ const (
 	idBlockDuration = 0x9B
 )
 
-// ebmlHeader builds a minimal valid EBML header declaring doc type webm.
 func ebmlHeader() el {
 	return el{id: idEBML, sub: []el{
-		uintEl(0x4286, 1),        // EBMLVersion
-		uintEl(0x42F7, 1),        // EBMLReadVersion
-		uintEl(0x42F2, 4),        // EBMLMaxIDLength
-		uintEl(0x42F3, 8),        // EBMLMaxSizeLength
-		strEl(idDocType, "webm"), // DocType
-		uintEl(0x4287, 2),        // DocTypeVersion
-		uintEl(0x4285, 2),        // DocTypeReadVersion
+		uintEl(0x4286, 1),
+		uintEl(0x42F7, 1),
+		uintEl(0x42F2, 4),
+		uintEl(0x42F3, 8),
+		strEl(idDocType, "webm"),
+		uintEl(0x4287, 2),
+		uintEl(0x4285, 2),
 	}}
 }
 
-// vp9Track builds a TrackEntry for a VP9 video track.
 func vp9Track(num uint64, w, h uint64) el {
 	return el{id: idTrackEntry, sub: []el{
 		uintEl(idTrackNumber, num),
 		uintEl(idTrackUID, num),
-		uintEl(idTrackType, 1), // video
+		uintEl(idTrackType, 1),
 		strEl(idCodecID, "V_VP9"),
 		el{id: idVideo, sub: []el{
 			uintEl(idPixelWidth, w),
@@ -145,8 +129,6 @@ func vp9Track(num uint64, w, h uint64) el {
 	}}
 }
 
-// simpleBlock builds a SimpleBlock element for track t with the given
-// timecode, flags and payload (no lacing).
 func simpleBlock(t uint64, tc int, flags byte, payload []byte) el {
 	var data []byte
 	data = append(data, vint(t)...)
@@ -156,9 +138,8 @@ func simpleBlock(t uint64, tc int, flags byte, payload []byte) el {
 	return bytesEl(idSimpleBlock, data)
 }
 
-const flagKey = 0x80 // SimpleBlock keyframe bit
+const flagKey = 0x80
 
-// minimalDoc assembles a complete single-cluster webm.
 func minimalDoc(tcs uint64, frames []el) el {
 	return el{id: idSegment, sub: []el{
 		el{id: idInfo, sub: []el{
@@ -168,8 +149,6 @@ func minimalDoc(tcs uint64, frames []el) el {
 		el{id: idCluster, sub: append([]el{uintEl(idClusterTC, 0)}, frames...)},
 	}}
 }
-
-// ── parse: header & structure ──────────────────────────────────────────────
 
 func TestParseMinimal(t *testing.T) {
 	data := append(render(ebmlHeader()), render(minimalDoc(1_000_000, []el{
@@ -196,7 +175,6 @@ func TestParseMinimal(t *testing.T) {
 	if !bytes.Equal(doc.Frames[0].Payload, []byte{0x01}) || !bytes.Equal(doc.Frames[1].Payload, []byte{0x02, 0x03}) {
 		t.Fatalf("payloads = [%x %x]", doc.Frames[0].Payload, doc.Frames[1].Payload)
 	}
-	// Default 1ms scale: block timecodes are ns = tc × 1_000_000.
 	if doc.Frames[0].TimecodeNs != 0 || doc.Frames[1].TimecodeNs != 33_000_000 {
 		t.Fatalf("timecodes = [%d %d], want [0 33000000]", doc.Frames[0].TimecodeNs, doc.Frames[1].TimecodeNs)
 	}
@@ -224,13 +202,11 @@ func TestParseCustomTimecodeScale(t *testing.T) {
 	}
 }
 
-// ── track selection ────────────────────────────────────────────────────────
-
 func TestTrackSelectionPrefersVP9Video(t *testing.T) {
 	opusTrack := el{id: idTrackEntry, sub: []el{
 		uintEl(idTrackNumber, 2),
 		uintEl(idTrackUID, 2),
-		uintEl(idTrackType, 2), // audio
+		uintEl(idTrackType, 2),
 		strEl(idCodecID, "A_OPUS"),
 	}}
 	segment := el{id: idSegment, sub: []el{
@@ -238,8 +214,8 @@ func TestTrackSelectionPrefersVP9Video(t *testing.T) {
 		el{id: idTracks, sub: []el{opusTrack, vp9Track(1, 352, 288)}},
 		el{id: idCluster, sub: []el{
 			uintEl(idClusterTC, 0),
-			simpleBlock(2, 0, flagKey, []byte{0x99}), // audio block: ignored
-			simpleBlock(1, 0, flagKey, []byte{0x01}), // video block
+			simpleBlock(2, 0, flagKey, []byte{0x99}),
+			simpleBlock(1, 0, flagKey, []byte{0x01}),
 		}},
 	}}
 	doc, err := Parse(append(render(ebmlHeader()), render(segment)...))
@@ -270,8 +246,6 @@ func TestParseNoVideoTrack(t *testing.T) {
 		t.Fatalf("err = %v, want ErrNoVP9Track", err)
 	}
 }
-
-// ── clusters & timestamps ──────────────────────────────────────────────────
 
 func TestClusterTimecodesAccumulate(t *testing.T) {
 	segment := el{id: idSegment, sub: []el{
@@ -308,7 +282,7 @@ func TestNegativeBlockTimecode(t *testing.T) {
 		el{id: idTracks, sub: []el{vp9Track(1, 64, 64)}},
 		el{id: idCluster, sub: []el{
 			uintEl(idClusterTC, 100),
-			simpleBlock(1, -35, flagKey, []byte{1}), // signed int16
+			simpleBlock(1, -35, flagKey, []byte{1}),
 		}},
 	}}
 	doc, err := Parse(append(render(ebmlHeader()), render(segment)...))
@@ -320,18 +294,15 @@ func TestNegativeBlockTimecode(t *testing.T) {
 	}
 }
 
-// ── lacing ─────────────────────────────────────────────────────────────────
-
 func TestLacingXiph(t *testing.T) {
-	// 3 frames of 5, 3, 4 bytes; sizes before the last: 5, 3 → [0x05, 0x03]
 	var lace []byte
-	lace = append(lace, 2)    // frames - 1
-	lace = append(lace, 0x05) // size frame0
-	lace = append(lace, 0x03) // size frame1
+	lace = append(lace, 2)
+	lace = append(lace, 0x05)
+	lace = append(lace, 0x03)
 	lace = append(lace, 1, 2, 3, 4, 5)
 	lace = append(lace, 0xA1, 0xB2, 0xC3)
 	lace = append(lace, 0xD4, 0xE5, 0xF6, 0x07)
-	block := simpleBlock(1, 0, flagKey|0x02, lace) // flags: key | xiph lacing (01)
+	block := simpleBlock(1, 0, flagKey|0x02, lace)
 	segment := el{id: idSegment, sub: []el{
 		el{id: idInfo, sub: []el{uintEl(idTimecodeScale, 1_000_000)}},
 		el{id: idTracks, sub: []el{vp9Track(1, 64, 64)}},
@@ -353,7 +324,6 @@ func TestLacingXiph(t *testing.T) {
 }
 
 func TestLacingXiph255Continuation(t *testing.T) {
-	// frame0 = 255*2 + 30 = 540 bytes, frame1 = remainder (10 bytes)
 	var lace []byte
 	lace = append(lace, 1, 0xFF, 0xFF, 30)
 	lace = append(lace, make([]byte, 540)...)
@@ -376,9 +346,9 @@ func TestLacingXiph255Continuation(t *testing.T) {
 
 func TestLacingFixed(t *testing.T) {
 	var lace []byte
-	lace = append(lace, 2) // frames - 1
+	lace = append(lace, 2)
 	lace = append(lace, make([]byte, 12)...)
-	block := simpleBlock(1, 0, flagKey|0x04, lace) // 10b = fixed
+	block := simpleBlock(1, 0, flagKey|0x04, lace)
 	segment := el{id: idSegment, sub: []el{
 		el{id: idInfo, sub: []el{uintEl(idTimecodeScale, 1_000_000)}},
 		el{id: idTracks, sub: []el{vp9Track(1, 64, 64)}},
@@ -399,17 +369,12 @@ func TestLacingFixed(t *testing.T) {
 }
 
 func TestLacingEBML(t *testing.T) {
-	// ffmpeg semantics: first size = plain vint value; deltas are
-	// value - (2^(7n-1) - 1); last = remainder.
-	// 3 frames of 8, 3, 6 bytes.
-	//   first size: 0x88 → vint marker 0x80, value 8.
-	//   delta (3-8 = -5): 1-byte vint: value - (2^6 - 1) = -5 → value = 58 = 0x3A.
 	var lace []byte
 	lace = append(lace, 2, 0x88, 0xBA)
 	lace = append(lace, 1, 1, 1, 1, 1, 1, 1, 1)
 	lace = append(lace, 2, 2, 2)
 	lace = append(lace, 3, 3, 3, 3, 3, 3)
-	block := simpleBlock(1, 0, flagKey|0x06, lace) // 11b = EBML lacing
+	block := simpleBlock(1, 0, flagKey|0x06, lace)
 	segment := el{id: idSegment, sub: []el{
 		el{id: idInfo, sub: []el{uintEl(idTimecodeScale, 1_000_000)}},
 		el{id: idTracks, sub: []el{vp9Track(1, 64, 64)}},
@@ -429,10 +394,6 @@ func TestLacingEBML(t *testing.T) {
 	}
 }
 
-// ── alpha side stream (BlockGroup + BlockAdditions) ───────────────────────
-
-// alphaBlock builds a BlockGroup carrying a laced-less Block plus the VP9
-// alpha side stream in BlockAdditional with BlockAddID 1 (WebM VP9 alpha).
 func alphaBlock(t uint64, tc int, flags byte, payload, alpha []byte) el {
 	return el{id: idBlockGroup, sub: []el{
 		bytesEl(idBlock, func() []byte {
@@ -459,7 +420,7 @@ func TestAlphaPairExtraction(t *testing.T) {
 		el{id: idCluster, sub: []el{
 			uintEl(idClusterTC, 0),
 			alphaBlock(1, 0, flagKey, []byte{0x11}, []byte{0xAA}),
-			simpleBlock(1, 33, 0, []byte{0x22}), // no alpha on this one
+			simpleBlock(1, 33, 0, []byte{0x22}),
 			alphaBlock(1, 66, 0, []byte{0x33}, []byte{0xBB}),
 		}},
 	}}
@@ -484,21 +445,17 @@ func TestAlphaPairExtraction(t *testing.T) {
 	}
 }
 
-// ── robustness ─────────────────────────────────────────────────────────────
-
 func TestUnknownElementsSkipped(t *testing.T) {
-	// SeekHead, Void and Cues between the elements we care about; a
-	// future/unknown element inside Info too.
 	segment := el{id: idSegment, sub: []el{
 		el{id: idSeekHead, sub: []el{uintEl(0x53AB, 1)}},
 		bytesEl(idVoid, []byte{0, 0, 0}),
 		el{id: idInfo, sub: []el{
 			uintEl(idTimecodeScale, 1_000_000),
-			uintEl(0x4D80, 1), // MuxingApp (unknown to us): skipped
-			uintEl(0x5741, 1), // WritingApp
+			uintEl(0x4D80, 1),
+			uintEl(0x5741, 1),
 		}},
 		el{id: idTracks, sub: []el{vp9Track(1, 64, 64)}},
-		bytesEl(0x1C53BB6B, []byte{0x01}), // Cues: skipped
+		bytesEl(0x1C53BB6B, []byte{0x01}),
 		el{id: idCluster, sub: []el{
 			uintEl(idClusterTC, 0),
 			simpleBlock(1, 0, flagKey, []byte{7}),
@@ -525,9 +482,8 @@ func TestTruncatedInputErrors(t *testing.T) {
 }
 
 func TestDefaultDurationAndInfoDuration(t *testing.T) {
-	// Duration element: 8-byte float, scaled by TimecodeScale.
 	var dur [8]byte
-	binary.BigEndian.PutUint64(dur[:], 0x4059000000000000) // 100.0
+	binary.BigEndian.PutUint64(dur[:], 0x4059000000000000)
 	segment := el{id: idSegment, sub: []el{
 		el{id: idInfo, sub: []el{
 			uintEl(idTimecodeScale, 1_000_000),
@@ -538,7 +494,7 @@ func TestDefaultDurationAndInfoDuration(t *testing.T) {
 				uintEl(idTrackNumber, 1),
 				uintEl(idTrackType, 1),
 				strEl(idCodecID, "V_VP9"),
-				uintEl(idDefaultDur, 41_708_333), // ~24fps in ns
+				uintEl(idDefaultDur, 41_708_333),
 				el{id: idVideo, sub: []el{uintEl(idPixelWidth, 64), uintEl(idPixelHeight, 64)}},
 			}},
 		}},
@@ -548,7 +504,7 @@ func TestDefaultDurationAndInfoDuration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
 	}
-	if doc.DurationNs != 100_000_000 { // 100.0 × 1ms
+	if doc.DurationNs != 100_000_000 {
 		t.Fatalf("duration = %d, want 100000000", doc.DurationNs)
 	}
 	if doc.Track.DefaultDuration != 41_708_333 {
@@ -557,7 +513,6 @@ func TestDefaultDurationAndInfoDuration(t *testing.T) {
 }
 
 func TestFramesSortedByTimecode(t *testing.T) {
-	// Out-of-order blocks must come back sorted by presentation time.
 	segment := el{id: idSegment, sub: []el{
 		el{id: idInfo, sub: []el{uintEl(idTimecodeScale, 1_000_000)}},
 		el{id: idTracks, sub: []el{vp9Track(1, 64, 64)}},

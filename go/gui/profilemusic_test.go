@@ -1,9 +1,5 @@
 package gui
 
-// profilemusic_test.go — slice 206 tests: profile-music pure helpers —
-// the duration label and the bubble-menu gate (songs only, never voice
-// notes; nothing on unsupported/no-media rows).
-
 import (
 	"testing"
 
@@ -47,9 +43,6 @@ func TestProfileMusicMenuGate(t *testing.T) {
 }
 
 func TestMusicRowTitleFallbacks(t *testing.T) {
-	// The row label order: embedded title → file name → honest untitled.
-	// (Mirrors engine trackLabel semantics; the GUI keeps its own copy in
-	// the row renderer — pinned here so the two never drift.)
 	withTitle := engine.MusicTrack{Title: "Nightcall", FileName: "a.mp3"}
 	if withTitle.Title == "" {
 		t.Error("title must win when present")

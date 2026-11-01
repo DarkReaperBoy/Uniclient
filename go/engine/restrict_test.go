@@ -6,11 +6,6 @@ import (
 	"uniclient/cores"
 )
 
-// Restrict/ban boxes (slice 191): the participant's current banned rights
-// ride ParticipantExtra → MemberInfo so the GUI box initializes from the
-// server state (tdesktop semantics), and BanMemberUntil wraps the
-// duration-aware ban (ViewMessages + UntilDate → channels.editBanned).
-
 type fakeRestrictCore struct {
 	cores.StubCore
 	banCalls    [][3]interface{}
@@ -38,7 +33,6 @@ func TestBanMemberUntil(t *testing.T) {
 		t.Errorf("BanMemberUntil args = %v, want g1/7/3600", got)
 	}
 
-	// Missing account / unsupported core → honest errors.
 	if err := e.BanMemberUntil("nope", "g1", "7", 3600); err == nil {
 		t.Error("missing account must error")
 	}
@@ -49,7 +43,6 @@ func TestBanMemberUntil(t *testing.T) {
 }
 
 func TestMemberBannedRightsMirror(t *testing.T) {
-	// Mirror helper: ParticipantExtra rights → MemberInfo fields.
 	ex := cores.ParticipantExtra{
 		CanRestrict: true,
 		BannedRights: &cores.DefaultBannedRights{
@@ -67,7 +60,6 @@ func TestMemberBannedRightsMirror(t *testing.T) {
 		t.Errorf("banned until = %d, want 3600", mi.BannedUntil)
 	}
 
-	// No rights → nil pointer (all-allowed fallback is the GUI's).
 	mi2 := memberFromExtra("u8", "member", cores.ParticipantExtra{})
 	if mi2.BannedRights != nil {
 		t.Errorf("member without rights should mirror nil, got %+v", mi2.BannedRights)

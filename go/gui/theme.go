@@ -1,7 +1,3 @@
-// Package gui is the Uniclient native UI: a Material-Design,
-// AyuGram-inspired chat client built on Gio. It talks to the engine
-// in-process (no bridge, no serialization) and renders chat + voice modes,
-// chat folders, adaptive layout, and per-backend login flows.
 package gui
 
 import (
@@ -28,19 +24,18 @@ import (
 	"uniclient/utils"
 )
 
-// AyuGram-ish dark palette (Telegram dark + accent).
 type palette struct {
-	Background   color.NRGBA // app background
-	Surface      color.NRGBA // cards, sidebar
-	SurfaceHi    color.NRGBA // hover / active surface
-	BubbleIn     color.NRGBA // incoming message bubble
-	BubbleOut    color.NRGBA // outgoing message bubble
-	BubbleOutDim color.NRGBA // outgoing bubble (dimmer variant)
-	Accent       color.NRGBA // primary accent (links, send, tabs)
+	Background   color.NRGBA
+	Surface      color.NRGBA
+	SurfaceHi    color.NRGBA
+	BubbleIn     color.NRGBA
+	BubbleOut    color.NRGBA
+	BubbleOutDim color.NRGBA
+	Accent       color.NRGBA
 	AccentDim    color.NRGBA
 	Text         color.NRGBA
-	TextDim      color.NRGBA // secondary text
-	TextFaint    color.NRGBA // hints, timestamps
+	TextDim      color.NRGBA
+	TextFaint    color.NRGBA
 	Online       color.NRGBA
 	Connecting   color.NRGBA
 	Error        color.NRGBA
@@ -52,10 +47,10 @@ var dark = palette{
 	Background:   rgb(0x17212B),
 	Surface:      rgb(0x1C2733),
 	SurfaceHi:    rgb(0x232E3C),
-	BubbleIn:     rgb(0x2B5278), // telegram inbound
+	BubbleIn:     rgb(0x2B5278),
 	BubbleOut:    rgb(0x2B5278),
 	BubbleOutDim: rgb(0x22405C),
-	Accent:       rgb(0x64B5F6), // material blue 300
+	Accent:       rgb(0x64B5F6),
 	AccentDim:    rgb(0x3E6F9E),
 	Text:         rgb(0xE9EDF0),
 	TextDim:      rgb(0x9AA6B1),
@@ -67,7 +62,6 @@ var dark = palette{
 	Divider:      rgb(0x273241),
 }
 
-// light is the Telegram-light-flavored palette (settings → Appearance).
 var light = palette{
 	Background:   rgb(0xF2F4F7),
 	Surface:      rgb(0xFFFFFF),
@@ -87,23 +81,17 @@ var light = palette{
 	Divider:      rgb(0xE3E7EB),
 }
 
-// applyTheme swaps the active palette (config Theme: "dark" | "light").
-// Called from the frame loop (button clicks) and once at boot before the
-// first frame — both on the GUI thread, so no locking needed.
 func (u *UI) applyTheme(name string) {
 	if name == "light" {
 		u.p = light
 	} else {
 		u.p = dark
 	}
-	// The theme switch overwrote the palette; re-tint with the stored accent.
 	if u.accentHex != "" {
 		u.applyAccent(u.accentHex)
 	}
 }
 
-// bubbleRadiusFor maps the corners toggle to the bubble corner radius in
-// dp (AyuGram "Corners": rounded vs square). Pure.
 func bubbleRadiusFor(round bool) int {
 	if round {
 		return 12
@@ -111,24 +99,19 @@ func bubbleRadiusFor(round bool) int {
 	return 2
 }
 
-// applyBubbleCorners sets the corner style (AyuGram appearance, slice 82).
 func (u *UI) applyBubbleCorners(round bool) {
 	u.bubbleCornersOn = round
 }
 
-// bubbleRadius is the active message-bubble corner radius in dp.
 func (u *UI) bubbleRadius() int {
 	return u.bubbleRadiusDp
 }
 
-// applyLayoutTweaks sets the slice-93 slider values (already clamped by
-// the engine helpers at the config boundary).
 func (u *UI) applyLayoutTweaks(radiusDp int, wideMult float64) {
 	u.bubbleRadiusDp = utils.ClampBubbleRadius(radiusDp)
 	u.wideMult = utils.ClampWideMultiplier(wideMult)
 }
 
-// wideMultiplier is the active bubble max-width factor (0.70..1.00).
 func (u *UI) wideMultiplier() float64 {
 	if u.wideMult <= 0 {
 		return 0.75
@@ -136,8 +119,6 @@ func (u *UI) wideMultiplier() float64 {
 	return u.wideMult
 }
 
-// applyAvatarCorners sets the userpic corner count (slice 215; clamped
-// to 0..23 at the config boundary, defensive here too).
 func (u *UI) applyAvatarCorners(corners int) {
 	if corners < 0 {
 		corners = 0
@@ -148,14 +129,10 @@ func (u *UI) applyAvatarCorners(corners int) {
 	u.avatarCorners.Store(int32(corners))
 }
 
-// avatarRadiusPx resolves the active userpic corner radius for a pixel
-// size (AyuGram ComputeRadius: 23 = circle, 0 = square, else linear).
-// NewUI seeds the circle default so a zero value is never ambiguous.
 func (u *UI) avatarRadiusPx(sizePx int) int {
 	return avatarCornerRadiusPx(int(u.avatarCorners.Load()), sizePx)
 }
 
-// clampFontScale bounds the text scale to a sane, still-usable range.
 func clampFontScale(v float64) float64 {
 	if v < 0.8 {
 		return 0.8
@@ -166,13 +143,10 @@ func clampFontScale(v float64) float64 {
 	return v
 }
 
-// applyFontScale sets the global text scale (1 = default).
 func (u *UI) applyFontScale(v float64) {
 	u.fontScale = clampFontScale(v)
 }
 
-// parseAccentHex decodes #RRGGBB into a color (A=255). False on malformed
-// input. Pure — unit-tested.
 func parseAccentHex(hex string) (color.NRGBA, bool) {
 	hex = strings.TrimSpace(hex)
 	if len(hex) != 7 || hex[0] != '#' {
@@ -202,7 +176,6 @@ func hexDigit(c byte) (byte, bool) {
 	return 0, false
 }
 
-// mixNRGBA linearly blends two colors (t=0 → a, t=1 → b).
 func mixNRGBA(a, b color.NRGBA, t float32) color.NRGBA {
 	f := func(x, y uint8) uint8 {
 		v := float32(x)*(1-t) + float32(y)*t
@@ -217,8 +190,6 @@ func mixNRGBA(a, b color.NRGBA, t float32) color.NRGBA {
 	return color.NRGBA{A: 0xFF, R: f(a.R, b.R), G: f(a.G, b.G), B: f(a.B, b.B)}
 }
 
-// applyAccent re-tints the palette's accent pair from #RRGGBB (the dim
-// variant blends toward the theme background). No-op on malformed hex.
 func (u *UI) applyAccent(hex string) {
 	c, ok := parseAccentHex(hex)
 	if !ok {
@@ -230,51 +201,29 @@ func (u *UI) applyAccent(hex string) {
 }
 
 func rgb(c uint32) color.NRGBA {
-	// NOTE: alpha is mandatory — NRGBA with A=0 is fully transparent.
 	return color.NRGBA{A: 0xFF, R: uint8(c >> 16), G: uint8(c >> 8), B: uint8(c)}
 }
 
-// UI wraps the material theme with our palette and helpers.
 type UI struct {
 	*material.Theme
-	p         palette
-	fontScale float64 // global text scale (AyuGram appearance, slice 59)
-	accentHex string  // applied accent (survives theme switches)
-	// Round bubble corners (AyuGram appearance "Corners", slice 82):
-	// true = 12dp rounded, false = 2dp near-square. Superseded by the
-	// slice-93 radius slider (bubbleRadiusDp) but kept for legacy configs.
+	p               palette
+	fontScale       float64
+	accentHex       string
 	bubbleCornersOn bool
-	// Layout tweak sliders (AyuGram appearance, slice 93):
-	// bubble radius in dp (0..18) and the bubble max-width factor of the
-	// chat pane (0.70..1.00).
-	bubbleRadiusDp int
-	wideMult       float64
-	// Avatar corners (AyuGram userpic styling, slice 215): effective
-	// slider 0..23 (23 = circle, AyuGram kMaxAvatarCorners).
-	// Atomic (R32): refreshConfig re-applies it from persist-completion
-	// goroutines (openSettings, applyDrawerHidden/applySystemTray/
-	// applyAccent/applyFontScale, the corners debounce timer) while the
-	// GUI loop reads it every frame in every window — a plain int there
-	// was a write-races-layout data race (same class as msgShowSeconds).
-	avatarCorners atomic.Int32
+	bubbleRadiusDp  int
+	wideMult        float64
+	avatarCorners   atomic.Int32
 }
 
-// notoEmoji is the monochrome Noto Emoji face (SIL OFL 1.1, see assets/OFL.txt).
-// Registered as a shaper fallback so emoji in messages and reaction strips
-// render instead of tofu (AyuGram parity: emoji everywhere).
-//
 //go:embed assets/notoemoji.ttf
 var notoEmoji []byte
 
 func NewUI() *UI {
 	th := material.NewTheme()
-	// gio v0.10.2 leaves the shaper empty — register the Go font collection
-	// (embedded, works on every platform incl. Windows/WASM) and allow system
-	// fonts as additional fallbacks.
 	th.Shaper = text.NewShaper(text.WithCollection(baseFontCollection()))
 	th.TextSize = unit.Sp(15)
 	u := &UI{Theme: th, p: dark}
-	u.avatarCorners.Store(23) // circle default (slice 215)
+	u.avatarCorners.Store(23)
 	return u
 }
 
@@ -293,12 +242,10 @@ func (u *UI) Dim(size unit.Sp, txt string) material.LabelStyle {
 	return l
 }
 
-// H1/H2/H3 headers.
 func (u *UI) H1(txt string) material.LabelStyle { return u.Label(unit.Sp(28), txt) }
 func (u *UI) H2(txt string) material.LabelStyle { return u.Label(unit.Sp(20), txt) }
 func (u *UI) H3(txt string) material.LabelStyle { return u.Label(unit.Sp(17), txt) }
 
-// Primary button (accent).
 func (u *UI) PrimaryButton(btn *widget.Clickable, txt string) material.ButtonStyle {
 	b := material.Button(u.Theme, btn, txt)
 	b.Background = u.p.Accent
@@ -308,7 +255,6 @@ func (u *UI) PrimaryButton(btn *widget.Clickable, txt string) material.ButtonSty
 	return b
 }
 
-// Flat text button.
 func (u *UI) TextButton(btn *widget.Clickable, txt string) material.ButtonStyle {
 	b := material.Button(u.Theme, btn, txt)
 	b.Background = color.NRGBA{}
@@ -317,7 +263,6 @@ func (u *UI) TextButton(btn *widget.Clickable, txt string) material.ButtonStyle 
 	return b
 }
 
-// Filled surface button (e.g. backend cards).
 func (u *UI) SurfaceButton(btn *widget.Clickable, txt string) material.ButtonStyle {
 	b := material.Button(u.Theme, btn, txt)
 	b.Background = u.p.SurfaceHi
@@ -328,7 +273,7 @@ func (u *UI) SurfaceButton(btn *widget.Clickable, txt string) material.ButtonSty
 
 func (u *UI) IconButton(btn *widget.Clickable, icon *widget.Icon, desc string) material.IconButtonStyle {
 	b := material.IconButton(u.Theme, btn, icon, desc)
-	b.Background = color.NRGBA{} // transparent
+	b.Background = color.NRGBA{}
 	b.Color = u.p.TextDim
 	b.Size = unit.Dp(24)
 	return b
@@ -342,7 +287,6 @@ func (u *UI) Editor(ed *widget.Editor, hint string) material.EditorStyle {
 	return e
 }
 
-// Divider draws a 1dp horizontal line.
 func (u *UI) Divider(gtx layout.Context) layout.Dimensions {
 	return drawRect(gtx, u.p.Divider, gtx.Dp(unit.Dp(1)))
 }
@@ -354,7 +298,6 @@ func drawRect(gtx layout.Context, c color.NRGBA, h int) layout.Dimensions {
 	return layout.Dimensions{Size: image.Pt(w, h)}
 }
 
-// avatarColors returns a stable background color for a name.
 func avatarColor(name string) color.NRGBA {
 	h := fnv.New32a()
 	h.Write([]byte(name))
@@ -366,7 +309,6 @@ func avatarColor(name string) color.NRGBA {
 	return cs[n]
 }
 
-// initials derives a 1-2 letter avatar from a title.
 func initials(title string) string {
 	title = strings.TrimSpace(title)
 	if title == "" {
@@ -384,33 +326,16 @@ func initials(title string) string {
 	return strings.ToUpper(string([]rune{[]rune(words[0])[0], []rune(words[1])[0]}))
 }
 
-// Avatar renders a colored initials avatar at the configured corner
-// shape (slice 215), or a colored status dot.
 func (u *UI) Avatar(gtx layout.Context, name string, sizeDp unit.Dp, online connDot) layout.Dimensions {
 	return u.AvatarShaped(gtx, name, sizeDp, online, u.avatarRadiusPx(gtx.Dp(sizeDp)))
 }
 
-// AvatarShaped renders the initials avatar at an explicit corner radius
-// (pixels): size/2 = circle (the pre-slice-215 look), 0 = square, else a
-// rounded square. Forum chats pass their native 30% radius unless the
-// Single Corner Radius toggle overrides it (avatar.go chatAvatar).
-//
-// Slice 215 fixed TWO v0.4.0 bugs that made letter avatars render as
-// plain circles: (1) the bg fill was painted AFTER the initials, covering
-// them; (2) the centering offset was computed from the label's dims,
-// which parents' leaked Min constraints inflate (ButtonLayout Min.Y=84
-// → (44-84)/2 = -20px → initials floated ABOVE the avatar). The label is
-// now laid out contained (Min zeroed, Max = the avatar box, which is also
-// the glyph-cull viewport) so its dims are natural and the offset true.
-// Verified against the CI Xvfb screenshots.
 func (u *UI) AvatarShaped(gtx layout.Context, name string, sizeDp unit.Dp, online connDot, radiusPx int) layout.Dimensions {
 	size := gtx.Dp(sizeDp)
 	bg := avatarColor(name)
 
-	// Shape + background, under the initials.
 	paint.FillShape(gtx.Ops, bg, avatarShapeClip(gtx.Ops, size, radiusPx))
 
-	// Initials on top, naturally sized and truly centered.
 	macro := op.Record(gtx.Ops)
 	lgtx := gtx
 	lgtx.Constraints = layout.Constraints{Max: image.Pt(size, size)}
@@ -433,7 +358,6 @@ func (u *UI) AvatarShaped(gtx layout.Context, name string, sizeDp unit.Dp, onlin
 	return layout.Dimensions{Size: image.Pt(size, size)}
 }
 
-// connDot is the per-account connection indicator.
 type connDot int
 
 const (
@@ -471,17 +395,11 @@ func connDotFor(a engine.AccountInfo) connDot {
 	}
 }
 
-// platformMeta describes backends shown in the GUI.
 type platformMeta struct {
 	ID, Title, Desc, Letter string
-	Status                  string // "", "experimental", "hidden"
+	Status                  string
 }
 
-// platforms is the picker list (order = display order). Every entry must
-// be a real, factory-supported backend (tested in theme_test.go against
-// bootstrap.SupportedPlatforms). Mumble and TeamSpeak are live-verified
-// against public servers (2026-09-10, research/mumble_protocol.md +
-// research/teamspeak_protocol.md). No fake/demo entries — AGENTS.md §1.10.
 var platforms = []platformMeta{
 	{ID: "telegram", Title: "Telegram", Desc: "MTProto via gotd. Calls, folders, full parity work.", Letter: "T"},
 	{ID: "irc", Title: "IRC", Desc: "IRCv3, SASL, verified against real servers.", Letter: "I"},
@@ -494,22 +412,12 @@ var platforms = []platformMeta{
 	{ID: "bale", Title: "Bale", Desc: "Iranian messenger (experimental).", Letter: "B"},
 }
 
-// webConnectable lists the backends whose transport exists inside a
-// browser: GitHub + Matrix ride HTTPS (net/http -> fetch on js/wasm), Bale
-// rides gRPC-Web over WebSocket. Every other core dials raw TCP/UDP, which
-// no browser can do — offering them in the web picker would be a login
-// form that can only ever end in a connection error (AGENTS.md §1.10:
-// hide what cannot work, never fake it). Keep in sync with the web
-// capability truth table in AGENTS.md §2.
 var webConnectable = map[string]bool{
 	"github": true,
 	"matrix": true,
 	"bale":   true,
 }
 
-// pickerPlatformsFor returns the backends the picker offers on a given
-// GOOS. Native builds see every backend; js/wasm sees only the ones whose
-// transport exists in a browser.
 func pickerPlatformsFor(goos string) []platformMeta {
 	if goos != "js" {
 		return platforms
@@ -523,7 +431,6 @@ func pickerPlatformsFor(goos string) []platformMeta {
 	return out
 }
 
-// pickerPlatforms is the picker's offer list for this build.
 func pickerPlatforms() []platformMeta {
 	return pickerPlatformsFor(runtime.GOOS)
 }
@@ -537,7 +444,6 @@ func platformTitle(id string) string {
 	return id
 }
 
-// chatKind classifies a ChatInfo for folders.
 func chatKind(c engine.ChatInfo) string {
 	switch c.Type {
 	case engine.ChatTypeDMVal:
@@ -550,7 +456,6 @@ func chatKind(c engine.ChatInfo) string {
 	return "people"
 }
 
-// fmtTime renders a message timestamp (HH:MM or date).
 func fmtTime(ms int64) string {
 	if ms == 0 {
 		return ""
@@ -558,7 +463,6 @@ func fmtTime(ms int64) string {
 	return time.UnixMilli(ms).Format("15:04")
 }
 
-// chatKey identifies an open chat.
 type chatKey struct {
 	AccountID string
 	ChatID    string

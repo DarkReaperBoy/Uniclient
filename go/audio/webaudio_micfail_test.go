@@ -7,9 +7,6 @@ import (
 	"time"
 )
 
-// TestStartMicFailureCleansUp (risk R2): a rejected getUserMedia must tear
-// the whole mic attempt down — the stop channel is disarmed, the frames
-// channel closes for the reader, and a fresh startMic works immediately.
 func TestStartMicFailureCleansUp(t *testing.T) {
 	f := newJSFakes(t)
 	f.reject()
@@ -43,7 +40,6 @@ func TestStartMicFailureCleansUp(t *testing.T) {
 		t.Fatal("failed mic attempt left the stop channel armed — the cleanup goroutine never runs and the js.Funcs leak (R2)")
 	}
 
-	// A fresh attempt must work on the clean state machine.
 	frames2, err := web.startMic()
 	if err != nil {
 		t.Fatalf("second startMic after a failed attempt: %v", err)

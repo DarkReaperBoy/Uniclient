@@ -8,19 +8,9 @@ import (
 	"uniclient/cores"
 )
 
-// TestPremiumPageStateIsCopyOnWrite pins R37 (the first R34 sibling sweep):
-// premiumPageState was mutated IN PLACE by loadPremiumPage's completion
-// (loading/err/loaded/promo/limits, under a.mu, from the background load
-// goroutine) while the GUI loop read the same fields through the frame
-// pointer under frameMu only — the exact write-races-layout shape R34's
-// dependency-free scratch repro flags under -race (the premium pre-fix
-// writer is the same loadTail with fewer fields; verified by reading
-// every writer site this iteration). updatePremiumPage now installs
-// copies: the struct a frame holds is never written afterwards.
 func TestPremiumPageStateIsCopyOnWrite(t *testing.T) {
 	a := &App{}
 	a.premiumPage = &premiumPageState{accountID: "acc", loading: true}
-	// The frame's pointer, taken the way snapshot() takes it.
 	a.mu.Lock()
 	frameSt := a.premiumPage
 	a.mu.Unlock()
@@ -31,7 +21,6 @@ func TestPremiumPageStateIsCopyOnWrite(t *testing.T) {
 		go func(i int) {
 			defer wg.Done()
 			for j := 0; j < 1500; j++ {
-				// The load tail's fields, through the real installer.
 				a.updatePremiumPage(func(n *premiumPageState) bool {
 					if n.accountID != "acc" {
 						return false
@@ -49,7 +38,6 @@ func TestPremiumPageStateIsCopyOnWrite(t *testing.T) {
 					}
 					return true
 				})
-				// The reload path's field.
 				a.updatePremiumPage(func(n *premiumPageState) bool {
 					n.loading = true
 					return true
@@ -58,8 +46,6 @@ func TestPremiumPageStateIsCopyOnWrite(t *testing.T) {
 		}(i)
 	}
 
-	// The layout reader: the HELD pointer, no lock — what
-	// layoutPremiumPage/premiumStatusCard do under frameMu.
 	readDone := make(chan struct{})
 	go func() {
 		defer close(readDone)
@@ -80,8 +66,6 @@ func TestPremiumPageStateIsCopyOnWrite(t *testing.T) {
 	wg.Wait()
 	<-readDone
 
-	// Install semantics: the head is a fresh copy, the frame-held struct
-	// stayed frozen at install time.
 	a.mu.Lock()
 	head := a.premiumPage
 	a.mu.Unlock()
@@ -100,10 +84,6 @@ func TestPremiumPageStateIsCopyOnWrite(t *testing.T) {
 	}
 }
 
-// TestUpdatePremiumPageContract pins the installer: closed page → nil
-// without panic; fn=false → nil with the head untouched; fn=true → a NEW
-// struct installed (untouched fields carried, mutations visible, previous
-// head frozen).
 func TestUpdatePremiumPageContract(t *testing.T) {
 	a := &App{}
 	if got := a.updatePremiumPage(func(n *premiumPageState) bool { return true }); got != nil {
@@ -122,7 +102,7 @@ func TestUpdatePremiumPageContract(t *testing.T) {
 
 	got := a.updatePremiumPage(func(n *premiumPageState) bool {
 		if n.accountID != "acc" {
-			return false // the staleness guard the load tail relies on
+			return false
 		}
 		n.loading = true
 		return true

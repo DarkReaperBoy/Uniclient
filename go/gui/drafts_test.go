@@ -16,7 +16,6 @@ func TestSchedulePresetWhen(t *testing.T) {
 	if !ok {
 		t.Fatal("preset 2 should exist")
 	}
-	// 9:00 already passed today (now is 10:00) → tomorrow 9:00.
 	if p.Sub(now) != 23*time.Hour {
 		t.Errorf("preset 2 = %v, want +23h", p.Sub(now))
 	}
@@ -37,7 +36,6 @@ func TestParseScheduleInput(t *testing.T) {
 	if _, ok := parseScheduleInput("09/09/2026", "09:30"); ok {
 		t.Fatal("wrong date format should fail")
 	}
-	// Lenient single-digit hour is accepted (09:30).
 	if secs, ok := parseScheduleInput("2026-09-09", "9:30"); !ok || secs != want {
 		t.Fatalf("lenient time = %d ok=%v, want %d", secs, ok, want)
 	}
@@ -52,7 +50,7 @@ func TestDraftPreview(t *testing.T) {
 	}
 	long := string(make([]rune, 100))
 	got := draftPreview(long)
-	if len([]rune(got)) != 48+7 { // "Draft: " + 48 runes
+	if len([]rune(got)) != 48+7 {
 		t.Errorf("clamped length = %d", len([]rune(got)))
 	}
 }

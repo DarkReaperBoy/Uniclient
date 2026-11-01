@@ -1,6 +1,3 @@
-// Package cores defines the Core interface and shared models used by all messaging platform backends.
-// Every core (Telegram, Bale, etc.) implements the Core interface.
-// No core may import from another core. All cores return these shared types.
 package cores
 
 import (
@@ -11,8 +8,6 @@ import (
 	"net/http"
 	"time"
 )
-
-// --- Errors ---
 
 var (
 	ErrAuth           = errors.New("authentication failed")
@@ -30,9 +25,6 @@ var (
 	ErrFileTooLarge   = errors.New("exceeds download ceiling")
 )
 
-// --- Enums ---
-
-// ChatType represents the kind of chat (DM, group, channel, or topic).
 type ChatType string
 
 const (
@@ -42,7 +34,6 @@ const (
 	ChatTypeTopic   ChatType = "topic"
 )
 
-// MessageStatus represents the delivery state of a message.
 type MessageStatus string
 
 const (
@@ -53,7 +44,6 @@ const (
 	MessageStatusFailed    MessageStatus = "failed"
 )
 
-// UpdateType represents the kind of real-time event received from the platform.
 type UpdateType string
 
 const (
@@ -69,31 +59,12 @@ const (
 	UpdateVerification     UpdateType = "verification"
 	UpdateConnectivity     UpdateType = "connectivity"
 	UpdateNotifySettings   UpdateType = "notify_settings"
-	// UpdateLoginCode carries a login code pushed by Telegram as a service
-	// message to an already-connected session (a `tg://login?code=NNNNN` link).
-	// Mirrors AyuGram Account::handleLoginCode → CodeWidget auto-fill+submit
-	// (intro_code.cpp:59-62, core/local_url_handlers.cpp:1437-1456).
-	UpdateLoginCode UpdateType = "login_code"
-	// UpdateReactions carries the full current reaction state of one message
-	// (u.Message.Reactions) after a tg.UpdateMessageReactions. Mirrors
-	// Telegram Desktop HistoryWidget::refreshReactionSummary — the GUI's
-	// reaction strip re-renders from the engine cache.
-	UpdateReactions UpdateType = "reactions"
-	// UpdatePollResults carries fresh vote counts for one poll message
-	// (tg.UpdateMessagePoll). Message.ID is the message id (poll id on
-	// older layers); Message.Extra carries the updated poll_* fields. The
-	// engine merges them into the cached content_raw so poll bubbles
-	// re-render with live results (AyuGram polls refresh in place).
-	UpdatePollResults UpdateType = "poll_results"
-	// UpdateTranscription carries the text of a voice-message
-	// transcription (tg.updateTranscribedAudio) — pushed after
-	// messages.transcribeAudio, possibly several times (pending=true
-	// means more updates will follow). Mirrors Telegram Desktop's
-	// Media::transcribed() refresh path for voice bubbles.
-	UpdateTranscription UpdateType = "transcription"
+	UpdateLoginCode        UpdateType = "login_code"
+	UpdateReactions        UpdateType = "reactions"
+	UpdatePollResults      UpdateType = "poll_results"
+	UpdateTranscription    UpdateType = "transcription"
 )
 
-// CallState represents the current phase of a voice or video call.
 type CallState string
 
 const (
@@ -103,16 +74,12 @@ const (
 	CallStateEnded      CallState = "ended"
 )
 
-// AuthMode represents the authentication method (bot token or user login).
 type AuthMode string
 
 const (
 	AuthModeBot  AuthMode = "bot"
 	AuthModeUser AuthMode = "user"
 )
-
-// --- Capability constants ---
-// Return these from Capabilities() so the frontend can query supported features.
 
 const (
 	CapText          = "TEXT"
@@ -143,25 +110,20 @@ const (
 	CapCloudPassword = "CLOUD_PASSWORD"
 )
 
-// --- Models ---
-
-// AuthConfig holds the credentials and settings needed to authenticate with a platform.
 type AuthConfig struct {
 	Mode       AuthMode          `json:"mode"`
 	BotToken   string            `json:"bot_token,omitempty"`
 	Phone      string            `json:"phone,omitempty"`
 	OTP        string            `json:"otp,omitempty"`
-	Password2F string            `json:"password_2f,omitempty"` // 2FA password
-	Extra      map[string]string `json:"extra,omitempty"`       // platform-specific (e.g., api_id, api_hash, server)
+	Password2F string            `json:"password_2f,omitempty"`
+	Extra      map[string]string `json:"extra,omitempty"`
 }
 
-// PaginationOpts controls result pagination with a limit and an opaque cursor.
 type PaginationOpts struct {
 	Limit  int    `json:"limit"`
-	Offset string `json:"offset,omitempty"` // opaque cursor, platform-specific
+	Offset string `json:"offset,omitempty"`
 }
 
-// User represents a platform user or bot with profile information.
 type User struct {
 	ID                     string          `json:"id"`
 	Username               string          `json:"username,omitempty"`
@@ -169,7 +131,7 @@ type User struct {
 	Phone                  string          `json:"phone,omitempty"`
 	Bio                    string          `json:"bio,omitempty"`
 	AvatarURL              string          `json:"avatar_url,omitempty"`
-	AvatarB64              string          `json:"avatar_b64,omitempty"` // base64-encoded thumbnail
+	AvatarB64              string          `json:"avatar_b64,omitempty"`
 	IsBot                  bool            `json:"is_bot"`
 	IsOnline               bool            `json:"is_online"`
 	IsContact              bool            `json:"is_contact"`
@@ -193,7 +155,7 @@ type User struct {
 	BirthdayYear           int             `json:"birthday_year,omitempty"`
 	PersonalChannelID      string          `json:"personal_channel_id,omitempty"`
 	PersonalChannelName    string          `json:"personal_channel_name,omitempty"`
-	PersonalChannelCount   int             `json:"personal_channel_count,omitempty"` // subscriber count appended to the personal-channel label
+	PersonalChannelCount   int             `json:"personal_channel_count,omitempty"`
 	VoiceMessagesForbidden bool            `json:"voice_messages_forbidden,omitempty"`
 	ContactRequirePremium  bool            `json:"contact_require_premium,omitempty"`
 	IsMutualContact        bool            `json:"is_mutual_contact,omitempty"`
@@ -206,22 +168,16 @@ type User struct {
 	NoteEntities           string          `json:"note_entities,omitempty"`
 	BusinessHours          string          `json:"business_hours,omitempty"`
 	BannedRights           map[string]bool `json:"banned_rights,omitempty"`
-	// Saved admin rights + custom rank for an admin/creator participant, so the
-	// EditAdminBox opens seeded from _oldRights/_oldRank instead of all-on
-	// defaults (edit_participant_box.cpp:304).
-	AdminRights map[string]bool `json:"admin_rights,omitempty"`
-	Rank        string          `json:"rank,omitempty"`
-	BannedUntil int             `json:"banned_until,omitempty"`
-	// Attribution for the "Restricted/Banned by X on DATE" footer
-	// (edit_participant_box.cpp:816): the admin who applied the ban + when.
-	BannedBy              string `json:"banned_by,omitempty"`
-	BannedByName          string `json:"banned_by_name,omitempty"`
-	BannedDate            int    `json:"banned_date,omitempty"`
-	StarsPerMessage       int64  `json:"stars_per_message,omitempty"`
-	NeedContactsException bool   `json:"need_contacts_exception,omitempty"`
+	AdminRights            map[string]bool `json:"admin_rights,omitempty"`
+	Rank                   string          `json:"rank,omitempty"`
+	BannedUntil            int             `json:"banned_until,omitempty"`
+	BannedBy               string          `json:"banned_by,omitempty"`
+	BannedByName           string          `json:"banned_by_name,omitempty"`
+	BannedDate             int             `json:"banned_date,omitempty"`
+	StarsPerMessage        int64           `json:"stars_per_message,omitempty"`
+	NeedContactsException  bool            `json:"need_contacts_exception,omitempty"`
 }
 
-// Dialog represents a conversation (DM, group, channel, or topic) in the chat list.
 type Dialog struct {
 	ID                   string   `json:"id"`
 	Type                 ChatType `json:"type"`
@@ -234,7 +190,7 @@ type Dialog struct {
 	IsPinned             bool     `json:"is_pinned"`
 	IsArchived           bool     `json:"is_archived"`
 	MemberCount          int      `json:"member_count,omitempty"`
-	ParentID             string   `json:"parent_id,omitempty"` // for topics: the parent group ID
+	ParentID             string   `json:"parent_id,omitempty"`
 	UnreadMark           bool     `json:"unread_mark,omitempty"`
 	UnreadMentionCount   int      `json:"unread_mention_count,omitempty"`
 	UnreadReactionCount  int      `json:"unread_reaction_count,omitempty"`
@@ -256,25 +212,24 @@ type Dialog struct {
 	JoinRequest          bool     `json:"join_request,omitempty"`
 	CanPost              bool     `json:"can_post,omitempty"`
 	IsAdmin              bool     `json:"is_admin,omitempty"`
-	IsCreator            bool     `json:"is_creator,omitempty"` // current user is the chat/channel creator (amCreator)
+	IsCreator            bool     `json:"is_creator,omitempty"`
 	NoForwards           bool     `json:"no_forwards,omitempty"`
 	Username             string   `json:"username,omitempty"`
-	HasActiveCall        bool     `json:"has_active_call,omitempty"` // group/livestream call with participants (MTProto call_not_empty)
+	HasActiveCall        bool     `json:"has_active_call,omitempty"`
 	AccessHash           int64    `json:"-"`
 	Platform             string   `json:"platform"`
 }
 
-// ForumTopic represents a forum topic within a supergroup.
 type ForumTopic struct {
-	ID              string `json:"id"` // root message ID (General = "1")
+	ID              string `json:"id"`
 	Title           string `json:"title"`
-	ColorID         int    `json:"color_id"`      // predefined icon color (0x6FB9F0, 0xFFD67E, etc.)
-	IconEmojiID     int64  `json:"icon_emoji_id"` // custom emoji ID, 0 for default
+	ColorID         int    `json:"color_id"`
+	IconEmojiID     int64  `json:"icon_emoji_id"`
 	CreatorID       string `json:"creator_id"`
-	CreationDate    int64  `json:"creation_date"` // unix timestamp
+	CreationDate    int64  `json:"creation_date"`
 	IsClosed        bool   `json:"is_closed"`
-	IsHidden        bool   `json:"is_hidden"` // only for General topic
-	IsMy            bool   `json:"is_my"`     // created by current user
+	IsHidden        bool   `json:"is_hidden"`
+	IsMy            bool   `json:"is_my"`
 	IsPinned        bool   `json:"is_pinned"`
 	UnreadCount     int    `json:"unread_count"`
 	UnreadMentions  int    `json:"unread_mentions"`
@@ -282,7 +237,7 @@ type ForumTopic struct {
 	TopMessageID    string `json:"top_message_id"`
 	ReadInboxMaxID  int    `json:"read_inbox_max_id"`
 	ReadOutboxMaxID int    `json:"read_outbox_max_id"`
-	ParentID        string `json:"parent_id"` // parent supergroup ID
+	ParentID        string `json:"parent_id"`
 	CanEdit         bool   `json:"can_edit"`
 	CanDelete       bool   `json:"can_delete"`
 	CanToggleClosed bool   `json:"can_toggle_closed"`
@@ -291,45 +246,38 @@ type ForumTopic struct {
 	LastMsgDate     int64  `json:"last_msg_date"`
 }
 
-// IsGeneral returns true if this is the General topic (ID "1").
 func (ft *ForumTopic) IsGeneral() bool { return ft.ID == "1" }
 
-// TextEntity represents a rich-text formatting entity (bold, italic, link, etc.)
-// within a message's text. Offset and Length are in UTF-16 code units to match
-// Telegram's convention; the host language works natively in UTF-16.
 type TextEntity struct {
-	Type       string `json:"type"`                  // "bold","italic","underline","strike","code","pre","text_url","url","mention","hashtag","bot_command","email","phone","cashtag","spoiler","blockquote","custom_emoji","mention_name","bank_card","formatted_date"
-	Offset     int    `json:"offset"`                // start position in UTF-16 code units
-	Length     int    `json:"length"`                // length in UTF-16 code units
-	URL        string `json:"url,omitempty"`         // for text_url
-	Language   string `json:"language,omitempty"`    // for pre (code block language)
-	DocumentID int64  `json:"document_id,omitempty"` // for custom_emoji
-	// formatted_date (messageEntityFormattedDate): a clickable, locale-rendered
-	// date. Date is the unix-seconds timestamp; the bools are the render flags.
-	Date          int  `json:"date,omitempty"`
-	DateRelative  bool `json:"relative,omitempty"`
-	DateShortTime bool `json:"short_time,omitempty"`
-	DateLongTime  bool `json:"long_time,omitempty"`
-	DateShortDate bool `json:"short_date,omitempty"`
-	DateLongDate  bool `json:"long_date,omitempty"`
-	DateDayOfWeek bool `json:"day_of_week,omitempty"`
+	Type          string `json:"type"`
+	Offset        int    `json:"offset"`
+	Length        int    `json:"length"`
+	URL           string `json:"url,omitempty"`
+	Language      string `json:"language,omitempty"`
+	DocumentID    int64  `json:"document_id,omitempty"`
+	Date          int    `json:"date,omitempty"`
+	DateRelative  bool   `json:"relative,omitempty"`
+	DateShortTime bool   `json:"short_time,omitempty"`
+	DateLongTime  bool   `json:"long_time,omitempty"`
+	DateShortDate bool   `json:"short_date,omitempty"`
+	DateLongDate  bool   `json:"long_date,omitempty"`
+	DateDayOfWeek bool   `json:"day_of_week,omitempty"`
 }
 
-// Message represents a single message with its content, metadata, and attachments.
 type Message struct {
 	ID            string                 `json:"id"`
 	ChatID        string                 `json:"chat_id"`
 	SenderID      string                 `json:"sender_id"`
 	SenderName    string                 `json:"sender_name"`
-	SenderRank    string                 `json:"sender_rank,omitempty"` // admin/creator custom title (e.g. "admin", "owner", "Head Mod")
-	SenderColorID int                    `json:"sender_color_id"`       // name color palette index (0..63)
+	SenderRank    string                 `json:"sender_rank,omitempty"`
+	SenderColorID int                    `json:"sender_color_id"`
 	Text          string                 `json:"text"`
-	Entities      []TextEntity           `json:"entities,omitempty"` // rich-text entities for Text
+	Entities      []TextEntity           `json:"entities,omitempty"`
 	Timestamp     time.Time              `json:"timestamp"`
 	EditedAt      *time.Time             `json:"edited_at,omitempty"`
 	Status        MessageStatus          `json:"status"`
 	ReplyToID     string                 `json:"reply_to_id,omitempty"`
-	ReplyPreview  string                 `json:"reply_preview,omitempty"` // first line of the replied-to message
+	ReplyPreview  string                 `json:"reply_preview,omitempty"`
 	ForwardFrom   string                 `json:"forward_from,omitempty"`
 	ForwardFromID string                 `json:"forward_from_id,omitempty"`
 	IsEncrypted   bool                   `json:"is_encrypted"`
@@ -338,52 +286,48 @@ type Message struct {
 	Reactions     []Reaction             `json:"reactions,omitempty"`
 	IsPinned      bool                   `json:"is_pinned"`
 	IsOutgoing    bool                   `json:"is_outgoing"`
-	IsService     bool                   `json:"is_service"`               // service/action message (e.g. "X joined the group")
-	GroupedID     string                 `json:"grouped_id,omitempty"`     // album group ID (messages with same ID form an album)
-	Views         int                    `json:"views,omitempty"`          // view count (channel posts)
-	Forwards      int                    `json:"forwards,omitempty"`       // forward/share count (channel posts)
-	CommentsCount int                    `json:"comments_count,omitempty"` // comment-thread size on channel posts (MessageReplies)
-	ThreadRoot    string                 `json:"thread_root,omitempty"`    // reply-to-top: the thread root id (forum topics + discussion threads)
-	SavedPeerID   string                 `json:"saved_peer_id,omitempty"`  // Saved Messages sublist (message.saved_peer_id + the fwd-from backfill, slice 197)
-	NoForwards    bool                   `json:"no_forwards,omitempty"`    // message-level forwarding restriction (AyuNoForwards flag)
-	PaidPostType  int                    `json:"paid_post_type,omitempty"` // suggested-post payment type: 0=none, 1=stars, 2=ton (drives the delete-warning, delete_messages_box.cpp:527-548)
+	IsService     bool                   `json:"is_service"`
+	GroupedID     string                 `json:"grouped_id,omitempty"`
+	Views         int                    `json:"views,omitempty"`
+	Forwards      int                    `json:"forwards,omitempty"`
+	CommentsCount int                    `json:"comments_count,omitempty"`
+	ThreadRoot    string                 `json:"thread_root,omitempty"`
+	SavedPeerID   string                 `json:"saved_peer_id,omitempty"`
+	NoForwards    bool                   `json:"no_forwards,omitempty"`
+	PaidPostType  int                    `json:"paid_post_type,omitempty"`
 	Platform      string                 `json:"platform"`
-	Extra         map[string]interface{} `json:"extra,omitempty"` // platform-specific metadata
+	Extra         map[string]interface{} `json:"extra,omitempty"`
 }
 
-// OutgoingMessage holds the content for a message being sent.
 type OutgoingMessage struct {
 	Text        string                 `json:"text"`
 	ReplyToID   string                 `json:"reply_to_id,omitempty"`
 	Entities    []TextEntity           `json:"entities,omitempty"`
 	Attachments []FileRef              `json:"attachments,omitempty"`
-	Extra       map[string]interface{} `json:"extra,omitempty"` // platform-specific metadata
+	Extra       map[string]interface{} `json:"extra,omitempty"`
 }
 
-// FileRef represents a reference to a file attachment with optional thumbnail.
 type FileRef struct {
-	ID       string `json:"id,omitempty"` // platform file ID (for downloads)
+	ID       string `json:"id,omitempty"`
 	Name     string `json:"name"`
 	MimeType string `json:"mime_type"`
 	Size     int64  `json:"size"`
-	URL      string `json:"url,omitempty"`       // download URL if available
-	ThumbB64 string `json:"thumb_b64,omitempty"` // base64 thumbnail
-	Extra    string `json:"extra,omitempty"`     // platform-specific metadata (e.g. Matrix encrypted file info JSON)
-	Width    int    `json:"width,omitempty"`     // media width in pixels (images/videos)
-	Height   int    `json:"height,omitempty"`    // media height in pixels (images/videos)
-	Duration int    `json:"duration,omitempty"`  // duration in seconds (audio/video)
-	DC       int    `json:"dc,omitempty"`        // Telegram datacenter hosting the file (slice 207)
+	URL      string `json:"url,omitempty"`
+	ThumbB64 string `json:"thumb_b64,omitempty"`
+	Extra    string `json:"extra,omitempty"`
+	Width    int    `json:"width,omitempty"`
+	Height   int    `json:"height,omitempty"`
+	Duration int    `json:"duration,omitempty"`
+	DC       int    `json:"dc,omitempty"`
 }
 
-// FileUpload holds file metadata and a data stream for uploading.
 type FileUpload struct {
 	Name     string    `json:"name"`
 	MimeType string    `json:"mime_type"`
 	Size     int64     `json:"size"`
-	Reader   io.Reader `json:"-"` // the file data stream
+	Reader   io.Reader `json:"-"`
 }
 
-// Reaction represents an emoji reaction on a message with its count.
 type Reaction struct {
 	Emoji      string `json:"emoji"`
 	Count      int    `json:"count"`
@@ -395,7 +339,6 @@ type Reaction struct {
 	AvatarB64  string `json:"avatar_b64,omitempty"`
 }
 
-// GifInfo holds data for a single saved GIF animation.
 type GifInfo struct {
 	ThumbB64 string `json:"thumb_b64"`
 	Width    int    `json:"width"`
@@ -408,7 +351,7 @@ type SavedSublistInfo struct {
 	PeerID      string `json:"peer_id"`
 	PeerName    string `json:"peer_name"`
 	AvatarPath  string `json:"avatar_path,omitempty"`
-	Type        int    `json:"type"` // 1=user, 2=group, 3=channel
+	Type        int    `json:"type"`
 	IsPinned    bool   `json:"is_pinned"`
 	TopMessage  int    `json:"top_message"`
 	LastMsgText string `json:"last_msg_text,omitempty"`
@@ -424,7 +367,6 @@ type SavedReactionTagInfo struct {
 	Count    int    `json:"count"`
 }
 
-// StarsGiftAmount is one giftable star amount (payments.getStarsGiftOptions).
 type StarsGiftAmount struct {
 	Stars        int64  `json:"stars"`
 	NanoStars    int64  `json:"nano_stars"`
@@ -434,17 +376,12 @@ type StarsGiftAmount struct {
 	StoreProduct string `json:"store_product,omitempty"`
 }
 
-// StarsGiveawayWinnerInfo is one winner split of a stars giveaway option
-// (payments.getStarsGiveawayOptions winners vector).
 type StarsGiveawayWinnerInfo struct {
 	Users        int   `json:"users"`
 	PerUserStars int64 `json:"per_user_stars"`
 	Default      bool  `json:"default,omitempty"`
 }
 
-// StarsGiveawayOptionInfo is one giveaway prize amount
-// (payments.getStarsGiveawayOptions): the total stars distributed among
-// the chosen winner count, with its yearly-boost bonus.
 type StarsGiveawayOptionInfo struct {
 	Winners      []StarsGiveawayWinnerInfo `json:"winners"`
 	Stars        int64                     `json:"stars"`
@@ -456,30 +393,21 @@ type StarsGiveawayOptionInfo struct {
 	Default      bool                      `json:"default,omitempty"`
 }
 
-// CountryInfo is one picker row from help.getCountriesList.
 type CountryInfo struct {
 	ISO2 string `json:"iso2"`
 	Name string `json:"name"`
 }
 
-// GiveawayParams carries the user choices for creating or launching a
-// giveaway (tdesktop create_giveaway_box): winner count, end date,
-// visibility and audience restrictions. Protocol-neutral — the core maps
-// it onto the wire purpose.
 type GiveawayParams struct {
 	WinnerCount int      `json:"winner_count"`
-	UntilDate   int      `json:"until_date"` // unix seconds
+	UntilDate   int      `json:"until_date"`
 	OnlyNew     bool     `json:"only_new,omitempty"`
 	ShowWinners bool     `json:"show_winners,omitempty"`
 	Prize       string   `json:"prize,omitempty"`
 	Countries   []string `json:"countries,omitempty"`
-	ExtraChats  []string `json:"extra_chats,omitempty"` // additional channels to join (chat IDs)
+	ExtraChats  []string `json:"extra_chats,omitempty"`
 }
 
-// MusicTrackInfo is one profile-music track (tdesktop "saved music",
-// slice 206): an audio document pinned on a user profile. FileRefB64
-// carries the encoded file reference so the download path can fetch the
-// document by ID + access hash.
 type MusicTrackInfo struct {
 	DocID      string `json:"doc_id"`
 	AccessHash int64  `json:"access_hash,omitempty"`
@@ -492,7 +420,6 @@ type MusicTrackInfo struct {
 	FileName   string `json:"file_name,omitempty"`
 }
 
-// StickerInfo holds data for a single sticker in a set.
 type StickerInfo struct {
 	Emoji     string `json:"emoji"`
 	ThumbB64  string `json:"thumb_b64"`
@@ -504,14 +431,12 @@ type StickerInfo struct {
 	IsPremium bool   `json:"is_premium,omitempty"`
 }
 
-// CustomEmojiThumb holds a document ID, its base64 thumbnail, and optional SVG path.
 type CustomEmojiThumb struct {
 	DocumentID int64  `json:"document_id"`
 	ThumbB64   string `json:"thumb_b64"`
 	PathB64    string `json:"path_b64,omitempty"`
 }
 
-// CustomEmojiFile holds a document ID, its MIME type, and the full file data.
 type CustomEmojiFile struct {
 	DocumentID    int64  `json:"document_id"`
 	MimeType      string `json:"mime_type"`
@@ -525,7 +450,6 @@ type BotCallbackResult struct {
 	ShowAlert bool   `json:"show_alert"`
 }
 
-// StickerSetResult holds the structured result of a sticker set lookup.
 type StickerSetResult struct {
 	Title      string        `json:"title"`
 	ShortName  string        `json:"short_name"`
@@ -571,15 +495,12 @@ type StickerPackSummary struct {
 	Installed  bool          `json:"installed"`
 }
 
-// StarsTxn is one Telegram Stars transaction on the user's balance:
-// a signed nanostar amount, the counterparty (or the bought product's
-// title), and its state flags.
 type StarsTxn struct {
 	ID          string
-	NanoStars   int64  // signed: positive = received, negative = spent
-	Date        int64  // unix
-	PeerTitle   string // counterparty display name ("" when unresolvable)
-	Title       string // bought-product title (bot transactions)
+	NanoStars   int64
+	Date        int64
+	PeerTitle   string
+	Title       string
 	Description string
 	Refund      bool
 	Pending     bool
@@ -587,44 +508,33 @@ type StarsTxn struct {
 	Gift        bool
 }
 
-// StarsStatus is the user's Telegram Stars balance + transaction
-// history page (payments.getStarsTransactions with Peer=self).
 type StarsStatus struct {
 	BalanceNano int64
 	Txns        []StarsTxn
 	NextOffset  string
 }
 
-// PremiumPlanOption is one Telegram Premium subscription option
-// (help.getPremiumPromo PeriodOptions): duration, price and the payment
-// deep link that opens the subscribe flow.
 type PremiumPlanOption struct {
 	Months             int
-	Currency           string // ISO 4217
-	Amount             int64  // smallest units of Currency
-	BotURL             string // payment deep link
-	StoreProduct       string // official-app store product, if any
-	Current            bool   // the option in use right now
+	Currency           string
+	Amount             int64
+	BotURL             string
+	StoreProduct       string
+	Current            bool
 	CanPurchaseUpgrade bool
 }
 
-// PremiumPromo is the premium promotional state: the server's own
-// subscription-status sentence plus the purchasable plans.
 type PremiumPromo struct {
 	StatusText string
 	Options    []PremiumPlanOption
 }
 
-// TimezoneInfo is one entry of help.getTimezonesList — the business
-// opening-hours timezone picker (id + localized name + UTC offset).
 type TimezoneInfo struct {
 	ID        string
 	Name      string
-	UtcOffset int // seconds
+	UtcOffset int
 }
 
-// QuickReplyInfo is one quick-reply shortcut (messages.getQuickReplies):
-// id, user-visible name, message count and the top message's text.
 type QuickReplyInfo struct {
 	ID         int
 	Name       string
@@ -636,7 +546,7 @@ type AttachMenuBotInfo struct {
 	BotID     int64  `json:"bot_id"`
 	ShortName string `json:"short_name"`
 	Inactive  bool   `json:"inactive"`
-	Username  string `json:"username"` // bot @username — populated for main-menu (drawer) bots
+	Username  string `json:"username"`
 }
 
 type ReportOption struct {
@@ -670,16 +580,15 @@ type WebPagePreviewResult struct {
 }
 
 type StarGiftItem struct {
-	ID        int64  `json:"id"`
-	Stars     int64  `json:"stars"`
-	Title     string `json:"title,omitempty"`
-	Limited   bool   `json:"limited,omitempty"`
-	SoldOut   bool   `json:"sold_out,omitempty"`
-	Birthday  bool   `json:"birthday,omitempty"`
-	Remaining int    `json:"remaining,omitempty"`
-	Total     int    `json:"total,omitempty"`
-	ThumbB64  string `json:"thumb_b64,omitempty"`
-	// Slice 211 additions (gift picker fidelity).
+	ID             int64  `json:"id"`
+	Stars          int64  `json:"stars"`
+	Title          string `json:"title,omitempty"`
+	Limited        bool   `json:"limited,omitempty"`
+	SoldOut        bool   `json:"sold_out,omitempty"`
+	Birthday       bool   `json:"birthday,omitempty"`
+	Remaining      int    `json:"remaining,omitempty"`
+	Total          int    `json:"total,omitempty"`
+	ThumbB64       string `json:"thumb_b64,omitempty"`
 	StickerEmoji   string `json:"sticker_emoji,omitempty"`
 	RequirePremium bool   `json:"require_premium,omitempty"`
 	ConvertStars   int64  `json:"convert_stars,omitempty"`
@@ -698,13 +607,11 @@ type PinnedGiftsResult struct {
 	Gifts []PinnedGiftItem `json:"gifts"`
 }
 
-// ReadState tracks the last-read message positions for the current user and peers.
 type ReadState struct {
 	MyLastRead   string            `json:"my_last_read"`
-	PeerLastRead map[string]string `json:"peer_last_read"` // userID → message ID
+	PeerLastRead map[string]string `json:"peer_last_read"`
 }
 
-// CallSession represents an active or pending voice/video call with its participants.
 type CallSession struct {
 	ID           string            `json:"id"`
 	ChatID       string            `json:"chat_id"`
@@ -712,10 +619,9 @@ type CallSession struct {
 	IsGroup      bool              `json:"is_group"`
 	Participants []CallParticipant `json:"participants"`
 	State        CallState         `json:"state"`
-	Meta         map[string]string `json:"meta,omitempty"` // platform-specific transport info (e.g. livekit_url, livekit_token, room)
+	Meta         map[string]string `json:"meta,omitempty"`
 }
 
-// CallParticipant represents a user in a call with their audio/video state.
 type CallParticipant struct {
 	UserID             string  `json:"user_id"`
 	DisplayName        string  `json:"display_name"`
@@ -733,16 +639,9 @@ type CallParticipant struct {
 	SSRC               int32   `json:"ssrc,omitempty"`
 	LastActive         int64   `json:"last_active,omitempty"`
 	Date               int64   `json:"date,omitempty"`
-	// State is the conference-call row state: "" (a joined participant),
-	// "invited" (invited, not ringing) or "calling" (being rung). Mirrors
-	// AyuGram MembersRow Row::State::{Invited,Calling}.
-	State string `json:"state,omitempty"`
+	State              string  `json:"state,omitempty"`
 }
 
-// Folder represents a named collection of chats for organizing the dialog list.
-// Filter flags (Contacts, Groups, etc.) define type-based inclusion rules;
-// a chat matches the folder if it's in ChatIDs OR matches any active flag.
-// ExcludeChatIDs are always excluded. PinnedChatIDs are shown first.
 type Folder struct {
 	ID              string   `json:"id"`
 	Name            string   `json:"name"`
@@ -766,8 +665,6 @@ type SuggestedFolder struct {
 	Description string `json:"description"`
 }
 
-// PromoSuggestion mirrors help.getPromoData's pending_suggestion entries
-// plus the custom card (slice 171, tdesktop dialogs/suggestions).
 type PromoSuggestion struct {
 	Key         string `json:"key"`
 	Title       string `json:"title"`
@@ -775,22 +672,17 @@ type PromoSuggestion struct {
 	URL         string `json:"url,omitempty"`
 }
 
-// PromoSuggestionsSnapshot is the server's suggestion state.
 type PromoSuggestionsSnapshot struct {
 	Pending []string         `json:"pending"`
 	Custom  *PromoSuggestion `json:"custom,omitempty"`
 }
 
-// BirthdayContact is a contact whose birthday is today (client-side
-// filter over contacts.getContacts user.birthday).
 type BirthdayContact struct {
 	UserID   int64  `json:"user_id"`
 	Name     string `json:"name"`
 	Username string `json:"username,omitempty"`
 }
 
-// SelfSuggestionState is the self-user gating state for the setup
-// suggestions (own birthday / own userpic).
 type SelfSuggestionState struct {
 	PhotoSet        bool `json:"photo_set"`
 	BirthdaySet     bool `json:"birthday_set"`
@@ -805,7 +697,6 @@ type ChatlistInviteLink struct {
 	PeerIDs   []string `json:"peer_ids,omitempty"`
 }
 
-// Session represents an active login session on a device.
 type Session struct {
 	ID              string    `json:"id"`
 	Device          string    `json:"device"`
@@ -822,37 +713,27 @@ type Session struct {
 	OfficialApp     bool      `json:"official_app,omitempty"`
 }
 
-// Update represents a real-time event pushed from the platform to the client.
 type Update struct {
-	Type      UpdateType   `json:"type"`
-	ChatID    string       `json:"chat_id,omitempty"`
-	Message   *Message     `json:"message,omitempty"`
-	MessageID string       `json:"message_id,omitempty"`
-	UserID    string       `json:"user_id,omitempty"`
-	ReadState *ReadState   `json:"read_state,omitempty"`
-	Call      *CallSession `json:"call,omitempty"`
-	IsOnline  *bool        `json:"is_online,omitempty"`
-	// LastSeenKind carries coarse last-seen visibility for user_status updates:
-	// "online", "recently", "within_week", "within_month", "long_ago", "exact", "hidden".
-	// When "exact", LastSeen holds the actual timestamp.
+	Type             UpdateType              `json:"type"`
+	ChatID           string                  `json:"chat_id,omitempty"`
+	Message          *Message                `json:"message,omitempty"`
+	MessageID        string                  `json:"message_id,omitempty"`
+	UserID           string                  `json:"user_id,omitempty"`
+	ReadState        *ReadState              `json:"read_state,omitempty"`
+	Call             *CallSession            `json:"call,omitempty"`
+	IsOnline         *bool                   `json:"is_online,omitempty"`
 	LastSeenKind     string                  `json:"last_seen_kind,omitempty"`
 	LastSeen         *time.Time              `json:"last_seen,omitempty"`
 	Verification     *VerificationInfo       `json:"verification,omitempty"`
-	Action           string                  `json:"action,omitempty"`     // typing action: "typing", "record_video", "upload_photo", etc.
-	ConnState        string                  `json:"conn_state,omitempty"` // "connected", "disconnected", "reconnecting"
+	Action           string                  `json:"action,omitempty"`
+	ConnState        string                  `json:"conn_state,omitempty"`
 	NotifySettings   *NotifySettingsUpdate   `json:"notify_settings,omitempty"`
 	GroupCallMessage *GroupCallMessageUpdate `json:"group_call_message,omitempty"`
-	LoginCode        string                  `json:"login_code,omitempty"` // login_code update: the pushed login code
-	// Transcription carries the voice-message transcription payload for
-	// UpdateTranscription updates.
-	Transcription *TranscriptionUpdate `json:"transcription,omitempty"`
-	Platform      string               `json:"platform"`
+	LoginCode        string                  `json:"login_code,omitempty"`
+	Transcription    *TranscriptionUpdate    `json:"transcription,omitempty"`
+	Platform         string                  `json:"platform"`
 }
 
-// TranscriptionUpdate is the payload of UpdateTranscription: the text (or
-// partial text, while Pending) for one voice message. The same transcription
-// can be delivered more than once as the server refines it — the last write
-// wins, exactly like Telegram Desktop's transcribedText cache.
 type TranscriptionUpdate struct {
 	MessageID       string `json:"message_id"`
 	TranscriptionID int64  `json:"transcription_id,omitempty"`
@@ -860,9 +741,6 @@ type TranscriptionUpdate struct {
 	Text            string `json:"text,omitempty"`
 }
 
-// GroupCallMessageUpdate carries an ephemeral message posted into a group call's
-// message stream (updateGroupCallMessage / updateGroupCallEncryptedMessage).
-// These are NOT permanent chat history; they live only for the call's duration.
 type GroupCallMessageUpdate struct {
 	CallID     string `json:"call_id"`
 	ChatID     string `json:"chat_id,omitempty"`
@@ -876,197 +754,115 @@ type GroupCallMessageUpdate struct {
 	Encrypted  bool   `json:"encrypted,omitempty"`
 }
 
-// NotifySettingsUpdate carries a notification settings change from the server.
 type NotifySettingsUpdate struct {
-	PeerType string `json:"peer_type"` // "user", "group", "channel", or "default_private", "default_group", "default_channel"
-	PeerID   int64  `json:"peer_id,omitempty"`
-	Muted    bool   `json:"muted"`
-	// MuteUntil is the server's timed-mute deadline (Unix seconds, 0 =
-	// muted forever or unmuted) — cross-device sync of "Mute for 1h".
-	MuteUntil int32 `json:"mute_until,omitempty"`
+	PeerType  string `json:"peer_type"`
+	PeerID    int64  `json:"peer_id,omitempty"`
+	Muted     bool   `json:"muted"`
+	MuteUntil int32  `json:"mute_until,omitempty"`
 }
 
-// VerificationInfo represents an interactive device verification event.
 type VerificationInfo struct {
 	TransactionID string   `json:"transaction_id"`
-	State         string   `json:"state"` // "requested", "ready", "show_sas", "done", "cancelled"
+	State         string   `json:"state"`
 	FromUser      string   `json:"from_user,omitempty"`
 	FromDevice    string   `json:"from_device,omitempty"`
-	Emojis        []string `json:"emojis,omitempty"`        // SAS emoji descriptions
-	EmojiSymbols  []string `json:"emoji_symbols,omitempty"` // SAS emoji runes
-	Decimals      []int    `json:"decimals,omitempty"`      // SAS decimal codes
+	Emojis        []string `json:"emojis,omitempty"`
+	EmojiSymbols  []string `json:"emoji_symbols,omitempty"`
+	Decimals      []int    `json:"decimals,omitempty"`
 	CancelCode    string   `json:"cancel_code,omitempty"`
 	CancelReason  string   `json:"cancel_reason,omitempty"`
 }
 
-// --- Core Interface ---
-
-// Core is the contract that every messaging platform must implement.
-// The frontend programs against this interface exclusively.
 type Core interface {
-	// Name returns the platform identifier (e.g. "telegram", "bale").
 	Name() string
-	// Capabilities returns the list of feature capability strings this core supports.
 	Capabilities() []string
 
-	// Authenticate logs into the platform using the provided credentials.
 	Authenticate(cfg AuthConfig) error
-	// Logout terminates the current session and clears stored credentials.
 	Logout() error
 
-	// GetDialogs returns a paginated list of conversations.
 	GetDialogs(opts PaginationOpts) ([]Dialog, error)
-	// CreateGroup creates a new group chat with the given members.
 	CreateGroup(name string, members []string) (*Dialog, error)
-	// CreateChannel creates a new broadcast channel with a name and description.
 	CreateChannel(name string, description string) (*Dialog, error)
-	// CreateTopic creates a new topic thread inside a group or channel.
 	CreateTopic(chatID string, name string) (*Dialog, error)
-	// GetFolders returns all chat folders for the current user.
 	GetFolders() ([]Folder, error)
-	// CreateFolder creates a new chat folder containing the specified chats.
 	CreateFolder(name string, chatIDs []string) (*Folder, error)
 
-	// SendMessage sends a message to the specified chat.
 	SendMessage(chatID string, msg OutgoingMessage) (*Message, error)
-	// GetMessages returns a paginated list of messages from a chat.
 	GetMessages(chatID string, opts PaginationOpts) ([]Message, error)
-	// EditMessage modifies the text of an existing message.
 	EditMessage(chatID string, msgID string, text string) (*Message, error)
-	// DeleteMessage removes a message from a chat.
 	DeleteMessage(chatID string, msgID string) error
-	// ReplyToMessage sends a message as a reply to an existing message.
 	ReplyToMessage(chatID string, replyToMsgID string, msg OutgoingMessage) (*Message, error)
-	// ForwardMessage forwards a message from one chat to another.
 	ForwardMessage(fromChatID string, msgID string, toChatID string) (*Message, error)
-	// ReactToMessage adds or changes an emoji reaction on a message.
 	ReactToMessage(chatID string, msgID string, emoji string) error
-	// PinMessage pins a message in a chat.
 	PinMessage(chatID string, msgID string) error
-	// UnpinMessage unpins a previously pinned message.
 	UnpinMessage(chatID string, msgID string) error
 
-	// MarkAsRead marks all messages up to the given ID as read.
 	MarkAsRead(chatID string, upToMsgID string) error
-	// GetReadState returns the read-state positions for a chat.
 	GetReadState(chatID string) (*ReadState, error)
 
-	// UploadFile uploads a file to a chat, reporting progress via callback.
 	UploadFile(chatID string, file FileUpload, progress func(sent, total int64)) (*Message, error)
-	// DownloadFile downloads a file to the given destination path, reporting progress via callback.
 	DownloadFile(fileRef FileRef, dest string, progress func(recv, total int64)) error
 
-	// SendImageBase64 sends a base64-encoded image with an optional caption.
 	SendImageBase64(chatID string, b64 string, caption string) (*Message, error)
 
-	// StartCall initiates a voice or video call in the specified chat.
 	StartCall(chatID string, video bool) (*CallSession, error)
-	// JoinGroupCall joins an ongoing group call in the specified chat.
 	JoinGroupCall(chatID string) (*CallSession, error)
-	// EndCall terminates an active call.
 	EndCall(callID string) error
-	// SetCallMuted mutes or unmutes the local microphone in a call.
 	SetCallMuted(callID string, muted bool) error
-	// ToggleCamera enables or disables the camera in a call.
 	ToggleCamera(callID string, enabled bool) error
 
-	// GetProfile returns the profile information for a user.
 	GetProfile(userID string) (*User, error)
 
-	// OnUpdate registers a handler that receives real-time platform events.
 	OnUpdate(handler func(Update))
-	// Close disconnects from the platform and releases all resources.
 	Close() error
 
-	// --- Unified chat management ---
-
-	// GetChatInfo returns detailed information about a chat.
 	GetChatInfo(chatID string) (*Dialog, error)
-	// EditChatTitle changes the title of a group or channel.
 	EditChatTitle(chatID string, title string) error
-	// EditChatDescription changes the description of a group or channel.
 	EditChatDescription(chatID string, description string) error
-	// LeaveChat removes the current user from a chat.
 	LeaveChat(chatID string) error
-	// GetInviteLink returns or generates an invite link for a chat.
 	GetInviteLink(chatID string) (string, error)
 
-	// AddMembers adds users to a group or channel.
 	AddMembers(chatID string, userIDs []string) error
-	// RemoveMember removes a user from a group or channel.
 	RemoveMember(chatID string, userID string) error
-	// BanMember bans a user from a group or channel.
 	BanMember(chatID string, userID string) error
-	// UnbanMember lifts a ban on a user in a group or channel.
 	UnbanMember(chatID string, userID string) error
-	// GetMembers returns a paginated list of members in a chat.
 	GetMembers(chatID string, opts PaginationOpts) ([]User, error)
-	// SetAdmin grants or revokes admin privileges for a user in a chat.
 	SetAdmin(chatID string, userID string, admin bool) error
 
-	// GetContacts returns the current user's contact list.
 	GetContacts() ([]User, error)
-	// AddContact adds a new contact by phone number and name.
 	AddContact(phone string, firstName string, lastName string) error
-	// DeleteContact removes a user from the contact list.
 	DeleteContact(userID string) error
-	// BlockUser blocks a user, preventing them from sending messages.
 	BlockUser(userID string) error
-	// UnblockUser unblocks a previously blocked user.
 	UnblockUser(userID string) error
-	// GetBlockedUsers returns the list of blocked users.
 	GetBlockedUsers() ([]User, error)
 
-	// SearchMessages searches for messages matching a query within a chat.
 	SearchMessages(chatID string, query string, opts PaginationOpts) ([]Message, error)
-	// SearchGlobal searches for chats matching a query across all conversations.
 	SearchGlobal(query string, opts PaginationOpts) ([]Dialog, error)
 
-	// SendTyping sends a typing indicator to a chat.
 	SendTyping(chatID string) error
 
-	// CreatePoll creates a poll message with a question and answer options.
 	CreatePoll(chatID string, question string, options []string) (*Message, error)
-	// VotePoll casts a vote on a poll by selecting an option index.
 	VotePoll(chatID string, msgID string, optionIndex int) error
 
-	// SendSticker sends a sticker by its platform-specific ID.
 	SendSticker(chatID string, stickerID string) (*Message, error)
 
-	// GetSessions returns all active login sessions for the current user.
 	GetSessions() ([]Session, error)
-	// TerminateSession ends a specific login session by its ID.
 	TerminateSession(sessionID string) error
 
-	// MuteChat enables or disables notifications for a chat.
 	MuteChat(chatID string, muted bool) error
-	// ArchiveChat moves a chat into or out of the archive.
 	ArchiveChat(chatID string, archived bool) error
-	// MarkUnread marks or unmarks a chat as unread.
 	MarkUnread(chatID string, unread bool) error
-	// UnpinAllMessages unpins every pinned message in a chat.
 	UnpinAllMessages(chatID string) error
 
-	// AcceptCall accepts an incoming call and returns the call session.
 	AcceptCall(callID string) (*CallSession, error)
-	// DeclineCall rejects an incoming call.
 	DeclineCall(callID string) error
 
-	// SendLocation sends a geographic location as a message.
 	SendLocation(chatID string, lat float64, lon float64) (*Message, error)
 }
 
-// VoiceCore is the engine-side surface of a live-voice backend
-// (Mumble, TeamSpeak): the engine drives the shared audio pipeline —
-// microphone frames in, Opus packets out, remote Opus in, decoded
-// mixed audio to the speaker — while the core owns the wire protocol.
 type VoiceCore interface {
-	// SendVoiceFrame sends one 20 ms Opus packet to the current channel.
 	SendVoiceFrame(opus []byte) error
-	// OnVoiceFrame registers the receiver for remote voice: one Opus
-	// packet per callback, attributed to the sender's platform user ID.
 	OnVoiceFrame(handler func(sender string, opus []byte))
-	// SetVoiceMuted toggles server-side self-mute for voice.
 	SetVoiceMuted(muted bool) error
 }
 
@@ -1093,13 +889,10 @@ type ForwardWithOptionsSupporter interface {
 	ForwardMessageWithOptions(fromChatID, msgID, toChatID string, opts ForwardOptions) (*Message, error)
 }
 
-// RevokableMessageDeleter deletes a message with an explicit "delete for
-// everyone" (revoke) flag, instead of the platform's default delete semantics.
 type RevokableMessageDeleter interface {
 	DeleteMessageRevoke(chatID, msgID string, revoke bool) error
 }
 
-// UploadOptions provides extra control over media uploads for the resend pipeline.
 type UploadOptions struct {
 	Caption         string
 	CaptionEntities string
@@ -1121,32 +914,22 @@ type UploadOptions struct {
 	Price           int64
 }
 
-// UploadWithOptionsSupporter allows uploading files with extra metadata.
 type UploadWithOptionsSupporter interface {
 	UploadFileWithOptions(chatID string, file FileUpload, opts UploadOptions, progress func(sent, total int64)) (*Message, error)
 }
 
-// AlbumItem represents one item in a media album for batch sending.
 type AlbumItem struct {
 	Upload  FileUpload
 	Caption string
 	IsPhoto bool
 }
 
-// MediaAlbumSender can send multiple media items as a single album message.
 type MediaAlbumSender interface {
 	SendMediaAlbum(chatID string, items []AlbumItem, silent bool, scheduleDate int64) ([]*Message, error)
 }
 
-// downloadCeiling is the hard cap for a single download written to
-// disk — the disk-side twin of matrixMediaMaxBytes (F-53): a hostile
-// server or a lying Content-Length streamed forever and filled the
-// volume (F-72). Package-level so tests shrink it.
 var downloadCeiling int64 = 512 * 1024 * 1024
 
-// boundedCopy copies src → dst but stops at max+1 bytes and fails with
-// ErrFileTooLarge when the stream tried to exceed max. Returns the
-// bytes actually copied (≤ max+1).
 func boundedCopy(dst io.Writer, src io.Reader, max int64) (int64, error) {
 	n, err := io.Copy(dst, io.LimitReader(src, max+1))
 	if n > max {
@@ -1155,19 +938,10 @@ func boundedCopy(dst io.Writer, src io.Reader, max int64) (int64, error) {
 	return n, err
 }
 
-// apiBodyCeiling bounds one API/metadata response body read fully into
-// memory (F-75): a hostile server streaming an endless body OOM'd the
-// client because every core did a bare io.ReadAll/Decode on
-// resp.Body. Package-level so tests shrink it.
-var apiBodyCeiling int64 = 64 << 20 // 64 MiB — generous for any legit API page
+var apiBodyCeiling int64 = 64 << 20
 
-// ErrBodyTooLarge is returned when a response body exceeds apiBodyCeiling.
 var ErrBodyTooLarge = errors.New("response body exceeds ceiling")
 
-// readBodyCapped reads r fully but fails with ErrBodyTooLarge when the
-// stream tried to exceed max (F-53 cap+1 pattern: exactly-max passes).
-// On overflow the partial buffer is DISCARDED — a truncated value must
-// never be parsed as a real one.
 func readBodyCapped(r io.Reader, max int64) ([]byte, error) {
 	data, err := io.ReadAll(io.LimitReader(r, max+1))
 	if err != nil {
@@ -1179,9 +953,6 @@ func readBodyCapped(r io.Reader, max int64) ([]byte, error) {
 	return data, nil
 }
 
-// decodeJSONBody reads a bounded JSON response body and unmarshals it.
-// Streaming json.Decoder is the same memory risk as ReadAll: it buffers
-// the whole value before returning it — the ceiling must sit in front.
 func decodeJSONBody(r io.Reader, v any) error {
 	data, err := readBodyCapped(r, apiBodyCeiling)
 	if err != nil {
@@ -1190,18 +961,8 @@ func decodeJSONBody(r io.Reader, v any) error {
 	return json.Unmarshal(data, v)
 }
 
-// apiHTTPClient bounds metadata/discovery fetches (host-meta,
-// .well-known, BOSH init, server lists). http.Get/http.Post used
-// http.DefaultClient — Timeout 0 — so a stalling server hung the fetch
-// forever (F-76; the slice-285 audit only counted explicit
-// http.Client{…} constructions and missed the package helpers).
 var apiHTTPClient = &http.Client{Timeout: 30 * time.Second}
 
-// transferHTTPClient bounds HTTP upload/download REQUESTS: full-body
-// Timeout would kill large transfers (F-72 caps the BYTES instead), so
-// only the header wait is bounded — a server that accepts the socket
-// and then never answers headers cannot hang the transfer. The body
-// phase stays cancellable via the core context.
 var transferHTTPClient = &http.Client{
 	Transport: newTransferTransport(),
 }

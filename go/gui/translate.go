@@ -10,17 +10,6 @@ import (
 	"uniclient/engine"
 )
 
-// Ayu translator (AyuGram parity, matrix "Ayu translator"): the message
-// context menu gains Translate — the message text goes through the engine's
-// translation pipeline (Telegram MT translate via TranslateFreeText, falling
-// back to the message-bound TranslateText when the core lacks free-text
-// support) and the result renders as an italic block under the bubble body.
-// The menu entry toggles to "Hide translation" while one is shown.
-
-// translateTargetOf returns the effective target language for a
-// per-message translation (the persisted chat-wide target, slice 150;
-// English default — AyuGram's app-language default lands with the
-// language switch).
 func (a *App) translateTargetOf() string {
 	a.mu.Lock()
 	t := a.transTarget
@@ -31,13 +20,10 @@ func (a *App) translateTargetOf() string {
 	return t
 }
 
-// transKey identifies one message's shown translation.
 func transKey(m *engine.CachedMessage) string {
 	return m.AccountID + "|" + m.ChatID + "|" + m.MsgID
 }
 
-// toggleTranslation shows or hides (and lazily fetches) a message's
-// translation. Errors surface as toasts (unsupported platforms say so).
 func (a *App) toggleTranslation(m *engine.CachedMessage) {
 	if m == nil {
 		return
@@ -74,7 +60,6 @@ func (a *App) toggleTranslation(m *engine.CachedMessage) {
 	}()
 }
 
-// translationFor returns the shown translation for a message ("" when none).
 func (a *App) translationFor(m *engine.CachedMessage) (string, bool) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -82,8 +67,6 @@ func (a *App) translationFor(m *engine.CachedMessage) (string, bool) {
 	return t, ok
 }
 
-// translationBlock renders the translated text under the bubble body:
-// a "Translated" caption + the italic text (AyuGram inline layout).
 func (a *App) translationBlock(gtx layout.Context, m *engine.CachedMessage) layout.Dimensions {
 	t, ok := a.translationFor(m)
 	if !ok || t == "" {

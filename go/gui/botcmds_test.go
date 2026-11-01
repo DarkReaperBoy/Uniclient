@@ -6,16 +6,11 @@ import (
 	"uniclient/engine"
 )
 
-// Bot commands menu (AyuGram parity slice 76): the a.wid.composer's "/" button
-// lists the chat's bot commands (engine.GetChatBotCommands); tapping one
-// inserts it. Pure derivations locked here.
-
 func TestBotCmdTitle(t *testing.T) {
 	c := engine.BotCommandInfo{Command: "start", Description: "Start the bot"}
 	if got := botCmdTitle(c); got != "/start" {
 		t.Fatalf("title = %q, want /start", got)
 	}
-	// Commands sometimes come with the slash already — never doubled.
 	c.Command = "/help"
 	if got := botCmdTitle(c); got != "/help" {
 		t.Fatalf("title = %q, want /help", got)
@@ -38,8 +33,6 @@ func TestBotCmdSub(t *testing.T) {
 }
 
 func TestBotCmdPanelNeeded(t *testing.T) {
-	// The "/" button only appears for chats that actually have commands —
-	// an empty panel would be a dead button (AGENTS.md §1.10).
 	if botCmdPanelNeeded(nil) {
 		t.Fatal("no commands: no button")
 	}

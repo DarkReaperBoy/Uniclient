@@ -1,19 +1,11 @@
 package engine
 
-// Folder export/import (AyuGram "import filters", matrix row 67's missing
-// half, slice 94): the account's dialog folders serialize to a compact
-// JSON blob (clipboard-sized) and re-import on any account — sharing
-// folder setups without the server-side chatlist invite flow. The pure
-// encode/parse halves are locked by tests; chat IDs are account-local
-// peer IDs, which are stable across accounts for users/groups you share.
-
 import (
 	"encoding/json"
 	"fmt"
 	"strings"
 )
 
-// folderExport is one folder in the export blob.
 type folderExport struct {
 	Name         string   `json:"name"`
 	Emoticon     string   `json:"emoticon,omitempty"`
@@ -31,7 +23,6 @@ type folderExport struct {
 	IsChatList   bool     `json:"is_chat_list,omitempty"`
 }
 
-// foldersExportEnvelope guards against pasting random JSON.
 type foldersExportEnvelope struct {
 	Version int            `json:"uniclient_folders"`
 	Folders []folderExport `json:"folders"`
@@ -39,7 +30,6 @@ type foldersExportEnvelope struct {
 
 const foldersExportVersion = 1
 
-// foldersToExport maps engine folders to the export shape. Pure.
 func foldersToExport(fs []FolderInfo) []folderExport {
 	out := make([]folderExport, 0, len(fs))
 	for _, f := range fs {
@@ -63,7 +53,6 @@ func foldersToExport(fs []FolderInfo) []folderExport {
 	return out
 }
 
-// encodeFoldersExport builds the export blob. Pure.
 func encodeFoldersExport(fs []FolderInfo) (string, error) {
 	env := foldersExportEnvelope{Version: foldersExportVersion, Folders: foldersToExport(fs)}
 	b, err := json.MarshalIndent(env, "", " ")
@@ -73,7 +62,6 @@ func encodeFoldersExport(fs []FolderInfo) (string, error) {
 	return string(b), nil
 }
 
-// parseFoldersExport validates and decodes an export blob. Pure.
 func parseFoldersExport(data string) ([]folderExport, error) {
 	data = strings.TrimSpace(data)
 	if data == "" {
@@ -97,7 +85,6 @@ func parseFoldersExport(data string) ([]folderExport, error) {
 	return env.Folders, nil
 }
 
-// exportToOpts converts one export entry to create options. Pure.
 func exportToOpts(f folderExport) *CreateFolderOpts {
 	return &CreateFolderOpts{
 		Contacts:        f.Contacts,
@@ -115,7 +102,6 @@ func exportToOpts(f folderExport) *CreateFolderOpts {
 	}
 }
 
-// ExportFoldersJSON serializes the account's folders for sharing.
 func (e *Engine) ExportFoldersJSON(accountID string) (string, error) {
 	folders, err := e.GetFolders(accountID)
 	if err != nil {
@@ -127,9 +113,6 @@ func (e *Engine) ExportFoldersJSON(accountID string) (string, error) {
 	return encodeFoldersExport(folders)
 }
 
-// ImportFoldersJSON imports previously exported folders, skipping names
-// that already exist (re-import is a no-op, not a duplicate). Returns
-// the number created.
 func (e *Engine) ImportFoldersJSON(accountID, data string) (int, error) {
 	entries, err := parseFoldersExport(data)
 	if err != nil {

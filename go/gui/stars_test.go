@@ -1,17 +1,11 @@
 package gui
 
-// stars_test.go — slice 144 (tests-first): the pure halves of the Stars
-// page — nanostar→display formatting, amount labels, row titles and
-// filter tabs.
-
 import (
 	"testing"
 
 	"uniclient/cores"
 )
 
-// TestFormatStars: nanostars render as trimmed decimals — whole stars
-// without a separator, fractional with trailing zeros trimmed.
 func TestFormatStars(t *testing.T) {
 	cases := []struct {
 		nano int64
@@ -32,8 +26,6 @@ func TestFormatStars(t *testing.T) {
 	}
 }
 
-// TestStarsTxnAmountLabel: incoming amounts get a +, spending keeps the
-// minus, refunds say refunded.
 func TestStarsTxnAmountLabel(t *testing.T) {
 	cases := []struct {
 		txn  cores.StarsTxn
@@ -51,8 +43,6 @@ func TestStarsTxnAmountLabel(t *testing.T) {
 	}
 }
 
-// TestStarsTxnTitle: the row title's priority — product title first,
-// then the counterparty's name, then the honest fallback.
 func TestStarsTxnTitle(t *testing.T) {
 	cases := []struct {
 		txn  cores.StarsTxn
@@ -69,8 +59,6 @@ func TestStarsTxnTitle(t *testing.T) {
 	}
 }
 
-// TestStarsTxnStatusChip: refund/pending/failed pick their chip label,
-// plain transactions have none.
 func TestStarsTxnStatusChip(t *testing.T) {
 	if got := starsTxnStatusChip(cores.StarsTxn{Refund: true}); got != "Refunded" {
 		t.Fatalf("refund chip = %q", got)
@@ -86,7 +74,6 @@ func TestStarsTxnStatusChip(t *testing.T) {
 	}
 }
 
-// TestStarsFilterTabs: the filter tabs and their wire flags.
 func TestStarsFilterTabs(t *testing.T) {
 	tabs := starsFilterTabs()
 	if len(tabs) != 3 {

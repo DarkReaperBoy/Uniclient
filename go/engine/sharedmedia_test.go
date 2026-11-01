@@ -2,9 +2,6 @@ package engine
 
 import "testing"
 
-// Shared-media tab filters (engine/cache_msgs.go GetSharedMedia) and link
-// extraction (profile Links tab) — pure helpers, tested before wiring.
-
 func TestSharedMediaTypeFilter(t *testing.T) {
 	cases := []struct {
 		in, want string
@@ -44,9 +41,6 @@ func TestExtractFirstURL(t *testing.T) {
 	}
 }
 
-// GetSharedLinks + the gif/voice sub-tabs: DB-backed, seeded like the
-// hide/poll tests (in-memory sqlite, migrateDB).
-
 func seedSharedMsg(t *testing.T, e *Engine, msgID, text, sender string, ts int64) {
 	t.Helper()
 	_, err := e.db.Exec(
@@ -81,7 +75,6 @@ func TestGetSharedLinks(t *testing.T) {
 	if len(items) != 3 {
 		t.Fatalf("links = %d items, want 3", len(items))
 	}
-	// Newest first.
 	if items[0].MsgID != "m4" || items[0].URL != "tg://join?invite=zz" {
 		t.Errorf("newest link = %+v, want m4 tg://join?invite=zz", items[0])
 	}
@@ -95,8 +88,6 @@ func TestGetSharedLinks(t *testing.T) {
 
 func TestGetSharedMediaSubTabs(t *testing.T) {
 	e := newTestEngine(t)
-	// One message per distinct media kind; the gif/voice tabs must isolate
-	// their kinds from the umbrella image/audio tabs.
 	seedSharedMsg(t, e, "g1", "gif", "", 1000)
 	seedSharedMedia(t, e, "g1", MediaGIF)
 	seedSharedMsg(t, e, "i1", "img", "", 2000)

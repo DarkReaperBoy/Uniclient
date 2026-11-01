@@ -1,29 +1,5 @@
 package h264vid
 
-// tests-first for slice 229 — playing video WITHOUT a fully downloaded
-// file (parity row 281). The demuxer this package was built on
-// (`govid/mp4`) is payload-hungry TWICE over: DecodeFile reads 100% of
-// the file at construction (empirically measured: mdat is read through,
-// zero seeks) and the index pass walks every packet's payload. Neither
-// can ever sit on a fetch-on-read stream.
-//
-// So the container handling moves to mp4ff's lazy mode
-// (`DecModeLazyMdat` — seeks over mdat) plus a table-driven packet
-// pump that reads each sample's payload only when asked. What these
-// tests pin, in order of importance:
-//
-//  1. pixel-identity — decode over the lazy path still produces the
-//     ffmpeg-pinned sha256 (so a row-281 playback draws EXACTLY what
-//     the downloaded file draws);
-//  2. index identity — Parse and ParseSeek produce identical timelines;
-//  3. packet identity — the pump's packets are byte-for-byte govid
-//     Demuxer's packets (Data, Timestamp, Keyframe), which is what
-//     makes (1) expected rather than lucky;
-//  4. the budget — ParseSeek reads only headers+moov (< 25% of the
-//     file), a GOP resume reads ZERO payload before the keyframe, and
-//     one pump step reads exactly that sample's range. These three
-//     numbers ARE row 281's "playback without full download".
-
 import (
 	"bytes"
 	"crypto/sha256"
@@ -35,8 +11,6 @@ import (
 	govidmp4 "github.com/liqmix/govid/mp4"
 )
 
-// countingSource counts every byte the parser or pump actually pulls.
-// Seeks are free — a stream's Seek fetches nothing.
 type countingSource struct {
 	rs   *bytes.Reader
 	read int64
@@ -62,10 +36,6 @@ func (c *countingSource) ReadAt(p []byte, off int64) (int, error) {
 	return n, err
 }
 
-// TestParseSeekDecodesToFFmpegPin is the pixel-identity pin: the lazy
-// (payload-skipping) parse path must decode to the SAME sha256 ffmpeg
-// produced — i.e. streaming playback draws what the full download
-// draws, frame for frame.
 func TestParseSeekDecodesToFFmpegPin(t *testing.T) {
 	for _, c := range []struct{ file, want string }{
 		{"round_video.mp4", roundVideoSHA256},
@@ -95,8 +65,6 @@ func TestParseSeekDecodesToFFmpegPin(t *testing.T) {
 	}
 }
 
-// TestParseSeekTimelineEqualsParse: every timeline field identical
-// between the byte path and the lazy/seeker path.
 func TestParseSeekTimelineEqualsParse(t *testing.T) {
 	for _, file := range []string{"round_video.mp4", "high_bframes.mp4"} {
 		t.Run(file, func(t *testing.T) {
@@ -141,11 +109,6 @@ func TestParseSeekTimelineEqualsParse(t *testing.T) {
 	}
 }
 
-// TestPacketPumpMatchesGovidDemuxer: byte-for-byte packet identity
-// against the demuxer this package used before the refactor — Data,
-// Timestamp and Keyframe for every sample of both fixtures. This is
-// what makes the pixel pin above expected: the decoder is fed exactly
-// the bytes it was fed before.
 func TestPacketPumpMatchesGovidDemuxer(t *testing.T) {
 	for _, file := range []string{"round_video.mp4", "high_bframes.mp4"} {
 		t.Run(file, func(t *testing.T) {
@@ -164,7 +127,6 @@ func TestPacketPumpMatchesGovidDemuxer(t *testing.T) {
 			for i := 0; ; i++ {
 				want, werr := d.NextPacket()
 				if werr == io.EOF {
-					// My pump must end at the same place.
 					if _, err := p.next(); err != io.EOF {
 						t.Fatalf("pump step %d: err=%v after govid EOF", i, err)
 					}
@@ -195,9 +157,6 @@ func TestPacketPumpMatchesGovidDemuxer(t *testing.T) {
 	}
 }
 
-// TestParseSeekReadsNoPayload: the parse must touch only headers and
-// moov — for round_video that is ~950 bytes of 11 926 (mdat is 11 027
-// and sits BEFORE moov, so a payload-hungry parse reads ~100%).
 func TestParseSeekReadsNoPayload(t *testing.T) {
 	for _, file := range []string{"round_video.mp4", "high_bframes.mp4"} {
 		t.Run(file, func(t *testing.T) {
@@ -217,10 +176,6 @@ func TestParseSeekReadsNoPayload(t *testing.T) {
 	}
 }
 
-// TestGopResumeReadsNoPayload: positioning a decode pass at a later
-// keyframe must fetch ZERO bytes before it (the old demuxer read and
-// discarded every skipped sample's payload). One pump step then reads
-// exactly that sample's range — no more, no less.
 func TestGopResumeReadsNoPayload(t *testing.T) {
 	data := fixture(t, "round_video.mp4")
 	c := newCountingSource(data)
@@ -233,7 +188,7 @@ func TestGopResumeReadsNoPayload(t *testing.T) {
 	}
 	afterParse := c.read
 
-	resume := v.syncs[1].sample // the SECOND keyframe
+	resume := v.syncs[1].sample
 	p := v.packetSrc()
 	p.skip(resume - 1)
 	if c.read != afterParse {
@@ -245,8 +200,6 @@ func TestGopResumeReadsNoPayload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first packet after resume: %v", err)
 	}
-	// Exactly the resumed sample's payload — not one byte of the ones
-	// before it.
 	wantRange := v.moov.ranges[wantSample-1]
 	got := c.read - afterParse
 	if got != int64(wantRange.Size) {

@@ -11,10 +11,9 @@ import (
 	"uniclient/engine"
 )
 
-// Voice mode widgets.
 var (
 	voiceList  widget.List
-	voiceCalls widget.List // recent-calls list (slice 64)
+	voiceCalls widget.List
 )
 
 func init() {
@@ -22,13 +21,7 @@ func init() {
 	voiceCalls.Axis = layout.Vertical
 }
 
-// layoutVoice: the second GUI mode — voice-chat backends surface here.
-// Renders ONLY real engine state: chats with active calls, plus the
-// recent-calls history (slice 64) from engine.GetCallHistory. When both
-// are empty, an honest empty state — no promises, no placeholders
-// (AGENTS.md §7).
 func (a *App) layoutVoice(gtx layout.Context, f frame) layout.Dimensions {
-	// Joined group call (slice 102): the tab becomes the call screen.
 	if f.joinedGC != nil {
 		return a.layoutGroupCallScreen(gtx, f)
 	}
@@ -76,7 +69,6 @@ func (a *App) layoutVoice(gtx layout.Context, f frame) layout.Dimensions {
 	)
 }
 
-// activeCallsSection renders the live group-call rows (or nothing).
 func activeCallsSection(gtx layout.Context, a *App, f frame, active []engine.ChatInfo) layout.FlexChild {
 	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		var children []layout.FlexChild
@@ -95,7 +87,6 @@ func activeCallsSection(gtx layout.Context, a *App, f frame, active []engine.Cha
 	})
 }
 
-// recentCallsSection renders the per-account call history (slice 64).
 func recentCallsSection(gtx layout.Context, a *App, f frame) layout.FlexChild {
 	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		if !f.callsLoaded {
@@ -137,8 +128,6 @@ func recentCallsSection(gtx layout.Context, a *App, f frame) layout.FlexChild {
 	})
 }
 
-// hasRecentCalls reports whether any account loaded at least one history
-// entry (slice 64).
 func (a *App) hasRecentCalls(f frame) bool {
 	for _, entries := range f.callsList {
 		if len(entries) > 0 {
@@ -148,7 +137,6 @@ func (a *App) hasRecentCalls(f frame) bool {
 	return false
 }
 
-// callLabel renders one entry's direction/type line (slice 64).
 func callLabel(e engine.CallHistoryEntry) string {
 	switch {
 	case e.IsMissed && e.IsOutgoing:
@@ -169,8 +157,6 @@ func videoSuffix(e engine.CallHistoryEntry) string {
 	return ""
 }
 
-// callStamp renders the entry time: time-of-day for today, day+time for
-// older calls (slice 64). Timestamps are unix seconds.
 func callStamp(ts int64, now time.Time) string {
 	if ts <= 0 {
 		return ""
@@ -182,7 +168,6 @@ func callStamp(ts int64, now time.Time) string {
 	return t.Format("2 Jan · 15:04")
 }
 
-// callSub assembles the row's secondary line: label · duration · time.
 func callSub(e engine.CallHistoryEntry, now time.Time) string {
 	sub := callLabel(e)
 	if !e.IsMissed && e.Duration > 0 {
@@ -194,9 +179,6 @@ func callSub(e engine.CallHistoryEntry, now time.Time) string {
 	return sub
 }
 
-// callRow: one recent-call row (slice 64). Tapping opens the peer's chat
-// when it exists in the loaded list; the missed state tints the label red
-// like AyuGram's calls list.
 func (a *App) callRow(gtx layout.Context, f frame, accountID string, e engine.CallHistoryEntry) layout.Dimensions {
 	if a.callRowBtn(e).Clicked(gtx) {
 		if chat, ok := findChatByPeer(f, accountID, e.PeerID); ok {
@@ -258,7 +240,6 @@ func (a *App) callRow(gtx layout.Context, f frame, accountID string, e engine.Ca
 	})
 }
 
-// findChatByPeer resolves a call's peer to a loaded chat (slice 64).
 func findChatByPeer(f frame, accountID, peerID string) (engine.ChatInfo, bool) {
 	for _, c := range f.chats {
 		if c.AccountID == accountID && c.ChatID == peerID {
@@ -267,9 +248,6 @@ func findChatByPeer(f frame, accountID, peerID string) (engine.ChatInfo, bool) {
 	}
 	return engine.ChatInfo{}, false
 }
-
-// a.wid.callBtnPool keyed by "acct/msg" keeps one clickable per rendered call
-// row without a per-entry allocation in the frame snapshot.
 
 func (a *App) callRowBtn(e engine.CallHistoryEntry) *widget.Clickable {
 	key := e.PeerID + "/" + e.MsgID
@@ -294,9 +272,6 @@ func chatsWithCalls(f frame) []engine.ChatInfo {
 	return out
 }
 
-// voiceRow: one active-call row (slice 102: JOIN is a real action now that
-// the group-call screen exists — join, poll, and the call screen replaces
-// the tab).
 func (a *App) voiceRow(gtx layout.Context, f frame, c engine.ChatInfo) layout.Dimensions {
 	if btn := a.gcRowJoinBtnFor(c.ChatID); btn.Clicked(gtx) {
 		a.joinGroupCallFromVoice(c)
@@ -323,7 +298,6 @@ func (a *App) voiceRow(gtx layout.Context, f frame, c engine.ChatInfo) layout.Di
 							}),
 						)
 					}),
-					// JOIN (slice 102): real engine join → the call screen.
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						btn := a.ui.PrimaryButton(a.gcRowJoinBtnFor(c.ChatID), "JOIN")
 						return btn.Layout(gtx)

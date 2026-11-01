@@ -1,14 +1,5 @@
 package gui
 
-// foldermgr.go — slice 142: the Chat Folders manager (tdesktop's
-// Settings → Chat settings → "Filter chats" box). Lists the account's
-// folders with edit / reorder / delete, a create row, and the server's
-// suggested folders (messages.getSuggestedFilters surfaced through
-// engine.GetSuggestedFolders) — tapping a suggestion seeds the standard
-// folder editor with its rules, exactly tdesktop's suggested-filter
-// flow. Everything rides the existing engine folder CRUD; cores without
-// folders render the honest empty state.
-
 import (
 	"strconv"
 
@@ -21,9 +12,6 @@ import (
 	"uniclient/engine"
 )
 
-// ── pure helpers (unit-tested) ─────────────────────────────────────────────
-
-// folderMgrChatsLabel: the folder row's chat-count subtitle. Pure.
 func folderMgrChatsLabel(n int) string {
 	if n == 1 {
 		return "1 chat"
@@ -31,8 +19,6 @@ func folderMgrChatsLabel(n int) string {
 	return itoa(n) + " chats"
 }
 
-// folderSuggestsVisible hides suggestions whose name already exists as
-// a folder (tdesktop hides created suggestions). Pure.
 func folderSuggestsVisible(sug []engine.SuggestedFolderInfo, folders []engine.FolderInfo) []engine.SuggestedFolderInfo {
 	have := make(map[string]bool, len(folders))
 	for _, f := range folders {
@@ -47,8 +33,6 @@ func folderSuggestsVisible(sug []engine.SuggestedFolderInfo, folders []engine.Fo
 	return out
 }
 
-// swapFolderIDs swaps row idx with its neighbour in the delta direction,
-// clamped at the ends; the input slice is never mutated. Pure.
 func swapFolderIDs(ids []string, idx, delta int) []string {
 	out := make([]string, len(ids))
 	copy(out, ids)
@@ -60,9 +44,6 @@ func swapFolderIDs(ids []string, idx, delta int) []string {
 	return out
 }
 
-// ── state ──────────────────────────────────────────────────────────────────
-
-// folderMgrState is the open Folders manager sub-page.
 type folderMgrState struct {
 	accountID string
 	loading   bool
@@ -74,7 +55,7 @@ type folderMgrState struct {
 }
 
 var (
-	folderMgrOpenBtn   widget.Clickable // Settings → Main entry card
+	folderMgrOpenBtn   widget.Clickable
 	folderMgrBackBtn   widget.Clickable
 	folderMgrReloadBtn widget.Clickable
 	folderMgrNewBtn    widget.Clickable
@@ -83,17 +64,10 @@ var (
 	folderMgrUpBtns   []widget.Clickable
 	folderMgrDownBtns []widget.Clickable
 	folderMgrDelBtns  []widget.Clickable
-	folderMgrSugBtns  []widget.Clickable // suggested rows
+	folderMgrSugBtns  []widget.Clickable
 	folderMgrAcctBtns []widget.Clickable
 )
 
-// updateFolderMgr applies fn to a COPY of the live Folders manager state
-// and installs the copy under a.mu — R34's copy-on-write contract (R39,
-// the third sibling swept): the struct a frame holds stays immutable for
-// that frame's life, so the load tail cannot write-race the layout's
-// field reads. fn re-validates staleness itself (accountID match); false
-// aborts the install. Returns the installed copy, or nil when the page
-// is closed / fn aborted.
 func (a *App) updateFolderMgr(fn func(st *folderMgrState) bool) *folderMgrState {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -108,23 +82,19 @@ func (a *App) updateFolderMgr(fn func(st *folderMgrState) bool) *folderMgrState 
 	return &next
 }
 
-// openFolderMgr starts the manager for an account and loads its data.
 func (a *App) openFolderMgr(accountID string) {
 	a.mu.Lock()
 	a.folderMgr = &folderMgrState{accountID: accountID, loading: true}
-	a.profileEdit = nil  // one sub-page at a time (settings shell) — the
-	a.stickerMgr = nil   // matrix is COMPLETE now: every open<Page> nils
-	a.businessPage = nil // every sibling (openFolderMgr used to miss
-	a.premiumPage = nil  // premium/stars, openPremiumPage missed stars —
-	a.starsPage = nil    // reachable via suggestionbar's premium opener;
-	// the shell's shadow order made it benign but a stale page
-	// reappeared after close)
+	a.profileEdit = nil
+	a.stickerMgr = nil
+	a.businessPage = nil
+	a.premiumPage = nil
+	a.starsPage = nil
 	a.mu.Unlock()
 	go a.loadFolderMgr(accountID)
 	a.invalidate()
 }
 
-// closeFolderMgr dismisses the page.
 func (a *App) closeFolderMgr() {
 	a.mu.Lock()
 	a.folderMgr = nil
@@ -132,13 +102,12 @@ func (a *App) closeFolderMgr() {
 	a.invalidate()
 }
 
-// loadFolderMgr fetches the account's folders + server suggestions.
 func (a *App) loadFolderMgr(accountID string) {
 	folders, errF := a.eng.GetFolders(accountID)
 	suggested, errS := a.eng.GetSuggestedFolders(accountID)
 	a.updateFolderMgr(func(n *folderMgrState) bool {
 		if n.accountID != accountID {
-			return false // closed or switched mid-fetch
+			return false
 		}
 		n.loading = false
 		if errF != nil {
@@ -156,7 +125,6 @@ func (a *App) loadFolderMgr(accountID string) {
 	a.invalidate()
 }
 
-// applyFolderMgrMove reorders server-side then reloads (async + toast).
 func (a *App) applyFolderMgrMove(st *folderMgrState, idx, delta int) {
 	ids := make([]string, len(st.folders))
 	for i := range st.folders {
@@ -167,7 +135,7 @@ func (a *App) applyFolderMgrMove(st *folderMgrState, idx, delta int) {
 	for _, id := range order {
 		n, err := strconv.Atoi(id)
 		if err != nil {
-			return // non-numeric folder IDs (non-telegram cores) — no reorder
+			return
 		}
 		nums = append(nums, n)
 	}
@@ -182,7 +150,6 @@ func (a *App) applyFolderMgrMove(st *folderMgrState, idx, delta int) {
 	}()
 }
 
-// applyFolderMgrDelete removes a folder (async + toast + reload).
 func (a *App) applyFolderMgrDelete(st *folderMgrState, folder engine.FolderInfo) {
 	acc := st.accountID
 	go func() {
@@ -195,7 +162,6 @@ func (a *App) applyFolderMgrDelete(st *folderMgrState, folder engine.FolderInfo)
 	}()
 }
 
-// reloadFolderMgr re-pulls after a mutation.
 func (a *App) reloadFolderMgr() {
 	acc := ""
 	a.updateFolderMgr(func(n *folderMgrState) bool {
@@ -208,9 +174,6 @@ func (a *App) reloadFolderMgr() {
 	}
 }
 
-// openFolderDlgSuggested seeds the create dialog from a server
-// suggestion: rules + name prefilled, the user tweaks then saves —
-// tdesktop's suggested-filter flow.
 func (a *App) openFolderDlgSuggested(accountID string, s engine.SuggestedFolderInfo) {
 	st := &folderDlgState{
 		accountID:   accountID,
@@ -231,9 +194,6 @@ func (a *App) openFolderDlgSuggested(accountID string, s engine.SuggestedFolderI
 	a.invalidate()
 }
 
-// ── layout ─────────────────────────────────────────────────────────────────
-
-// layoutFolderMgr renders the manager sub-page inside the settings shell.
 func (a *App) layoutFolderMgr(gtx layout.Context, f frame) layout.Dimensions {
 	st := f.folderMgr
 	if st == nil {
@@ -251,7 +211,6 @@ func (a *App) layoutFolderMgr(gtx layout.Context, f frame) layout.Dimensions {
 
 	var children []layout.FlexChild
 
-	// header: back + title + reload
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Bottom: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
@@ -272,7 +231,6 @@ func (a *App) layoutFolderMgr(gtx layout.Context, f frame) layout.Dimensions {
 		})
 	}))
 
-	// account switcher chips (multiple accounts only)
 	if len(f.accounts) > 1 {
 		growClickables(&folderMgrAcctBtns, len(f.accounts))
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -282,7 +240,6 @@ func (a *App) layoutFolderMgr(gtx layout.Context, f frame) layout.Dimensions {
 		}))
 	}
 
-	// body
 	if st.loading && !st.loaded {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.loadingNote(gtx)
@@ -331,7 +288,6 @@ func (a *App) layoutFolderMgr(gtx layout.Context, f frame) layout.Dimensions {
 		}))
 	}
 
-	// create row
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Top: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			btn := a.ui.SurfaceButton(&folderMgrNewBtn, "Create new folder")
@@ -339,7 +295,6 @@ func (a *App) layoutFolderMgr(gtx layout.Context, f frame) layout.Dimensions {
 		})
 	}))
 
-	// suggested folders (server recommendations, minus already-created)
 	if len(sug) > 0 {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.subHeader(gtx, "Suggested")
@@ -358,8 +313,6 @@ func (a *App) layoutFolderMgr(gtx layout.Context, f frame) layout.Dimensions {
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-// folderMgrRow: one folder — emoticon chip, name + chat count, edit,
-// ▲▼ reorder, delete.
 func (a *App) folderMgrRow(gtx layout.Context, folder engine.FolderInfo, i, n int, edit, up, down, del *widget.Clickable) layout.Dimensions {
 	return layout.Inset{Top: unit.Dp(3), Bottom: unit.Dp(3)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return roundedFill(gtx, a.ui.p.Surface, 10, func(gtx layout.Context) layout.Dimensions {
@@ -414,8 +367,6 @@ func (a *App) folderMgrRow(gtx layout.Context, folder engine.FolderInfo, i, n in
 	})
 }
 
-// folderMgrSugRow: one suggested folder — name + description, tap seeds
-// the editor.
 func (a *App) folderMgrSugRow(gtx layout.Context, s engine.SuggestedFolderInfo, btn *widget.Clickable) layout.Dimensions {
 	return layout.Inset{Top: unit.Dp(3), Bottom: unit.Dp(3)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		bl := material.ButtonLayout(a.ui.Theme, btn)
@@ -439,7 +390,6 @@ func (a *App) folderMgrSugRow(gtx layout.Context, s engine.SuggestedFolderInfo, 
 	})
 }
 
-// folderMgrEmoChip renders the folder's emoticon (folder glyph fallback).
 func (a *App) folderMgrEmoChip(gtx layout.Context, emoticon string) layout.Dimensions {
 	txt := emoticon
 	if txt == "" {
@@ -454,7 +404,6 @@ func (a *App) folderMgrEmoChip(gtx layout.Context, emoticon string) layout.Dimen
 	})
 }
 
-// folderMgrAcctChips builds the account chip row for the manager.
 func (a *App) folderMgrAcctChips(gtx layout.Context, f frame, st *folderMgrState) []layout.FlexChild {
 	var children []layout.FlexChild
 	for i, acc := range f.accounts {
@@ -487,7 +436,6 @@ func (a *App) folderMgrAcctChips(gtx layout.Context, f frame, st *folderMgrState
 	return children
 }
 
-// folderMgrEntryRow renders the Settings → Main entry card.
 func (a *App) folderMgrEntryRow(gtx layout.Context, f frame) layout.Dimensions {
 	if folderMgrOpenBtn.Clicked(gtx) {
 		a.openFolderMgr(mgrAccountID(f))

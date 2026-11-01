@@ -1,21 +1,3 @@
-// Package webm implements a minimal pure-Go WebM/EBML reader scoped to
-// single-video-track VP9 documents — the container of Telegram video
-// stickers and video custom emoji. It parses the EBML element tree far
-// enough to find the VP9 video track and every frame block, including:
-//
-//   - Cluster/Block/SimpleBlock timecodes (signed int16 block offsets,
-//     TimecodeScale scaling to nanoseconds);
-//   - all three lacing modes (Xiph, fixed, EBML) with ffmpeg-compatible
-//     semantics (first EBML size = plain vint value, deltas as
-//     value - (2^(7n-1) - 1); pinned by unit tests);
-//   - the WebM VP9 alpha side stream (BlockGroup → BlockAdditions →
-//     BlockMore → BlockAdditional with BlockAddID 1), returned per frame
-//     as Frame.Alpha.
-//
-// Everything else (SeekHead, Cues, Tags, audio tracks, attachments,
-// chapters) is skipped. Unknown-size Segment/Cluster elements (streamed
-// files) are handled by treating the subtree as extending to the end of
-// the data. The whole document must fit in memory — stickers are small.
 package webm
 
 import (
@@ -25,7 +7,6 @@ import (
 	"sort"
 )
 
-// Errors reported by Parse.
 var (
 	ErrNotWebM    = errors.New("webm: not an EBML/WebM document")
 	ErrNoVP9Track = errors.New("webm: no VP9 video track")
@@ -33,8 +14,6 @@ var (
 	ErrBadLacing  = errors.New("webm: malformed block lacing")
 )
 
-// Matroska/EBML element IDs this reader understands. Everything else is
-// skipped opaquely (children never entered unless listed in walkDown).
 const (
 	idEBMLHeader      = 0x1A45DFA3
 	idDocType         = 0x4282
@@ -63,51 +42,43 @@ const (
 	idBlockAdditional = 0xA5
 )
 
-const defaultTimecodeScale = 1_000_000 // ns per timecode unit (Matroska default: 1ms)
+const defaultTimecodeScale = 1_000_000
 
-// VideoTrack describes the single VP9 track of the document.
 type VideoTrack struct {
 	TrackNumber     uint64
 	PixelWidth      int
 	PixelHeight     int
-	DefaultDuration uint64 // ns; 0 when the element is absent
+	DefaultDuration uint64
 }
 
-// Frame is one video frame extracted from the container.
 type Frame struct {
-	TimecodeNs uint64 // absolute presentation time
-	Payload    []byte // primary VP9 bitstream
-	Alpha      []byte // VP9 alpha side-stream bitstream (nil when absent)
+	TimecodeNs uint64
+	Payload    []byte
+	Alpha      []byte
 	Keyframe   bool
 }
 
-// Document is a parsed WebM file.
 type Document struct {
 	Track         VideoTrack
-	TimecodeScale uint64 // ns per timecode unit
-	DurationNs    uint64 // Info.Duration × scale; 0 when absent
+	TimecodeScale uint64
+	DurationNs    uint64
 	Frames        []Frame
 }
 
-// Parse reads a complete WebM document.
 func Parse(data []byte) (*Document, error) {
 	p := &parser{data: data}
 	doc := &Document{TimecodeScale: defaultTimecodeScale}
 
-	// Top level: EBML header, then (usually one) Segment.
 	segStart, segEnd, sawSegment := -1, -1, false
 	for p.pos < len(p.data) {
 		id, ok := p.readID()
 		if !ok {
-			break // trailing garbage is tolerated
+			break
 		}
 		size, unk, ok := p.readSize()
 		if !ok {
 			return nil, ErrBadElement
 		}
-		// Top-level elements must be complete in the data: a Segment (or
-		// header) claiming more bytes than the file has is a truncated
-		// download — reject rather than render half a document.
 		if !unk && p.pos+int(size) > len(p.data) {
 			return nil, ErrBadElement
 		}
@@ -122,7 +93,6 @@ func Parse(data []byte) (*Document, error) {
 				segStart, segEnd, sawSegment = start, end, true
 			}
 		case idVoid:
-			// skip
 		}
 		p.pos = end
 	}
@@ -133,7 +103,6 @@ func Parse(data []byte) (*Document, error) {
 		return nil, ErrBadElement
 	}
 
-	// Walk the Segment children.
 	sp := &parser{data: data, pos: segStart}
 	trackNum := uint64(0)
 	for sp.pos < segEnd {
@@ -149,9 +118,6 @@ func Parse(data []byte) (*Document, error) {
 		if end > segEnd {
 			end = segEnd
 		}
-		// readID/readSize may have run past the parent boundary: a
-		// payload starting BEYOND the element end must never slice
-		// [s:e] with s>e or walk q.pos backwards into a spin (B-38).
 		if start > end {
 			break
 		}
@@ -166,8 +132,6 @@ func Parse(data []byte) (*Document, error) {
 			trackNum = tn
 		case idCluster:
 			if trackNum == 0 {
-				// Tracks must precede Clusters per spec; without a track
-				// number blocks cannot be attributed. Keep scanning.
 				break
 			}
 			p.parseCluster(start, end, trackNum, doc)
@@ -183,15 +147,11 @@ func Parse(data []byte) (*Document, error) {
 	return doc, nil
 }
 
-// ── low-level EBML reading ────────────────────────────────────────────────
-
 type parser struct {
 	data []byte
 	pos  int
 }
 
-// readID reads an EBML element ID (vint with the marker bit kept).
-// IDs are 1-4 bytes; a leading zero byte is invalid (returns ok=false).
 func (p *parser) readID() (id uint32, ok bool) {
 	if p.pos >= len(p.data) {
 		return 0, false
@@ -218,8 +178,6 @@ func (p *parser) readID() (id uint32, ok bool) {
 	return v, true
 }
 
-// readSize reads an element size vint. All-value-bits-set is the unknown
-// size (streaming) marker; ok=false marks invalid data.
 func (p *parser) readSize() (size int64, unknown bool, ok bool) {
 	if p.pos >= len(p.data) {
 		return 0, false, false
@@ -243,20 +201,17 @@ func (p *parser) readSize() (size int64, unknown bool, ok bool) {
 		v = v<<8 | uint64(p.data[p.pos+i])
 	}
 	p.pos += n
-	v &^= uint64(1) << uint(7*n) // strip the length-marker bit (bit 7n)
-	// All value bits set → unknown size.
+	v &^= uint64(1) << uint(7*n)
 	all := uint64(1)<<uint(7*n) - 1
 	if v == all {
 		return -1, true, true
 	}
 	if v > uint64(len(p.data)) {
-		return 0, false, false // cannot possibly fit
+		return 0, false, false
 	}
 	return int64(v), false, true
 }
 
-// payloadRange computes [start, end) for an element payload of the given
-// size; unknown sizes extend to the end of the data.
 func (p *parser) payloadRange(size int64, unknown bool) (int, int) {
 	start := p.pos
 	if unknown || size < 0 {
@@ -264,12 +219,11 @@ func (p *parser) payloadRange(size int64, unknown bool) (int, int) {
 	}
 	end := start + int(size)
 	if end > len(p.data) {
-		end = len(p.data) // truncated tail: parse what is there
+		end = len(p.data)
 	}
 	return start, end
 }
 
-// readUint reads a big-endian unsigned integer of 1-8 bytes.
 func (p *parser) readUint(start, end int) (uint64, bool) {
 	n := end - start
 	if n <= 0 || n > 8 {
@@ -282,7 +236,6 @@ func (p *parser) readUint(start, end int) (uint64, bool) {
 	return v, true
 }
 
-// readFloat reads a 4- or 8-byte big-endian IEEE float.
 func (p *parser) readFloat(start, end int) (float64, bool) {
 	n := end - start
 	switch n {
@@ -294,8 +247,6 @@ func (p *parser) readFloat(start, end int) (float64, bool) {
 	return 0, false
 }
 
-// checkDocType verifies the EBML header declares doc type webm (matroska
-// files with VP9 tracks are accepted too — same subtree shape).
 func (p *parser) checkDocType(start, end int) bool {
 	q := &parser{data: p.data, pos: start}
 	for q.pos < end {
@@ -312,7 +263,7 @@ func (p *parser) checkDocType(start, end int) bool {
 			e = end
 		}
 		if s > e {
-			return false // payload starts past the element — malformed, never slice [s:e] (B-38)
+			return false
 		}
 		if id == idDocType {
 			dt := string(p.data[s:e])
@@ -322,8 +273,6 @@ func (p *parser) checkDocType(start, end int) bool {
 	}
 	return false
 }
-
-// ── Info / Tracks ─────────────────────────────────────────────────────────
 
 func (p *parser) parseInfo(start, end int, doc *Document) {
 	q := &parser{data: p.data, pos: start}
@@ -341,7 +290,7 @@ func (p *parser) parseInfo(start, end int, doc *Document) {
 			e = end
 		}
 		if s > e {
-			break // crossed the parent boundary (B-38) — no backward q.pos, no slices
+			break
 		}
 		switch id {
 		case idTimecodeScale:
@@ -357,8 +306,6 @@ func (p *parser) parseInfo(start, end int, doc *Document) {
 	}
 }
 
-// parseTracks finds the first VP9 video track and records its metadata.
-// Returns the chosen track number (0 when none found).
 func (p *parser) parseTracks(start, end int, doc *Document) (uint64, error) {
 	q := &parser{data: p.data, pos: start}
 	for q.pos < end {
@@ -375,12 +322,12 @@ func (p *parser) parseTracks(start, end int, doc *Document) (uint64, error) {
 			e = end
 		}
 		if s > e {
-			break // crossed the parent boundary (B-38)
+			break
 		}
 		if id == idTrackEntry {
 			tn, terr := p.parseTrackEntry(s, e, doc)
 			if terr != nil {
-				return 0, terr // malformed field: hard error, never a fabricated value (B-17)
+				return 0, terr
 			}
 			if tn != 0 {
 				return tn, nil
@@ -391,10 +338,6 @@ func (p *parser) parseTracks(start, end int, doc *Document) (uint64, error) {
 	return 0, nil
 }
 
-// parseTrackEntry returns the track number when this entry is a VP9
-// video track, filling doc.Track. A malformed field is a hard error —
-// never a fabricated zero that the track gate would read as "absent"
-// (B-17; §1.10 fail-don't-fudge).
 func (p *parser) parseTrackEntry(start, end int, doc *Document) (uint64, error) {
 	q := &parser{data: p.data, pos: start}
 	num, trackType := uint64(0), uint64(0)
@@ -414,16 +357,13 @@ func (p *parser) parseTrackEntry(start, end int, doc *Document) (uint64, error) 
 			e = end
 		}
 		if s > e {
-			// readID/readSize ran past this track entry's end — malformed
-			// structure, hard error (B-17 doctrine): the raw slices below
-			// ([s:e]) would otherwise panic with s>e (B-39, fuzz-found).
 			return 0, ErrBadElement
 		}
 		switch id {
 		case idTrackNumber:
 			v, ok := q.readUint(s, e)
 			if !ok {
-				return 0, ErrBadElement // e.g. a 9-byte "uint": malformed, not 0
+				return 0, ErrBadElement
 			}
 			num = v
 		case idTrackType:
@@ -456,7 +396,7 @@ func (p *parser) parseTrackEntry(start, end int, doc *Document) (uint64, error) 
 					ve = e
 				}
 				if vs > ve {
-					break // parent boundary crossed (B-38) — readUint would refuse, but vq.pos must not step back
+					break
 				}
 				switch vid {
 				case idPixelWidth:
@@ -474,7 +414,7 @@ func (p *parser) parseTrackEntry(start, end int, doc *Document) (uint64, error) 
 		q.pos = e
 	}
 	if trackType != 1 || codec != "V_VP9" || num == 0 {
-		return 0, nil // a DIFFERENT/absent track is not an error
+		return 0, nil
 	}
 	doc.Track = VideoTrack{
 		TrackNumber:     num,
@@ -484,8 +424,6 @@ func (p *parser) parseTrackEntry(start, end int, doc *Document) (uint64, error) 
 	}
 	return num, nil
 }
-
-// ── Clusters & Blocks ─────────────────────────────────────────────────────
 
 func (p *parser) parseCluster(start, end int, trackNum uint64, doc *Document) {
 	q := &parser{data: p.data, pos: start}
@@ -504,7 +442,7 @@ func (p *parser) parseCluster(start, end int, trackNum uint64, doc *Document) {
 			e = end
 		}
 		if s > e {
-			break // crossed the parent boundary (B-38)
+			break
 		}
 		switch id {
 		case idClusterTC:
@@ -520,7 +458,6 @@ func (p *parser) parseCluster(start, end int, trackNum uint64, doc *Document) {
 	}
 }
 
-// parseBlockGroup extracts Block + the VP9 alpha side stream.
 func (p *parser) parseBlockGroup(start, end int, trackNum uint64, clusterTC int64, doc *Document) {
 	q := &parser{data: p.data, pos: start}
 	var blockStart, blockEnd int
@@ -540,7 +477,7 @@ func (p *parser) parseBlockGroup(start, end int, trackNum uint64, clusterTC int6
 			e = end
 		}
 		if s > e {
-			break // crossed the parent boundary (B-38)
+			break
 		}
 		switch id {
 		case idBlock:
@@ -561,7 +498,7 @@ func (p *parser) parseBlockGroup(start, end int, trackNum uint64, clusterTC int6
 					ae = e
 				}
 				if as > ae {
-					break // parent boundary crossed (B-38) — aq.pos must not step back
+					break
 				}
 				if aid == idBlockMore {
 					alpha = p.parseBlockMore(as, ae)
@@ -577,8 +514,6 @@ func (p *parser) parseBlockGroup(start, end int, trackNum uint64, clusterTC int6
 	p.parseBlockWithAlpha(blockStart, blockEnd, trackNum, clusterTC, alpha, doc)
 }
 
-// parseBlockMore returns the BlockAdditional payload when BlockAddID is 1
-// (the WebM VP9 alpha channel slot).
 func (p *parser) parseBlockMore(start, end int) []byte {
 	q := &parser{data: p.data, pos: start}
 	addID := uint64(0)
@@ -597,15 +532,10 @@ func (p *parser) parseBlockMore(start, end int) []byte {
 			e = end
 		}
 		if s > e {
-			break // crossed the parent boundary (B-38) — guards the raw slice below too
+			break
 		}
 		switch id {
 		case idBlockAddID:
-			// Lenient ON PURPOSE: BlockAdditions is optional alpha — a
-			// malformed add-id must degrade to "no alpha" (identical to
-			// absence), never to fabricated bytes (B-17 audit note: the
-			// track-entry fields above do NOT get this treatment because
-			// their zeros drive decisions).
 			addID, _ = q.readUint(s, e)
 		case idBlockAdditional:
 			additional = p.data[s:e]
@@ -618,15 +548,13 @@ func (p *parser) parseBlockMore(start, end int) []byte {
 	return additional
 }
 
-// parseBlock decodes a SimpleBlock: [track vint][int16 tc][flags][data].
 func (p *parser) parseBlock(start, end int, trackNum uint64, clusterTC int64, simple bool, doc *Document) {
 	p.parseBlockWithAlpha(start, end, trackNum, clusterTC, nil, doc)
 }
 
 func (p *parser) parseBlockWithAlpha(start, end int, trackNum uint64, clusterTC int64, alpha []byte, doc *Document) {
 	q := &parser{data: p.data, pos: start}
-	// Track number: vint.
-	tn, _, ok := q.readSize() // same shape (marker-stripped vint)
+	tn, _, ok := q.readSize()
 	if !ok || tn != int64(trackNum) {
 		return
 	}
@@ -644,7 +572,6 @@ func (p *parser) parseBlockWithAlpha(start, end int, trackNum uint64, clusterTC 
 	}
 	tns := uint64(abs) * scale
 	if alpha == nil && flags&0x06 == 0 {
-		// No lacing, no alpha: payload is the rest.
 		payload := p.data[q.pos:end]
 		if len(payload) == 0 {
 			return
@@ -656,8 +583,6 @@ func (p *parser) parseBlockWithAlpha(start, end int, trackNum uint64, clusterTC 
 		})
 		return
 	}
-	// Laced: split into frames (alpha pairs only occur with single-frame
-	// blocks in practice; the laced path assigns alpha to the first frame).
 	frames := p.splitLaced(q.pos, end, flags)
 	for i, f := range frames {
 		if len(f) == 0 {
@@ -675,8 +600,6 @@ func (p *parser) parseBlockWithAlpha(start, end int, trackNum uint64, clusterTC 
 	}
 }
 
-// splitLaced splits the block payload into frames per the lacing mode in
-// the flags (bits 1-2). ffmpeg-compatible semantics; see package comment.
 func (p *parser) splitLaced(start, end int, flags byte) [][]byte {
 	mode := (flags >> 1) & 0x3
 	if mode == 0 {
@@ -695,7 +618,7 @@ func (p *parser) splitLaced(start, end int, flags byte) [][]byte {
 	}
 	sizes := make([]int, count)
 	switch mode {
-	case 1: // Xiph
+	case 1:
 		total := 0
 		for i := 0; i < count-1; i++ {
 			sz := 0
@@ -717,7 +640,7 @@ func (p *parser) splitLaced(start, end int, flags byte) [][]byte {
 			return nil
 		}
 		sizes[count-1] = end - pos - total
-	case 2: // fixed
+	case 2:
 		if (end-pos)%count != 0 {
 			return nil
 		}
@@ -725,8 +648,7 @@ func (p *parser) splitLaced(start, end int, flags byte) [][]byte {
 		for i := range sizes {
 			sizes[i] = sz
 		}
-	case 3: // EBML
-		// First size: plain vint value. Deltas: value - (2^(7n-1) - 1).
+	case 3:
 		v, n, ok := readVintValue(p.data[pos:end])
 		if !ok {
 			return nil
@@ -763,8 +685,6 @@ func (p *parser) splitLaced(start, end int, flags byte) [][]byte {
 	return out
 }
 
-// readVintValue reads a marker-stripped EBML vint from data, returning
-// the value and length in bytes.
 func readVintValue(data []byte) (uint64, int, bool) {
 	if len(data) == 0 || data[0] == 0 {
 		return 0, 0, false
@@ -780,6 +700,6 @@ func readVintValue(data []byte) (uint64, int, bool) {
 	for i := 0; i < n; i++ {
 		v = v<<8 | uint64(data[i])
 	}
-	v &^= uint64(1) << uint(7*n) // strip the length-marker bit (bit 7n)
+	v &^= uint64(1) << uint(7*n)
 	return v, n, true
 }

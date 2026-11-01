@@ -1,12 +1,5 @@
 package cores
 
-// Sticker manager (slice 139): pure mapping helpers for the lightweight
-// set listing (getAllStickers + getArchivedStickers merge) and the
-// archive-flag install request. Pinned against the gotd v0.161.0 schema
-// (messages.installStickerSet carries the Archived flag — tdesktop
-// archives without deleting; messages.getArchivedStickers returns
-// StickerSetCovered rows).
-
 import (
 	"encoding/base64"
 	"testing"
@@ -40,8 +33,6 @@ func TestStickerSetCoveredSummaryFields(t *testing.T) {
 	if sum.Count != 12 || !sum.Archived || !sum.Official {
 		t.Fatalf("flags = %+v", sum)
 	}
-	// ThumbB64 decodes to a reconstructed JPEG (SOI marker), never the raw
-	// stripped bytes.
 	raw, err := base64.StdEncoding.DecodeString(sum.ThumbB64)
 	if err != nil {
 		t.Fatalf("thumb not base64: %v", err)
@@ -98,8 +89,6 @@ func TestStickerSetCoveredSummaryCoverDocs(t *testing.T) {
 	}
 }
 
-// installed summary rows (from getAllStickers tg.StickerSet) feed the same
-// shape with Archived/Masks/Emojis surfaced.
 func TestInstalledSetSummaryFields(t *testing.T) {
 	s := coveredSet()
 	s.Archived = false
@@ -114,8 +103,6 @@ func TestInstalledSetSummaryFields(t *testing.T) {
 	}
 }
 
-// Merge: archived entries dedup against installed rows with the same set
-// ID — the archived row wins (tdesktop lists them under Archived only).
 func TestMergeArchivedStickerSets(t *testing.T) {
 	installed := []StickerPackSummary{
 		{SetID: 1, Title: "Kept"},
@@ -145,9 +132,6 @@ func TestMergeArchivedStickerSets(t *testing.T) {
 	}
 }
 
-// installStickerSetRequest pins the archive semantics: archived=true keeps
-// the set installed but hides it (tdesktop "Archive"), archived=false
-// restores (unarchive).
 func TestInstallStickerSetRequestArchiveFlag(t *testing.T) {
 	req := stickerSetInstallRequest(42, 4242, true)
 	in, ok := req.Stickerset.(*tg.InputStickerSetID)

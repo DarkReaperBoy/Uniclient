@@ -30,12 +30,10 @@ func TestTopicTabsForActive(t *testing.T) {
 	if !tabs[2].active || tabs[0].active || tabs[1].active {
 		t.Fatalf("active flags: %v %v %v, want only the 5 tab", tabs[0].active, tabs[1].active, tabs[2].active)
 	}
-	// "" (topic-list view) activates the All-topics tab.
 	tabs = topicTabsFor(topics, "")
 	if !tabs[0].active || tabs[2].active {
 		t.Fatalf("list view: active = %v %v, want All-topics only", tabs[0].active, tabs[2].active)
 	}
-	// Unknown active id (stale) → no topic tab active, All-topics inert.
 	tabs = topicTabsFor(topics, "999")
 	for i, tab := range tabs {
 		if tab.active && tab.topicID != "" {

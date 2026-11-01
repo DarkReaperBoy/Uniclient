@@ -10,15 +10,6 @@ import (
 	"testing"
 )
 
-// F-72 (slice 309): downloads from the network copied resp.Body to
-// disk with NO ceiling — github/bale/xmpp all unbounded. A
-// hostile server (or a lying Content-Length) streams forever → the
-// disk fills (the F-52/F-53 family: memory DoS got a cap in slice 283,
-// disk DoS did not).
-//
-// Seam-RED (WORKLOG 309): undefined: downloadCeiling / ErrFileTooLarge
-// / boundedCopy.
-
 func TestBoundedCopyWithinLimit(t *testing.T) {
 	old := downloadCeiling
 	downloadCeiling = 1024
@@ -50,7 +41,6 @@ func TestBoundedCopyStopsAtLimit(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 	defer f.Close()
-	// 4 MiB stream against a 1 KiB ceiling.
 	_, err = boundedCopy(f, strings.NewReader(strings.Repeat("x", 4<<20)), downloadCeiling)
 	if err == nil {
 		t.Fatal("oversized stream accepted — disk would fill")
@@ -64,8 +54,6 @@ func TestBoundedCopyStopsAtLimit(t *testing.T) {
 	}
 }
 
-// TestXMPPDownloadHTTPCapsBody: behavioral — a hostile HTTP endpoint
-// streaming forever must not fill the disk.
 func TestXMPPDownloadHTTPCapsBody(t *testing.T) {
 	old := downloadCeiling
 	downloadCeiling = 1024
@@ -95,7 +83,6 @@ func TestXMPPDownloadHTTPCapsBody(t *testing.T) {
 	}
 }
 
-// TestGitHubDownloadCapsBody: same contract on the GitHub core.
 func TestGitHubDownloadCapsBody(t *testing.T) {
 	old := downloadCeiling
 	downloadCeiling = 1024
@@ -129,13 +116,10 @@ func TestGitHubDownloadCapsBody(t *testing.T) {
 	}
 }
 
-// TestRawUnboundedDownloadsGone: source-scan pin — no core copies a
-// network body to disk without the ceiling (comments skipped, slice-284
-// lesson).
 func TestRawUnboundedDownloadsGone(t *testing.T) {
 	banned := []string{
-		"written, err := io.Copy(f, resp.Body)", // github
-		"_, err = io.Copy(outFile, reader)",     // bale
+		"written, err := io.Copy(f, resp.Body)",
+		"_, err = io.Copy(outFile, reader)",
 	}
 	for file, raw := range map[string]string{
 		"github.go": banned[0],
@@ -155,10 +139,6 @@ func TestRawUnboundedDownloadsGone(t *testing.T) {
 			}
 		}
 	}
-	// xmpp manual loop must carry the ceiling check (needle = the
-	// sentinel reference — the message text lives in base.go's
-	// ErrFileTooLarge, first scan used the wrong needle and false-failed
-	// while the behavioral test passed; self-caught slice 309).
 	src, err := os.ReadFile("xmpp.go")
 	if err != nil {
 		t.Fatalf("read xmpp.go: %v", err)

@@ -13,14 +13,6 @@ import (
 	"uniclient/engine"
 )
 
-// Server-synced folder tabs (AyuGram parity §2 "Folder tabs above list"):
-// when a single account is scoped and its core exposes folders, the tab row
-// renders All / Unread / the account's real server folders / a "+" create
-// tab; otherwise the smart fallback tabs (People/Groups/Channels). Filtering
-// follows Telegram dialog-filter rules: explicit includes win, exclusions
-// apply to flag matches.
-
-// folderTab kinds.
 const (
 	folderTabAll = iota
 	folderTabUnread
@@ -31,21 +23,17 @@ const (
 	folderTabChannels
 )
 
-// folderTab is one rendered tab.
 type folderTab struct {
 	name   string
 	kind   int
 	folder *engine.FolderInfo
 }
 
-// buildFolderTabs derives the tab row for the current scope.
 func buildFolderTabs(acctFilter string, folders []engine.FolderInfo, supported, hideAll bool) []folderTab {
 	tabs := []folderTab{
 		{name: "Unread", kind: folderTabUnread},
 	}
 	if !hideAll {
-		// AyuGram "hide all chats folder": the All tab drops, the first
-		// real folder becomes the default view.
 		tabs = append([]folderTab{{name: "All", kind: folderTabAll}}, tabs...)
 	}
 	if acctFilter != "" && supported {
@@ -70,7 +58,6 @@ func buildFolderTabs(acctFilter string, folders []engine.FolderInfo, supported, 
 	)
 }
 
-// tabMatches reports whether a chat shows under one tab.
 func tabMatches(t folderTab, c engine.ChatInfo) bool {
 	switch t.kind {
 	case folderTabAll:
@@ -92,7 +79,6 @@ func tabMatches(t folderTab, c engine.ChatInfo) bool {
 	return true
 }
 
-// folderContains applies Telegram dialog-filter rules.
 func folderContains(f engine.FolderInfo, c engine.ChatInfo) bool {
 	for _, id := range f.ChatIDs {
 		if id == c.ChatID {
@@ -124,9 +110,6 @@ func folderContains(f engine.FolderInfo, c engine.ChatInfo) bool {
 	return false
 }
 
-// ── folder state actions ──────────────────────────────────────────────────
-
-// refreshFolders loads the scoped account's server folders (async).
 func (a *App) refreshFolders(accountID string) {
 	if accountID == "" {
 		return
@@ -147,8 +130,6 @@ func (a *App) refreshFolders(accountID string) {
 	}()
 }
 
-// openFolderDlg opens the create-folder dialog (full editor: chat picker,
-// type flags, exclusions, emoticon) for the scoped account.
 func (a *App) openFolderDlg() {
 	a.mu.Lock()
 	acc := a.acctFilter
@@ -156,9 +137,6 @@ func (a *App) openFolderDlg() {
 	a.openFolderDlgFor(acc)
 }
 
-// openFolderDlgFor opens the create dialog for an explicit account
-// (the folders manager opens it for its own account — the sidebar's
-// acctFilter is not the manager's business).
 func (a *App) openFolderDlgFor(acc string) {
 	st := &folderDlgState{
 		accountID: acc,
@@ -174,8 +152,6 @@ func (a *App) openFolderDlgFor(acc string) {
 	a.invalidate()
 }
 
-// openFolderDlgEdit opens the editor on an existing folder (right-click a
-// folder tab, AyuGram edit-filter).
 func (a *App) openFolderDlgEdit(folder engine.FolderInfo) {
 	a.mu.Lock()
 	cur := a.acctFilter
@@ -183,8 +159,6 @@ func (a *App) openFolderDlgEdit(folder engine.FolderInfo) {
 	a.openFolderDlgEditFor(cur, folder)
 }
 
-// openFolderDlgEditFor opens the editor on an existing folder for an
-// explicit account (the folders manager).
 func (a *App) openFolderDlgEditFor(accountID string, folder engine.FolderInfo) {
 	st := &folderDlgState{
 		accountID:    accountID,
@@ -215,7 +189,6 @@ func (a *App) openFolderDlgEditFor(accountID string, folder engine.FolderInfo) {
 	a.invalidate()
 }
 
-// closeFolderDlg dismisses the dialog.
 func (a *App) closeFolderDlg() {
 	a.mu.Lock()
 	a.folderDlg = nil
@@ -223,8 +196,6 @@ func (a *App) closeFolderDlg() {
 	a.invalidate()
 }
 
-// cycleFolderDlgChat advances a chat's picker state: none → include →
-// exclude → none (AyuGram's include/exclude pickers combined in one row).
 func (a *App) cycleFolderDlgChat(chatID string) {
 	a.mu.Lock()
 	if d := a.folderDlg; d != nil {
@@ -242,7 +213,6 @@ func (a *App) cycleFolderDlgChat(chatID string) {
 	a.invalidate()
 }
 
-// setFolderDlgFlag flips one dialog flag.
 func (a *App) setFolderDlgFlag(flag string, on bool) {
 	a.mu.Lock()
 	if d := a.folderDlg; d != nil {
@@ -269,13 +239,11 @@ func (a *App) setFolderDlgFlag(flag string, on bool) {
 	a.invalidate()
 }
 
-// setFolderDlgEmoticon picks the tab emoticon.
 func (a *App) setFolderDlgEmoticon(e string) {
 	folderDlgEmoticon = e
 	a.invalidate()
 }
 
-// deleteFolderDlg removes the edited folder (async).
 func (a *App) deleteFolderDlg() {
 	a.mu.Lock()
 	st := folderDlgState{}
@@ -298,7 +266,6 @@ func (a *App) deleteFolderDlg() {
 	}()
 }
 
-// submitFolderDlg creates or saves the folder (async) and refreshes tabs.
 func (a *App) submitFolderDlg() {
 	name := strings.TrimSpace(folderNameEditor.Text())
 	if name == "" {
@@ -315,7 +282,6 @@ func (a *App) submitFolderDlg() {
 	if st.accountID == "" {
 		return
 	}
-	// Ordered by the sidebar's chat order.
 	var chatIDs, exclIDs []string
 	for _, c := range a.chatListSnapshot() {
 		if c.AccountID != st.accountID {
@@ -358,12 +324,9 @@ func (a *App) submitFolderDlg() {
 	}()
 }
 
-// ── folder dialog ─────────────────────────────────────────────────────────
-
-// folderDlgState is the open folder editor (create or edit).
 type folderDlgState struct {
 	accountID                                     string
-	editing                                       string // folder ID when editing ("" = create)
+	editing                                       string
 	include                                       map[string]bool
 	exclude                                       map[string]bool
 	contacts, nonContacts, groups, channels, bots bool
@@ -377,7 +340,7 @@ var (
 	folderNameEditor  widget.Editor
 	folderDlgChatBtns []widget.Clickable
 	folderDlgEmoBtns  []widget.Clickable
-	folderDlgEmoticon string // frame-thread selected emoticon
+	folderDlgEmoticon string
 	folderDlgSwitches = map[string]*widget.Bool{}
 )
 
@@ -385,10 +348,8 @@ func init() {
 	folderNameEditor.SingleLine = true
 }
 
-// folderDlgEmoticons mirrors Telegram's filter emoticon set (first pass).
 var folderDlgEmoticons = []string{"", "🌟", "💬", "✈️", "📂", "❤️", "🎮", "📌"}
 
-// folderDlgFlags: switch key + label (type + exclusion rules).
 var folderDlgFlags = []struct{ key, label string }{
 	{"contacts", "Contacts"},
 	{"nonContacts", "Non-contacts"},
@@ -412,8 +373,6 @@ func folderDlgSwitch(key string) *widget.Bool {
 	return s
 }
 
-// syncFolderDlgSwitches pushes the dialog state into the switch widgets
-// (called at open; the switches drive state afterwards).
 func syncFolderDlgSwitches(st *folderDlgState) {
 	vals := map[string]bool{
 		"contacts": st.contacts, "nonContacts": st.nonContacts,
@@ -425,7 +384,6 @@ func syncFolderDlgSwitches(st *folderDlgState) {
 	}
 }
 
-// chatListSnapshot copies the chat list for the submit ordering.
 func (a *App) chatListSnapshot() []engine.ChatInfo {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -434,10 +392,6 @@ func (a *App) chatListSnapshot() []engine.ChatInfo {
 	return out
 }
 
-// layoutFolderDialog renders the centered folder-editor card (create or
-// edit): name, emoticon row, type/exclusion switches, the account's chat
-// picker (include ✓ / exclude ✕ / blank), and create/save/delete actions.
-// Replaces the content pane; the sidebar stays interactive.
 func (a *App) layoutFolderDialog(gtx layout.Context, f frame) layout.Dimensions {
 	d := f.folderDlg
 	if folderDlgCancel.Clicked(gtx) {
@@ -450,7 +404,6 @@ func (a *App) layoutFolderDialog(gtx layout.Context, f frame) layout.Dimensions 
 		a.deleteFolderDlg()
 	}
 
-	// Account chats for the picker.
 	var chats []engine.ChatInfo
 	for _, c := range f.chats {
 		if c.AccountID == d.accountID {
@@ -477,7 +430,6 @@ func (a *App) layoutFolderDialog(gtx layout.Context, f frame) layout.Dimensions 
 						lbl := a.ui.H3(title)
 						return lbl.Layout(gtx)
 					}),
-					// Name.
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Inset{Top: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							return roundedFill(gtx, a.ui.p.SurfaceHi, 10, func(gtx layout.Context) layout.Dimensions {
@@ -488,17 +440,14 @@ func (a *App) layoutFolderDialog(gtx layout.Context, f frame) layout.Dimensions 
 							})
 						})
 					}),
-					// Emoticon pick row.
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Inset{Top: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, a.folderDlgEmoRow(gtx)...)
 						})
 					}),
-					// Flags + chat picker (scrollable).
 					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 						return a.folderDlgBody(gtx, f, d, chats)
 					}),
-					// Footer.
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Inset{Top: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
@@ -527,7 +476,6 @@ func (a *App) layoutFolderDialog(gtx layout.Context, f frame) layout.Dimensions 
 	})
 }
 
-// folderDlgEmoRow renders the emoticon choices ("" = none).
 func (a *App) folderDlgEmoRow(gtx layout.Context) []layout.FlexChild {
 	kids := make([]layout.FlexChild, 0, len(folderDlgEmoticons))
 	for i, e := range folderDlgEmoticons {
@@ -565,7 +513,6 @@ func (a *App) folderDlgEmoRow(gtx layout.Context) []layout.FlexChild {
 	return kids
 }
 
-// folderDlgBody: switches + chat picker, scrollable.
 func (a *App) folderDlgBody(gtx layout.Context, f frame, d *folderDlgState, chats []engine.ChatInfo) layout.Dimensions {
 	list := &folderDlgList
 	list.Axis = layout.Vertical
@@ -640,7 +587,6 @@ func (a *App) folderDlgBody(gtx layout.Context, f frame, d *folderDlgState, chat
 
 var folderDlgList widget.List
 
-// folderDlgSwitchRow: label + switch, flipping dialog state.
 func (a *App) folderDlgSwitchRow(gtx layout.Context, key, label string) layout.Dimensions {
 	sw := folderDlgSwitch(key)
 	prev := sw.Value
@@ -665,7 +611,6 @@ func (a *App) folderDlgSwitchRow(gtx layout.Context, key, label string) layout.D
 	return dims
 }
 
-// layoutFolderTabRow renders one folder tab (server/smart/new).
 func layoutFolderTab(gtx layout.Context, a *App, btn *widget.Clickable, tab folderTab, active bool) layout.Dimensions {
 	bg := color00
 	txt := a.ui.p.TextDim

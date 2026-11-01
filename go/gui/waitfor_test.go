@@ -5,8 +5,6 @@ import (
 	"time"
 )
 
-// waitFor polls cond until true or the deadline (signal round-trips are
-// asynchronous).
 func waitFor(t *testing.T, what string, cond func() bool) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)

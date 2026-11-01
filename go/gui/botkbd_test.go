@@ -1,9 +1,5 @@
 package gui
 
-// Bot keyboard tests (slice 127): inline-keyboard + reply-keyboard parsing
-// from message Extra, action classification, reply-keyboard panel
-// visibility over the loaded window, and renderable-button gating.
-
 import (
 	"testing"
 
@@ -81,7 +77,6 @@ func TestParseInlineKeyboardNone(t *testing.T) {
 	if k := parseInlineKeyboard(&engine.CachedMessage{ContentRaw: inlineKbdRaw(`[]`)}); k != nil {
 		t.Error("empty rows parsed a keyboard")
 	}
-	// A row of empty buttons is not a usable keyboard either.
 	if k := parseInlineKeyboard(&engine.CachedMessage{ContentRaw: inlineKbdRaw(`[[]]`)}); k != nil {
 		t.Error("row without buttons parsed a keyboard")
 	}
@@ -131,18 +126,15 @@ func TestReplyKbdActive(t *testing.T) {
 	}
 	msgs := []engine.CachedMessage{
 		{MsgID: "1", ContentRaw: replyKbdRaw(`[[{"text":"A","type":"text"}]]`, "", false)},
-		{MsgID: "2", ContentRaw: nil}, // plain message: keyboard persists
+		{MsgID: "2", ContentRaw: nil},
 	}
 	if k := replyKbdActive(msgs); k == nil || len(k.Rows) != 1 || k.Rows[0][0].Text != "A" {
 		t.Fatalf("latest keyboard lost: %+v", k)
 	}
-	// A keyboard_hide message AFTER the keyboard clears it (tdesktop: bots
-	// send reply_keyboard_hide to dismiss the panel).
 	msgs = append(msgs, engine.CachedMessage{MsgID: "3", ContentRaw: []byte(`{"extra":{"keyboard_hide":true}}`)})
 	if k := replyKbdActive(msgs); k != nil {
 		t.Fatalf("keyboard_hide after a keyboard did not clear it: %+v", k)
 	}
-	// A newer keyboard after the hide wins again.
 	msgs = append(msgs, engine.CachedMessage{MsgID: "4", ContentRaw: replyKbdRaw(`[[{"text":"B","type":"text"}]]`, "", false)})
 	if k := replyKbdActive(msgs); k == nil || k.Rows[0][0].Text != "B" {
 		t.Fatalf("newer keyboard after hide not active: %+v", k)
@@ -164,14 +156,13 @@ func TestBotKbdActionFor(t *testing.T) {
 		{botKbdBtn{Type: "switch_inline", Query: "q", SamePeer: true}, "insert"},
 		{botKbdBtn{Type: "switch_inline", Query: "q"}, "clipboard"},
 		{botKbdBtn{Type: "buy"}, "unsupported"},
-		{botKbdBtn{Type: ""}, "callback"}, // core maps unknown → callback
+		{botKbdBtn{Type: ""}, "callback"},
 	}
 	for _, c := range cases {
 		if got := botKbdActionFor(c.btn).Kind; got != c.kind {
 			t.Errorf("botKbdActionFor(%+v).Kind = %q, want %q", c.btn, got, c.kind)
 		}
 	}
-	// Payload pass-through.
 	if p := botKbdActionFor(botKbdBtn{Type: "copy", CopyText: "42"}); p.Kind != "copy" || p.Payload != "42" {
 		t.Errorf("copy action = %+v", p)
 	}
@@ -194,7 +185,6 @@ func TestReplyKbdRenderable(t *testing.T) {
 			t.Errorf("replyKbdRenderable(%q) = true, want false", ty)
 		}
 	}
-	// A button without a label cannot render at all.
 	if replyKbdRenderable(botKbdBtn{Type: "text"}) {
 		t.Error("label-less text button rendered")
 	}

@@ -2,9 +2,6 @@ package engine
 
 import "testing"
 
-// MediaPreviewLabel: the label AyuGram shows when a message has no text but
-// carries media (reply quotes, chat-list previews: "Photo", "Voice message").
-
 func TestMediaPreviewLabel(t *testing.T) {
 	cases := []struct {
 		mt   int

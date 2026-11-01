@@ -1,11 +1,5 @@
 package gui
 
-// Swipe quick actions (slice 158, tdesktop dialogs_quick_action 1:1): a
-// horizontal drag on a chat-list row reveals a colored action strip behind
-// the row; crossing the 50dp threshold and releasing fires the configured
-// action (Mute / Pin / Read / Archive / Delete / Disabled — state-aware
-// labels). Pure logic locked here; the gesture layer is in swipeaction.go.
-
 import (
 	"math"
 	"testing"
@@ -40,10 +34,10 @@ func TestSwipeRatio(t *testing.T) {
 		want float32
 	}{
 		{0, 0},
-		{-30, 0}, // dragging the wrong way clamps at zero
+		{-30, 0},
 		{25, 0.5},
 		{50, 1},
-		{75, 1.5}, // overswipe allowed up to 1.5x
+		{75, 1.5},
 		{200, 1.5},
 	}
 	for _, c := range cases {
@@ -55,14 +49,12 @@ func TestSwipeRatio(t *testing.T) {
 
 func TestSwipeTranslation(t *testing.T) {
 	thr := float32(50)
-	// In-range: linear reveal up to the threshold.
 	if tr := swipeTranslation(0.5, thr); math.Abs(float64(tr-25)) > 1e-6 {
 		t.Errorf("translation(0.5) = %v, want 25", tr)
 	}
 	if tr := swipeTranslation(1, thr); math.Abs(float64(tr-50)) > 1e-6 {
 		t.Errorf("translation(1.0) = %v, want 50", tr)
 	}
-	// Overswipe is damped: strictly less than linear, still growing.
 	tr1 := swipeTranslation(1.1, thr)
 	tr2 := swipeTranslation(1.5, thr)
 	if tr1 <= 50 || tr2 <= tr1 {
@@ -71,7 +63,6 @@ func TestSwipeTranslation(t *testing.T) {
 	if tr2 >= 75 {
 		t.Errorf("overswipe damped below linear: %v >= 75", tr2)
 	}
-	// Negative/zero ratios: no shift.
 	if tr := swipeTranslation(0, thr); tr != 0 {
 		t.Errorf("translation(0) = %v, want 0", tr)
 	}
@@ -118,7 +109,6 @@ func TestResolveSwipeAction(t *testing.T) {
 	pinned := engine.ChatInfo{IsPinned: true}
 	archived := engine.ChatInfo{IsArchived: true}
 
-	// Mute: state-aware labels (tdesktop ResolveQuickDialogLabel).
 	if a := resolveSwipeAction("mute", live, false); a.label != "Mute" || a.done != "Muted" {
 		t.Errorf("mute/live: %+v", a)
 	}
@@ -126,7 +116,6 @@ func TestResolveSwipeAction(t *testing.T) {
 		t.Errorf("mute/muted: %+v", a)
 	}
 
-	// Pin.
 	if a := resolveSwipeAction("pin", live, false); a.label != "Pin" || a.done != "Pinned" {
 		t.Errorf("pin/live: %+v", a)
 	}
@@ -134,7 +123,6 @@ func TestResolveSwipeAction(t *testing.T) {
 		t.Errorf("pin/pinned: %+v", a)
 	}
 
-	// Read: unread count or mark both read as "read".
 	if a := resolveSwipeAction("read", unread, false); a.label != "Mark as read" {
 		t.Errorf("read/unread: %+v", a)
 	}
@@ -145,7 +133,6 @@ func TestResolveSwipeAction(t *testing.T) {
 		t.Errorf("read/live: %+v", a)
 	}
 
-	// Archive: view-scoped (archived view → unarchive), state-scoped too.
 	if a := resolveSwipeAction("archive", live, false); a.label != "Archive" || a.done != "Archived" {
 		t.Errorf("archive/live: %+v", a)
 	}
@@ -156,12 +143,10 @@ func TestResolveSwipeAction(t *testing.T) {
 		t.Errorf("archive view row: %+v", a)
 	}
 
-	// Delete: red strip (tdesktop attention color).
 	if a := resolveSwipeAction("delete", live, false); a.label != "Delete" || !a.red {
 		t.Errorf("delete: %+v", a)
 	}
 
-	// Disabled: gray, no action.
 	if a := resolveSwipeAction("disabled", live, false); a.label != "Disabled" || !a.gray || a.kind != "" {
 		t.Errorf("disabled: %+v", a)
 	}
@@ -169,16 +154,12 @@ func TestResolveSwipeAction(t *testing.T) {
 		t.Errorf("empty config: %+v", a)
 	}
 
-	// Unknown config string: disabled, never panics.
 	if a := resolveSwipeAction("bogus", live, false); a.kind != "" {
 		t.Errorf("bogus config: %+v", a)
 	}
 }
 
 func TestSwipeLabelFits(t *testing.T) {
-	// The strip label must shrink to fit the revealed width (tdesktop
-	// SwipeActionFont: 13→5px stepping). A wide reveal shows 13; a narrow
-	// one steps down; nothing ever renders below 5.
 	cases := []struct {
 		revealDp float32
 		wantMax  int

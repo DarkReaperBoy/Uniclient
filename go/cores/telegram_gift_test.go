@@ -6,12 +6,6 @@ import (
 	"github.com/gotd/td/tg"
 )
 
-// Gift service messages (slice 180, parity row "Gift / star-gift
-// messages"): messageActionStarGift / messageActionGiftStars /
-// messageActionGiftTon must convert into structured Extra (gift_* fields
-// for the GUI's gift card bubble) + real action sentences (the old
-// fallback said "performed an action").
-
 func giftStickerDoc() *tg.Document {
 	return &tg.Document{
 		ID:            555001,
@@ -65,12 +59,9 @@ func TestConvertServiceStarGift(t *testing.T) {
 	if v, _ := m.Extra["gift_saved"].(bool); !v {
 		t.Errorf("gift_saved = %v", m.Extra["gift_saved"])
 	}
-	// The action sentence mentions the gift.
 	if m.Text == "" || m.Text == " performed an action" {
 		t.Errorf("text = %q", m.Text)
 	}
-	// The sticker document's download coordinates got cached for the
-	// engine's later fetch.
 	if tc.getCachedFileHash(555001) != 9001 {
 		t.Error("sticker file info not cached")
 	}

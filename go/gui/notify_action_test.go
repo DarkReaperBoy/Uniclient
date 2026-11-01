@@ -1,18 +1,11 @@
 package gui
 
-// notify_action_test.go — slice 141 (tests-first): the pure halves of
-// the interactive-notification work — the freedesktop action list, the
-// banner-click → pendingOpen hop, and the banner icon URI.
-
 import (
 	"testing"
 
 	"uniclient/engine"
 )
 
-// TestNotifyDefaultActions: the banner action list is a well-formed
-// freedesktop pair list whose first entry is the reserved "default"
-// action (the whole-body click on every major server).
 func TestNotifyDefaultActions(t *testing.T) {
 	if len(notifyDefaultActions) != 2 {
 		t.Fatalf("actions = %v, want one (key,label) pair", notifyDefaultActions)
@@ -26,9 +19,6 @@ func TestNotifyDefaultActions(t *testing.T) {
 	}
 }
 
-// TestNotifyOpenAction: the click handler raises nothing (no window in
-// the zero App) but schedules the chat open through the GUI loop's
-// pendingOpen hop, carrying the title.
 func TestNotifyOpenAction(t *testing.T) {
 	a := &App{}
 	k := chatKey{AccountID: "acc1", ChatID: "chat9"}
@@ -51,8 +41,6 @@ func TestNotifyOpenAction(t *testing.T) {
 	}
 }
 
-// TestNotifyOpenActionRepeat: two clicks reschedule (last wins) without
-// deadlock — banners can be clicked more than once on some servers.
 func TestNotifyOpenActionRepeat(t *testing.T) {
 	a := &App{}
 	fn := notifyOpenAction(a, chatKey{AccountID: "a", ChatID: "1"}, "One")
@@ -65,8 +53,6 @@ func TestNotifyOpenActionRepeat(t *testing.T) {
 	}
 }
 
-// TestNotifyIconURI: the banner icon is the chat avatar as a file URI
-// (the freedesktop app_icon contract), empty when there is no avatar.
 func TestNotifyIconURI(t *testing.T) {
 	cases := []struct {
 		chat engine.ChatInfo

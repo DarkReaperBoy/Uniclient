@@ -11,67 +11,47 @@ import (
 	"uniclient/cores"
 )
 
-// --- Engine event types ---
-
 const (
-	EventAuthState        = "auth_state"
-	EventConnState        = "conn_state"
-	EventAccountList      = "account_list"
-	EventChatSnapshot     = "chat_snapshot"
-	EventChatUpdated      = "chat_updated"
-	EventChatRemoved      = "chat_removed"
-	EventMsgReceived      = "msg_received"
-	EventMsgEdited        = "msg_edited"
-	EventMsgDeleted       = "msg_deleted"
-	EventMsgStatus        = "msg_status"
-	EventTyping           = "typing"
-	EventUserStatus       = "user_status"
-	EventDownloadProgress = "download_progress"
-	EventDownloadComplete = "download_complete"
-	EventDownloadFailed   = "download_failed"
-	EventIncomingCall     = "incoming_call"
-	EventCallState        = "call_state"
-	EventGroupCallState   = "group_call_state"
-	EventGroupCallMessage = "group_call_message"
-	EventExportProgress   = "export_progress"
-	EventExportError      = "export_error"
-	EventExportComplete   = "export_complete"
-	EventExportSuggest    = "export_suggest"
-	EventNotifySettings   = "notify_settings"
-	// EventLoginCode is broadcast when any connected account receives a
-	// Telegram-pushed login code (a `tg://login?code=` service message); the
-	// login UI fills+submits it on the in-progress flow, mirroring AyuGram
-	// Account::handleLoginCode (intro_code.cpp:59-62).
-	EventLoginCode = "login_code"
-	// EventPlaybackState carries the in-app media player snapshot
-	// (voice notes / audio files): state changes plus throttled ~4 Hz
-	// progress while playing.
-	EventPlaybackState = "playback_state"
-	// EventMsgTranscribed carries a voice-message transcription result
-	// (messages.transcribeAudio / updateTranscribedAudio): the engine stored
-	// the text; the open chat re-renders the voice bubble with it.
-	EventMsgTranscribed = "msg_transcribed"
-	// EventProfileMusicChanged carries a profile-music playlist update
-	// (slice 206: own-playlist mutations + ID-set refreshes) — hosts
-	// reload the panel's Music section and the playlist view.
+	EventAuthState           = "auth_state"
+	EventConnState           = "conn_state"
+	EventAccountList         = "account_list"
+	EventChatSnapshot        = "chat_snapshot"
+	EventChatUpdated         = "chat_updated"
+	EventChatRemoved         = "chat_removed"
+	EventMsgReceived         = "msg_received"
+	EventMsgEdited           = "msg_edited"
+	EventMsgDeleted          = "msg_deleted"
+	EventMsgStatus           = "msg_status"
+	EventTyping              = "typing"
+	EventUserStatus          = "user_status"
+	EventDownloadProgress    = "download_progress"
+	EventDownloadComplete    = "download_complete"
+	EventDownloadFailed      = "download_failed"
+	EventIncomingCall        = "incoming_call"
+	EventCallState           = "call_state"
+	EventGroupCallState      = "group_call_state"
+	EventGroupCallMessage    = "group_call_message"
+	EventExportProgress      = "export_progress"
+	EventExportError         = "export_error"
+	EventExportComplete      = "export_complete"
+	EventExportSuggest       = "export_suggest"
+	EventNotifySettings      = "notify_settings"
+	EventLoginCode           = "login_code"
+	EventPlaybackState       = "playback_state"
+	EventMsgTranscribed      = "msg_transcribed"
 	EventProfileMusicChanged = "profile_music_changed"
 )
 
-// ProfileMusicEvent is the payload of EventProfileMusicChanged: the peer
-// whose playlist changed ("" = the own ID set only).
 type ProfileMusicEvent struct {
 	PeerID string `json:"peer_id"`
 }
 
-// EngineEvent is the envelope for all events pushed to the host.
 type EngineEvent struct {
 	Type      string `json:"type"`
 	AccountID string `json:"account_id,omitempty"`
 	Timestamp int64  `json:"timestamp_ms"`
 	Data      any    `json:"data"`
 }
-
-// --- Event data types ---
 
 type AuthStateEvent struct {
 	State  string `json:"state"`
@@ -80,7 +60,7 @@ type AuthStateEvent struct {
 }
 
 type ConnStateEvent struct {
-	State       string `json:"state"` // "disconnected", "connecting", "connected", "unstable", "auth_required"
+	State       string `json:"state"`
 	Error       string `json:"error,omitempty"`
 	WaitSeconds int    `json:"wait_seconds,omitempty"`
 }
@@ -112,7 +92,6 @@ type MsgEditedEvent struct {
 	ContentRaw json.RawMessage `json:"content_raw,omitempty"`
 }
 
-// MsgTranscribedEvent is the payload of EventMsgTranscribed.
 type MsgTranscribedEvent struct {
 	AccountID string `json:"account_id"`
 	ChatID    string `json:"chat_id"`
@@ -144,12 +123,10 @@ type TypingEvent struct {
 }
 
 type UserStatusEvent struct {
-	UserID   string `json:"user_id"`
-	IsOnline bool   `json:"is_online"`
-	// LastSeenKind: "online", "recently", "within_week", "within_month",
-	// "long_ago", "exact", "hidden". When "exact", LastSeen holds the UTC timestamp.
+	UserID       string `json:"user_id"`
+	IsOnline     bool   `json:"is_online"`
 	LastSeenKind string `json:"last_seen_kind,omitempty"`
-	LastSeen     int64  `json:"last_seen,omitempty"` // Unix millis, only set for "exact" kind
+	LastSeen     int64  `json:"last_seen,omitempty"`
 }
 
 type DownloadProgressEvent struct {
@@ -169,8 +146,6 @@ type DownloadCompleteEvent struct {
 	LocalPath string `json:"local_path"`
 }
 
-// DownloadFailedEvent tells the GUI a media download ended in error so the
-// bubble can flip back to "tap to retry" (AyuGram download error state).
 type DownloadFailedEvent struct {
 	AccountID string `json:"account_id"`
 	ChatID    string `json:"chat_id"`
@@ -179,9 +154,6 @@ type DownloadFailedEvent struct {
 	Err       string `json:"err"`
 }
 
-// --- Event dispatch ---
-
-// emitEvent serializes and pushes an event to the host.
 func (e *Engine) emitEvent(eventType, accountID string, data any) {
 	evt := EngineEvent{
 		Type:      eventType,
@@ -196,7 +168,6 @@ func (e *Engine) emitEvent(eventType, accountID string, data any) {
 	e.pushEvent(b)
 }
 
-// emitConnState pushes a connection state change event.
 func (e *Engine) emitConnState(accountID string, state ConnState, errMsg string) {
 	stateStr := "disconnected"
 	switch state {
@@ -213,12 +184,9 @@ func (e *Engine) emitConnState(accountID string, state ConnState, errMsg string)
 	})
 }
 
-// emitAccountList pushes the full account list to the host.
 func (e *Engine) emitAccountList() {
 	e.emitEvent(EventAccountList, "", e.ListAccounts())
 }
-
-// --- Typing dedup ---
 
 type typingKey struct {
 	accountID string
@@ -231,7 +199,6 @@ var (
 	typingCache = make(map[typingKey]time.Time)
 )
 
-// shouldEmitTyping deduplicates typing events — at most once per 5s per user+chat.
 func shouldEmitTyping(accountID, chatID, userID string) bool {
 	key := typingKey{accountID, chatID, userID}
 	typingMu.Lock()
@@ -244,12 +211,7 @@ func shouldEmitTyping(accountID, chatID, userID string) bool {
 	return true
 }
 
-// --- Core update handler ---
-
-// handleUpdate processes a real-time update from a core.
-// It caches the data, deduplicates, and emits events to the host.
 func (e *Engine) handleUpdate(accountID string, u cores.Update) {
-	// Update last event time for heartbeat monitoring.
 	e.accountsMu.Lock()
 	if acc, ok := e.accounts[accountID]; ok {
 		acc.lastEvent = time.Now()
@@ -278,8 +240,6 @@ func (e *Engine) handleUpdate(accountID string, u cores.Update) {
 		}
 
 	case cores.UpdatePollResults:
-		// Live poll counts (tg.UpdateMessagePoll): merge into the cached
-		// message's raw extra; the chat resolves from cache when empty.
 		if u.Message != nil {
 			chatID := u.ChatID
 			if chatID == "" {
@@ -289,8 +249,6 @@ func (e *Engine) handleUpdate(accountID string, u cores.Update) {
 		}
 
 	case cores.UpdateTranscription:
-		// Voice-note transcription result (tg.updateTranscribedAudio):
-		// update the stored row and re-render the bubble.
 		if u.Transcription != nil {
 			e.handleTranscriptionUpdate(accountID, u.ChatID, u.Transcription)
 		}
@@ -325,14 +283,10 @@ func (e *Engine) handleUpdate(accountID string, u cores.Update) {
 
 	case cores.UpdateGroupCallMessage:
 		if u.GroupCallMessage != nil {
-			// Ephemeral group-call message from any participant — forwarded
-			// straight to the open call panel (NOT cached as chat history).
 			e.emitEvent(EventGroupCallMessage, accountID, u.GroupCallMessage)
 		}
 
 	case cores.UpdateLoginCode:
-		// A login code arrived on a connected account; forward it to the login
-		// UI (account-agnostic, like AyuGram's domain.active().handleLoginCode).
 		if u.LoginCode != "" {
 			e.emitEvent(EventLoginCode, accountID, map[string]string{"code": u.LoginCode})
 		}
@@ -353,9 +307,6 @@ func (e *Engine) handleUpdate(accountID string, u cores.Update) {
 	}
 }
 
-// notifyPeerChatID maps a notify-settings peer (tg peer kinds) onto the
-// engine's chat-id conventions: users are bare ids, basic groups negative,
-// channels -100-prefixed. Default-scope pushes have no chat row → "".
 func notifyPeerChatID(peerType string, peerID int64) string {
 	switch peerType {
 	case "user":
@@ -368,9 +319,6 @@ func notifyPeerChatID(peerType string, peerID int64) string {
 	return ""
 }
 
-// applyNotifySettings mirrors a server-pushed notify-settings change
-// (cross-device sync: mute from the phone, desktop follows) into the chat
-// cache, timed expiry included.
 func (e *Engine) applyNotifySettings(accountID string, ns *cores.NotifySettingsUpdate) {
 	chatID := notifyPeerChatID(ns.PeerType, ns.PeerID)
 	if chatID == "" {
@@ -387,9 +335,7 @@ func (e *Engine) applyNotifySettings(accountID string, ns *cores.NotifySettingsU
 	}
 }
 
-// handleNewMessage deduplicates, caches, updates chat list, and emits event.
 func (e *Engine) handleNewMessage(accountID, chatID string, msg *cores.Message) {
-	// Dedup: check if message already exists.
 	var exists int
 	e.db.QueryRow(
 		"SELECT 1 FROM messages WHERE account_id = ? AND chat_id = ? AND msg_id = ?",
@@ -398,10 +344,8 @@ func (e *Engine) handleNewMessage(accountID, chatID string, msg *cores.Message) 
 		return
 	}
 
-	// Cache message.
 	cached := e.cacheMessage(accountID, chatID, msg)
 
-	// Update chat list — create chat entry if it doesn't exist yet (new conversation).
 	preview := msgPreviewText(msg)
 	var mediaType int
 	var thumbB64 string
@@ -413,25 +357,19 @@ func (e *Engine) handleNewMessage(accountID, chatID string, msg *cores.Message) 
 	e.ensureChatExists(accountID, chatID, msg)
 	e.updateChatLastMessage(accountID, chatID, msg.ID, preview, msg.SenderName, msg.Timestamp.UnixMilli(), msg.IsOutgoing, msgStatusFromCore(msg.Status), mediaType, thumbB64)
 
-	// Increment unread if not active chat.
 	if !e.isActiveChat(accountID, chatID) {
 		e.incrementUnread(accountID, chatID)
 	}
 
-	// Emit.
 	e.emitEvent(EventMsgReceived, accountID, MsgReceivedEvent{
 		AccountID: accountID,
 		ChatID:    chatID,
 		Message:   cached,
 	})
 
-	// Auto-download attachments per the user's auto-download settings.
 	e.maybeAutoDownload(accountID, chatID, msg)
 }
 
-// maybeAutoDownload queues low-priority downloads for an incoming message's
-// attachments when the per-source/per-type/per-size auto-download settings
-// allow it. Mirrors AyuGram firing document/photo load on message arrival.
 func (e *Engine) maybeAutoDownload(accountID, chatID string, msg *cores.Message) {
 	if msg == nil || msg.IsOutgoing || len(msg.Attachments) == 0 || e.media == nil {
 		return
@@ -443,9 +381,6 @@ func (e *Engine) maybeAutoDownload(accountID, chatID string, msg *cores.Message)
 	for i, att := range msg.Attachments {
 		mt := guessMediaType(att.MimeType, att.Name)
 		if e.ShouldAutoDownload(source, mt, att.Size) {
-			// Auto-download errors are NOT silent (B-7): ErrStreamActive
-			// means playback is already saving these bytes (benign);
-			// anything else used to vanish without a trace.
 			if err := e.RequestDownload(accountID, chatID, msg.ID, i, 3); err != nil &&
 				!errors.Is(err, ErrStreamActive) {
 				log.Printf("[engine] auto-download %s/%s %s#%d: %v", accountID, chatID, msg.ID, i, err)
@@ -454,8 +389,6 @@ func (e *Engine) maybeAutoDownload(accountID, chatID string, msg *cores.Message)
 	}
 }
 
-// autoDownloadSourceForChat maps a chat's type to the auto-download source key
-// ("private"/"group"/"channel"). Returns "" for unknown chats (no auto-download).
 func (e *Engine) autoDownloadSourceForChat(accountID, chatID string) string {
 	var ct int
 	if err := e.db.QueryRow(
@@ -475,8 +408,6 @@ func (e *Engine) autoDownloadSourceForChat(accountID, chatID string) string {
 	}
 }
 
-// handleEditMessage saves pre-edit text (anti-recall §52.4) then updates the cached message.
-// Respects saveMessagesHistory setting.
 func (e *Engine) handleEditMessage(accountID, chatID string, msg *cores.Message) {
 	now := time.Now().UnixMilli()
 	editedAt := now
@@ -488,7 +419,6 @@ func (e *Engine) handleEditMessage(accountID, chatID string, msg *cores.Message)
 	saveHistory := e.saveMessagesHistory
 	e.antiRecallMu.RUnlock()
 
-	// Anti-recall: save pre-edit text before applying update.
 	var oldText, oldSenderID, oldSenderName string
 	var oldRich []byte
 	var isOutgoing int
@@ -531,8 +461,6 @@ func (e *Engine) handleEditMessage(accountID, chatID string, msg *cores.Message)
 	})
 }
 
-// handleDeleteMessage marks message as deleted (anti-recall §52.2) and emits event.
-// Respects saveDeletedMessages and saveForBots settings.
 func (e *Engine) handleDeleteMessage(accountID, chatID, msgID string) {
 	resolvedChatID := chatID
 	var senderID string
@@ -594,10 +522,8 @@ func (e *Engine) handleDeleteMessage(accountID, chatID, msgID string) {
 	})
 }
 
-// handleReadState updates unread counts.
 func (e *Engine) handleReadState(accountID, chatID string, rs *cores.ReadState) {
 	if rs.MyLastRead != "" {
-		// Mark as read up to this message — set unread_count to 0 if we read everything.
 		e.db.Exec(
 			"UPDATE chats SET unread_count = 0 WHERE account_id = ? AND chat_id = ?",
 			accountID, chatID)
@@ -605,7 +531,6 @@ func (e *Engine) handleReadState(accountID, chatID string, rs *cores.ReadState) 
 	}
 }
 
-// handleUserStatus updates user online state.
 func (e *Engine) handleUserStatus(accountID, userID string, online bool, kind string, lastSeenMs int64) {
 	now := time.Now().UnixMilli()
 	e.db.Exec(
@@ -622,8 +547,6 @@ func (e *Engine) handleUserStatus(accountID, userID string, online bool, kind st
 	})
 }
 
-// handleCallUpdate emits call state events.
-// Group calls get a dedicated event type so the UI can show/hide the group call bar.
 func (e *Engine) handleCallUpdate(accountID string, call *cores.CallSession) {
 	if call.IsGroup {
 		info := GroupCallInfo{
@@ -684,7 +607,6 @@ func (e *Engine) handleCallUpdate(accountID string, call *cores.CallSession) {
 	}
 }
 
-// handleConnectivity handles core-level connectivity changes.
 func (e *Engine) handleConnectivity(accountID, connState string) {
 	switch connState {
 	case "connected":

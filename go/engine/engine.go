@@ -23,7 +23,6 @@ import (
 	"uniclient/utils"
 )
 
-// ConnState represents the connection state of an account.
 type ConnState int
 
 const (
@@ -33,7 +32,6 @@ const (
 	ConnUnstable
 )
 
-// Account holds the live state for a connected platform account.
 type Account struct {
 	ID          string
 	Platform    string
@@ -46,30 +44,28 @@ type Account struct {
 	IsVerified  bool
 	IsPremium   bool
 
-	// reconnect state
 	reconnect  reconnectState
 	lastEvent  time.Time
-	cancelFunc context.CancelFunc // cancels this account's goroutines
+	cancelFunc context.CancelFunc
 }
 
-// Engine is the orchestration layer between cores and the host UI.
 type Engine struct {
 	mu     sync.RWMutex
 	db     *sql.DB
 	vault  *utils.Vault
 	config *utils.AppConfig
 
-	accounts   map[string]*Account // accountID → live account
+	accounts   map[string]*Account
 	accountsMu sync.RWMutex
 
-	eventCBs map[int]func([]byte) // push serialized events to the host(s)
+	eventCBs map[int]func([]byte)
 	cbSeq    int
 
 	configDir   string
 	cacheDir    string
 	downloadDir string
 	mediaDir    string
-	maxCache    int64 // bytes, 0 = unlimited
+	maxCache    int64
 
 	activeChat struct {
 		mu        sync.Mutex
@@ -80,62 +76,37 @@ type Engine struct {
 	media   *MediaManager
 	avatars *avatarState
 
-	// guardMu guards guards: one write slot per media file key, held by
-	// either the fetch-on-read stream or a download worker — never both
-	// (slice 230; see claimStream/claimDownload in media.go).
 	guardMu sync.Mutex
 	guards  map[string]*mediaGuard
 
-	// muteSweepLast timestamps the last timed-mute expiry sweep (unix
-	// seconds) so chat-list reads don't re-run the tiny UPDATE constantly.
 	muteSweepLast atomic.Int64
 
-	// Dice sticker packs (engine/dice.go): per account+emoji memoization of
-	// messages.getStickerSet(inputStickerSetDice) results.
 	dicePacks map[string]*dicePackCache
 
-	// Favorite-reaction session cache (slice 172): per-account
-	// help.getConfig result ("" = server has none). The corner reaction
-	// pill reads it in the layout path — one core RPC per account per
-	// session, write-through on SetDefaultReaction.
 	favReactMu sync.Mutex
 	favReact   map[string]string
 
-	// Profile music (slice 206): per-account own-playlist document-ID set
-	// (account.getSavedMusicIDs, hash-gated refresh) for the bubble-menu
-	// gate, plus the running count hash.
 	ownMusicMu   sync.Mutex
 	ownMusicIDs  map[string]map[string]bool
 	ownMusicHash map[string]int64
 
-	// Sponsored messages (engine/sponsored.go): per account+chat 5-minute
-	// cache of channels.getSponsoredMessages results, with one-shot
-	// view-reporting per window.
 	sponsoredMu    sync.Mutex
 	sponsoredCache map[string]*sponsoredCacheEntry
 
-	// In-app media player (engine/mediaplayer.go): voice notes and
-	// audio files decoded from Ogg/Opus and played through the pure-Go
-	// audio devices. One playback at a time.
 	mediaMu     sync.Mutex
 	mediaPlayer *mediaPlayer
 
-	// Voice-note recorder (engine/voicerec.go): hold-to-record capture
-	// from the mic layer, encoded with the pure-Go Opus encoder.
 	recMu         sync.Mutex
 	voiceRecorder *voiceRecorder
 
-	// Live voice pipeline (engine/voice.go): one active voice-room
-	// session at a time, sharing the process-wide audio devices.
 	voiceMu      sync.Mutex
 	voiceRun     *voiceRunner
 	audioSession *audio.Session
 
-	lockFile     *os.File // single-instance lock file (held open with flock)
+	lockFile     *os.File
 	shuttingDown bool
-	wg           sync.WaitGroup // tracks background goroutines
+	wg           sync.WaitGroup
 
-	// Anti-recall settings (§52): controlled from the host via SetAntiRecallSettings.
 	antiRecallMu        sync.RWMutex
 	saveDeletedMessages bool
 	saveMessagesHistory bool
@@ -144,47 +115,31 @@ type Engine struct {
 	exportMu sync.RWMutex
 	exports  map[string]*exportState
 
-	// Export-ready suggestion scheduling (AyuGram Session::suggestStartExport):
-	// per-account timer that fires when a delayed takeout becomes available,
-	// emitting EventExportSuggest so the host shows the "Data export ready" box.
 	exportSuggestMu     sync.Mutex
 	exportSuggestTimers map[string]*time.Timer
 
-	// Proxy settings: controlled from the host via SetProxy.
-	proxyMu       sync.RWMutex
-	proxyMode     int // 0=disabled, 1=system, 2=custom
-	proxyHost     string
-	proxyPort     int
-	proxyType     string // socks5, http, mtproto
-	proxyUser     string
-	proxyPass     string
-	proxySecret   string
-	proxyIPv6     bool
-	proxyForCalls bool
-	// Proxy rotation (AyuGram SettingsProxy.proxyRotationEnabled/Timeout):
-	// rotate through the proxy list every proxyRotationTimeout seconds.
+	proxyMu              sync.RWMutex
+	proxyMode            int
+	proxyHost            string
+	proxyPort            int
+	proxyType            string
+	proxyUser            string
+	proxyPass            string
+	proxySecret          string
+	proxyIPv6            bool
+	proxyForCalls        bool
 	proxyRotationEnabled bool
 	proxyRotationTimeout int
 
-	// Auto-download settings: per-source limits controlled from the host via SetAutoDownload.
 	autoDownloadMu       sync.RWMutex
 	autoDownloadSettings map[string]map[string]interface{}
 
-	// Per-account ghost overrides (AyuGram per-session ghost resolution,
-	// ayu_settings.cpp:437 ghost(uint64 userId)). When an account has an entry
-	// here, its ghost flags take precedence over the global config; otherwise
-	// the global config applies. Populated from the host when the user picks
-	// "individual settings for each account".
 	ghostMu        sync.RWMutex
 	ghostOverrides map[string]GhostFlags
 
-	// Power saving flags bitmap from host UI.
-	powerSavingFlags int
-	// powerSavingForceAll mirrors AyuGram PowerSaving::ForceAll (auto power
-	// saving): when true, every power-saving flag is treated as enabled.
+	powerSavingFlags    int
 	powerSavingForceAll bool
 
-	// Local storage limits from host UI.
 	localStorageTotalMB  int
 	localStorageMediaMB  int
 	localStorageTimeDays int
@@ -193,11 +148,6 @@ type Engine struct {
 	experimentalFlags   map[string]bool
 }
 
-// Init initializes the engine: opens vault+DB, loads accounts, starts connections.
-// configDir: path to config directory (contains vault, config.json)
-// cacheDir: path to cache directory (contains cache.db, media/)
-// downloadDir: path to user downloads directory
-// vaultPassword: password for the encrypted vault (empty string = no vault encryption)
 func Init(configDir, cacheDir, downloadDir, vaultPassword string) (*Engine, error) {
 	e := &Engine{
 		accounts:            make(map[string]*Account),
@@ -205,21 +155,19 @@ func Init(configDir, cacheDir, downloadDir, vaultPassword string) (*Engine, erro
 		cacheDir:            cacheDir,
 		downloadDir:         downloadDir,
 		mediaDir:            filepath.Join(cacheDir, "media"),
-		maxCache:            1 << 30, // 1GB default
+		maxCache:            1 << 30,
 		avatars:             newAvatarState(),
 		saveDeletedMessages: true,
 		saveMessagesHistory: true,
 		saveForBots:         false,
 	}
 
-	// Ensure directories exist (no-op on js/wasm — no filesystem there).
 	for _, d := range []string{configDir, cacheDir, downloadDir, e.mediaDir} {
 		if err := ensureDir(d); err != nil {
 			return nil, fmt.Errorf("create dir %s: %w", d, err)
 		}
 	}
 
-	// Single-instance lock — prevent two copies from running simultaneously.
 	lockPath := filepath.Join(configDir, "uniclient.lock")
 	lf, err := acquireLock(lockPath)
 	if err != nil {
@@ -227,7 +175,6 @@ func Init(configDir, cacheDir, downloadDir, vaultPassword string) (*Engine, erro
 	}
 	e.lockFile = lf
 
-	// Open or create vault (stores credentials, config, and sessions).
 	vaultPath := filepath.Join(configDir, "uniclient.vault")
 	if !utils.VaultExists(vaultPath) {
 		e.vault, err = utils.CreateVault(vaultPath, vaultPassword)
@@ -241,13 +188,11 @@ func Init(configDir, cacheDir, downloadDir, vaultPassword string) (*Engine, erro
 		}
 	}
 
-	// Migrate old uniconfig file into vault if present.
 	uniConfigPath := filepath.Join(configDir, "uniconfig")
 	if _, statErr := os.Stat(uniConfigPath); statErr == nil {
 		_ = e.vault.MigrateUniConfig(uniConfigPath)
 	}
 
-	// Migrate old config.json if present.
 	oldCfgPath := filepath.Join(configDir, "config.json")
 	if _, statErr := os.Stat(oldCfgPath); statErr == nil {
 		if cfg, cfgErr := utils.LoadConfig(oldCfgPath); cfgErr == nil {
@@ -264,8 +209,6 @@ func Init(configDir, cacheDir, downloadDir, vaultPassword string) (*Engine, erro
 		e.maxCache = cfg.MaxCacheSize
 	}
 
-	// Anti-recall settings (§52): persisted config wins, nil keys keep
-	// the engine defaults (true/true/false).
 	if cfg.AyuSaveDeleted != nil {
 		e.saveDeletedMessages = *cfg.AyuSaveDeleted
 	}
@@ -276,7 +219,6 @@ func Init(configDir, cacheDir, downloadDir, vaultPassword string) (*Engine, erro
 		e.saveForBots = *cfg.AyuSaveForBots
 	}
 
-	// Proxy settings restored from the persisted config (Mode 2 = custom).
 	if pc := cfg.ProxyConfig; pc.Host != "" || pc.Mode > 0 {
 		e.proxyMode = pc.Mode
 		e.proxyHost = pc.Host
@@ -287,42 +229,34 @@ func Init(configDir, cacheDir, downloadDir, vaultPassword string) (*Engine, erro
 			e.proxyPort = p
 		}
 	}
-	// Persisted download path overrides the bootstrap default.
 	if cfg.DownloadDir != "" {
 		e.downloadDir = cfg.DownloadDir
 	}
 
-	// Open SQLite database.
 	e.db, err = OpenDB(cacheDir)
 	if err != nil {
 		e.vault.Close()
 		return nil, fmt.Errorf("open db: %w", err)
 	}
 
-	// Migrate old DB+vault account data into unified vault entries.
 	e.migrateAccountsToVault()
 
-	// Load accounts from vault (source of truth), sync DB cache.
 	if err := e.loadAccounts(); err != nil {
 		e.db.Close()
 		e.vault.Close()
 		return nil, fmt.Errorf("load accounts: %w", err)
 	}
 
-	// Resume pending operations from crash.
 	e.resumePending()
 
-	// Restore persisted auto-download rules (AyuGram Data::AutoDownload).
 	e.loadAutoDownloadSettings()
 
-	// Start media download manager.
 	e.media = newMediaManager(e)
 	e.media.Start(context.Background())
 
 	return e, nil
 }
 
-// Vault returns the vault (stores credentials, config, sessions).
 func (e *Engine) Vault() *utils.Vault {
 	return e.vault
 }
@@ -331,9 +265,6 @@ func (e *Engine) MediaDir() string {
 	return e.mediaDir
 }
 
-// SetEventCallback sets the single host callback for engine events. It
-// REPLACES all existing subscribers — it is the boot-time registration
-// (before any window exists). Multi-window hosts use Subscribe instead.
 func (e *Engine) SetEventCallback(cb func([]byte)) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -344,15 +275,11 @@ func (e *Engine) SetEventCallback(cb func([]byte)) {
 	}
 }
 
-// EventSubscription is a handle to one engine event subscription (Go func
-// values are not comparable, so removal is handle-based).
 type EventSubscription struct {
 	id int
 	e  *Engine
 }
 
-// Subscribe registers an engine-event subscriber (multi-window, slice 168):
-// every subscriber receives every pushed event until Unsubscribe.
 func (e *Engine) Subscribe(cb func([]byte)) *EventSubscription {
 	if cb == nil {
 		return nil
@@ -367,7 +294,6 @@ func (e *Engine) Subscribe(cb func([]byte)) *EventSubscription {
 	return &EventSubscription{id: e.cbSeq, e: e}
 }
 
-// Unsubscribe removes exactly this subscription. Idempotent.
 func (s *EventSubscription) Unsubscribe() {
 	if s == nil || s.e == nil {
 		return
@@ -377,9 +303,6 @@ func (s *EventSubscription) Unsubscribe() {
 	delete(s.e.eventCBs, s.id)
 }
 
-// pushEvent sends an event to every registered host subscriber. Safe to
-// call from any goroutine. Subscriber callbacks run WITHOUT the engine lock
-// (they only invalidate windows).
 func (e *Engine) pushEvent(data []byte) {
 	e.mu.RLock()
 	cbs := make([]func([]byte), 0, len(e.eventCBs))
@@ -394,7 +317,6 @@ func (e *Engine) pushEvent(data []byte) {
 	}
 }
 
-// SetAntiRecallSettings updates the anti-recall settings (§52).
 func (e *Engine) SetAntiRecallSettings(saveDeleted, saveHistory, saveForBots bool) {
 	e.antiRecallMu.Lock()
 	defer e.antiRecallMu.Unlock()
@@ -403,17 +325,13 @@ func (e *Engine) SetAntiRecallSettings(saveDeleted, saveHistory, saveForBots boo
 	e.saveForBots = saveForBots
 }
 
-// GetAntiRecallSettings reports the live anti-recall settings (§52).
 func (e *Engine) GetAntiRecallSettings() (saveDeleted, saveHistory, saveForBots bool) {
 	e.antiRecallMu.RLock()
 	defer e.antiRecallMu.RUnlock()
 	return e.saveDeletedMessages, e.saveMessagesHistory, e.saveForBots
 }
 
-// ClearDeletedMessages removes the locally saved anti-recall copies for
-// one chat (AyuGram "clear deleted" per chat) and returns how many went.
 func (e *Engine) ClearDeletedMessages(accountID, chatID string) (int64, error) {
-	// Media rows first (no FK on messages).
 	if _, err := e.db.Exec(
 		`DELETE FROM media WHERE account_id = ? AND chat_id = ? AND msg_id IN
                   (SELECT msg_id FROM messages WHERE account_id = ? AND chat_id = ? AND is_deleted = 1)`,
@@ -430,22 +348,11 @@ func (e *Engine) ClearDeletedMessages(accountID, chatID string) (int64, error) {
 	return res.RowsAffected()
 }
 
-// proxyConfigurable is implemented by cores that can dial through a proxy.
 type proxyConfigurable interface {
 	SetProxyConfig(cores.ProxyConfig)
 }
 
-// SetProxy updates the engine proxy settings and pushes them to every live core
-// so the change takes effect on the next (re)connect. Mirrors AyuGram's
-// Application::setCurrentProxy (core/application.cpp:836), which installs the
-// proxy into MTProto and reconnects sessions.
 func (e *Engine) SetProxy(mode int, host string, port int, proxyType, user, pass, secret string, ipv6, forCalls, rotationEnabled bool, rotationTimeout int) {
-	// Normalize the proxy type to the lowercase tokens the dialer expects
-	// ("socks5"/"http"/"mtproto"). the host sends the uppercase display label
-	// ("SOCKS5"/"HTTP"/"MTPROTO"), but ProxyConfig.active()/resolver()/dialFunc()
-	// (cores/proxy.go) compare case-sensitively against lowercase. Without this
-	// active() returns false for every real proxy, no resolver is installed, and
-	// every connection silently dials direct.
 	proxyType = strings.ToLower(strings.TrimSpace(proxyType))
 	e.proxyMu.Lock()
 	e.proxyMode = mode
@@ -465,15 +372,12 @@ func (e *Engine) SetProxy(mode int, host string, port int, proxyType, user, pass
 	e.applyProxyToAllCores()
 }
 
-// GetProxySettings reports the live proxy settings (mode 0/1/2, and
-// the custom fields). Read by the settings UI.
 func (e *Engine) GetProxySettings() (mode int, host string, port int, ptype, user, pass string) {
 	e.proxyMu.RLock()
 	defer e.proxyMu.RUnlock()
 	return e.proxyMode, e.proxyHost, e.proxyPort, e.proxyType, e.proxyUser, e.proxyPass
 }
 
-// SetDownloadDir switches the downloads directory (created when needed).
 func (e *Engine) SetDownloadDir(dir string) error {
 	if dir == "" {
 		return nil
@@ -487,9 +391,6 @@ func (e *Engine) SetDownloadDir(dir string) error {
 	return nil
 }
 
-// currentProxyConfig builds the cores.ProxyConfig from the engine's stored proxy
-// settings. Only mode 2 (custom) installs a proxy; 0 (disabled) and 1 (system)
-// fall back to the default direct dialer.
 func (e *Engine) currentProxyConfig() cores.ProxyConfig {
 	e.proxyMu.RLock()
 	defer e.proxyMu.RUnlock()
@@ -505,9 +406,6 @@ func (e *Engine) currentProxyConfig() cores.ProxyConfig {
 	}
 }
 
-// applyProxyToCore pushes the current proxy config to a single core (if it
-// supports proxying). Called right after a core is created so a saved proxy is
-// installed before the first connect.
 func (e *Engine) applyProxyToCore(core cores.Core) {
 	if core == nil {
 		return
@@ -517,7 +415,6 @@ func (e *Engine) applyProxyToCore(core cores.Core) {
 	}
 }
 
-// applyProxyToAllCores pushes the current proxy config to every live core.
 func (e *Engine) applyProxyToAllCores() {
 	cfg := e.currentProxyConfig()
 	e.accountsMu.RLock()
@@ -535,9 +432,6 @@ func (e *Engine) applyProxyToAllCores() {
 	}
 }
 
-// SetAutoDownloadSettings stores per-source auto-download limits and
-// persists them to the DB so they survive restarts (AyuGram parity,
-// Data::AutoDownload persistence).
 func (e *Engine) SetAutoDownloadSettings(source string, settings map[string]interface{}) {
 	e.autoDownloadMu.Lock()
 	if e.autoDownloadSettings == nil {
@@ -559,10 +453,6 @@ func (e *Engine) SetAutoDownloadSettings(source string, settings map[string]inte
 	}
 }
 
-// GetAutoDownloadSettings returns the effective per-source auto-download
-// settings with the AyuGram-faithful defaults filled in for missing keys —
-// the shape the settings UI renders (photos/videos/gifs/videoMessages/files
-// toggles + downloadLimit/autoPlayLimit in bytes).
 func (e *Engine) GetAutoDownloadSettings() map[string]map[string]interface{} {
 	out := make(map[string]map[string]interface{}, 3)
 	for _, source := range []string{"private", "group", "channel"} {
@@ -574,8 +464,6 @@ func (e *Engine) GetAutoDownloadSettings() map[string]map[string]interface{} {
 	return out
 }
 
-// effectiveAutoDownloadSettings merges a stored per-source map over the
-// defaults. Pure — unit-tested.
 func effectiveAutoDownloadSettings(stored map[string]interface{}) map[string]interface{} {
 	photos, files, videos, gifs, videoMsgs := true, false, true, true, true
 	downloadLimit := int64(10 * 1024 * 1024)
@@ -624,8 +512,6 @@ func effectiveAutoDownloadSettings(stored map[string]interface{}) map[string]int
 	}
 }
 
-// loadAutoDownloadSettings restores persisted auto-download rules from the
-// DB into memory at engine start.
 func (e *Engine) loadAutoDownloadSettings() {
 	if e.db == nil {
 		return
@@ -661,16 +547,6 @@ func (e *Engine) loadAutoDownloadSettings() {
 	e.autoDownloadMu.Unlock()
 }
 
-// ShouldAutoDownload reports whether a freshly-received attachment of the given
-// media type and size should be auto-downloaded for the given source
-// ("private"/"group"/"channel"), per the limits stored via
-// SetAutoDownloadSettings. Mirrors AyuGram's Data::AutoDownload per-source /
-// per-type bytesLimit gating (boxes/auto_download_box.cpp): a type only
-// auto-downloads when its toggle is on and the file is within the size limit.
-// When a source has no stored settings the AyuGram-faithful defaults apply
-// (photos/videos/GIFs/round videos on, files off; 10 MB / 50 MB limits) so the
-// feature works out of the box, matching the host getAutoDownloadForSource
-// defaults.
 func (e *Engine) ShouldAutoDownload(source string, mediaType int, fileSize int64) bool {
 	e.autoDownloadMu.RLock()
 	settings := e.autoDownloadSettings[source]
@@ -725,7 +601,6 @@ func (e *Engine) ShouldAutoDownload(source string, mediaType int, fileSize int64
 	}
 }
 
-// SetPasscode stores the full passcode config in the vault.
 func (e *Engine) SetPasscode(data map[string]interface{}) error {
 	if err := e.vault.Put("passcode", "config", data); err != nil {
 		return err
@@ -733,7 +608,6 @@ func (e *Engine) SetPasscode(data map[string]interface{}) error {
 	return e.vault.Save()
 }
 
-// GetPasscodeConfig reads the passcode config from the vault.
 func (e *Engine) GetPasscodeConfig() (map[string]interface{}, error) {
 	var data map[string]interface{}
 	if err := e.vault.Get("passcode", "config", &data); err != nil {
@@ -745,13 +619,11 @@ func (e *Engine) GetPasscodeConfig() (map[string]interface{}, error) {
 	return data, nil
 }
 
-// ClearPasscode removes the passcode config from the vault.
 func (e *Engine) ClearPasscode() error {
 	_ = e.vault.Delete("passcode", "config")
 	return e.vault.Save()
 }
 
-// UpdatePasscodeConfig merges fields into the existing passcode config.
 func (e *Engine) UpdatePasscodeConfig(updates map[string]interface{}) error {
 	data, err := e.GetPasscodeConfig()
 	if err != nil {
@@ -769,15 +641,10 @@ func (e *Engine) UpdatePasscodeConfig(updates map[string]interface{}) error {
 	return e.vault.Save()
 }
 
-// SetPowerSaving stores the power-saving flags bitmap and the force-all flag
-// (auto power saving) from the host UI. forceAll maps to the host
-// PowerSaving::SetForceAll: when set, every flag is treated as enabled.
 func (e *Engine) SetPowerSaving(flags int, forceAll bool) {
 	e.mu.Lock()
 	e.powerSavingFlags = flags
 	e.powerSavingForceAll = forceAll
-	// Persist (slice 135): restored by Init like every other toggle —
-	// power saving must survive restarts to save any power.
 	if e.config != nil {
 		e.config.PowerSavingFlags = flags
 		e.config.PowerSavingForceAll = forceAll
@@ -789,8 +656,6 @@ func (e *Engine) SetPowerSaving(flags int, forceAll bool) {
 	log.Printf("[engine] SetPowerSaving: flags=0x%X forceAll=%v", flags, forceAll)
 }
 
-// GetPowerSaving returns the stored power-saving state (false ok when the
-// engine has no config yet — defaults are off).
 func (e *Engine) GetPowerSaving() (flags int, forceAll bool, ok bool) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -800,8 +665,6 @@ func (e *Engine) GetPowerSaving() (flags int, forceAll bool, ok bool) {
 	return e.config.PowerSavingFlags, e.config.PowerSavingForceAll, true
 }
 
-// GetChannelStats fetches a channel's broadcast statistics (slice 184):
-// stats.getBroadcastStats + async-graph resolution, through the core.
 func (e *Engine) GetChannelStats(accountID, chatID string) (*cores.ChannelStats, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -831,7 +694,6 @@ func (e *Engine) SetExperimentalFlag(id string, value bool) {
 	log.Printf("[engine] SetExperimentalFlag: %s=%v", id, value)
 }
 
-// SetLocalStorageLimits stores cache eviction limits from the host UI.
 func (e *Engine) SetLocalStorageLimits(totalMB, mediaMB, timeDays int) {
 	e.localStorageTotalMB = totalMB
 	e.localStorageMediaMB = mediaMB
@@ -842,8 +704,6 @@ func (e *Engine) SetLocalStorageLimits(totalMB, mediaMB, timeDays int) {
 	log.Printf("[engine] SetLocalStorageLimits: total=%dMB media=%dMB time=%ddays", totalMB, mediaMB, timeDays)
 }
 
-// CheckProxy tests proxy connectivity by connecting to a Telegram DC through it.
-// Returns ping time in milliseconds on success.
 func (e *Engine) CheckProxy(host string, port int, proxyType, user, pass, secret string) (int64, error) {
 	addr := net.JoinHostPort(host, strconv.Itoa(port))
 	start := time.Now()
@@ -851,9 +711,6 @@ func (e *Engine) CheckProxy(host string, port int, proxyType, user, pass, secret
 	var conn net.Conn
 	var err error
 
-	// Lowercase to match the protocol cases below — the host may pass an uppercase
-	// display label, which would otherwise fall through to the default (a bare
-	// TCP dial that wrongly reports any reachable host as a working proxy).
 	switch strings.ToLower(strings.TrimSpace(proxyType)) {
 	case "socks5":
 		dialer, dErr := proxy.SOCKS5("tcp", addr, nil, proxy.Direct)
@@ -898,8 +755,6 @@ func (e *Engine) CheckProxy(host string, port int, proxyType, user, pass, secret
 	return pingMs, nil
 }
 
-// SetActiveChat tells the engine which chat the user is looking at.
-// Notifications for this chat are suppressed.
 func (e *Engine) SetActiveChat(accountID, chatID string) {
 	e.activeChat.mu.Lock()
 	e.activeChat.accountID = accountID
@@ -907,7 +762,6 @@ func (e *Engine) SetActiveChat(accountID, chatID string) {
 	e.activeChat.mu.Unlock()
 }
 
-// ClearActiveChat clears the active chat (user navigated away).
 func (e *Engine) ClearActiveChat() {
 	e.activeChat.mu.Lock()
 	e.activeChat.accountID = ""
@@ -915,19 +769,12 @@ func (e *Engine) ClearActiveChat() {
 	e.activeChat.mu.Unlock()
 }
 
-// isActiveChat returns true if the given chat is the one the user is currently viewing.
 func (e *Engine) isActiveChat(accountID, chatID string) bool {
 	e.activeChat.mu.Lock()
 	defer e.activeChat.mu.Unlock()
 	return e.activeChat.accountID == accountID && e.activeChat.chatID == chatID
 }
 
-// AddRecentSearch records a submitted search query (Telegram recents):
-// dedupes case-insensitively, moves to front, caps at 8 entries.
-// SetLocalPremium turns the per-account client-side premium view on or
-// off (AyuGram local premium) and persists it. The account list and the
-// premium page reflect it immediately; server-side premium perks stay
-// server-truth.
 func (e *Engine) SetLocalPremium(accountID string, on bool) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -948,7 +795,6 @@ func (e *Engine) SetLocalPremium(accountID string, on bool) error {
 	return e.vault.SetConfig(e.config)
 }
 
-// localPremiumSnapshot copies the per-account local-premium flags.
 func (e *Engine) localPremiumSnapshot() map[string]bool {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
@@ -962,7 +808,6 @@ func (e *Engine) localPremiumSnapshot() map[string]bool {
 	return out
 }
 
-// LocalPremiumFor reports the per-account local-premium flag.
 func (e *Engine) LocalPremiumFor(accountID string) bool {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
@@ -990,7 +835,6 @@ func (e *Engine) AddRecentSearch(query string) error {
 	return e.vault.SetConfig(e.config)
 }
 
-// ClearRecentSearches empties the recent-search list.
 func (e *Engine) ClearRecentSearches() error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -998,14 +842,12 @@ func (e *Engine) ClearRecentSearches() error {
 	return e.vault.SetConfig(e.config)
 }
 
-// GetConfig returns the current app config.
 func (e *Engine) GetConfig() *utils.AppConfig {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	return e.config
 }
 
-// UpdateConfig merges changes into the current config and saves to disk.
 func (e *Engine) UpdateConfig(changes *utils.AppConfig) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -1033,118 +875,76 @@ func (e *Engine) UpdateConfig(changes *utils.AppConfig) error {
 	return e.vault.SetConfig(e.config)
 }
 
-// ConfigChanges holds partial config updates from the bridge layer.
-// Zero values are treated as "no change" (except MaxCacheSize where 0 means unlimited).
 type ConfigChanges struct {
-	Theme       string
-	AccentColor string
-	FontScale   float64
-	Language    string
-	// In-app playback gain, 0..1 (slice 224, row 276's volume). Nil =
-	// unchanged. The live half is Engine.SetMediaVolume; this persists.
-	MediaVolume *float64
-	// Chat-wide translation target (slice 150). Zero value = unchanged.
-	TranslateTarget string
-	// Composer submit mode (tdesktop Messages setting, slice 155).
-	// Nil = unchanged; "" = Enter sends, "ctrl-enter" = Ctrl+Enter sends.
-	ComposerSubmit *string
-	SwipeAction    *string
-	// Corner reply button (slice 157). Nil = unchanged; effective
-	// default ON (tdesktop).
-	CornerReply    *bool
-	CornerReaction *bool
-	// Ayu improve link previews (slice 155). Nil = unchanged.
-	AyuImproveLinkPreviews *bool
-	// Ayu behavior extras (slice 173, ayu_settings.h): message
-	// seconds, zalgo filtering, reaction-strip visibility (nil =
-	// unchanged; the three visibility keys default ON), and the
-	// sticker/gif/voice send confirmations (default OFF).
-	AyuMsgSeconds     *bool
-	AyuFilterZalgo    *bool
-	AyuReactChannels  *bool
-	AyuReactGroups    *bool
-	AyuReactPrivate   *bool
-	AyuConfirmSticker *bool
-	AyuConfirmGif     *bool
-	AyuConfirmVoice   *bool
-	// AyuGram similar-channels settings (slice 169). Nil = unchanged.
+	Theme                      string
+	AccentColor                string
+	FontScale                  float64
+	Language                   string
+	MediaVolume                *float64
+	TranslateTarget            string
+	ComposerSubmit             *string
+	SwipeAction                *string
+	CornerReply                *bool
+	CornerReaction             *bool
+	AyuImproveLinkPreviews     *bool
+	AyuMsgSeconds              *bool
+	AyuFilterZalgo             *bool
+	AyuReactChannels           *bool
+	AyuReactGroups             *bool
+	AyuReactPrivate            *bool
+	AyuConfirmSticker          *bool
+	AyuConfirmGif              *bool
+	AyuConfirmVoice            *bool
 	AyuHideSimilarChannels     *bool
 	AyuCollapseSimilarChannels *bool
-	// AyuGram app icon set (slice 170). Nil = unchanged.
-	AyuAppIcon *string
-	// AyuGram avatar corners (slice 215): slider 0..23 (nil = unchanged;
-	// stored default 23 = circle) and the Single Corner Radius toggle
-	// (forums match chats when on).
-	AyuAvatarCorners      *int
-	AyuSingleCornerRadius *bool
-	// Custom fonts (slice 146): nil = unchanged; non-nil ("" = reset).
-	FontPath     *string
-	MonoFontPath *string
-	MaxCacheSize int64
-	DownloadDir  string
-	// Use pointers for booleans so zero-value (false) is distinguishable from "not set".
-	SendReadReceipts *bool
-	// Local read marking (AyuGram LRead). Nil = unchanged.
-	LocalReadMark          *bool
-	SendTyping             *bool
-	SendUploadProgress     *bool
-	SendReadStories        *bool
-	SendOnlinePackets      *bool
-	SendOfflineAfterOnline *bool
-	MarkReadAfterAction    *bool
-	UseScheduledMessages   *bool
-	SendWithoutSound       *bool
-	NotifyDMs              *bool
-	NotifyGroups           *bool
-	NotifyMentionsOnly     *bool
+	AyuAppIcon                 *string
+	AyuAvatarCorners           *int
+	AyuSingleCornerRadius      *bool
+	FontPath                   *string
+	MonoFontPath               *string
+	MaxCacheSize               int64
+	DownloadDir                string
+	SendReadReceipts           *bool
+	LocalReadMark              *bool
+	SendTyping                 *bool
+	SendUploadProgress         *bool
+	SendReadStories            *bool
+	SendOnlinePackets          *bool
+	SendOfflineAfterOnline     *bool
+	MarkReadAfterAction        *bool
+	UseScheduledMessages       *bool
+	SendWithoutSound           *bool
+	NotifyDMs                  *bool
+	NotifyGroups               *bool
+	NotifyMentionsOnly         *bool
 
-	// Notification content privacy (AyuGram "show previews"). Nil = unchanged.
 	NotifyPreviews *bool
 
-	// Notification sound kind (slice 121). Nil = unchanged.
 	NotifySound *string
 
-	// Drawer customization (Ayu): ids of hidden drawer rows. Nil = unchanged.
 	DrawerHiddenItems []string
 
-	// Streamer mode (Ayu): blur names/photos in the UI. Nil = unchanged.
 	StreamerMode *bool
 
-	// System tray icon (slice 137). Nil = unchanged; the GUI starts or
-	// stops its tray controller from the effective value.
 	SystemTray *bool
 
-	// Ayu mark strings. Nil = unchanged; "" resets to the GUI default.
 	AyuDeletedMark *string
 	AyuEditedMark  *string
 
-	// Anti-recall saving (AyuGram Ayu preferences). Nil = unchanged;
-	// the engine applies the value immediately and it persists in
-	// AppConfig so Init restores it.
 	AyuSaveDeleted *bool
 	AyuSaveHistory *bool
 	AyuSaveForBots *bool
-	// Bubble corner style (AyuGram appearance). Nil = unchanged.
-	BubbleCorners *bool
+	BubbleCorners  *bool
 
-	// Layout tweak sliders (AyuGram appearance, slice 93). Nil = unchanged.
 	BubbleRadius   *int
 	WideMultiplier *float64
 
-	// Proxy settings (AyuGram Data & Storage). Nil = unchanged; the GUI
-	// also pushes the live values through SetProxy for immediate effect.
 	ProxyConfig *utils.ProxyConfig
 
-	// Hide the "All chats" folder tab.
 	HideAllChats *bool
 }
 
-// UpdateConfigFromBridge applies partial config changes from the bridge layer.
 func (e *Engine) UpdateConfigFromBridge(changes *ConfigChanges) error {
-	// A nil config means the engine was never initialised (tests build a
-	// bare &Engine{}). Every branch below dereferences it, so say so
-	// instead of crashing the caller — or, worse, the goroutine a GUI
-	// persistence callback runs on.
 	if e.config == nil {
 		return fmt.Errorf("config: engine has no config to update")
 	}
@@ -1275,8 +1075,6 @@ func (e *Engine) UpdateConfigFromBridge(changes *ConfigChanges) error {
 	if changes.NotifyMentionsOnly != nil {
 		e.config.NotifyMentionsOnly = *changes.NotifyMentionsOnly
 	}
-	// Anti-recall: engine fields (immediate effect) + config (persist).
-	// e.mu → antiRecallMu nesting is one-directional (no reverse path).
 	if changes.AyuSaveDeleted != nil {
 		e.config.AyuSaveDeleted = changes.AyuSaveDeleted
 		e.antiRecallMu.Lock()
@@ -1316,8 +1114,6 @@ func (e *Engine) UpdateConfigFromBridge(changes *ConfigChanges) error {
 	return e.vault.SetConfig(e.config)
 }
 
-// GhostFlags holds the per-account ghost-mode toggles (AyuGram
-// GhostModeAccountSettings). Mirrors the 8 ghost fields of the global config.
 type GhostFlags struct {
 	SendReadReceipts       bool
 	SendUploadProgress     bool
@@ -1329,9 +1125,6 @@ type GhostFlags struct {
 	SendWithoutSound       bool
 }
 
-// SetAccountGhost stores a per-account ghost override. When set, GhostFor
-// returns these flags for the account instead of the global config — so
-// simultaneously-connected accounts each enforce their own ghost profile.
 func (e *Engine) SetAccountGhost(accountID string, g GhostFlags) {
 	e.ghostMu.Lock()
 	defer e.ghostMu.Unlock()
@@ -1341,17 +1134,12 @@ func (e *Engine) SetAccountGhost(accountID string, g GhostFlags) {
 	e.ghostOverrides[accountID] = g
 }
 
-// ClearAccountGhostOverrides removes every per-account ghost override, so the
-// global config applies to all accounts again (global Ghost Mode).
 func (e *Engine) ClearAccountGhostOverrides() {
 	e.ghostMu.Lock()
 	defer e.ghostMu.Unlock()
 	e.ghostOverrides = nil
 }
 
-// GhostFor resolves the effective ghost flags for an account: the per-account
-// override if one is registered, otherwise the global config's ghost flags.
-// AyuGram resolves ghost per session/userId (ayu_settings.cpp:437).
 func (e *Engine) GhostFor(accountID string) GhostFlags {
 	e.ghostMu.RLock()
 	g, ok := e.ghostOverrides[accountID]
@@ -1372,24 +1160,19 @@ func (e *Engine) GhostFor(accountID string) GhostFlags {
 	}
 }
 
-// Shutdown gracefully shuts down the engine: stops accepting operations,
-// flushes pending writes, closes all cores, saves vault, closes DB.
 func (e *Engine) Shutdown() error {
 	e.mu.Lock()
 	e.shuttingDown = true
 	e.mu.Unlock()
 
-	// Tear down the live voice pipeline and release the audio devices.
 	e.stopVoiceRunner()
 	if e.audioSession != nil {
 		e.audioSession.Close()
 		e.audioSession = nil
 	}
 
-	// Stop any pending export-ready suggestion timers.
 	e.cancelAllExportSuggests()
 
-	// Cancel all account goroutines.
 	e.accountsMu.RLock()
 	for _, acc := range e.accounts {
 		if acc.cancelFunc != nil {
@@ -1398,7 +1181,6 @@ func (e *Engine) Shutdown() error {
 	}
 	e.accountsMu.RUnlock()
 
-	// Wait for background goroutines (with timeout).
 	done := make(chan struct{})
 	go func() {
 		e.wg.Wait()
@@ -1409,17 +1191,14 @@ func (e *Engine) Shutdown() error {
 	case <-time.After(5 * time.Second):
 	}
 
-	// Save vault.
 	if e.vault != nil {
 		e.vault.Save()
 	}
 
-	// Close DB.
 	if e.db != nil {
 		e.db.Close()
 	}
 
-	// Release single-instance lock.
 	if e.lockFile != nil {
 		releaseLock(e.lockFile)
 		e.lockFile = nil
@@ -1428,9 +1207,6 @@ func (e *Engine) Shutdown() error {
 	return nil
 }
 
-// LeaveChat removes the current user from a chat/channel/room. For DMs this
-// deletes the local chat history. After leaving, triggers a sync so the chat
-// disappears from the list.
 func (e *Engine) JoinChannel(accountID, chatID string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -1468,12 +1244,10 @@ func (e *Engine) LeaveChat(accountID, chatID string) error {
 		return err
 	}
 
-	// Remove from local cache.
 	e.db.Exec("DELETE FROM messages WHERE account_id = ? AND chat_id = ?", accountID, chatID)
 	e.db.Exec("DELETE FROM chats WHERE account_id = ? AND chat_id = ?", accountID, chatID)
 	e.db.Exec("DELETE FROM media WHERE account_id = ? AND chat_id = ?", accountID, chatID)
 
-	// Emit chat_removed event so the host updates the list.
 	e.emitEvent(EventChatRemoved, accountID, map[string]string{
 		"account_id": accountID,
 		"chat_id":    chatID,
@@ -1528,8 +1302,6 @@ func (e *Engine) ToggleForum(accountID, chatID string, enabled bool) error {
 	return nil
 }
 
-// ToggleForumTabs forwards both the enabled and tabs/list-layout choice from
-// AyuGram's ToggleTopicsBox to the core (channels.toggleForum tabs flag).
 func (e *Engine) ToggleForumTabs(accountID, chatID string, enabled, tabs bool) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -1567,16 +1339,12 @@ func (e *Engine) SetForumViewAsMessages(accountID, chatID string, asMessages boo
 	return vt.ToggleViewForumAsMessages(chatID, asMessages)
 }
 
-// ClearHistory deletes the message history for a chat on the server and locally,
-// but keeps the chat visible in the chat list.
 func (e *Engine) ClearHistory(accountID, chatID string, revoke bool) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
 		return fmt.Errorf("account %q not found or not connected", accountID)
 	}
 
-	// Platform-specific history deletion. Prefer the revoke-aware variant so
-	// "Also delete for everyone" actually deletes server-side for both sides.
 	type historyDeleterRevoke interface {
 		DeleteChatHistoryWithRevoke(chatID string, revoke bool) error
 	}
@@ -1593,11 +1361,9 @@ func (e *Engine) ClearHistory(accountID, chatID string, revoke bool) error {
 		}
 	}
 
-	// Remove messages from local cache.
 	e.db.Exec("DELETE FROM messages WHERE account_id = ? AND chat_id = ?", accountID, chatID)
 	e.db.Exec("DELETE FROM media WHERE account_id = ? AND chat_id = ?", accountID, chatID)
 
-	// Emit event so the host can refresh the chat view.
 	e.emitEvent(EventChatUpdated, accountID, map[string]string{
 		"account_id": accountID,
 		"chat_id":    chatID,
@@ -1606,17 +1372,12 @@ func (e *Engine) ClearHistory(accountID, chatID string, revoke bool) error {
 	return nil
 }
 
-// DeleteChat deletes a chat entirely — clears history and removes the chat.
-// For groups/channels this is equivalent to leave + delete. For DMs it clears
-// history and removes the chat from the list.
 func (e *Engine) DeleteChat(accountID, chatID string, revoke bool) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
 		return fmt.Errorf("account %q not found or not connected", accountID)
 	}
 
-	// Clear server-side history first. Prefer the revoke-aware variant so a
-	// "delete for everyone" conversation removal wipes both sides.
 	type historyDeleterRevoke interface {
 		DeleteChatHistoryWithRevoke(chatID string, revoke bool) error
 	}
@@ -1624,17 +1385,15 @@ func (e *Engine) DeleteChat(accountID, chatID string, revoke bool) error {
 		DeleteChatHistory(chatID string) error
 	}
 	if hd, ok := acc.Core.(historyDeleterRevoke); ok {
-		_ = hd.DeleteChatHistoryWithRevoke(chatID, revoke) // best-effort
+		_ = hd.DeleteChatHistoryWithRevoke(chatID, revoke)
 	} else if hd, ok := acc.Core.(historyDeleter); ok {
-		_ = hd.DeleteChatHistory(chatID) // best-effort
+		_ = hd.DeleteChatHistory(chatID)
 	}
 
-	// Remove from local cache.
 	e.db.Exec("DELETE FROM messages WHERE account_id = ? AND chat_id = ?", accountID, chatID)
 	e.db.Exec("DELETE FROM chats WHERE account_id = ? AND chat_id = ?", accountID, chatID)
 	e.db.Exec("DELETE FROM media WHERE account_id = ? AND chat_id = ?", accountID, chatID)
 
-	// Emit chat_removed event so the host updates the list.
 	e.emitEvent(EventChatRemoved, accountID, map[string]string{
 		"account_id": accountID,
 		"chat_id":    chatID,
@@ -1643,16 +1402,12 @@ func (e *Engine) DeleteChat(accountID, chatID string, revoke bool) error {
 	return nil
 }
 
-// JoinChat joins a channel/room/group by name. For IRC this is a channel name
-// like "#freenode", for Mumble it's a channel ID, etc. After joining, triggers
-// a sync so the chat appears in the list.
 func (e *Engine) JoinChat(accountID, channelName string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
 		return fmt.Errorf("account %q not found or not connected", accountID)
 	}
 
-	// Platform-specific join. Use the core's exported methods directly.
 	type joiner interface {
 		JoinKey(channel, key string)
 	}
@@ -1671,7 +1426,6 @@ func (e *Engine) JoinChat(accountID, channelName string) error {
 			return err
 		}
 	case channelMover:
-		// Mumble — channelName is a numeric channel ID.
 		id, err := strconv.ParseUint(channelName, 10, 32)
 		if err != nil {
 			return fmt.Errorf("invalid channel ID %q: %w", channelName, err)
@@ -1683,11 +1437,6 @@ func (e *Engine) JoinChat(accountID, channelName string) error {
 		return fmt.Errorf("platform %q does not support joining channels", acc.Platform)
 	}
 
-	// Re-sync chats so the new channel appears. The JOIN round-trip is
-	// asynchronous on the protocol side (the server confirms with a JOIN echo
-	// + 353/366 numerics), so give the core a moment to register the channel
-	// before snapshotting the dialog list — otherwise the sync caches a list
-	// that still lacks the new channel.
 	go func() {
 		time.Sleep(3 * time.Second)
 		ctx := context.Background()
@@ -1697,8 +1446,6 @@ func (e *Engine) JoinChat(accountID, channelName string) error {
 	return nil
 }
 
-// CreateChannel creates a new broadcast channel with a name and description.
-// Returns the created chat info after syncing it to the local cache.
 func (e *Engine) CreateChannel(accountID, name, description string) (*ChatInfo, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -1710,18 +1457,15 @@ func (e *Engine) CreateChannel(accountID, name, description string) (*ChatInfo, 
 		return nil, err
 	}
 
-	// Upsert the new channel into the local cache.
 	if err := e.UpsertChat(accountID, *dialog); err != nil {
 		return nil, fmt.Errorf("failed to cache new channel: %w", err)
 	}
 
-	// Re-sync so the chat list updates for the host side.
 	go func() {
 		ctx := context.Background()
 		e.syncAccount(ctx, accountID)
 	}()
 
-	// Return the created chat info.
 	return &ChatInfo{
 		AccountID:   accountID,
 		ChatID:      dialog.ID,
@@ -1818,7 +1562,6 @@ func (e *Engine) CreateMegagroup(accountID, name, description string, forum bool
 	}, nil
 }
 
-// AddMembers adds users to a group or channel.
 func (e *Engine) AddMembers(accountID, chatID string, userIDs []string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -1827,9 +1570,6 @@ func (e *Engine) AddMembers(accountID, chatID string, userIDs []string) error {
 	return acc.Core.AddMembers(chatID, userIDs)
 }
 
-// SendScheduledNow immediately sends previously scheduled messages.
-// Only supported by cores that implement the scheduledSender interface
-// (e.g. Telegram with CapScheduled capability).
 func (e *Engine) SendScheduledNow(accountID, chatID string, msgIDs []string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -1844,7 +1584,6 @@ func (e *Engine) SendScheduledNow(accountID, chatID string, msgIDs []string) err
 		return fmt.Errorf("core for account %q does not support scheduled messages", accountID)
 	}
 
-	// Convert string IDs to ints for the core method.
 	intIDs := make([]int, 0, len(msgIDs))
 	for _, id := range msgIDs {
 		n, err := strconv.Atoi(id)
@@ -1857,8 +1596,6 @@ func (e *Engine) SendScheduledNow(accountID, chatID string, msgIDs []string) err
 	return ss.SendScheduledNow(chatID, intIDs)
 }
 
-// DeleteScheduledMessages removes scheduled messages by ID (Telegram
-// messages.deleteScheduledMessages; AyuGram's scheduled-list trash action).
 func (e *Engine) DeleteScheduledMessages(accountID, chatID string, msgIDs []string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -2328,40 +2065,34 @@ func (e *Engine) GetAdminedPublicChannelsFiltered(accountID string, forPersonal 
 }
 
 type ChatPermissionFlags struct {
-	SlowmodeSeconds       int    `json:"slowmode_seconds"`
-	JoinToSend            bool   `json:"join_to_send"`
-	NoForwards            bool   `json:"no_forwards"`
-	JoinRequest           bool   `json:"join_request"`
-	IsForum               bool   `json:"is_forum"`
-	Antispam              bool   `json:"antispam"`
-	Signatures            bool   `json:"signatures"`
-	SignatureProfiles     bool   `json:"signature_profiles"`
-	PreHistoryHidden      bool   `json:"pre_history_hidden"`
-	NoTranslations        bool   `json:"no_translations"`
-	HasUsername           bool   `json:"has_username"`
-	LinkedChatID          string `json:"linked_chat_id"`
-	PendingRequestsCount  int    `json:"pending_requests_count"`
-	BoostLevel            int    `json:"boost_level"`
-	IsMegagroup           bool   `json:"is_megagroup"`
-	IsBroadcast           bool   `json:"is_broadcast"`
-	IsGigagroup           bool   `json:"is_gigagroup"`
-	AmCreator             bool   `json:"am_creator"`
-	HasAdminRights        bool   `json:"has_admin_rights"`
-	AdminCanChangeInfo    bool   `json:"admin_can_change_info"`
-	CanSetStickers        bool   `json:"can_set_stickers"`
-	AutoTranslateMinLevel int    `json:"auto_translate_min_level"`
-	MigratedFromChatID    string `json:"migrated_from_chat_id"`
-	// Reactions state for the Edit-Peer "Reactions" manage-row count label
-	// (edit_peer_info_box.cpp:1523-1534): mode is "all"/"some"/"none", the list
-	// carries the allowed reactions when mode == "some", and paidEnabled gates
-	// the "1" fallback.
-	ReactionsMode        string   `json:"reactions_mode"`
-	ReactionsAllowed     []string `json:"reactions_allowed"`
-	PaidReactionsEnabled bool     `json:"paid_reactions_enabled"`
-	// Aggressive anti-spam gating (menu_antispam_validator.cpp:86-90): the toggle
-	// is locked while MemberCount < AntispamGroupSizeMin.
-	AntispamGroupSizeMin int `json:"antispam_group_size_min"`
-	MemberCount          int `json:"member_count"`
+	SlowmodeSeconds       int      `json:"slowmode_seconds"`
+	JoinToSend            bool     `json:"join_to_send"`
+	NoForwards            bool     `json:"no_forwards"`
+	JoinRequest           bool     `json:"join_request"`
+	IsForum               bool     `json:"is_forum"`
+	Antispam              bool     `json:"antispam"`
+	Signatures            bool     `json:"signatures"`
+	SignatureProfiles     bool     `json:"signature_profiles"`
+	PreHistoryHidden      bool     `json:"pre_history_hidden"`
+	NoTranslations        bool     `json:"no_translations"`
+	HasUsername           bool     `json:"has_username"`
+	LinkedChatID          string   `json:"linked_chat_id"`
+	PendingRequestsCount  int      `json:"pending_requests_count"`
+	BoostLevel            int      `json:"boost_level"`
+	IsMegagroup           bool     `json:"is_megagroup"`
+	IsBroadcast           bool     `json:"is_broadcast"`
+	IsGigagroup           bool     `json:"is_gigagroup"`
+	AmCreator             bool     `json:"am_creator"`
+	HasAdminRights        bool     `json:"has_admin_rights"`
+	AdminCanChangeInfo    bool     `json:"admin_can_change_info"`
+	CanSetStickers        bool     `json:"can_set_stickers"`
+	AutoTranslateMinLevel int      `json:"auto_translate_min_level"`
+	MigratedFromChatID    string   `json:"migrated_from_chat_id"`
+	ReactionsMode         string   `json:"reactions_mode"`
+	ReactionsAllowed      []string `json:"reactions_allowed"`
+	PaidReactionsEnabled  bool     `json:"paid_reactions_enabled"`
+	AntispamGroupSizeMin  int      `json:"antispam_group_size_min"`
+	MemberCount           int      `json:"member_count"`
 }
 
 func (e *Engine) GetChatPermissionFlags(accountID, chatID string) (*ChatPermissionFlags, error) {
@@ -2412,7 +2143,6 @@ func (e *Engine) GetChatPermissionFlags(accountID, chatID string) (*ChatPermissi
 	}, nil
 }
 
-// ToggleChannelAutoTranslation toggles admin channel-wide auto-translation.
 func (e *Engine) ToggleChannelAutoTranslation(accountID, chatID string, enabled bool) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -2428,7 +2158,6 @@ func (e *Engine) ToggleChannelAutoTranslation(accountID, chatID string, enabled 
 	return g.ToggleChannelAutoTranslation(chatID, enabled)
 }
 
-// GetBotManageInfo returns bot edit/manage gating info.
 func (e *Engine) GetBotManageInfo(accountID, chatID string) (map[string]interface{}, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -2842,8 +2571,6 @@ func (e *Engine) SendLocation(accountID, chatID string, lat, lon float64) error 
 	return err
 }
 
-// SendLiveLocation shares a live location valid for periodSec seconds
-// (slice 131: Telegram live locations — 15m/1h/8h presets).
 func (e *Engine) SendLiveLocation(accountID, chatID string, lat, lon float64, periodSec int) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -2860,8 +2587,6 @@ func (e *Engine) SendLiveLocation(accountID, chatID string, lat, lon float64, pe
 	return err
 }
 
-// StopLiveLocation stops one of the account's outgoing live-location
-// shares (slice 131).
 func (e *Engine) StopLiveLocation(accountID, chatID, msgID string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -2933,7 +2658,6 @@ func (e *Engine) SetBoostsUnrestrict(accountID, chatID string, boosts int) error
 	return fmt.Errorf("platform does not support boosts unrestrict")
 }
 
-// ApplyBoost spends one of the account's own boost slots on the chat.
 func (e *Engine) ApplyBoost(accountID, chatID string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -3309,8 +3033,6 @@ func (e *Engine) GetAdminsWithInvites(accountID, chatID string) ([]map[string]in
 	return nil, fmt.Errorf("platform does not support admins with invites")
 }
 
-// applyAyuExtras applies the slice-173 Ayu behavior toggles (message
-// seconds, zalgo filter, reaction-strip visibility, send confirmations).
 func applyAyuExtras(c *utils.AppConfig, changes *ConfigChanges) {
 	if changes.AyuMsgSeconds != nil {
 		c.AyuMsgSeconds = changes.AyuMsgSeconds

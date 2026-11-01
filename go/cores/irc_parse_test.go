@@ -50,7 +50,6 @@ func TestParseIRCMsgTags(t *testing.T) {
 }
 
 func TestParseIRCMsgTagWithoutValue(t *testing.T) {
-	// A valueless tag is just the bare key (no '=').
 	m := parseIRCMsg("@intent :a!b@c JOIN #room")
 	if m == nil {
 		t.Fatal("nil message")

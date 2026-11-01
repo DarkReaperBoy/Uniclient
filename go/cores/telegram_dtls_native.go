@@ -11,8 +11,6 @@ import (
 	"uniclient/wrtc"
 )
 
-// monitorCallDTLS logs DTLS transport state transitions for an active call.
-// Native-only: the js/wasm DTLSTransport has no OnStateChange/State.
 func monitorCallDTLS(pc *wrtc.PeerConnection, t0 time.Time) {
 	if pc == nil {
 		return

@@ -13,12 +13,6 @@ import (
 	"uniclient/engine"
 )
 
-// Delete dialog (AyuGram parity, matrix #155): "Delete message?" with the
-// "also delete for everyone" revoke checkbox. Offered for single-message
-// (context menu) and bulk (selection mode) deletes. The checkbox appears
-// when a message is outgoing or the account administers the chat.
-
-// delDlgState: open dialog (nil when closed).
 type delDlgState struct {
 	msgs   []engine.CachedMessage
 	chat   engine.ChatInfo
@@ -26,7 +20,6 @@ type delDlgState struct {
 	busy   bool
 }
 
-// chatOf finds the ChatInfo for a message's chat (zero value if unknown).
 func chatOf(f frame, m engine.CachedMessage) engine.ChatInfo {
 	for _, c := range f.chats {
 		if c.AccountID == m.AccountID && c.ChatID == m.ChatID {
@@ -36,7 +29,6 @@ func chatOf(f frame, m engine.CachedMessage) engine.ChatInfo {
 	return engine.ChatInfo{}
 }
 
-// canRevokeForAll: any outgoing message, or admin in this chat.
 func canRevokeForAll(msgs []engine.CachedMessage, chat engine.ChatInfo) bool {
 	if chat.IsAdmin || chat.IsCreator {
 		return true
@@ -49,8 +41,6 @@ func canRevokeForAll(msgs []engine.CachedMessage, chat engine.ChatInfo) bool {
 	return false
 }
 
-// openDeleteDialog shows the confirm for one (menu) or more (selection)
-// messages.
 func (a *App) openDeleteDialog(msgs []engine.CachedMessage, chat engine.ChatInfo) {
 	if len(msgs) == 0 {
 		return
@@ -63,7 +53,6 @@ func (a *App) openDeleteDialog(msgs []engine.CachedMessage, chat engine.ChatInfo
 	a.invalidate()
 }
 
-// closeDeleteDialog dismisses (blocked while deleting).
 func (a *App) closeDeleteDialog() {
 	a.mu.Lock()
 	if a.delDlg == nil {
@@ -79,8 +68,6 @@ func (a *App) closeDeleteDialog() {
 	a.invalidate()
 }
 
-// submitDeleteDialog performs the deletes (async); revoke is only applied
-// where the sender allows it.
 func (a *App) submitDeleteDialog() {
 	a.mu.Lock()
 	if a.delDlg == nil || a.delDlg.busy {
@@ -114,7 +101,6 @@ func (a *App) submitDeleteDialog() {
 	}()
 }
 
-// deleteDialogTitle + hint (pure, testable).
 func deleteDialogTitle(n int) string {
 	if n == 1 {
 		return "Delete message?"
@@ -129,7 +115,6 @@ func deleteDialogHint(revokeAvailable bool) string {
 	return "This can't be undone. The message stays on the other side."
 }
 
-// layoutDeleteDialog renders the centered confirm card over the chat pane.
 func (a *App) layoutDeleteDialog(gtx layout.Context, f frame) layout.Dimensions {
 	d := f.delDlg
 	if a.wid.delDlgCancel.Clicked(gtx) {
@@ -139,7 +124,6 @@ func (a *App) layoutDeleteDialog(gtx layout.Context, f frame) layout.Dimensions 
 		a.submitDeleteDialog()
 	}
 
-	// Scrim.
 	paintScrimRect(gtx)
 
 	title := deleteDialogTitle(len(d.msgs))
@@ -198,7 +182,6 @@ func (a *App) layoutDeleteDialog(gtx layout.Context, f frame) layout.Dimensions 
 	})
 }
 
-// paintScrimRect fills a translucent scrim over the whole pane.
 func paintScrimRect(gtx layout.Context) {
 	paint.FillShape(gtx.Ops, color.NRGBA{R: 0, G: 0, B: 0, A: 0x66},
 		clip.Rect{Max: image.Pt(gtx.Constraints.Max.X, gtx.Constraints.Max.Y)}.Op())

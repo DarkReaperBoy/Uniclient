@@ -7,11 +7,6 @@ import (
 	"uniclient/engine"
 )
 
-// Restrict/ban boxes (slice 191, tdesktop RestrictParticipantBox + the ban
-// box): pure logic — duration ladder, until-date math, the allowed↔banned
-// inversion, initial-rights resolution, and the permission-row table.
-// Layout is verified by compile + review (repo discipline).
-
 func TestRestrictDurationPresets(t *testing.T) {
 	want := []struct {
 		label string
@@ -70,11 +65,10 @@ func TestRestrictPermissionRows(t *testing.T) {
 }
 
 func TestBannedRightsFromAllowed(t *testing.T) {
-	// The GUI tracks ALLOWED switches; the wire wants BANNED flags.
 	allowed := map[string]bool{
-		"SendPlain":  false, // banned
+		"SendPlain":  false,
 		"SendPhotos": true,
-		"SendDocs":   false, // banned
+		"SendDocs":   false,
 	}
 	br := bannedRightsFromAllowed(allowed)
 	if !br.SendPlain || br.SendPhotos || !br.SendDocs {
@@ -86,13 +80,11 @@ func TestBannedRightsFromAllowed(t *testing.T) {
 }
 
 func TestInitialRestrictRights(t *testing.T) {
-	// Fresh member (no cached rights): all allowed.
 	br := initialRestrictRights(engine.MemberInfo{Role: "member"})
 	if br.SendPlain || br.SendStickers || br.ChangeInfo {
 		t.Errorf("fresh member should start all-allowed: %+v", br)
 	}
 
-	// Restricted member: their cached rights load verbatim.
 	cur := &engine.DefaultBannedRights{SendPlain: true, SendPolls: true}
 	br = initialRestrictRights(engine.MemberInfo{Role: "restricted", BannedRights: cur})
 	if !br.SendPlain || !br.SendPolls || br.SendStickers {

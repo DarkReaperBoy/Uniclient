@@ -1,15 +1,7 @@
 package gui
 
-// comabi.go (slice 201) — the COM ABI constants for the Windows
-// Start-Menu shortcut registration (own AUMID for toasts): shared on
-// every platform so the tests pin the values in CI on all build
-// targets, the same way toastxml.go pins the payload. The Windows-only
-// caller is shortcut_windows.go; nothing here imports x/sys.
-
 import "path/filepath"
 
-// winGUID mirrors the Windows GUID / x/sys windows.GUID layout
-// (Data1 uint32, Data2/Data3 uint16, Data4 [8]byte).
 type winGUID struct {
 	Data1 uint32
 	Data2 uint16
@@ -17,12 +9,6 @@ type winGUID struct {
 	Data4 [8]byte
 }
 
-// The shortcut-registration COM classes and interfaces — pinned against
-// mingw-w64 headers (research notes in the WORKLOG session entry):
-//   - CLSID_ShellLink   (shobjidl.h)  {00021401-...-46}
-//   - IID_IShellLinkW   (shobjidl.h)  {000214F9-...-46}
-//   - IID_IPersistFile  (objidl.h)    {0000010B-...-46}
-//   - IID_IPropertyStore(propsys.h)   {886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99}
 var (
 	clsidShellLink = winGUID{
 		Data1: 0x00021401, Data2: 0x0000, Data3: 0x0000,
@@ -42,26 +28,16 @@ var (
 	}
 )
 
-// propertyKey is Windows' PROPERTYKEY (fmtid + property id).
 type propertyKey struct {
 	fmtid winGUID
 	pid   uint32
 }
 
-// iidIToastNotification2 (slice 203) — the Win10+ interface carrying
-// Tag/Group/SuppressPopup: {9DFB9FD1-143A-490E-90BF-B9FBA7132DE7}
-// (SDL's shipped toast implementation + the winmd-generated C headers
-// agree). Vtable (IUnknown 0-2, IInspectable 3-5): put_Tag 6, get_Tag 7,
-// put_Group 8, get_Group 9, put_SuppressPopup 10, get_SuppressPopup 11.
 var iidIToastNotification2 = winGUID{
 	Data1: 0x9DFB9FD1, Data2: 0x143A, Data3: 0x490E,
 	Data4: [8]byte{0x90, 0xBF, 0xB9, 0xFB, 0xA7, 0x13, 0x2D, 0xE7},
 }
 
-// pkeyAppUserModelID is PKEY_AppUserModel.ID (mingw-w64 propkey.h) — the
-// property that turns a Start-Menu shortcut into a toast-registered
-// AUMID. fmtid tail is E1-D4-2D-E1-D5-F3 (not the "E1D42DE4D436" typo
-// some blog posts carry).
 var pkeyAppUserModelID = propertyKey{
 	fmtid: winGUID{
 		Data1: 0x9F4C2855, Data2: 0x9F79, Data3: 0x4B39,
@@ -70,14 +46,8 @@ var pkeyAppUserModelID = propertyKey{
 	pid: 5,
 }
 
-// propVariantVTLPWSTR is VARTYPE VT_LPWSTR (wtypes.h).
 const propVariantVTLPWSTR = 31
 
-// propVariant is the head of Windows' PROPVARIANT for VT_LPWSTR values:
-// vt + three reserved WORDs (8 bytes), then the union — the string
-// pointer sits at offset 8; the union is 16 bytes on x64, 24 total.
-// Only the head is laid out: SetValue copies the string, and the tail is
-// zero padding that a zero-initialized struct provides.
 type propVariant struct {
 	vt  uint16
 	_   [6]byte
@@ -85,14 +55,8 @@ type propVariant struct {
 	_   [8]byte
 }
 
-// ourAUMID: Uniclient's own AppUserModelID (top-level.product form).
-// Toasts created with this AUMID carry the shortcut's name/icon as the
-// source ("Uniclient", not "Windows PowerShell").
 const ourAUMID = "DarkReaperBoy.Uniclient"
 
-// shortcutPath: the per-user Start-Menu Programs .lnk from APPDATA —
-// where the AUMID-carrying shortcut is persisted (pure, tested on every
-// platform).
 func shortcutPath(appData string) string {
 	if appData == "" {
 		return ""

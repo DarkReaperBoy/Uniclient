@@ -6,10 +6,6 @@ import (
 	"uniclient/engine"
 )
 
-// Sidebar row badges (AyuGram parity slice 68): title-adjacent
-// verified/premium/scam/fake badges and the trailing @-mention / unread
-// badge stack. Pure derivations locked here.
-
 func TestRowTitleBadgesKinds(t *testing.T) {
 	c := engine.ChatInfo{Title: "x"}
 	if b := rowTitleBadges(c); len(b) != 0 {
@@ -28,7 +24,6 @@ func TestRowTitleBadgesKinds(t *testing.T) {
 }
 
 func TestRowTitleBadgesScamFakeExclusive(t *testing.T) {
-	// Telegram renders one warning tag; scam wins when both flags are set.
 	c := engine.ChatInfo{IsScam: true, IsFake: true}
 	b := rowTitleBadges(c)
 	if len(b) != 1 || b[0].label != "scam" {
@@ -42,7 +37,6 @@ func TestRowTitleBadgesScamFakeExclusive(t *testing.T) {
 }
 
 func TestRowTitleBadgesIcons(t *testing.T) {
-	// Verified and premium render as icons; scam/fake as text tags.
 	c := engine.ChatInfo{IsVerified: true, IsPremium: true}
 	for _, b := range rowTitleBadges(c) {
 		if b.icon == nil {

@@ -8,17 +8,6 @@ import (
 	"maunium.net/go/mautrix/id"
 )
 
-// B-6 follow-up #2 (F-64, found+fixed same slice): ONLY EndCall knew
-// how to leave a group call. Leaving the ROOM (LeaveChat), logging
-// out, or closing the core all left the call joined: the renewal
-// goroutine kept publishing membership forever, mesh peers stayed
-// open, and voice kept flowing with no way to stop it.
-//
-// RED (behavioral, WORKLOG 302): with the current code each of these
-// leaves `core.groupConfID` set — `call still joined after LeaveChat`.
-
-// seedCallState gives the core a conf + a live peer + a renewal
-// watcher, and returns the watch flag + the peer call.
 func seedCallState(t *testing.T, core *MatrixCore) (*bool, *matrixCall) {
 	t.Helper()
 	pc, err := core.createPeerConnection()
@@ -59,8 +48,6 @@ func assertCallTornDown(t *testing.T, core *MatrixCore, canceled *bool, call *ma
 	}
 }
 
-// hasLeavePut returns the index of the empty-membership state PUT and
-// of the given follow-up PUT, for order assertions.
 func putOrder(puts *meshPuts, kind string) (stateIdx, otherIdx int) {
 	stateIdx, otherIdx = -1, -1
 	for i, p := range puts.snapshot() {
@@ -74,17 +61,10 @@ func putOrder(puts *meshPuts, kind string) (stateIdx, otherIdx int) {
 	return stateIdx, otherIdx
 }
 
-// containsEmptyCalls matches the MSC3401 leave payload {"m.calls":[]}.
-// (The first version had a `len >= 16` guard that rejected the 14-byte
-// body — self-caught in slice 302: both order tests failed while the
-// puts log showed the publish RIGHT THERE.)
 func containsEmptyCalls(body string) bool {
 	return strings.Contains(body, `"m.calls":[]`)
 }
 
-// TestLeaveChatWhileInCallTearsDown: leaving the room must leave the
-// call first — the empty membership MUST precede the room leave (you
-// cannot write state after leaving).
 func TestLeaveChatWhileInCallTearsDown(t *testing.T) {
 	srv, puts := newMeshHomeserver(t)
 	core := seededMeshCore(t, srv.URL)
@@ -114,8 +94,6 @@ func TestLeaveChatWhileInCallTearsDown(t *testing.T) {
 	}
 }
 
-// TestLeaveChatOtherRoomKeepsCall: leaving an UNRELATED room must not
-// tear down the active call.
 func TestLeaveChatOtherRoomKeepsCall(t *testing.T) {
 	srv, _ := newMeshHomeserver(t)
 	core := seededMeshCore(t, srv.URL)
@@ -136,8 +114,6 @@ func TestLeaveChatOtherRoomKeepsCall(t *testing.T) {
 	}
 }
 
-// TestLogoutWhileInCallTearsDown: logout must leave the call while the
-// token still works (publish BEFORE client.Logout invalidates it).
 func TestLogoutWhileInCallTearsDown(t *testing.T) {
 	srv, puts := newMeshHomeserver(t)
 	core := seededMeshCore(t, srv.URL)
@@ -157,8 +133,6 @@ func TestLogoutWhileInCallTearsDown(t *testing.T) {
 	}
 }
 
-// TestCloseWhileInCallTearsDown: Close's own doc comment promises it
-// "ends active calls" — it must for group calls too.
 func TestCloseWhileInCallTearsDown(t *testing.T) {
 	srv, _ := newMeshHomeserver(t)
 	core := seededMeshCore(t, srv.URL)
@@ -170,13 +144,6 @@ func TestCloseWhileInCallTearsDown(t *testing.T) {
 	assertCallTornDown(t, core, canceled, call, "Close")
 }
 
-// TestOwnMemberLeaveEndsGroupCall (F-65): a m.room.member leave/ban
-// for OUR OWN mxid in the call's room (kicked, banned, room dissolved)
-// must end the call — otherwise the renewal goroutine and the mesh run
-// forever with nothing to publish to.
-//
-// Behavioral RED (WORKLOG 302, hook swapped out): `call still joined`
-// after the departure event.
 func TestOwnMemberLeaveEndsGroupCall(t *testing.T) {
 	srv, _ := newMeshHomeserver(t)
 	core := seededMeshCore(t, srv.URL)
@@ -186,7 +153,7 @@ func TestOwnMemberLeaveEndsGroupCall(t *testing.T) {
 	evt := &event.Event{
 		Type:     event.StateMember,
 		RoomID:   id.RoomID("!room:test"),
-		Sender:   "@bob:test", // an admin kicked us
+		Sender:   "@bob:test",
 		StateKey: &sk,
 		Content:  event.Content{VeryRaw: []byte(`{"membership":"leave"}`)},
 	}
@@ -195,8 +162,6 @@ func TestOwnMemberLeaveEndsGroupCall(t *testing.T) {
 	assertCallTornDown(t, core, canceled, call, "own member-leave")
 }
 
-// TestOwnMemberJoinKeepsGroupCall: a plain join/invite event for our
-// own membership must NOT tear anything down (the hook is narrow).
 func TestOwnMemberJoinKeepsGroupCall(t *testing.T) {
 	srv, _ := newMeshHomeserver(t)
 	core := seededMeshCore(t, srv.URL)
@@ -212,7 +177,7 @@ func TestOwnMemberJoinKeepsGroupCall(t *testing.T) {
 	}
 	core.handleMemberEvent(evt)
 
-	if !*canceled == false { // renewal must be untouched
+	if !*canceled == false {
 		t.Fatal("renewal canceled by a join event")
 	}
 	core.groupMu.Lock()
@@ -224,16 +189,6 @@ func TestOwnMemberJoinKeepsGroupCall(t *testing.T) {
 	}
 }
 
-// TestOwnMemberNonDepartureKeepsGroupCall (F-68, found by the live
-// diagnosis in slice 304): the F-65 hook used `membership != join`, so
-// a REDELIVERED `invite` event for our own mxid (sync batches are not
-// strictly ordered vs our own JoinGroupCall) tore the freshly joined
-// call down — and worse, published an empty membership, which is why
-// the live test saw `bob: no active call` + `alice count=1` forever.
-// Only an actual departure (leave/ban) ends the call.
-//
-// RED (behavioral, WORKLOG 304): invite/empty-membership currently
-// tear down `conf_x`.
 func TestOwnMemberNonDepartureKeepsGroupCall(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
@@ -251,7 +206,7 @@ func TestOwnMemberNonDepartureKeepsGroupCall(t *testing.T) {
 			evt := &event.Event{
 				Type:     event.StateMember,
 				RoomID:   id.RoomID("!room:test"),
-				Sender:   "@bob:test", // the inviter, not us
+				Sender:   "@bob:test",
 				StateKey: &sk,
 				Content:  event.Content{VeryRaw: []byte(`{"membership":"` + tc.membership + `"}`)},
 			}
@@ -272,8 +227,6 @@ func TestOwnMemberNonDepartureKeepsGroupCall(t *testing.T) {
 	}
 }
 
-// TestOwnMemberBanEndsGroupCall: ban (like leave) IS a departure and
-// must tear down — pins the other half of the condition.
 func TestOwnMemberBanEndsGroupCall(t *testing.T) {
 	srv, _ := newMeshHomeserver(t)
 	core := seededMeshCore(t, srv.URL)

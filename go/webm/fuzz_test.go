@@ -1,12 +1,5 @@
 package webm
 
-// tests-first for BUGS.md B-17 — hostile-input fuzzing for the EBML
-// parser (the repo had ZERO fuzz targets).
-//
-// Contract under fuzz: Parse must never panic, and it must never
-// return (nil, nil) — an error or a real document, never fabricated
-// structure (§1.10).
-
 import "testing"
 
 func FuzzParse(f *testing.F) {

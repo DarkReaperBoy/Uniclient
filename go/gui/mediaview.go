@@ -20,42 +20,24 @@ import (
 	"uniclient/engine"
 )
 
-// Fullscreen media viewer — the AyuGram mediaview overlay
-// (research/ayugram_parity.md §12): near-black scrim, top bar (chat title +
-// date, save/share/delete), aspect-fit image or video poster with
-// double-click zoom + drag pan, caption, a thumbnail filmstrip over
-// engine.GetSharedMedia, and live download progress from the engine media
-// pipeline. Keyboard: Escape closes, arrows navigate. Every action
-// dispatches a real engine call; nothing renders state the engine cannot
-// back (§1.10).
-
-// viewerState is the open media viewer (mu-guarded; frames read via
-// snapshot pointer copy).
 type viewerState struct {
 	accountID string
 	chatID    string
 	chatTitle string
-	kind      string // shared-media filter: "image" | "video"
-	anchor    string // msgID the viewer was opened from
+	kind      string
+	anchor    string
 	items     []engine.SharedMediaItem
 	index     int
 	loaded    bool
-	deleting  bool // delete-confirmation dialog open
+	deleting  bool
 }
 
-// viewer input tags (frame-loop only, single GUI goroutine).
 var (
-	viewerKeyTag = new(struct{}) // keyboard: Escape/arrows
-	viewerBgTag  = new(struct{}) // backdrop press-to-close
-	viewerImgTag = new(struct{}) // image area: double-click zoom, drag pan
+	viewerKeyTag = new(struct{})
+	viewerBgTag  = new(struct{})
+	viewerImgTag = new(struct{})
 )
 
-// viewer button pool (package-level, like the menu buttons).
-
-// ── pure helpers (unit-tested in mediaview_test.go) ──────────────────────
-
-// stepViewerIndex clamps navigation at both ends (AyuGram stops at the
-// oldest/newest media; no wrap-around).
 func stepViewerIndex(i, n, delta int) int {
 	if n <= 0 {
 		return 0
@@ -70,7 +52,6 @@ func stepViewerIndex(i, n, delta int) int {
 	return i
 }
 
-// viewerZoomAfter toggles between fit (1x) and AyuGram's double-click zoom.
 func viewerZoomAfter(z float32) float32 {
 	if z > 1.01 {
 		return 1
@@ -78,9 +59,6 @@ func viewerZoomAfter(z float32) float32 {
 	return 2.5
 }
 
-// clampPanAxis keeps a zoomed image edge reachable: pan is limited so the
-// image never drifts fully off the box; a zoomed side smaller than the box
-// snaps to center.
 func clampPanAxis(pan, scaled, box float32) float32 {
 	lim := (scaled - box) / 2
 	if lim < 0 {
@@ -95,13 +73,10 @@ func clampPanAxis(pan, scaled, box float32) float32 {
 	return pan
 }
 
-// panAfterZoom keeps the point under the cursor stationary across a zoom
-// change: pan' = pan*k + (click-center)*(1-k).
 func panAfterZoom(pan, click, center, k float32) float32 {
 	return pan*k + (click-center)*(1-k)
 }
 
-// findViewerItem returns the index of msgID in items, or -1.
 func findViewerItem(items []engine.SharedMediaItem, msgID string) int {
 	for i, it := range items {
 		if it.MsgID == msgID {
@@ -111,10 +86,6 @@ func findViewerItem(items []engine.SharedMediaItem, msgID string) int {
 	return -1
 }
 
-// mergeViewerItems splices the loaded shared-media list with the synthetic
-// entry the viewer opened with (for the case where the anchor message is
-// not itself in the media table's kind filter) and returns the list plus
-// the anchor's index.
 func mergeViewerItems(items []engine.SharedMediaItem, synth *engine.SharedMediaItem, anchor string) ([]engine.SharedMediaItem, int) {
 	if i := findViewerItem(items, anchor); i >= 0 {
 		return items, i
@@ -128,9 +99,6 @@ func mergeViewerItems(items []engine.SharedMediaItem, synth *engine.SharedMediaI
 	return out, 0
 }
 
-// synthItemFromMsg mirrors a CachedMessage's media fields into a viewer item
-// so the viewer shows the tapped message instantly, before the shared list
-// loads.
 func synthItemFromMsg(m *engine.CachedMessage) engine.SharedMediaItem {
 	return engine.SharedMediaItem{
 		MsgID:      m.MsgID,
@@ -150,7 +118,6 @@ func synthItemFromMsg(m *engine.CachedMessage) engine.SharedMediaItem {
 	}
 }
 
-// viewerKindFor maps a message media type to the viewer's shared-media kind.
 func viewerKindFor(mt int) string {
 	switch mt {
 	case engine.MediaImage, engine.MediaGIF, engine.MediaSticker:
@@ -162,7 +129,6 @@ func viewerKindFor(mt int) string {
 	}
 }
 
-// fmtViewerDate renders the item date AyuGram-style (full date + time).
 func fmtViewerDate(ms int64) string {
 	if ms <= 0 {
 		return ""
@@ -170,16 +136,10 @@ func fmtViewerDate(ms int64) string {
 	return time.UnixMilli(ms).Format("2 Jan 2006, 15:04")
 }
 
-// viewerIsVideo reports the poster/play treatment.
 func viewerIsVideo(it engine.SharedMediaItem) bool {
 	return it.MediaType == engine.MediaVideo || it.MediaType == engine.MediaVideoNote
 }
 
-// ── App state transitions ─────────────────────────────────────────────────
-
-// openViewerFromMsg opens the viewer on a tapped message's media. gtx is
-// the frame context: opening the overlay clears the a.wid.composer focus so the
-// viewer's Escape/arrow keys are not consumed by the editor underneath.
 func (a *App) openViewerFromMsg(gtx layout.Context, m *engine.CachedMessage) {
 	kind := viewerKindFor(m.MediaType)
 	if kind == "file" {
@@ -204,12 +164,11 @@ func (a *App) openViewerFromMsg(gtx layout.Context, m *engine.CachedMessage) {
 	}
 	a.invalidate()
 
-	// Fill the filmstrip from the chat's shared media (same kind).
 	msg := *m
 	go func() {
 		items, err := a.eng.GetSharedMedia(msg.AccountID, msg.ChatID, kind, 120, 0, "")
 		if err != nil {
-			return // keep the synthetic single-item view
+			return
 		}
 		a.mu.Lock()
 		if cur := a.viewer; cur != nil && cur.accountID == msg.AccountID && cur.chatID == msg.ChatID && cur.kind == kind {
@@ -221,8 +180,6 @@ func (a *App) openViewerFromMsg(gtx layout.Context, m *engine.CachedMessage) {
 	}()
 }
 
-// openViewerAt opens the viewer on a shared-media entry (info-panel
-// gallery).
 func (a *App) openViewerAt(k chatKey, title, kind, msgID string) {
 	v := &viewerState{
 		accountID: k.AccountID,
@@ -254,19 +211,12 @@ func (a *App) openViewerAt(k chatKey, title, kind, msgID string) {
 	a.invalidate()
 }
 
-// closeViewer dismisses the overlay.
 func (a *App) closeViewer() {
 	a.mu.Lock()
 	v := a.viewer
 	a.viewer = nil
 	a.mu.Unlock()
 	if v != nil && v.index >= 0 && v.index < len(v.items) {
-		// The viewed clip has no view anymore: release its stream reader
-		// now instead of at the 48-entry eviction (BUGS.md B-4), and
-		// pause its own audio track — the draw-driven loop re-arm stops
-		// with the picture, but the current track would otherwise play
-		// out behind the chat (BUGS.md B-9). videoAudioPause is
-		// own-track-only and no-op on a nil engine.
 		msgID := v.items[v.index].MsgID
 		h264Players.reset(msgID)
 		a.videoAudioPause(msgID)
@@ -275,7 +225,6 @@ func (a *App) closeViewer() {
 	a.invalidate()
 }
 
-// viewerStep navigates ±1 (clamped) and resets zoom/pan.
 func (a *App) viewerStep(delta int) {
 	a.mu.Lock()
 	if v := a.viewer; v != nil {
@@ -286,7 +235,6 @@ func (a *App) viewerStep(delta int) {
 	a.invalidate()
 }
 
-// viewerSetIndex jumps to a filmstrip thumbnail and resets zoom/pan.
 func (a *App) viewerSetIndex(i int) {
 	a.mu.Lock()
 	if v := a.viewer; v != nil && i >= 0 && i < len(v.items) {
@@ -297,7 +245,6 @@ func (a *App) viewerSetIndex(i int) {
 	a.invalidate()
 }
 
-// viewerResetGesture (frame-loop fields; called from GUI goroutine only).
 func (a *App) viewerResetGesture() {
 	a.mvZoom = 1
 	a.mvPan = f32.Point{}
@@ -305,7 +252,6 @@ func (a *App) viewerResetGesture() {
 	a.mvScaledW, a.mvScaledH = 0, 0
 }
 
-// chatTitleFor looks the chat title up (viewer top bar).
 func (a *App) chatTitleFor(k chatKey) string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -317,7 +263,6 @@ func (a *App) chatTitleFor(k chatKey) string {
 	return ""
 }
 
-// viewerCurrent returns the shown item (copy) + index.
 func (a *App) viewerCurrent(f frame) (engine.SharedMediaItem, int, bool) {
 	v := f.viewer
 	if v == nil || len(v.items) == 0 || v.index < 0 || v.index >= len(v.items) {
@@ -326,17 +271,11 @@ func (a *App) viewerCurrent(f frame) (engine.SharedMediaItem, int, bool) {
 	return v.items[v.index], v.index, true
 }
 
-// ── layout ────────────────────────────────────────────────────────────────
-
-// layoutMediaView renders the fullscreen viewer over everything else.
 func (a *App) layoutMediaView(gtx layout.Context, f frame) layout.Dimensions {
 	v := f.viewer
 
-	// Keep keyboard focus out of the (covered) a.wid.composer while viewing; the
-	// router dedups unchanged focus, so this is cheap.
 	gtx.Execute(key.FocusCmd{Tag: nil})
 
-	// Keyboard: Escape closes, arrows navigate (AyuGram mediaview keys).
 	{
 		stack := clip.Rect{Max: gtx.Constraints.Max}.Push(gtx.Ops)
 		event.Op(gtx.Ops, viewerKeyTag)
@@ -367,8 +306,6 @@ func (a *App) layoutMediaView(gtx layout.Context, f frame) layout.Dimensions {
 		}
 	}
 
-	// Backdrop press closes (registered before the image/buttons → below
-	// them in hit-test order).
 	{
 		stack := clip.Rect{Max: gtx.Constraints.Max}.Push(gtx.Ops)
 		event.Op(gtx.Ops, viewerBgTag)
@@ -388,7 +325,6 @@ func (a *App) layoutMediaView(gtx layout.Context, f frame) layout.Dimensions {
 		}
 	}
 
-	// Scrim: near-black like AyuGram's mediaview, over the whole window.
 	paintFill(gtx.Ops, color.NRGBA{R: 0, G: 0, B: 0, A: 0xF0}, gtx.Constraints.Max)
 
 	body := layout.Flex{Axis: layout.Vertical}.Layout(gtx,
@@ -402,8 +338,6 @@ func (a *App) layoutMediaView(gtx layout.Context, f frame) layout.Dimensions {
 			return a.viewerCaption(gtx, f)
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			// In-app playback transport (slice 221): zero-height unless the
-			// current item has a live player, so photos are unaffected.
 			return a.viewerVideoBar(gtx, f)
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -414,13 +348,11 @@ func (a *App) layoutMediaView(gtx layout.Context, f frame) layout.Dimensions {
 		}),
 	)
 	if v.deleting {
-		// Confirmation card on top (its buttons register later → on top).
 		a.viewerDeleteDialog(gtx, f)
 	}
 	return body
 }
 
-// viewerTopBar: close | title/date | save/share/delete.
 func (a *App) viewerTopBar(gtx layout.Context, f frame) layout.Dimensions {
 	v := f.viewer
 	it, _, ok := a.viewerCurrent(f)
@@ -439,14 +371,11 @@ func (a *App) viewerTopBar(gtx layout.Context, f frame) layout.Dimensions {
 		}
 	}
 	if a.wid.viewerFolderBtn.Clicked(gtx) {
-		// Slice 86: reveal the saved media in the file manager (row 159).
 		if ok && it.LocalPath != "" {
 			a.revealMedia(it.LocalPath)
 		}
 	}
 	if a.wid.viewerPipBtn.Clicked(gtx) {
-		// Slice 222: pop the playing video out to picture-in-picture — the
-		// viewer closes and the floating panel keeps the same decoder.
 		if ok && pipEligible(it) {
 			a.viewerPopOut(gtx, it)
 		}
@@ -494,7 +423,6 @@ func (a *App) viewerTopBar(gtx layout.Context, f frame) layout.Dimensions {
 					})
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					// Slice 86: folder reveal only when the item has a local file.
 					if !ok || it.LocalPath == "" {
 						return layout.Dimensions{}
 					}
@@ -507,7 +435,6 @@ func (a *App) viewerTopBar(gtx layout.Context, f frame) layout.Dimensions {
 					return a.viewerIconBtn(gtx, &a.wid.viewerShareBtn, iconSocialShare, "Share")
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					// Slice 222: PiP exists only for video we can play in-app.
 					if !ok || !pipEligible(it) {
 						return layout.Dimensions{}
 					}
@@ -527,8 +454,6 @@ func (a *App) viewerIconBtn(gtx layout.Context, btn *widget.Clickable, icon *wid
 	return layout.Inset{Left: unit.Dp(6)}.Layout(gtx, b.Layout)
 }
 
-// viewerCenter: the image / video poster with zoom-pan gestures, side
-// chevrons, and (videos) the play affordance wired to the download pipeline.
 func (a *App) viewerCenter(gtx layout.Context, f frame) layout.Dimensions {
 	it, _, ok := a.viewerCurrent(f)
 	if a.wid.viewerPrevBtn.Clicked(gtx) {
@@ -543,9 +468,6 @@ func (a *App) viewerCenter(gtx layout.Context, f frame) layout.Dimensions {
 
 	return layout.Stack{}.Layout(gtx,
 		layout.Expanded(func(gtx layout.Context) layout.Dimensions {
-			// The image gesture area covers the whole center region: drag
-			// pans while zoomed, double-click toggles zoom. Registered
-			// after the backdrop → on top of it.
 			stack := clip.Rect{Max: gtx.Constraints.Max}.Push(gtx.Ops)
 			event.Op(gtx.Ops, viewerImgTag)
 			stack.Pop()
@@ -556,7 +478,6 @@ func (a *App) viewerCenter(gtx layout.Context, f frame) layout.Dimensions {
 			return a.viewerImage(gtx, f, it, ok)
 		}),
 		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
-			// Side chevrons (desktop + touch).
 			return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 					return a.viewerChevron(gtx, &a.wid.viewerPrevBtn, iconNavChevronLeft, "Previous")
@@ -578,9 +499,6 @@ func (a *App) viewerChevron(gtx layout.Context, btn *widget.Clickable, icon *wid
 	})
 }
 
-// viewerImage decodes + paints the current item (photo, or video poster with
-// a play badge), applying the frame-loop zoom/pan transform. The image is
-// centered in the box; zoom scales about the cursor, pan translates.
 func (a *App) viewerImage(gtx layout.Context, f frame, it engine.SharedMediaItem, ok bool) layout.Dimensions {
 	boxW := gtx.Constraints.Max.X
 	boxH := gtx.Constraints.Max.Y
@@ -592,9 +510,6 @@ func (a *App) viewerImage(gtx layout.Context, f frame, it engine.SharedMediaItem
 	}
 	a.mvBoxW, a.mvBoxH = boxW, boxH
 
-	// Resolve the best available pixels: downloaded file → full image;
-	// otherwise the inline thumbnail. Decodes are async + cached; the next
-	// frames swap in.
 	var img *image.RGBA
 	if ok {
 		if it.LocalPath != "" && isDisplayableImage(it.LocalPath) {
@@ -611,9 +526,6 @@ func (a *App) viewerImage(gtx layout.Context, f frame, it engine.SharedMediaItem
 		}
 	}
 
-	// In-app playback (slice 221): the live frame replaces the poster, so
-	// the viewer shows the actual picture through the same zoom/pan/clip
-	// machinery that renders photos.
 	if ok && viewerIsVideo(it) {
 		if st, has := h264Players.peek(it.MsgID); has && st.playing && st.player != nil && st.video != nil {
 			elapsed := h264Players.elapsed(it.MsgID)
@@ -627,8 +539,6 @@ func (a *App) viewerImage(gtx layout.Context, f frame, it engine.SharedMediaItem
 	}
 
 	if img == nil {
-		// Still decoding (or no poster): an aspect box from the item's
-		// recorded dimensions, so the layout is stable across frames.
 		w, h := fitDims(it.Width, it.Height, boxW, boxH)
 		if w <= 0 || h <= 0 {
 			w, h = boxW, boxH
@@ -644,7 +554,6 @@ func (a *App) viewerImage(gtx layout.Context, f frame, it engine.SharedMediaItem
 	sw, sh := float32(w0)*total, float32(h0)*total
 	a.mvScaledW, a.mvScaledH = sw, sh
 
-	// Clamp pan so a zoomed image always covers the box.
 	a.mvPan = f32.Pt(
 		clampPanAxis(a.mvPan.X, sw, float32(boxW)),
 		clampPanAxis(a.mvPan.Y, sh, float32(boxH)),
@@ -654,7 +563,6 @@ func (a *App) viewerImage(gtx layout.Context, f frame, it engine.SharedMediaItem
 	originX := cx + a.mvPan.X - sw/2
 	originY := cy + a.mvPan.Y - sh/2
 
-	// Clip to the center box so zoomed pixels never bleed over the bars.
 	clipStack := clip.Rect{Max: image.Pt(boxW, boxH)}.Push(gtx.Ops)
 	trStack := op.Affine(f32.AffineId().
 		Offset(f32.Pt(originX, originY)).
@@ -666,15 +574,13 @@ func (a *App) viewerImage(gtx layout.Context, f frame, it engine.SharedMediaItem
 	trStack.Pop()
 	clipStack.Pop()
 
-	// Video poster: centered play badge on top — hidden once the clip is
-	// playing in-app (slice 221), because the transport bar owns start/stop.
 	if ok && viewerIsVideo(it) && !viewerVideoActive(it) {
 		d := gtx.Dp(unit.Dp(72))
 		dx := (boxW - d) / 2
 		dy := (boxH - d) / 2
 		off := op.Offset(image.Pt(dx, dy)).Push(gtx.Ops)
 		btn := material.ButtonLayout(a.ui.Theme, &a.wid.viewerPlayBtn)
-		btn.Background = color.NRGBA{} // transparent: the badge paints itself
+		btn.Background = color.NRGBA{}
 		btn.CornerRadius = 36
 		dims := btn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return drawPlayBadge(gtx, d)
@@ -686,8 +592,6 @@ func (a *App) viewerImage(gtx layout.Context, f frame, it engine.SharedMediaItem
 	return layout.Dimensions{Size: image.Pt(boxW, boxH)}
 }
 
-// processViewerImageEvents handles the image-area gestures: double-click
-// zoom toggle (anchored at the cursor), drag pan while zoomed.
 func (a *App) processViewerImageEvents(gtx layout.Context, f frame) {
 	const dblClickWindow = 350 * time.Millisecond
 	var last f32.Point
@@ -710,7 +614,6 @@ func (a *App) processViewerImageEvents(gtx layout.Context, f frame) {
 			dy := pe.Position.Y - a.mvLastPressPos.Y
 			tol := float32(gtx.Dp(unit.Dp(10)))
 			if now.Sub(a.mvLastPressAt) < dblClickWindow && dx*dx+dy*dy <= tol*tol {
-				// Double-click: toggle zoom, keeping the cursor point fixed.
 				newZoom := viewerZoomAfter(a.mvZoom)
 				k := newZoom / a.mvZoom
 				cx := float32(gtx.Constraints.Max.X) / 2
@@ -719,7 +622,7 @@ func (a *App) processViewerImageEvents(gtx layout.Context, f frame) {
 				a.mvPan.Y = panAfterZoom(a.mvPan.Y, pe.Position.Y, cy, k)
 				a.mvZoom = newZoom
 				a.mvPan = a.clampPan(a.mvPan, a.mvScaledW*k, a.mvScaledH*k)
-				a.mvLastPressAt = time.Time{} // fresh pair needed for next toggle
+				a.mvLastPressAt = time.Time{}
 				a.invalidate()
 			} else {
 				a.mvLastPressAt = now
@@ -740,15 +643,10 @@ func (a *App) processViewerImageEvents(gtx layout.Context, f frame) {
 	}
 }
 
-// clampPanNow clamps pan with THIS window's last painted image size (one
-// frame stale at most — every pan invalidates).
 func (a *App) clampPanNow(pan f32.Point) f32.Point {
 	return a.clampPan(pan, a.mvScaledW, a.mvScaledH)
 }
 
-// clampPan clamps pan against this window's center box (a.mvBoxW/H —
-// per-App frame-loop bookkeeping, R19: never package-level again; two
-// windows can each have a viewer open, app.go Root renders both branches).
 func (a *App) clampPan(pan f32.Point, scaledW, scaledH float32) f32.Point {
 	if scaledW <= 0 || scaledH <= 0 || a.mvBoxW <= 0 || a.mvBoxH <= 0 {
 		return pan
@@ -759,7 +657,6 @@ func (a *App) clampPan(pan f32.Point, scaledW, scaledH float32) f32.Point {
 	)
 }
 
-// viewerCaption: sender + message text under the image.
 func (a *App) viewerCaption(gtx layout.Context, f frame) layout.Dimensions {
 	it, _, ok := a.viewerCurrent(f)
 	if !ok || (it.Text == "" && it.SenderName == "") {
@@ -792,8 +689,6 @@ func (a *App) viewerCaption(gtx layout.Context, f frame) layout.Dimensions {
 		})
 }
 
-// viewerFilmstrip: bottom thumbnail strip over the chat's shared media —
-// AyuGram's group thumbs. Current item gets an accent backing.
 func (a *App) viewerFilmstrip(gtx layout.Context, f frame) layout.Dimensions {
 	v := f.viewer
 	n := len(v.items)
@@ -855,7 +750,6 @@ func (a *App) viewerFilmstrip(gtx layout.Context, f frame) layout.Dimensions {
 	})
 }
 
-// viewerProgress: live download bar for the current item (engine events).
 func (a *App) viewerProgress(gtx layout.Context, f frame) layout.Dimensions {
 	v := f.viewer
 	it, _, ok := a.viewerCurrent(f)
@@ -871,11 +765,6 @@ func (a *App) viewerProgress(gtx layout.Context, f frame) layout.Dimensions {
 	})
 }
 
-// ── viewer actions (all engine-backed) ────────────────────────────────────
-
-// viewerSavePlan (pure, testable): what the viewer Save button does —
-// "copy" when the file is local, "download" when it must be fetched
-// first (the completion path then runs the copy).
 func viewerSavePlan(hasLocal bool) string {
 	if hasLocal {
 		return "copy"
@@ -883,9 +772,6 @@ func viewerSavePlan(hasLocal bool) string {
 	return "download"
 }
 
-// viewerSave copies the media into the user's Downloads directory
-// (AyuGram save); undownloaded media downloads first, then saves
-// (slice 99).
 func (a *App) viewerSave(v *viewerState, it engine.SharedMediaItem) {
 	acct, chat, id := v.accountID, v.chatID, it.MsgID
 	if it.LocalPath != "" {
@@ -900,7 +786,6 @@ func (a *App) viewerSave(v *viewerState, it engine.SharedMediaItem) {
 	}()
 }
 
-// viewerShare hands the message to the forward picker (AyuGram "Share").
 func (a *App) viewerShare(v *viewerState, it engine.SharedMediaItem) {
 	m := engine.CachedMessage{
 		AccountID:   v.accountID,
@@ -909,10 +794,6 @@ func (a *App) viewerShare(v *viewerState, it engine.SharedMediaItem) {
 		SenderName:  it.SenderName,
 		ContentText: it.Text,
 	}
-	// openForward locks a.mu ITSELF (select.go) and hops widget state — it
-	// must never be called with a.mu held: Go mutexes are non-reentrant, and
-	// holding it here deadlocked the whole window on Share (R18; the same
-	// double-lock shape CI 41174703134 caught in the R14 test).
 	a.openForward([]engine.CachedMessage{m})
 	a.mu.Lock()
 	a.viewer = nil
@@ -921,10 +802,6 @@ func (a *App) viewerShare(v *viewerState, it engine.SharedMediaItem) {
 	a.invalidate()
 }
 
-// viewerPlay: videos — an already-downloaded MP4 plays IN the viewer
-// with transport controls (slice 221, parity row 276); anything else
-// keeps slice 86's system-player handoff, which also carries the audio
-// we cannot decode yet. A missing file downloads first.
 func (a *App) viewerPlay(v *viewerState, it engine.SharedMediaItem) {
 	if it.LocalPath != "" {
 		if viewerCanPlayInApp(it) {
@@ -935,10 +812,6 @@ func (a *App) viewerPlay(v *viewerState, it engine.SharedMediaItem) {
 		return
 	}
 	acct, chat, id := v.accountID, v.chatID, it.MsgID
-	// Row 281: a video that has not fully downloaded plays from the
-	// engine's ranged stream RIGHT NOW (slice 229) instead of blocking
-	// on the whole file. No stream (other core, no row, unplayable
-	// container) → the wait-for-download flow below, unchanged.
 	if a.startStreamedViewerVideo(v, it) {
 		return
 	}
@@ -951,7 +824,6 @@ func (a *App) viewerPlay(v *viewerState, it engine.SharedMediaItem) {
 	a.setToast("Downloading video…")
 }
 
-// viewerDeleteConfirmed dispatches the engine delete and closes the viewer.
 func (a *App) viewerDeleteConfirmed(v *viewerState, it engine.SharedMediaItem) {
 	acct, chat, id, revoke := v.accountID, v.chatID, it.MsgID, it.IsOutgoing
 	a.closeViewer()
@@ -964,7 +836,6 @@ func (a *App) viewerDeleteConfirmed(v *viewerState, it engine.SharedMediaItem) {
 	}()
 }
 
-// viewerCancelDelete closes the confirmation dialog.
 func (a *App) viewerCancelDelete() {
 	a.mu.Lock()
 	if a.viewer != nil {
@@ -974,9 +845,6 @@ func (a *App) viewerCancelDelete() {
 	a.invalidate()
 }
 
-// viewerDeleteDialog: AyuGram-style confirmation card over the scrim. Drawn
-// after the scrim (and its buttons register their input areas last → on
-// top); the backdrop press cancels.
 func (a *App) viewerDeleteDialog(gtx layout.Context, f frame) layout.Dimensions {
 	it, _, ok := a.viewerCurrent(f)
 	if a.wid.viewerDelYesBtn.Clicked(gtx) {

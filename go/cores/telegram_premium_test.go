@@ -6,9 +6,6 @@ import (
 	"github.com/gotd/td/tg"
 )
 
-// TestPremiumPlansFromPromo: the help.getPremiumPromo wire payload maps
-// onto display-ready plan rows — months, price atoms, payment URL, and
-// the current/upgrade flags carried through.
 func TestPremiumPlansFromPromo(t *testing.T) {
 	promo := &tg.HelpPremiumPromo{
 		StatusText: "You are not subscribed",
@@ -54,8 +51,6 @@ func TestPremiumPlansFromPromo(t *testing.T) {
 	}
 }
 
-// TestPremiumPlansFromPromoEmpty: nil promo / no options → zero-value
-// result, no panic.
 func TestPremiumPlansFromPromoEmpty(t *testing.T) {
 	if out := premiumPlansFromPromo(nil); out.StatusText != "" || len(out.Options) != 0 {
 		t.Fatalf("nil promo = %+v", out)
@@ -65,8 +60,6 @@ func TestPremiumPlansFromPromoEmpty(t *testing.T) {
 	}
 }
 
-// TestPremiumPlansOrderPreserved: the server's option order survives
-// (it is already display order).
 func TestPremiumPlansOrderPreserved(t *testing.T) {
 	promo := &tg.HelpPremiumPromo{
 		PeriodOptions: []tg.PremiumSubscriptionOption{

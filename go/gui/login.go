@@ -14,10 +14,9 @@ import (
 	"uniclient/engine"
 )
 
-// Login widgets.
 var (
 	loginInput      widget.Editor
-	loginCodeUseBtn widget.Clickable // slice 31: relayed-code Use button
+	loginCodeUseBtn widget.Clickable
 	loginSubmitBtn  widget.Clickable
 	loginBackBtn    widget.Clickable
 	loginCancelBtn  widget.Clickable
@@ -32,7 +31,6 @@ func init() {
 	loginInput.SingleLine = true
 }
 
-// layoutWelcome: first-run screen — big title, add-account CTA.
 func (a *App) layoutWelcome(gtx layout.Context, f frame) layout.Dimensions {
 	if welcomeAddBtn.Clicked(gtx) {
 		a.mu.Lock()
@@ -77,8 +75,6 @@ func (a *App) layoutWelcome(gtx layout.Context, f frame) layout.Dimensions {
 	})
 }
 
-// layoutLogin: backend picker + auth flow. Used in the content pane while
-// f.auth != nil (login in progress) or f.showPicker.
 func (a *App) layoutLogin(gtx layout.Context, f frame) layout.Dimensions {
 	if pickerCloseBtn.Clicked(gtx) {
 		a.mu.Lock()
@@ -93,17 +89,11 @@ func (a *App) layoutLogin(gtx layout.Context, f frame) layout.Dimensions {
 	return a.layoutPicker(gtx, f, false)
 }
 
-// layoutPicker: grid of backend cards with per-backend description. The
-// offer list is build-filtered (pickerPlatforms): on js/wasm only the
-// fetch/WebSocket backends appear — a TCP-dialing backend's login form
-// can only ever end in a connection error, which §1.10 forbids offering.
 func (a *App) layoutPicker(gtx layout.Context, f frame, welcome bool) layout.Dimensions {
 	for len(platformBtns) < len(platforms) {
 		platformBtns = append(platformBtns, widget.Clickable{})
 	}
 	offer := pickerPlatforms()
-	// offer indexes into platforms/platformBtns so the per-entry click
-	// targets stay stable across builds.
 	offerIdx := make([]int, len(offer))
 	for k, p := range offer {
 		for i := range platforms {
@@ -145,7 +135,6 @@ func (a *App) layoutPicker(gtx layout.Context, f frame, welcome bool) layout.Dim
 				})
 			}),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				// 2-column grid of platform cards.
 				cols := 2
 				if gtx.Constraints.Max.X < gtx.Dp(unit.Dp(480)) {
 					cols = 1
@@ -171,7 +160,6 @@ func (a *App) layoutPicker(gtx layout.Context, f frame, welcome bool) layout.Dim
 	})
 }
 
-// gridRow lays out up to cols cells with equal width for a single row.
 func gridRow(gtx layout.Context, cols int, cell func(col int) layout.Widget) layout.Dimensions {
 	var children []layout.FlexChild
 	for c := 0; c < cols; c++ {
@@ -181,7 +169,6 @@ func gridRow(gtx layout.Context, cols int, cell func(col int) layout.Widget) lay
 	return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, children...)
 }
 
-// platformCard: one backend card (avatar, title, desc).
 func (a *App) platformCard(gtx layout.Context, btn *widget.Clickable, p platformMeta) layout.Dimensions {
 	hovered := btn.Hovered()
 	bg := a.ui.p.Surface
@@ -215,14 +202,12 @@ func (a *App) platformCard(gtx layout.Context, btn *widget.Clickable, p platform
 	})
 }
 
-// layoutAuthFlow: renders the engine auth state machine.
 func (a *App) layoutAuthFlow(gtx layout.Context, f frame) layout.Dimensions {
 	st := f.auth
 	if st == nil {
 		return a.layoutPicker(gtx, f, false)
 	}
 
-	// editor events
 	for {
 		ev, ok := loginInput.Update(gtx)
 		if !ok {
@@ -254,7 +239,6 @@ func (a *App) layoutAuthFlow(gtx layout.Context, f frame) layout.Dimensions {
 			gtx.Constraints.Max.X = maxW
 		}
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-			// header: platform + step
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return layout.Inset{Bottom: unit.Dp(16)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
@@ -275,7 +259,6 @@ func (a *App) layoutAuthFlow(gtx layout.Context, f frame) layout.Dimensions {
 							)
 						}),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							// busy indicator
 							if busy := f.connecting[f.authAcct]; busy || st.State == "" {
 								ld := material.Loader(a.ui.Theme)
 								ld.Color = a.ui.p.Accent
@@ -286,11 +269,9 @@ func (a *App) layoutAuthFlow(gtx layout.Context, f frame) layout.Dimensions {
 					)
 				})
 			}),
-			// card with prompt + input / options
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return a.authCard(gtx, f, st)
 			}),
-			// nav row
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return layout.Inset{Top: unit.Dp(14)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
@@ -340,7 +321,6 @@ func authStepTitle(st *engine.AuthState) string {
 	return "Logging in…"
 }
 
-// authCard: state-driven card body.
 func (a *App) authCard(gtx layout.Context, f frame, st *engine.AuthState) layout.Dimensions {
 	return roundedFill(gtx, a.ui.p.Surface, 14, func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(unit.Dp(18)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -348,9 +328,6 @@ func (a *App) authCard(gtx layout.Context, f frame, st *engine.AuthState) layout
 			case engine.AuthStateChoose:
 				return a.authChoose(gtx, f, st)
 			case engine.AuthStateSignUp:
-				// Dedicated signup form (slice 193; wired slice 239 —
-				// BUGS.md B-13: without this case signup fell into the
-				// default single-line authInput and last names merged).
 				return a.layoutSignupCard(gtx, f, st)
 			case engine.AuthStateReady:
 				return a.authReady(gtx, st)
@@ -365,7 +342,6 @@ func (a *App) authCard(gtx layout.Context, f frame, st *engine.AuthState) layout
 	})
 }
 
-// authChoose: list of options as buttons.
 func (a *App) authChoose(gtx layout.Context, f frame, st *engine.AuthState) layout.Dimensions {
 	for len(authOptBtns) < len(st.Options) {
 		authOptBtns = append(authOptBtns, widget.Clickable{})
@@ -392,9 +368,7 @@ func (a *App) authChoose(gtx layout.Context, f frame, st *engine.AuthState) layo
 
 var authOptBtns []widget.Clickable
 
-// authInput: label + editor + submit.
 func (a *App) authInput(gtx layout.Context, f frame, st *engine.AuthState) layout.Dimensions {
-	// QR refresh animation for Telegram QR.
 	if st.State == engine.AuthStateQR {
 		gtx.Execute(op.InvalidateCmd{})
 	}
@@ -405,12 +379,10 @@ func (a *App) authInput(gtx layout.Context, f frame, st *engine.AuthState) layou
 	}
 
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		// Relayed login-code banner + auto-fill (AyuGram, slice 31).
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if st.State != engine.AuthStateOTP || !f.loginCodeFresh {
 				return layout.Dimensions{}
 			}
-			// Auto-fill the empty OTP field with the relayed code.
 			if loginInput.Text() == "" {
 				loginInput.SetText(f.loginCode)
 			}
@@ -469,9 +441,7 @@ func (a *App) authInput(gtx layout.Context, f frame, st *engine.AuthState) layou
 	)
 }
 
-// authQRView renders the QR image if available.
 func (a *App) authQRView(gtx layout.Context, f frame, st *engine.AuthState) layout.Dimensions {
-	// Render QR from st.QRData if not yet rendered for this token.
 	if len(st.QRData) > 0 && (authQR == nil || authQRFor != string(st.QRData)) {
 		authQR = renderQR(string(st.QRData))
 		authQRFor = string(st.QRData)
@@ -480,17 +450,15 @@ func (a *App) authQRView(gtx layout.Context, f frame, st *engine.AuthState) layo
 		size := gtx.Dp(unit.Dp(220))
 		img := widget.Image{Src: paint.NewImageOp(authQR)}
 		img.Fit = widget.Fill
-		img.Scale = 1.0 / float32(gtx.Metric.PxPerDp) // 1 image pixel = 1 output pixel
+		img.Scale = 1.0 / float32(gtx.Metric.PxPerDp)
 		gtx.Constraints.Min = image.Pt(size, size)
 		gtx.Constraints.Max = gtx.Constraints.Min
 		return layout.Center.Layout(gtx, img.Layout)
 	}
-	// Fallback: show the raw data as text (selectable).
 	lbl := a.ui.Dim(unit.Sp(12), string(st.QRData))
 	return lbl.Layout(gtx)
 }
 
-// authReady: success state.
 func (a *App) authReady(gtx layout.Context, st *engine.AuthState) layout.Dimensions {
 	return layout.Flex{Axis: layout.Vertical, Alignment: layout.Middle}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -518,7 +486,6 @@ func (a *App) authReady(gtx layout.Context, st *engine.AuthState) layout.Dimensi
 	)
 }
 
-// authError: error state with message.
 func (a *App) authError(gtx layout.Context, st *engine.AuthState) layout.Dimensions {
 	return layout.Flex{Axis: layout.Vertical, Alignment: layout.Middle}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {

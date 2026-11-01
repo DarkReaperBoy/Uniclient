@@ -6,11 +6,6 @@ import (
 	"time"
 )
 
-// TestAudioLiveLoopback records 2 s from the microphone and plays the
-// captured audio back through the speaker. Run only on a real desktop
-// with audio hardware:
-//
-//	UNICLIENT_AUDIO_LIVE=1 go test -tags goolm -run TestAudioLiveLoopback -v ./audio/
 func TestAudioLiveLoopback(t *testing.T) {
 	if os.Getenv("UNICLIENT_AUDIO_LIVE") != "1" {
 		t.Skip("set UNICLIENT_AUDIO_LIVE=1 to run the live audio loopback")
@@ -45,13 +40,12 @@ collect:
 		}
 	}
 	sess.StopMic()
-	if len(captured) < 50 { // ~1 s of 20 ms frames
+	if len(captured) < 50 {
 		t.Fatalf("captured only %d frames", len(captured))
 	}
 	t.Logf("captured %d frames (%.1fs)", len(captured), float64(len(captured))*0.02)
 
 	err = sess.StartPlayback(func(out []int16) {
-		// Play a soft 440 Hz tone so the test is audible.
 		for i := range out {
 			t := float64(i) / 48000
 			out[i] = int16(0.2 * 32767 * sin2pi(440*t))
@@ -67,7 +61,6 @@ collect:
 func sin2pi(x float64) float64 {
 	const pi = 3.141592653589793
 	s := 0.0
-	// Taylor sine — dumb but dependency-free.
 	y := 2 * pi * x
 	y = y - float64(int(y/(2*pi)))*2*pi
 	for i, term := 0, y; i < 12; i++ {

@@ -7,8 +7,6 @@ import (
 	"uniclient/engine"
 )
 
-// Peer header status + badges (AyuGram parity slice 28).
-
 func TestPresenceSubtitle(t *testing.T) {
 	cases := []struct {
 		p    *engine.CachedUser
@@ -31,11 +29,6 @@ func TestPresenceSubtitle(t *testing.T) {
 }
 
 func TestHeaderLastSeenExact(t *testing.T) {
-	// Anchor to noon of TODAY so "90 minutes ago" can never cross
-	// midnight: this suite must hold at every wall-clock time. It first
-	// failed at 00:03 local when -90 min fell on the previous day and
-	// production correctly rendered the date form — the test's
-	// assumption was wrong, not the code (BUGS.md F-9).
 	now := time.Now()
 	noon := time.Date(now.Year(), now.Month(), now.Day(), 12, 0, 0, 0, now.Location())
 	today := engine.CachedUser{LastSeenKind: "exact", LastSeen: noon.Add(-90 * time.Minute).UnixMilli()}
@@ -83,8 +76,6 @@ func TestHeaderBadges(t *testing.T) {
 }
 
 func TestSameCalendarDay(t *testing.T) {
-	// Noon-anchored (not time.Now()): the -1h case must stay on the same
-	// calendar day at every wall-clock time (BUGS.md F-9).
 	now := time.Now()
 	n := time.Date(now.Year(), now.Month(), now.Day(), 12, 0, 0, 0, now.Location())
 	if !sameCalendarDay(n, n.Add(-time.Hour)) {

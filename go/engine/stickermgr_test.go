@@ -1,21 +1,16 @@
 package engine
 
-// Sticker manager engine surface (slice 139): the lightweight set-listing
-// fetcher (installed + archived in one call) and the archive toggle pass
-// through to cores that implement them; plain cores report unsupported.
-
 import (
 	"testing"
 
 	"uniclient/cores"
 )
 
-// stickerMgrStub records calls and serves canned data.
 type stickerMgrStub struct {
 	cores.StubCore
 	summaries []cores.StickerPackSummary
 	listErr   error
-	archived  [][3]any // setID, accessHash, archived
+	archived  [][3]any
 	archErr   error
 }
 

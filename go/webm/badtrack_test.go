@@ -1,13 +1,5 @@
 package webm
 
-// tests-first for BUGS.md B-17 — a MALFORMED field must produce an
-// error, not be silently converted into a different (fabricated) value.
-//
-// parseTrackEntry used to do `num, _ = q.readUint(s, e)`: a TrackNumber
-// payload that isn't a legal EBML uint (1..8 bytes) became 0, which the
-// track gate reads as "absent" — malformed input was indistinguishable
-// from a file with no video track (§1.10: fail, don't fudge).
-
 import (
 	"errors"
 	"testing"
@@ -15,7 +7,7 @@ import (
 
 func TestMalformedTrackNumberIsAnErrorNotAnAbsentTrack(t *testing.T) {
 	badTrack := el{id: idTrackEntry, sub: []el{
-		{id: idTrackNumber, data: []byte{1, 2, 3, 4, 5, 6, 7, 8, 9}}, // 9 bytes: not a legal EBML uint
+		{id: idTrackNumber, data: []byte{1, 2, 3, 4, 5, 6, 7, 8, 9}},
 		uintEl(idTrackUID, 1),
 		uintEl(idTrackType, 1),
 		strEl(idCodecID, "V_VP9"),

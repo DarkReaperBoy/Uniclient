@@ -1,8 +1,5 @@
 package cores
 
-// StubCore implements the full Core interface with ErrNotSupported
-// responses. Real backends embed it and override the methods they support,
-// so the interface can grow without breaking every core.
 type StubCore struct{}
 
 var _ Core = (*StubCore)(nil)

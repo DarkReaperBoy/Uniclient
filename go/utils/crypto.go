@@ -10,9 +10,9 @@ import (
 )
 
 const (
-	NonceSize         = 12        // 96-bit nonce for AES-GCM
-	KeySize           = 32        // 256-bit key
-	Argon2Memory      = 64 * 1024 // 64 MB
+	NonceSize         = 12
+	KeySize           = 32
+	Argon2Memory      = 64 * 1024
 	Argon2Iterations  = 3
 	Argon2Parallelism = 4
 )
@@ -22,7 +22,6 @@ var (
 	ErrInvalidPayload = errors.New("invalid encrypted payload")
 )
 
-// Encrypt encrypts plaintext with AES-256-GCM. Returns nonce + ciphertext + tag.
 func Encrypt(key, plaintext []byte) ([]byte, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
@@ -40,7 +39,6 @@ func Encrypt(key, plaintext []byte) ([]byte, error) {
 	return ciphertext, nil
 }
 
-// Decrypt decrypts AES-256-GCM ciphertext (nonce prepended).
 func Decrypt(key, ciphertext []byte) ([]byte, error) {
 	if len(ciphertext) < NonceSize {
 		return nil, ErrInvalidPayload

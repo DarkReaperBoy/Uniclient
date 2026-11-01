@@ -7,9 +7,6 @@ import (
 	"unsafe"
 )
 
-// canonical renders a winGUID in the canonical Windows registry form —
-// the form every IID/CLSID is quoted in, so the pinned values can be
-// checked against the primary sources by eye.
 func canonical(g winGUID) string {
 	return fmt.Sprintf("{%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}",
 		g.Data1, g.Data2, g.Data3,
@@ -17,12 +14,6 @@ func canonical(g winGUID) string {
 		g.Data4[4], g.Data4[5], g.Data4[6], g.Data4[7])
 }
 
-// TestComABIGUIDs (slice 201): the COM class/interface IDs for the
-// Start-Menu shortcut registration, pinned against mingw-w64 headers
-// (shobjidl.h: IID_IShellLinkW + CLSID_ShellLink; objidl.h:
-// IID_IPersistFile; propsys.h: IID_IPropertyStore). A drift here is a
-// silent QueryInterface failure on Windows, so it is locked in CI on
-// every build target.
 func TestComABIGUIDs(t *testing.T) {
 	cases := []struct {
 		name string
@@ -42,10 +33,6 @@ func TestComABIGUIDs(t *testing.T) {
 	}
 }
 
-// TestComABIPkey (slice 201): PKEY_AppUserModel_ID — mingw-w64 propkey.h
-// (fmtid {9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3}, pid 5). Note the fmtid's
-// tail bytes: E1-D4-2D-E1-D5-F3 — blog-copied variants ending in
-// "E1D42DE4D436" are wrong.
 func TestComABIPkey(t *testing.T) {
 	if got := canonical(pkeyAppUserModelID.fmtid); got != "{9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3}" {
 		t.Errorf("PKEY_AppUserModel_ID fmtid = %s", got)
@@ -55,11 +42,6 @@ func TestComABIPkey(t *testing.T) {
 	}
 }
 
-// TestComABIPropVariant (slice 201): the VT_LPWSTR PROPVARIANT layout —
-// 2-byte vt + 6 bytes reserved, union at offset 8 (the LPWSTR pointer),
-// 24 bytes total on 64-bit (union padded to 16). Pinned so a struct edit
-// on another platform cannot silently shift the pointer the Windows COM
-// call reads.
 func TestComABIPropVariant(t *testing.T) {
 	if unsafe.Offsetof(propVariant{}.ptr) != 8 {
 		t.Errorf("propVariant.ptr offset = %d, want 8", unsafe.Offsetof(propVariant{}.ptr))
@@ -75,9 +57,6 @@ func TestComABIPropVariant(t *testing.T) {
 	}
 }
 
-// TestShortcutPath (slice 201): the shortcut lands in the per-user Start
-// Menu Programs folder and is named after the app (slash-normalized so
-// the pin holds on every CI build target).
 func TestShortcutPath(t *testing.T) {
 	got := filepath.ToSlash(shortcutPath("C:/Users/o/AppData/Roaming"))
 	want := "C:/Users/o/AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Uniclient.lnk"
@@ -89,8 +68,6 @@ func TestShortcutPath(t *testing.T) {
 	}
 }
 
-// TestOurAUMID (slice 201): the AUMID is stable (toplevel.product — the
-// Windows convention) and matches what the toast transport resolves to.
 func TestOurAUMID(t *testing.T) {
 	if ourAUMID != "DarkReaperBoy.Uniclient" {
 		t.Errorf("ourAUMID = %q", ourAUMID)

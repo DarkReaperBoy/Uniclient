@@ -1,15 +1,5 @@
 //go:build android
 
-// SPDX-License-Identifier: Unlicense OR MIT
-
-// Minimal pure-Go JNI on top of ebitengine/purego, used only for the
-// RECORD_AUDIO runtime-permission flow. The JavaVM pointer and the current
-// android.view.View global reference are injected by the GUI layer through
-// SetAndroidViewEvent (view_android.go) — this file never imports gio.
-//
-// Ordinal constants live in opensl_layout.go and are pinned by
-// opensl_layout_test.go against the official jni.h.
-
 package audio
 
 import (
@@ -23,27 +13,18 @@ import (
 	"github.com/ebitengine/purego"
 )
 
-// jvalue mirrors the JNI jvalue union (largest member is 64-bit).
 type jvalue struct{ v uint64 }
 
-// jniState holds the JVM and the current View reference. Set by the GUI
-// layer (SetAndroidViewEvent); read racily after that (Go word-sized reads
-// are atomic).
 var jniState struct {
 	mu   sync.Mutex
 	jvm  uintptr
 	view uintptr
 }
 
-// jniFn resolves function slot idx from a JNIEnv*/JavaVM* (both point
-// directly at their vtable struct on 64-bit targets).
 func jniFn(itf uintptr, idx int) uintptr {
 	return *(*uintptr)(unsafe.Add(unsafe.Pointer(itf), idx*8))
 }
 
-// jniAttached returns a JNIEnv for the current OS thread. Goroutines can
-// migrate between threads, so the thread is locked for the duration; the
-// returned release function unlocks (and detaches if we attached here).
 func jniAttached() (env uintptr, release func(), err error) {
 	runtime.LockOSThread()
 	unlock := func() { runtime.UnlockOSThread() }
@@ -68,8 +49,6 @@ func jniAttached() (env uintptr, release func(), err error) {
 	}, nil
 }
 
-// jniSanity verifies the JNIEnv vtable maps to the expected ABI: GetVersion
-// must report a 1.x JNI version. A wrong ordinal table would return garbage.
 func jniSanity(env uintptr) error {
 	ver := jniCall(env, jniEnvGetVersion)
 	if ver>>16 != 1 || ver&0xFFFF == 0 {
@@ -78,8 +57,6 @@ func jniSanity(env uintptr) error {
 	return nil
 }
 
-// jniCall invokes env function idx (the env itself is passed as arg zero,
-// matching every JNIEnv method signature).
 func jniCall(env uintptr, idx int, args ...uintptr) uintptr {
 	fn := jniFn(env, idx)
 	full := make([]uintptr, 0, len(args)+1)
@@ -89,8 +66,6 @@ func jniCall(env uintptr, idx int, args ...uintptr) uintptr {
 	return r1
 }
 
-// cstr returns a pointer to a NUL-terminated copy of s plus a keep-alive
-// anchor. Callers must runtime.KeepAlive(anchor) after the native call.
 func cstr(s string) (unsafe.Pointer, []byte) {
 	b := make([]byte, len(s)+1)
 	copy(b, s)
@@ -118,8 +93,6 @@ func jniGetObjectClass(env, obj uintptr) uintptr {
 	return jniCall(env, jniEnvGetObjectClass, obj)
 }
 
-// jniGetMethodID looks up an instance method. Pending JNI exceptions from a
-// failed lookup are cleared so later calls stay valid.
 func jniGetMethodID(env, cls uintptr, name, sig string) uintptr {
 	if cls == 0 {
 		return 0
@@ -135,7 +108,6 @@ func jniGetMethodID(env, cls uintptr, name, sig string) uintptr {
 	return mid
 }
 
-// jniFindClass finds a class by slash-separated name ("java/lang/String").
 func jniFindClass(env uintptr, name string) uintptr {
 	np, keep := cstr(name)
 	cls := jniCall(env, jniEnvFindClass, uintptr(np))
@@ -211,10 +183,6 @@ func jniSetObjectArrayElement(env, arr uintptr, idx int, val uintptr) {
 	}
 }
 
-// jniViewActivity resolves the Activity behind the current View:
-// view.getContext() — the Gio view is created by the activity, so its
-// context usually IS the activity; ContextWrapper chains are unwrapped
-// defensively.
 func jniViewActivity(env uintptr) uintptr {
 	view := jniState.view
 	if view == 0 {
@@ -249,8 +217,6 @@ func jniViewActivity(env uintptr) uintptr {
 	return 0
 }
 
-// jniCheckSelfPermission reports whether the given Android permission is
-// currently granted (Context.checkSelfPermission == PERMISSION_GRANTED==0).
 func jniCheckSelfPermission(env, ctx uintptr, perm string) bool {
 	if ctx == 0 {
 		return false
@@ -269,9 +235,6 @@ func jniCheckSelfPermission(env, ctx uintptr, perm string) bool {
 	return res == 0
 }
 
-// jniRequestPermissions fires Activity.requestPermissions(...) — the
-// system dialog appears; the result lands asynchronously (polled via
-// jniCheckSelfPermission by the caller).
 func jniRequestPermissions(env, activity uintptr, perms []string) {
 	if activity == 0 {
 		return
@@ -294,12 +257,10 @@ func jniRequestPermissions(env, activity uintptr, perms []string) {
 		jniSetObjectArrayElement(env, arr, i, jstr)
 		jniDeleteLocalRef(env, jstr)
 	}
-	// requestCode 1: we never route the result callback — presence is polled.
 	jniCallVoidMethodA(env, activity, mid, []jvalue{{uint64(arr)}, {1}})
 	jniDeleteLocalRef(env, arr)
 }
 
-// micPermissionGranted reports whether RECORD_AUDIO is granted right now.
 func micPermissionGranted() bool {
 	env, release, err := jniAttached()
 	if err != nil {
@@ -316,13 +277,8 @@ func micPermissionGranted() bool {
 	return jniCheckSelfPermission(env, ctx, "android.permission.RECORD_AUDIO")
 }
 
-// micPermissionTimeout bounds how long startMic waits for the user to
-// answer the system permission dialog.
 const micPermissionTimeout = 10 * time.Second
 
-// ensureMicPermission blocks until RECORD_AUDIO is granted, requesting it
-// (system dialog) when not yet granted. Honest error on denial/timeout —
-// the caller surfaces it to the voice UI.
 func ensureMicPermission() error {
 	if micPermissionGranted() {
 		return nil

@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: Unlicense OR MIT
-
 package audio
 
 import (
@@ -7,17 +5,7 @@ import (
 	"unsafe"
 )
 
-// The expected values below are an INDEPENDENT transcription of the official
-// headers (AOSP frameworks/wilhelm include/SLES/{OpenSLES.h,
-// OpenSLES_Android.h, OpenSLES_AndroidConfiguration.h}, fetched 2026-09-14),
-// and of jni.h's JNINativeInterface_/JNIInvokeInterface_ tables. A typo in
-// either the constants or this table fails the test — the two were written
-// from the headers separately.
-
 func TestSLObjectItfVTable(t *testing.T) {
-	// struct SLObjectItf_ order: Realize, Resume, GetState, GetInterface,
-	// RegisterCallback, AbortAsyncOperation, Destroy, SetPriority,
-	// GetPriority, SetLossOfControlInterfaces.
 	for _, tc := range []struct {
 		name string
 		got  int
@@ -35,10 +23,6 @@ func TestSLObjectItfVTable(t *testing.T) {
 }
 
 func TestSLEngineItfVTable(t *testing.T) {
-	// struct SLEngineItf_ order: CreateLEDDevice(0), CreateVibraDevice(1),
-	// CreateAudioPlayer(2), CreateAudioRecorder(3), CreateMidiPlayer(4),
-	// CreateListener(5), Create3DGroup(6), CreateOutputMix(7),
-	// CreateMetadataExtractor(8), CreateExtensionObject(9), ...
 	for _, tc := range []struct {
 		name string
 		got  int
@@ -55,20 +39,15 @@ func TestSLEngineItfVTable(t *testing.T) {
 }
 
 func TestSLPlayRecordBQVTables(t *testing.T) {
-	// SLPlayItf_: SetPlayState(0), GetPlayState(1), GetDuration(2),
-	// GetPosition(3), RegisterCallback(4), ...
 	if slPlaySetPlayState != 0 || slPlayGetPlayState != 1 {
 		t.Errorf("SLPlayItf play-state indices wrong: %d/%d", slPlaySetPlayState, slPlayGetPlayState)
 	}
-	// SLRecordItf_: SetRecordState(0), GetRecordState(1), SetDurationLimit(2)...
 	if slRecordSetRecordState != 0 || slRecordGetRecordState != 1 {
 		t.Errorf("SLRecordItf record-state indices wrong: %d/%d", slRecordSetRecordState, slRecordGetRecordState)
 	}
-	// SLBufferQueueItf_: Enqueue(0), Clear(1), GetState(2), RegisterCallback(3).
 	if slBQEnqueue != 0 || slBQClear != 1 || slBQGetState != 2 {
 		t.Errorf("SLBufferQueueItf indices wrong: %d/%d/%d", slBQEnqueue, slBQClear, slBQGetState)
 	}
-	// SLAndroidConfigurationItf_: SetConfiguration(0), GetConfiguration(1)...
 	if slConfigSetConfiguration != 0 {
 		t.Errorf("SLAndroidConfigurationItf.SetConfiguration = %d, want 0", slConfigSetConfiguration)
 	}
@@ -112,7 +91,6 @@ func TestSLConstants(t *testing.T) {
 }
 
 func TestSLStructLayouts64(t *testing.T) {
-	// 64-bit pointer model — android amd64/arm64 only ship as such.
 	if unsafe.Sizeof(unsafe.Pointer(nil)) != 8 {
 		t.Skip("layout checks are 64-bit only")
 	}
@@ -146,21 +124,6 @@ func TestSLStructLayouts64(t *testing.T) {
 }
 
 func TestJNIOrdinals(t *testing.T) {
-	// JNINativeInterface_: 4 reserved slots, then GetVersion(4), DefineClass(5),
-	// FindClass(6), FromReflectedMethod(7), FromReflectedField(8),
-	// ToReflectedMethod(9), GetSuperclass(10), IsAssignableFrom(11),
-	// ToReflectedField(12), Throw(13), ThrowNew(14), ExceptionOccurred(15),
-	// ExceptionDescribe(16), ExceptionClear(17), FatalError(18),
-	// PushLocalFrame(19), PopLocalFrame(20), NewGlobalRef(21),
-	// DeleteGlobalRef(22), DeleteLocalRef(23), IsSameObject(24),
-	// NewLocalRef(25), EnsureLocalCapacity(26), AllocObject(27),
-	// NewObject(28), NewObjectV(29), NewObjectA(30), GetObjectClass(31),
-	// IsInstanceOf(32), GetMethodID(33), then Call*Method triplets:
-	// Object 34/35/36, Boolean 37/38/39, Byte 40..42, Char 43..45,
-	// Short 46..48, Int 49/50/51, Long 52..54, Float 55..57, Double 58..60,
-	// Void 61/62/63. Strings/arrays: NewString(163), NewStringUTF(167),
-	// GetStringUTFChars(169), ReleaseStringUTFChars(170), GetArrayLength(171),
-	// NewObjectArray(172), SetObjectArrayElement(174). ExceptionCheck(228).
 	for _, tc := range []struct {
 		name string
 		got  int
@@ -191,9 +154,6 @@ func TestJNIOrdinals(t *testing.T) {
 			t.Errorf("JNIEnv.%s = %d, want %d", tc.name, tc.got, tc.want)
 		}
 	}
-	// JNIInvokeInterface_: reserved(0..2), DestroyJavaVM(3),
-	// AttachCurrentThread(4), DetachCurrentThread(5), GetEnv(6),
-	// AttachCurrentThreadAsDaemon(7).
 	if jvmAttachCurrentThread != 4 || jvmDetachCurrentThread != 5 || jvmGetEnv != 6 {
 		t.Errorf("JavaVM ordinals wrong: attach=%d detach=%d getenv=%d",
 			jvmAttachCurrentThread, jvmDetachCurrentThread, jvmGetEnv)
@@ -206,7 +166,6 @@ func TestJNIOrdinals(t *testing.T) {
 func TestBQRing(t *testing.T) {
 	r := newBQRing(4, 1920)
 
-	// Fill the queue: 4 enqueues, nothing completed.
 	for i := 0; i < 4; i++ {
 		slot, buf := r.next()
 		if slot != i%4 {
@@ -223,7 +182,6 @@ func TestBQRing(t *testing.T) {
 		t.Fatalf("outstanding = %d, want 4", r.outstanding())
 	}
 
-	// Queue drains two buffers → the two oldest slots complete in order.
 	got := r.completed(2)
 	if len(got) != 2 || got[0] != 0 || got[1] != 1 {
 		t.Fatalf("completed(2) = %v, want [0 1]", got)
@@ -232,7 +190,6 @@ func TestBQRing(t *testing.T) {
 		t.Fatalf("outstanding = %d, want 2", r.outstanding())
 	}
 
-	// Re-enqueue wraps around the ring.
 	for i := 0; i < 2; i++ {
 		slot, _ := r.next()
 		want := (4 + i) % 4
@@ -245,7 +202,6 @@ func TestBQRing(t *testing.T) {
 		t.Fatalf("completed(3) = %v, want [2]", got)
 	}
 
-	// Reset zeroes the accounting.
 	r.reset()
 	if r.outstanding() != 0 {
 		t.Fatalf("after reset outstanding = %d", r.outstanding())

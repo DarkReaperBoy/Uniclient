@@ -5,14 +5,6 @@ import (
 	"log"
 )
 
-// Forum topics (slice 118, Telegram forum parity): the topic list comes from
-// the core (GetForumTopics); message scoping filters the messages cache by
-// topic_id (every forum message carries its topic anchor in the reply
-// header — the core caches it). New topic messages keep landing in the cache
-// through the live update stream, so topic views stay current.
-
-// GetTopicMessages returns one forum topic's cached message page (newest
-// first, like GetMessages). beforeMs = 0 loads the latest page.
 func (e *Engine) GetTopicMessages(accountID, chatID, topicID string, beforeMs int64, limit int) ([]CachedMessage, error) {
 	if limit <= 0 {
 		limit = 50
@@ -61,10 +53,6 @@ func (e *Engine) GetTopicMessages(accountID, chatID, topicID string, beforeMs in
 	return e.applyAyuFilters(msgs), nil
 }
 
-// GetTopicMessagesAfter returns topic messages NEWER than afterMs
-// (strict), newest-first, capped at limit — the topic-permalink jump's
-// "load toward the present" half (slice 189; mirrors GetMessages'
-// afterMs window). Empty topicID delegates to the chat-wide window.
 func (e *Engine) GetTopicMessagesAfter(accountID, chatID, topicID string, afterMs int64, limit int) ([]CachedMessage, error) {
 	if limit <= 0 {
 		limit = 50
@@ -90,7 +78,6 @@ func (e *Engine) GetTopicMessagesAfter(accountID, chatID, topicID string, afterM
 	if err != nil {
 		return msgs, err
 	}
-	// ASC select, newest-first contract: reverse in place.
 	for i, j := 0, len(msgs)-1; i < j; i, j = i+1, j-1 {
 		msgs[i], msgs[j] = msgs[j], msgs[i]
 	}
@@ -99,10 +86,6 @@ func (e *Engine) GetTopicMessagesAfter(accountID, chatID, topicID string, afterM
 	return e.applyAyuFilters(msgs), nil
 }
 
-// ReorderPinnedForumTopics (slice 205) changes the pinned-topic order
-// in a forum (messages.reorderPinnedForumTopics with force — stale
-// server pins outside the passed order unpin instead of corrupting
-// it, the same semantics the dialogs and saved-sublists reorders use).
 func (e *Engine) ReorderPinnedForumTopics(accountID, chatID string, topicIDs []int) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {

@@ -6,10 +6,6 @@ import (
 	"uniclient/engine"
 )
 
-// Settings shell (AyuGram parity §8): section rail + real engine-backed
-// pages. Tests lock the section list, cache-tag labels, and the
-// field→ConfigChanges / GhostFlags mappings before the widgets.
-
 func TestSettingsSections(t *testing.T) {
 	want := []string{
 		"Main", "Notifications", "Privacy & Security", "Data & Storage",

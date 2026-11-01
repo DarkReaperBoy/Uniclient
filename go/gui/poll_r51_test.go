@@ -8,11 +8,8 @@ import (
 	"uniclient/engine"
 )
 
-// R51 + R52 pins (chunk 3, iteration 33 — poll.go read in full).
-
 func TestUpdatePollDlgContract(t *testing.T) {
 	a := &App{}
-	// Nil head: no install.
 	if a.updatePollDlg(func(d *pollDlgState) bool { d.busy = true; return true }) {
 		t.Fatalf("nil head: installer reports an install")
 	}
@@ -24,7 +21,6 @@ func TestUpdatePollDlgContract(t *testing.T) {
 	frozen := a.pollDlg
 	a.mu.Unlock()
 
-	// Abort: fn false leaves the head pointer untouched.
 	if a.updatePollDlg(func(d *pollDlgState) bool { return false }) {
 		t.Fatalf("abort: installer reports an install")
 	}
@@ -35,7 +31,6 @@ func TestUpdatePollDlgContract(t *testing.T) {
 		t.Fatalf("abort: head replaced anyway")
 	}
 
-	// Install: fresh struct, frozen head untouched.
 	if !a.updatePollDlg(func(d *pollDlgState) bool { d.correct = 3; return true }) {
 		t.Fatalf("install: installer reports no install")
 	}
@@ -76,9 +71,6 @@ func TestPollDlgStateIsCopyOnWrite(t *testing.T) {
 			}
 		}()
 	}
-	// Open/close cycles from ONE goroutine: besides the head they touch
-	// pollOptEds and a.wid — GUI-loop-only fields that must stay
-	// single-goroutine, exactly like the real GUI loop.
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -99,7 +91,6 @@ func TestPollDlgStateIsCopyOnWrite(t *testing.T) {
 func TestPollSendTailSessionGuarded(t *testing.T) {
 	boom := errors.New("boom")
 
-	// The gen bumps per open.
 	a := &App{}
 	a.openPollDialog()
 	a.mu.Lock()
@@ -109,7 +100,6 @@ func TestPollSendTailSessionGuarded(t *testing.T) {
 		t.Fatalf("first open: gen = %d, want 1", gen1)
 	}
 
-	// Matching session + success: the dialog closes.
 	a.updatePollDlg(func(d *pollDlgState) bool { d.busy = true; return true })
 	a.pollSendDone(gen1, nil)
 	a.mu.Lock()
@@ -119,9 +109,8 @@ func TestPollSendTailSessionGuarded(t *testing.T) {
 		t.Fatalf("matching session + success: dialog not closed")
 	}
 
-	// Matching session + failure: un-busy, keep the dialog, toast.
 	a2 := &App{}
-	a2.openPollDialog() // gen 1
+	a2.openPollDialog()
 	a2.updatePollDlg(func(d *pollDlgState) bool { d.busy = true; return true })
 	a2.pollSendDone(1, boom)
 	a2.mu.Lock()
@@ -137,20 +126,18 @@ func TestPollSendTailSessionGuarded(t *testing.T) {
 		t.Fatalf("failure toast = %q", a2.toast)
 	}
 
-	// Stale session (cancel + reopen mid-send): the new draft's openness
-	// and busy state survive the old tail, success OR failure.
 	a3 := &App{}
-	a3.openPollDialog() // gen 1 — the first draft
+	a3.openPollDialog()
 	a3.updatePollDlg(func(d *pollDlgState) bool { d.busy = true; return true })
-	a3.openPollDialog() // reopen: gen 2, fresh head
+	a3.openPollDialog()
 	a3.mu.Lock()
 	gen2 := a3.pollDlgGen
 	a3.mu.Unlock()
 	if gen2 != 2 {
 		t.Fatalf("reopen: gen = %d, want 2", gen2)
 	}
-	a3.updatePollDlg(func(d *pollDlgState) bool { d.busy = true; return true }) // the new draft is sending
-	a3.pollSendDone(1, nil)                                                     // the OLD tail lands: must not close or un-busy
+	a3.updatePollDlg(func(d *pollDlgState) bool { d.busy = true; return true })
+	a3.pollSendDone(1, nil)
 	a3.mu.Lock()
 	d3 := a3.pollDlg
 	a3.mu.Unlock()
@@ -160,7 +147,7 @@ func TestPollSendTailSessionGuarded(t *testing.T) {
 	if !d3.busy {
 		t.Fatalf("stale success un-busied the new session's in-flight send")
 	}
-	a3.pollSendDone(1, boom) // the OLD tail fails: toast (the send really failed), state untouched
+	a3.pollSendDone(1, boom)
 	a3.mu.Lock()
 	d4 := a3.pollDlg
 	a3.mu.Unlock()
@@ -173,13 +160,6 @@ func TestPollSendTailSessionGuarded(t *testing.T) {
 }
 
 func TestPollSubmitCapturesSwitchStateOnGuiLoop(t *testing.T) {
-	// R52: the send goroutine must not read a.wid (GUI-loop-only state).
-	// This drives the REAL submit entry point while a second goroutine
-	// plays the GUI loop flipping the three switches the send reads. The
-	// test mutex orders the flipper against the SUBMIT caller (production
-	// puts both on the GUI loop) but not against the spawned send
-	// goroutine — pre-fix that read/write pair is exactly the production
-	// race the detector flags.
 	a := &App{eng: &engine.Engine{}}
 	a.mu.Lock()
 	a.selected = &chatKey{AccountID: "acc1", ChatID: "c1"}
@@ -193,7 +173,7 @@ func TestPollSubmitCapturesSwitchStateOnGuiLoop(t *testing.T) {
 	stop := make(chan struct{})
 	var wg sync.WaitGroup
 	wg.Add(1)
-	go func() { // the GUI loop: material.Switch writes .Value during Layout
+	go func() {
 		defer wg.Done()
 		for {
 			flip.Lock()
@@ -216,6 +196,4 @@ func TestPollSubmitCapturesSwitchStateOnGuiLoop(t *testing.T) {
 	}
 	close(stop)
 	wg.Wait()
-	// Straggler send goroutines may still land their a.mu-guarded
-	// pollSendDone writes after the test returns — safe by construction.
 }

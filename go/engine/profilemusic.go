@@ -1,14 +1,5 @@
 package engine
 
-// profilemusic.go — slice 206: profile music ("saved music", tdesktop Aug
-// 2026). Songs pinned on user profiles: a per-(account, peer) ordered
-// playlist cache fed by users.getSavedMusic, own-playlist mutations through
-// account.saveMusic (add / move-after / unsave) with cache + event updates,
-// the own-ID set (hash-gated account.getSavedMusicIDs) behind the
-// bubble-menu gate, and track playback through the shared in-app player
-// (download via the core's FileRef path, then PlayMedia keyed
-// (account, "profilemusic", docID)).
-
 import (
 	"database/sql"
 	"encoding/json"
@@ -21,23 +12,18 @@ import (
 	"uniclient/cores"
 )
 
-// ProfileMusicFetcher is the server-side playlist fetch (users.getSavedMusic).
 type ProfileMusicFetcher interface {
 	GetProfileMusic(peerID string) ([]cores.MusicTrackInfo, int, error)
 }
 
-// ProfileMusicSaver is the own-playlist mutation surface (account.saveMusic).
 type ProfileMusicSaver interface {
 	SaveProfileMusicDoc(track, after cores.MusicTrackInfo, unsave bool) error
 }
 
-// OwnSavedMusicIDsFetcher is the own-playlist ID list (account.getSavedMusicIDs).
 type OwnSavedMusicIDsFetcher interface {
 	GetOwnSavedMusicIDs(hash int64) ([]string, bool, error)
 }
 
-// MusicTrack is the engine-side cached profile-music track (json-shaped
-// for the GUI).
 type MusicTrack struct {
 	DocID      string `json:"doc_id"`
 	Title      string `json:"title,omitempty"`
@@ -51,8 +37,6 @@ type MusicTrack struct {
 	Position   int    `json:"position"`
 }
 
-// ProfileMusicSupported reports whether the account's core exposes the
-// profile-music surface (Telegram today).
 func (e *Engine) ProfileMusicSupported(accountID string) bool {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -77,10 +61,6 @@ func (e *Engine) profileMusicFetcher(accountID string) (ProfileMusicFetcher, err
 	return f, nil
 }
 
-// GetProfileMusic returns the peer's cached playlist in order. A cold
-// cache is fed by one server fetch before returning (first open shows real
-// rows); warm caches read locally — freshness rides the
-// profile-music-changed events that follow mutations.
 func (e *Engine) GetProfileMusic(accountID, peerID string) ([]MusicTrack, error) {
 	if tracks, ok := e.readProfileMusic(accountID, peerID); ok {
 		return tracks, nil
@@ -91,8 +71,6 @@ func (e *Engine) GetProfileMusic(accountID, peerID string) ([]MusicTrack, error)
 	}
 	info, _, err := f.GetProfileMusic(peerID)
 	if err != nil {
-		// Empty-but-known (user with no music) must stay an honest empty
-		// state, not an error; only real failures propagate.
 		return nil, err
 	}
 	e.storeProfileMusic(accountID, peerID, info)
@@ -119,8 +97,6 @@ func (e *Engine) readProfileMusicRows(accountID, peerID string) ([]MusicTrack, e
 	return tracks, rows.Err()
 }
 
-// readProfileMusic reports ok=false only when the peer has NO cached rows
-// at all (never fetched).
 func (e *Engine) readProfileMusic(accountID, peerID string) ([]MusicTrack, bool) {
 	tracks, err := e.readProfileMusicRows(accountID, peerID)
 	if err != nil {
@@ -166,9 +142,6 @@ func (e *Engine) profileMusicSelfID(accountID string) (string, error) {
 	return "", fmt.Errorf("account has no self peer ID")
 }
 
-// SaveToProfileMusic adds a track to the OWN playlist (plain
-// account.saveMusic — an already-saved song moves to the top), then
-// refetches the own playlist + ID set and emits the change event.
 func (e *Engine) SaveToProfileMusic(accountID string, track MusicTrack) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -185,7 +158,6 @@ func (e *Engine) SaveToProfileMusic(accountID string, track MusicTrack) error {
 	return nil
 }
 
-// RemoveProfileMusic removes a track from the OWN playlist.
 func (e *Engine) RemoveProfileMusic(accountID, docID string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -195,7 +167,6 @@ func (e *Engine) RemoveProfileMusic(accountID, docID string) error {
 	if !ok {
 		return fmt.Errorf("platform does not support profile music")
 	}
-	// The cache row carries the download reference the RPC needs.
 	track, err := e.profileMusicTrackByDoc(accountID, docID)
 	if err != nil {
 		return err
@@ -207,8 +178,6 @@ func (e *Engine) RemoveProfileMusic(accountID, docID string) error {
 	return nil
 }
 
-// ReorderProfileMusic moves one own-playlist track right after another
-// (account.saveMusic after_id). afterDocID "" = move to top.
 func (e *Engine) ReorderProfileMusic(accountID, docID, afterDocID string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -242,7 +211,6 @@ func (e *Engine) ReorderProfileMusic(accountID, docID, afterDocID string) error 
 	if !foundAfter {
 		return fmt.Errorf("anchor %s is not in the playlist", afterDocID)
 	}
-	// Same-position no-op: the anchor is already the predecessor.
 	for i, t := range tracks {
 		if t.DocID == docID && i > 0 && tracks[i-1].DocID == afterDocID {
 			return nil
@@ -255,8 +223,6 @@ func (e *Engine) ReorderProfileMusic(accountID, docID, afterDocID string) error 
 	return nil
 }
 
-// refreshProfileMusicAfterMutation re-syncs the own playlist + ID set and
-// emits the change events (GUI reloads panels and the playlist view).
 func (e *Engine) refreshProfileMusicAfterMutation(accountID string) {
 	selfID, err := e.profileMusicSelfID(accountID)
 	if err != nil {
@@ -268,13 +234,11 @@ func (e *Engine) refreshProfileMusicAfterMutation(accountID string) {
 		}
 	}
 	if _, err := e.RefreshOwnProfileMusic(accountID); err == nil {
-		// RefreshOwnProfileMusic already emitted the event.
 		return
 	}
 	e.emitEvent(EventProfileMusicChanged, accountID, ProfileMusicEvent{PeerID: selfID})
 }
 
-// profileMusicTrackByDoc finds one cached track by document ID (any peer).
 func (e *Engine) profileMusicTrackByDoc(accountID, docID string) (MusicTrack, error) {
 	var t MusicTrack
 	err := e.db.QueryRow(
@@ -301,10 +265,6 @@ func trackInfoOf(t MusicTrack) cores.MusicTrackInfo {
 	}
 }
 
-// TrackFromMessage builds a MusicTrack from one cached audio message: the
-// media row carries the document ID (remote_ref) + the download reference
-// ("hash:base64ref" in extra), the message content the embedded tags. ok
-// is false for messages without a usable audio document row.
 func (e *Engine) TrackFromMessage(accountID, chatID, msgID string, seq int) (MusicTrack, bool) {
 	var t MusicTrack
 	var remoteRef, extra sql.NullString
@@ -327,13 +287,11 @@ func (e *Engine) TrackFromMessage(accountID, chatID, msgID string, seq int) (Mus
 	t.FileRefB64 = ""
 	t.AccessHash = 0
 	if extra.Valid {
-		// extra is "accessHash:base64FileRef" — split it in place.
 		if i := indexByte(extra.String, ':'); i > 0 {
 			t.AccessHash, _ = strconv.ParseInt(extra.String[:i], 10, 64)
 			t.FileRefB64 = extra.String[i+1:]
 		}
 	}
-	// Embedded tags ride on the cached message content.
 	if raw, err := e.GetMessageRaw(accountID, chatID, msgID); err == nil {
 		var msg struct {
 			Extra map[string]interface{} `json:"extra"`
@@ -359,8 +317,6 @@ func indexByte(s string, b byte) int {
 	return -1
 }
 
-// RefreshOwnProfileMusic re-reads the account's own saved-music ID set
-// (hash-gated account.getSavedMusicIDs) and emits the change event.
 func (e *Engine) RefreshOwnProfileMusic(accountID string) (map[string]bool, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -413,18 +369,12 @@ func (e *Engine) RefreshOwnProfileMusic(accountID string) (map[string]bool, erro
 	return e.ownMusicIDs[accountID], nil
 }
 
-// OwnProfileMusicCached is the pure in-memory read for the bubble-menu
-// gate (nil map = unknown, callers treat as absent).
 func (e *Engine) OwnProfileMusicCached(accountID string) map[string]bool {
 	e.ownMusicMu.Lock()
 	defer e.ownMusicMu.Unlock()
 	return e.ownMusicIDs[accountID]
 }
 
-// PlayProfileMusicTrack plays one cached track through the shared in-app
-// player: download-once into the media cache (FileRef with the encoded
-// access hash + file reference), then PlayMedia keyed
-// (account, "profilemusic", docID).
 func (e *Engine) PlayProfileMusicTrack(accountID, docID string) error {
 	track, err := e.profileMusicTrackByDoc(accountID, docID)
 	if err != nil {
@@ -464,18 +414,10 @@ func (e *Engine) PlayProfileMusicTrack(accountID, docID string) error {
 	return e.PlayMedia(accountID, "profilemusic", track.DocID, dest)
 }
 
-// ── slice 210: music attach box (saved-music source) ──────────────────────
-
-// AudioDocumentSender is the optional core surface for sending a cloud
-// audio document by reference (the music attach box's saved-music send
-// path, tdesktop music_attach_box.cpp).
 type AudioDocumentSender interface {
 	SendAudioDocument(chatID string, track cores.MusicTrackInfo, caption string, silent bool, scheduleDate int) (*cores.Message, error)
 }
 
-// SavedMusicTracks returns the account's OWN saved-music playlist — the
-// music attach box's source. Honest ErrNotSupported on platforms without
-// the surface (the box shows only the file picker then).
 func (e *Engine) SavedMusicTracks(accountID string) ([]MusicTrack, error) {
 	if !e.ProfileMusicSupported(accountID) {
 		return nil, cores.ErrNotSupported
@@ -487,9 +429,6 @@ func (e *Engine) SavedMusicTracks(accountID string) ([]MusicTrack, error) {
 	return e.GetProfileMusic(accountID, selfID)
 }
 
-// SendSavedMusicTrack sends one saved-music track into a chat as a new
-// audio message (caption rides the message; the attach box passes the
-// composer's caption with the first track only).
 func (e *Engine) SendSavedMusicTrack(accountID, chatID, docID, caption string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {

@@ -1,21 +1,5 @@
 package cores
 
-// telegram_freeze_test.go — regression tests for the owner-reported freeze:
-// "clicking on a telegram bot chat froze the client".
-//
-// Root cause (see the RPC-hygiene section in telegram.go): core methods held
-// t.mu across network RPCs; t.ctx has no deadline and gotd runs no heartbeat,
-// so a half-open connection hung RPCs forever, pinning the mutex. Go's fair
-// RWMutex then starved every queued writer and every later reader.
-//
-// These tests pin the fixed invariants:
-//   1. the chat-open hot path (GetMessages / GetPinnedMessages / GetFullUser /
-//      GetChatBotCommands / MarkAsRead) never holds t.mu while an RPC is in
-//      flight — a queued writer acquires the lock immediately;
-//   2. Logout (the write-lock variant) releases before its RPC too;
-//   3. rpcGuard bounds every RPC with a deadline so even a dead connection
-//      returns an error instead of hanging forever.
-
 import (
 	"bytes"
 	"context"
@@ -29,9 +13,6 @@ import (
 	"github.com/gotd/td/tg"
 )
 
-// stuckInvoker blocks inside Invoke FOREVER, ignoring ctx — the worst case of
-// a half-open TCP connection below even the rpcGuard deadline. It counts
-// entries so tests can prove the caller really reached the RPC.
 type stuckInvoker struct {
 	release <-chan struct{}
 	entered int32
@@ -43,11 +24,9 @@ func (s *stuckInvoker) Invoke(ctx context.Context, input bin.Encoder, output bin
 	return nil
 }
 
-// hungInvoker blocks until ctx is canceled — gotd's actual behavior (the rpc
-// engine honors context cancellation).
 type hungInvoker struct {
 	entered  int32
-	deadline *time.Time // records the deadline the invoker saw, if any
+	deadline *time.Time
 }
 
 func (h *hungInvoker) Invoke(ctx context.Context, input bin.Encoder, output bin.Decoder) error {
@@ -59,8 +38,6 @@ func (h *hungInvoker) Invoke(ctx context.Context, input bin.Encoder, output bin.
 	return ctx.Err()
 }
 
-// newFrozenCore returns a TelegramCore whose api client routes every RPC
-// into inv (and marks it authed + live).
 func newFrozenCore(inv *stuckInvoker) *TelegramCore {
 	t := NewTelegramCore(TelegramConfig{})
 	t.api = tg.NewClient(inv)
@@ -69,8 +46,6 @@ func newFrozenCore(inv *stuckInvoker) *TelegramCore {
 	return t
 }
 
-// waitRPCInFlight blocks until the invoker reports at least want calls in
-// flight (the method under test has really reached its RPC).
 func waitRPCInFlight(t *testing.T, inv *stuckInvoker, want int32) {
 	t.Helper()
 	deadline := time.Now().Add(3 * time.Second)
@@ -83,9 +58,6 @@ func waitRPCInFlight(t *testing.T, inv *stuckInvoker, want int32) {
 	t.Fatalf("RPC never entered flight (invocations=%d, want %d)", atomic.LoadInt32(&inv.entered), want)
 }
 
-// probeWriterAcquired checks that a write-lock acquisition on t.mu succeeds
-// promptly — i.e. no reader is pinning the mutex across a hung RPC and no
-// writer is wedged holding it.
 func probeWriterAcquired(t *testing.T, tc *TelegramCore, what string) {
 	t.Helper()
 	acquired := make(chan struct{})
@@ -102,9 +74,6 @@ func probeWriterAcquired(t *testing.T, tc *TelegramCore, what string) {
 	}
 }
 
-// TestChatOpenHotPathsDoNotPinMutex: opening a chat (any chat — a bot DM
-// additionally fires GetChatBotCommands) issues its RPCs without holding
-// t.mu. With the pre-fix RLock-across-RPC code the probe below starves.
 func TestChatOpenHotPathsDoNotPinMutex(t *testing.T) {
 	cases := []struct {
 		what string
@@ -129,12 +98,12 @@ func TestChatOpenHotPathsDoNotPinMutex(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.what, func(t *testing.T) {
 			release := make(chan struct{})
-			defer close(release) // un-stick the leaked goroutines on cleanup
+			defer close(release)
 			inv := &stuckInvoker{release: release}
 			core := newFrozenCore(inv)
 			done := make(chan struct{})
 			go func() { tc.call(core); close(done) }()
-			waitRPCInFlight(t, inv, 1) // provably inside the RPC now
+			waitRPCInFlight(t, inv, 1)
 			probeWriterAcquired(t, core, tc.what)
 			select {
 			case <-done:
@@ -145,8 +114,6 @@ func TestChatOpenHotPathsDoNotPinMutex(t *testing.T) {
 	}
 }
 
-// TestLogoutDoesNotHoldWriteLockAcrossRPC: Logout used to hold the WRITE
-// lock across auth.logOut — the worst variant (blocks every reader).
 func TestLogoutDoesNotHoldWriteLockAcrossRPC(t *testing.T) {
 	release := make(chan struct{})
 	defer close(release)
@@ -155,7 +122,6 @@ func TestLogoutDoesNotHoldWriteLockAcrossRPC(t *testing.T) {
 	done := make(chan struct{})
 	go func() { _ = core.Logout(); close(done) }()
 	waitRPCInFlight(t, inv, 1)
-	// A reader must acquire the lock while the logout RPC is in flight.
 	acquired := make(chan struct{})
 	go func() {
 		core.mu.RLock()
@@ -169,9 +135,6 @@ func TestLogoutDoesNotHoldWriteLockAcrossRPC(t *testing.T) {
 	}
 }
 
-// TestRPCGuardBoundsHungRPC: every API call routed through rpcGuard carries a
-// deadline, so a dead connection surfaces as an error instead of an eternal
-// hang.
 func TestRPCGuardBoundsHungRPC(t *testing.T) {
 	hung := &hungInvoker{}
 	guard := rpcGuard{next: hung, timeout: 60 * time.Millisecond}
@@ -188,8 +151,6 @@ func TestRPCGuardBoundsHungRPC(t *testing.T) {
 	}
 }
 
-// TestRPCGuardPreservesCallerDeadline: an explicit caller deadline is never
-// widened by the guard.
 func TestRPCGuardPreservesCallerDeadline(t *testing.T) {
 	hung := &hungInvoker{}
 	guard := rpcGuard{next: hung, timeout: time.Hour}
@@ -205,11 +166,9 @@ func TestRPCGuardPreservesCallerDeadline(t *testing.T) {
 	}
 }
 
-// TestRPCGuardAppliesDefaultDeadline: with no caller deadline the guard
-// installs one at the default rpcTimeout.
 func TestRPCGuardAppliesDefaultDeadline(t *testing.T) {
 	hung := &hungInvoker{}
-	guard := rpcGuard{next: hung} // zero timeout → rpcTimeout default
+	guard := rpcGuard{next: hung}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go func() {
@@ -226,7 +185,6 @@ func TestRPCGuardAppliesDefaultDeadline(t *testing.T) {
 	}
 }
 
-// TestWithAPIRejectsUnauthed: the snapshot helper still enforces auth.
 func TestWithAPIRejectsUnauthed(t *testing.T) {
 	core := NewTelegramCore(TelegramConfig{})
 	if _, _, err := core.withAPI(); err != ErrAuth {
@@ -234,11 +192,6 @@ func TestWithAPIRejectsUnauthed(t *testing.T) {
 	}
 }
 
-// TestReadPathRPCsDoNotPinMutex: the account/peer read-family methods
-// (privacy + gift settings, emoji sets, app-config probes, participant
-// lists, folder edits, user photos, global search) must issue their RPCs
-// without holding t.mu — same freeze class as the chat-open hot paths.
-// Pins the withAPI batch that emptied the read half of the scanner list.
 func TestReadPathRPCsDoNotPinMutex(t *testing.T) {
 	cases := []struct {
 		what string
@@ -267,8 +220,6 @@ func TestReadPathRPCsDoNotPinMutex(t *testing.T) {
 		{"GetStarsRevenueWithdrawalUrl", func(tc *TelegramCore) { _, _ = tc.GetStarsRevenueWithdrawalUrl("-1001234567890", "pw", 0) }},
 		{"GetBroadcastRevenueWithdrawalUrl", func(tc *TelegramCore) { _, _ = tc.GetBroadcastRevenueWithdrawalUrl("-1001234567890", "pw") }},
 		{"TransferChannelOwnership", func(tc *TelegramCore) { _ = tc.TransferChannelOwnership("-1001234567890", "123", "pw") }},
-		// batch 3c: upload + photo-management family (uploader streams many
-		// chunk RPCs under the old RLock — worst offenders after passwords)
 		{"UploadProfilePhoto", func(tc *TelegramCore) { _ = tc.UploadProfilePhoto([]byte{0x89, 'P', 'N', 'G'}) }},
 		{"SetBotPhoto", func(tc *TelegramCore) { _ = tc.SetBotPhoto("123", []byte{0x89, 'P', 'N', 'G'}) }},
 		{"UploadFallbackPhoto", func(tc *TelegramCore) { _ = tc.UploadFallbackPhoto([]byte{0x89, 'P', 'N', 'G'}) }},
@@ -283,9 +234,6 @@ func TestReadPathRPCsDoNotPinMutex(t *testing.T) {
 			_, _ = tc.SendMediaAlbum("123", items, false, 0)
 		}},
 		{"SendImageBase64", func(tc *TelegramCore) { _, _ = tc.SendImageBase64("123", "aVBORw==", "cap") }},
-		// batch 3d: RPCs that flow through uploader/downloader objects (no
-		// direct t.api. call — invisible to the v1 co-occurrence scanner;
-		// found by the v2 lock-state audit)
 		{"GetDifferenceCheck", func(tc *TelegramCore) { _ = tc.GetDifferenceCheck() }},
 		{"DownloadWallpaperDocument", func(tc *TelegramCore) { _, _ = tc.DownloadWallpaperDocument(1, 2, []byte("ref")) }},
 		{"UploadFile", func(tc *TelegramCore) {
@@ -313,9 +261,6 @@ func TestReadPathRPCsDoNotPinMutex(t *testing.T) {
 			core := newFrozenCore(inv)
 			done := make(chan struct{})
 			go func() {
-				// Post-release, the unstuck RPC returns nil results and some
-				// call paths legitimately panic on them — that is cleanup
-				// noise, not the failure under test. Swallow it.
 				defer func() { _ = recover() }()
 				tc.call(core)
 				close(done)

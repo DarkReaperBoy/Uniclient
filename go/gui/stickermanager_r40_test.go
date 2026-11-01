@@ -8,18 +8,9 @@ import (
 	"uniclient/engine"
 )
 
-// TestStickerMgrStateIsCopyOnWrite pins R40 (the fourth R34 sibling sweep):
-// stickerMgrState was mutated IN PLACE by loadStickerMgr's and
-// loadStickerMgrEmoji's completions, reloadStickerMgr, the search head+tail
-// and setStickerMgrTab — all under a.mu — while the GUI loop read the same
-// fields through the frame pointer under frameMu only (the tabs' st.tab,
-// the rows' st.packs/featured/searchRes, the emoji tab's st.emoji*). R34's
-// class (the class-level scratch repro is the RED evidence). The installer
-// now installs copies.
 func TestStickerMgrStateIsCopyOnWrite(t *testing.T) {
 	a := &App{}
 	a.stickerMgr = &stickerMgrState{accountID: "acc", loading: true, tab: stickerMgrTabStickers}
-	// The frame's pointer, taken the way snapshot() takes it.
 	a.mu.Lock()
 	frameSt := a.stickerMgr
 	a.mu.Unlock()
@@ -30,7 +21,6 @@ func TestStickerMgrStateIsCopyOnWrite(t *testing.T) {
 		go func(i int) {
 			defer wg.Done()
 			for j := 0; j < 1500; j++ {
-				// The stickers-load tail's fields.
 				a.updateStickerMgr(func(n *stickerMgrState) bool {
 					if n.accountID != "acc" {
 						return false
@@ -48,7 +38,6 @@ func TestStickerMgrStateIsCopyOnWrite(t *testing.T) {
 					}
 					return true
 				})
-				// The emoji-load tail's fields.
 				a.updateStickerMgr(func(n *stickerMgrState) bool {
 					n.emojiLoading = false
 					if j%2 == 0 {
@@ -60,7 +49,6 @@ func TestStickerMgrStateIsCopyOnWrite(t *testing.T) {
 					}
 					return true
 				})
-				// The search tail's fields (with the stale-run key shape).
 				a.updateStickerMgr(func(n *stickerMgrState) bool {
 					n.searchRes = []cores.StickerPackSummary{{SetID: int64(j)}}
 					n.searching = j%2 == 0
@@ -70,8 +58,6 @@ func TestStickerMgrStateIsCopyOnWrite(t *testing.T) {
 		}(i)
 	}
 
-	// The layout reader: the HELD pointer, no lock — what layoutStickerMgr
-	// does under frameMu.
 	readDone := make(chan struct{})
 	go func() {
 		defer close(readDone)
@@ -113,9 +99,6 @@ func TestStickerMgrStateIsCopyOnWrite(t *testing.T) {
 	}
 }
 
-// TestUpdateStickerMgrContract pins the installer: closed page → nil;
-// fn=false → nil with the head untouched; fn=true → a NEW struct installed
-// (untouched fields carried, mutations visible, previous head frozen).
 func TestUpdateStickerMgrContract(t *testing.T) {
 	a := &App{}
 	if got := a.updateStickerMgr(func(n *stickerMgrState) bool { return true }); got != nil {
@@ -134,7 +117,7 @@ func TestUpdateStickerMgrContract(t *testing.T) {
 
 	got := a.updateStickerMgr(func(n *stickerMgrState) bool {
 		if n.accountID != "acc" {
-			return false // the accountID staleness guard
+			return false
 		}
 		n.loading = true
 		return true
@@ -152,17 +135,13 @@ func TestUpdateStickerMgrContract(t *testing.T) {
 		t.Fatal("the previous head must stay frozen (frame safety)")
 	}
 
-	// The search tail's staleness shape: a fn keyed on searchFor must abort
-	// when a newer query superseded the run.
 	if got := a.updateStickerMgr(func(n *stickerMgrState) bool {
-		return n.searchFor == "acc|dog" // head still carries acc|cat
+		return n.searchFor == "acc|dog"
 	}); got != nil {
 		t.Fatal("a superseded search run must abort the install")
 	}
 }
 
-// TestStickerMgrOpenClearsSiblings extends R39's exclusivity-matrix pin to
-// the completed openStickerMgr (it used to miss folderMgr/premium/stars).
 func TestStickerMgrOpenClearsSiblings(t *testing.T) {
 	a := &App{eng: &engine.Engine{}}
 	a.mu.Lock()

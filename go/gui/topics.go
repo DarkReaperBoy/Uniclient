@@ -17,19 +17,6 @@ import (
 	"uniclient/engine"
 )
 
-// Forum topics (slice 118, Telegram forum parity): a forum chat opens on
-// its topic list (pinned first, then by activity) instead of the raw message
-// stream; tapping a topic scopes the view to that topic (topic bar, messages
-// filtered by the cached topic_id, a.wid.composer sends with topicRootID). Topic
-// management rides the engine's forum CRUD: create (title + icon color),
-// pin/unpin, close/reopen, rename, delete history.
-
-// ── pure helpers (unit-tested) ────────────────────────────────────────────
-
-// sortForumTopics orders topics pinned-first IN THE SERVER PIN ORDER
-// (slice 205: reorders must be visible — messages.getForumTopics
-// returns the pin order), then the unpinned tail by descending top
-// message id (activity), General first among equals.
 func sortForumTopics(topics []cores.ForumTopic) []cores.ForumTopic {
 	out := make([]cores.ForumTopic, len(topics))
 	copy(out, topics)
@@ -38,7 +25,7 @@ func sortForumTopics(topics []cores.ForumTopic) []cores.ForumTopic {
 			return out[i].IsPinned
 		}
 		if out[i].IsPinned && out[j].IsPinned {
-			return false // stable: preserve the server pin order
+			return false
 		}
 		ti, _ := strconv.Atoi(out[i].TopMessageID)
 		tj, _ := strconv.Atoi(out[j].TopMessageID)
@@ -50,9 +37,6 @@ func sortForumTopics(topics []cores.ForumTopic) []cores.ForumTopic {
 	return out
 }
 
-// forumTopicMoveIDs (slice 205, pure): the new pinned order after
-// moving topicID by delta (±1) within the pinned block. Edge moves and
-// unpinned/missing topics are no-ops (the input order returns).
 func forumTopicMoveIDs(topics []cores.ForumTopic, topicID string, delta int) []int {
 	ids := make([]int, 0, len(topics))
 	pIdx := -1
@@ -77,9 +61,6 @@ func forumTopicMoveIDs(topics []cores.ForumTopic, topicID string, delta int) []i
 	return ids
 }
 
-// forumTopicMenuCanMove (slice 205, pure): whether the topic at
-// topicID can move up/down within the pinned block (at least two
-// pinned topics required).
 func forumTopicMenuCanMove(topics []cores.ForumTopic, topicID string) (up, down bool) {
 	pIdx, np := -1, 0
 	for _, t := range topics {
@@ -97,8 +78,6 @@ func forumTopicMenuCanMove(topics []cores.ForumTopic, topicID string) (up, down 
 	return pIdx > 0, pIdx < np-1
 }
 
-// topicColor maps Telegram's predefined topic icon colors; unknown ids get
-// the accent.
 func topicColor(colorID int, accent color.NRGBA) color.NRGBA {
 	switch colorID {
 	case 0x6FB9F0:
@@ -117,10 +96,8 @@ func topicColor(colorID int, accent color.NRGBA) color.NRGBA {
 	return accent
 }
 
-// topicIsGeneral: id "1" is the forum's General topic.
 func topicIsGeneral(id string) bool { return id == "1" }
 
-// topicSubtitle: creator + pinned/closed state summary.
 func topicSubtitle(t cores.ForumTopic) string {
 	sub := "Topic"
 	if t.IsMy {
@@ -132,26 +109,21 @@ func topicSubtitle(t cores.ForumTopic) string {
 	return sub
 }
 
-// ── state ─────────────────────────────────────────────────────────────────
-
-// forumDlgState drives the topic dialog: mode "create" | "edit" | "actions".
 type forumDlgState struct {
 	mode    string
 	title   string
 	colorID int
-	topic   *cores.ForumTopic // edit/actions target
-	synced  bool              // editor text seeded once
+	topic   *cores.ForumTopic
+	synced  bool
 }
 
-// forumDlgColorSel is the create dialog's selected icon color.
 var forumDlgColorSel = 0x6FB9F0
 
-// loadForumTopics fetches the chat's topic list + default icons (async).
 func (a *App) loadForumTopics(k chatKey) {
 	go func() {
 		topics, err := a.eng.GetForumTopics(k.AccountID, k.ChatID)
 		if err != nil {
-			return // honest empty list; retry on next open
+			return
 		}
 		icons, _ := a.eng.GetForumTopicDefaultIcons(k.AccountID)
 		a.mu.Lock()
@@ -164,13 +136,12 @@ func (a *App) loadForumTopics(k chatKey) {
 	}()
 }
 
-// openForumTopic switches the chat pane into the topic view.
 func (a *App) openForumTopic(topicID string) {
 	a.mu.Lock()
 	k := a.selected
 	a.forumTopic = topicID
 	a.messages = nil
-	a.uiGen++ // R31: loaders still in flight for the previous view are stale
+	a.uiGen++
 	gen := a.uiGen
 	a.loadingMsgs = true
 	a.olderDone = false
@@ -192,11 +163,6 @@ func (a *App) openForumTopic(topicID string) {
 	}()
 }
 
-// applyForumTopicWindow installs a fetched topic window (R31: only if the
-// generation captured at fetch time still matches and this window still
-// shows that topic — a chat switch, another topic, or a return to the
-// topic list mid-fetch drops the install). The guarded siblings
-// (loadTopicWindow, jumpToTopicMessageAt) keep their own checks.
 func (a *App) applyForumTopicWindow(k chatKey, topicID string, gen int, msgs []engine.CachedMessage) {
 	a.mu.Lock()
 	if a.uiGen != gen || a.selected == nil || *a.selected != k || a.forumTopic != topicID {
@@ -209,18 +175,12 @@ func (a *App) applyForumTopicWindow(k chatKey, topicID string, gen int, msgs []e
 	a.invalidate()
 }
 
-// jumpToTopicMessageAt (slice 189): a topic permalink opens the chat
-// straight into the topic view and jumps to the linked message. The
-// window loads around the message's timestamp from the topic-scoped
-// cache (GetTopicMessages before/after); no resolvable timestamp falls
-// back to the plain topic view (honest — the message just isn't cached).
-// GUI-loop only (mirrors jumpToMessageAt's placement).
 func (a *App) jumpToTopicMessageAt(topicID string, pj *jumpReq) {
 	a.mu.Lock()
 	k := a.selected
 	a.forumTopic = topicID
 	a.messages = nil
-	a.uiGen++ // R31: loaders still in flight for the previous view are stale
+	a.uiGen++
 	a.loadingMsgs = true
 	a.olderDone = false
 	a.loadingOlder = false
@@ -230,7 +190,6 @@ func (a *App) jumpToTopicMessageAt(topicID string, pj *jumpReq) {
 		return
 	}
 	if pj == nil || pj.ts <= 0 {
-		// Plain topic open: newest window.
 		go a.loadTopicWindow(*k, topicID, 0)
 		return
 	}
@@ -242,8 +201,6 @@ func (a *App) jumpToTopicMessageAt(topicID string, pj *jumpReq) {
 			a.loadTopicWindow(*k, topicID, 0)
 			return
 		}
-		// older/newer are newest-first; assemble a chronological window
-		// around the target (target rides in "older" via beforeMs=ts+1).
 		win := make([]engine.CachedMessage, 0, len(older)+len(newer))
 		for i, j := 0, len(older)-1; i < j; i, j = i+1, j-1 {
 			older[i], older[j] = older[j], older[i]
@@ -266,8 +223,6 @@ func (a *App) jumpToTopicMessageAt(topicID string, pj *jumpReq) {
 	}()
 }
 
-// loadTopicWindow loads the newest topic window (the shared open/jump
-// fallback). Engine-thread; locks around the shared state.
 func (a *App) loadTopicWindow(k chatKey, topicID string, _ int) {
 	msgs, err := a.eng.GetTopicMessages(k.AccountID, k.ChatID, topicID, 0, 100)
 	if err != nil {
@@ -285,12 +240,11 @@ func (a *App) loadTopicWindow(k chatKey, topicID string, _ int) {
 	a.invalidate()
 }
 
-// backToForumTopics returns from the topic view to the topic list.
 func (a *App) backToForumTopics() {
 	a.mu.Lock()
 	k := a.selected
 	a.forumTopic = ""
-	a.uiGen++ // R31: the topic's in-flight loaders are stale now
+	a.uiGen++
 	a.mu.Unlock()
 	a.invalidate()
 	if k != nil {
@@ -298,7 +252,6 @@ func (a *App) backToForumTopics() {
 	}
 }
 
-// createForumTopic commits the create dialog (engine CreateForumTopic).
 func (a *App) createForumTopic(k chatKey) {
 	title := a.wid.forumTitleEd.Text()
 	if title == "" {
@@ -319,7 +272,6 @@ func (a *App) createForumTopic(k chatKey) {
 	}()
 }
 
-// renameForumTopic commits the edit dialog (engine EditForumTopic).
 func (a *App) renameForumTopic(k chatKey, t cores.ForumTopic) {
 	title := a.wid.forumTitleEd.Text()
 	if title == "" {
@@ -340,10 +292,7 @@ func (a *App) renameForumTopic(k chatKey, t cores.ForumTopic) {
 	}()
 }
 
-// applyForumAction runs one topic management action from the actions dialog.
 func (a *App) applyForumAction(k chatKey, t cores.ForumTopic, action string) {
-	// Slice 205: the move order is computed on the GUI loop (a.forumTopics
-	// read under the lock) before the RPC goroutine starts.
 	var moveIDs []int
 	if action == "up" || action == "down" {
 		a.mu.Lock()
@@ -386,9 +335,6 @@ func (a *App) applyForumAction(k chatKey, t cores.ForumTopic, action string) {
 	}()
 }
 
-// ── rendering ─────────────────────────────────────────────────────────────
-
-// topicListPane replaces the message list on a forum's root view.
 func (a *App) topicListPane(gtx layout.Context, f frame, chat *engine.ChatInfo) layout.Dimensions {
 	topics := sortForumTopics(f.forumTopics)
 	for len(a.wid.forumTopicBtns) < len(topics) {
@@ -396,7 +342,6 @@ func (a *App) topicListPane(gtx layout.Context, f frame, chat *engine.ChatInfo) 
 	}
 	rows := make([]layout.FlexChild, 0, len(topics)+2)
 
-	// New topic row.
 	rows = append(rows, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		if a.wid.forumNewBtn.Clicked(gtx) {
 			forumDlgColorSel = 0x6FB9F0
@@ -488,7 +433,6 @@ func (a *App) topicListPane(gtx layout.Context, f frame, chat *engine.ChatInfo) 
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, rows...)
 }
 
-// topicBar renders the open topic's identity strip under the chat header.
 func (a *App) topicBar(gtx layout.Context, f frame) layout.Dimensions {
 	var tp *cores.ForumTopic
 	for i := range f.forumTopics {
@@ -546,7 +490,6 @@ func (a *App) topicBar(gtx layout.Context, f frame) layout.Dimensions {
 	})
 }
 
-// layoutForumDialog renders the create/edit/actions dialog over the pane.
 func (a *App) layoutForumDialog(gtx layout.Context, f frame) layout.Dimensions {
 	d := f.forumDlg
 	if d == nil || f.msgFor == nil {
@@ -554,7 +497,6 @@ func (a *App) layoutForumDialog(gtx layout.Context, f frame) layout.Dimensions {
 	}
 	k := *f.msgFor
 
-	// Actions mode: action rows.
 	if d.mode == "actions" && d.topic != nil {
 		type actRow struct{ key, label string }
 		actions := []actRow{
@@ -566,8 +508,6 @@ func (a *App) layoutForumDialog(gtx layout.Context, f frame) layout.Dimensions {
 		if d.topic.IsPinned {
 			actions[0].label = "Unpin topic"
 		}
-		// Slice 205: move entries for pinned topics with room in the
-		// pinned block (reorderPinnedForumTopics).
 		if up, down := forumTopicMenuCanMove(a.forumTopics, d.topic.ID); d.topic.IsPinned {
 			if up {
 				actions = append(actions[:1], append([]actRow{{"up", "Move up"}}, actions[1:]...)...)
@@ -625,7 +565,6 @@ func (a *App) layoutForumDialog(gtx layout.Context, f frame) layout.Dimensions {
 		})
 	}
 
-	// Create / edit mode: title editor + color chips + commit.
 	if !d.synced {
 		a.wid.forumTitleEd.SetText(d.title)
 		d.synced = true
@@ -716,9 +655,6 @@ func (a *App) layoutForumDialog(gtx layout.Context, f frame) layout.Dimensions {
 	})
 }
 
-// ── small drawing helpers ─────────────────────────────────────────────────
-
-// drawTopicIcon: the colored circle with the topic initial.
 func drawTopicIcon(gtx layout.Context, u *UI, t cores.ForumTopic) layout.Dimensions {
 	d := gtx.Dp(unit.Dp(34))
 	c := topicColor(t.ColorID, u.p.Accent)

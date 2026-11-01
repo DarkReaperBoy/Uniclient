@@ -1,9 +1,5 @@
 package gui
 
-// urlthumb_test.go — slice 130 tests-first: the remote-URL thumb cache
-// (the mapTiles pattern applied to engine.FetchHTTPImage results) and the
-// inline-result thumb selection logic (b64 first, URL second, none last).
-
 import (
 	"image"
 	"testing"
@@ -43,22 +39,18 @@ func TestURLThumbCacheSemantics(t *testing.T) {
 }
 
 func TestInlineThumbSource(t *testing.T) {
-	// b64 thumb wins (already-delivered inline bytes, no network).
 	r := cores.InlineBotResult{ThumbB64: "QUJD", ThumbURL: "https://x.com/a.png"}
 	if src, url := inlineThumbSource(r); src != thumbSrcB64 || url != "" {
 		t.Errorf("b64 result: src=%v url=%q", src, url)
 	}
-	// URL-only result falls to the fetcher.
 	r = cores.InlineBotResult{ThumbURL: "https://x.com/a.png"}
 	if src, url := inlineThumbSource(r); src != thumbSrcURL || url != "https://x.com/a.png" {
 		t.Errorf("url result: src=%v url=%q", src, url)
 	}
-	// Neither: no thumb at all (honest text row).
 	r = cores.InlineBotResult{}
 	if src, url := inlineThumbSource(r); src != thumbSrcNone || url != "" {
 		t.Errorf("bare result: src=%v url=%q", src, url)
 	}
-	// Degenerate: empty URL string is not a fetch candidate.
 	r = cores.InlineBotResult{ThumbURL: ""}
 	if src, _ := inlineThumbSource(r); src != thumbSrcNone {
 		t.Errorf("empty URL treated as fetchable: %v", src)

@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	_ "image/png" // map-tile web files decode as PNG/JPEG (jpeg registered by media.go)
+	_ "image/png"
 
 	"gioui.org/f32"
 	"gioui.org/io/event"
@@ -26,30 +26,16 @@ import (
 	"uniclient/engine"
 )
 
-// Location & contact sharing (AyuGram parity, matrix "Attach menu"):
-// the attach menu gains Location (a small dialog with lat/lon fields —
-// no map picker on desktop builds, honest manual entry per §1.10) and
-// Contact (pick one of the account's contacts) wired to engine
-// SendLocation / SendContact. Received messages render as dedicated
-// bubbles — a map-style card with a pin (tap copies the maps URL, the
-// same clipboard-hop as links) and a person card (tap copies the phone).
-
-// ── parse (pure, Extra of content_raw) ─────────────────────────────────────
-
-// geoData is a shared location message's payload.
 type geoData struct {
 	Lat     float64
 	Long    float64
 	Live    bool
-	Period  int    // seconds (live locations)
-	AccHash int64  // geo point access hash — upload.getWebFile tiles need it
-	Venue   string // venue title (venue shares)
-	Address string // venue address
+	Period  int
+	AccHash int64
+	Venue   string
+	Address string
 }
 
-// parseGeoMessage extracts geo coordinates from a cached message's raw
-// JSON (cores.Message.Extra["geo_lat"/"geo_long"], written by the
-// telegram core's MessageMediaGeo conversion). nil when absent.
 func parseGeoMessage(m *engine.CachedMessage) *geoData {
 	if m == nil || len(m.ContentRaw) == 0 {
 		return nil
@@ -79,7 +65,6 @@ func parseGeoMessage(m *engine.CachedMessage) *geoData {
 	return d
 }
 
-// mapsURL is the external map link for the point.
 func (g *geoData) mapsURL() string {
 	if g == nil {
 		return ""
@@ -87,7 +72,6 @@ func (g *geoData) mapsURL() string {
 	return fmt.Sprintf("https://maps.google.com/?q=%.6f,%.6f", g.Lat, g.Long)
 }
 
-// coordLabel is the "lat, long" caption.
 func (g *geoData) coordLabel() string {
 	if g == nil {
 		return ""
@@ -95,7 +79,6 @@ func (g *geoData) coordLabel() string {
 	return fmt.Sprintf("%.6f, %.6f", g.Lat, g.Long)
 }
 
-// contactData is a shared contact message's payload.
 type contactData struct {
 	Phone     string
 	FirstName string
@@ -103,7 +86,6 @@ type contactData struct {
 	UserID    string
 }
 
-// parseContactMessage extracts contact fields from the raw Extra.
 func parseContactMessage(m *engine.CachedMessage) *contactData {
 	if m == nil || len(m.ContentRaw) == 0 {
 		return nil
@@ -127,7 +109,6 @@ func parseContactMessage(m *engine.CachedMessage) *contactData {
 	return d
 }
 
-// fullName joins the contact's name parts.
 func (c *contactData) fullName() string {
 	if c == nil {
 		return ""
@@ -135,8 +116,6 @@ func (c *contactData) fullName() string {
 	return strings.TrimSpace(c.FirstName + " " + c.LastName)
 }
 
-// splitContactName splits a display name into (first, last) for the
-// engine's SendContact fields (first token / rest).
 func splitContactName(name string) (string, string) {
 	name = strings.TrimSpace(name)
 	if name == "" {
@@ -149,7 +128,6 @@ func splitContactName(name string) (string, string) {
 	return parts[0], strings.Join(parts[1:], " ")
 }
 
-// parseCoords validates the dialog's editor text into (lat, lon).
 func parseCoords(lat, lon string) (float64, float64, error) {
 	la, err := strconv.ParseFloat(strings.TrimSpace(lat), 64)
 	if err != nil {
@@ -162,25 +140,12 @@ func parseCoords(lat, lon string) (float64, float64, error) {
 	return la, lo, nil
 }
 
-// ── bubbles ────────────────────────────────────────────────────────────────
-
-// ── map tiles (slice 129) ───────────────────────────────────────────────────
-//
-// Location cards render a real map tile fetched through the Telegram
-// server itself (upload.getWebFile + InputWebFileGeoPointLocation — the
-// exact tdesktop mechanism, no third-party tile CDN). Tiles are cached per
-// geo point; the pre-fetch state is the honest icon card.
-
-// Tile request shape: the card renders at 220x110dp; request @2x for
-// crispness. Zoom 15 shows street-level context around the pin (the engine
-// clamps 13..20, 16..1024px).
 const (
 	mapTileW    = 440
 	mapTileH    = 220
 	mapTileZoom = 15
 )
 
-// mapTileCache holds decoded tiles keyed by geo point (+shape).
 type mapTileCache struct {
 	mu     sync.Mutex
 	tiles  map[string]*image.RGBA
@@ -194,7 +159,6 @@ var mapTiles = &mapTileCache{
 	failed: make(map[string]bool),
 }
 
-// mapTileKey identifies one tile request (pure).
 func mapTileKey(g *geoData) string {
 	if g == nil {
 		return ""
@@ -202,15 +166,12 @@ func mapTileKey(g *geoData) string {
 	return fmt.Sprintf("map:%.6f,%.6f:%d:%d:%d", g.Lat, g.Long, mapTileW, mapTileH, mapTileZoom)
 }
 
-// get returns a cached decoded tile (nil when absent).
 func (c *mapTileCache) get(key string) *image.RGBA {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.tiles[key]
 }
 
-// claim marks a fetch in-flight; false when one already runs, the tile is
-// already cached, or the point previously failed.
 func (c *mapTileCache) claim(key string) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -221,21 +182,18 @@ func (c *mapTileCache) claim(key string) bool {
 	return true
 }
 
-// store publishes a decoded tile.
 func (c *mapTileCache) store(key string, img *image.RGBA) {
 	c.mu.Lock()
 	c.tiles[key], c.busy[key] = img, false
 	c.mu.Unlock()
 }
 
-// fail pins the honest fallback for this point (no retry churn).
 func (c *mapTileCache) fail(key string) {
 	c.mu.Lock()
 	c.busy[key], c.failed[key] = false, true
 	c.mu.Unlock()
 }
 
-// ensureMapTile kicks the async tile fetch for a location message.
 func (a *App) ensureMapTile(f frame, m *engine.CachedMessage, g *geoData) {
 	if g == nil || f.selected == nil {
 		return
@@ -269,7 +227,6 @@ func (a *App) ensureMapTile(f frame, m *engine.CachedMessage, g *geoData) {
 	}()
 }
 
-// imageToRGBA converts any decoded image into RGBA for the paint path.
 func imageToRGBA(img image.Image) *image.RGBA {
 	b := img.Bounds()
 	out := image.NewRGBA(image.Rect(0, 0, b.Dx(), b.Dy()))
@@ -281,8 +238,6 @@ func imageToRGBA(img image.Image) *image.RGBA {
 	return out
 }
 
-// drawTileCover paints a tile cover-fitted into w×h with rounded corners
-// (the rect-shaped sibling of avatar.go's square drawImageRRectCover).
 func drawTileCover(gtx layout.Context, img *image.RGBA, w, h int) layout.Dimensions {
 	if img == nil || w <= 0 || h <= 0 || img.Bounds().Empty() {
 		return layout.Dimensions{}
@@ -304,10 +259,6 @@ func drawTileCover(gtx layout.Context, img *image.RGBA, w, h int) layout.Dimensi
 	return layout.Dimensions{Size: image.Pt(w, h)}
 }
 
-// locationBubble: map card — the fetched tile (cover-fitted, Telegram's own
-// upload.getWebFile geo tiles) with a centered pin and a caption pill; the
-// honest icon card before the tile lands (or on platforms without tile
-// support). Venue shares caption with their real title + address.
 func (a *App) locationBubble(gtx layout.Context, f frame, m *engine.CachedMessage) layout.Dimensions {
 	g := parseGeoMessage(m)
 	w := gtx.Dp(unit.Dp(220))
@@ -326,8 +277,6 @@ func (a *App) locationBubble(gtx layout.Context, f frame, m *engine.CachedMessag
 			sub = g.coordLabel()
 		}
 	}
-	// Live chip (slice 131): countdown badge top-right; own shares render
-	// it as a Stop button (messages.editMessage GeoLive stopped).
 	mkey := m.AccountID + "|" + m.ChatID + "|" + m.MsgID
 	stopBtn := a.liveStopClickable(mkey)
 	ownLive := g != nil && g.Live && m.IsOutgoing
@@ -340,7 +289,6 @@ func (a *App) locationBubble(gtx layout.Context, f frame, m *engine.CachedMessag
 			a.setToast("Live location stopped")
 		}()
 	}
-	// Countdown ticks: re-render at the next minute boundary while live.
 	if g != nil && g.Live && g.Period > 0 && liveAge(time.Now().Unix(), m.Timestamp) < g.Period {
 		gtx.Execute(op.InvalidateCmd{At: time.Now().Add(30 * time.Second)})
 	}
@@ -353,7 +301,6 @@ func (a *App) locationBubble(gtx layout.Context, f frame, m *engine.CachedMessag
 				}
 				return layout.Dimensions{}
 			}),
-			// Live badge / Stop chip pinned top-right.
 			layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 				if ownLive {
 					return layout.Inset{Top: unit.Dp(6), Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -369,7 +316,6 @@ func (a *App) locationBubble(gtx layout.Context, f frame, m *engine.CachedMessag
 			}),
 			layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 				if tile != nil {
-					// Tile state: centered pin over the map.
 					return layout.Flex{Axis: layout.Vertical, Alignment: layout.Middle}.Layout(gtx,
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 							return layout.Inset{Top: unit.Dp(26)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -384,7 +330,6 @@ func (a *App) locationBubble(gtx layout.Context, f frame, m *engine.CachedMessag
 						}),
 					)
 				}
-				// Pre-fetch state: the full honest icon card.
 				caption := "Location"
 				if g != nil && g.Venue != "" {
 					caption = g.Venue
@@ -423,7 +368,6 @@ func (a *App) locationBubble(gtx layout.Context, f frame, m *engine.CachedMessag
 				if tile == nil || sub == "" {
 					return layout.Dimensions{}
 				}
-				// Caption pill pinned to the card's bottom-left.
 				return layout.Inset{Bottom: unit.Dp(6), Left: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					return roundedFill(gtx, a.ui.p.Background, 8, func(gtx layout.Context) layout.Dimensions {
 						return layout.Inset{Top: unit.Dp(3), Bottom: unit.Dp(3), Left: unit.Dp(8), Right: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -438,7 +382,6 @@ func (a *App) locationBubble(gtx layout.Context, f frame, m *engine.CachedMessag
 	})
 }
 
-// overlayBadge paints a small accent chip at the card's top-right.
 func (a *App) overlayBadge(gtx layout.Context, text string) layout.Dimensions {
 	if text == "" {
 		return layout.Dimensions{}
@@ -455,9 +398,6 @@ func (a *App) overlayBadge(gtx layout.Context, text string) layout.Dimensions {
 	})
 }
 
-// liveBadgeText is the live-location chip label ("" when not live) —
-// slice 131: the countdown ticks against the message timestamp (now
-// injected for determinism in tests).
 func liveBadgeText(g *geoData, msgTs, now int64) string {
 	if g == nil || !g.Live {
 		return ""
@@ -468,8 +408,6 @@ func liveBadgeText(g *geoData, msgTs, now int64) string {
 	return "live"
 }
 
-// liveAge is seconds since the share started, clamped at zero (clock-skew
-// protection). Pure — unit-tested.
 func liveAge(now, msgTs int64) int {
 	if now <= msgTs {
 		return 0
@@ -477,8 +415,6 @@ func liveAge(now, msgTs int64) int {
 	return int(now - msgTs)
 }
 
-// liveRemainingText renders the live countdown: minutes rounded up, the
-// honest "ended" once the period elapsed. Pure — unit-tested.
 func liveRemainingText(period, ageSec int) string {
 	if period <= 0 {
 		return "live"
@@ -490,21 +426,16 @@ func liveRemainingText(period, ageSec int) string {
 	return "live · " + itoa((remaining+59)/60) + "m left"
 }
 
-// liveDurationChoice is one tdesktop live-location preset.
 type liveDurationChoice struct {
 	minutes int
 	label   string
 }
 
-// liveDurationChoices: 15 minutes, 1 hour, 8 hours (tdesktop presets).
 var liveDurationChoices = []liveDurationChoice{
 	{15, "15 minutes"},
 	{60, "1 hour"},
 	{480, "8 hours"},
 }
-
-// The live toggle + preset pick live on the App (R56): per-window
-// GUI-loop state, reset when the dialog opens.
 
 func (a *App) liveStopClickable(key string) *widget.Clickable {
 	if c, ok := a.wid.liveStopBtns[key]; ok {
@@ -518,7 +449,6 @@ func (a *App) liveStopClickable(key string) *widget.Clickable {
 	return c
 }
 
-// contactBubble: person card — avatar circle, name, phone.
 func (a *App) contactBubble(gtx layout.Context, m *engine.CachedMessage) layout.Dimensions {
 	c := parseContactMessage(m)
 	name := c.fullName()
@@ -576,13 +506,9 @@ func (a *App) contactBubble(gtx layout.Context, m *engine.CachedMessage) layout.
 	})
 }
 
-// ── attach dialog (send location / share contact) ──────────────────────────
-
-// attachDlgState is the open attach helper dialog.
 type attachDlgState struct {
-	kind    string // "location" | "contact"
-	account string
-	// contact mode:
+	kind     string
+	account  string
 	contacts []engine.ContactInfo
 	loaded   bool
 	err      string
@@ -592,9 +518,8 @@ var (
 	attachDlgKeyTag = new(struct{})
 )
 
-// openAttachDialog opens the location/contact helper (needs an open chat).
 func (a *App) openAttachDialog(kind string) {
-	a.attachLiveOn = false // live mode never leaks across dialog opens
+	a.attachLiveOn = false
 	a.attachLiveSel = 0
 	a.mu.Lock()
 	account := ""
@@ -616,10 +541,6 @@ func (a *App) openAttachDialog(kind string) {
 	}
 }
 
-// attachContactsDone installs the contact-list load. R57: through the
-// copy-on-write installer with an account+kind guard (the R44 rule —
-// field guards, not pointer identity, under copy-on-write); a dialog
-// closed or reopened for another account/chat is not touched.
 func (a *App) attachContactsDone(account, kind string, contacts []engine.ContactInfo, err error) {
 	if !a.updateAttachDlg(func(st *attachDlgState) bool {
 		if st.account != account || st.kind != kind {
@@ -637,10 +558,6 @@ func (a *App) attachContactsDone(account, kind string, contacts []engine.Contact
 	a.invalidate()
 }
 
-// updateAttachDlg copy-on-write installs a mutated attach-dialog
-// head. R57: attachDlgState is frame-carried as a POINTER, so the
-// frame and the head share the struct — every writer goes through
-// here so a frame's snapshot stays immutable while tails run.
 func (a *App) updateAttachDlg(fn func(st *attachDlgState) bool) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -655,7 +572,6 @@ func (a *App) updateAttachDlg(fn func(st *attachDlgState) bool) bool {
 	return true
 }
 
-// closeAttachDialog dismisses it.
 func (a *App) closeAttachDialog() {
 	a.mu.Lock()
 	a.attachDlg = nil
@@ -663,9 +579,6 @@ func (a *App) closeAttachDialog() {
 	a.invalidate()
 }
 
-// sendLocationFromDialog validates the editors and sends (async). With the
-// live toggle armed it shares a live location for the picked preset
-// (slice 131).
 func (a *App) sendLocationFromDialog(f frame) {
 	if f.selected == nil {
 		return
@@ -694,7 +607,6 @@ func (a *App) sendLocationFromDialog(f frame) {
 	}()
 }
 
-// sendContactFromDialog shares one contact into the open chat (async).
 func (a *App) sendContactFromDialog(f frame, c engine.ContactInfo) {
 	if f.selected == nil {
 		return
@@ -710,12 +622,9 @@ func (a *App) sendContactFromDialog(f frame, c engine.ContactInfo) {
 	}()
 }
 
-// layoutAttachDialog renders the location/contact helper (content-pane
-// replacement, like the other a.wid.composer dialogs).
 func (a *App) layoutAttachDialog(gtx layout.Context, f frame) layout.Dimensions {
 	st := f.attachDlg
 
-	// Esc closes (self-handled).
 	{
 		stack := clip.Rect{Max: image.Pt(gtx.Constraints.Max.X, gtx.Constraints.Max.Y)}.Push(gtx.Ops)
 		event.Op(gtx.Ops, attachDlgKeyTag)
@@ -779,7 +688,6 @@ func (a *App) layoutAttachDialog(gtx layout.Context, f frame) layout.Dimensions 
 							return a.contactDlgList(gtx, f, st)
 						})
 					}),
-					// action row
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Inset{Top: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
@@ -815,7 +723,6 @@ func (a *App) layoutAttachDialog(gtx layout.Context, f frame) layout.Dimensions 
 	})
 }
 
-// locationDlgBody: latitude/longitude fields + hint.
 func (a *App) locationDlgBody(gtx layout.Context) layout.Dimensions {
 	return layout.Inset{Top: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
@@ -842,7 +749,6 @@ func (a *App) locationDlgBody(gtx layout.Context) layout.Dimensions {
 				lbl.Color = a.ui.p.TextFaint
 				return layout.Inset{Top: unit.Dp(8)}.Layout(gtx, lbl.Layout)
 			}),
-			// Live-location toggle (slice 131, tdesktop parity).
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return layout.Inset{Top: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					btn := material.Button(a.ui.Theme, &a.wid.attachDlgLiveBtn, "Share live location")
@@ -861,7 +767,6 @@ func (a *App) locationDlgBody(gtx layout.Context) layout.Dimensions {
 				if !a.attachLiveOn {
 					return layout.Dimensions{}
 				}
-				// Preset chips: 15 minutes / 1 hour / 8 hours.
 				return layout.Inset{Top: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					return layout.Flex{Axis: layout.Horizontal, Spacing: layout.SpaceBetween}.Layout(gtx,
 						flexChildrenOf(len(liveDurationChoices), func(gtx layout.Context, i int) layout.Dimensions {
@@ -884,7 +789,6 @@ func (a *App) locationDlgBody(gtx layout.Context) layout.Dimensions {
 	})
 }
 
-// flexChildrenOf builds layout.Flex children over n indexes.
 func flexChildrenOf(n int, fn func(gtx layout.Context, i int) layout.Dimensions) []layout.FlexChild {
 	children := make([]layout.FlexChild, 0, n)
 	for i := 0; i < n; i++ {
@@ -896,7 +800,6 @@ func flexChildrenOf(n int, fn func(gtx layout.Context, i int) layout.Dimensions)
 	return children
 }
 
-// contactDlgList: the account's contacts; tap one to share.
 func (a *App) contactDlgList(gtx layout.Context, f frame, st *attachDlgState) layout.Dimensions {
 	if st.err != "" && !st.loaded {
 		return a.centeredStateLabel(gtx, "Failed to load contacts")

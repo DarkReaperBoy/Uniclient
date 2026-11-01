@@ -1,11 +1,5 @@
 package gui
 
-// Music seek bar (slice 185, parity row "Audio file"): the music bubble's
-// thin draggable progress track. Press, drag and release all seek — the
-// fraction is the pointer's x over the track width, clamped and throttled
-// to half-percent steps so a drag does not spam the player with seeks at
-// sub-sample granularity.
-
 import (
 	"image"
 
@@ -17,9 +11,6 @@ import (
 	"gioui.org/unit"
 )
 
-// seekFraction maps a pointer x (local track coords) to a clamped 0..1
-// playback fraction. Degenerate widths pass the current position through
-// unchanged. Pure — unit-tested.
 func seekFraction(px float32, width int, cur float64) float64 {
 	if width <= 0 {
 		return cur
@@ -34,9 +25,6 @@ func seekFraction(px float32, width int, cur float64) float64 {
 	return f
 }
 
-// seekBarTags / seekBarApplied keep one stable pointer tag and the last
-// applied fraction per player target (same lifecycle as the play
-// clickables — reset wholesale past 512 entries).
 func (a *App) seekBarTag(key string) *struct{} {
 	if t, ok := a.wid.seekBarTags[key]; ok {
 		return t
@@ -50,9 +38,6 @@ func (a *App) seekBarTag(key string) *struct{} {
 	return t
 }
 
-// seekBar renders the draggable progress track bound to the engine's
-// audio player (the music bubble's bar). frac is the currently displayed
-// position fraction; key scopes the pointer tag.
 func (a *App) seekBar(gtx layout.Context, key string, frac float64) layout.Dimensions {
 	return a.seekBarDo(gtx, key, frac, func(f float64) {
 		_ = a.eng.SeekMedia(f)
@@ -60,12 +45,6 @@ func (a *App) seekBar(gtx layout.Context, key string, frac float64) layout.Dimen
 	})
 }
 
-// seekBarDo is the same widget with an explicit seek sink, so the media
-// viewer's in-app video player can scrub a h264vid clip through the exact
-// visuals, grab area and drag throttling the music bar already has — one
-// widget, two real targets, neither a mock (§1.10). The track is 14 dp
-// tall (generous grab area) with a 3 dp visual bar and an accent handle
-// dot at the playhead.
 func (a *App) seekBarDo(gtx layout.Context, key string, frac float64, seek func(float64)) layout.Dimensions {
 	w := gtx.Constraints.Max.X
 	if w <= 0 {
@@ -74,7 +53,6 @@ func (a *App) seekBarDo(gtx layout.Context, key string, frac float64, seek func(
 	h := gtx.Dp(unit.Dp(14))
 	tag := a.seekBarTag(key)
 
-	// Input area: the full-height strip.
 	stack := clip.Rect{Max: image.Pt(w, h)}.Push(gtx.Ops)
 	event.Op(gtx.Ops, tag)
 	for {
@@ -90,7 +68,7 @@ func (a *App) seekBarDo(gtx layout.Context, key string, frac float64, seek func(
 		case pointer.Press, pointer.Drag, pointer.Release:
 			f := seekFraction(pe.Position.X, w, frac)
 			if last, ok := a.wid.seekBarApplied[key]; ok && absF64(f-last) < 0.005 && pe.Kind == pointer.Drag {
-				continue // throttle sub-half-percent drag moves
+				continue
 			}
 			a.wid.seekBarApplied[key] = f
 			if seek != nil {
@@ -101,7 +79,6 @@ func (a *App) seekBarDo(gtx layout.Context, key string, frac float64, seek func(
 	}
 	stack.Pop()
 
-	// Visual bar: centered 3 dp hairline + accent fill + handle.
 	barY := (h - 3) / 2
 	track := clip.Rect{Min: image.Pt(0, barY), Max: image.Pt(w, barY+3)}.Push(gtx.Ops)
 	paint.Fill(gtx.Ops, a.ui.p.SurfaceHi)
@@ -118,7 +95,6 @@ func (a *App) seekBarDo(gtx layout.Context, key string, frac float64, seek func(
 		paint.Fill(gtx.Ops, a.ui.p.Accent)
 		fill.Pop()
 	}
-	// Playhead dot (6 dp) centered on the fill edge.
 	d := gtx.Dp(unit.Dp(6))
 	cx := fw - d/2
 	if cx < 0 {
@@ -135,7 +111,6 @@ func (a *App) seekBarDo(gtx layout.Context, key string, frac float64, seek func(
 	return layout.Dimensions{Size: image.Pt(w, h)}
 }
 
-// absF64 is |x| without pulling math into every caller.
 func absF64(x float64) float64 {
 	if x < 0 {
 		return -x

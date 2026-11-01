@@ -8,9 +8,6 @@ import (
 	"uniclient/engine"
 )
 
-// TestWriteShotSample renders a representative message shot to
-// /tmp/shot-sample.png when UNICLIENT_SHOT_SAMPLE=1 — a manual visual
-// verification hook (not part of the regular gate).
 func TestWriteShotSample(t *testing.T) {
 	if os.Getenv("UNICLIENT_SHOT_SAMPLE") == "" {
 		t.Skip("set UNICLIENT_SHOT_SAMPLE=1 to render the sample")

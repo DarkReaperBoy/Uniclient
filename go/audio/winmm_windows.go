@@ -36,13 +36,12 @@ const (
 	waveMapper    = 0xFFFFFFFF
 	waveFormatPCM = 1
 	whdrDone      = 0x00000001
-	numPlayBufs   = 6 // 120 ms of queued playback
+	numPlayBufs   = 6
 	numMicBufs    = 6
-	playBufBytes  = 1920 // one 20 ms s16le mono frame
+	playBufBytes  = 1920
 	micBufBytes   = 1920
 )
 
-// waveFormatEx mirrors the winmm WAVEFORMATEX struct.
 type waveFormatEx struct {
 	formatTag      uint16
 	channels       uint16
@@ -53,9 +52,6 @@ type waveFormatEx struct {
 	cbSize         uint16
 }
 
-// waveHdr mirrors the winmm WAVEHDR struct. The Go byte slices stay
-// referenced by the owning buffers slice, so the lpData pointers stay
-// valid for the lifetime of the stream.
 type waveHdr struct {
 	lpData          uintptr
 	dwBufferLength  uint32
@@ -78,7 +74,6 @@ func pcmFormat() waveFormatEx {
 	}
 }
 
-// buffer couples a header with the Go memory it points into.
 type buffer struct {
 	hdr  waveHdr
 	data []byte
@@ -113,14 +108,10 @@ func (b *buffer) unprepare(in bool) {
 		if r == 0 {
 			return
 		}
-		// Unprepare fails with WAVERR_STILLPLAYING while queued —
-		// the caller must reset first; retry a bounded number of
-		// times to tolerate the race.
 		time.Sleep(5 * time.Millisecond)
 	}
 }
 
-// winmmDevice is the winmm waveIn/waveOut backend.
 type winmmDevice struct {
 	mu sync.Mutex
 
@@ -141,8 +132,6 @@ func openDevice() (device, error) {
 	return &winmmDevice{}, nil
 }
 
-// startPlayback opens the default waveOut device and streams mixed
-// audio from fill on a polled double-buffered loop.
 func (d *winmmDevice) startPlayback(fill func(out []int16)) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -153,7 +142,7 @@ func (d *winmmDevice) startPlayback(fill func(out []int16)) error {
 	var h uintptr
 	r, _, _ := procWaveOutOpen.Call(
 		uintptr(unsafe.Pointer(&h)), waveMapper,
-		uintptr(unsafe.Pointer(&wfx)), 0, 0, 0, // CALLBACK_NULL, polled
+		uintptr(unsafe.Pointer(&wfx)), 0, 0, 0,
 	)
 	if r != 0 {
 		return fmt.Errorf("audio: waveOutOpen: winmm error %d", r)
@@ -172,7 +161,6 @@ func (d *winmmDevice) startPlayback(fill func(out []int16)) error {
 	done := make(chan struct{})
 	d.playStop, d.playDone = stop, done
 
-	// Prime every buffer with one frame, then poll for completions.
 	pcm := make([]int16, playBufBytes/2)
 	for i := range d.playBufs {
 		fill(pcm)
@@ -228,8 +216,6 @@ func (d *winmmDevice) stopPlayback() {
 	}
 }
 
-// closePlaybackLocked stops the waveOut stream; playStop must close
-// before calling so the loop exits.
 func (d *winmmDevice) closePlaybackLocked() {
 	if d.playHandle == 0 {
 		return
@@ -248,8 +234,6 @@ func (d *winmmDevice) closePlaybackLocked() {
 	d.playBufs = nil
 }
 
-// startMic opens the default waveIn device and pushes 20 ms s16le
-// frames on the returned channel.
 func (d *winmmDevice) startMic() (<-chan []byte, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -344,7 +328,6 @@ func (d *winmmDevice) stopMic() {
 	}
 }
 
-// closeMicLocked stops capture; micStop must be closed before calling.
 func (d *winmmDevice) closeMicLocked() {
 	if d.micHandle == 0 {
 		return
@@ -368,7 +351,6 @@ func (d *winmmDevice) close() {
 	d.stopPlayback()
 }
 
-// s16ToBytes converts int16 samples to s16le bytes.
 func s16ToBytes(samples []int16) []byte {
 	out := make([]byte, len(samples)*2)
 	for i, s := range samples {

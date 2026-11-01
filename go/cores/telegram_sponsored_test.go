@@ -1,11 +1,5 @@
 package cores
 
-// Sponsored messages (Telegram channels + bots, slice 163): conversion of
-// the wire messages.SponsoredMessages payload into the engine-facing
-// SponsoredMessageInfo list, plus the report-result parser. The RPCs
-// themselves (get/view/click/report) ride the withAPI pattern and are
-// covered by live verification.
-
 import (
 	"testing"
 
@@ -35,8 +29,6 @@ func TestConvertSponsoredMessages(t *testing.T) {
 			&tg.MessageEntityBold{Offset: 16, Length: 4},
 		},
 	}
-	// Flag-gated optionals go through the generated setters (they set the
-	// conditional-field bits the way real wire data does).
 	first.SetSponsorInfo("sponsor@example")
 	first.SetPhoto(strippedPhoto())
 	res := &tg.MessagesSponsoredMessages{
@@ -88,7 +80,7 @@ func TestConvertSponsoredMessages(t *testing.T) {
 
 func TestConvertSponsoredMessagesPostsBetween(t *testing.T) {
 	res := &tg.MessagesSponsoredMessages{
-		Flags:        bin.Fields(1 << 0), // posts_between bit
+		Flags:        bin.Fields(1 << 0),
 		PostsBetween: 20,
 		Messages: []tg.SponsoredMessage{
 			{RandomID: []byte{1}, URL: "https://a", Title: "A", Message: "a", ButtonText: "b"},
@@ -121,17 +113,14 @@ func TestSponsoredAccentColorID(t *testing.T) {
 }
 
 func TestSponsoredMediaInfo(t *testing.T) {
-	// No media.
 	thumb, isVideo := sponsoredMediaInfo(nil)
 	if thumb != "" || isVideo {
 		t.Errorf("nil media = %q/%v, want empty/false", thumb, isVideo)
 	}
-	// Photo media: stripped thumb, not video.
 	thumb, isVideo = sponsoredMediaInfo(&tg.MessageMediaPhoto{Photo: strippedPhoto()})
 	if thumb == "" || isVideo {
 		t.Errorf("photo media = %q/%v, want thumb/false", thumb, isVideo)
 	}
-	// Video media: video flag set; photo-based documents without video attr stay photo.
 	thumb, isVideo = sponsoredMediaInfo(&tg.MessageMediaDocument{
 		Document: &tg.Document{
 			MimeType: "video/mp4",
@@ -149,7 +138,6 @@ func TestSponsoredMediaInfo(t *testing.T) {
 }
 
 func TestParseReportResult(t *testing.T) {
-	// nil / non-choose results report "done".
 	title, opts := parseSponsoredReportResult(nil)
 	if title != "" || len(opts) != 0 {
 		t.Errorf("nil result = %q/%d, want done", title, len(opts))
@@ -158,7 +146,6 @@ func TestParseReportResult(t *testing.T) {
 	if title != "" || len(opts) != 0 {
 		t.Errorf("non-choose result = %q/%d, want done", title, len(opts))
 	}
-	// Choose-option chain.
 	title, opts = parseSponsoredReportResult(&tg.ChannelsSponsoredMessageReportResultChooseOption{
 		Title: "Report ad",
 		Options: []tg.SponsoredMessageReportOption{

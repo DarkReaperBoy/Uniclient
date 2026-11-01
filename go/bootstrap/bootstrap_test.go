@@ -12,13 +12,6 @@ import (
 	"uniclient/engine"
 )
 
-// ---------------------------------------------------------------------------
-// Test-only fake core (AGENTS.md §1.10 bans fake platforms in the shipped
-// product; test doubles are scaffolding, never registered in the factory the
-// GUI uses). It implements just enough of cores.Core to drive the full
-// engine pipeline: one chat, folders, an echo reply.
-// ---------------------------------------------------------------------------
-
 const fakePlatform = "fake-e2e"
 
 type fakeCore struct {
@@ -97,7 +90,6 @@ func (c *fakeCore) GetMessages(chatID string, opts cores.PaginationOpts) ([]core
 	c.mu.Lock()
 	msgs := append([]cores.Message(nil), c.messages[chatID]...)
 	c.mu.Unlock()
-	// Newest first, like the real cores.
 	for i, j := 0, len(msgs)-1; i < j; i, j = i+1, j-1 {
 		msgs[i], msgs[j] = msgs[j], msgs[i]
 	}
@@ -151,13 +143,6 @@ func (c *fakeCore) store(chatID, senderID, senderName, text string, outgoing boo
 	return m
 }
 
-// ---------------------------------------------------------------------------
-// Ban enforcement: no placeholder backends anywhere in the product path.
-// ---------------------------------------------------------------------------
-
-// TestStartAuthRejectsUnknownPlatforms: the engine must refuse to start auth
-// for platforms the factory cannot construct — including the old "demo"
-// backend, which is banned by AGENTS.md §1.10.
 func TestStartAuthRejectsUnknownPlatforms(t *testing.T) {
 	dir := t.TempDir()
 	eng, err := Init(dir, filepath.Join(dir, "cache"), filepath.Join(dir, "downloads"), "testpw", nil)
@@ -178,16 +163,12 @@ func TestStartAuthRejectsUnknownPlatforms(t *testing.T) {
 	}
 }
 
-// TestUnsupportedAccountsPurgedAtBoot: a saved account whose platform no
-// longer exists (e.g. the banned demo) must be removed at startup, not left
-// rotting in the account list as a dead error row.
 func TestUnsupportedAccountsPurgedAtBoot(t *testing.T) {
 	dir := t.TempDir()
 	eng1, err := Init(dir, filepath.Join(dir, "cache"), filepath.Join(dir, "downloads"), "testpw", nil)
 	if err != nil {
 		t.Fatalf("Init: %v", err)
 	}
-	// Simulate a stale account left behind by a removed backend.
 	if _, err := eng1.AddAccount("demo", false); err != nil {
 		t.Fatalf("AddAccount(demo): %v", err)
 	}
@@ -206,9 +187,6 @@ func TestUnsupportedAccountsPurgedAtBoot(t *testing.T) {
 	}
 }
 
-// TestFactoryConstructsEverySupportedPlatform: every platform in
-// SupportedPlatforms() must produce a working core and a real first auth
-// step via the production factory.
 func TestFactoryConstructsEverySupportedPlatform(t *testing.T) {
 	dir := t.TempDir()
 	eng, err := Init(dir, filepath.Join(dir, "cache"), filepath.Join(dir, "downloads"), "testpw", nil)
@@ -233,15 +211,6 @@ func TestFactoryConstructsEverySupportedPlatform(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Engine end-to-end (regression net for the demo deletion): drives the exact
-// saved-account boot path the GUI uses — add account, save credentials,
-// connect, sync chats, send, receive events, read the cache, restart, and
-// reconnect via ConnectAllAccounts (what happens at every real startup).
-// Uses engine.Init directly with a test factory so the fake never leaks into
-// the production bootstrap factory.
-// ---------------------------------------------------------------------------
-
 func TestEngineEndToEnd(t *testing.T) {
 	dir := t.TempDir()
 	events := make(chan []byte, 64)
@@ -264,8 +233,6 @@ func TestEngineEndToEnd(t *testing.T) {
 		return nil, fmt.Errorf("unknown platform: %s", platform)
 	})
 
-	// Add account + save credentials (the saved-account path — accounts
-	// restored from the vault at boot never run StartAuth).
 	id, err := eng.AddAccount(fakePlatform, false)
 	if err != nil {
 		t.Fatalf("AddAccount: %v", err)
@@ -274,12 +241,10 @@ func TestEngineEndToEnd(t *testing.T) {
 		t.Fatalf("SaveCredentials: %v", err)
 	}
 
-	// Connect — same call the GUI/boot makes.
 	if err := eng.ConnectAccount(id); err != nil {
 		t.Fatalf("ConnectAccount: %v", err)
 	}
 
-	// Chats must sync into the engine cache.
 	deadline := time.Now().Add(5 * time.Second)
 	var chats []engine.ChatInfo
 	for time.Now().Before(deadline) {
@@ -296,7 +261,6 @@ func TestEngineEndToEnd(t *testing.T) {
 		t.Fatal("fake core produced no chats")
 	}
 
-	// Folders must exist (GUI folder tabs rely on the core's GetFolders).
 	core := eng.GetAccountCore(id)
 	if core == nil {
 		t.Fatal("account core is nil after connect")
@@ -306,7 +270,6 @@ func TestEngineEndToEnd(t *testing.T) {
 		t.Fatalf("GetFolders: %v (%d folders)", err, len(folders))
 	}
 
-	// Send a message into the first chat and expect the echo.
 	first := chats[0]
 	_, err = eng.SendMessage(id, first.ChatID, "hello e2e", "", nil, false, 0, "", "", false, false, false, false, false)
 	if err != nil {
@@ -344,7 +307,6 @@ func TestEngineEndToEnd(t *testing.T) {
 		t.Error("no msg_received event for the echo reply")
 	}
 
-	// Message cache must contain the sent message.
 	msgs, err := eng.GetMessages(id, first.ChatID, 0, 0, 50)
 	if err != nil {
 		t.Fatalf("GetMessages: %v", err)
@@ -359,8 +321,6 @@ func TestEngineEndToEnd(t *testing.T) {
 		t.Error("sent message not found in cache")
 	}
 
-	// Restart: account persists in the vault and reconnects via the
-	// real boot path (ConnectAllAccounts — what App.Start() calls).
 	_ = eng.Shutdown()
 	eng2, err := engine.Init(dir, filepath.Join(dir, "cache"), filepath.Join(dir, "downloads"), "testpw")
 	if err != nil {

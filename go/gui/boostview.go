@@ -18,18 +18,8 @@ import (
 	"uniclient/engine"
 )
 
-// Boosts page (slice 192, parity row "Giveaways / boosts" — tdesktop's
-// boost info box for channels): status card (level, boosts, progress to
-// the next level, gift boosts, own-boost state + real premium.applyBoost),
-// the boosters list with avatar/name/multiplier/gift/date rows and offset
-// paging, Boosters vs Gifts tabs. Opened from the header ⋮ menu for
-// channels; other chat types never see it (§1.10). Everything renders from
-// real engine state — empty lists show the honest empty row.
-
 var boostPanelTag = new(struct{})
 
-// boostNum reads a numeric field from a map[string]interface{} (JSON
-// numbers arrive as float64). Pure.
 func boostNum(m map[string]interface{}, field string) (int, bool) {
 	if v, ok := m[field]; ok {
 		switch n := v.(type) {
@@ -44,14 +34,11 @@ func boostNum(m map[string]interface{}, field string) (int, bool) {
 	return 0, false
 }
 
-// boostLevelLabel: "Level N". Pure.
 func boostLevelLabel(st map[string]interface{}) string {
 	l, _ := boostNum(st, "level")
 	return "Level " + strconv.Itoa(l)
 }
 
-// boostProgressFraction: progress from the current level's threshold to
-// the next (0..1; 1 when maxed or unknown). Pure.
 func boostProgressFraction(st map[string]interface{}) float64 {
 	cur, okC := boostNum(st, "boosts")
 	lvlCur, okL := boostNum(st, "current_level_boosts")
@@ -60,7 +47,7 @@ func boostProgressFraction(st map[string]interface{}) float64 {
 		return 0
 	}
 	if !okL || !okN || lvlNext <= lvlCur {
-		return 1 // maxed / unknown ladder → full bar
+		return 1
 	}
 	frac := float64(cur-lvlCur) / float64(lvlNext-lvlCur)
 	if frac < 0 {
@@ -72,7 +59,6 @@ func boostProgressFraction(st map[string]interface{}) float64 {
 	return frac
 }
 
-// boostToNextLabel: "N boosts to Level M" (or the maxed line). Pure.
 func boostToNextLabel(st map[string]interface{}) string {
 	cur, okC := boostNum(st, "boosts")
 	lvlCur, okL := boostNum(st, "current_level_boosts")
@@ -88,7 +74,6 @@ func boostToNextLabel(st map[string]interface{}) string {
 	return fmt.Sprintf("%d boosts to Level %d", need, lvl+1)
 }
 
-// boosterRowTitle: the booster's name with an honest fallback. Pure.
 func boosterRowTitle(row map[string]interface{}) string {
 	if n, ok := row["user_name"].(string); ok && n != "" {
 		return n
@@ -102,7 +87,6 @@ func boosterRowTitle(row map[string]interface{}) string {
 	return "Booster"
 }
 
-// boosterRowSub: "×N multiplier · gift · <date>". Pure.
 func boosterRowSub(row map[string]interface{}) string {
 	var parts []string
 	if mult, ok := boostNum(row, "multiplier"); ok && mult > 1 {
@@ -127,8 +111,6 @@ func boosterRowSub(row map[string]interface{}) string {
 	return out
 }
 
-// boostListFields extracts the rows slice, next offset, total count, and
-// has-more from a GetBoostsList result map. Pure.
 func boostListFields(list map[string]interface{}) (rows []map[string]interface{}, next string, total int, more bool) {
 	if v, ok := list["boosters"].([]interface{}); ok {
 		for _, r := range v {
@@ -145,7 +127,6 @@ func boostListFields(list map[string]interface{}) (rows []map[string]interface{}
 	return
 }
 
-// openBoostPanel loads the channel's boost status + first booster page.
 func (a *App) openBoostPanel() {
 	a.mu.Lock()
 	k := a.selected
@@ -185,7 +166,6 @@ func (a *App) openBoostPanel() {
 	a.loadBoosters(acc, chatID, "")
 }
 
-// loadBoosters fetches one booster page (appends when offsetting).
 func (a *App) loadBoosters(acc, chatID, offset string) {
 	gifts := false
 	a.mu.Lock()
@@ -217,7 +197,6 @@ func (a *App) loadBoosters(acc, chatID, offset string) {
 	}()
 }
 
-// retoggleBoostTabs swaps Boosters/Gifts and reloads page one.
 func (a *App) retoggleBoostTabs(gifts bool) {
 	a.mu.Lock()
 	if a.boostGifts == gifts {
@@ -237,8 +216,6 @@ func (a *App) retoggleBoostTabs(gifts bool) {
 	a.loadBoosters(k.AccountID, k.ChatID, "")
 }
 
-// applyOwnBoost spends one of the account's own boost slots on this
-// channel (premium.applyBoost) and refreshes the status card.
 func (a *App) applyOwnBoost() {
 	a.mu.Lock()
 	k := a.selected
@@ -266,7 +243,6 @@ func (a *App) applyOwnBoost() {
 	}()
 }
 
-// closeBoostPanel dismisses the page.
 func (a *App) closeBoostPanel() {
 	a.mu.Lock()
 	if !a.boostPanel {
@@ -280,7 +256,6 @@ func (a *App) closeBoostPanel() {
 	a.invalidate()
 }
 
-// layoutBoostPanel: the boosts page (chat-pane replacement).
 func (a *App) layoutBoostPanel(gtx layout.Context, f frame, chat *engine.ChatInfo) layout.Dimensions {
 	{
 		stack := clip.Rect{Max: gtx.Constraints.Max}.Push(gtx.Ops)
@@ -355,12 +330,10 @@ func (a *App) layoutBoostPanel(gtx layout.Context, f frame, chat *engine.ChatInf
 	)
 }
 
-// boostScroll: status card + tabs + rows.
 func (a *App) boostScroll(gtx layout.Context, f frame, chat *engine.ChatInfo) layout.Dimensions {
 	st := f.boostStatus
 	var children []layout.FlexChild
 
-	// Status card.
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		if st == nil {
 			label := "Loading…"
@@ -433,7 +406,6 @@ func (a *App) boostScroll(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 								})
 							}),
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								// Spend one of our own slots (premium.applyBoost).
 								label := "Boost this channel"
 								if myBoost {
 									label = "Boost again"
@@ -451,10 +423,6 @@ func (a *App) boostScroll(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 			})
 	}))
 
-	// Prepaid giveaways (slice 212): already-paid entries launchable here.
-	// R30: Launch opens the giveaway creator — a content-pane dialog that
-	// only layoutMain paints; the boost panel renders in every window, so
-	// the whole section is dropped in separate windows.
 	if prepaidRows := prepaidFromBoostStatus(st); len(prepaidRows) > 0 && mainOnlySurfaceShown(a) {
 		prepaidRows := prepaidRows
 		growClickables(&a.wid.boostLaunchCells, len(prepaidRows))
@@ -506,7 +474,6 @@ func (a *App) boostScroll(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 		}))
 	}
 
-	// Tabs.
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Top: unit.Dp(10), Left: unit.Dp(12), Right: unit.Dp(12)}.Layout(gtx,
 			func(gtx layout.Context) layout.Dimensions {
@@ -532,7 +499,6 @@ func (a *App) boostScroll(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 			})
 	}))
 
-	// Rows.
 	rows := f.boosters
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		if f.boostLoad && len(rows) == 0 {
@@ -542,7 +508,6 @@ func (a *App) boostScroll(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 			})
 		}
 		if len(rows) == 0 {
-			// Honest empty state (§1.10): real server list, zero rows.
 			empty := "No boosters yet"
 			if f.boostGifts {
 				empty = "No gift boosts"
@@ -583,7 +548,6 @@ func (a *App) boostScroll(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 					})
 			}))
 		}
-		// Load-more row.
 		if f.boostNext != "" {
 			listChildren = append(listChildren, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return layout.Inset{Top: unit.Dp(8), Bottom: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -598,16 +562,13 @@ func (a *App) boostScroll(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-// boostProgressBar: the level progress track (rounded fill + accent).
 func boostProgressBar(gtx layout.Context, a *App, frac float64) layout.Dimensions {
 	w := gtx.Constraints.Max.X
 	if w <= 0 {
 		return layout.Dimensions{}
 	}
 	h := gtx.Dp(unit.Dp(4))
-	// Track.
 	paint.FillShape(gtx.Ops, a.ui.p.SurfaceHi, clip.Rect{Max: image.Pt(w, h)}.Op())
-	// Fill.
 	fw := int(float64(w) * frac)
 	if fw > 0 {
 		paint.FillShape(gtx.Ops, a.ui.p.Accent, clip.Rect{Max: image.Pt(fw, h)}.Op())
@@ -615,7 +576,6 @@ func boostProgressBar(gtx layout.Context, a *App, frac float64) layout.Dimension
 	return layout.Dimensions{Size: image.Pt(w, h)}
 }
 
-// boostTabBtn: one tab chip.
 func boostTabBtn(gtx layout.Context, a *App, btn *widget.Clickable, label string, active bool) layout.Dimensions {
 	b := material.Button(a.ui.Theme, btn, label)
 	b.CornerRadius = 8

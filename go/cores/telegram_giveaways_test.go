@@ -1,12 +1,5 @@
 package cores
 
-// telegram_giveaways_test.go — slice 212 tests-first: stars giveaways —
-// the payments.getStarsGiveawayOptions normalization (winner splits,
-// yearly boosts, extended/default flags), the
-// inputInvoiceStars(inputStorePaymentStarsGiveaway) builder (flag
-// mapping), the prepaid-launch purpose builder (stars vs premium), and
-// the tdesktop UniqueIdFromCreditOption random-id port.
-
 import (
 	"testing"
 
@@ -100,7 +93,6 @@ func TestStarsGiveawayInvoice(t *testing.T) {
 		t.Errorf("boost peer = %T", purp.BoostPeer)
 	}
 
-	// Minimal params: no optional flags set.
 	inv2 := starsGiveawayInvoice(peer, nil, GiveawayParams{WinnerCount: 1, UntilDate: 100}, 100, 1)
 	purp2 := inv2.(*tg.InputInvoiceStars).Purpose.(*tg.InputStorePaymentStarsGiveaway)
 	if purp2.OnlyNewSubscribers || purp2.WinnersAreVisible || purp2.PrizeDescription != "" {
@@ -110,7 +102,6 @@ func TestStarsGiveawayInvoice(t *testing.T) {
 		t.Errorf("users = %d", purp2.Users)
 	}
 
-	// Countries + additional peers ride the flags.
 	inv3 := starsGiveawayInvoice(peer, extra, GiveawayParams{
 		WinnerCount: 2,
 		UntilDate:   100,
@@ -134,7 +125,6 @@ func TestPrepaidGiveawayPurpose(t *testing.T) {
 		ShowWinners: true,
 	}
 
-	// Credits > 0 → stars purpose.
 	purp := prepaidGiveawayPurpose(peer, nil, p, 500, 0, 77)
 	sp, ok := purp.(*tg.InputStorePaymentStarsGiveaway)
 	if !ok {
@@ -147,7 +137,6 @@ func TestPrepaidGiveawayPurpose(t *testing.T) {
 		t.Errorf("flags lost: %+v", sp)
 	}
 
-	// Credits = 0 → premium purpose (months carried by the giveaway id).
 	purp2 := prepaidGiveawayPurpose(peer, nil, p, 0, 3, 88)
 	pp, ok := purp2.(*tg.InputStorePaymentPremiumGiveaway)
 	if !ok {
@@ -182,9 +171,6 @@ func TestGiveawayRandomID(t *testing.T) {
 	if a == 0 {
 		t.Error("random id must not be zero")
 	}
-	// Pins the hash choice: zeroed fields format to "0","","","0","0","0"
-	// and the digest must be exactly XXH64 of that concatenation
-	// (tdesktop UniqueIdFromCreditOption uses XXH64).
 	if uint64(giveawayRandomID(StarsGiveawayOptionInfo{}, 0, 0)) != xxhash.Sum64String("0000") {
 		t.Errorf("zeroed random id is not XXH64(\"0000\")")
 	}

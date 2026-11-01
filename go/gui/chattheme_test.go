@@ -8,8 +8,6 @@ import (
 	"uniclient/engine"
 )
 
-// chatThemeSwatch converts the theme's first message color (Telegram
-// 0xAARRGGBB) into a chip surface, falling back when absent (slice 65).
 func TestChatThemeSwatch(t *testing.T) {
 	th := cores.ChatThemeInfo{Emoticon: "🎉", MessageColors: []int{0xFF40A0E0}}
 	got := chatThemeSwatch(th, color.NRGBA{R: 1, G: 2, B: 3, A: 4})
@@ -21,7 +19,6 @@ func TestChatThemeSwatch(t *testing.T) {
 	}
 }
 
-// The picker dialog state carries the chat it edits (slice 65).
 func TestChatThemeDlgStateFields(t *testing.T) {
 	st := &chatThemeDlgState{accountID: "a1", chatID: "u7", title: "Alice"}
 	if st.accountID != "a1" || st.chatID != "u7" || st.title != "Alice" {
@@ -29,8 +26,6 @@ func TestChatThemeDlgStateFields(t *testing.T) {
 	}
 }
 
-// The DM ⋮ menu offers "Change colors…" but group/channel menus don't
-// (slice 65).
 func TestHeaderMenuHasThemeItem(t *testing.T) {
 	if !containsAction(headerMenuItems(dmChat(), false, false, false, false, false), "theme") {
 		t.Fatal("DM menu missing Change colors")

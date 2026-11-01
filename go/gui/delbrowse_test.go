@@ -1,9 +1,5 @@
 package gui
 
-// Deleted-messages browser (slice 97, matrix row 165): pure helpers — row
-// preview naming, the header-menu gate, escTarget self-handling, and the
-// menu-item list update.
-
 import (
 	"testing"
 
@@ -55,7 +51,6 @@ func TestDeletedRowPreview(t *testing.T) {
 }
 
 func TestHeaderMenuHasViewDeleted(t *testing.T) {
-	// Every chat type that can clear deleted messages can also browse them.
 	for _, c := range []engine.ChatInfo{
 		{AccountID: "a", ChatID: "u1", Type: engine.ChatTypeDMVal},
 		{AccountID: "a", ChatID: "g1", Type: engine.ChatTypeGroupVal},
@@ -75,7 +70,6 @@ func TestEscTargetDeletedDlgSelfHandled(t *testing.T) {
 }
 
 func TestDeletedBrowseOrder(t *testing.T) {
-	// Newest-first ordering for the browser rows.
 	msgs := []engine.CachedMessage{
 		{MsgID: "old", Timestamp: 100},
 		{MsgID: "new", Timestamp: 300},

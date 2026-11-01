@@ -7,15 +7,13 @@ import (
 	"github.com/gotd/td/tg"
 )
 
-// wireStarsStatus builds a PaymentsStarsStatus with two transactions and
-// name-resolvable peers.
 func wireStarsStatus() *tg.PaymentsStarsStatus {
 	return &tg.PaymentsStarsStatus{
-		Balance: &tg.StarsAmount{Amount: 123_000_000_000}, // 123 stars
+		Balance: &tg.StarsAmount{Amount: 123_000_000_000},
 		History: []tg.StarsTransaction{
 			{
 				ID:     "txn1",
-				Amount: &tg.StarsAmount{Amount: 25_000_000_000}, // +25
+				Amount: &tg.StarsAmount{Amount: 25_000_000_000},
 				Date:   1737000000,
 				Peer: &tg.StarsTransactionPeer{
 					Peer: &tg.PeerUser{UserID: 7},
@@ -23,7 +21,7 @@ func wireStarsStatus() *tg.PaymentsStarsStatus {
 			},
 			{
 				ID:          "txn2",
-				Amount:      &tg.StarsAmount{Amount: -50_000_000_000}, // −50
+				Amount:      &tg.StarsAmount{Amount: -50_000_000_000},
 				Date:        1737003600,
 				Title:       "Boost a channel",
 				Description: "Boost @durov",
@@ -43,9 +41,6 @@ func wireStarsStatus() *tg.PaymentsStarsStatus {
 	}
 }
 
-// TestStarsStatusFromWire: the wire payload maps onto the typed status —
-// balance carries through in nanostars, transactions keep their signed
-// amounts and resolve counterparty names from the users/chats lists.
 func TestStarsStatusFromWire(t *testing.T) {
 	out := starsStatusFromWire(wireStarsStatus())
 	if out.BalanceNano != 123_000_000_000 {
@@ -76,8 +71,6 @@ func TestStarsStatusFromWire(t *testing.T) {
 	}
 }
 
-// TestStarsStatusFromWireEmpty: nil payload / empty history → zero value,
-// no panic.
 func TestStarsStatusFromWireEmpty(t *testing.T) {
 	if out := starsStatusFromWire(nil); out.BalanceNano != 0 || len(out.Txns) != 0 {
 		t.Fatalf("nil = %+v", out)
@@ -87,8 +80,6 @@ func TestStarsStatusFromWireEmpty(t *testing.T) {
 	}
 }
 
-// TestStarsStatusFromWireFlags: the pending/failed/refund/gift flags and
-// unknown peers degrade honestly.
 func TestStarsStatusFromWireFlags(t *testing.T) {
 	st := &tg.PaymentsStarsStatus{
 		History: []tg.StarsTransaction{
@@ -96,7 +87,7 @@ func TestStarsStatusFromWireFlags(t *testing.T) {
 				ID:     "f1",
 				Amount: &tg.StarsAmount{Amount: 100},
 				Peer: &tg.StarsTransactionPeer{
-					Peer: &tg.PeerUser{UserID: 999}, // not in Users — no name
+					Peer: &tg.PeerUser{UserID: 999},
 				},
 				Pending: true,
 				Refund:  true,
@@ -117,12 +108,9 @@ func TestStarsStatusFromWireFlags(t *testing.T) {
 	}
 }
 
-// mustStarsTxnFlags sets the Title (bit 0) and Description (bit 1)
-// conditional flags — the wire decoder does this; direct construction
-// in tests must do it too.
 func mustStarsTxnFlags() bin.Fields {
 	var f bin.Fields
-	f.Set(0) // Title
-	f.Set(1) // Description
+	f.Set(0)
+	f.Set(1)
 	return f
 }

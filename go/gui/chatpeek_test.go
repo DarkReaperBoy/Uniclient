@@ -1,8 +1,5 @@
 package gui
 
-// chatpeek_test.go — slice 145 (tests-first): the pure halves of the
-// hover chat-preview popup — message-line assembly and anchor clamping.
-
 import (
 	"testing"
 	"time"
@@ -10,9 +7,6 @@ import (
 	"uniclient/engine"
 )
 
-// TestPeekMsgLine: one message becomes one preview line — "You" prefix
-// for outgoing, sender name for incoming, media-only messages get the
-// typed label, service messages are skipped upstream.
 func TestPeekMsgLine(t *testing.T) {
 	cases := []struct {
 		m          engine.CachedMessage
@@ -33,8 +27,6 @@ func TestPeekMsgLine(t *testing.T) {
 	}
 }
 
-// TestPeekLines: newest-first messages flip to display order (oldest at
-// the top), service messages drop, the list clamps to max.
 func TestPeekLines(t *testing.T) {
 	msgs := []engine.CachedMessage{
 		{MsgID: "3", SenderName: "Alice", ContentText: "third"},
@@ -52,7 +44,6 @@ func TestPeekLines(t *testing.T) {
 		t.Fatalf("line 1 = %+v", lines[1])
 	}
 
-	// Clamp: more messages than max → last N in display order.
 	many := []engine.CachedMessage{
 		{MsgID: "5", ContentText: "5"},
 		{MsgID: "4", ContentText: "4"},
@@ -73,27 +64,25 @@ func TestPeekLines(t *testing.T) {
 	}
 }
 
-// TestPeekLineClamp: long texts clamp to one line.
 func TestPeekLineClamp(t *testing.T) {
 	long := make([]byte, 300)
 	for i := range long {
 		long[i] = 'x'
 	}
 	_, txt := peekMsgLine(engine.CachedMessage{ContentText: string(long)})
-	if len([]rune(txt)) > peekMaxRunes+1 { // +1 for the ellipsis
+	if len([]rune(txt)) > peekMaxRunes+1 {
 		t.Fatalf("clamped text len = %d, want ≤ %d", len([]rune(txt)), peekMaxRunes+1)
 	}
 }
 
-// TestPeekAnchorY: the popup clamps inside the window height.
 func TestPeekAnchorY(t *testing.T) {
 	cases := []struct {
 		mouseY, peekH, winH, want int
 	}{
-		{100, 120, 800, 76},  // centered-ish on the mouse, clamped by top
-		{790, 120, 800, 680}, // bottom clamp
-		{-5, 120, 800, 0},    // negative clamps to 0
-		{400, 120, 800, 376}, // normal: mouse - 10% of height... see impl
+		{100, 120, 800, 76},
+		{790, 120, 800, 680},
+		{-5, 120, 800, 0},
+		{400, 120, 800, 376},
 	}
 	for _, c := range cases {
 		if got := peekAnchorY(c.mouseY, c.peekH, c.winH); got != c.want {
@@ -102,8 +91,6 @@ func TestPeekAnchorY(t *testing.T) {
 	}
 }
 
-// TestPeekDelayBounds: the hover delay is in the tdesktop ballpark
-// (400-900ms — fast enough to feel instant, slow enough not to flicker).
 func TestPeekDelayBounds(t *testing.T) {
 	if peekHoverDelay < 400*time.Millisecond || peekHoverDelay > 900*time.Millisecond {
 		t.Fatalf("peekHoverDelay = %v, want 400-900ms", peekHoverDelay)

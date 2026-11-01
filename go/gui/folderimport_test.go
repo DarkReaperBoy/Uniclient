@@ -1,8 +1,5 @@
 package gui
 
-// Folder import dialog (slice 94, matrix row 67): escTarget
-// self-handling and the content-pane dialog priority entry.
-
 import (
 	"testing"
 )

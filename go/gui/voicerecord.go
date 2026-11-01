@@ -17,29 +17,16 @@ import (
 	"uniclient/engine"
 )
 
-// Hold-to-record voice notes (slice 114). The mic button sits in the
-// a.wid.composer (text empty + the account supports voice notes); press-and-
-// hold captures through the engine recorder while the a.wid.composer row
-// becomes the recording panel (red dot, elapsed, level bars, slide-to-
-// cancel hint). Release sends (≥ 0.9 s), slide left (or a pointercancel)
-// discards. Platforms without a microphone keep the button but the
-// engine's start error surfaces as a toast (§1.10 — honest, no dead UI:
-// the button only appears for cores that can send voice notes).
-
-// voiceRecTag is the single gesture tag: registered over the mic button
-// when idle and over the whole recording panel while capturing, so the
-// pointer grab survives the layout swap.
 var voiceRecTag = new(bool)
 
 type voiceRecState struct {
 	active   bool
 	press    bool
 	dragLeft bool
-	start    float32 // press X (slide-left reference)
+	start    float32
 	chat     chatKey
 }
 
-// voiceRecActive reports whether a capture is in progress.
 func (a *App) voiceRecActive() bool {
 	if !a.voiceRec.active || a.eng == nil {
 		return false
@@ -47,8 +34,6 @@ func (a *App) voiceRecActive() bool {
 	return a.eng.VoiceRecording().Active
 }
 
-// voiceRecWanted: the mic button renders when the a.wid.composer is empty,
-// nothing is being recorded, and the chat's core can send voice notes.
 func (a *App) voiceRecWanted(f frame) bool {
 	if f.msgFor == nil || a.voiceRec.active || f.sending {
 		return false
@@ -59,17 +44,13 @@ func (a *App) voiceRecWanted(f frame) bool {
 	return a.eng.VoiceRecordingSupported(f.msgFor.AccountID)
 }
 
-// voiceRecPanel replaces the a.wid.composer while recording.
 func (a *App) voiceRecPanel(gtx layout.Context, f frame, chat *engine.ChatInfo) layout.Dimensions {
 	rec := a.eng.VoiceRecording()
 	if !rec.Active {
-		// The engine stopped (min-duration discard, error): back to the
-		// a.wid.composer.
 		a.voiceRec.active = false
 		return a.composerBar(gtx, f, chat)
 	}
 
-	// Full-panel gesture surface for the ongoing hold.
 	{
 		area := clip.Rect{Max: gtx.Constraints.Min}.Push(gtx.Ops)
 		event.Op(gtx.Ops, voiceRecTag)
@@ -122,7 +103,6 @@ func (a *App) voiceRecPanel(gtx layout.Context, f frame, chat *engine.ChatInfo) 
 		})
 }
 
-// voiceRecTrackDrag updates the slide-left cancel zone.
 func (a *App) voiceRecTrackDrag(x float32) {
 	left := a.voiceRec.start - 80
 	now := x < left
@@ -132,8 +112,6 @@ func (a *App) voiceRecTrackDrag(x float32) {
 	}
 }
 
-// voiceRecFinish stops the capture: cancel discards, otherwise the note
-// is sent once it reached the minimum duration.
 func (a *App) voiceRecFinish(f frame, cancel bool) {
 	if !a.voiceRec.press {
 		return
@@ -163,9 +141,6 @@ func (a *App) voiceRecFinish(f frame, cancel bool) {
 		if k == nil {
 			return
 		}
-		// Ayu voiceConfirmation (slice 173): park the send behind the
-		// confirm card when the toggle is on. The temp recording file
-		// survives until the user decides.
 		send := func() {
 			if _, err := a.eng.SendVoiceNote(k.AccountID, k.ChatID, path, int(secs+0.5)); err != nil {
 				a.setToast("Voice note failed: " + err.Error())
@@ -176,8 +151,6 @@ func (a *App) voiceRecFinish(f frame, cancel bool) {
 	a.invalidate()
 }
 
-// voiceRecMicButton renders the hold-to-record mic control and drives
-// the press that starts the capture.
 func (a *App) voiceRecMicButton(gtx layout.Context, f frame) layout.Dimensions {
 	clk := a.voiceRecClickable(f)
 	dims := clk.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -186,8 +159,6 @@ func (a *App) voiceRecMicButton(gtx layout.Context, f frame) layout.Dimensions {
 		return btn.Layout(gtx)
 	})
 
-	// The gesture area exactly covers the button; the same tag later
-	// covers the recording panel, keeping the pointer grab alive.
 	{
 		area := clip.Rect{Max: dims.Size}.Push(gtx.Ops)
 		event.Op(gtx.Ops, voiceRecTag)
@@ -237,7 +208,6 @@ func voiceRecFilter() pointer.Filter {
 	return pointer.Filter{Target: voiceRecTag, Kinds: pointer.Press | pointer.Drag | pointer.Release | pointer.Cancel}
 }
 
-// startVoiceRecTicker redraws 10×/s while recording (elapsed + level).
 func (a *App) startVoiceRecTicker() {
 	a.mu.Lock()
 	if a.voiceRecTickerOn {
@@ -261,7 +231,6 @@ func (a *App) startVoiceRecTicker() {
 	}()
 }
 
-// voiceRecLevelBars draws the live input level as growing bars.
 func (a *App) voiceRecLevelBars(gtx layout.Context, level float64) layout.Dimensions {
 	w := gtx.Dp(unit.Dp(90))
 	h := gtx.Dp(unit.Dp(22))
@@ -293,12 +262,10 @@ func (a *App) voiceRecLevelBars(gtx layout.Context, level float64) layout.Dimens
 	return layout.Dimensions{Size: image.Pt(w, h)}
 }
 
-// drawRecDot renders the pulsing red recording dot.
 func drawRecDot(gtx layout.Context, d int, now time.Time) layout.Dimensions {
 	if d <= 0 {
 		return layout.Dimensions{}
 	}
-	// Pulse: 1 Hz between bright and dim.
 	phase := now.Sub(now.Truncate(time.Second)).Seconds()
 	alpha := byte(0xB0)
 	if phase < 0.5 {
@@ -310,8 +277,6 @@ func drawRecDot(gtx layout.Context, d int, now time.Time) layout.Dimensions {
 	gtx.Execute(op.InvalidateCmd{At: now.Add(500 * time.Millisecond)})
 	return layout.Dimensions{Size: image.Pt(d, d)}
 }
-
-// a.wid.voiceRecClickables keeps one stable clickable per chat mic button.
 
 func (a *App) voiceRecClickable(f frame) *widget.Clickable {
 	key := "mic"

@@ -6,23 +6,12 @@ import (
 	"unicode/utf16"
 )
 
-// B-50 → F-60: ParseMessageStyling existed with zero callers — XMPP
-// messages rendered with literal *bold* markers. applyStyling is the
-// wiring layer: it converts the parser's byte spans into the GUI's
-// UTF-16 TextEntity format AND strips the marker characters so the
-// rendered text is clean (Telegram-style: text without markers,
-// entities over it).
-//
-// Seam-RED (WORKLOG 292): undefined: applyStyling.
-// Wiring RED: source-scan needs both call sites (initial receive +
-// XEP-0308 correction) in handleMessage.
-
 func TestApplyStylingBasicSpans(t *testing.T) {
 	cases := []struct {
 		name     string
 		in       string
 		wantText string
-		wantEnts []TextEntity // compared as exact set (sorted by offset)
+		wantEnts []TextEntity
 	}{
 		{"plain passthrough", "hello world", "hello world", nil},
 		{"bold", "x *bold* y", "x bold y", []TextEntity{{Type: "bold", Offset: 2, Length: 4}}},
@@ -52,8 +41,6 @@ func TestApplyStylingBasicSpans(t *testing.T) {
 					t.Errorf("entity[%d] = %+v, want %+v", i, e, w)
 				}
 			}
-			// Invariant: every entity lies inside the cleaned text,
-			// measured in UTF-16 code units.
 			text16 := len(utf16.Encode([]rune(gotText)))
 			for _, e := range gotEnts {
 				if e.Offset < 0 || e.Length <= 0 || e.Offset+e.Length > text16 {
@@ -64,8 +51,6 @@ func TestApplyStylingBasicSpans(t *testing.T) {
 	}
 }
 
-// TestApplyStylingPreservesInnerStyledMultiByte: emoji INSIDE styled
-// text must keep both the entity and its UTF-16 length.
 func TestApplyStylingPreservesInnerStyledMultiByte(t *testing.T) {
 	gotText, gotEnts := applyStyling("say *hi 😀 there* ok")
 	if gotText != "say hi 😀 there ok" {
@@ -74,15 +59,11 @@ func TestApplyStylingPreservesInnerStyledMultiByte(t *testing.T) {
 	if len(gotEnts) != 1 || gotEnts[0].Type != "bold" {
 		t.Fatalf("entities = %+v", gotEnts)
 	}
-	// "say " = 4 utf16, inner "hi 😀 there" = 2+1(space)+2(😀)+1+5 = 11
 	if gotEnts[0].Offset != 4 || gotEnts[0].Length != 11 {
 		t.Fatalf("bold offset/len = %d/%d, want 4/11", gotEnts[0].Offset, gotEnts[0].Length)
 	}
 }
 
-// TestIncomingMessageWiring: source-scan pin — handleMessage must run
-// applyStyling on BOTH the initial receive and the XEP-0308
-// correction path (headless render → scan precedent B-51).
 func TestIncomingMessageWiring(t *testing.T) {
 	src, err := readFileLines("xmpp.go")
 	if err != nil {

@@ -1,11 +1,5 @@
 package gui
 
-// Group-call screen (AyuGram parity slice 102): once the user joins a group
-// call (call bar Join button), the Voice tab becomes a real call screen —
-// participant rows with speaking/muted/hand/video states from the engine's
-// polled GroupCallInfo, plus mute / raise-hand / leave controls dispatching
-// real engine calls. Pure derivations locked here.
-
 import (
 	"testing"
 
@@ -32,11 +26,9 @@ func TestGCSelfMuted(t *testing.T) {
 	ps := []engine.GroupCallParticipant{
 		{UserID: "2", DisplayName: "Bob", IsMuted: true},
 	}
-	// Self present → server truth wins over the optimistic local mirror.
 	if !gcSelfMuted(ps, "2", false) {
 		t.Fatal("server muted state must win when self is present")
 	}
-	// Self not yet in the list → the local mirror is the honest value.
 	if !gcSelfMuted(ps, "9", true) {
 		t.Fatal("self absent + localMuted=true must report muted")
 	}
@@ -46,22 +38,18 @@ func TestGCSelfMuted(t *testing.T) {
 }
 
 func TestGCShowRaiseHand(t *testing.T) {
-	// Force-muted by admin (cannot self-unmute) → raise-hand offered.
 	forced := []engine.GroupCallParticipant{{UserID: "2", IsMuted: true, CanSelfUnmute: false}}
 	if !gcShowRaiseHand(forced, "2") {
 		t.Fatal("force-muted self must see the raise-hand button")
 	}
-	// Self-muted (can unmute freely) → no hand button.
 	selfMuted := []engine.GroupCallParticipant{{UserID: "2", IsMuted: true, CanSelfUnmute: true}}
 	if gcShowRaiseHand(selfMuted, "2") {
 		t.Fatal("self-muted-with-unmute must not see the raise-hand button")
 	}
-	// Unmuted → no hand button.
 	unmuted := []engine.GroupCallParticipant{{UserID: "2", IsMuted: false}}
 	if gcShowRaiseHand(unmuted, "2") {
 		t.Fatal("unmuted self must not see the raise-hand button")
 	}
-	// Not in the list yet → no hand button (nothing to raise against).
 	if gcShowRaiseHand(forced, "9") {
 		t.Fatal("self absent → no raise-hand button")
 	}
@@ -73,7 +61,6 @@ func TestGCRows(t *testing.T) {
 		{UserID: "2", IsMuted: true, RaisedHandRating: 5},
 		{UserID: "3", DisplayName: "Carol", HasVideo: true},
 	}
-	// No self in the list: plain mapping, order preserved.
 	rows := gcRows(ps, "")
 	if len(rows) != 3 {
 		t.Fatalf("rows len = %d", len(rows))
@@ -81,7 +68,6 @@ func TestGCRows(t *testing.T) {
 	if rows[0].name != "Alice" || !rows[0].speaking || rows[0].muted || rows[0].self {
 		t.Fatalf("row0 = %+v", rows[0])
 	}
-	// Anonymous participant gets an honest fallback name.
 	if rows[1].name != "Participant" || rows[1].self || !rows[1].muted || !rows[1].hand {
 		t.Fatalf("row1 = %+v", rows[1])
 	}

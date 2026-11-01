@@ -4,11 +4,6 @@ import (
 	"testing"
 )
 
-// Boosts page (slice 192, parity row "Giveaways / boosts" — tdesktop's
-// boost info box): pure logic — level/progress composition from the status
-// map, booster row labels, list paging, own-boost gating. Layout verified
-// by compile + review (repo discipline).
-
 func boostStatusFixture(level, boosts, curLevel, nextLevel, gift int, myBoost bool) map[string]interface{} {
 	return map[string]interface{}{
 		"level":                level,
@@ -31,17 +26,14 @@ func TestBoostLevelLabel(t *testing.T) {
 }
 
 func TestBoostProgressFraction(t *testing.T) {
-	// 12 boosts, current level at 10, next level at 40 → 2/30.
 	f := boostStatusFixture(3, 12, 10, 40, 0, false)
 	if got := boostProgressFraction(f); got < 0.066 || got > 0.067 {
 		t.Errorf("boostProgressFraction = %v, want ~0.0667", got)
 	}
-	// Degenerate: no next level (max) → full bar.
 	f2 := boostStatusFixture(9, 500, 400, 400, 0, false)
 	if got := boostProgressFraction(f2); got != 1 {
 		t.Errorf("max-level fraction = %v, want 1", got)
 	}
-	// Missing fields → 0.
 	if got := boostProgressFraction(map[string]interface{}{}); got != 0 {
 		t.Errorf("empty fraction = %v, want 0", got)
 	}
@@ -52,7 +44,6 @@ func TestBoostToNextLabel(t *testing.T) {
 	if got := boostToNextLabel(f); got != "28 boosts to Level 4" {
 		t.Errorf("boostToNextLabel = %q, want 28 boosts to Level 4", got)
 	}
-	// Maxed: no next level.
 	f2 := boostStatusFixture(9, 500, 400, 400, 0, false)
 	if got := boostToNextLabel(f2); got != "Max level reached" {
 		t.Errorf("maxed label = %q, want Max level reached", got)
@@ -75,14 +66,12 @@ func TestBoosterRowLabel(t *testing.T) {
 	if sub == "" {
 		t.Error("boosterRowSub with multiplier+gift should not be empty")
 	}
-	// Multiplier chip renders ×3.
 	if !containsStr(boosterRowSub(row), "3") {
 		t.Errorf("boosterRowSub = %q, want multiplier mention", sub)
 	}
 }
 
 func TestBoostListRowsPaging(t *testing.T) {
-	// hasMore: next_offset present + count beyond loaded rows.
 	list := map[string]interface{}{
 		"count":       60,
 		"next_offset": "offset2",
@@ -95,7 +84,6 @@ func TestBoostListRowsPaging(t *testing.T) {
 	if len(rows) != 2 || next != "offset2" || total != 60 || !more {
 		t.Errorf("boostListFields = %d/%q/%d/%v", len(rows), next, total, more)
 	}
-	// No offset → no more pages even with count > rows.
 	list2 := map[string]interface{}{
 		"count":    10,
 		"boosters": []interface{}{map[string]interface{}{"user_name": "A"}},

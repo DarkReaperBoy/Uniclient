@@ -1,20 +1,5 @@
 package gui
 
-// tests-first for BUGS.md B-12 — the paid-media star wall must actually
-// render INSIDE the bubble and arm the unlock confirm card on click.
-//
-// Slice 181 built the whole chain (wall layout, confirm card, engine
-// UnlockPaidMedia) and parity row 153 marked it PRESENT — but
-// `layoutPaidMediaWall` was never called from any dispatch (git -S
-// shows one commit: the file's own), so users never saw a wall, a
-// price, or an unlock button. This test drives the REAL dispatch
-// (messageRow) through the real layout + the real router, and clicks
-// until the confirm card is armed: RED before the wiring.
-//
-// The button's exact rect is layout math we refuse to hard-code, so the
-// click is a sweep over the frame — if the wall rendered, some press
-// lands on it.
-
 import (
 	"image"
 	"testing"
@@ -28,8 +13,6 @@ import (
 	"uniclient/engine"
 )
 
-// paidWallTestMsg builds a locked (or unlocked) paid-media cached
-// message with the Extra shape parsePaidMedia expects.
 func paidWallTestMsg(msgID string, unlocked bool) *engine.CachedMessage {
 	raw := `{"extra":{"invoice_is_paid_media":true,"paid_stars":25,"paid_w":800,"paid_h":600`
 	if unlocked {
@@ -44,26 +27,14 @@ func paidWallTestMsg(msgID string, unlocked bool) *engine.CachedMessage {
 	}
 }
 
-// clickEverywhere sweeps press/release pairs over the star-wall zone
-// until stop() reports the click landed (or the grid runs out). The
-// button's exact rect is layout math we refuse to hard-code — but the
-// zone is bounded deliberately: the wall occupies the bubble's top
-// (preview ≤360dp + button row ≈ y 376..410 at the default 0.75 wide
-// factor), and staying inside it keeps the sweep off unrelated chrome
-// whose handlers want a live engine (this test's App has none).
 func clickEverywhere(t *testing.T, a *App, r *input.Router, ops *op.Ops,
 	gtx layout.Context, f frame, m *engine.CachedMessage, stop func() bool) {
 
 	t.Helper()
-	// Layout of ANY row fires loadFavoriteReaction (chat.go corner-pill
-	// setup), which spawns an engine call — favAttempted short-circuits
-	// it. The favorite fetch is not this test's subject; without the
-	// seed the goroutine derefs the nil engine and kills the binary.
 	favMu.Lock()
 	favAttempted[m.AccountID] = true
 	favMu.Unlock()
 
-	// Frame 1 registers the handlers the router will dispatch to.
 	a.messageRow(gtx, f, m)
 	r.Frame(ops)
 
@@ -82,9 +53,6 @@ func clickEverywhere(t *testing.T, a *App, r *input.Router, ops *op.Ops,
 	}
 }
 
-// TestPaidWallRendersInBubbleAndArmsConfirm: a locked paid post's
-// bubble must show the star wall, and pressing its Unlock button must
-// arm the confirm card with the message's price.
 func TestPaidWallRendersInBubbleAndArmsConfirm(t *testing.T) {
 	a := &App{ui: NewUI()}
 	a.wid.init()
@@ -112,9 +80,6 @@ func TestPaidWallRendersInBubbleAndArmsConfirm(t *testing.T) {
 	}
 }
 
-// TestPaidWallAbsentWhenUnlockedOrNotPaid: the wall may never swallow
-// unlocked paid media or ordinary messages (§1.10 — the real bubble
-// must render once the server says paid_unlocked).
 func TestPaidWallAbsentWhenUnlockedOrNotPaid(t *testing.T) {
 	for _, tc := range []struct {
 		name string

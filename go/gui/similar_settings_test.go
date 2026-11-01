@@ -7,14 +7,6 @@ import (
 	"uniclient/utils"
 )
 
-// Similar-channels AyuGram settings (slice 169, primary source:
-// AyuGramDesktop ayu_settings.h — hideSimilarChannels (default false) +
-// collapseSimilarChannels (default TRUE) — plus the per-chat expanded
-// state, tdesktop's ChannelDataFlag::SimilarExpanded parity).
-
-// TestSimilarBlockMode pins the pure render decision: hide wins over
-// everything, collapse renders the compact bar, otherwise the full card
-// row.
 func TestSimilarBlockMode(t *testing.T) {
 	cases := []struct {
 		hide, collapsed bool
@@ -23,7 +15,7 @@ func TestSimilarBlockMode(t *testing.T) {
 		{false, false, "expanded"},
 		{false, true, "collapsed"},
 		{true, false, "off"},
-		{true, true, "off"}, // hide beats collapse
+		{true, true, "off"},
 	}
 	for _, c := range cases {
 		if got := similarBlockMode(c.hide, c.collapsed); got != c.want {
@@ -32,9 +24,6 @@ func TestSimilarBlockMode(t *testing.T) {
 	}
 }
 
-// TestSimilarExpandedDefault pins AyuGram's collapse default semantics:
-// collapse-config ON (the default) means channels start collapsed, so the
-// expanded default is false.
 func TestSimilarExpandedDefault(t *testing.T) {
 	if similarExpandedDefault(true) {
 		t.Errorf("collapse on: channels start collapsed, expanded default must be false")
@@ -44,8 +33,6 @@ func TestSimilarExpandedDefault(t *testing.T) {
 	}
 }
 
-// TestSimilarCollapseEffective pins the *bool config resolution: nil =
-// collapsed (AyuGram ships collapse ON by default).
 func TestSimilarCollapseEffective(t *testing.T) {
 	if !utils.EffectiveCollapseSimilar(utils.AppConfig{}) {
 		t.Errorf("nil config must collapse (AyuGram default ON)")
@@ -60,9 +47,6 @@ func TestSimilarCollapseEffective(t *testing.T) {
 	}
 }
 
-// TestSimilarEffectiveExpanded pins the per-chat state resolution: an
-// explicit toggle beats the config default; absent falls back to it
-// (tdesktop's runtime SimilarExpanded flag over AyuGram's default).
 func TestSimilarEffectiveExpanded(t *testing.T) {
 	m := map[string]bool{"a|c1": true, "a|c2": false}
 	if !similarEffectiveExpanded(m, "a|c1", false) {
@@ -79,9 +63,6 @@ func TestSimilarEffectiveExpanded(t *testing.T) {
 	}
 }
 
-// TestAppendSimilarRowModes pins the row-model integration: hide drops the
-// row entirely, collapse renders the compact row, default renders the full
-// block row.
 func TestAppendSimilarRowModes(t *testing.T) {
 	chan_ := &engine.ChatInfo{AccountID: "a", ChatID: "1", Type: engine.ChatTypeChanVal}
 	base := []chatRow{{msgIdx: 0}}
@@ -97,7 +78,6 @@ func TestAppendSimilarRowModes(t *testing.T) {
 	if len(rows) != 2 || !rows[1].simBlock || rows[1].simCollapsed {
 		t.Errorf("default must append the block row, got %+v", rows[1:])
 	}
-	// No recommendations or non-channel chats never append either way.
 	if rows := appendSimilarRow(base, chan_, "", 0, false, true); len(rows) != 1 {
 		t.Errorf("zero recommendations must drop the row")
 	}
@@ -107,8 +87,6 @@ func TestAppendSimilarRowModes(t *testing.T) {
 	}
 }
 
-// TestConfigFieldChangesSimilar covers the new Ayu toggle keys through the
-// settings' config-fieldChanges mapping.
 func TestConfigFieldChangesSimilar(t *testing.T) {
 	c := configFieldChanges("ayu_hide_similar_channels", true)
 	if c == nil || c.AyuHideSimilarChannels == nil || !*c.AyuHideSimilarChannels {

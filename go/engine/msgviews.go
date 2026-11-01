@@ -1,31 +1,16 @@
 package engine
 
-// Channel-post view counting (slice 187, parity row "Ayu: Message
-// details" + tdesktop's channel-post meta): the visible history window
-// of an open channel refreshes its view/forward counters through ONE
-// messages.getMessagesViews RPC per pass (tdesktop's mechanism), writes
-// them to the cache, and emits a chat-updated event so the GUI's eye
-// glyph row goes live.
-
 import (
 	"database/sql"
 	"log"
 )
 
-// viewsProvider is the core surface the refresh needs (TelegramCore
-// implements it; cores without view counting simply never refresh).
 type viewsProvider interface {
 	GetMessagesViewsBatch(chatID string, msgIDs []string) (views, forwards map[string]int, err error)
 }
 
-// viewsRefreshCap bounds the ids in one refresh pass (tdesktop refreshes
-// the visible window; 60 posts covers a phone-height pane generously).
 const viewsRefreshCap = 60
 
-// RefreshMessageViews refreshes cached view/forward counters for the
-// newest channel posts of a chat and returns how many rows changed.
-// Non-channel chats and cores without the RPC are honest no-ops (0, nil)
-// — never an error the GUI would surface as broken.
 func (e *Engine) RefreshMessageViews(accountID, chatID string) (int, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -36,8 +21,6 @@ func (e *Engine) RefreshMessageViews(accountID, chatID string) (int, error) {
 		return 0, nil
 	}
 
-	// Channel posts only — the eye glyph is a channel feature
-	// (tdesktop HistoryView::refreshChannelViews).
 	var chatType int
 	err := e.db.QueryRow(
 		`SELECT type FROM chats WHERE account_id = ? AND chat_id = ?`, accountID, chatID).Scan(&chatType)
@@ -69,8 +52,6 @@ func (e *Engine) RefreshMessageViews(accountID, chatID string) (int, error) {
 
 	views, forwards, err := p.GetMessagesViewsBatch(chatID, ids)
 	if err != nil {
-		// Offline/unavailable is a quiet skip, not a surfaced error —
-		// the cached counters stay as honest as the last good refresh.
 		log.Printf("[engine] RefreshMessageViews(%s, %s): %v", accountID, chatID, err)
 		return 0, nil
 	}
@@ -117,6 +98,4 @@ func (e *Engine) RefreshMessageViews(accountID, chatID string) (int, error) {
 	return changed, nil
 }
 
-// ViewsRefreshInterval is the GUI's open-channel re-poll cadence
-// (tdesktop polls the visible window; 30s is its fallback cadence).
 const ViewsRefreshInterval = 30

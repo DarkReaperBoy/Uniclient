@@ -6,12 +6,6 @@ import (
 	"github.com/gotd/td/tg"
 )
 
-// Paid media (slice 181, parity row "Paid messages / paid posts"):
-// locked messageMediaPaidMedia converts into the paid_* Extra set (star
-// price, preview thumb + dims, first-video flag) with the invoice
-// attachment; unlocked extended media splices the real photo conversion
-// in (paid_unlocked + the price stay).
-
 func paidPreview() *tg.MessageExtendedMediaPreview {
 	pv := &tg.MessageExtendedMediaPreview{
 		W: 640,
@@ -64,7 +58,6 @@ func TestConvertPaidMediaLocked(t *testing.T) {
 	if v, _ := m.Extra["paid_unlocked"].(bool); v {
 		t.Error("locked media must not be paid_unlocked")
 	}
-	// The caption stays the message text.
 	if m.Text != "caption text" {
 		t.Errorf("text = %q", m.Text)
 	}
@@ -97,7 +90,6 @@ func TestConvertPaidMediaUnlockedPhoto(t *testing.T) {
 	if v, _ := m.Extra["paid_stars"].(int64); v != 25 {
 		t.Errorf("paid_stars (kept after unlock) = %v", m.Extra["paid_stars"])
 	}
-	// The real photo became the attachment (image ref, not the invoice).
 	if len(m.Attachments) != 1 {
 		t.Fatalf("attachments = %d", len(m.Attachments))
 	}
@@ -107,7 +99,6 @@ func TestConvertPaidMediaUnlockedPhoto(t *testing.T) {
 	if m.Attachments[0].MimeType != "image/jpeg" {
 		t.Errorf("attachment mime = %q", m.Attachments[0].MimeType)
 	}
-	// The photo's download coordinates are cached.
 	if tc.getCachedFileHash(77001) != 4242 {
 		t.Error("photo file info not cached")
 	}

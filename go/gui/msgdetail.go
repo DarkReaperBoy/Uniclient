@@ -1,13 +1,5 @@
 package gui
 
-// Message details (AyuGram parity slice 105): the context menu gains
-// AyuGram's "Message details" — a dialog of key/value rows derived from
-// what the engine actually caches: identity (message/sender IDs), dates
-// (sent/edited/deleted), delivery status, media metadata (name, mime,
-// size, dimensions, duration, DC, local path), forward origin, and message
-// flags. Nothing the engine does not know is invented (§1.10): no
-// fabricated view counts.
-
 import (
 	"fmt"
 	"image/color"
@@ -27,16 +19,12 @@ import (
 	"uniclient/engine"
 )
 
-// detailRow is one key/value line of the details dialog. action "author"
-// (slice 207) makes the row open the sticker-pack author's chat instead of
-// copying.
 type detailRow struct {
 	label  string
 	value  string
 	action string
 }
 
-// detailStamp formats a unix timestamp: time-of-day today, day+time older.
 func detailStamp(ts int64, now time.Time) string {
 	if ts <= 0 {
 		return ""
@@ -48,7 +36,6 @@ func detailStamp(ts int64, now time.Time) string {
 	return t.Format("2 Jan 2006 · 15:04")
 }
 
-// detailStatusText maps a delivery status to its label.
 func detailStatusText(status int) string {
 	switch status {
 	case engine.MsgStatusSending:
@@ -63,8 +50,6 @@ func detailStatusText(status int) string {
 	return ""
 }
 
-// dcNameLabel (pure, testable): AyuGram's getDCName mapping —
-// DC1/3 Miami, DC2/4 Amsterdam, DC5 Singapore, unknown beyond.
 func dcNameLabel(dc int) string {
 	if dc < 1 {
 		return ""
@@ -81,9 +66,6 @@ func dcNameLabel(dc int) string {
 	return fmt.Sprintf("DC%d, %s", dc, place)
 }
 
-// msgDetailRows derives the dialog rows from the cached message (pure).
-// stickerAuthor is the resolved display name of the sticker-pack author
-// ("" = unresolved → the row falls back to "user <id>").
 func msgDetailRows(m engine.CachedMessage, now time.Time, stickerAuthor string) []detailRow {
 	var rows []detailRow
 	add := func(label, value string) {
@@ -110,8 +92,6 @@ func msgDetailRows(m engine.CachedMessage, now time.Time, stickerAuthor string) 
 	add("Status", detailStatusText(m.Status))
 	add("Forwarded from", m.ForwardFrom)
 	add("Reply to", m.ReplyToID)
-	// Channel-post counters (slice 187): views/forwards are now cached
-	// and refreshed while the channel is open.
 	if m.Views > 0 {
 		add("Views", viewsCountLabel(m.Views))
 	}
@@ -130,8 +110,6 @@ func msgDetailRows(m engine.CachedMessage, now time.Time, stickerAuthor string) 
 		if m.MediaDuration > 0 {
 			add("Duration", fmtDur(m.MediaDuration))
 		}
-		// Datacenter (slice 207, AyuGram "Datacenter" row): the DC
-		// hosting the media file.
 		add("Datacenter", dcNameLabel(m.MediaDC))
 		add("Saved at", m.MediaLocalPath)
 	}
@@ -144,9 +122,6 @@ func msgDetailRows(m engine.CachedMessage, now time.Time, stickerAuthor string) 
 	if m.NoForwards {
 		add("Forwarding restricted", "yes")
 	}
-	// Sticker author (slice 207, AyuGram ContextActionStickerAuthor):
-	// the pack owner derived from the cached set ID — tappable, opens
-	// the author's chat.
 	if authorID := engine.StickerPackAuthorID(m.StickerSetID()); authorID != 0 {
 		value := stickerAuthor
 		if value == "" {
@@ -157,24 +132,18 @@ func msgDetailRows(m engine.CachedMessage, now time.Time, stickerAuthor string) 
 	return rows
 }
 
-// msgDetailMenuGate: which messages offer the details item — every real
-// message; service messages are system rows, not user content.
 func msgDetailMenuGate(m engine.CachedMessage) bool { return !m.IsService }
 
-// ── dialog state ──────────────────────────────────────────────────────────
-
-// msgDetailState is the open details dialog (nil when closed).
 type msgDetailState struct {
 	msg        engine.CachedMessage
-	authorID   int64  // sticker-pack author (0 = none)
-	authorName string // resolved display name ("" = pending/unresolved)
+	authorID   int64
+	authorName string
 }
 
 var (
 	detailKeyTag = new(struct{})
 )
 
-// openMsgDetailDialog shows the details dialog for a message.
 func (a *App) openMsgDetailDialog(m *engine.CachedMessage) {
 	if m == nil || !msgDetailMenuGate(*m) {
 		return
@@ -188,8 +157,6 @@ func (a *App) openMsgDetailDialog(m *engine.CachedMessage) {
 	if authorID == 0 {
 		return
 	}
-	// Resolve the author's profile (users.getFullUser) so the row shows a
-	// real name and the chat-open hop has the peer access hash cached.
 	go func() {
 		if prof, err := a.eng.GetUserProfile(msg.AccountID, strconv.FormatInt(authorID, 10)); err == nil && prof != nil {
 			a.mu.Lock()
@@ -202,8 +169,6 @@ func (a *App) openMsgDetailDialog(m *engine.CachedMessage) {
 	}()
 }
 
-// openMsgDetailAuthor opens the sticker-pack author's chat from the
-// details dialog (search-result open pattern: chat key + title).
 func (a *App) openMsgDetailAuthor(d *msgDetailState) {
 	if d == nil || d.authorID == 0 {
 		return
@@ -216,7 +181,6 @@ func (a *App) openMsgDetailAuthor(d *msgDetailState) {
 	a.openChat(chatKey{AccountID: d.msg.AccountID, ChatID: strconv.FormatInt(d.authorID, 10)}, title)
 }
 
-// closeMsgDetailDialog dismisses it.
 func (a *App) closeMsgDetailDialog() {
 	a.mu.Lock()
 	a.msgDetailDlg = nil
@@ -224,16 +188,10 @@ func (a *App) closeMsgDetailDialog() {
 	a.invalidate()
 }
 
-// ── layout ────────────────────────────────────────────────────────────────
-
-// layoutMsgDetail renders the details dialog: a centered card over a scrim
-// (reactors/dialog pattern), scrollable rows, Esc/backdrop to close, tap a
-// row to copy its value.
 func (a *App) layoutMsgDetail(gtx layout.Context, f frame) layout.Dimensions {
 	d := f.msgDetailDlg
 	rows := msgDetailRows(d.msg, f.now, d.authorName)
 
-	// Keyboard: Esc closes.
 	{
 		stack := clip.Rect{Max: gtx.Constraints.Max}.Push(gtx.Ops)
 		event.Op(gtx.Ops, detailKeyTag)
@@ -249,7 +207,6 @@ func (a *App) layoutMsgDetail(gtx layout.Context, f frame) layout.Dimensions {
 		}
 	}
 
-	// Backdrop press closes.
 	for {
 		ev, ok := gtx.Source.Event(pointer.Filter{Target: detailBgTag, Kinds: pointer.Press})
 		if !ok {
@@ -273,8 +230,6 @@ func (a *App) layoutMsgDetail(gtx layout.Context, f frame) layout.Dimensions {
 	for i := range rows {
 		if btn := &a.wid.detailRowBtns[i]; btn.Clicked(gtx) {
 			if rows[i].action == "author" {
-				// Sticker author (slice 207): open the author's chat
-				// (the profile fetch cached the peer access hash).
 				a.openMsgDetailAuthor(d)
 			} else {
 				a.copyTextSoon(rows[i].value)
@@ -283,7 +238,6 @@ func (a *App) layoutMsgDetail(gtx layout.Context, f frame) layout.Dimensions {
 		}
 	}
 
-	// Centered card.
 	cardW := gtx.Dp(unit.Dp(340))
 	if cardW > gtx.Constraints.Max.X-gtx.Dp(unit.Dp(32)) {
 		cardW = gtx.Constraints.Max.X - gtx.Dp(unit.Dp(32))
@@ -337,7 +291,6 @@ func (a *App) layoutMsgDetail(gtx layout.Context, f frame) layout.Dimensions {
 	})
 }
 
-// detailRowWidget renders one key/value row (clickable → copy).
 func (a *App) detailRowWidget(gtx layout.Context, r detailRow, btn *widget.Clickable) layout.Dimensions {
 	return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(2)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		bl := material.ButtonLayout(a.ui.Theme, btn)
@@ -364,7 +317,6 @@ func (a *App) detailRowWidget(gtx layout.Context, r detailRow, btn *widget.Click
 
 var detailBgTag = new(struct{})
 
-// scrimColor: the dialog backdrop.
 func scrimColor() color.NRGBA {
 	return color.NRGBA{R: 0x00, G: 0x00, B: 0x00, A: 0xB0}
 }

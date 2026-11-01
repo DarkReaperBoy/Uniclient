@@ -1,22 +1,11 @@
 package cores
 
-// telegram_gifts.go — slice 211: star gifts. tdesktop star_gift_box.cpp:
-// the gift catalog (payments.getStarGifts), the per-user gift-amount
-// options (payments.getStarsGiftOptions), and the balance-funded checkout
-// payments.getPaymentForm(inputInvoiceStarGift) → payments.sendStarsForm —
-// everything in-app, no external checkout (insufficient balance surfaces
-// an honest error pointing at the Stars settings page).
-
 import (
 	"fmt"
 
 	"github.com/gotd/td/tg"
 )
 
-// starGiftsFromWire normalizes the payments.getStarGifts catalog into
-// StarGiftsResult. Collectible (unique) gifts are resale objects, not
-// catalog purchases — excluded. Sold-out gifts stay listed (the picker
-// shows them disabled — tdesktop does the same). Pure — unit-tested.
 func starGiftsFromWire(res *tg.PaymentsStarGifts) *StarGiftsResult {
 	out := &StarGiftsResult{}
 	if res == nil {
@@ -57,8 +46,6 @@ func starGiftsFromWire(res *tg.PaymentsStarGifts) *StarGiftsResult {
 	return out
 }
 
-// giftOptionsFromWire normalizes payments.getStarsGiftOptions. Pure —
-// unit-tested.
 func giftOptionsFromWire(opts []tg.StarsGiftOption) []StarsGiftAmount {
 	out := make([]StarsGiftAmount, 0, len(opts))
 	for _, o := range opts {
@@ -77,8 +64,6 @@ func giftOptionsFromWire(opts []tg.StarsGiftOption) []StarsGiftAmount {
 	return out
 }
 
-// starGiftInvoice builds the inputInvoiceStarGift purchase invoice. Pure —
-// unit-tested.
 func starGiftInvoice(peer tg.InputPeerClass, giftID int64, message string, hideName bool) tg.InputInvoiceClass {
 	inv := &tg.InputInvoiceStarGift{
 		Peer:   peer,
@@ -93,9 +78,6 @@ func starGiftInvoice(peer tg.InputPeerClass, giftID int64, message string, hideN
 	return inv
 }
 
-// GetStarGifts returns the purchasable gift catalog (payments.getStarGifts).
-// GetStarGifts returns the purchasable gift catalog (payments.getStarGifts).
-// Replaces the pre-slice-211 stub that returned empty items and a 6-cap.
 func (t *TelegramCore) GetStarGifts() (*StarGiftsResult, error) {
 	api, ctx, err := t.withAPI()
 	if err != nil {
@@ -115,8 +97,6 @@ func (t *TelegramCore) GetStarGifts() (*StarGiftsResult, error) {
 	}
 }
 
-// GetStarsGiftOptions lists the star amounts giftable to one user
-// (payments.getStarsGiftOptions).
 func (t *TelegramCore) GetStarsGiftOptions(userID string) ([]StarsGiftAmount, error) {
 	api, ctx, err := t.withAPI()
 	if err != nil {
@@ -140,12 +120,6 @@ func (t *TelegramCore) GetStarsGiftOptions(userID string) ([]StarsGiftAmount, er
 	return giftOptionsFromWire(opts), nil
 }
 
-// SendStarGift purchases one catalog gift for the peer from the account's
-// star balance: payments.getPaymentForm(inputInvoiceStarGift) →
-// payments.sendStarsForm. Replaces the pre-slice-211 sendPaymentForm
-// variant (wrong form type + empty credentials). PaymentVerificationNeeded
-// (insufficient balance) is an honest error — the topup lives in the
-// Stars settings page.
 func (t *TelegramCore) SendStarGift(chatID string, giftID int64, message string, hideName bool) error {
 	api, ctx, err := t.withAPI()
 	if err != nil {
@@ -183,8 +157,6 @@ func (t *TelegramCore) SendStarGift(chatID string, giftID int64, message string,
 	case *tg.PaymentsPaymentResult:
 		return nil
 	case *tg.PaymentsPaymentVerificationNeeded:
-		// r.URL would open a browser topup — the Stars settings page is
-		// the in-app equivalent; the honest error points there.
 		_ = r
 		return fmt.Errorf("payment needs verification — top up in Settings → Telegram Stars")
 	default:

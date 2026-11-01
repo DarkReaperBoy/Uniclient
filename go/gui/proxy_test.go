@@ -6,8 +6,6 @@ import (
 	"uniclient/utils"
 )
 
-// Proxy settings (slice 85): segment mapping + port parsing + persistence.
-
 func TestProxyModeIndex(t *testing.T) {
 	cases := []struct {
 		in, want int
@@ -55,8 +53,6 @@ func TestProxyConfigPersistShape(t *testing.T) {
 	if pc.Mode != 2 || pc.Type != "socks5" || pc.Port != "1080" {
 		t.Errorf("proxy config = %+v", pc)
 	}
-	// The engine's boot restore requires the mode field on the persisted
-	// struct — pin its presence.
 	if pc.Mode != 2 {
 		t.Fatal("utils.ProxyConfig lost its Mode field")
 	}

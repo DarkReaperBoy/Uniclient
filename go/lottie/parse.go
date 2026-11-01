@@ -1,10 +1,5 @@
 package lottie
 
-// parse.go — Stage A JSON decoding of the Bodymovin subset used by .tgs
-// animated stickers. Lenient by design (unknown fields are skipped, not
-// rejected), strict where the format demands it (the container must be
-// gzip; image/text assets are rejected — .tgs never has them).
-
 import (
 	"bytes"
 	"compress/gzip"
@@ -13,13 +8,8 @@ import (
 	"io"
 )
 
-// tgsMaxDecompressed caps .tgs inflation: the download layer bounds the
-// compressed sticker, but gzip can expand far beyond that (bomb sibling
-// of F-53, slice-284). Legit stickers inflate to a few MB. Test
-// overrides it downward.
 var tgsMaxDecompressed int64 = 32 * 1024 * 1024
 
-// ParseTgs decodes a Telegram .tgs file: gzip → JSON → Animation.
 func ParseTgs(data []byte) (*Animation, error) {
 	zr, err := gzip.NewReader(bytes.NewReader(data))
 	if err != nil {
@@ -36,7 +26,6 @@ func ParseTgs(data []byte) (*Animation, error) {
 	return ParseAnimationJSON(raw)
 }
 
-// ParseAnimationJSON decodes a Bodymovin JSON document.
 func ParseAnimationJSON(data []byte) (*Animation, error) {
 	var doc rawAnimation
 	if err := json.Unmarshal(data, &doc); err != nil {
@@ -72,8 +61,6 @@ func ParseAnimationJSON(data []byte) (*Animation, error) {
 	return anim, nil
 }
 
-// raw structs mirror the JSON loosely; json.RawMessage would be heavier
-// than letting the decoder skip unknown keys.
 type rawAnimation struct {
 	Name      string      `json:"nm"`
 	Version   string      `json:"v"`
@@ -92,20 +79,19 @@ type rawAsset struct {
 }
 
 type rawLayer struct {
-	Name      string       `json:"nm"`
-	Index     json.Number  `json:"ind"`
-	Type      json.Number  `json:"ty"`
-	Parent    json.Number  `json:"parent"`
-	RefID     string       `json:"refId"`
-	InPoint   json.Number  `json:"ip"`
-	OutPoint  json.Number  `json:"op"`
-	StartTime json.Number  `json:"st"`
-	Transform rawTransform `json:"ks"`
-	Shapes    []rawShape   `json:"shapes"`
-	// solids
-	SolidColor []float64   `json:"sc"`
-	SolidW     json.Number `json:"sw"`
-	SolidH     json.Number `json:"sh"`
+	Name       string       `json:"nm"`
+	Index      json.Number  `json:"ind"`
+	Type       json.Number  `json:"ty"`
+	Parent     json.Number  `json:"parent"`
+	RefID      string       `json:"refId"`
+	InPoint    json.Number  `json:"ip"`
+	OutPoint   json.Number  `json:"op"`
+	StartTime  json.Number  `json:"st"`
+	Transform  rawTransform `json:"ks"`
+	Shapes     []rawShape   `json:"shapes"`
+	SolidColor []float64    `json:"sc"`
+	SolidW     json.Number  `json:"sw"`
+	SolidH     json.Number  `json:"sh"`
 }
 
 type rawTransform struct {
@@ -118,11 +104,6 @@ type rawTransform struct {
 	SkewAxis json.RawMessage `json:"sa"`
 }
 
-// rawShape carries one JSON key exactly once; the meaning of shared keys
-// ("s" size/scale/trim-start, "e" trim-end/gradient-end, "r" corner/
-// rotation, "o" opacity/trim-offset) is resolved per item type in
-// parseShape. Duplicate json tags in a single struct would silently drop
-// data (later fields win), so this shape is deliberate.
 type rawShape struct {
 	Type     string          `json:"ty"`
 	Name     string          `json:"nm"`
@@ -143,7 +124,6 @@ type rawShape struct {
 	Colors   json.RawMessage `json:"g"`
 }
 
-// parseShape converts one raw shape item recursively.
 func parseShape(rs rawShape) Shape {
 	sh := Shape{Type: rs.Type, Name: rs.Name, Hidden: rs.Hidden}
 	switch rs.Type {
@@ -171,20 +151,20 @@ func parseShape(rs rawShape) Shape {
 		sh.LineJoin = int(numOr(rs.LineJoin, 1))
 	case ShapeGradient:
 		sh.GradType = int(numOr(rs.GradType, 1))
-		sh.Start = parsePropRaw(rs.Size) // "s" = gradient start
-		sh.End = parsePropRaw(rs.End)    // "e" = gradient end
+		sh.Start = parsePropRaw(rs.Size)
+		sh.End = parsePropRaw(rs.End)
 		sh.Colors = parsePropRaw(rs.Colors)
 	case ShapeTrim:
-		sh.TrimStart = parsePropRaw(rs.Size)  // "s"
-		sh.TrimEnd = parsePropRaw(rs.End)     // "e"
-		sh.TrimOff = parsePropRaw(rs.Opacity) // "o"
+		sh.TrimStart = parsePropRaw(rs.Size)
+		sh.TrimEnd = parsePropRaw(rs.End)
+		sh.TrimOff = parsePropRaw(rs.Opacity)
 	case ShapeTransform:
 		sh.Transform = parseTransform(rawTransform{
-			Opacity:  rs.Opacity,  // "o"
-			Rotation: rs.Round,    // "r"
-			Position: rs.Position, // "p"
-			Anchor:   rs.Anchor,   // "a"
-			Scale:    rs.Size,     // "s"
+			Opacity:  rs.Opacity,
+			Rotation: rs.Round,
+			Position: rs.Position,
+			Anchor:   rs.Anchor,
+			Scale:    rs.Size,
 		})
 	}
 	return sh
@@ -230,7 +210,6 @@ func parseTransform(rt rawTransform) Transform {
 	}
 }
 
-// parseProp decodes a property object {"a","k"} or bare value.
 func parseProp(data []byte) Prop {
 	if len(data) == 0 {
 		return Prop{}
@@ -249,10 +228,8 @@ type rawProp struct {
 
 func propFromRaw(raw rawProp) Prop {
 	if raw.A == 1 {
-		// animated: k = keyframe array
 		var kfs []rawKeyframe
 		if err := json.Unmarshal(raw.K, &kfs); err != nil {
-			// Some files use "k" as an expression object — treat as static.
 			return Prop{}
 		}
 		p := Prop{Animated: true, Keyframes: make([]Keyframe, 0, len(kfs))}
@@ -273,8 +250,6 @@ func propFromRaw(raw rawProp) Prop {
 				kf.EaseOutX = floatSlice(rk.EaseOut.X)
 				kf.EaseOutY = floatSlice(rk.EaseOut.Y)
 			}
-			// EndV may be omitted on the last keyframe — the next key's
-			// start (or its own start) completes it.
 			if kf.EndV == nil && i+1 < len(kfs) {
 				kf.EndV = floatSlice(kfs[i+1].Start)
 			}
@@ -282,7 +257,6 @@ func propFromRaw(raw rawProp) Prop {
 		}
 		return p
 	}
-	// static: k = scalar, vector, or path shape object
 	var num json.Number
 	if err := json.Unmarshal(raw.K, &num); err == nil {
 		f, _ := num.Float64()
@@ -292,9 +266,6 @@ func propFromRaw(raw rawProp) Prop {
 	if err := json.Unmarshal(raw.K, &vec); err == nil {
 		return Prop{Vec: vec}
 	}
-	// path shape {"a","k","i","o","c"} — keep the vertices in Vec for
-	// Stage B (animated path objects: a=1 branch above already handles
-	// the keyframe form).
 	var shape rawPathProp
 	if err := json.Unmarshal(raw.K, &shape); err == nil && shape.K != nil {
 		return Prop{Vec: flattenPathVertices(shape.K)}
@@ -326,8 +297,6 @@ type rawPathProp struct {
 	C bool            `json:"c"`
 }
 
-// flattenPathVertices pulls [x,y] pairs out of the [[v],[v]...] form for
-// the Vec slot (Stage B reconstructs full segments).
 func flattenPathVertices(raw json.RawMessage) []float64 {
 	var verts [][]float64
 	if err := json.Unmarshal(raw, &verts); err != nil {
@@ -357,7 +326,6 @@ func floatSlice(raw json.RawMessage) []float64 {
 	return out
 }
 
-// numOr parses a json.Number with a default for absent/invalid values.
 func numOr(n json.Number, def float64) float64 {
 	if n == "" {
 		return def

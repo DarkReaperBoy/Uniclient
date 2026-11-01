@@ -18,7 +18,6 @@ import (
 	"uniclient/utils"
 )
 
-// PendingAction represents the type of outbound operation.
 const (
 	ActionSend         = "send"
 	ActionEdit         = "edit"
@@ -31,7 +30,6 @@ const (
 	ActionResendAlbum  = "resend_album"
 )
 
-// sendPayload is the serialized payload for a "send" action.
 type sendPayload struct {
 	Text            string             `json:"text"`
 	ReplyToID       string             `json:"reply_to_id,omitempty"`
@@ -47,27 +45,23 @@ type sendPayload struct {
 	NoWebpage       bool               `json:"no_webpage,omitempty"`
 }
 
-// editPayload is the serialized payload for an "edit" action.
 type editPayload struct {
 	MsgID        string `json:"msg_id"`
 	NewText      string `json:"new_text"`
 	EntitiesJSON string `json:"entities_json,omitempty"`
 }
 
-// deletePayload is the serialized payload for a "delete" action.
 type deletePayload struct {
 	MsgID  string `json:"msg_id"`
-	Revoke bool   `json:"revoke"` // also delete for the other participant(s)
+	Revoke bool   `json:"revoke"`
 }
 
-// reactPayload is the serialized payload for a "react" action.
 type reactPayload struct {
 	MsgID  string   `json:"msg_id"`
-	Emoji  string   `json:"emoji,omitempty"`  // single-reaction form
-	Emojis []string `json:"emojis,omitempty"` // full-list form (toggle semantics, slice 159)
+	Emoji  string   `json:"emoji,omitempty"`
+	Emojis []string `json:"emojis,omitempty"`
 }
 
-// forwardPayload is the serialized payload for a "forward" action.
 type forwardPayload struct {
 	MsgID        string `json:"msg_id"`
 	ToChatID     string `json:"to_chat_id"`
@@ -77,7 +71,6 @@ type forwardPayload struct {
 	ScheduleDate int64  `json:"schedule_date,omitempty"`
 }
 
-// forwardBatchPayload is the serialized payload for a "forward_batch" action.
 type forwardBatchPayload struct {
 	MsgIDs       []string `json:"msg_ids"`
 	ToChatID     string   `json:"to_chat_id"`
@@ -87,7 +80,6 @@ type forwardBatchPayload struct {
 	ScheduleDate int64    `json:"schedule_date,omitempty"`
 }
 
-// resendAsOwnPayload is the serialized payload for a "resend_as_own" action.
 type resendAsOwnPayload struct {
 	MsgID        string `json:"msg_id"`
 	SourceChatID string `json:"source_chat_id"`
@@ -97,7 +89,6 @@ type resendAsOwnPayload struct {
 	DropCaptions bool   `json:"drop_captions,omitempty"`
 }
 
-// resendAlbumPayload is the serialized payload for a "resend_album" action.
 type resendAlbumPayload struct {
 	MsgIDs       []string `json:"msg_ids"`
 	SourceChatID string   `json:"source_chat_id"`
@@ -107,7 +98,6 @@ type resendAlbumPayload struct {
 	DropCaptions bool     `json:"drop_captions,omitempty"`
 }
 
-// pendingItem represents a row in the pending table.
 type pendingItem struct {
 	ID         int64
 	AccountID  string
@@ -121,14 +111,12 @@ type pendingItem struct {
 	CreatedAt  int64
 }
 
-// generateLocalID creates a unique local message ID.
 func generateLocalID() string {
 	b := make([]byte, 8)
 	rand.Read(b)
 	return "local_" + hex.EncodeToString(b)
 }
 
-// Per-chat send locks ensure message ordering within a chat.
 var (
 	chatSendMu    sync.Mutex
 	chatSendLocks = make(map[string]*sync.Mutex)
@@ -146,8 +134,6 @@ func getChatLock(accountID, chatID string) *sync.Mutex {
 	return m
 }
 
-// SendMessage queues a message for sending through the pending queue.
-// Returns the local_id for optimistic UI display.
 func (e *Engine) SendMessage(accountID, chatID, text, replyToID string, entities []cores.TextEntity, silent bool, scheduleDate int64, topicRootID string, webPageUrl string, forceLargeMedia bool, forceSmallMedia bool, invertMedia bool, webPageOptional bool, noWebpage bool) (string, error) {
 	log.Printf("[engine] SendMessage(%s, %s): text=%q replyToID=%q silent=%v scheduleDate=%d topicRootID=%q", accountID, chatID, text, replyToID, silent, scheduleDate, topicRootID)
 	acc, ok := e.getAccount(accountID)
@@ -173,7 +159,6 @@ func (e *Engine) SendMessage(accountID, chatID, text, replyToID string, entities
 		NoWebpage:       noWebpage,
 	})
 
-	// Write to pending table.
 	_, err := e.db.Exec(
 		`INSERT INTO pending (account_id, chat_id, local_id, action, payload, status, created_at)
                  VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -183,13 +168,11 @@ func (e *Engine) SendMessage(accountID, chatID, text, replyToID string, entities
 	}
 
 	if scheduleDate <= 0 {
-		// Insert optimistic message into cache (not for scheduled messages).
 		var senderName string
 		if acc.DisplayName != "" {
 			senderName = acc.DisplayName
 		}
 
-		// Look up reply preview if replying.
 		var replyPreview string
 		if replyToID != "" {
 			var sn, ct sql.NullString
@@ -215,14 +198,12 @@ func (e *Engine) SendMessage(accountID, chatID, text, replyToID string, entities
 				replyPreview, accountID, chatID, localID)
 		}
 
-		// Update chat preview.
 		preview := text
 		if len(preview) > 100 {
 			preview = preview[:100]
 		}
 		e.updateChatLastMessage(accountID, chatID, localID, preview, senderName, now, true, MsgStatusSending, 0, "")
 
-		// Emit message event.
 		e.emitEvent(EventMsgReceived, accountID, MsgReceivedEvent{
 			AccountID: accountID,
 			ChatID:    chatID,
@@ -230,7 +211,6 @@ func (e *Engine) SendMessage(accountID, chatID, text, replyToID string, entities
 		})
 	}
 
-	// Process in background.
 	e.wg.Add(1)
 	go func() {
 		defer e.wg.Done()
@@ -265,16 +245,10 @@ func (e *Engine) SendContact(accountID, toChatID, phone, firstName, lastName, us
 	return "", nil
 }
 
-// UploadFile sends a file from the local filesystem to a chat.
 func (e *Engine) UploadFile(accountID, chatID, filePath, caption string) (string, error) {
 	return e.UploadFileEx(accountID, chatID, filePath, cores.UploadOptions{Caption: caption})
 }
 
-// SendMediaAlbumFromPaths uploads multiple files as one album message when
-// the core supports it (cores.MediaAlbumSender), falling back to sequential
-// single uploads otherwise. Paths must be readable local files (the GUI
-// resolves picked files to paths / temp copies). The caption applies to the
-// first item (AyuGram album caption behavior).
 func (e *Engine) SendMediaAlbumFromPaths(accountID, chatID string, paths []string, caption string, silent bool) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -284,7 +258,6 @@ func (e *Engine) SendMediaAlbumFromPaths(accountID, chatID string, paths []strin
 		return fmt.Errorf("no files to send")
 	}
 
-	// Single file: plain upload with the caption.
 	if len(paths) == 1 {
 		_, err := e.UploadFileEx(accountID, chatID, paths[0], cores.UploadOptions{Caption: caption, Silent: silent})
 		return err
@@ -292,7 +265,6 @@ func (e *Engine) SendMediaAlbumFromPaths(accountID, chatID string, paths []strin
 
 	sender, hasAlbum := acc.Core.(cores.MediaAlbumSender)
 	if !hasAlbum {
-		// No album support: send sequentially; first file carries the caption.
 		var firstErr error
 		for i, p := range paths {
 			itemCaption := ""
@@ -357,7 +329,6 @@ func (e *Engine) SendMediaAlbumFromPaths(accountID, chatID string, paths []strin
 	return nil
 }
 
-// UploadFileEx sends a file with extended options (spoiler, sendAsDocument, etc.).
 func (e *Engine) UploadFileEx(accountID, chatID, filePath string, opts cores.UploadOptions) (string, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -407,7 +378,6 @@ func (e *Engine) UploadFileEx(accountID, chatID, filePath string, opts cores.Upl
 	return "", nil
 }
 
-// detectMimeType guesses MIME type from file extension.
 func detectMimeType(path string) string {
 	ext := strings.ToLower(filepath.Ext(path))
 	switch ext {
@@ -440,7 +410,6 @@ func detectMimeType(path string) string {
 	}
 }
 
-// EditMessage queues a message edit.
 func (e *Engine) EditMessage(accountID, chatID, msgID, newText, entitiesJSON string) error {
 	localID := generateLocalID()
 	now := time.Now().UnixMilli()
@@ -463,8 +432,6 @@ func (e *Engine) EditMessage(accountID, chatID, msgID, newText, entitiesJSON str
 	return nil
 }
 
-// DeleteMessage queues a message delete. revoke also deletes the message for
-// the other participant(s) ("delete for everyone").
 func (e *Engine) DeleteMessage(accountID, chatID, msgID string, revoke bool) error {
 	localID := generateLocalID()
 	now := time.Now().UnixMilli()
@@ -487,7 +454,6 @@ func (e *Engine) DeleteMessage(accountID, chatID, msgID string, revoke bool) err
 	return nil
 }
 
-// ForwardMessage queues a message forward to another chat.
 func (e *Engine) ForwardMessage(accountID, chatID, msgID, toChatID string, dropAuthor, dropCaptions, silent bool, scheduleDate int64) error {
 	localID := generateLocalID()
 	now := time.Now().UnixMilli()
@@ -514,8 +480,6 @@ func (e *Engine) ForwardMessage(accountID, chatID, msgID, toChatID string, dropA
 	return nil
 }
 
-// ForwardMessages forwards multiple messages in a single Telegram API call,
-// preserving album grouping. Used by AyuForward for native batch forwarding.
 func (e *Engine) ForwardMessages(accountID, chatID string, msgIDs []string, toChatID string, dropAuthor, dropCaptions, silent bool, scheduleDate int64) error {
 	if len(msgIDs) == 0 {
 		return nil
@@ -545,9 +509,6 @@ func (e *Engine) ForwardMessages(accountID, chatID string, msgIDs []string, toCh
 	return nil
 }
 
-// ResendAsOwn downloads a source message's content and resends it as a new
-// message (no forward header) to toChatID. Used by AyuForward for restricted
-// content that can't be natively forwarded.
 func (e *Engine) ResendAsOwn(accountID, sourceChatID, msgID, toChatID string, silent bool, scheduleDate int64, dropCaptions bool) error {
 	localID := generateLocalID()
 	now := time.Now().UnixMilli()
@@ -565,18 +526,11 @@ func (e *Engine) ResendAsOwn(accountID, sourceChatID, msgID, toChatID string, si
 		return err
 	}
 
-	// Run synchronously so the caller's await reflects the genuine
-	// download+upload duration. AyuGram's resend is a blocking per-message send
-	// (AyuSync::*Sync, gated on a TimedCountDownLatch); mirroring that here makes
-	// the "Forwarding i/N" progress bar advance on real send completion rather
-	// than on enqueue. The pending row still provides retry + crash recovery.
 	e.wg.Add(1)
 	defer e.wg.Done()
 	return e.processPendingItem(accountID, toChatID, localID, ActionResendAsOwn, payload)
 }
 
-// ResendAlbumAsOwn downloads a group of messages (album) and resends them as
-// a single album with no forward header. Used by AyuForward for grouped media.
 func (e *Engine) ResendAlbumAsOwn(accountID, sourceChatID string, msgIDs []string, toChatID string, silent bool, scheduleDate int64, dropCaptions bool) error {
 	localID := generateLocalID()
 	now := time.Now().UnixMilli()
@@ -594,28 +548,11 @@ func (e *Engine) ResendAlbumAsOwn(accountID, sourceChatID string, msgIDs []strin
 		return err
 	}
 
-	// Run synchronously (see ResendAsOwn): the await tracks the real album
-	// download+upload so the forward progress bar advances on genuine send
-	// completion, matching AyuGram's blocking send loop.
 	e.wg.Add(1)
 	defer e.wg.Done()
 	return e.processPendingItem(accountID, toChatID, localID, ActionResendAlbum, payload)
 }
 
-// PreloadResendMedia synchronously downloads the media of the given source
-// messages into the shared resend temp dir, so a subsequent ResendAsOwn /
-// ResendAlbumAsOwn uploads from the cached file instead of re-downloading.
-//
-// This mirrors AyuGram's up-front, blocking AyuSync::loadDocuments call
-// (ayu_sync.cpp:86-130): the entire download happens before any send, so the
-// AyuForward "Loading media" (Downloading) phase stays visible for the whole
-// real download duration. Stickers ARE downloaded here too — AyuGram's
-// mediaDownloadable has no sticker exclusion, so loadDocuments fetches the
-// sticker during the Downloading phase even though executeResendAsOwn later
-// re-sends it by reference. Per-item download failures are logged but
-// non-fatal — the send path re-downloads or falls back, matching AyuGram's
-// best-effort loadDocuments. Runs on the caller's worker isolate (it is invoked
-// via the async FFI bridge), so blocking here does not stall the UI.
 func (e *Engine) PreloadResendMedia(accountID, sourceChatID string, msgIDs []string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -643,11 +580,6 @@ func (e *Engine) PreloadResendMedia(accountID, sourceChatID string, msgIDs []str
 		if err != nil || remoteRef.String == "" {
 			continue
 		}
-		// Skip only the non-downloadable types (poll/location/contact/invoice).
-		// Stickers ARE downloaded here: AyuGram's mediaDownloadable has no
-		// sticker exclusion, so loadDocuments fetches the sticker during the
-		// Downloading phase (ayu_sync.cpp:86-100, telegram_helpers.cpp:1012-1022)
-		// even though executeResendAsOwn ultimately re-sends it by reference.
 		if !isMediaDownloadable(mediaType) {
 			continue
 		}
@@ -660,9 +592,8 @@ func (e *Engine) PreloadResendMedia(accountID, sourceChatID string, msgIDs []str
 
 		if info, statErr := os.Stat(tmpPath); statErr == nil {
 			if expectedSize <= 0 || info.Size() >= expectedSize {
-				continue // a complete copy is already present (idempotent)
+				continue
 			}
-			// Partial leftover from an aborted download — start clean.
 			os.Remove(tmpPath)
 		}
 
@@ -681,10 +612,6 @@ func (e *Engine) PreloadResendMedia(accountID, sourceChatID string, msgIDs []str
 	return nil
 }
 
-// ReactToMessage queues a reaction toggle on a message.
-// ReactToMessageList sets a message's own reactions to exactly the given
-// emoji list (tdesktop toggleReaction semantics — the corner reaction
-// button, slice 159). Empty list removes all own reactions.
 func (e *Engine) ReactToMessageList(accountID, chatID, msgID string, emojis []string) error {
 	localID := generateLocalID()
 	now := time.Now().UnixMilli()
@@ -730,10 +657,6 @@ func (e *Engine) ReactToMessage(accountID, chatID, msgID, emoji string) error {
 	return nil
 }
 
-// PinMessage pins or unpins a message in a chat. On success, the cached
-// message row's `is_pinned` flag is updated so UI context menus that read
-// from the cache immediately reflect the new state without waiting for a
-// server event round-trip.
 func (e *Engine) PinMessage(accountID, chatID, msgID string, pinned bool) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -758,20 +681,13 @@ func (e *Engine) PinMessage(accountID, chatID, msgID string, pinned bool) error 
 	return err
 }
 
-// processPendingItem executes a pending operation with retry logic. It returns
-// nil on success and the terminal error on permanent failure, so synchronous
-// callers (resend-as-own) can surface genuine send completion/failure to the
-// awaiting UI. Fire-and-forget callers invoke it in a goroutine and ignore the
-// return.
 func (e *Engine) processPendingItem(accountID, chatID, localID, action string, payload []byte) error {
-	// Acquire per-chat lock for ordering (sends only).
 	if action == ActionSend || action == ActionForward || action == ActionForwardBatch || action == ActionResendAsOwn || action == ActionResendAlbum {
 		lock := getChatLock(accountID, chatID)
 		lock.Lock()
 		defer lock.Unlock()
 	}
 
-	// Mark as sending.
 	e.db.Exec("UPDATE pending SET status = ? WHERE local_id = ?", PendingSending, localID)
 
 	acc, ok := e.getAccount(accountID)
@@ -800,12 +716,8 @@ func (e *Engine) processPendingItem(accountID, chatID, localID, action string, p
 
 		err = e.executePending(acc, chatID, localID, action, payload)
 		if err == nil {
-			// Success — remove from pending.
 			e.db.Exec("DELETE FROM pending WHERE local_id = ?", localID)
 			if action == ActionReact {
-				// Optimistically mirror the toggle in the cached message so
-				// the reaction strip updates immediately; the server's
-				// UpdateMessageReactions echo reconciles it shortly after.
 				var p reactPayload
 				if json.Unmarshal(payload, &p) == nil {
 					e.applyOwnReaction(accountID, chatID, p.MsgID, p.Emoji)
@@ -814,7 +726,6 @@ func (e *Engine) processPendingItem(accountID, chatID, localID, action string, p
 			return nil
 		}
 
-		// Check if retryable.
 		if !isRetryable(err) {
 			break
 		}
@@ -824,7 +735,6 @@ func (e *Engine) processPendingItem(accountID, chatID, localID, action string, p
 			err.Error(), time.Now().UnixMilli(), localID)
 	}
 
-	// Permanently failed.
 	e.markPendingFailed(localID, err.Error())
 	if action == ActionSend {
 		e.FailMessage(accountID, chatID, localID)
@@ -832,9 +742,6 @@ func (e *Engine) processPendingItem(accountID, chatID, localID, action string, p
 	return err
 }
 
-// sendExtras builds the OutgoingMessage.Extra map for a send payload —
-// the contract the cores read (silent, schedule, topic, web-page preview
-// flags incl. no_webpage). Pinned by engine/webpage_test.go.
 func sendExtras(p sendPayload) map[string]interface{} {
 	extra := map[string]interface{}{}
 	if p.Silent {
@@ -867,7 +774,6 @@ func sendExtras(p sendPayload) map[string]interface{} {
 	return extra
 }
 
-// executePending dispatches the actual core call.
 func (e *Engine) executePending(acc *Account, chatID, localID, action string, payload []byte) error {
 	switch action {
 	case ActionSend:
@@ -925,7 +831,6 @@ func (e *Engine) executePending(acc *Account, chatID, localID, action string, pa
 		if editErr != nil {
 			return editErr
 		}
-		// Update cache.
 		e.db.Exec(
 			"UPDATE messages SET content_text = ?, edited_at = ? WHERE account_id = ? AND chat_id = ? AND msg_id = ?",
 			p.NewText, time.Now().UnixMilli(), acc.ID, chatID, p.MsgID)
@@ -934,8 +839,6 @@ func (e *Engine) executePending(acc *Account, chatID, localID, action string, pa
 	case ActionDelete:
 		var p deletePayload
 		json.Unmarshal(payload, &p)
-		// Honor the "delete for everyone" (revoke) choice when the core supports
-		// it; otherwise fall back to the platform's default delete semantics.
 		var err error
 		if rd, ok := acc.Core.(cores.RevokableMessageDeleter); ok {
 			err = rd.DeleteMessageRevoke(chatID, p.MsgID, p.Revoke)
@@ -954,8 +857,6 @@ func (e *Engine) executePending(acc *Account, chatID, localID, action string, pa
 		var p reactPayload
 		json.Unmarshal(payload, &p)
 		if len(p.Emojis) > 0 || p.Emoji == "" {
-			// Full-list form (corner reaction toggle, slice 159): an empty
-			// list removes all own reactions.
 			if lister, ok := acc.Core.(ReactionListSender); ok {
 				return lister.ReactToMessageList(chatID, p.MsgID, p.Emojis)
 			}
@@ -1022,7 +923,6 @@ func (e *Engine) markPendingFailed(localID, errMsg string) {
 		PendingFailed, errMsg, time.Now().UnixMilli(), localID)
 }
 
-// RetryPending retries a specific failed pending operation.
 func (e *Engine) RetryPending(localID string) error {
 	var accountID, chatID, action string
 	var payload []byte
@@ -1033,11 +933,9 @@ func (e *Engine) RetryPending(localID string) error {
 		return fmt.Errorf("pending item not found: %w", err)
 	}
 
-	// Reset status.
 	e.db.Exec("UPDATE pending SET status = ?, error_msg = NULL WHERE local_id = ?",
 		PendingQueued, localID)
 
-	// Re-mark message as sending.
 	if action == ActionSend {
 		e.db.Exec(
 			"UPDATE messages SET status = ? WHERE account_id = ? AND chat_id = ? AND msg_id = ?",
@@ -1055,7 +953,6 @@ func (e *Engine) RetryPending(localID string) error {
 	return nil
 }
 
-// resumePending retries all queued/in-flight items from a previous crash.
 func (e *Engine) resumePending() {
 	rows, err := e.db.Query(
 		`SELECT local_id, account_id, chat_id, action, payload
@@ -1080,15 +977,12 @@ func (e *Engine) resumePending() {
 		e.wg.Add(1)
 		go func() {
 			defer e.wg.Done()
-			// Wait a bit for cores to connect before retrying.
 			time.Sleep(3 * time.Second)
 			e.processPendingItem(item.AccountID, item.ChatID, item.LocalID, item.Action, item.Payload)
 		}()
 	}
 }
 
-// isMediaDownloadable returns true if the media type can be downloaded and re-sent.
-// Excludes webpages, polls, games, invoices, locations, contacts (matching spec §53.5).
 func isMediaDownloadable(mt int) bool {
 	switch mt {
 	case MediaPoll, MediaLocation, MediaContact, MediaInvoice:
@@ -1098,11 +992,6 @@ func isMediaDownloadable(mt int) bool {
 	}
 }
 
-// executeResendAsOwn downloads the source message's media and sends it as a
-// new message to the target chat with no forward header.
-// Implements spec §53.5: media type filtering, sticker bypass, voice/video note
-// detection, download timeouts, incomplete download detection, silent/schedule
-// propagation.
 func (e *Engine) executeResendAsOwn(acc *Account, p resendAsOwnPayload) error {
 	var contentText sql.NullString
 	var contentRaw []byte
@@ -1146,15 +1035,11 @@ func (e *Engine) executeResendAsOwn(acc *Account, p resendAsOwnPayload) error {
 		if err != nil {
 			log.Printf("resend sticker fallback to download: %v", err)
 		} else {
-			// The Downloading phase (PreloadResendMedia) fetches the sticker to
-			// mirror AyuGram's loadDocuments, but the send above is by reference,
-			// so drop the now-unused preloaded copy from the scratch dir.
 			stickerExt := filepath.Ext(fileName.String)
 			if stickerExt == "" {
 				stickerExt = ".bin"
 			}
 			if rd, derr := resendTmpDir(); derr == nil {
-				// safePathSegment must match the WRITER's name (F-71).
 				os.Remove(filepath.Join(rd, safePathSegment(p.MsgID)+stickerExt))
 			}
 			if sentMsg != nil {
@@ -1186,8 +1071,6 @@ func (e *Engine) executeResendAsOwn(acc *Account, p resendAsOwnPayload) error {
 			Extra:    extraStr.String,
 			Size:     expectedSize,
 		}
-		// Reuse a copy already fetched by PreloadResendMedia (the Downloading
-		// phase) so the Sending phase only uploads — no double download.
 		alreadyDownloaded := false
 		if info, statErr := os.Stat(tmpPath); statErr == nil && (expectedSize <= 0 || info.Size() >= expectedSize) {
 			alreadyDownloaded = true
@@ -1277,7 +1160,6 @@ func (e *Engine) executeResendAsOwn(acc *Account, p resendAsOwnPayload) error {
 	return nil
 }
 
-// resendText sends a text message with silent/schedule options.
 func (e *Engine) resendText(acc *Account, chatID, text string, silent bool, scheduleDate int64) error {
 	extra := map[string]interface{}{}
 	if silent {
@@ -1297,9 +1179,6 @@ func (e *Engine) resendText(acc *Account, chatID, text string, silent bool, sche
 	return nil
 }
 
-// executeResendAlbum downloads all messages in an album group and sends them
-// as a single album to the target chat. Falls back to individual sends if
-// the core doesn't support album sending.
 func (e *Engine) executeResendAlbum(acc *Account, p resendAlbumPayload) error {
 	albumSender, hasAlbumSupport := acc.Core.(cores.MediaAlbumSender)
 
@@ -1360,7 +1239,6 @@ func (e *Engine) executeResendAlbum(acc *Account, p resendAlbumPayload) error {
 			ID: remoteRef.String, Name: fName.String,
 			MimeType: mime.String, Extra: extra.String, Size: expSize,
 		}
-		// Reuse a copy already fetched by PreloadResendMedia (Downloading phase).
 		alreadyDownloaded := false
 		if info, statErr := os.Stat(tmpPath); statErr == nil && (expSize <= 0 || info.Size() >= expSize) {
 			alreadyDownloaded = true
@@ -1462,7 +1340,6 @@ func (e *Engine) executeResendAlbum(acc *Account, p resendAlbumPayload) error {
 	return nil
 }
 
-// isRetryable returns true for transient errors that warrant a retry.
 func isRetryable(err error) bool {
 	return errors.Is(err, cores.ErrNetwork) ||
 		errors.Is(err, cores.ErrTimeout) ||
@@ -1470,11 +1347,6 @@ func isRetryable(err error) bool {
 		errors.Is(err, cores.ErrDisconnected)
 }
 
-// resendTmpDir is the private scratch dir for resend/preload media
-// (F-73: was /tmp/uniclient_resend — a FIXED name in the SHARED temp
-// dir, so any local account could pre-create it and read our media or
-// plant symlinks at predicted msgID paths). Single source of truth:
-// every writer AND the cleanup path resolve it through here.
 func resendTmpDir() (string, error) {
 	return utils.PrivateCacheDir("resend")
 }

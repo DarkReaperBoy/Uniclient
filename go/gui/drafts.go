@@ -17,25 +17,17 @@ import (
 	"uniclient/engine"
 )
 
-// Drafts + scheduled messages (AyuGram parity, matrix #drafts/#scheduled):
-// the a.wid.composer's text persists per chat via engine.SaveDraft (restored on
-// open, saved on leave, cleared on send; rows show a "Draft: …" preview),
-// and the ⏰ button schedules the composed text with SendMessage's
-// scheduleDate. Scheduled messages render their planned time in the meta.
-
-// schedDlgState: open schedule dialog (nil when closed).
 type schedDlgState struct {
-	preset  int // 0 custom, 1 in 2h, 2 tomorrow 9:00
+	preset  int
 	when    time.Time
 	busy    bool
-	resched *engine.CachedMessage // set when rescheduling an existing message
+	resched *engine.CachedMessage
 }
 
 var (
 	schedKeyTag = new(struct{})
 )
 
-// schedulePresets (pure, testable): the quick choices AyuGram offers.
 func schedulePresetWhen(preset int, now time.Time) (time.Time, bool) {
 	switch preset {
 	case 1:
@@ -51,8 +43,6 @@ func schedulePresetWhen(preset int, now time.Time) (time.Time, bool) {
 	}
 }
 
-// parseScheduleInput (pure, testable): "YYYY-MM-DD" + "HH:MM" → unix
-// seconds; ok=false on malformed input.
 func parseScheduleInput(dateStr, timeStr string) (int64, bool) {
 	dateStr = strings.TrimSpace(dateStr)
 	timeStr = strings.TrimSpace(timeStr)
@@ -68,7 +58,6 @@ func parseScheduleInput(dateStr, timeStr string) (int64, bool) {
 	return when.Unix(), true
 }
 
-// draftPreview (pure, testable): the chat-row preview for a draft.
 func draftPreview(text string) string {
 	const max = 48
 	r := []rune(text)
@@ -78,8 +67,6 @@ func draftPreview(text string) string {
 	return "Draft: " + string(r)
 }
 
-// flushDraft persists the a.wid.composer's current text as the chat's draft
-// (called when leaving a chat; GUI goroutine).
 func (a *App) flushDraft(k chatKey) {
 	text := strings.TrimSpace(a.wid.composer.Text())
 	a.mu.Lock()
@@ -103,7 +90,6 @@ func (a *App) flushDraft(k chatKey) {
 	}()
 }
 
-// clearDraft empties the stored draft after a successful send.
 func (a *App) clearDraft(k chatKey) {
 	go func() {
 		if err := a.eng.SaveDraft(k.AccountID, k.ChatID, ""); err == nil {
@@ -112,7 +98,6 @@ func (a *App) clearDraft(k chatKey) {
 	}()
 }
 
-// openScheduleDialog preps the ⏰ dialog for the composed text.
 func (a *App) openScheduleDialog() {
 	a.mu.Lock()
 	a.schedDlg = &schedDlgState{preset: 1, when: time.Now().Add(2 * time.Hour)}
@@ -123,7 +108,6 @@ func (a *App) openScheduleDialog() {
 	a.invalidate()
 }
 
-// closeScheduleDialog dismisses (blocked while scheduling).
 func (a *App) closeScheduleDialog() {
 	a.mu.Lock()
 	if a.schedDlg == nil || a.schedDlg.busy {
@@ -135,9 +119,6 @@ func (a *App) closeScheduleDialog() {
 	a.invalidate()
 }
 
-// sendTextScheduled sends the composed text at a unix-seconds date. silent
-// suppresses the notification (AyuGram 🔕, threaded from the schedule
-// dialog's switch).
 func (a *App) sendTextScheduled(text string, scheduleDate int64, silent bool) {
 	a.mu.Lock()
 	k := a.selected
@@ -156,7 +137,6 @@ func (a *App) sendTextScheduled(text string, scheduleDate int64, silent bool) {
 		if k == nil || text == "" {
 			return
 		}
-		// Compose markdown (slice 33): typed markers become entities.
 		sendText, sendEnts := text, []cores.TextEntity(nil)
 		if hasMarkdown(text) {
 			sendText, sendEnts = parseMarkdown(text)
@@ -173,8 +153,6 @@ func (a *App) sendTextScheduled(text string, scheduleDate int64, silent bool) {
 	}()
 }
 
-// sendWhenOnline schedules the composed text for the magic "when the
-// peer comes online" date (AyuGram schedule option).
 func (a *App) sendWhenOnline() {
 	a.mu.Lock()
 	d := a.schedDlg
@@ -202,7 +180,6 @@ func (a *App) sendWhenOnline() {
 	a.clearDraftAfterSend()
 }
 
-// submitScheduleDialog reads the dialog's date/time and schedules.
 func (a *App) submitScheduleDialog() {
 	a.mu.Lock()
 	d := a.schedDlg
@@ -232,7 +209,6 @@ func (a *App) submitScheduleDialog() {
 	resched := a.schedDlg.resched
 	a.mu.Unlock()
 	if resched != nil {
-		// Reschedule an existing scheduled message.
 		a.mu.Lock()
 		a.schedDlg.busy = true
 		a.mu.Unlock()
@@ -266,7 +242,6 @@ func (a *App) submitScheduleDialog() {
 	a.clearDraftAfterSend()
 }
 
-// clearDraftAfterSend clears the draft of the open chat after sending.
 func (a *App) clearDraftAfterSend() {
 	a.mu.Lock()
 	k := a.selected
@@ -276,7 +251,6 @@ func (a *App) clearDraftAfterSend() {
 	}
 }
 
-// layoutScheduleDialog renders the schedule card over the chat pane.
 func (a *App) layoutScheduleDialog(gtx layout.Context, f frame) layout.Dimensions {
 	d := f.schedDlg
 	{
@@ -340,7 +314,6 @@ func (a *App) layoutScheduleDialog(gtx layout.Context, f frame) layout.Dimension
 							return lbl.Layout(gtx)
 						})
 					}),
-					// Send when online (AyuGram schedule option, slice 39).
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Inset{Top: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							btn := a.ui.TextButton(&a.wid.schedDlgWhenOnline, "Send when they're online")
@@ -348,7 +321,6 @@ func (a *App) layoutScheduleDialog(gtx layout.Context, f frame) layout.Dimension
 							return btn.Layout(gtx)
 						})
 					}),
-					// Preset chips.
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Inset{Top: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
@@ -364,7 +336,6 @@ func (a *App) layoutScheduleDialog(gtx layout.Context, f frame) layout.Dimension
 							)
 						})
 					}),
-					// Date + time editors.
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Inset{Top: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
@@ -394,7 +365,6 @@ func (a *App) layoutScheduleDialog(gtx layout.Context, f frame) layout.Dimension
 							)
 						})
 					}),
-					// Silent switch (AyuGram 🔕 in the schedule dialog).
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Inset{Top: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
@@ -452,9 +422,6 @@ func (a *App) schedChip(gtx layout.Context, btn *widget.Clickable, label string,
 	})
 }
 
-// scheduledMetaLabel (pure, testable): meta text for a scheduled message.
-// schedWhenOnline is Telegram's magic schedule_date for "send when the
-// peer comes online" (0x7FFFFFFF).
 const schedWhenOnline int64 = 0x7FFFFFFF
 
 func scheduledMetaLabel(m engine.CachedMessage) string {

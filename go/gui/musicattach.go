@@ -1,14 +1,5 @@
 package gui
 
-// musicattach.go — slice 210: the music attach box (tdesktop
-// music_attach_box.cpp). The attach-menu "Music" entry opens an in-app
-// box instead of only the OS file picker: a "Choose from files" row (the
-// old path), the account's Saved Music section (multi-select, preview
-// rows + Show all), a local query filter over the playlist, and a
-// selection-aware Send bar that re-sends each chosen cloud track as a
-// new audio message. The composer's caption rides the first track
-// (tdesktop sends the caption with the batch).
-
 import (
 	"errors"
 	"strings"
@@ -22,8 +13,6 @@ import (
 	"uniclient/engine"
 )
 
-// musicAttachPreviewRows is how many saved-music rows show collapsed
-// (tdesktop's section preview + "Show all").
 const musicAttachPreviewRows = 6
 
 var (
@@ -32,7 +21,7 @@ var (
 	musicAttachShowAllBtn widget.Clickable
 	musicAttachSendBtn    widget.Clickable
 	musicAttachList       widget.List
-	musicAttachRows       []widget.Clickable // row selection toggles
+	musicAttachRows       []widget.Clickable
 	musicAttachQueryEd    widget.Editor
 )
 
@@ -41,12 +30,9 @@ func init() {
 	musicAttachQueryEd.SingleLine = true
 }
 
-// musicAttachDlgState is the open music attach box (nil when closed).
 type musicAttachDlgState struct {
 	accountID string
 	chatID    string
-	// Saved-music source: nil = unsupported platform (file picker only,
-	// honest absence of the section, §1.10).
 	supported bool
 	tracks    []engine.MusicTrack
 	loaded    bool
@@ -55,8 +41,6 @@ type musicAttachDlgState struct {
 	sel       map[string]bool
 }
 
-// musicAttachFilter (pure, testable): rows matching the query —
-// case-insensitive substring on title, performer, or file name.
 func musicAttachFilter(tracks []engine.MusicTrack, query string) []engine.MusicTrack {
 	query = strings.ToLower(strings.TrimSpace(query))
 	if query == "" || tracks == nil {
@@ -73,8 +57,6 @@ func musicAttachFilter(tracks []engine.MusicTrack, query string) []engine.MusicT
 	return out
 }
 
-// musicAttachVisible (pure, testable): the rows currently rendered — a
-// preview window unless Show all is on.
 func musicAttachVisible(tracks []engine.MusicTrack, showAll bool) []engine.MusicTrack {
 	if showAll || len(tracks) <= musicAttachPreviewRows {
 		return tracks
@@ -82,8 +64,6 @@ func musicAttachVisible(tracks []engine.MusicTrack, showAll bool) []engine.Music
 	return tracks[:musicAttachPreviewRows]
 }
 
-// musicAttachSendLabel (pure, testable): the Send-bar label with the
-// selection count.
 func musicAttachSendLabel(n int) string {
 	if n <= 0 {
 		return "Send"
@@ -91,8 +71,6 @@ func musicAttachSendLabel(n int) string {
 	return "Send " + itoa(n)
 }
 
-// musicAttachSendOrder (pure, testable): the selected tracks in playlist
-// order (stale docIDs ignored).
 func musicAttachSendOrder(tracks []engine.MusicTrack, sel map[string]bool) []engine.MusicTrack {
 	if len(sel) == 0 {
 		return nil
@@ -106,8 +84,6 @@ func musicAttachSendOrder(tracks []engine.MusicTrack, sel map[string]bool) []eng
 	return out
 }
 
-// openMusicAttach opens the box for the open chat and kicks the
-// saved-music load (unsupported platforms resolve to no section).
 func (a *App) openMusicAttach() {
 	a.mu.Lock()
 	k := a.selected
@@ -136,8 +112,6 @@ func (a *App) openMusicAttach() {
 			return
 		}
 		if errors.Is(err, cores.ErrNotSupported) {
-			// Honest absence: the platform has no saved-music surface —
-			// the section hides, only "Choose from files" remains (§1.10).
 			a.musicAttachDlg.supported = false
 			a.musicAttachDlg.loaded = true
 		} else if err != nil {
@@ -152,7 +126,6 @@ func (a *App) openMusicAttach() {
 	}()
 }
 
-// closeMusicAttach dismisses the box.
 func (a *App) closeMusicAttach() {
 	a.mu.Lock()
 	a.musicAttachDlg = nil
@@ -160,8 +133,6 @@ func (a *App) closeMusicAttach() {
 	a.invalidate()
 }
 
-// sendMusicAttachSelection sends each selected track (playlist order),
-// caption on the first only, then closes the box like tdesktop does.
 func (a *App) sendMusicAttachSelection(f frame) {
 	st := f.musicAttachDlg
 	if st == nil {
@@ -201,8 +172,6 @@ func (a *App) sendMusicAttachSelection(f frame) {
 	}()
 }
 
-// layoutMusicAttach renders the box (content-pane surface, the repo's
-// dialog convention).
 func (a *App) layoutMusicAttach(gtx layout.Context, f frame) layout.Dimensions {
 	st := f.musicAttachDlg
 	if st == nil {
@@ -247,7 +216,6 @@ func (a *App) layoutMusicAttach(gtx layout.Context, f frame) layout.Dimensions {
 	}
 
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		// header: back + title
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Top: unit.Dp(8), Bottom: unit.Dp(8), Left: unit.Dp(8), Right: unit.Dp(12)}.Layout(gtx,
 				func(gtx layout.Context) layout.Dimensions {
@@ -266,18 +234,15 @@ func (a *App) layoutMusicAttach(gtx layout.Context, f frame) layout.Dimensions {
 				})
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return a.ui.Divider(gtx) }),
-		// "Choose from files" row — the classic OS picker path.
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.musicAttachFileRow(gtx)
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return a.ui.Divider(gtx) }),
-		// Saved Music section (hidden on unsupported platforms, §1.10).
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			if !st.supported {
 				return layout.Dimensions{}
 			}
 			if st.err != "" {
-				// Honest error state (§1.10): the load failed — say so.
 				return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					return layout.Inset{Top: unit.Dp(24), Bottom: unit.Dp(24)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 						return a.ui.Dim(unit.Sp(13), "Saved music unavailable: "+st.err).Layout(gtx)
@@ -286,14 +251,12 @@ func (a *App) layoutMusicAttach(gtx layout.Context, f frame) layout.Dimensions {
 			}
 			return a.musicAttachSavedSection(gtx, st, filtered, visible)
 		}),
-		// Send bar.
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.musicAttachSendBar(gtx, st, filtered)
 		}),
 	)
 }
 
-// musicAttachFileRow renders the "Choose from files" action.
 func (a *App) musicAttachFileRow(gtx layout.Context) layout.Dimensions {
 	return layout.Inset{Left: unit.Dp(8), Right: unit.Dp(8), Top: unit.Dp(6), Bottom: unit.Dp(6)}.Layout(gtx,
 		func(gtx layout.Context) layout.Dimensions {
@@ -316,10 +279,7 @@ func (a *App) musicAttachFileRow(gtx layout.Context) layout.Dimensions {
 		})
 }
 
-// musicAttachSavedSection renders the query field, the saved-music rows
-// and the Show all toggle.
 func (a *App) musicAttachSavedSection(gtx layout.Context, st *musicAttachDlgState, filtered, visible []engine.MusicTrack) layout.Dimensions {
-	// header row: section title + Show all toggle
 	header := layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Left: unit.Dp(14), Top: unit.Dp(8), Bottom: unit.Dp(2)}.Layout(gtx,
 			func(gtx layout.Context) layout.Dimensions {
@@ -361,7 +321,6 @@ func (a *App) musicAttachSavedSection(gtx layout.Context, st *musicAttachDlgStat
 				return a.centerLoader(gtx)
 			}
 			if len(filtered) == 0 {
-				// Honest empty states (§1.10): no saved songs / no match.
 				msg := "No saved music"
 				if musicAttachQueryEd.Text() != "" {
 					msg = "Nothing found"
@@ -377,8 +336,6 @@ func (a *App) musicAttachSavedSection(gtx layout.Context, st *musicAttachDlgStat
 	)
 }
 
-// musicAttachRow renders one selectable saved-music row: checkbox state,
-// title (file-name fallback), performer, duration.
 func (a *App) musicAttachRow(gtx layout.Context, tr engine.MusicTrack, idx int, st *musicAttachDlgState) layout.Dimensions {
 	title := tr.Title
 	if title == "" {
@@ -428,8 +385,6 @@ func (a *App) musicAttachRow(gtx layout.Context, tr engine.MusicTrack, idx int, 
 		})
 }
 
-// musicAttachSendBar renders the bottom Send bar (disabled without a
-// selection — no dead-looking enable, the label stays honest).
 func (a *App) musicAttachSendBar(gtx layout.Context, st *musicAttachDlgState, filtered []engine.MusicTrack) layout.Dimensions {
 	n := len(musicAttachSendOrder(filtered, st.sel))
 	return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {

@@ -1,29 +1,5 @@
 //go:build android
 
-// SPDX-License-Identifier: Unlicense OR MIT
-
-// Android audio devices through OpenSL ES (libOpenSLES.so), called via
-// ebitengine/purego — no cgo in our tree; the cgo runtime that purego
-// requires on Android is the one gogio already links (-buildmode=c-shared).
-//
-// Design notes (primary sources: OpenSLES.h / OpenSLES_Android.h /
-// OpenSLES_AndroidConfiguration.h, AOSP frameworks/wilhelm):
-//   - One engine + one output mix per process, created in openDevice.
-//   - Playback: an AudioPlayer whose source is an AndroidSimpleBufferQueue
-//     (PCM 48 kHz mono s16) and whose sink is the output mix. A pump
-//     goroutine enqueues 20 ms frames pulled from the caller's fill func,
-//     regulating queue depth via GetState (no C callbacks needed).
-//   - Capture: an AudioRecorder whose source is the default input device
-//     and whose sink is another AndroidSimpleBufferQueue, preset
-//     VOICE_COMMUNICATION (platform echo cancellation + noise suppression).
-//     The same polling pump reports completed buffers in FIFO order: the
-//     ring's completion slot always equals its next-enqueue slot.
-//   - Microphone permission (RECORD_AUDIO is a dangerous permission) is
-//     requested through JNI at first mic use — see jni_android.go.
-//
-// The RECORD_AUDIO manifest entry comes from the blank import below; gogio
-// scans for gioui.org/app/permission/* imports when generating the APK
-// manifest.
 package audio
 
 import (
@@ -34,7 +10,7 @@ import (
 	"time"
 	"unsafe"
 
-	_ "gioui.org/app/permission/microphone" // APK manifest: RECORD_AUDIO
+	_ "gioui.org/app/permission/microphone"
 	"github.com/ebitengine/purego"
 )
 
@@ -42,19 +18,17 @@ const audioAvailable = true
 
 const (
 	openslLib        = "libOpenSLES.so"
-	bqQueueDepth     = 4 // buffers per AndroidSimpleBufferQueue
-	bqTargetInflight = 3 // playback pump keeps at most this many enqueued
+	bqQueueDepth     = 4
+	bqTargetInflight = 3
 	pumpTick         = 5 * time.Millisecond
-	frameSamples     = 960 // 20 ms @ 48 kHz
+	frameSamples     = 960
 	frameBytes       = frameSamples * 2
 )
 
-// openslDevice implements the platform device interface.
 type openslDevice struct {
 	mu  sync.Mutex
-	lib uintptr // dlopen handle
+	lib uintptr
 
-	// Resolved interface IDs (pointers into libOpenSLES globals).
 	iidEngine   unsafe.Pointer
 	iidPlay     unsafe.Pointer
 	iidRecord   unsafe.Pointer
@@ -62,23 +36,21 @@ type openslDevice struct {
 	iidConfig   unsafe.Pointer
 	slCreateEng uintptr
 
-	engineObj unsafe.Pointer // SLObjectItf
-	engineItf unsafe.Pointer // SLEngineItf
-	mixObj    unsafe.Pointer // SLObjectItf
+	engineObj unsafe.Pointer
+	engineItf unsafe.Pointer
+	mixObj    unsafe.Pointer
 
-	// Playback state.
 	playOn   bool
 	playObj  unsafe.Pointer
-	playItf  unsafe.Pointer // SLPlayItf
-	playBQ   unsafe.Pointer // SLAndroidSimpleBufferQueueItf
+	playItf  unsafe.Pointer
+	playBQ   unsafe.Pointer
 	playRing *bqRing
 	playStop chan struct{}
 	playDone chan struct{}
 
-	// Capture state.
 	micOn   bool
 	recObj  unsafe.Pointer
-	recItf  unsafe.Pointer // SLRecordItf
+	recItf  unsafe.Pointer
 	recBQ   unsafe.Pointer
 	micRing *bqRing
 	micCh   chan []byte
@@ -86,14 +58,10 @@ type openslDevice struct {
 	micDone chan struct{}
 }
 
-// slFn resolves function slot idx on an OpenSL interface pointer.
 func slFn(itf unsafe.Pointer, idx int) uintptr {
 	return *(*uintptr)(unsafe.Add(itf, idx*8))
 }
 
-// slCall invokes interface method idx with args (self excluded). Pointer
-// arguments must be anchored by the caller with runtime.KeepAlive (the
-// uintptr crosses a function boundary before reaching the native call).
 func slCall(itf unsafe.Pointer, idx int, args ...uintptr) uintptr {
 	full := make([]uintptr, 0, len(args)+1)
 	full = append(full, uintptr(itf))
@@ -102,7 +70,6 @@ func slCall(itf unsafe.Pointer, idx int, args ...uintptr) uintptr {
 	return r1
 }
 
-// slErr maps an SLresult to an error (nil on success).
 func slErr(where string, r uintptr) error {
 	if uint32(r) == slResultSuccess {
 		return nil
@@ -110,14 +77,10 @@ func slErr(where string, r uintptr) error {
 	return fmt.Errorf("audio: OpenSL ES %s: 0x%X", where, uint32(r))
 }
 
-// slRealize realizes an object synchronously (slObjectRealize is the
-// vtable index constant).
 func slRealize(obj unsafe.Pointer) error {
 	return slErr("Realize", slCall(obj, slObjectRealize, slBooleanFalse))
 }
 
-// slGetItf fetches interface iid from object obj (slObjectGetItf is the
-// vtable index constant).
 func slGetItf(obj, iid unsafe.Pointer) (unsafe.Pointer, error) {
 	var out unsafe.Pointer
 	err := slErr("GetInterface", slCall(obj, slObjectGetItf,
@@ -140,8 +103,6 @@ func slDestroy(obj unsafe.Pointer) {
 	}
 }
 
-// slIIDDeref reads the SLInterfaceID out of a libOpenSLES global symbol
-// (the symbol's storage holds the pointer; dlsym gives its address).
 func slIIDDeref(lib uintptr, name string) (unsafe.Pointer, error) {
 	sym, err := purego.Dlsym(lib, name)
 	if err != nil {
@@ -220,7 +181,6 @@ func openDevice() (device, error) {
 	return d, nil
 }
 
-// pcmFormat is the shared SLDataFormat_PCM for both directions.
 func pcmFormat() slDataFormatPCM {
 	return slDataFormatPCM{
 		formatType:    slDataformatPCM,
@@ -233,7 +193,6 @@ func pcmFormat() slDataFormatPCM {
 	}
 }
 
-// bqEnqueue hands a buffer to a simple buffer queue.
 func bqEnqueue(bq unsafe.Pointer, buf []byte) error {
 	err := slErr("Enqueue", slCall(bq, slBQEnqueue,
 		uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf))))
@@ -241,7 +200,6 @@ func bqEnqueue(bq unsafe.Pointer, buf []byte) error {
 	return err
 }
 
-// bqCount reads the queue's current buffer count (-1 on error).
 func bqCount(bq unsafe.Pointer) int {
 	var st slBQState
 	if err := slErr("GetState", slCall(bq, slBQGetState,
@@ -252,7 +210,6 @@ func bqCount(bq unsafe.Pointer) int {
 	return int(st.count)
 }
 
-// startPlayback builds the AudioPlayer and runs the fill pump.
 func (d *openslDevice) startPlayback(fill func(out []int16)) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -366,8 +323,6 @@ func (d *openslDevice) stopPlayback() {
 	ring.reset()
 }
 
-// startMic builds the AudioRecorder (after ensuring RECORD_AUDIO) and
-// emits completed 20 ms frames on the returned channel.
 func (d *openslDevice) startMic() (<-chan []byte, error) {
 	d.mu.Lock()
 	if d.engineItf == nil {
@@ -380,7 +335,6 @@ func (d *openslDevice) startMic() (<-chan []byte, error) {
 	}
 	d.mu.Unlock()
 
-	// May block up to micPermissionTimeout waiting for the system dialog.
 	if err := ensureMicPermission(); err != nil {
 		return nil, err
 	}
@@ -419,8 +373,6 @@ func (d *openslDevice) startMic() (<-chan []byte, error) {
 	runtime.KeepAlive(iids)
 	runtime.KeepAlive(reqs)
 
-	// VOICE_COMMUNICATION preset must be set before Realize; failure is
-	// non-fatal (the default preset still records).
 	if cfgItf, err := slGetItf(rec, d.iidConfig); err == nil {
 		preset := uint32(slRecordingPresetVoiceCommunication)
 		key, keep := cstr(slRecordingPresetKey)
@@ -460,7 +412,6 @@ func (d *openslDevice) startMic() (<-chan []byte, error) {
 
 	go func() {
 		defer close(done)
-		// Prime the queue.
 		for ring.outstanding() < bqQueueDepth {
 			_, buf := ring.next()
 			if err := bqEnqueue(bqItf, buf); err != nil {
@@ -479,8 +430,6 @@ func (d *openslDevice) startMic() (<-chan []byte, error) {
 			if count < 0 {
 				return
 			}
-			// Each completed buffer is re-enqueued in FIFO order: the
-			// completion slot always equals the next-enqueue slot.
 			for _, slot := range ring.completed(count) {
 				frame := make([]byte, frameBytes)
 				copy(frame, ring.bufs[slot])
@@ -491,7 +440,7 @@ func (d *openslDevice) startMic() (<-chan []byte, error) {
 				}
 				reSlot, buf := ring.next()
 				if reSlot != slot {
-					return // FIFO invariant broken — stop honestly
+					return
 				}
 				if err := bqEnqueue(bqItf, buf); err != nil {
 					return

@@ -1,9 +1,5 @@
 package engine
 
-// Dice engine helpers (slice 125): extra parsing, pack-value picking and
-// the animated-emoji gate. The media-row rewrite + download flow rides the
-// standard pipeline (covered by integration on live accounts).
-
 import (
 	"testing"
 
@@ -15,12 +11,10 @@ func TestParseDiceExtra(t *testing.T) {
 	if !ok || info.Emoji != "🎲" || info.Value != 4 {
 		t.Fatalf("parseDiceExtra = %+v ok=%v", info, ok)
 	}
-	// Rolling state: value 0.
 	info, ok = parseDiceExtra([]byte(`{"extra":{"dice_emoji":"🎯","dice_value":0}}`))
 	if !ok || info.Emoji != "🎯" || info.Value != 0 {
 		t.Fatalf("rolling parse = %+v ok=%v", info, ok)
 	}
-	// No dice data.
 	if _, ok := parseDiceExtra([]byte(`{"extra":{"poll_question":"q"}}`)); ok {
 		t.Error("non-dice extra parsed as dice")
 	}
@@ -45,7 +39,7 @@ func TestDiceStickerForValue(t *testing.T) {
 		{0, "roll"},
 		{1, "one"},
 		{6, "six"},
-		{4, ""}, // missing value → nil
+		{4, ""},
 	}
 	for _, c := range cases {
 		doc := diceStickerForValue(set, c.value)

@@ -1,8 +1,5 @@
 package gui
 
-// Chat-row hover quick actions (slice 89, AyuGram parity row 68): the
-// mute and read-state toggles that appear on row hover.
-
 import (
 	"testing"
 
@@ -62,11 +59,9 @@ func TestRowQuickPair(t *testing.T) {
 	if p2 == nil || len(rowQuickBtns) != 6 {
 		t.Fatalf("pair(2) grew %d buttons, want 6", len(rowQuickBtns))
 	}
-	// Distinct pointers per row.
 	if p == p2 || &p[0] == &p2[0] {
 		t.Error("rows must get distinct button pairs")
 	}
-	// Idempotent re-fetch.
 	if rowQuickPair(2) == nil {
 		t.Error("re-fetch must work")
 	}

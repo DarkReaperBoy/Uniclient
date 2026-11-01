@@ -19,7 +19,6 @@ func escFrame() frame {
 }
 
 func TestEscTargetOrder(t *testing.T) {
-	// Each layer closes before the ones below it.
 	set := func(f frame, target string) frame {
 		switch target {
 		case "delDlg":
@@ -61,7 +60,6 @@ func TestEscTargetOrder(t *testing.T) {
 		}
 	}
 
-	// Self-handled surfaces suppress the global layer entirely.
 	f := escFrame()
 	f = set(f, "menu")
 	f = set(f, "drawer")
@@ -69,7 +67,6 @@ func TestEscTargetOrder(t *testing.T) {
 		t.Errorf("drawer + menu: escTarget = %q, want empty (drawer consumes Esc)", got)
 	}
 
-	// The privacy scope picker (slice 62) self-handles Esc too.
 	pf := escFrame()
 	pf.privacyDlg = &privacyDlgState{accountID: "a", key: "calls"}
 	pf.menu = &menuTarget{}
@@ -77,7 +74,6 @@ func TestEscTargetOrder(t *testing.T) {
 		t.Errorf("privacyDlg + menu: escTarget = %q, want empty (dialog consumes Esc)", got)
 	}
 
-	// The auto-download rules editor (slice 63) self-handles Esc too.
 	af := escFrame()
 	af.autoDlDlg = &autodlDlgState{source: "group"}
 	af.menu = &menuTarget{}
@@ -85,7 +81,6 @@ func TestEscTargetOrder(t *testing.T) {
 		t.Errorf("autoDlDlg + menu: escTarget = %q, want empty (dialog consumes Esc)", got)
 	}
 
-	// Nothing open → no target.
 	if got := escTarget(escFrame()); got != "" {
 		t.Errorf("bare frame: escTarget = %q, want empty", got)
 	}
@@ -106,7 +101,7 @@ func TestEscTargetDialogsIdle(t *testing.T) {
 	}
 	for i, set := range dialogs {
 		f := set(escFrame())
-		f.search = "query" // would otherwise be the target
+		f.search = "query"
 		if got := escTarget(f); got != "" {
 			t.Errorf("dialog %d open: escTarget = %q, want empty", i, got)
 		}
@@ -150,14 +145,12 @@ func TestNeighborChat(t *testing.T) {
 	if c, ok := neighborChat(chats, last, 1); !ok || c.ChatID != "1" {
 		t.Errorf("wrap forward = %+v ok=%v, want chat 1", c, ok)
 	}
-	// No selection: forward opens the first chat, backward the last.
 	if c, ok := neighborChat(chats, nil, 1); !ok || c.ChatID != "1" {
 		t.Errorf("nil+1 = %+v ok=%v, want chat 1", c, ok)
 	}
 	if c, ok := neighborChat(chats, nil, -1); !ok || c.ChatID != "3" {
 		t.Errorf("nil-1 = %+v ok=%v, want chat 3", c, ok)
 	}
-	// Selection not in list (e.g. filtered out) steps from the start.
 	ghost := &chatKey{AccountID: "z", ChatID: "9"}
 	if c, ok := neighborChat(chats, ghost, 1); !ok || c.ChatID != "1" {
 		t.Errorf("ghost+1 = %+v ok=%v, want chat 1", c, ok)
@@ -173,10 +166,7 @@ func TestNeighborChat(t *testing.T) {
 	}
 }
 
-// ── slice 166: the tdesktop jumplist family ───────────────────────────────
-
 func TestChatSwitchActionAltArrows(t *testing.T) {
-	// Alt+Up/Down switch chats too (tdesktop ChatNext/ChatPrevious).
 	cases := []struct {
 		name key.Name
 		ctrl bool
@@ -187,7 +177,7 @@ func TestChatSwitchActionAltArrows(t *testing.T) {
 		{key.NameDownArrow, false, true, 1},
 		{key.NameUpArrow, false, false, 0},
 		{key.NameDownArrow, false, false, 0},
-		{key.NamePageUp, false, true, 0}, // Alt+PgUp is not a tdesktop binding
+		{key.NamePageUp, false, true, 0},
 		{key.NameLeftArrow, false, true, 0},
 	}
 	for _, c := range cases {
@@ -205,8 +195,8 @@ func TestJumplistDigit(t *testing.T) {
 	}{
 		{"1", true, 1},
 		{"8", true, 8},
-		{"9", true, 9},  // ShowArchive
-		{"0", true, 10}, // ChatSelf (Saved Messages)
+		{"9", true, 9},
+		{"0", true, 10},
 		{"1", false, 0},
 		{"9", false, 0},
 		{"A", true, 0},
@@ -219,8 +209,6 @@ func TestJumplistDigit(t *testing.T) {
 }
 
 func TestPinnedJumpChat(t *testing.T) {
-	// The visible list is pinned-first; ChatPinned1..8 jump into that
-	// pinned prefix.
 	chats := []engine.ChatInfo{
 		{ChatID: "p1", IsPinned: true},
 		{ChatID: "p2", IsPinned: true},
@@ -243,7 +231,6 @@ func TestPinnedJumpChat(t *testing.T) {
 }
 
 func TestChatEdgeAction(t *testing.T) {
-	// Ctrl+Alt+Home/End = ChatFirst/ChatLast (1 = first, 2 = last).
 	cases := []struct {
 		name key.Name
 		ctrl bool
@@ -264,7 +251,6 @@ func TestChatEdgeAction(t *testing.T) {
 }
 
 func TestJumplistSpecialKeys(t *testing.T) {
-	// Ctrl+J = ShowContacts, Ctrl+R = ReadChat (plain bool predicates).
 	if !showContactsKey("J", true) {
 		t.Error("Ctrl+J must trigger contacts")
 	}

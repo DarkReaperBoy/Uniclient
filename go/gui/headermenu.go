@@ -12,23 +12,14 @@ import (
 	"uniclient/engine"
 )
 
-// Chat-header "..." menu (AyuGram peer menu, matrix §3 P0): mute toggle,
-// view profile, clear history, block/unblock (DMs), leave (groups/channels)
-// or delete (DMs) — every row dispatches a real engine call; destructive
-// actions ask first. Rendered as a popup anchored under the header's ⋮,
-// dismissed by any outside press.
-
-// headerMenuTarget is the open header menu + its confirm state.
 type headerMenuTarget struct {
 	chat    engine.ChatInfo
 	pos     image.Point
-	confirm string // "" | "clear" | "leave" | "delete"
+	confirm string
 }
 
-// header menu button pool.
 var ()
 
-// headerMenuConfirmText maps a confirm id to its dialog copy.
 func headerMenuConfirmText(id string) (title, hint string) {
 	switch id {
 	case "clear":
@@ -41,14 +32,6 @@ func headerMenuConfirmText(id string) (title, hint string) {
 	return "", ""
 }
 
-// headerMenuItems derives the peer-menu rows (pure, tested). giftsOK:
-// the account supports star gifts (slice 211) — user peers then get the
-// "Send a gift" row (tdesktop's profile gift entry). separate: the header
-// menu renders in EVERY window, but the rows whose actions open content-
-// pane dialogs (sound picker, add-member, TTL, gift picker, chat theme,
-// wallpaper) are dead in separate windows — only layoutMain paints those
-// dialogs — so they are dropped there (R30, the R29 class made systemic;
-// §1.10 — no shown-but-dead rows).
 func headerMenuItems(c engine.ChatInfo, blockedKnown, blocked, transOn, giftsOK, separate bool) []chatMenuAction {
 	var items []chatMenuAction
 	if c.IsMuted {
@@ -58,7 +41,6 @@ func headerMenuItems(c engine.ChatInfo, blockedKnown, blocked, transOn, giftsOK,
 	}
 	items = append(items, chatMenuAction{"View profile", "profile"})
 	items = append(items, chatMenuAction{"Search", "search"})
-	// Chat-wide translate bar (slice 150): state-aware label.
 	if transOn {
 		items = append(items, chatMenuAction{"Hide translations", "transoff"})
 	} else {
@@ -71,16 +53,11 @@ func headerMenuItems(c engine.ChatInfo, blockedKnown, blocked, transOn, giftsOK,
 		items = append(items, chatMenuAction{"Add members", "addmember"})
 	}
 	items = append(items, chatMenuAction{"Scheduled messages", "scheduled"})
-	// Boosts (slice 192): channels — tdesktop's boost info box, members
-	// and admins alike (boosting is a member action, not an admin one).
 	if c.Type == engine.ChatTypeChanVal {
 		items = append(items, chatMenuAction{"Boosts", "boosts"})
 	}
-	// Recent actions / admin log (slice 177): admins of groups/channels
-	// (tdesktop gates the entry the same way).
 	if (c.Type == engine.ChatTypeGroupVal || c.Type == engine.ChatTypeChanVal || c.Type == engine.ChatTypeTopicVal) && c.IsAdmin {
 		items = append(items, chatMenuAction{"Recent actions", "adminlog"})
-		// Channel statistics (slice 184): broadcast stats, channels only.
 		if c.Type == engine.ChatTypeChanVal {
 			items = append(items, chatMenuAction{"Statistics", "stats"})
 		}
@@ -118,10 +95,6 @@ func headerMenuItems(c engine.ChatInfo, blockedKnown, blocked, transOn, giftsOK,
 	return items
 }
 
-// ── state transitions ─────────────────────────────────────────────────────
-
-// openTtlDialogNow opens the auto-delete picker from the header menu
-// (the open chat's frame snapshot is read under the lock).
 func (a *App) openTtlDialogNow(c engine.ChatInfo) {
 	a.mu.Lock()
 	a.ttlDlg = &ttlDlgState{accountID: c.AccountID, chatID: c.ChatID, title: c.Title}
@@ -129,7 +102,6 @@ func (a *App) openTtlDialogNow(c engine.ChatInfo) {
 	a.invalidate()
 }
 
-// openHeaderMenu opens the peer menu at pos (chat pane coords).
 func (a *App) openHeaderMenu(c engine.ChatInfo, pos image.Point) {
 	a.mu.Lock()
 	a.headerMenu = &headerMenuTarget{chat: c, pos: pos}
@@ -137,7 +109,6 @@ func (a *App) openHeaderMenu(c engine.ChatInfo, pos image.Point) {
 	a.invalidate()
 }
 
-// closeHeaderMenu dismisses it.
 func (a *App) closeHeaderMenu() {
 	a.mu.Lock()
 	a.headerMenu = nil
@@ -145,7 +116,6 @@ func (a *App) closeHeaderMenu() {
 	a.invalidate()
 }
 
-// dispatchHeaderMenu runs one action (async where needed).
 func (a *App) dispatchHeaderMenu(c engine.ChatInfo, action string) {
 	a.mu.Lock()
 	if m := a.headerMenu; m != nil {
@@ -269,7 +239,6 @@ func (a *App) dispatchHeaderMenu(c engine.ChatInfo, action string) {
 			}
 		}()
 	case "clear", "leave", "delete":
-		// Confirm first (dialog while the menu closes).
 		a.mu.Lock()
 		if m := a.headerMenu; m != nil {
 			m.confirm = action
@@ -282,7 +251,6 @@ func (a *App) dispatchHeaderMenu(c engine.ChatInfo, action string) {
 	}
 }
 
-// runHeaderConfirm executes the confirmed destructive action.
 func (a *App) runHeaderConfirm(action string) {
 	a.mu.Lock()
 	m := a.headerMenu
@@ -322,19 +290,11 @@ func (a *App) runHeaderConfirm(action string) {
 	}()
 }
 
-// refreshMessages is state.go's (reloads the open chat's window).
-
-// ── layout ────────────────────────────────────────────────────────────────
-
-// layoutHeaderMenu draws the open peer menu, clamped to the chat pane,
-// plus its confirm dialog.
 func (a *App) layoutHeaderMenu(gtx layout.Context, f frame) layout.Dimensions {
 	m := f.headerMenu
 	items := headerMenuItems(m.chat, f.profile != nil, f.profile != nil && f.profile.IsBlocked,
 		f.selected != nil && chatTranslateOn(f, f.selected),
-		// Slice 211: gifts on gift-capable platforms, user peers only.
 		m.chat.Type == engine.ChatTypeDMVal && giftAccountOK(f, m.chat.AccountID),
-		// R30: separate windows never paint the content-pane dialogs.
 		a.isSeparate())
 	growClickables(&a.wid.headerMenuBtns, len(items))
 
@@ -342,7 +302,6 @@ func (a *App) layoutHeaderMenu(gtx layout.Context, f frame) layout.Dimensions {
 	rowH := gtx.Dp(unit.Dp(36))
 	h := gtx.Dp(unit.Dp(8)) + len(items)*rowH + gtx.Dp(unit.Dp(8))
 
-	// Anchor under the ⋮ (top-right), clamped.
 	pos := m.pos
 	if pos.X+menuW > gtx.Constraints.Max.X {
 		pos.X = gtx.Constraints.Max.X - menuW
@@ -389,10 +348,9 @@ func (a *App) layoutHeaderMenu(gtx layout.Context, f frame) layout.Dimensions {
 	return dims
 }
 
-// headerMenuRow renders one row (label; destructive rows tinted).
 func headerMenuRow(gtx layout.Context, a *App, btn *widget.Clickable, item chatMenuAction, rowH int) layout.Dimensions {
 	bl := material.ButtonLayout(a.ui.Theme, btn)
-	bl.Background = a.ui.p.Surface // invisible against the card
+	bl.Background = a.ui.p.Surface
 	bl.CornerRadius = 8
 	gtx.Constraints.Min.Y = rowH
 	return bl.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -409,7 +367,6 @@ func headerMenuRow(gtx layout.Context, a *App, btn *widget.Clickable, item chatM
 	})
 }
 
-// layoutHeaderConfirm: centered confirmation card for destructive actions.
 func (a *App) layoutHeaderConfirm(gtx layout.Context, f frame, action string) {
 	title, hint := headerMenuConfirmText(action)
 	if a.wid.headerCxlBtn.Clicked(gtx) {

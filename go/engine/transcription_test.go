@@ -9,12 +9,10 @@ import (
 	"uniclient/cores"
 )
 
-// transcribeStub: a core whose TranscribeAudio returns scripted results, and
-// which records calls so tests can assert the RPC actually happened.
 type transcribeStub struct {
 	cores.StubCore
 	mu     sync.Mutex
-	calls  [][2]string // (chatID, msgID) pairs
+	calls  [][2]string
 	pend   bool
 	text   string
 	rpcErr error
@@ -38,8 +36,6 @@ func (s *transcribeStub) lastCall() (string, string, bool) {
 	return c[0], c[1], true
 }
 
-// seedVoiceMessage stores a cached voice message the way the cache layer
-// does, so populateTranscriptions has a row to hydrate.
 func seedVoiceMessage(t *testing.T, e *Engine, accountID, chatID, msgID string) {
 	t.Helper()
 	_, err := e.db.Exec(
@@ -59,7 +55,6 @@ func seedVoiceMessage(t *testing.T, e *Engine, accountID, chatID, msgID string) 
 	}
 }
 
-// eventRecorder captures engine events for assertions.
 type eventRecorder struct {
 	mu     sync.Mutex
 	events []EngineEvent
@@ -134,7 +129,6 @@ func TestTranscribeVoiceNoteFinal(t *testing.T) {
 		t.Errorf("core call = (%q,%q,%v), want (10,500,true)", c, m, ok)
 	}
 
-	// Stored: direct read-back.
 	got, pend := e.GetCachedTranscription("tg", "10", "500")
 	if got != "hello world" || pend {
 		t.Errorf("GetCachedTranscription = (%q,%v)", got, pend)
@@ -156,7 +150,6 @@ func TestTranscribeVoiceNotePendingRoundTrip(t *testing.T) {
 	if text != "" {
 		t.Errorf("pending text = %q, want empty", text)
 	}
-	// The pending row is visible so the GUI can render "Transcribing…".
 	got, pend := e.GetCachedTranscription("tg", "10", "501")
 	if !pend {
 		t.Error("cached row not pending")
@@ -183,7 +176,6 @@ func TestTranscribeVoiceNoteCoreError(t *testing.T) {
 	if _, _, err := e.TranscribeVoiceNote("tg", "10", "502"); err == nil {
 		t.Error("core error swallowed")
 	}
-	// No row may be written on failure.
 	if text, _ := e.GetCachedTranscription("tg", "10", "502"); text != "" {
 		t.Errorf("failed transcription stored text %q", text)
 	}
@@ -204,7 +196,6 @@ func TestHandleUpdateTranscriptionFlipsPending(t *testing.T) {
 		t.Fatal("precondition: row should be pending")
 	}
 
-	// The server pushes updateTranscribedAudio with the final text.
 	e.handleUpdate("tg", cores.Update{
 		Type:   cores.UpdateTranscription,
 		ChatID: "10",
@@ -242,9 +233,6 @@ func TestHandleUpdateTranscriptionUnknownMessageIgnored(t *testing.T) {
 	rec := &eventRecorder{}
 	e.SetEventCallback(rec.record)
 
-	// An update for a message nobody requested must not create a row (the
-	// transcription is only interesting once the user asked for it — matches
-	// Telegram: rows surface on explicit user action).
 	e.handleUpdate("tg", cores.Update{
 		Type:   cores.UpdateTranscription,
 		ChatID: "10",

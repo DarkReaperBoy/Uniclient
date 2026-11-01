@@ -14,7 +14,6 @@ import (
 	"uniclient/utils"
 )
 
-// AccountInfo is the data returned to the UI for display.
 type AccountInfo struct {
 	ID          string `json:"id"`
 	Platform    string `json:"platform"`
@@ -29,7 +28,6 @@ type AccountInfo struct {
 	SelfUserID  string `json:"self_user_id,omitempty"`
 }
 
-// generateAccountID creates an ID like "tg_a1b2c3d4" (platform prefix + 8 random hex).
 func generateAccountID(platform string) string {
 	prefix := platform
 	if len(prefix) > 4 {
@@ -40,8 +38,6 @@ func generateAccountID(platform string) string {
 	return prefix + "_" + hex.EncodeToString(b)
 }
 
-// loadAccounts reads accounts from the vault (source of truth) into the
-// in-memory map, and ensures DB cache rows exist for each.
 func (e *Engine) loadAccounts() error {
 	entries := e.vault.ListAccountEntries()
 
@@ -54,7 +50,6 @@ func (e *Engine) loadAccounts() error {
 			SortOrder:   entry.SortOrder,
 		}
 
-		// Ensure DB cache row exists.
 		e.db.Exec(
 			`INSERT OR IGNORE INTO accounts (id, platform, display_name, avatar_path, sort_order, created_at)
                          VALUES (?, ?, ?, ?, ?, ?)`,
@@ -63,18 +58,16 @@ func (e *Engine) loadAccounts() error {
 	return nil
 }
 
-// migrateAccountsToVault migrates account data from the old DB+vault format
-// into the unified __accounts vault bucket. Runs once on first startup after upgrade.
 func (e *Engine) migrateAccountsToVault() {
 	if e.vault.HasAccountsBucket() {
-		return // already migrated
+		return
 	}
 
 	rows, err := e.db.Query(
 		`SELECT id, platform, display_name, avatar_path, sort_order, created_at
                  FROM accounts ORDER BY sort_order`)
 	if err != nil {
-		return // no DB accounts = fresh install
+		return
 	}
 	defer rows.Close()
 
@@ -100,7 +93,6 @@ func (e *Engine) migrateAccountsToVault() {
 			entry.AvatarPath = ap
 		}
 
-		// Pull old credentials from vault "accounts" bucket.
 		var credRaw json.RawMessage
 		if err := e.vault.Get("accounts", "cred_"+id, &credRaw); err == nil {
 			entry.Credentials = credRaw
@@ -110,7 +102,6 @@ func (e *Engine) migrateAccountsToVault() {
 		migrated++
 	}
 
-	// Clean up old cred_* keys.
 	if migrated > 0 {
 		if keys, err := e.vault.ListKeys("accounts"); err == nil {
 			for _, k := range keys {
@@ -124,10 +115,7 @@ func (e *Engine) migrateAccountsToVault() {
 	}
 }
 
-// ListAccounts returns info about all accounts, sorted by sort_order.
 func (e *Engine) ListAccounts() []AccountInfo {
-	// AyuGram local premium: the client-side premium view (snapshot the
-	// flags before the accounts lock — e.mu and accountsMu never nest).
 	localPrem := e.localPremiumSnapshot()
 	e.accountsMu.RLock()
 	defer e.accountsMu.RUnlock()
@@ -152,7 +140,6 @@ func (e *Engine) ListAccounts() []AccountInfo {
 		list = append(list, info)
 	}
 
-	// Sort by sort_order.
 	for i := 1; i < len(list); i++ {
 		for j := i; j > 0 && list[j].SortOrder < list[j-1].SortOrder; j-- {
 			list[j], list[j-1] = list[j-1], list[j]
@@ -161,14 +148,10 @@ func (e *Engine) ListAccounts() []AccountInfo {
 	return list
 }
 
-// AddAccount creates a new account entry for the given platform.
-// Returns the generated account ID. The account is NOT connected yet —
-// call StartAuth() to begin the authentication flow.
 func (e *Engine) AddAccount(platform string, testMode bool) (string, error) {
 	id := generateAccountID(platform)
 	now := time.Now().UnixMilli()
 
-	// Get next sort_order.
 	e.accountsMu.RLock()
 	maxOrder := 0
 	for _, acc := range e.accounts {
@@ -178,7 +161,6 @@ func (e *Engine) AddAccount(platform string, testMode bool) (string, error) {
 	}
 	e.accountsMu.RUnlock()
 
-	// Write to vault (source of truth).
 	entry := utils.VaultAccountEntry{
 		Platform:  platform,
 		SortOrder: maxOrder,
@@ -189,7 +171,6 @@ func (e *Engine) AddAccount(platform string, testMode bool) (string, error) {
 		return "", fmt.Errorf("vault put account: %w", err)
 	}
 
-	// Insert DB cache row.
 	e.db.Exec(
 		`INSERT OR IGNORE INTO accounts (id, platform, sort_order, created_at)
                  VALUES (?, ?, ?, ?)`,
@@ -209,7 +190,6 @@ func (e *Engine) AddAccount(platform string, testMode bool) (string, error) {
 	return id, nil
 }
 
-// RemoveAccount disconnects and deletes an account, including all its cached data.
 func (e *Engine) RemoveAccount(accountID string) error {
 	e.accountsMu.Lock()
 	acc, ok := e.accounts[accountID]
@@ -220,7 +200,6 @@ func (e *Engine) RemoveAccount(accountID string) error {
 	delete(e.accounts, accountID)
 	e.accountsMu.Unlock()
 
-	// Disconnect core.
 	if acc.Core != nil {
 		if acc.cancelFunc != nil {
 			acc.cancelFunc()
@@ -228,11 +207,9 @@ func (e *Engine) RemoveAccount(accountID string) error {
 		acc.Core.Close()
 	}
 
-	// Delete from vault: account entry (includes credentials) + session.
 	e.vault.DeleteAccount(accountID)
 	e.vault.DeleteSession(accountID)
 
-	// Delete all cached data from DB.
 	tx, err := e.db.Begin()
 	if err != nil {
 		return fmt.Errorf("begin delete tx: %w", err)
@@ -250,9 +227,7 @@ func (e *Engine) RemoveAccount(accountID string) error {
 	return nil
 }
 
-// ReorderAccounts sets the sort order based on the provided list of account IDs.
 func (e *Engine) ReorderAccounts(order []string) error {
-	// Update vault (source of truth).
 	for i, id := range order {
 		entry, err := e.vault.GetAccount(id)
 		if err != nil {
@@ -262,7 +237,6 @@ func (e *Engine) ReorderAccounts(order []string) error {
 		_ = e.vault.PutAccount(id, *entry)
 	}
 
-	// Update DB cache.
 	tx, err := e.db.Begin()
 	if err != nil {
 		return err
@@ -274,7 +248,6 @@ func (e *Engine) ReorderAccounts(order []string) error {
 		return err
 	}
 
-	// Update in-memory.
 	e.accountsMu.Lock()
 	for i, id := range order {
 		if acc, ok := e.accounts[id]; ok {
@@ -285,7 +258,6 @@ func (e *Engine) ReorderAccounts(order []string) error {
 	return nil
 }
 
-// SaveCredentials stores platform auth credentials in the vault account entry.
 func (e *Engine) SaveCredentials(accountID string, creds cores.AuthConfig) error {
 	entry, err := e.vault.GetAccount(accountID)
 	if err != nil {
@@ -299,7 +271,6 @@ func (e *Engine) SaveCredentials(accountID string, creds cores.AuthConfig) error
 	return e.vault.PutAccount(accountID, *entry)
 }
 
-// LoadCredentials retrieves stored auth credentials from the vault account entry.
 func (e *Engine) LoadCredentials(accountID string) (*cores.AuthConfig, error) {
 	entry, err := e.vault.GetAccount(accountID)
 	if err != nil {
@@ -315,9 +286,7 @@ func (e *Engine) LoadCredentials(accountID string) (*cores.AuthConfig, error) {
 	return &creds, nil
 }
 
-// UpdateAccountDisplay updates the display name and avatar for an account.
 func (e *Engine) UpdateAccountDisplay(accountID, displayName, avatarPath string) error {
-	// Update vault (source of truth).
 	entry, err := e.vault.GetAccount(accountID)
 	if err != nil {
 		return fmt.Errorf("get account: %w", err)
@@ -332,24 +301,20 @@ func (e *Engine) UpdateAccountDisplay(accountID, displayName, avatarPath string)
 		return fmt.Errorf("put account: %w", err)
 	}
 
-	// Update DB cache.
 	e.db.Exec(
 		`UPDATE accounts SET display_name = ?, avatar_path = ? WHERE id = ?`,
 		entry.DisplayName, entry.AvatarPath, accountID)
 
-	// Update in-memory.
 	e.accountsMu.Lock()
 	if acc, ok := e.accounts[accountID]; ok {
 		acc.DisplayName = entry.DisplayName
 	}
 	e.accountsMu.Unlock()
 
-	// Notify the host so the sidebar user panel updates.
 	e.emitAccountList()
 	return nil
 }
 
-// getAccount returns a live account by ID (thread-safe).
 func (e *Engine) getAccount(accountID string) (*Account, bool) {
 	e.accountsMu.RLock()
 	defer e.accountsMu.RUnlock()
@@ -365,10 +330,6 @@ func (e *Engine) GetAccountCore(accountID string) cores.Core {
 	return acc.Core
 }
 
-// AccountCapabilities returns the live core's capability list for an account
-// (e.g. cores.CapReactions). The GUI gates shared-surface actions on it so
-// every backend renders through one frontend (§1.11) without dead entries.
-// Unknown accounts return nil — callers treat "absent" as "unsupported".
 func (e *Engine) AccountCapabilities(accountID string) []string {
 	core := e.GetAccountCore(accountID)
 	if core == nil {
@@ -377,7 +338,6 @@ func (e *Engine) AccountCapabilities(accountID string) []string {
 	return core.Capabilities()
 }
 
-// setConnState updates an account's connection state.
 func (e *Engine) setConnState(accountID string, state ConnState) {
 	e.accountsMu.Lock()
 	if acc, ok := e.accounts[accountID]; ok {
@@ -386,17 +346,13 @@ func (e *Engine) setConnState(accountID string, state ConnState) {
 	e.accountsMu.Unlock()
 }
 
-// CoreFactory is a function that creates a new core instance for a platform.
-// The engine needs this to instantiate cores on account connect.
 type CoreFactory func(platform, accountID string) (cores.Core, error)
 
-// coreFactory is set by the bridge/main code so the engine can create cores.
 var (
 	coreFactoryMu sync.Mutex
 	coreFactory   CoreFactory
 )
 
-// SetCoreFactory registers the function used to create new core instances.
 func SetCoreFactory(f CoreFactory) {
 	coreFactoryMu.Lock()
 	defer coreFactoryMu.Unlock()

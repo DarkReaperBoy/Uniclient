@@ -1,30 +1,3 @@
-// XMPP core — pure Go XMPP client implementing the Core interface.
-// Protocol: RFC 6120/6121 (XMPP Core + IM) + 30+ XEPs.
-// No external dependencies — stdlib only (encoding/xml, crypto/tls, net).
-//
-// Chat IDs:
-//
-//	"user@domain"             → DM (bare JID)
-//	"room@conference.domain"  → MUC room (group)
-//
-// AuthConfig.Extra keys:
-//
-//	"server"      — host:port (e.g. "conversations.im:5222")
-//	"resource"    — XMPP resource (default: "uniclient")
-//	"tls"         — "direct" for port 5223 direct TLS, "starttls" (default), "none"
-//	"mechanism"   — "plain", "scram-sha-1", "scram-sha-256" (default: best available)
-//	"muc_service" — MUC service domain (auto-discovered if empty)
-//	"upload_service" — HTTP upload service (auto-discovered if empty)
-//
-// Coverage: SASL (PLAIN, SCRAM-SHA-1, SCRAM-SHA-256), STARTTLS, resource binding,
-// roster (RFC 6121), presence, MUC (XEP-0045), disco (XEP-0030), MAM (XEP-0313),
-// HTTP upload (XEP-0363), carbons (XEP-0280), receipts (XEP-0184),
-// chat states (XEP-0085), corrections (XEP-0308), reactions (XEP-0444),
-// replies (XEP-0461), blocking (XEP-0191), bookmarks (XEP-0048/0402),
-// PubSub (XEP-0060), PEP (XEP-0163), vCard (XEP-0054), stream management (XEP-0198),
-// CSI (XEP-0352), ping (XEP-0199), version (XEP-0092), last activity (XEP-0012),
-// entity time (XEP-0202), caps (XEP-0115), OOB (XEP-0066),
-// Jingle (XEP-0166/0167/0176) stubs.
 package cores
 
 import (
@@ -62,10 +35,6 @@ import (
 	"uniclient/utils"
 )
 
-// ---------------------------------------------------------------------------
-// Constants & namespaces
-// ---------------------------------------------------------------------------
-
 const xmppPlatform = "xmpp"
 
 const (
@@ -78,7 +47,6 @@ const (
 	xmppReconnectDelay = 5 * time.Second
 )
 
-// XML namespaces
 const (
 	nsStream     = "http://etherx.jabber.org/streams"
 	nsClient     = "jabber:client"
@@ -137,11 +105,6 @@ const (
 	nsPrivate    = "jabber:iq:private"
 )
 
-// ---------------------------------------------------------------------------
-// XML stanza types (for parsing and building)
-// ---------------------------------------------------------------------------
-
-// streamFeatures represents <stream:features>.
 type xmppFeatures struct {
 	StartTLS   *xmppTLSFeature `xml:"urn:ietf:params:xml:ns:xmpp-tls starttls"`
 	Mechanisms *xmppSASLMechs  `xml:"urn:ietf:params:xml:ns:xmpp-sasl mechanisms"`
@@ -162,7 +125,6 @@ type xmppSASLMechs struct {
 	Mechanism []string `xml:"mechanism"`
 }
 
-// Generic stanza types
 type XMPPIQ struct {
 	XMLName xml.Name         `xml:"iq"`
 	Type    string           `xml:"type,attr"`
@@ -201,50 +163,32 @@ type XMPPStanzaError struct {
 	Inner string `xml:",innerxml"`
 }
 
-// ---------------------------------------------------------------------------
-// Parsed message body (for incoming message dispatch)
-// ---------------------------------------------------------------------------
-
 type xmppParsedMessage struct {
-	Body      string
-	Subject   string
-	Thread    string
-	OOB       string // XEP-0066 URL
-	Delay     *time.Time
-	DelayFrom string
-	// XEP-0184 receipt
+	Body           string
+	Subject        string
+	Thread         string
+	OOB            string
+	Delay          *time.Time
+	DelayFrom      string
 	ReceiptRequest bool
-	ReceiptFor     string // received id
-	// XEP-0085 chat state
-	ChatState string // composing, active, paused, inactive, gone
-	// XEP-0308 correction
-	ReplaceID string
-	// XEP-0333 markers
-	DisplayedID string
-	ReceivedID  string
-	// XEP-0461 reply
-	ReplyTo string // JID
-	ReplyID string // message id
-	// XEP-0444 reactions
-	ReactionsID string
-	Reactions   []string
-	// XEP-0045 MUC
-	MUCInviteFrom string
-	MUCInviteRoom string
-	// XEP-0280 carbon
-	CarbonType string // sent or received
-	CarbonMsg  *xmppParsedMessage
-	// MAM
-	MAMID      string
-	MAMQueryID string
-	MAMMsg     *xmppParsedMessage
-	// Forwarded
-	ForwardedFrom string
+	ReceiptFor     string
+	ChatState      string
+	ReplaceID      string
+	DisplayedID    string
+	ReceivedID     string
+	ReplyTo        string
+	ReplyID        string
+	ReactionsID    string
+	Reactions      []string
+	MUCInviteFrom  string
+	MUCInviteRoom  string
+	CarbonType     string
+	CarbonMsg      *xmppParsedMessage
+	MAMID          string
+	MAMQueryID     string
+	MAMMsg         *xmppParsedMessage
+	ForwardedFrom  string
 }
-
-// ---------------------------------------------------------------------------
-// Roster item
-// ---------------------------------------------------------------------------
 
 type xmppRosterItem struct {
 	JID          string   `xml:"jid,attr"`
@@ -253,10 +197,6 @@ type xmppRosterItem struct {
 	Groups       []string `xml:"group"`
 	Ask          string   `xml:"ask,attr,omitempty"`
 }
-
-// ---------------------------------------------------------------------------
-// Session persistence
-// ---------------------------------------------------------------------------
 
 type xmppSession struct {
 	JID            string         `json:"jid"`
@@ -281,49 +221,35 @@ type xmppBookmark struct {
 	AutoJoin bool   `json:"autojoin,omitempty"`
 }
 
-// ---------------------------------------------------------------------------
-// MUC room state
-// ---------------------------------------------------------------------------
-
 type xmppRoom struct {
 	JID       string
 	Name      string
 	Nick      string
 	Subject   string
 	SubjectBy string
-	Occupants map[string]*xmppOccupant // nick → occupant
+	Occupants map[string]*xmppOccupant
 	Joined    bool
 	Config    map[string]string
 }
 
 type xmppOccupant struct {
 	Nick        string
-	RealJID     string // bare JID if available
-	Role        string // none, visitor, participant, moderator
-	Affiliation string // none, member, admin, owner, outcast
+	RealJID     string
+	Role        string
+	Affiliation string
 	Show        string
 	Status      string
 }
-
-// ---------------------------------------------------------------------------
-// IQ response tracking
-// ---------------------------------------------------------------------------
 
 type xmppPendingIQ struct {
 	ch      chan *XMPPIQ
 	timeout *time.Timer
 }
 
-// ---------------------------------------------------------------------------
-// XMPPCore struct
-// ---------------------------------------------------------------------------
-
-// XMPPCore implements the Core interface for XMPP.
 type XMPPCore struct {
 	mu     sync.RWMutex
 	authed bool
 
-	// Connection
 	conn    net.Conn
 	tlsConn *tls.Conn
 	reader  *bufio.Reader
@@ -331,89 +257,70 @@ type XMPPCore struct {
 	decoder *xml.Decoder
 	writeMu sync.Mutex
 
-	// Identity
-	jid      string // full JID (user@domain/resource)
-	bareJID  string // bare JID (user@domain)
-	domain   string
-	server   string // host:port
-	resource string
-	password string
-	tlsMode  string // "starttls", "direct", "none"
-	saslMech string // preferred mechanism
-	// wantRegister: XEP-0077 in-band registration requested — create
-	// the account on the next connect (pre-SASL), then authenticate.
+	jid          string
+	bareJID      string
+	domain       string
+	server       string
+	resource     string
+	password     string
+	tlsMode      string
+	saslMech     string
 	wantRegister bool
 
-	// Server features
 	features      xmppFeatures
-	serverFeats   []string // disco#info features
+	serverFeats   []string
 	mucService    string
 	uploadService string
 	uploadMaxSize int64
 
-	// Roster
-	roster    map[string]*xmppRosterItem // bare JID → item
+	roster    map[string]*xmppRosterItem
 	rosterMu  sync.RWMutex
 	rosterVer string
 
-	// Rooms (MUC)
-	rooms   map[string]*xmppRoom // room bare JID → room
+	rooms   map[string]*xmppRoom
 	roomsMu sync.RWMutex
 
-	// Message buffer
 	messages   map[string][]*Message
 	messagesMu sync.RWMutex
 	msgCounter int64
 
-	// Pinned (local)
 	pinned   map[string]map[string]bool
 	pinnedMu sync.RWMutex
 
-	// Read state (local)
 	readState   map[string]*ReadState
 	readStateMu sync.RWMutex
 
-	// Blocked (XEP-0191)
 	blocked   map[string]bool
 	blockedMu sync.RWMutex
 
-	// IQ tracking
 	pendingIQ   map[string]*xmppPendingIQ
 	pendingIQMu sync.Mutex
 	iqCounter   atomic.Int64
 
-	// Stream management (XEP-0198)
 	smEnabled  bool
 	smResumeID string
-	smInH      atomic.Int64    // handled count (incoming)
-	smOutH     atomic.Int64    // sent count (outgoing)
-	smOutQueue []*bytes.Buffer // unacked outgoing stanzas
+	smInH      atomic.Int64
+	smOutH     atomic.Int64
+	smOutQueue []*bytes.Buffer
 	smOutMu    sync.Mutex
 
-	// Carbons
 	carbonsEnabled bool
 
-	// Bookmarks
 	bookmarks   []xmppBookmark
 	bookmarksMu sync.RWMutex
 
-	// vCard cache
-	vcardCache   map[string]map[string]string // bare JID → fields
+	vcardCache   map[string]map[string]string
 	vcardCacheMu sync.RWMutex
 
-	// Cached caps element (static, computed once)
 	capsElement     string
 	capsElementOnce sync.Once
 
-	// Real-time
 	updateHandlers []func(Update)
 	updateMu       sync.RWMutex
 
-	// Stream limits (XEP-0478)
 	streamMaxBytes    int
 	streamIdleSeconds int
 
-	// Lifecycle
 	session *utils.SessionStore
 	ctx     context.Context
 	cancel  context.CancelFunc
@@ -422,7 +329,6 @@ type XMPPCore struct {
 
 var _ Core = (*XMPPCore)(nil)
 
-// NewXMPPCore creates a new XMPP core instance.
 func NewXMPPCore(session *utils.SessionStore) *XMPPCore {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &XMPPCore{
@@ -440,14 +346,8 @@ func NewXMPPCore(session *utils.SessionStore) *XMPPCore {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Core interface — Identity
-// ---------------------------------------------------------------------------
-
-// Name returns the platform identifier for this core.
 func (c *XMPPCore) Name() string { return xmppPlatform }
 
-// Capabilities returns the list of supported features for this XMPP core.
 func (c *XMPPCore) Capabilities() []string {
 	return []string{
 		CapText, CapChannels, CapCalls, CapReactions, CapReadReceipts,
@@ -456,11 +356,6 @@ func (c *XMPPCore) Capabilities() []string {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Core interface — Auth
-// ---------------------------------------------------------------------------
-
-// Authenticate connects to the XMPP server and logs in with the provided credentials.
 func (c *XMPPCore) Authenticate(cfg AuthConfig) error {
 	c.mu.Lock()
 	if c.authed {
@@ -471,7 +366,6 @@ func (c *XMPPCore) Authenticate(cfg AuthConfig) error {
 
 	server := cfg.Extra["server"]
 	if server == "" {
-		// Derive from JID domain
 		parts := strings.SplitN(cfg.Extra["jid"], "@", 2)
 		if len(parts) < 2 && cfg.Phone != "" {
 			parts = strings.SplitN(cfg.Phone, "@", 2)
@@ -487,7 +381,7 @@ func (c *XMPPCore) Authenticate(cfg AuthConfig) error {
 
 	jidLocal := cfg.Extra["jid"]
 	if jidLocal == "" {
-		jidLocal = cfg.Phone // allow phone field as JID
+		jidLocal = cfg.Phone
 	}
 	if jidLocal == "" {
 		return fmt.Errorf("%w: jid required (in Extra[\"jid\"] or Phone field)", ErrInvalidInput)
@@ -495,7 +389,7 @@ func (c *XMPPCore) Authenticate(cfg AuthConfig) error {
 
 	password := cfg.Extra["password"]
 	if password == "" {
-		password = cfg.BotToken // allow bot_token field
+		password = cfg.BotToken
 	}
 	if password == "" {
 		password = cfg.Password2F
@@ -516,8 +410,6 @@ func (c *XMPPCore) Authenticate(cfg AuthConfig) error {
 		c.tlsMode = "starttls"
 	}
 	c.saslMech = cfg.Extra["mechanism"]
-	// XEP-0077: register the account in-band before SASL, then continue
-	// authenticating with the new credentials on the same stream.
 	c.wantRegister = cfg.Extra["register"] == "true" || cfg.Extra["register"] == "1"
 	if svc := cfg.Extra["muc_service"]; svc != "" {
 		c.mucService = svc
@@ -526,25 +418,19 @@ func (c *XMPPCore) Authenticate(cfg AuthConfig) error {
 		c.uploadService = svc
 	}
 
-	// Parse JID
 	if at := strings.Index(jidLocal, "@"); at > 0 {
 		c.bareJID = jidLocal
 		c.domain = jidLocal[at+1:]
 	} else {
-		// domain from server
 		host, _, _ := net.SplitHostPort(server)
 		c.domain = host
 		c.bareJID = jidLocal + "@" + c.domain
 	}
 	c.mu.Unlock()
 
-	// Load saved session
 	c.loadSession()
 
-	// Connect
 	if err := c.connectAndAuth(); err != nil {
-		// Close the socket: the login flow may retry Authenticate (the
-		// optional register step) and must not leak the half-open stream.
 		c.mu.Lock()
 		if c.conn != nil {
 			c.conn.Close()
@@ -561,7 +447,6 @@ func (c *XMPPCore) Authenticate(cfg AuthConfig) error {
 	c.authed = true
 	c.mu.Unlock()
 
-	// Post-auth setup
 	c.wg.Add(1)
 	go c.readLoop()
 	c.wg.Add(1)
@@ -572,31 +457,22 @@ func (c *XMPPCore) Authenticate(cfg AuthConfig) error {
 	return nil
 }
 
-// postAuthSetup runs post-authentication setup: roster, carbons, SM, presence, etc.
-// Called both on initial auth and after reconnection.
 func (c *XMPPCore) postAuthSetup() {
-	// Request roster
 	c.requestRoster()
 
-	// Enable carbons
 	c.EnableCarbons()
 
-	// Enable stream management if available
 	if c.features.SM != nil {
 		c.EnableStreamManagement()
 	}
 
-	// Discover services
 	go c.discoverServices()
 
-	// Send initial presence
 	c.SendPresenceAvailable("", "")
 
-	// Auto-join bookmarked rooms
 	go c.autoJoinBookmarks()
 }
 
-// Logout disconnects from the XMPP server and cleans up resources.
 func (c *XMPPCore) Logout() error {
 	c.mu.RLock()
 	if !c.authed {
@@ -605,10 +481,8 @@ func (c *XMPPCore) Logout() error {
 	}
 	c.mu.RUnlock()
 
-	// Send unavailable presence
 	c.SendPresenceUnavailable("Logged out")
 
-	// Close stream
 	c.writeMu.Lock()
 	if c.encoder != nil {
 		c.encoder.Flush()
@@ -629,10 +503,6 @@ func (c *XMPPCore) Logout() error {
 	return nil
 }
 
-// ---------------------------------------------------------------------------
-// Connection & authentication internals
-// ---------------------------------------------------------------------------
-
 func (c *XMPPCore) connectAndAuth() error {
 	var conn net.Conn
 	var err error
@@ -643,14 +513,12 @@ func (c *XMPPCore) connectAndAuth() error {
 	domain := c.domain
 	c.mu.RUnlock()
 
-	// TCP connect
 	dialer := &net.Dialer{Timeout: 15 * time.Second}
 	conn, err = dialer.DialContext(c.ctx, "tcp", server)
 	if err != nil {
 		return fmt.Errorf("tcp connect: %w", err)
 	}
 
-	// Direct TLS (port 5223)
 	if tlsMode == "direct" {
 		tlsConf := &tls.Config{ServerName: domain}
 		tlsConn := tls.Client(conn, tlsConf)
@@ -670,26 +538,20 @@ func (c *XMPPCore) connectAndAuth() error {
 	c.encoder = xml.NewEncoder(conn)
 	c.mu.Unlock()
 
-	// Open stream
 	if err := c.sendStreamHeader(); err != nil {
 		return err
 	}
 
-	// Read stream features
 	if err := c.readStreamStart(); err != nil {
 		return err
 	}
 
-	// STARTTLS
 	if tlsMode == "starttls" && c.features.StartTLS != nil {
 		if err := c.startTLS(); err != nil {
 			return err
 		}
 	}
 
-	// XEP-0077 in-band registration (pre-SASL, same stream): the account
-	// is created server-side and the stream continues straight into SASL
-	// with the new credentials.
 	c.mu.RLock()
 	wantReg := c.wantRegister
 	c.mu.RUnlock()
@@ -698,21 +560,18 @@ func (c *XMPPCore) connectAndAuth() error {
 			return err
 		}
 		c.mu.Lock()
-		c.wantRegister = false // registered; retries are plain logins
+		c.wantRegister = false
 		c.mu.Unlock()
 	}
 
-	// SASL authentication
 	if err := c.authenticate(); err != nil {
 		return err
 	}
 
-	// Resource binding
 	if err := c.bindResource(); err != nil {
 		return err
 	}
 
-	// Legacy session establishment (some servers still require it)
 	if c.features.Session != nil {
 		c.establishSession()
 	}
@@ -742,11 +601,6 @@ func (c *XMPPCore) sendStreamHeader() error {
 }
 
 func (c *XMPPCore) readStreamStart() error {
-	// XMPP streams are tricky for encoding/xml: the root <stream:stream> is
-	// never closed, and namespace prefixes on the root confuse Go's decoder.
-	// Strategy: read from the shared bufio.Reader byte-by-byte until we see
-	// </stream:features>, then parse the features block. Whatever remains
-	// buffered in c.reader is available for the xml.Decoder later.
 	c.mu.RLock()
 	reader := c.reader
 	c.mu.RUnlock()
@@ -783,7 +637,6 @@ func (c *XMPPCore) readStreamStart() error {
 }
 
 func (c *XMPPCore) parseStreamFeatures(data string) error {
-	// Extract the features block
 	var featXML string
 	if idx := strings.Index(data, "<stream:features>"); idx >= 0 {
 		end := strings.Index(data, "</stream:features>")
@@ -801,10 +654,8 @@ func (c *XMPPCore) parseStreamFeatures(data string) error {
 		return errors.New("no features found in stream")
 	}
 
-	// Parse features manually from the raw XML
 	var feats xmppFeatures
 
-	// STARTTLS
 	if strings.Contains(featXML, nsTLS) {
 		feats.StartTLS = &xmppTLSFeature{}
 		if strings.Contains(featXML, "<required") {
@@ -812,10 +663,8 @@ func (c *XMPPCore) parseStreamFeatures(data string) error {
 		}
 	}
 
-	// SASL mechanisms
 	if strings.Contains(featXML, nsSASL) {
 		feats.Mechanisms = &xmppSASLMechs{}
-		// Extract mechanisms
 		remaining := featXML
 		for {
 			mStart := strings.Index(remaining, "<mechanism>")
@@ -832,32 +681,26 @@ func (c *XMPPCore) parseStreamFeatures(data string) error {
 		}
 	}
 
-	// Bind
 	if strings.Contains(featXML, nsBind) {
 		feats.Bind = &xml.Name{}
 	}
 
-	// Session
 	if strings.Contains(featXML, nsSession) {
 		feats.Session = &xml.Name{}
 	}
 
-	// Stream management
 	if strings.Contains(featXML, nsSM) {
 		feats.SM = &xml.Name{}
 	}
 
-	// CSI
 	if strings.Contains(featXML, nsCSI) {
 		feats.CSI = &xml.Name{}
 	}
 
-	// Roster versioning
 	if strings.Contains(featXML, "rosterver") {
 		feats.RosterVer = &xml.Name{}
 	}
 
-	// In-band registration advertised (XEP-0077)
 	if strings.Contains(featXML, "jabber.org/features/iq-register") {
 		feats.IBR = &xml.Name{}
 	}
@@ -868,9 +711,6 @@ func (c *XMPPCore) parseStreamFeatures(data string) error {
 	c.features = feats
 	c.mu.Unlock()
 
-	// Now create a fresh xml.Decoder for the stanza stream
-	// The connection is positioned right after </stream:features>
-	// We need to set up a decoder that reads stanzas
 	c.decoder = xml.NewDecoder(c.conn)
 
 	return nil
@@ -881,7 +721,6 @@ func (c *XMPPCore) startTLS() error {
 	c.conn.Write([]byte("<starttls xmlns='" + nsTLS + "'/>"))
 	c.writeMu.Unlock()
 
-	// Read proceed (raw, since we don't have an xml.Decoder yet for this stream)
 	c.conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 	var buf bytes.Buffer
 	for {
@@ -920,7 +759,6 @@ func (c *XMPPCore) startTLS() error {
 	c.encoder = xml.NewEncoder(tlsConn)
 	c.mu.Unlock()
 
-	// Restart stream
 	if err := c.sendStreamHeader(); err != nil {
 		return err
 	}
@@ -937,7 +775,6 @@ func (c *XMPPCore) authenticate() error {
 		return errors.New("no SASL mechanisms offered")
 	}
 
-	// Pick best mechanism
 	available := make(map[string]bool)
 	for _, m := range mechs.Mechanism {
 		available[m] = true
@@ -950,7 +787,6 @@ func (c *XMPPCore) authenticate() error {
 			return fmt.Errorf("requested mechanism %s not available (have: %v)", mech, mechs.Mechanism)
 		}
 	} else {
-		// Prefer SCRAM-SHA-256 > SCRAM-SHA-1 > PLAIN
 		switch {
 		case available["SCRAM-SHA-256"]:
 			mech = "SCRAM-SHA-256"
@@ -981,7 +817,6 @@ func (c *XMPPCore) authSASLPlain() error {
 	password := c.password
 	c.mu.RUnlock()
 
-	// Extract localpart
 	local := bareJID
 	if at := strings.Index(bareJID, "@"); at > 0 {
 		local = bareJID[:at]
@@ -997,37 +832,15 @@ func (c *XMPPCore) authSASLPlain() error {
 }
 
 const (
-	// saslElementMax bounds one SASL element read from the wire (F-80):
-	// challenge/success/failure are <1 KiB; the old read loop had ONLY a
-	// 15s deadline — a server streaming bytes without '>' filled buf
-	// without bound inside those 15 seconds (and re-copied the whole
-	// buffer on every byte).
 	saslElementMax = 16 << 10
-	// streamHeadMax bounds the read up to </stream:features> (F-80):
-	// the features block is small; the old loop was time-bound only.
-	streamHeadMax = 64 << 10
-	// iqResponseMax bounds a raw IQ response (F-80): roster-sized
-	// responses are ~1 MB worst case; the old loop was time-bound only.
-	iqResponseMax = 8 << 20
-	// starttlsMax bounds the <proceed/> element read before TLS (F-80):
-	// it is <1 KiB; the old loop was time-bound (10s) only.
-	starttlsMax = 4 << 10
-	// scramIterMin/scramIterMax bound the SERVER-declared PBKDF2
-	// iteration count (F-80): legit servers use ~4096; i=2^31 burned
-	// multi-minutes of CPU per login attempt, i<=0 skipped key
-	// stretching entirely.
-	scramIterMin = 1
-	scramIterMax = 1_000_000
-	// scramSaltMax bounds the SERVER-declared salt (RFC 5802 salts are
-	// 16-24 bytes; a multi-KiB salt HMAC'd `iterations` times is CPU
-	// amplification).
-	scramSaltMax = 1024
+	streamHeadMax  = 64 << 10
+	iqResponseMax  = 8 << 20
+	starttlsMax    = 4 << 10
+	scramIterMin   = 1
+	scramIterMax   = 1_000_000
+	scramSaltMax   = 1024
 )
 
-// parseScramServerFirst parses and VALIDATES the server-first SCRAM
-// message (F-80): every parameter is server-controlled — iterations
-// bounded to [scramIterMin, scramIterMax], salt to scramSaltMax. The
-// nonce-prefix check moved here unchanged.
 func parseScramServerFirst(serverFirst, clientNonce string) (serverNonce string, salt []byte, iterations int, err error) {
 	params := parseSCRAMParams(serverFirst)
 	serverNonce = params["r"]
@@ -1062,12 +875,10 @@ func (c *XMPPCore) authSASLScram(hashFunc func() hash.Hash, mechName string) err
 		local = bareJID[:at]
 	}
 
-	// Generate client nonce
 	nonceBytes := make([]byte, 24)
 	rand.Read(nonceBytes)
 	clientNonce := base64.StdEncoding.EncodeToString(nonceBytes)
 
-	// Client first message
 	clientFirstBare := fmt.Sprintf("n=%s,r=%s", scramEscapeUsername(local), clientNonce)
 	clientFirst := "n,," + clientFirstBare
 
@@ -1076,27 +887,22 @@ func (c *XMPPCore) authSASLScram(hashFunc func() hash.Hash, mechName string) err
 	c.conn.Write([]byte("<auth xmlns='" + nsSASL + "' mechanism='" + mechName + "'>" + payload + "</auth>"))
 	c.writeMu.Unlock()
 
-	// Read server challenge
 	challenge, err := c.readSASLChallenge()
 	if err != nil {
 		return err
 	}
 
-	// Parse + validate challenge: r=nonce,s=salt,i=iterations (F-80:
-	// every parameter is SERVER-controlled — bounds live in the helper).
 	serverFirst := string(challenge)
 	serverNonce, salt, iterations, err := parseScramServerFirst(serverFirst, clientNonce)
 	if err != nil {
 		return err
 	}
 
-	// Compute SCRAM keys
 	saltedPassword := xmppPBKDF2([]byte(password), salt, iterations, hashFunc().Size(), hashFunc)
 
 	clientKey := hmacHash(hashFunc, saltedPassword, []byte("Client Key"))
 	storedKey := hashBytes(hashFunc, clientKey)
 
-	// Client final without proof
 	clientFinalNoProof := fmt.Sprintf("c=biws,r=%s", serverNonce)
 	authMessage := clientFirstBare + "," + serverFirst + "," + clientFinalNoProof
 
@@ -1113,13 +919,11 @@ func (c *XMPPCore) authSASLScram(hashFunc func() hash.Hash, mechName string) err
 	c.conn.Write([]byte("<response xmlns='" + nsSASL + "'>" + respPayload + "</response>"))
 	c.writeMu.Unlock()
 
-	// Read success (which may contain server signature verification)
 	successData, err := c.readSASLSuccess()
 	if err != nil {
 		return err
 	}
 
-	// Verify server signature
 	if successData != "" {
 		decoded, _ := base64.StdEncoding.DecodeString(successData)
 		sParams := parseSCRAMParams(string(decoded))
@@ -1131,16 +935,12 @@ func (c *XMPPCore) authSASLScram(hashFunc func() hash.Hash, mechName string) err
 		}
 	}
 
-	// Restart stream after SASL
 	if err := c.sendStreamHeader(); err != nil {
 		return err
 	}
 	return c.readStreamStart()
 }
 
-// readSASLElement reads raw bytes from c.reader until a complete SASL element
-// is found (<challenge>, <success>, or <failure>). Returns the element name
-// and the text content (base64 payload).
 func (c *XMPPCore) readSASLElement() (elemName, content string, err error) {
 	c.conn.SetReadDeadline(time.Now().Add(15 * time.Second))
 	defer c.conn.SetReadDeadline(time.Time{})
@@ -1165,18 +965,11 @@ func (c *XMPPCore) readSASLElement() (elemName, content string, err error) {
 	}
 }
 
-// saslElementMatch reports the SASL element completed by this buffer
-// (checked each time a '>' byte lands). Handles both the attributed
-// self-closing form real servers send (<success xmlns='...'/> — the old
-// literal "<success/>" check never matched it and successful logins timed
-// out) and the content form (<challenge>b64</challenge>). Pure.
 func saslElementMatch(data string) (name, content string, ok bool) {
 	tags := [3]string{"challenge", "success", "failure"}
-	// Self-closing element (with or without attributes): the buffer ends
-	// with "/>"; the element name sits between its "<" and the "/>".
 	if strings.HasSuffix(data, "/>") {
 		if lt := strings.LastIndex(data, "<"); lt >= 0 {
-			inner := data[lt+1 : len(data)-2] // strip "/>"
+			inner := data[lt+1 : len(data)-2]
 			tag := inner
 			if sp := strings.IndexAny(inner, " \t\r\n"); sp >= 0 {
 				tag = inner[:sp]
@@ -1188,7 +981,6 @@ func saslElementMatch(data string) (name, content string, ok bool) {
 			}
 		}
 	}
-	// Closed element with content.
 	for _, t := range tags {
 		closeTag := "</" + t + ">"
 		if !strings.Contains(data, closeTag) {
@@ -1256,15 +1048,12 @@ func (c *XMPPCore) readSASLResult() error {
 	if name != "success" {
 		return fmt.Errorf("expected success, got %s", name)
 	}
-	// Restart stream after SASL
 	if err := c.sendStreamHeader(); err != nil {
 		return err
 	}
 	return c.readStreamStart()
 }
 
-// readRawIQResponse reads an IQ response directly from c.reader (raw bytes).
-// Used during pre-readLoop phase (bind, session establishment).
 func (c *XMPPCore) readRawIQResponse() (string, error) {
 	c.conn.SetReadDeadline(time.Now().Add(15 * time.Second))
 	defer c.conn.SetReadDeadline(time.Time{})
@@ -1287,9 +1076,6 @@ func (c *XMPPCore) readRawIQResponse() (string, error) {
 		if bytes.Contains(buf.Bytes(), endTag) {
 			return buf.String(), nil
 		}
-		// Self-closing result: <iq .../> — real servers send these for
-		// session/ping/carbon acks; the first '>' of the stanza is its
-		// last byte when no child element follows.
 		data := buf.String()
 		if i := strings.Index(data, "<iq"); i >= 0 && strings.HasSuffix(data, "/>") {
 			rest := data[i:]
@@ -1323,7 +1109,6 @@ func (c *XMPPCore) bindResource() error {
 		return fmt.Errorf("bind error: %s", resp)
 	}
 
-	// Parse bound JID from response
 	jid := extractXMLContent(resp, "jid")
 	if jid != "" {
 		c.mu.Lock()
@@ -1346,12 +1131,8 @@ func (c *XMPPCore) establishSession() {
 	id := c.nextIQID()
 	stanza := fmt.Sprintf(`<iq type='set' id='%s'><session xmlns='%s'/></iq>`, id, nsSession)
 	c.sendRawStanza(stanza)
-	c.readRawIQResponse() // read and discard result
+	c.readRawIQResponse()
 }
-
-// ---------------------------------------------------------------------------
-// XML stream read loop
-// ---------------------------------------------------------------------------
 
 func (c *XMPPCore) readLoop() {
 	defer c.wg.Done()
@@ -1367,9 +1148,7 @@ func (c *XMPPCore) readLoop() {
 			if c.ctx.Err() != nil {
 				return
 			}
-			// Connection lost — attempt auto-reconnect
 			if c.attemptReconnect() {
-				// Reconnected successfully, continue reading with new decoder
 				continue
 			}
 			return
@@ -1402,18 +1181,18 @@ func (c *XMPPCore) readLoop() {
 			}
 			go c.handleIQ(iq)
 
-		case "r": // XEP-0198 ack request
+		case "r":
 			c.decoder.Skip()
 			c.SendAck()
 
-		case "a": // XEP-0198 ack response
+		case "a":
 			var a struct {
 				H int64 `xml:"h,attr"`
 			}
 			c.decoder.DecodeElement(&a, &se)
 			c.handleAck(a.H)
 
-		case "resumed": // XEP-0198 resume success
+		case "resumed":
 			c.decoder.Skip()
 
 		case "features":
@@ -1429,18 +1208,9 @@ func (c *XMPPCore) readLoop() {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Auto-reconnect on connection loss
-// ---------------------------------------------------------------------------
-
-// attemptReconnect tries to re-establish the XMPP connection with exponential
-// backoff (5s, 10s, 20s, …, max 60s). Returns true if reconnection succeeded.
-// Called from readLoop when a connection-loss error is detected.
 func (c *XMPPCore) attemptReconnect() bool {
-	// Notify GUI of disconnection
 	c.fireUpdate(Update{Type: UpdateConnectivity, ConnState: "disconnected"})
 
-	// Close stale connection
 	c.mu.Lock()
 	if c.conn != nil {
 		c.conn.Close()
@@ -1452,28 +1222,20 @@ func (c *XMPPCore) attemptReconnect() bool {
 		return c.connectAndAuth()
 	})
 	if err != nil {
-		// All retries exhausted
 		c.fireUpdate(Update{Type: UpdateConnectivity, ConnState: "disconnected"})
 		return false
 	}
 
-	// Reconnected successfully
 	c.mu.Lock()
 	c.authed = true
 	c.mu.Unlock()
 
-	// Re-run post-auth setup (roster, carbons, presence, etc.)
 	c.postAuthSetup()
 
-	// Notify GUI of reconnection
 	c.fireUpdate(Update{Type: UpdateConnectivity, ConnState: "connected"})
 
 	return true
 }
-
-// ---------------------------------------------------------------------------
-// Stanza dispatch handlers
-// ---------------------------------------------------------------------------
 
 func (c *XMPPCore) handleMessage(msg xmppMessage) {
 	parsed := c.parseMessageInner(msg.Inner)
@@ -1482,22 +1244,17 @@ func (c *XMPPCore) handleMessage(msg xmppMessage) {
 	fromBare := bareJID(from)
 	chatID := fromBare
 
-	// Handle carbons (XEP-0280)
 	if parsed.CarbonType != "" && parsed.CarbonMsg != nil {
-		// Carbon copies — use inner message
 		parsed = parsed.CarbonMsg
 		if parsed.CarbonType == "sent" {
 			chatID = bareJID(msg.To)
 		}
 	}
 
-	// Handle MAM results (XEP-0313)
 	if parsed.MAMID != "" && parsed.MAMMsg != nil {
-		// MAM messages are stored, don't fire update
 		return
 	}
 
-	// Chat state notifications (XEP-0085)
 	if parsed.ChatState != "" && parsed.Body == "" {
 		if parsed.ChatState == "composing" {
 			senderID := fromBare
@@ -1514,13 +1271,10 @@ func (c *XMPPCore) handleMessage(msg xmppMessage) {
 		return
 	}
 
-	// Receipt acknowledgment (XEP-0184)
 	if parsed.ReceiptFor != "" {
-		// Could track delivery status
 		return
 	}
 
-	// Displayed marker (XEP-0333)
 	if parsed.DisplayedID != "" {
 		c.readStateMu.Lock()
 		if _, ok := c.readState[chatID]; !ok {
@@ -1539,14 +1293,11 @@ func (c *XMPPCore) handleMessage(msg xmppMessage) {
 		return
 	}
 
-	// Reactions (XEP-0444)
 	if parsed.ReactionsID != "" && len(parsed.Reactions) > 0 {
-		// Update message reactions in cache
 		c.messagesMu.Lock()
 		if msgs, ok := c.messages[chatID]; ok {
 			for _, m := range msgs {
 				if m.ID == parsed.ReactionsID {
-					// Merge reactions
 					for _, emoji := range parsed.Reactions {
 						found := false
 						for i := range m.Reactions {
@@ -1568,9 +1319,7 @@ func (c *XMPPCore) handleMessage(msg xmppMessage) {
 		return
 	}
 
-	// MUC invite
 	if parsed.MUCInviteRoom != "" {
-		// Fire as a message notification
 		m := &Message{
 			ID:         msg.ID,
 			ChatID:     chatID,
@@ -1596,7 +1345,6 @@ func (c *XMPPCore) handleMessage(msg xmppMessage) {
 		return
 	}
 
-	// Message correction (XEP-0308)
 	if parsed.ReplaceID != "" {
 		c.messagesMu.Lock()
 		if msgs, ok := c.messages[chatID]; ok {
@@ -1619,7 +1367,6 @@ func (c *XMPPCore) handleMessage(msg xmppMessage) {
 		c.messagesMu.Unlock()
 	}
 
-	// Subject change (MUC)
 	if parsed.Subject != "" && msg.Type == "groupchat" {
 		c.roomsMu.Lock()
 		if room, ok := c.rooms[chatID]; ok {
@@ -1628,11 +1375,10 @@ func (c *XMPPCore) handleMessage(msg xmppMessage) {
 		}
 		c.roomsMu.Unlock()
 		if parsed.Body == "" {
-			return // Subject-only message
+			return
 		}
 	}
 
-	// Build message
 	styledText, styledEntities := applyStyling(parsed.Body)
 	ts := time.Now()
 	if parsed.Delay != nil {
@@ -1685,7 +1431,6 @@ func (c *XMPPCore) handleMessage(msg xmppMessage) {
 
 	c.bufferMessage(chatID, m)
 
-	// Send receipt if requested
 	if parsed.ReceiptRequest && msg.ID != "" {
 		c.SendReceipt(from, msg.ID)
 	}
@@ -1702,7 +1447,6 @@ func (c *XMPPCore) handlePresence(pres xmppPresence) {
 	from := pres.From
 	fromBare := bareJID(from)
 
-	// Check if this is MUC presence
 	if c.isRoom(fromBare) {
 		c.handleMUCPresence(pres)
 		return
@@ -1710,14 +1454,12 @@ func (c *XMPPCore) handlePresence(pres xmppPresence) {
 
 	switch pres.Type {
 	case "subscribe":
-		// Auto-approve subscription requests from roster contacts
 		c.rosterMu.RLock()
 		_, inRoster := c.roster[fromBare]
 		c.rosterMu.RUnlock()
 		if inRoster {
 			c.SendPresenceSubscribed(fromBare)
 		}
-		// Fire update for subscription request
 		c.fireUpdate(Update{
 			Type:   UpdateNewMessage,
 			ChatID: fromBare,
@@ -1735,13 +1477,10 @@ func (c *XMPPCore) handlePresence(pres xmppPresence) {
 		})
 
 	case "subscribed":
-		// Subscription approved
 
 	case "unsubscribe", "unsubscribed":
-		// Subscription removed
 
 	case "unavailable":
-		// User went offline
 		isOnline := false
 		c.fireUpdate(Update{
 			Type:     UpdateUserStatus,
@@ -1751,7 +1490,6 @@ func (c *XMPPCore) handlePresence(pres xmppPresence) {
 		})
 
 	case "", "available":
-		// User is online
 		isOnline := true
 		c.fireUpdate(Update{
 			Type:     UpdateUserStatus,
@@ -1761,7 +1499,6 @@ func (c *XMPPCore) handlePresence(pres xmppPresence) {
 		})
 
 	case "error":
-		// Presence error
 	}
 }
 
@@ -1791,18 +1528,14 @@ func (c *XMPPCore) handleMUCPresence(pres xmppPresence) {
 		return
 	}
 
-	// Parse MUC#user info from inner XML
 	occ := &xmppOccupant{Nick: nick}
-	// Parse role, affiliation, real JID from inner
 	if strings.Contains(pres.Inner, nsMUCUser) {
 		occ.Role, occ.Affiliation, occ.RealJID = parseMUCUserItem(pres.Inner)
 	}
-	// Parse show/status
 	occ.Show, occ.Status = parsePresenceShowStatus(pres.Inner)
 
 	room.Occupants[nick] = occ
 
-	// Check if this is our own join confirmation (status code 110)
 	if strings.Contains(pres.Inner, `code='110'`) || strings.Contains(pres.Inner, `code="110"`) {
 		room.Joined = true
 		room.Nick = nick
@@ -1819,7 +1552,6 @@ func (c *XMPPCore) handleMUCPresence(pres xmppPresence) {
 }
 
 func (c *XMPPCore) handleIQ(iq XMPPIQ) {
-	// Check if this is a response to a pending IQ
 	if iq.Type == "result" || iq.Type == "error" {
 		c.pendingIQMu.Lock()
 		if pending, ok := c.pendingIQ[iq.ID]; ok {
@@ -1881,12 +1613,6 @@ func (c *XMPPCore) handleIQ(iq XMPPIQ) {
 	}
 }
 
-// xmppParseRoster decodes the roster <query/> payload carried by an IQ
-// result or push (RFC 6121 §2.6 + XEP-0237 versioning). <ver> is an
-// ELEMENT, not an attribute: the old tag said `query>ver,attr`, which
-// encoding/xml rejects on a chained path — Unmarshal then errored on
-// EVERY input and both call sites dropped the roster silently, so the
-// contact list never loaded (BUGS.md B-11; probe-proven in the audit).
 func xmppParseRoster(inner string) (items []xmppRosterItem, ver string, err error) {
 	type rosterQuery struct {
 		Items []xmppRosterItem `xml:"jabber:iq:roster query>item"`
@@ -1904,7 +1630,6 @@ func (c *XMPPCore) handleRosterPush(iq XMPPIQ) {
 
 	items, ver, err := xmppParseRoster(iq.Inner)
 	if err != nil {
-		// Never swallow: a dropped push desyncs the roster invisibly.
 		log.Printf("xmpp: roster push parse failed: %v", err)
 		return
 	}
@@ -1930,7 +1655,6 @@ func (c *XMPPCore) handleBlocklistPush(iq XMPPIQ) {
 	defer c.blockedMu.Unlock()
 
 	if strings.Contains(iq.Inner, "<block") {
-		// Parse blocked JIDs
 		jids := parseJIDsFromInner(iq.Inner, "item")
 		for _, jid := range jids {
 			c.blocked[jid] = true
@@ -1945,15 +1669,9 @@ func (c *XMPPCore) handleBlocklistPush(iq XMPPIQ) {
 }
 
 func (c *XMPPCore) handleJingleAction(iq XMPPIQ) {
-	// Stub — acknowledge and respond with session-terminate for now
-	// Full Jingle implementation would handle ICE, DTLS, RTP
 	c.sendRawStanza(fmt.Sprintf(`<iq type='result' id='%s' to='%s'/>`,
 		xmlEscape(iq.ID), xmlEscape(iq.From)))
 }
-
-// ---------------------------------------------------------------------------
-// IQ send/receive
-// ---------------------------------------------------------------------------
 
 func (c *XMPPCore) nextIQID() string {
 	return "iq_" + strconv.FormatInt(c.iqCounter.Add(1), 10)
@@ -2034,10 +1752,6 @@ func (c *XMPPCore) sendRawStanza(stanza string) error {
 	return err
 }
 
-// ---------------------------------------------------------------------------
-// Ping loop
-// ---------------------------------------------------------------------------
-
 func (c *XMPPCore) pingLoop() {
 	defer c.wg.Done()
 	ticker := time.NewTicker(xmppPingInterval)
@@ -2052,11 +1766,6 @@ func (c *XMPPCore) pingLoop() {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Core interface — Dialogs
-// ---------------------------------------------------------------------------
-
-// GetDialogs returns the list of active conversations from roster and joined MUC rooms.
 func (c *XMPPCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -2070,7 +1779,6 @@ func (c *XMPPCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 
 	dialogs := []Dialog{}
 
-	// DM dialogs from roster
 	for _, item := range c.roster {
 		if item.Subscription == "remove" {
 			continue
@@ -2084,7 +1792,6 @@ func (c *XMPPCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 		if d.Title == "" {
 			d.Title = item.JID
 		}
-		// Attach last message if any
 		c.messagesMu.RLock()
 		if msgs, ok := c.messages[item.JID]; ok && len(msgs) > 0 {
 			d.LastMessage = msgs[len(msgs)-1]
@@ -2093,7 +1800,6 @@ func (c *XMPPCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 		dialogs = append(dialogs, d)
 	}
 
-	// MUC rooms
 	c.roomsMu.RLock()
 	for _, room := range c.rooms {
 		if !room.Joined {
@@ -2118,7 +1824,6 @@ func (c *XMPPCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 	}
 	c.roomsMu.RUnlock()
 
-	// Apply offset
 	offset := 0
 	if opts.Offset != "" {
 		offset, _ = strconv.Atoi(opts.Offset)
@@ -2130,7 +1835,6 @@ func (c *XMPPCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 		dialogs = dialogs[offset:]
 	}
 
-	// Apply limit
 	if opts.Limit > 0 && len(dialogs) > opts.Limit {
 		dialogs = dialogs[:opts.Limit]
 	}
@@ -2138,7 +1842,6 @@ func (c *XMPPCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 	return dialogs, nil
 }
 
-// CreateGroup creates a new MUC room with the specified name and members.
 func (c *XMPPCore) CreateGroup(name string, members []string) (*Dialog, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -2154,18 +1857,15 @@ func (c *XMPPCore) CreateGroup(name string, members []string) (*Dialog, error) {
 
 	roomJID := strings.ReplaceAll(strings.ToLower(name), " ", "-") + "@" + mucSvc
 
-	// Join the room
 	if err := c.JoinMUC(roomJID, ""); err != nil {
 		return nil, err
 	}
 
-	// Configure as persistent room
 	c.ConfigureMUC(roomJID, map[string]string{
 		"muc#roomconfig_persistentroom": "1",
 		"muc#roomconfig_roomname":       name,
 	})
 
-	// Invite members
 	for _, m := range members {
 		c.SendMUCInvitation(roomJID, m, "")
 	}
@@ -2179,7 +1879,6 @@ func (c *XMPPCore) CreateGroup(name string, members []string) (*Dialog, error) {
 	return d, nil
 }
 
-// CreateChannel creates a new MUC room configured as a channel.
 func (c *XMPPCore) CreateChannel(name string, description string) (*Dialog, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -2188,7 +1887,6 @@ func (c *XMPPCore) CreateChannel(name string, description string) (*Dialog, erro
 	}
 	c.mu.RUnlock()
 
-	// XMPP doesn't distinguish channels from groups — create a MUC room
 	d, err := c.CreateGroup(name, nil)
 	if err != nil {
 		return nil, err
@@ -2200,12 +1898,10 @@ func (c *XMPPCore) CreateChannel(name string, description string) (*Dialog, erro
 	return d, nil
 }
 
-// CreateTopic creates a new topic.
 func (c *XMPPCore) CreateTopic(chatID string, name string) (*Dialog, error) {
 	return nil, fmt.Errorf("%w: xmpp does not support forum topics", ErrNotSupported)
 }
 
-// GetFolders retrieves folders from the XMPP server.
 func (c *XMPPCore) GetFolders() ([]Folder, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -2214,7 +1910,6 @@ func (c *XMPPCore) GetFolders() ([]Folder, error) {
 	}
 	c.mu.RUnlock()
 
-	// Load bookmarks if empty (without holding read lock — loadBookmarks takes write lock)
 	c.bookmarksMu.RLock()
 	empty := len(c.bookmarks) == 0
 	c.bookmarksMu.RUnlock()
@@ -2223,7 +1918,6 @@ func (c *XMPPCore) GetFolders() ([]Folder, error) {
 		c.loadBookmarks()
 	}
 
-	// Now read bookmarks under read lock
 	c.bookmarksMu.RLock()
 	defer c.bookmarksMu.RUnlock()
 
@@ -2239,7 +1933,6 @@ func (c *XMPPCore) GetFolders() ([]Folder, error) {
 	}}, nil
 }
 
-// CreateFolder creates a new folder.
 func (c *XMPPCore) CreateFolder(name string, chatIDs []string) (*Folder, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -2248,7 +1941,6 @@ func (c *XMPPCore) CreateFolder(name string, chatIDs []string) (*Folder, error) 
 	}
 	c.mu.RUnlock()
 
-	// Save as bookmarks
 	for _, id := range chatIDs {
 		c.SetBookmark(id, name, "", true)
 	}
@@ -2259,11 +1951,6 @@ func (c *XMPPCore) CreateFolder(name string, chatIDs []string) (*Folder, error) 
 	}, nil
 }
 
-// ---------------------------------------------------------------------------
-// Core interface — Messages
-// ---------------------------------------------------------------------------
-
-// SendMessage sends a text message to the specified JID or MUC room.
 func (c *XMPPCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -2326,7 +2013,6 @@ func (c *XMPPCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, er
 		Platform:   xmppPlatform,
 	}
 
-	// Don't buffer groupchat messages — we'll get them back from the server
 	if msgType != "groupchat" {
 		c.bufferMessage(chatID, m)
 	}
@@ -2334,7 +2020,6 @@ func (c *XMPPCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, er
 	return m, nil
 }
 
-// GetMessages retrieves message history from MAM (XEP-0313) for the specified JID.
 func (c *XMPPCore) GetMessages(chatID string, opts PaginationOpts) ([]Message, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -2343,7 +2028,6 @@ func (c *XMPPCore) GetMessages(chatID string, opts PaginationOpts) ([]Message, e
 	}
 	c.mu.RUnlock()
 
-	// Try MAM first for archive
 	if opts.Offset != "" || opts.Limit > 0 {
 		msgs, err := c.QueryMAM(chatID, opts.Limit, opts.Offset)
 		if err == nil && len(msgs) > 0 {
@@ -2351,7 +2035,6 @@ func (c *XMPPCore) GetMessages(chatID string, opts PaginationOpts) ([]Message, e
 		}
 	}
 
-	// Fall back to local buffer
 	c.messagesMu.RLock()
 	defer c.messagesMu.RUnlock()
 
@@ -2367,7 +2050,6 @@ func (c *XMPPCore) GetMessages(chatID string, opts PaginationOpts) ([]Message, e
 	return result, nil
 }
 
-// EditMessage sends a message correction (XEP-0308) replacing a previous message.
 func (c *XMPPCore) EditMessage(chatID string, msgID string, text string) (*Message, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -2376,7 +2058,6 @@ func (c *XMPPCore) EditMessage(chatID string, msgID string, text string) (*Messa
 	}
 	c.mu.RUnlock()
 
-	// XEP-0308: Message Correction
 	msgType := "chat"
 	if c.isRoom(chatID) {
 		msgType = "groupchat"
@@ -2390,7 +2071,6 @@ func (c *XMPPCore) EditMessage(chatID string, msgID string, text string) (*Messa
 		return nil, err
 	}
 
-	// Update local buffer
 	c.messagesMu.Lock()
 	if msgs, ok := c.messages[chatID]; ok {
 		for _, m := range msgs {
@@ -2417,7 +2097,6 @@ func (c *XMPPCore) EditMessage(chatID string, msgID string, text string) (*Messa
 	}, nil
 }
 
-// DeleteMessage retracts a previously sent message.
 func (c *XMPPCore) DeleteMessage(chatID string, msgID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -2426,8 +2105,6 @@ func (c *XMPPCore) DeleteMessage(chatID string, msgID string) error {
 	}
 	c.mu.RUnlock()
 
-	// XMPP doesn't have standard message deletion — use correction with empty body
-	// Or use XEP-0424 Message Retraction (not widely supported)
 	c.messagesMu.Lock()
 	if msgs, ok := c.messages[chatID]; ok {
 		for i, m := range msgs {
@@ -2441,7 +2118,6 @@ func (c *XMPPCore) DeleteMessage(chatID string, msgID string) error {
 	return nil
 }
 
-// ReplyToMessage reply to message on the XMPP connection.
 func (c *XMPPCore) ReplyToMessage(chatID string, replyToMsgID string, msg OutgoingMessage) (*Message, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -2453,7 +2129,6 @@ func (c *XMPPCore) ReplyToMessage(chatID string, replyToMsgID string, msg Outgoi
 	return c.SendMessage(chatID, msg)
 }
 
-// ForwardMessage forwards a message to another JID or MUC room.
 func (c *XMPPCore) ForwardMessage(fromChatID string, msgID string, toChatID string) (*Message, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -2462,7 +2137,6 @@ func (c *XMPPCore) ForwardMessage(fromChatID string, msgID string, toChatID stri
 	}
 	c.mu.RUnlock()
 
-	// Find the original message
 	c.messagesMu.RLock()
 	var original *Message
 	if msgs, ok := c.messages[fromChatID]; ok {
@@ -2479,14 +2153,12 @@ func (c *XMPPCore) ForwardMessage(fromChatID string, msgID string, toChatID stri
 		return nil, ErrNotFound
 	}
 
-	// Send as a new message with forward info
 	fwdMsg := OutgoingMessage{
 		Text: fmt.Sprintf("[Forwarded from %s]\n%s", original.SenderName, original.Text),
 	}
 	return c.SendMessage(toChatID, fwdMsg)
 }
 
-// ReactToMessage react to message on the XMPP connection.
 func (c *XMPPCore) ReactToMessage(chatID string, msgID string, emoji string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -2497,7 +2169,6 @@ func (c *XMPPCore) ReactToMessage(chatID string, msgID string, emoji string) err
 	return c.SendReaction(chatID, msgID, []string{emoji})
 }
 
-// PinMessage pins a message in a MUC room via PubSub.
 func (c *XMPPCore) PinMessage(chatID string, msgID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -2516,7 +2187,6 @@ func (c *XMPPCore) PinMessage(chatID string, msgID string) error {
 	return nil
 }
 
-// UnpinMessage unpins a previously pinned message in a MUC room.
 func (c *XMPPCore) UnpinMessage(chatID string, msgID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -2534,11 +2204,6 @@ func (c *XMPPCore) UnpinMessage(chatID string, msgID string) error {
 	return nil
 }
 
-// ---------------------------------------------------------------------------
-// Core interface — Read state
-// ---------------------------------------------------------------------------
-
-// MarkAsRead mark as read on the XMPP connection.
 func (c *XMPPCore) MarkAsRead(chatID string, upToMsgID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -2554,12 +2219,10 @@ func (c *XMPPCore) MarkAsRead(chatID string, upToMsgID string) error {
 	c.readState[chatID].MyLastRead = upToMsgID
 	c.readStateMu.Unlock()
 
-	// Send displayed marker (XEP-0333)
 	c.SendDisplayedMarker(chatID, upToMsgID)
 	return nil
 }
 
-// GetReadState retrieves read state from the XMPP server.
 func (c *XMPPCore) GetReadState(chatID string) (*ReadState, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -2576,13 +2239,7 @@ func (c *XMPPCore) GetReadState(chatID string) (*ReadState, error) {
 	return &ReadState{PeerLastRead: make(map[string]string)}, nil
 }
 
-// ---------------------------------------------------------------------------
-// Core interface — Files
-// ---------------------------------------------------------------------------
-
-// UploadFile uploads a file to the HTTP upload service (XEP-0363).
 func (c *XMPPCore) UploadFile(chatID string, file FileUpload, progress func(sent, total int64)) (*Message, error) {
-	// Use XEP-0363 HTTP File Upload
 	c.mu.RLock()
 	if !c.authed {
 		c.mu.RUnlock()
@@ -2600,22 +2257,18 @@ func (c *XMPPCore) UploadFile(chatID string, file FileUpload, progress func(sent
 		return nil, err
 	}
 
-	// Read file data
 	data, err := io.ReadAll(file.Reader)
 	if err != nil {
 		return nil, fmt.Errorf("read file: %w", err)
 	}
 
-	// Upload via HTTP PUT
 	if err := c.UploadFileHTTP(putURL, data, file.MimeType, progress); err != nil {
 		return nil, err
 	}
 
-	// Send message with OOB URL
 	return c.SendFileURL(chatID, getURL, file.Name)
 }
 
-// DownloadFile download file on the XMPP connection.
 func (c *XMPPCore) DownloadFile(fileRef FileRef, dest string, progress func(recv, total int64)) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -2631,7 +2284,6 @@ func (c *XMPPCore) DownloadFile(fileRef FileRef, dest string, progress func(recv
 	return c.DownloadFileHTTP(fileRef.URL, dest, progress)
 }
 
-// SendImageBase64 sends image base64 to the specified JID.
 func (c *XMPPCore) SendImageBase64(chatID string, b64 string, caption string) (*Message, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -2641,21 +2293,18 @@ func (c *XMPPCore) SendImageBase64(chatID string, b64 string, caption string) (*
 	uploadSvc := c.uploadService
 	c.mu.RUnlock()
 
-	// Decode, upload via HTTP, send URL
 	data, err := base64.StdEncoding.DecodeString(b64)
 	if err != nil {
 		return nil, fmt.Errorf("decode base64: %w", err)
 	}
 
 	if uploadSvc == "" {
-		// Fallback: send as text with base64
 		msg := OutgoingMessage{Text: caption}
 		return c.SendMessage(chatID, msg)
 	}
 
 	putURL, getURL, err := c.RequestHTTPUploadSlot("image.png", int64(len(data)), "image/png")
 	if err != nil {
-		// Fallback to text
 		msg := OutgoingMessage{Text: caption}
 		return c.SendMessage(chatID, msg)
 	}
@@ -2664,11 +2313,6 @@ func (c *XMPPCore) SendImageBase64(chatID string, b64 string, caption string) (*
 	return c.SendFileURL(chatID, getURL, caption)
 }
 
-// ---------------------------------------------------------------------------
-// Core interface — Calls (Jingle stubs)
-// ---------------------------------------------------------------------------
-
-// StartCall initiates a Jingle voice call (XEP-0166/0167) with the specified JID.
 func (c *XMPPCore) StartCall(chatID string, video bool) (*CallSession, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -2679,12 +2323,10 @@ func (c *XMPPCore) StartCall(chatID string, video bool) (*CallSession, error) {
 	return c.InitiateJingle(chatID, video)
 }
 
-// JoinGroupCall joins group call.
 func (c *XMPPCore) JoinGroupCall(chatID string) (*CallSession, error) {
 	return nil, fmt.Errorf("%w: xmpp group calls (Muji/XEP-0272) not widely supported", ErrNotSupported)
 }
 
-// EndCall terminates an active Jingle call session.
 func (c *XMPPCore) EndCall(callID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -2695,21 +2337,14 @@ func (c *XMPPCore) EndCall(callID string) error {
 	return c.TerminateJingle(callID, "success")
 }
 
-// SetCallMuted sets call muted on the XMPP server.
 func (c *XMPPCore) SetCallMuted(callID string, muted bool) error {
 	return fmt.Errorf("%w: xmpp does not support call muting", ErrNotSupported)
 }
 
-// ToggleCamera toggles the camera on/off for an active call.
 func (c *XMPPCore) ToggleCamera(_ string, _ bool) error {
 	return fmt.Errorf("%w: xmpp does not support camera toggle", ErrNotSupported)
 }
 
-// ---------------------------------------------------------------------------
-// Core interface — Profile
-// ---------------------------------------------------------------------------
-
-// GetProfile retrieves profile from the XMPP server.
 func (c *XMPPCore) GetProfile(userID string) (*User, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -2722,10 +2357,8 @@ func (c *XMPPCore) GetProfile(userID string) (*User, error) {
 		userID = c.bareJID
 	}
 
-	// Try vCard
 	vcard, err := c.GetVCard(userID)
 	if err != nil {
-		// Return basic info from roster
 		c.rosterMu.RLock()
 		item, ok := c.roster[userID]
 		c.rosterMu.RUnlock()
@@ -2766,18 +2399,12 @@ func (c *XMPPCore) GetProfile(userID string) (*User, error) {
 	return u, nil
 }
 
-// ---------------------------------------------------------------------------
-// Core interface — Real-time
-// ---------------------------------------------------------------------------
-
-// OnUpdate on update on the XMPP connection.
 func (c *XMPPCore) OnUpdate(handler func(Update)) {
 	c.updateMu.Lock()
 	c.updateHandlers = append(c.updateHandlers, handler)
 	c.updateMu.Unlock()
 }
 
-// Close closes .
 func (c *XMPPCore) Close() error {
 	c.saveSession()
 	c.cancel()
@@ -2785,7 +2412,6 @@ func (c *XMPPCore) Close() error {
 	c.authed = false
 	var connErr error
 	if c.conn != nil {
-		// Try graceful close
 		c.writeMu.Lock()
 		c.conn.Write([]byte("</stream:stream>"))
 		c.writeMu.Unlock()
@@ -2796,11 +2422,6 @@ func (c *XMPPCore) Close() error {
 	return connErr
 }
 
-// ---------------------------------------------------------------------------
-// Core interface — Chat management
-// ---------------------------------------------------------------------------
-
-// GetChatInfo retrieves chat info from the XMPP server.
 func (c *XMPPCore) GetChatInfo(chatID string) (*Dialog, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -2812,7 +2433,6 @@ func (c *XMPPCore) GetChatInfo(chatID string) (*Dialog, error) {
 	if c.isRoom(chatID) {
 		info, err := c.GetMUCInfo(chatID)
 		if err != nil {
-			// Return from local state
 			c.roomsMu.RLock()
 			room, ok := c.rooms[chatID]
 			c.roomsMu.RUnlock()
@@ -2829,7 +2449,6 @@ func (c *XMPPCore) GetChatInfo(chatID string) (*Dialog, error) {
 		return info, err
 	}
 
-	// DM
 	c.rosterMu.RLock()
 	item, ok := c.roster[chatID]
 	c.rosterMu.RUnlock()
@@ -2846,7 +2465,6 @@ func (c *XMPPCore) GetChatInfo(chatID string) (*Dialog, error) {
 	return d, nil
 }
 
-// EditChatTitle edit chat title on the XMPP connection.
 func (c *XMPPCore) EditChatTitle(chatID string, title string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -2861,7 +2479,6 @@ func (c *XMPPCore) EditChatTitle(chatID string, title string) error {
 	return fmt.Errorf("%w: xmpp does not support editing DM titles", ErrNotSupported)
 }
 
-// EditChatDescription edit chat description on the XMPP connection.
 func (c *XMPPCore) EditChatDescription(chatID string, description string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -2878,7 +2495,6 @@ func (c *XMPPCore) EditChatDescription(chatID string, description string) error 
 	return fmt.Errorf("%w: xmpp does not support editing DM descriptions", ErrNotSupported)
 }
 
-// LeaveChat leaves chat.
 func (c *XMPPCore) LeaveChat(chatID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -2890,11 +2506,9 @@ func (c *XMPPCore) LeaveChat(chatID string) error {
 	if c.isRoom(chatID) {
 		return c.LeaveMUC(chatID)
 	}
-	// For DM, just remove from roster
 	return c.RemoveRosterItem(chatID)
 }
 
-// GetInviteLink retrieves invite link from the XMPP server.
 func (c *XMPPCore) GetInviteLink(chatID string) (string, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -2903,15 +2517,9 @@ func (c *XMPPCore) GetInviteLink(chatID string) (string, error) {
 	}
 	c.mu.RUnlock()
 
-	// XMPP uses xmpp: URI scheme
 	return "xmpp:" + chatID + "?join", nil
 }
 
-// ---------------------------------------------------------------------------
-// Core interface — Members
-// ---------------------------------------------------------------------------
-
-// AddMembers adds members.
 func (c *XMPPCore) AddMembers(chatID string, userIDs []string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -2929,7 +2537,6 @@ func (c *XMPPCore) AddMembers(chatID string, userIDs []string) error {
 	return nil
 }
 
-// RemoveMember removes member.
 func (c *XMPPCore) RemoveMember(chatID string, userID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -2944,7 +2551,6 @@ func (c *XMPPCore) RemoveMember(chatID string, userID string) error {
 	return c.KickFromMUC(chatID, userID, "")
 }
 
-// BanMember bans a user from a MUC room.
 func (c *XMPPCore) BanMember(chatID string, userID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -2959,7 +2565,6 @@ func (c *XMPPCore) BanMember(chatID string, userID string) error {
 	return c.BanFromMUC(chatID, userID, "")
 }
 
-// UnbanMember removes a ban on a user from a MUC room.
 func (c *XMPPCore) UnbanMember(chatID string, userID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -2974,7 +2579,6 @@ func (c *XMPPCore) UnbanMember(chatID string, userID string) error {
 	return c.UnbanFromMUC(chatID, userID)
 }
 
-// GetMembers retrieves members from the XMPP server.
 func (c *XMPPCore) GetMembers(chatID string, opts PaginationOpts) ([]User, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -2986,14 +2590,12 @@ func (c *XMPPCore) GetMembers(chatID string, opts PaginationOpts) ([]User, error
 	if c.isRoom(chatID) {
 		return c.GetMUCOccupants(chatID)
 	}
-	// DM — return self and the other party
 	return []User{
 		{ID: c.bareJID, DisplayName: c.bareJID, Platform: xmppPlatform},
 		{ID: chatID, DisplayName: chatID, Platform: xmppPlatform},
 	}, nil
 }
 
-// SetAdmin sets admin on the XMPP server.
 func (c *XMPPCore) SetAdmin(chatID string, userID string, admin bool) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -3012,11 +2614,6 @@ func (c *XMPPCore) SetAdmin(chatID string, userID string, admin bool) error {
 	return c.SetMUCAffiliation(chatID, userID, aff)
 }
 
-// ---------------------------------------------------------------------------
-// Core interface — Contacts
-// ---------------------------------------------------------------------------
-
-// GetContacts returns the user's roster (contact list).
 func (c *XMPPCore) GetContacts() ([]User, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -3046,7 +2643,6 @@ func (c *XMPPCore) GetContacts() ([]User, error) {
 	return users, nil
 }
 
-// AddContact adds a JID to the roster and sends a presence subscription request.
 func (c *XMPPCore) AddContact(phone string, firstName string, lastName string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -3055,7 +2651,6 @@ func (c *XMPPCore) AddContact(phone string, firstName string, lastName string) e
 	}
 	c.mu.RUnlock()
 
-	// In XMPP, "phone" is the JID
 	jid := phone
 	name := firstName
 	if lastName != "" {
@@ -3064,7 +2659,6 @@ func (c *XMPPCore) AddContact(phone string, firstName string, lastName string) e
 	return c.AddRosterItem(jid, name, nil)
 }
 
-// DeleteContact deletes contact from the XMPP server.
 func (c *XMPPCore) DeleteContact(userID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -3075,7 +2669,6 @@ func (c *XMPPCore) DeleteContact(userID string) error {
 	return c.RemoveRosterItem(userID)
 }
 
-// BlockUser adds a JID to the block list (XEP-0191).
 func (c *XMPPCore) BlockUser(userID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -3086,7 +2679,6 @@ func (c *XMPPCore) BlockUser(userID string) error {
 	return c.BlockJID(userID)
 }
 
-// UnblockUser removes a JID from the block list (XEP-0191).
 func (c *XMPPCore) UnblockUser(userID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -3097,7 +2689,6 @@ func (c *XMPPCore) UnblockUser(userID string) error {
 	return c.UnblockJID(userID)
 }
 
-// GetBlockedUsers returns the list of blocked JIDs (XEP-0191).
 func (c *XMPPCore) GetBlockedUsers() ([]User, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -3121,11 +2712,6 @@ func (c *XMPPCore) GetBlockedUsers() ([]User, error) {
 	return users, nil
 }
 
-// ---------------------------------------------------------------------------
-// Core interface — Search
-// ---------------------------------------------------------------------------
-
-// SearchMessages search messages on the XMPP connection.
 func (c *XMPPCore) SearchMessages(chatID string, query string, opts PaginationOpts) ([]Message, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -3134,7 +2720,6 @@ func (c *XMPPCore) SearchMessages(chatID string, query string, opts PaginationOp
 	}
 	c.mu.RUnlock()
 
-	// Search local buffer
 	c.messagesMu.RLock()
 	defer c.messagesMu.RUnlock()
 
@@ -3162,7 +2747,6 @@ func (c *XMPPCore) SearchMessages(chatID string, query string, opts PaginationOp
 	return results, nil
 }
 
-// SearchGlobal search global on the XMPP connection.
 func (c *XMPPCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -3171,7 +2755,6 @@ func (c *XMPPCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog, er
 	}
 	c.mu.RUnlock()
 
-	// Search roster and rooms
 	q := strings.ToLower(query)
 	results := []Dialog{}
 
@@ -3212,11 +2795,6 @@ func (c *XMPPCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog, er
 	return results, nil
 }
 
-// ---------------------------------------------------------------------------
-// Core interface — Typing
-// ---------------------------------------------------------------------------
-
-// SendTyping sends typing to the specified JID.
 func (c *XMPPCore) SendTyping(chatID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -3227,30 +2805,18 @@ func (c *XMPPCore) SendTyping(chatID string) error {
 	return c.SendChatStateComposing(chatID)
 }
 
-// ---------------------------------------------------------------------------
-// Core interface — Polls & Stickers (not supported)
-// ---------------------------------------------------------------------------
-
-// CreatePoll creates a new poll.
 func (c *XMPPCore) CreatePoll(chatID string, question string, options []string) (*Message, error) {
 	return nil, fmt.Errorf("%w: xmpp does not support polls", ErrNotSupported)
 }
 
-// VotePoll vote poll on the XMPP connection.
 func (c *XMPPCore) VotePoll(chatID string, msgID string, optionIndex int) error {
 	return fmt.Errorf("%w: xmpp does not support polls", ErrNotSupported)
 }
 
-// SendSticker sends a sticker image to the specified JID.
 func (c *XMPPCore) SendSticker(chatID string, stickerID string) (*Message, error) {
 	return nil, fmt.Errorf("%w: xmpp does not support stickers", ErrNotSupported)
 }
 
-// ---------------------------------------------------------------------------
-// Core interface — Sessions
-// ---------------------------------------------------------------------------
-
-// GetSessions retrieves sessions from the XMPP server.
 func (c *XMPPCore) GetSessions() ([]Session, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -3259,7 +2825,6 @@ func (c *XMPPCore) GetSessions() ([]Session, error) {
 	}
 	c.mu.RUnlock()
 
-	// XMPP doesn't have a standard session list — return current
 	return []Session{{
 		ID:         c.jid,
 		Device:     "uniclient",
@@ -3269,16 +2834,10 @@ func (c *XMPPCore) GetSessions() ([]Session, error) {
 	}}, nil
 }
 
-// TerminateSession terminate session on the XMPP connection.
 func (c *XMPPCore) TerminateSession(sessionID string) error {
 	return fmt.Errorf("%w: xmpp does not support session termination", ErrNotSupported)
 }
 
-// ---------------------------------------------------------------------------
-// XMPP-specific: Presence methods
-// ---------------------------------------------------------------------------
-
-// SendPresenceAvailable sends an available presence stanza to the server.
 func (c *XMPPCore) SendPresenceAvailable(show, status string) error {
 	var b strings.Builder
 	b.Grow(128)
@@ -3298,7 +2857,6 @@ func (c *XMPPCore) SendPresenceAvailable(show, status string) error {
 	return c.sendRawStanza(b.String())
 }
 
-// SendPresenceUnavailable sends an unavailable presence stanza to the server.
 func (c *XMPPCore) SendPresenceUnavailable(status string) error {
 	if status == "" {
 		return c.sendRawStanza("<presence type='unavailable'/>")
@@ -3306,42 +2864,36 @@ func (c *XMPPCore) SendPresenceUnavailable(status string) error {
 	return c.sendRawStanza("<presence type='unavailable'><status>" + xmlEscape(status) + "</status></presence>")
 }
 
-// SetPresencePriority sets the priority value on subsequent presence stanzas.
 func (c *XMPPCore) SetPresencePriority(priority int) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<presence><priority>%d</priority>%s</presence>`, priority, c.buildCapsElement(),
 	))
 }
 
-// SendPresenceSubscribe sends a presence subscription request to a JID.
 func (c *XMPPCore) SendPresenceSubscribe(jid string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<presence type='subscribe' to='%s'/>`, xmlEscape(jid),
 	))
 }
 
-// SendPresenceSubscribed approves a pending presence subscription from a JID.
 func (c *XMPPCore) SendPresenceSubscribed(jid string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<presence type='subscribed' to='%s'/>`, xmlEscape(jid),
 	))
 }
 
-// SendPresenceUnsubscribe cancels an existing presence subscription to a JID.
 func (c *XMPPCore) SendPresenceUnsubscribe(jid string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<presence type='unsubscribe' to='%s'/>`, xmlEscape(jid),
 	))
 }
 
-// SendPresenceUnsubscribed rejects or revokes a presence subscription from a JID.
 func (c *XMPPCore) SendPresenceUnsubscribed(jid string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<presence type='unsubscribed' to='%s'/>`, xmlEscape(jid),
 	))
 }
 
-// SendDirectedPresence sends a presence stanza targeted at a specific JID.
 func (c *XMPPCore) SendDirectedPresence(jid, show, status string) error {
 	var inner string
 	if show != "" {
@@ -3355,16 +2907,11 @@ func (c *XMPPCore) SendDirectedPresence(jid, show, status string) error {
 	))
 }
 
-// ProbePresence probe presence on the XMPP connection.
 func (c *XMPPCore) ProbePresence(jid string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<presence type='probe' to='%s'/>`, xmlEscape(jid),
 	))
 }
-
-// ---------------------------------------------------------------------------
-// XMPP-specific: Roster methods
-// ---------------------------------------------------------------------------
 
 func (c *XMPPCore) requestRoster() {
 	var verAttr string
@@ -3379,7 +2926,6 @@ func (c *XMPPCore) requestRoster() {
 
 	items, ver, err := xmppParseRoster(resp.Inner)
 	if err != nil {
-		// Never swallow: an invisible empty roster looks like "no contacts".
 		log.Printf("xmpp: roster fetch parse failed: %v", err)
 		return
 	}
@@ -3395,7 +2941,6 @@ func (c *XMPPCore) requestRoster() {
 	c.rosterMu.Unlock()
 }
 
-// GetRoster retrieves the full roster (contact list) from the server.
 func (c *XMPPCore) GetRoster() ([]xmppRosterItem, error) {
 	c.rosterMu.RLock()
 	defer c.rosterMu.RUnlock()
@@ -3407,7 +2952,6 @@ func (c *XMPPCore) GetRoster() ([]xmppRosterItem, error) {
 	return items, nil
 }
 
-// AddRosterItem adds a JID to the roster with an optional name and groups.
 func (c *XMPPCore) AddRosterItem(jid, name string, groups []string) error {
 	var inner strings.Builder
 	inner.WriteString(fmt.Sprintf(`<query xmlns='%s'><item jid='%s'`, nsRoster, xmlEscape(jid)))
@@ -3425,24 +2969,20 @@ func (c *XMPPCore) AddRosterItem(jid, name string, groups []string) error {
 		return err
 	}
 
-	// Also subscribe to presence
 	c.SendPresenceSubscribe(jid)
 	return nil
 }
 
-// RemoveRosterItem removes a JID from the roster.
 func (c *XMPPCore) RemoveRosterItem(jid string) error {
 	inner := fmt.Sprintf(`<query xmlns='%s'><item jid='%s' subscription='remove'/></query>`, nsRoster, xmlEscape(jid))
 	_, err := c.sendIQSync("set", "", inner)
 	return err
 }
 
-// SetRosterItemName updates the display name for a roster entry.
 func (c *XMPPCore) SetRosterItemName(jid, name string) error {
-	return c.AddRosterItem(jid, name, nil) // Add/update is the same operation
+	return c.AddRosterItem(jid, name, nil)
 }
 
-// SetRosterItemGroups updates the group memberships for a roster entry.
 func (c *XMPPCore) SetRosterItemGroups(jid string, groups []string) error {
 	c.rosterMu.RLock()
 	item, ok := c.roster[jid]
@@ -3453,10 +2993,6 @@ func (c *XMPPCore) SetRosterItemGroups(jid string, groups []string) error {
 	c.rosterMu.RUnlock()
 	return c.AddRosterItem(jid, name, groups)
 }
-
-// ---------------------------------------------------------------------------
-// XMPP-specific: Chat state methods (XEP-0085)
-// ---------------------------------------------------------------------------
 
 func (c *XMPPCore) sendChatState(chatID, state string) error {
 	msgType := "chat"
@@ -3477,36 +3013,26 @@ func (c *XMPPCore) sendChatState(chatID, state string) error {
 	return c.sendRawStanza(b.String())
 }
 
-// SendChatStateActive sends chat state active to the specified JID.
 func (c *XMPPCore) SendChatStateActive(chatID string) error {
 	return c.sendChatState(chatID, "active")
 }
 
-// SendChatStateComposing sends chat state composing to the specified JID.
 func (c *XMPPCore) SendChatStateComposing(chatID string) error {
 	return c.sendChatState(chatID, "composing")
 }
 
-// SendChatStatePaused sends chat state paused to the specified JID.
 func (c *XMPPCore) SendChatStatePaused(chatID string) error {
 	return c.sendChatState(chatID, "paused")
 }
 
-// SendChatStateInactive sends chat state inactive to the specified JID.
 func (c *XMPPCore) SendChatStateInactive(chatID string) error {
 	return c.sendChatState(chatID, "inactive")
 }
 
-// SendChatStateGone sends chat state gone to the specified JID.
 func (c *XMPPCore) SendChatStateGone(chatID string) error {
 	return c.sendChatState(chatID, "gone")
 }
 
-// ---------------------------------------------------------------------------
-// XMPP-specific: Message extensions
-// ---------------------------------------------------------------------------
-
-// SendGroupchatMessage sends groupchat message to the specified JID.
 func (c *XMPPCore) SendGroupchatMessage(to, body string) error {
 	id := c.nextMsgID()
 	return c.sendRawStanza(fmt.Sprintf(
@@ -3515,7 +3041,6 @@ func (c *XMPPCore) SendGroupchatMessage(to, body string) error {
 	))
 }
 
-// SendHeadlineMessage sends headline message to the specified JID.
 func (c *XMPPCore) SendHeadlineMessage(to, body, subject string) error {
 	id := c.nextMsgID()
 	var subjectXML string
@@ -3528,7 +3053,6 @@ func (c *XMPPCore) SendHeadlineMessage(to, body, subject string) error {
 	))
 }
 
-// SendNormalMessage sends normal message to the specified JID.
 func (c *XMPPCore) SendNormalMessage(to, body string) error {
 	id := c.nextMsgID()
 	return c.sendRawStanza(fmt.Sprintf(
@@ -3537,7 +3061,6 @@ func (c *XMPPCore) SendNormalMessage(to, body string) error {
 	))
 }
 
-// RequestReceipt includes a receipt request in the next outgoing message.
 func (c *XMPPCore) RequestReceipt(to, msgID string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<message to='%s' id='%s'><request xmlns='%s'/></message>`,
@@ -3545,13 +3068,11 @@ func (c *XMPPCore) RequestReceipt(to, msgID string) error {
 	))
 }
 
-// SendReceipt sends a message delivery receipt (XEP-0184) for a received message.
 func (c *XMPPCore) SendReceipt(to, msgID string) error {
 	id := c.nextMsgID()
 	return c.sendRawStanza("<message to='" + xmlEscape(to) + "' id='" + id + "'><received xmlns='" + nsReceipts + "' id='" + xmlEscape(msgID) + "'/></message>")
 }
 
-// EnableCarbons enables message carbons (XEP-0280) for multi-device sync.
 func (c *XMPPCore) EnableCarbons() error {
 	inner := fmt.Sprintf(`<enable xmlns='%s'/>`, nsCarbons)
 	_, err := c.sendIQSync("set", "", inner)
@@ -3563,7 +3084,6 @@ func (c *XMPPCore) EnableCarbons() error {
 	return err
 }
 
-// DisableCarbons disables message carbons (XEP-0280).
 func (c *XMPPCore) DisableCarbons() error {
 	inner := fmt.Sprintf(`<disable xmlns='%s'/>`, nsCarbons)
 	_, err := c.sendIQSync("set", "", inner)
@@ -3575,13 +3095,11 @@ func (c *XMPPCore) DisableCarbons() error {
 	return err
 }
 
-// SendDisplayedMarker sends displayed marker to the specified JID.
 func (c *XMPPCore) SendDisplayedMarker(to, msgID string) error {
 	id := c.nextMsgID()
 	return c.sendRawStanza("<message to='" + xmlEscape(to) + "' id='" + id + "'><displayed xmlns='" + nsMarkers + "' id='" + xmlEscape(msgID) + "'/></message>")
 }
 
-// SendReceivedMarker sends received marker to the specified JID.
 func (c *XMPPCore) SendReceivedMarker(to, msgID string) error {
 	id := c.nextMsgID()
 	return c.sendRawStanza(fmt.Sprintf(
@@ -3590,7 +3108,6 @@ func (c *XMPPCore) SendReceivedMarker(to, msgID string) error {
 	))
 }
 
-// SendOOBURL sends a message with an out-of-band data URL (XEP-0066).
 func (c *XMPPCore) SendOOBURL(chatID, url, desc string) error {
 	id := c.nextMsgID()
 	msgType := "chat"
@@ -3607,12 +3124,10 @@ func (c *XMPPCore) SendOOBURL(chatID, url, desc string) error {
 	))
 }
 
-// SetMessageHint sets message hint on the XMPP server.
 func (c *XMPPCore) SetMessageHint(chatID, msgID, hint string) error {
 	return fmt.Errorf("%w: xmpp message hints can only be set at send time", ErrNotSupported)
 }
 
-// SendReaction sends a message reaction (XEP-0444) to the specified message.
 func (c *XMPPCore) SendReaction(chatID, msgID string, emojis []string) error {
 	id := c.nextMsgID()
 	msgType := "chat"
@@ -3631,11 +3146,6 @@ func (c *XMPPCore) SendReaction(chatID, msgID string, emojis []string) error {
 	))
 }
 
-// ---------------------------------------------------------------------------
-// XMPP-specific: MUC methods (XEP-0045)
-// ---------------------------------------------------------------------------
-
-// JoinMUC joins a multi-user chat room with the specified nickname.
 func (c *XMPPCore) JoinMUC(roomJID, nick string) error {
 	if nick == "" {
 		c.mu.RLock()
@@ -3648,7 +3158,6 @@ func (c *XMPPCore) JoinMUC(roomJID, nick string) error {
 
 	fullJID := roomJID + "/" + nick
 
-	// Send presence with MUC extension
 	err := c.sendRawStanza(fmt.Sprintf(
 		`<presence to='%s'><x xmlns='%s'><history maxstanzas='50'/></x>%s</presence>`,
 		xmlEscape(fullJID), nsMUC, c.buildCapsElement(),
@@ -3672,7 +3181,6 @@ func (c *XMPPCore) JoinMUC(roomJID, nick string) error {
 	return nil
 }
 
-// LeaveMUC leaves a multi-user chat room.
 func (c *XMPPCore) LeaveMUC(roomJID string) error {
 	c.roomsMu.RLock()
 	room, ok := c.rooms[roomJID]
@@ -3702,14 +3210,12 @@ func (c *XMPPCore) LeaveMUC(roomJID string) error {
 	return err
 }
 
-// SetMUCNick changes the user's nickname in a MUC room.
 func (c *XMPPCore) SetMUCNick(roomJID, nick string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<presence to='%s/%s'/>`, xmlEscape(roomJID), xmlEscape(nick),
 	))
 }
 
-// GetMUCOccupants retrieves the list of occupants in a MUC room.
 func (c *XMPPCore) GetMUCOccupants(roomJID string) ([]User, error) {
 	c.roomsMu.RLock()
 	room, ok := c.rooms[roomJID]
@@ -3741,7 +3247,6 @@ func (c *XMPPCore) GetMUCOccupants(roomJID string) ([]User, error) {
 	return users, nil
 }
 
-// GetMUCInfo retrieves the room info and configuration for a MUC room.
 func (c *XMPPCore) GetMUCInfo(roomJID string) (*Dialog, error) {
 	resp, err := c.DiscoInfo(roomJID)
 	if err != nil {
@@ -3755,7 +3260,6 @@ func (c *XMPPCore) GetMUCInfo(roomJID string) (*Dialog, error) {
 		Platform: xmppPlatform,
 	}
 
-	// Parse disco#info response for room name
 	if name := extractXMLAttr(resp.Inner, "identity", "name"); name != "" {
 		d.Title = name
 	}
@@ -3772,7 +3276,6 @@ func (c *XMPPCore) GetMUCInfo(roomJID string) (*Dialog, error) {
 	return d, nil
 }
 
-// SetMUCSubject sets the subject line of a MUC room.
 func (c *XMPPCore) SetMUCSubject(roomJID, subject string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<message type='groupchat' to='%s'><subject>%s</subject></message>`,
@@ -3780,9 +3283,7 @@ func (c *XMPPCore) SetMUCSubject(roomJID, subject string) error {
 	))
 }
 
-// SendMUCInvitation sends a direct MUC invitation to a user.
 func (c *XMPPCore) SendMUCInvitation(roomJID, userJID, reason string) error {
-	// Direct invitation (XEP-0249)
 	var reasonAttr string
 	if reason != "" {
 		reasonAttr = fmt.Sprintf(` reason='%s'`, xmlEscape(reason))
@@ -3793,7 +3294,6 @@ func (c *XMPPCore) SendMUCInvitation(roomJID, userJID, reason string) error {
 	))
 }
 
-// SendMUCMediatedInvite sends a mediated (server-forwarded) MUC invitation to a user.
 func (c *XMPPCore) SendMUCMediatedInvite(roomJID, userJID, reason string) error {
 	var reasonXML string
 	if reason != "" {
@@ -3805,7 +3305,6 @@ func (c *XMPPCore) SendMUCMediatedInvite(roomJID, userJID, reason string) error 
 	))
 }
 
-// DeclineMUCInvitation declines a pending MUC room invitation.
 func (c *XMPPCore) DeclineMUCInvitation(roomJID, inviterJID, reason string) error {
 	var reasonXML string
 	if reason != "" {
@@ -3817,7 +3316,6 @@ func (c *XMPPCore) DeclineMUCInvitation(roomJID, inviterJID, reason string) erro
 	))
 }
 
-// SetMUCRole changes an occupant's role (moderator, participant, visitor) in a MUC room.
 func (c *XMPPCore) SetMUCRole(roomJID, nick, role string) error {
 	inner := fmt.Sprintf(
 		`<query xmlns='%s'><item nick='%s' role='%s'/></query>`,
@@ -3827,7 +3325,6 @@ func (c *XMPPCore) SetMUCRole(roomJID, nick, role string) error {
 	return err
 }
 
-// SetMUCAffiliation changes a user's affiliation (owner, admin, member, outcast) in a MUC room.
 func (c *XMPPCore) SetMUCAffiliation(roomJID, userJID, affiliation string) error {
 	inner := fmt.Sprintf(
 		`<query xmlns='%s'><item jid='%s' affiliation='%s'/></query>`,
@@ -3837,7 +3334,6 @@ func (c *XMPPCore) SetMUCAffiliation(roomJID, userJID, affiliation string) error
 	return err
 }
 
-// KickFromMUC kicks an occupant from a MUC room.
 func (c *XMPPCore) KickFromMUC(roomJID, nick, reason string) error {
 	var reasonXML string
 	if reason != "" {
@@ -3851,7 +3347,6 @@ func (c *XMPPCore) KickFromMUC(roomJID, nick, reason string) error {
 	return err
 }
 
-// BanFromMUC bans a user from a MUC room by setting outcast affiliation.
 func (c *XMPPCore) BanFromMUC(roomJID, userJID, reason string) error {
 	var reasonXML string
 	if reason != "" {
@@ -3865,22 +3360,18 @@ func (c *XMPPCore) BanFromMUC(roomJID, userJID, reason string) error {
 	return err
 }
 
-// UnbanFromMUC removes a ban from a user in a MUC room.
 func (c *XMPPCore) UnbanFromMUC(roomJID, userJID string) error {
 	return c.SetMUCAffiliation(roomJID, userJID, "none")
 }
 
-// GrantVoice grants voice.
 func (c *XMPPCore) GrantVoice(roomJID, nick string) error {
 	return c.SetMUCRole(roomJID, nick, "participant")
 }
 
-// RevokeVoice revokes voice.
 func (c *XMPPCore) RevokeVoice(roomJID, nick string) error {
 	return c.SetMUCRole(roomJID, nick, "visitor")
 }
 
-// GetMUCConfig retrieves the configuration form for a MUC room.
 func (c *XMPPCore) GetMUCConfig(roomJID string) (map[string]string, error) {
 	inner := fmt.Sprintf(`<query xmlns='%s'/>`, nsMUCOwner)
 	resp, err := c.sendIQSync("get", roomJID, inner)
@@ -3888,11 +3379,9 @@ func (c *XMPPCore) GetMUCConfig(roomJID string) (map[string]string, error) {
 		return nil, err
 	}
 
-	// Parse x:data form
 	return parseXDataForm(resp.Inner), nil
 }
 
-// ConfigureMUC submits a configuration form to update MUC room settings.
 func (c *XMPPCore) ConfigureMUC(roomJID string, config map[string]string) error {
 	var fields strings.Builder
 	fields.WriteString(fmt.Sprintf(`<query xmlns='%s'><x xmlns='%s' type='submit'>`, nsMUCOwner, nsXData))
@@ -3906,7 +3395,6 @@ func (c *XMPPCore) ConfigureMUC(roomJID string, config map[string]string) error 
 	return err
 }
 
-// DestroyMUC permanently destroys a MUC room.
 func (c *XMPPCore) DestroyMUC(roomJID, reason string) error {
 	var reasonXML string
 	if reason != "" {
@@ -3925,21 +3413,16 @@ func (c *XMPPCore) DestroyMUC(roomJID, reason string) error {
 	return err
 }
 
-// CreateInstantMUC creates an instant MUC room with default configuration.
 func (c *XMPPCore) CreateInstantMUC(roomJID, nick string) error {
 	if err := c.JoinMUC(roomJID, nick); err != nil {
 		return err
 	}
-	// Accept default config
 	inner := fmt.Sprintf(`<query xmlns='%s'><x xmlns='%s' type='submit'/></query>`, nsMUCOwner, nsXData)
 	_, err := c.sendIQSync("set", roomJID, inner)
 	return err
 }
 
-// RequestMUCHistory requests recent message history from a MUC room.
 func (c *XMPPCore) RequestMUCHistory(roomJID string, maxStanzas int) error {
-	// History is requested on join via <history maxstanzas='N'/>
-	// Re-join to request more
 	c.roomsMu.RLock()
 	room, ok := c.rooms[roomJID]
 	nick := ""
@@ -3954,7 +3437,6 @@ func (c *XMPPCore) RequestMUCHistory(roomJID string, maxStanzas int) error {
 	))
 }
 
-// MUCSelfPing performs a MUC (multi-user chat) self ping operation.
 func (c *XMPPCore) MUCSelfPing(roomJID string) error {
 	nick := ""
 	c.roomsMu.RLock()
@@ -3972,11 +3454,6 @@ func (c *XMPPCore) MUCSelfPing(roomJID string) error {
 	return err
 }
 
-// ---------------------------------------------------------------------------
-// XMPP-specific: Service Discovery (XEP-0030)
-// ---------------------------------------------------------------------------
-
-// DiscoInfo queries a JID for its service discovery features (XEP-0030).
 func (c *XMPPCore) DiscoInfo(target string) (*XMPPIQ, error) {
 	if target == "" {
 		target = c.domain
@@ -3985,7 +3462,6 @@ func (c *XMPPCore) DiscoInfo(target string) (*XMPPIQ, error) {
 	return c.sendIQSync("get", target, inner)
 }
 
-// DiscoItems queries a JID for its service discovery items (XEP-0030).
 func (c *XMPPCore) DiscoItems(target string) (*XMPPIQ, error) {
 	if target == "" {
 		target = c.domain
@@ -3994,7 +3470,6 @@ func (c *XMPPCore) DiscoItems(target string) (*XMPPIQ, error) {
 	return c.sendIQSync("get", target, inner)
 }
 
-// QueryFeatures queries features from the XMPP server.
 func (c *XMPPCore) QueryFeatures(target string) ([]string, error) {
 	resp, err := c.DiscoInfo(target)
 	if err != nil {
@@ -4003,7 +3478,6 @@ func (c *XMPPCore) QueryFeatures(target string) ([]string, error) {
 	return parseDiscoFeatures(resp.Inner), nil
 }
 
-// QueryIdentity queries identity from the XMPP server.
 func (c *XMPPCore) QueryIdentity(target string) (category, typ, name string, err error) {
 	resp, err := c.DiscoInfo(target)
 	if err != nil {
@@ -4015,14 +3489,12 @@ func (c *XMPPCore) QueryIdentity(target string) (category, typ, name string, err
 	return
 }
 
-// DiscoverMUCService discovers the MUC conference service on the connected domain.
 func (c *XMPPCore) DiscoverMUCService() (string, error) {
 	resp, err := c.DiscoItems("")
 	if err != nil {
 		return "", err
 	}
 
-	// Find item with conference identity
 	items := parseDiscoItems(resp.Inner)
 	for _, item := range items {
 		infoResp, err := c.DiscoInfo(item)
@@ -4036,7 +3508,6 @@ func (c *XMPPCore) DiscoverMUCService() (string, error) {
 	return "", errors.New("no MUC service found")
 }
 
-// DiscoverHTTPUploadService performs a service discovery (XEP-0030) query.
 func (c *XMPPCore) DiscoverHTTPUploadService() (string, int64, error) {
 	resp, err := c.DiscoItems("")
 	if err != nil {
@@ -4050,7 +3521,6 @@ func (c *XMPPCore) DiscoverHTTPUploadService() (string, int64, error) {
 			continue
 		}
 		if strings.Contains(infoResp.Inner, nsUpload) {
-			// Parse max file size from data form
 			maxSize := parseUploadMaxSize(infoResp.Inner)
 			return item, maxSize, nil
 		}
@@ -4058,7 +3528,6 @@ func (c *XMPPCore) DiscoverHTTPUploadService() (string, int64, error) {
 	return "", 0, errors.New("no HTTP upload service found")
 }
 
-// DiscoverExternalServices performs a service discovery (XEP-0030) query.
 func (c *XMPPCore) DiscoverExternalServices() ([]map[string]string, error) {
 	inner := fmt.Sprintf(`<services xmlns='%s'/>`, nsExtSvc)
 	resp, err := c.sendIQSync("get", c.domain, inner)
@@ -4105,7 +3574,6 @@ func (c *XMPPCore) respondDiscoInfo(iq XMPPIQ) {
 }
 
 func (c *XMPPCore) discoverServices() {
-	// Discover MUC
 	if c.mucService == "" {
 		if svc, err := c.DiscoverMUCService(); err == nil {
 			c.mu.Lock()
@@ -4114,7 +3582,6 @@ func (c *XMPPCore) discoverServices() {
 		}
 	}
 
-	// Discover HTTP upload
 	if c.uploadService == "" {
 		if svc, maxSize, err := c.DiscoverHTTPUploadService(); err == nil {
 			c.mu.Lock()
@@ -4124,7 +3591,6 @@ func (c *XMPPCore) discoverServices() {
 		}
 	}
 
-	// Get server features
 	if feats, err := c.QueryFeatures(""); err == nil {
 		c.mu.Lock()
 		c.serverFeats = feats
@@ -4132,11 +3598,6 @@ func (c *XMPPCore) discoverServices() {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// XMPP-specific: File Transfer (XEP-0363)
-// ---------------------------------------------------------------------------
-
-// RequestHTTPUploadSlot requests an HTTP upload slot (XEP-0363) for a file.
 func (c *XMPPCore) RequestHTTPUploadSlot(filename string, size int64, contentType string) (putURL, getURL string, err error) {
 	c.mu.RLock()
 	uploadSvc := c.uploadService
@@ -4156,7 +3617,6 @@ func (c *XMPPCore) RequestHTTPUploadSlot(filename string, size int64, contentTyp
 		return "", "", err
 	}
 
-	// Parse put/get URLs from response
 	putURL = extractXMLAttr(resp.Inner, "put", "url")
 	getURL = extractXMLAttr(resp.Inner, "get", "url")
 
@@ -4167,7 +3627,6 @@ func (c *XMPPCore) RequestHTTPUploadSlot(filename string, size int64, contentTyp
 	return putURL, getURL, nil
 }
 
-// UploadFileHTTP uploads a file using the HTTP upload service (XEP-0363).
 func (c *XMPPCore) UploadFileHTTP(putURL string, data []byte, contentType string, progress func(sent, total int64)) error {
 	req, err := http.NewRequestWithContext(c.ctx, "PUT", putURL, bytes.NewReader(data))
 	if err != nil {
@@ -4192,7 +3651,6 @@ func (c *XMPPCore) UploadFileHTTP(putURL string, data []byte, contentType string
 	return nil
 }
 
-// DownloadFileHTTP downloads a file from the given HTTP URL.
 func (c *XMPPCore) DownloadFileHTTP(url, dest string, progress func(recv, total int64)) error {
 	req, err := http.NewRequestWithContext(c.ctx, "GET", url, nil)
 	if err != nil {
@@ -4213,9 +3671,6 @@ func (c *XMPPCore) DownloadFileHTTP(url, dest string, progress func(recv, total 
 	if err != nil {
 		return err
 	}
-	// F-78: ONE cleanup point for every failure path — the old code
-	// removed the partial only on the ceiling branch; write/read errors
-	// left a truncated file behind.
 	ok := false
 	defer func() {
 		if ok {
@@ -4232,9 +3687,6 @@ func (c *XMPPCore) DownloadFileHTTP(url, dest string, progress func(recv, total 
 	for {
 		n, readErr := resp.Body.Read(buf)
 		if n > 0 {
-			// F-72: the manual loop had NO ceiling — a hostile
-			// endpoint streaming forever filled the disk. Check BEFORE
-			// writing so the partial stays under the cap, then remove.
 			if received+int64(n) > downloadCeiling {
 				return fmt.Errorf("%w: more than %d bytes", ErrFileTooLarge, downloadCeiling)
 			}
@@ -4258,7 +3710,6 @@ func (c *XMPPCore) DownloadFileHTTP(url, dest string, progress func(recv, total 
 	return nil
 }
 
-// SendFileURL sends a file reference by URL to the specified JID.
 func (c *XMPPCore) SendFileURL(chatID, url, caption string) (*Message, error) {
 	id := c.nextMsgID()
 	msgType := "chat"
@@ -4295,11 +3746,6 @@ func (c *XMPPCore) SendFileURL(chatID, url, caption string) (*Message, error) {
 	return m, nil
 }
 
-// ---------------------------------------------------------------------------
-// XMPP-specific: PubSub (XEP-0060)
-// ---------------------------------------------------------------------------
-
-// CreatePubSubNode performs a PubSub (XEP-0060) create node operation.
 func (c *XMPPCore) CreatePubSubNode(service, node string) error {
 	if service == "" {
 		service = c.domain
@@ -4309,7 +3755,6 @@ func (c *XMPPCore) CreatePubSubNode(service, node string) error {
 	return err
 }
 
-// DeletePubSubNode performs a PubSub (XEP-0060) delete node operation.
 func (c *XMPPCore) DeletePubSubNode(service, node string) error {
 	if service == "" {
 		service = c.domain
@@ -4319,10 +3764,9 @@ func (c *XMPPCore) DeletePubSubNode(service, node string) error {
 	return err
 }
 
-// PublishPubSubItem performs a PubSub (XEP-0060) publish item operation.
 func (c *XMPPCore) PublishPubSubItem(service, node, itemID, payload string) error {
 	if service == "" {
-		service = c.bareJID // PEP
+		service = c.bareJID
 	}
 	inner := fmt.Sprintf(
 		`<pubsub xmlns='%s'><publish node='%s'><item id='%s'>%s</item></publish></pubsub>`,
@@ -4332,7 +3776,6 @@ func (c *XMPPCore) PublishPubSubItem(service, node, itemID, payload string) erro
 	return err
 }
 
-// RetractPubSubItem performs a PubSub (XEP-0060) retract item operation.
 func (c *XMPPCore) RetractPubSubItem(service, node, itemID string) error {
 	if service == "" {
 		service = c.bareJID
@@ -4345,7 +3788,6 @@ func (c *XMPPCore) RetractPubSubItem(service, node, itemID string) error {
 	return err
 }
 
-// SubscribePubSub performs a PubSub (XEP-0060) subscribe operation.
 func (c *XMPPCore) SubscribePubSub(service, node string) error {
 	if service == "" {
 		service = c.domain
@@ -4358,7 +3800,6 @@ func (c *XMPPCore) SubscribePubSub(service, node string) error {
 	return err
 }
 
-// UnsubscribePubSub performs a PubSub (XEP-0060) unsubscribe operation.
 func (c *XMPPCore) UnsubscribePubSub(service, node string) error {
 	if service == "" {
 		service = c.domain
@@ -4371,7 +3812,6 @@ func (c *XMPPCore) UnsubscribePubSub(service, node string) error {
 	return err
 }
 
-// GetPubSubItems performs a PubSub (XEP-0060) get items operation.
 func (c *XMPPCore) GetPubSubItems(service, node string) (*XMPPIQ, error) {
 	if service == "" {
 		service = c.domain
@@ -4380,7 +3820,6 @@ func (c *XMPPCore) GetPubSubItems(service, node string) (*XMPPIQ, error) {
 	return c.sendIQSync("get", service, inner)
 }
 
-// GetPubSubSubscriptions performs a PubSub (XEP-0060) get subscriptions operation.
 func (c *XMPPCore) GetPubSubSubscriptions(service string) (*XMPPIQ, error) {
 	if service == "" {
 		service = c.domain
@@ -4389,7 +3828,6 @@ func (c *XMPPCore) GetPubSubSubscriptions(service string) (*XMPPIQ, error) {
 	return c.sendIQSync("get", service, inner)
 }
 
-// ConfigurePubSubNode performs a PubSub (XEP-0060) configure node operation.
 func (c *XMPPCore) ConfigurePubSubNode(service, node string, config map[string]string) error {
 	if service == "" {
 		service = c.domain
@@ -4404,11 +3842,6 @@ func (c *XMPPCore) ConfigurePubSubNode(service, node string, config map[string]s
 	return err
 }
 
-// ---------------------------------------------------------------------------
-// XMPP-specific: PEP (XEP-0163) — User Mood, Activity, Tune, Location
-// ---------------------------------------------------------------------------
-
-// SetUserMood sets user mood on the XMPP server.
 func (c *XMPPCore) SetUserMood(mood, text string) error {
 	var textXML string
 	if text != "" {
@@ -4418,7 +3851,6 @@ func (c *XMPPCore) SetUserMood(mood, text string) error {
 	return c.PublishPubSubItem("", nsMood, "current", payload)
 }
 
-// SetUserActivity sets user activity on the XMPP server.
 func (c *XMPPCore) SetUserActivity(activity, specific, text string) error {
 	var specificXML, textXML string
 	if specific != "" {
@@ -4432,7 +3864,6 @@ func (c *XMPPCore) SetUserActivity(activity, specific, text string) error {
 	return c.PublishPubSubItem("", nsActivity, "current", payload)
 }
 
-// SetUserTune sets user tune on the XMPP server.
 func (c *XMPPCore) SetUserTune(artist, title, source string, length int) error {
 	var inner strings.Builder
 	inner.WriteString(fmt.Sprintf(`<tune xmlns='%s'>`, nsTune))
@@ -4452,7 +3883,6 @@ func (c *XMPPCore) SetUserTune(artist, title, source string, length int) error {
 	return c.PublishPubSubItem("", nsTune, "current", inner.String())
 }
 
-// SetUserLocation sets user location on the XMPP server.
 func (c *XMPPCore) SetUserLocation(lat, lon float64, description string) error {
 	var inner strings.Builder
 	inner.WriteString(fmt.Sprintf(`<geoloc xmlns='%s'>`, nsGeoLoc))
@@ -4465,9 +3895,7 @@ func (c *XMPPCore) SetUserLocation(lat, lon float64, description string) error {
 	return c.PublishPubSubItem("", nsGeoLoc, "current", inner.String())
 }
 
-// SetAvatarPEP publishes an avatar image via PEP (XEP-0084).
 func (c *XMPPCore) SetAvatarPEP(imageData []byte, mimeType string) error {
-	// Publish avatar data
 	b64 := base64.StdEncoding.EncodeToString(imageData)
 	h := sha1.Sum(imageData)
 	hashStr := fmt.Sprintf("%x", h)
@@ -4477,7 +3905,6 @@ func (c *XMPPCore) SetAvatarPEP(imageData []byte, mimeType string) error {
 		return err
 	}
 
-	// Publish metadata
 	metaPayload := fmt.Sprintf(
 		`<metadata xmlns='%s'><info id='%s' type='%s' bytes='%d'/></metadata>`,
 		nsAvatarMeta, hashStr, xmlEscape(mimeType), len(imageData),
@@ -4485,14 +3912,12 @@ func (c *XMPPCore) SetAvatarPEP(imageData []byte, mimeType string) error {
 	return c.PublishPubSubItem("", nsAvatarMeta, hashStr, metaPayload)
 }
 
-// GetAvatarPEP retrieves a user's avatar image via PEP (XEP-0084).
 func (c *XMPPCore) GetAvatarPEP(jid string) ([]byte, error) {
 	resp, err := c.GetPubSubItems(jid, nsAvatarData)
 	if err != nil {
 		return nil, err
 	}
 
-	// Parse base64 data from response
 	data := extractXMLContent(resp.Inner, "data")
 	if data == "" {
 		return nil, ErrNotFound
@@ -4500,11 +3925,6 @@ func (c *XMPPCore) GetAvatarPEP(jid string) ([]byte, error) {
 	return base64.StdEncoding.DecodeString(strings.TrimSpace(data))
 }
 
-// ---------------------------------------------------------------------------
-// XMPP-specific: vCard (XEP-0054)
-// ---------------------------------------------------------------------------
-
-// GetVCard retrieves the vCard (XEP-0054) for a specified JID.
 func (c *XMPPCore) GetVCard(jid string) (map[string]string, error) {
 	c.vcardCacheMu.RLock()
 	if cached, ok := c.vcardCache[jid]; ok {
@@ -4528,7 +3948,6 @@ func (c *XMPPCore) GetVCard(jid string) (map[string]string, error) {
 	return fields, nil
 }
 
-// SetVCard updates the authenticated user's vCard (XEP-0054).
 func (c *XMPPCore) SetVCard(fields map[string]string) error {
 	var inner strings.Builder
 	inner.WriteString(fmt.Sprintf(`<vCard xmlns='%s'>`, nsVCard))
@@ -4553,7 +3972,6 @@ func (c *XMPPCore) SetVCard(fields map[string]string) error {
 	return err
 }
 
-// GetVCardField retrieves a specific field from a user's vCard (XEP-0054).
 func (c *XMPPCore) GetVCardField(jid, field string) (string, error) {
 	vcard, err := c.GetVCard(jid)
 	if err != nil {
@@ -4562,7 +3980,6 @@ func (c *XMPPCore) GetVCardField(jid, field string) (string, error) {
 	return vcard[field], nil
 }
 
-// SetAvatarVCard updates the avatar photo in the user's vCard (XEP-0054).
 func (c *XMPPCore) SetAvatarVCard(imageData []byte, mimeType string) error {
 	b64 := base64.StdEncoding.EncodeToString(imageData)
 	fields := map[string]string{
@@ -4580,7 +3997,6 @@ func (c *XMPPCore) SetAvatarVCard(imageData []byte, mimeType string) error {
 		return err
 	}
 
-	// Update cache
 	c.vcardCacheMu.Lock()
 	if _, ok := c.vcardCache[c.bareJID]; !ok {
 		c.vcardCache[c.bareJID] = make(map[string]string)
@@ -4593,11 +4009,6 @@ func (c *XMPPCore) SetAvatarVCard(imageData []byte, mimeType string) error {
 	return nil
 }
 
-// ---------------------------------------------------------------------------
-// XMPP-specific: Blocking (XEP-0191)
-// ---------------------------------------------------------------------------
-
-// BlockJID blocks a JID using the block list (XEP-0191).
 func (c *XMPPCore) BlockJID(jid string) error {
 	inner := fmt.Sprintf(`<block xmlns='%s'><item jid='%s'/></block>`, nsBlocking, xmlEscape(jid))
 	_, err := c.sendIQSync("set", "", inner)
@@ -4609,7 +4020,6 @@ func (c *XMPPCore) BlockJID(jid string) error {
 	return err
 }
 
-// UnblockJID removes a JID from the block list (XEP-0191).
 func (c *XMPPCore) UnblockJID(jid string) error {
 	inner := fmt.Sprintf(`<unblock xmlns='%s'><item jid='%s'/></unblock>`, nsBlocking, xmlEscape(jid))
 	_, err := c.sendIQSync("set", "", inner)
@@ -4621,12 +4031,10 @@ func (c *XMPPCore) UnblockJID(jid string) error {
 	return err
 }
 
-// GetBlocklist retrieves blocklist from the XMPP server.
 func (c *XMPPCore) GetBlocklist() ([]string, error) {
 	inner := fmt.Sprintf(`<blocklist xmlns='%s'/>`, nsBlocking)
 	resp, err := c.sendIQSync("get", "", inner)
 	if err != nil {
-		// Fall back to local state
 		c.blockedMu.RLock()
 		defer c.blockedMu.RUnlock()
 		var jids []string
@@ -4648,12 +4056,7 @@ func (c *XMPPCore) GetBlocklist() ([]string, error) {
 	return jids, nil
 }
 
-// ---------------------------------------------------------------------------
-// XMPP-specific: Bookmarks (XEP-0048 / XEP-0402)
-// ---------------------------------------------------------------------------
-
 func (c *XMPPCore) loadBookmarks() {
-	// Try PEP bookmarks (XEP-0402) first
 	resp, err := c.GetPubSubItems(c.bareJID, nsBmk2)
 	if err == nil {
 		bms := parseBookmarks2(resp.Inner)
@@ -4665,7 +4068,6 @@ func (c *XMPPCore) loadBookmarks() {
 		}
 	}
 
-	// Fall back to private storage (XEP-0048)
 	inner := fmt.Sprintf(`<query xmlns='%s'><storage xmlns='%s'/></query>`, nsPrivate, nsBookmarks)
 	resp2, err := c.sendIQSync("get", "", inner)
 	if err != nil {
@@ -4678,7 +4080,6 @@ func (c *XMPPCore) loadBookmarks() {
 	c.bookmarksMu.Unlock()
 }
 
-// GetBookmarks retrieves stored conference bookmarks (XEP-0048/0402).
 func (c *XMPPCore) GetBookmarks() ([]xmppBookmark, error) {
 	c.bookmarksMu.RLock()
 	if len(c.bookmarks) == 0 {
@@ -4693,10 +4094,8 @@ func (c *XMPPCore) GetBookmarks() ([]xmppBookmark, error) {
 	return result, nil
 }
 
-// SetBookmark saves a conference bookmark (XEP-0048/0402).
 func (c *XMPPCore) SetBookmark(jid, name, nick string, autoJoin bool) error {
 	c.bookmarksMu.Lock()
-	// Update or add
 	found := false
 	for i := range c.bookmarks {
 		if c.bookmarks[i].JID == jid {
@@ -4722,7 +4121,6 @@ func (c *XMPPCore) SetBookmark(jid, name, nick string, autoJoin bool) error {
 	return c.saveBookmarks(bms)
 }
 
-// RemoveBookmark deletes a conference bookmark (XEP-0048/0402).
 func (c *XMPPCore) RemoveBookmark(jid string) error {
 	c.bookmarksMu.Lock()
 	for i := range c.bookmarks {
@@ -4738,7 +4136,6 @@ func (c *XMPPCore) RemoveBookmark(jid string) error {
 	return c.saveBookmarks(bms)
 }
 
-// SetBookmarkAutoJoin toggles the auto-join flag on a conference bookmark.
 func (c *XMPPCore) SetBookmarkAutoJoin(jid string, autoJoin bool) error {
 	c.bookmarksMu.Lock()
 	for i := range c.bookmarks {
@@ -4755,7 +4152,6 @@ func (c *XMPPCore) SetBookmarkAutoJoin(jid string, autoJoin bool) error {
 }
 
 func (c *XMPPCore) saveBookmarks(bms []xmppBookmark) error {
-	// Save to private storage (XEP-0048)
 	var inner strings.Builder
 	inner.WriteString(fmt.Sprintf(`<query xmlns='%s'><storage xmlns='%s'>`, nsPrivate, nsBookmarks))
 	for _, bm := range bms {
@@ -4788,17 +4184,12 @@ func (c *XMPPCore) autoJoinBookmarks() {
 		if bm.AutoJoin {
 			nick := bm.Nick
 			c.JoinMUC(bm.JID, nick)
-			time.Sleep(200 * time.Millisecond) // Don't flood
+			time.Sleep(200 * time.Millisecond)
 		}
 	}
 	c.bookmarksMu.RUnlock()
 }
 
-// ---------------------------------------------------------------------------
-// XMPP-specific: MAM (XEP-0313)
-// ---------------------------------------------------------------------------
-
-// QueryMAM queries the Message Archive (XEP-0313) with the given parameters.
 func (c *XMPPCore) QueryMAM(jid string, limit int, after string) ([]Message, error) {
 	if limit <= 0 {
 		limit = 50
@@ -4825,9 +4216,6 @@ func (c *XMPPCore) QueryMAM(jid string, limit int, after string) ([]Message, err
 		return nil, err
 	}
 
-	// MAM results come as individual <message> stanzas before the IQ result
-	// They'll be processed by the readLoop and buffered
-	// Return what we have in the buffer
 	c.messagesMu.RLock()
 	defer c.messagesMu.RUnlock()
 
@@ -4842,12 +4230,10 @@ func (c *XMPPCore) QueryMAM(jid string, limit int, after string) ([]Message, err
 	return nil, nil
 }
 
-// QueryMAMByJID queries the Message Archive (XEP-0313) filtered by a specific JID.
 func (c *XMPPCore) QueryMAMByJID(jid string, limit int) ([]Message, error) {
 	return c.QueryMAM(jid, limit, "")
 }
 
-// QueryMAMByDateRange queries the Message Archive (XEP-0313) within a time range.
 func (c *XMPPCore) QueryMAMByDateRange(jid string, start, end time.Time, limit int) ([]Message, error) {
 	if limit <= 0 {
 		limit = 50
@@ -4887,17 +4273,10 @@ func (c *XMPPCore) QueryMAMByDateRange(jid string, start, end time.Time, limit i
 	return nil, nil
 }
 
-// QueryMAMPage retrieves a page of results from the Message Archive (XEP-0313).
 func (c *XMPPCore) QueryMAMPage(jid string, limit int, after string) ([]Message, error) {
 	return c.QueryMAM(jid, limit, after)
 }
 
-// ---------------------------------------------------------------------------
-// XMPP-specific: Registration (XEP-0077)
-// ---------------------------------------------------------------------------
-
-// buildIBRStanza constructs the XEP-0077 account-creation IQ. Both the
-// username and the password are XML-escaped.
 func buildIBRStanza(id, username, password string) string {
 	return fmt.Sprintf(
 		`<iq type='set' id='%s'><query xmlns='%s'><username>%s</username><password>%s</password></query></iq>`,
@@ -4905,9 +4284,6 @@ func buildIBRStanza(id, username, password string) string {
 	)
 }
 
-// ibrFormField is one field of a data-form registration (XEP-0077 §4 +
-// jabber:x:data): var name, field type, current value (hidden fields carry
-// constants to pass through) and the required flag.
 type ibrFormField struct {
 	Var      string
 	Type     string
@@ -4915,18 +4291,11 @@ type ibrFormField struct {
 	Required bool
 }
 
-// buildIBRGetStanza constructs the registration-form GET (the first half
-// of the XEP-0077 dance: the server answers with either legacy fields or
-// an x:data form).
 func buildIBRGetStanza(id string) string {
 	return fmt.Sprintf(`<iq type='get' id='%s'><query xmlns='%s'/></iq>`, xmlEscape(id), nsRegister)
 }
 
-// parseIBRForm extracts the data-form fields from a registration-form GET
-// response; ok is false for legacy (field-element) forms and error
-// responses. Pure — unit-tested.
 func parseIBRForm(raw string) (fields []ibrFormField, ok bool) {
-	// Locate the x:data form.
 	xStart := -1
 	for _, marker := range []string{"<x xmlns='jabber:x:data'", `<x xmlns="jabber:x:data"`} {
 		if i := strings.Index(raw, marker); i >= 0 && (xStart < 0 || i < xStart) {
@@ -4940,7 +4309,6 @@ func parseIBRForm(raw string) (fields []ibrFormField, ok bool) {
 	if e := strings.Index(rest, "</x>"); e >= 0 {
 		rest = rest[:e]
 	}
-	// Walk the fields.
 	for {
 		f := strings.Index(rest, "<field")
 		if f < 0 {
@@ -4980,10 +4348,6 @@ func parseIBRForm(raw string) (fields []ibrFormField, ok bool) {
 	return fields, len(fields) > 0
 }
 
-// buildIBRDataFormSubmit constructs the x:data registration submit from
-// the server's form fields: username/password filled, hidden constants
-// passed through, unanswerable fields omitted (the server's error names
-// whatever it truly required). Pure — unit-tested.
 func buildIBRDataFormSubmit(id string, fields []ibrFormField, username, password string) string {
 	var b strings.Builder
 	b.WriteString(fmt.Sprintf(`<iq type='set' id='%s'><query xmlns='%s'><x xmlns='jabber:x:data' type='submit'>`, xmlEscape(id), nsRegister))
@@ -4994,8 +4358,6 @@ func buildIBRDataFormSubmit(id string, fields []ibrFormField, username, password
 		case "password":
 			b.WriteString(fmt.Sprintf("<field var='password'><value>%s</value></field>", xmlEscape(password)))
 		default:
-			// Hidden/constants ride along untouched; anything we cannot
-			// answer honestly is left out.
 			if f.Type == "hidden" && f.Value != "" {
 				b.WriteString(fmt.Sprintf("<field var='%s' type='hidden'><value>%s</value></field>", xmlEscape(f.Var), xmlEscape(f.Value)))
 			}
@@ -5005,18 +4367,12 @@ func buildIBRDataFormSubmit(id string, fields []ibrFormField, username, password
 	return b.String()
 }
 
-// parseIBRResponse classifies a raw IQ answer to an in-band registration
-// request. A plain type='result' is success; type='error' is surfaced with
-// its defined condition; and a result whose payload only carries an
-// out-of-band URL (jabber:x:oob) means the server wants registration via
-// a website instead.
 func parseIBRResponse(raw string) error {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return errors.New("ibr: empty response")
 	}
 	if !strings.Contains(raw, "type='result'") && !strings.Contains(raw, `type="result"`) {
-		// error (or garbage): extract the defined condition + text.
 		cond := "unknown"
 		for _, c := range []string{
 			"conflict", "not-allowed", "forbidden", "not-acceptable",
@@ -5042,9 +4398,7 @@ func parseIBRResponse(raw string) error {
 		}
 		return fmt.Errorf("ibr: server rejected registration (%s): %.200s", cond, raw)
 	}
-	// Result: success — unless it is only an out-of-band redirect.
 	if !strings.Contains(raw, nsRegister) {
-		// Not a register payload at all: treat as failure with detail.
 		return fmt.Errorf("ibr: unexpected result payload: %.200s", raw)
 	}
 	if u := extractXMLContent(raw, "url"); u != "" && !strings.Contains(raw, "<username>") {
@@ -5053,10 +4407,6 @@ func parseIBRResponse(raw string) error {
 	return nil
 }
 
-// registerPreAuth performs XEP-0077 in-band registration on the CURRENT
-// pre-authentication stream (after STARTTLS, before SASL). On success the
-// server keeps the stream open for immediate authentication with the new
-// credentials — exactly the flow of upstream clients (Conversations et al).
 func (c *XMPPCore) registerPreAuth() error {
 	c.mu.RLock()
 	local := c.bareJID
@@ -5065,13 +4415,8 @@ func (c *XMPPCore) registerPreAuth() error {
 	if at := strings.Index(local, "@"); at > 0 {
 		local = local[:at]
 	}
-	_ = advertised // some servers accept XEP-0077 without advertising it;
-	//              the response is authoritative either way
+	_ = advertised
 
-	// XEP-0077 two-step: GET the form first — modern servers (ejabberd/
-	// MongooseIM form-based IBR, e.g. sure.im) reject the legacy payload
-	// with "Use proper DataForm registration"; the GET answer tells us
-	// which shape to submit.
 	if err := c.sendRawStanza(buildIBRGetStanza(c.nextIQID())); err != nil {
 		return fmt.Errorf("ibr get send: %w", err)
 	}
@@ -5080,7 +4425,6 @@ func (c *XMPPCore) registerPreAuth() error {
 		return fmt.Errorf("ibr get: %w", err)
 	}
 	if strings.Contains(formResp, "type='error'") || strings.Contains(formResp, `type="error"`) {
-		// Server refuses registration outright — classify like a submit error.
 		return parseIBRResponse(formResp)
 	}
 
@@ -5100,7 +4444,6 @@ func (c *XMPPCore) registerPreAuth() error {
 	return parseIBRResponse(resp)
 }
 
-// RegisterAccount registers a new account on the XMPP server.
 func (c *XMPPCore) RegisterAccount(server, username, password string) error {
 	inner := fmt.Sprintf(
 		`<query xmlns='%s'><username>%s</username><password>%s</password></query>`,
@@ -5110,7 +4453,6 @@ func (c *XMPPCore) RegisterAccount(server, username, password string) error {
 	return err
 }
 
-// ChangePassword changes the account password on the XMPP server.
 func (c *XMPPCore) ChangePassword(newPassword string) error {
 	local := c.bareJID
 	if at := strings.Index(local, "@"); at > 0 {
@@ -5129,38 +4471,28 @@ func (c *XMPPCore) ChangePassword(newPassword string) error {
 	return err
 }
 
-// UnregisterAccount unregister account on the XMPP connection.
 func (c *XMPPCore) UnregisterAccount() error {
 	inner := fmt.Sprintf(`<query xmlns='%s'><remove/></query>`, nsRegister)
 	_, err := c.sendIQSync("set", "", inner)
 	return err
 }
 
-// ---------------------------------------------------------------------------
-// XMPP-specific: Stream Management (XEP-0198)
-// ---------------------------------------------------------------------------
-
-// EnableStreamManagement activates stream management (XEP-0198) on the connection.
 func (c *XMPPCore) EnableStreamManagement() error {
 	err := c.sendRawStanza(fmt.Sprintf(`<enable xmlns='%s' resume='true'/>`, nsSM))
 	if err != nil {
 		return err
 	}
 
-	// Read enabled response
-	// This is handled in the readLoop but we set the flag here
 	c.mu.Lock()
 	c.smEnabled = true
 	c.mu.Unlock()
 	return nil
 }
 
-// RequestAck requests ack from the XMPP server.
 func (c *XMPPCore) RequestAck() error {
 	return c.sendRawStanza(fmt.Sprintf(`<r xmlns='%s'/>`, nsSM))
 }
 
-// SendAck sends ack to the specified JID.
 func (c *XMPPCore) SendAck() error {
 	h := c.smInH.Load()
 	c.writeMu.Lock()
@@ -5169,7 +4501,6 @@ func (c *XMPPCore) SendAck() error {
 	return err
 }
 
-// ResumeStream resume stream on the XMPP connection.
 func (c *XMPPCore) ResumeStream(prevID string, h int64) error {
 	return c.sendRawStanza(fmt.Sprintf(`<resume xmlns='%s' previd='%s' h='%d'/>`, nsSM, xmlEscape(prevID), h))
 }
@@ -5178,18 +4509,12 @@ func (c *XMPPCore) handleAck(h int64) {
 	c.smOutMu.Lock()
 	defer c.smOutMu.Unlock()
 
-	// Remove acknowledged stanzas from queue
 	acked := int(h - c.smOutH.Load() + int64(len(c.smOutQueue)))
 	if acked > 0 && acked <= len(c.smOutQueue) {
 		c.smOutQueue = c.smOutQueue[acked:]
 	}
 }
 
-// ---------------------------------------------------------------------------
-// XMPP-specific: Utility methods
-// ---------------------------------------------------------------------------
-
-// SendPing sends ping to the specified JID.
 func (c *XMPPCore) SendPing(to string) error {
 	if to == "" {
 		to = c.domain
@@ -5199,7 +4524,6 @@ func (c *XMPPCore) SendPing(to string) error {
 	return err
 }
 
-// GetSoftwareVersion retrieves software version from the XMPP server.
 func (c *XMPPCore) GetSoftwareVersion(jid string) (name, version, os string, err error) {
 	inner := fmt.Sprintf(`<query xmlns='%s'/>`, nsVersion)
 	resp, err := c.sendIQSync("get", jid, inner)
@@ -5213,7 +4537,6 @@ func (c *XMPPCore) GetSoftwareVersion(jid string) (name, version, os string, err
 	return
 }
 
-// GetLastActivity queries a JID for its last activity time (XEP-0012).
 func (c *XMPPCore) GetLastActivity(jid string) (int64, error) {
 	inner := fmt.Sprintf(`<query xmlns='%s'/>`, nsLast)
 	resp, err := c.sendIQSync("get", jid, inner)
@@ -5226,7 +4549,6 @@ func (c *XMPPCore) GetLastActivity(jid string) (int64, error) {
 	return secs, nil
 }
 
-// GetEntityTime queries a JID for its local time (XEP-0202).
 func (c *XMPPCore) GetEntityTime(jid string) (utc, tzo string, err error) {
 	inner := fmt.Sprintf(`<time xmlns='%s'/>`, nsTime)
 	resp, err := c.sendIQSync("get", jid, inner)
@@ -5239,17 +4561,14 @@ func (c *XMPPCore) GetEntityTime(jid string) (utc, tzo string, err error) {
 	return
 }
 
-// SetClientStateActive sets client state active on the XMPP server.
 func (c *XMPPCore) SetClientStateActive() error {
 	return c.sendRawStanza(fmt.Sprintf(`<active xmlns='%s'/>`, nsCSI))
 }
 
-// SetClientStateInactive sets client state inactive on the XMPP server.
 func (c *XMPPCore) SetClientStateInactive() error {
 	return c.sendRawStanza(fmt.Sprintf(`<inactive xmlns='%s'/>`, nsCSI))
 }
 
-// GetEntityCapabilities retrieves entity capabilities from the XMPP server.
 func (c *XMPPCore) GetEntityCapabilities(jid string) (string, error) {
 	resp, err := c.DiscoInfo(jid)
 	if err != nil {
@@ -5258,11 +4577,6 @@ func (c *XMPPCore) GetEntityCapabilities(jid string) (string, error) {
 	return resp.Inner, nil
 }
 
-// ---------------------------------------------------------------------------
-// XMPP-specific: Jingle / Calls (XEP-0166)
-// ---------------------------------------------------------------------------
-
-// InitiateJingle starts a new Jingle session (XEP-0166) with the specified JID.
 func (c *XMPPCore) InitiateJingle(to string, video bool) (*CallSession, error) {
 	sid := fmt.Sprintf("jingle_%d", time.Now().UnixNano())
 	media := "audio"
@@ -5299,7 +4613,6 @@ func (c *XMPPCore) InitiateJingle(to string, video bool) (*CallSession, error) {
 	}, nil
 }
 
-// AcceptJingle accepts an incoming Jingle session (XEP-0166).
 func (c *XMPPCore) AcceptJingle(to, sid string) error {
 	inner := fmt.Sprintf(
 		`<jingle xmlns='%s' action='session-accept' sid='%s' responder='%s'>`+
@@ -5315,12 +4628,10 @@ func (c *XMPPCore) AcceptJingle(to, sid string) error {
 	return err
 }
 
-// RejectJingle rejects an incoming Jingle session (XEP-0166).
 func (c *XMPPCore) RejectJingle(to, sid string) error {
 	return c.TerminateJingle(sid, "decline")
 }
 
-// TerminateJingle terminates an active Jingle session (XEP-0166).
 func (c *XMPPCore) TerminateJingle(sid, reason string) error {
 	if reason == "" {
 		reason = "success"
@@ -5329,12 +4640,9 @@ func (c *XMPPCore) TerminateJingle(sid, reason string) error {
 		`<jingle xmlns='%s' action='session-terminate' sid='%s'><reason><%s/></reason></jingle>`,
 		nsJingle, xmlEscape(sid), xmlEscape(reason),
 	)
-	// We need to send to the peer — look up from call state
-	// For now, send to domain and rely on server routing
 	return c.sendRawStanza(fmt.Sprintf(`<iq type='set' id='%s'>%s</iq>`, c.nextIQID(), inner))
 }
 
-// SendJingleTransportInfo sends transport candidate information for a Jingle session.
 func (c *XMPPCore) SendJingleTransportInfo(to, sid, candidate string) error {
 	inner := fmt.Sprintf(
 		`<jingle xmlns='%s' action='transport-info' sid='%s'>`+
@@ -5347,24 +4655,17 @@ func (c *XMPPCore) SendJingleTransportInfo(to, sid, candidate string) error {
 	return err
 }
 
-// GetTURNCredentials retrieves TURN server credentials from the XMPP server.
 func (c *XMPPCore) GetTURNCredentials() ([]map[string]string, error) {
 	return c.DiscoverExternalServices()
 }
 
-// ---------------------------------------------------------------------------
-// Message parsing helpers
-// ---------------------------------------------------------------------------
-
 func (c *XMPPCore) parseMessageInner(inner string) *xmppParsedMessage {
 	p := &xmppParsedMessage{}
 
-	// Parse body
 	p.Body = extractXMLContent(inner, "body")
 	p.Subject = extractXMLContent(inner, "subject")
 	p.Thread = extractXMLContent(inner, "thread")
 
-	// Delay (XEP-0203)
 	if strings.Contains(inner, nsDelay) {
 		stamp := extractXMLAttr(inner, "delay", "stamp")
 		if stamp != "" {
@@ -5377,12 +4678,10 @@ func (c *XMPPCore) parseMessageInner(inner string) *xmppParsedMessage {
 		p.DelayFrom = extractXMLAttr(inner, "delay", "from")
 	}
 
-	// OOB (XEP-0066)
 	if strings.Contains(inner, nsOOB) {
 		p.OOB = extractXMLContent(inner, "url")
 	}
 
-	// Receipt request (XEP-0184)
 	if strings.Contains(inner, nsReceipts) {
 		if strings.Contains(inner, "<request") {
 			p.ReceiptRequest = true
@@ -5392,7 +4691,6 @@ func (c *XMPPCore) parseMessageInner(inner string) *xmppParsedMessage {
 		}
 	}
 
-	// Chat state (XEP-0085)
 	if strings.Contains(inner, nsChatState) {
 		for _, state := range []string{"composing", "active", "paused", "inactive", "gone"} {
 			if strings.Contains(inner, "<"+state) {
@@ -5402,30 +4700,25 @@ func (c *XMPPCore) parseMessageInner(inner string) *xmppParsedMessage {
 		}
 	}
 
-	// Correction (XEP-0308)
 	if strings.Contains(inner, nsCorrect) {
 		p.ReplaceID = extractXMLAttr(inner, "replace", "id")
 	}
 
-	// Markers (XEP-0333)
 	if strings.Contains(inner, nsMarkers) {
 		p.DisplayedID = extractXMLAttr(inner, "displayed", "id")
 		p.ReceivedID = extractXMLAttr(inner, "received", "id")
 	}
 
-	// Reply (XEP-0461)
 	if strings.Contains(inner, nsReply) {
 		p.ReplyTo = extractXMLAttr(inner, "reply", "to")
 		p.ReplyID = extractXMLAttr(inner, "reply", "id")
 	}
 
-	// Reactions (XEP-0444)
 	if strings.Contains(inner, nsReactions) {
 		p.ReactionsID = extractXMLAttr(inner, "reactions", "id")
 		p.Reactions = extractXMLContents(inner, "reaction")
 	}
 
-	// MUC invitation (XEP-0249 direct / XEP-0045 mediated)
 	if strings.Contains(inner, nsDirectMUC) {
 		p.MUCInviteRoom = extractXMLAttr(inner, "x", "jid")
 		p.MUCInviteFrom = "direct"
@@ -5434,7 +4727,6 @@ func (c *XMPPCore) parseMessageInner(inner string) *xmppParsedMessage {
 		p.MUCInviteFrom = "mediated"
 	}
 
-	// Carbons (XEP-0280)
 	if strings.Contains(inner, nsCarbons) {
 		if strings.Contains(inner, "<sent") {
 			p.CarbonType = "sent"
@@ -5442,7 +4734,6 @@ func (c *XMPPCore) parseMessageInner(inner string) *xmppParsedMessage {
 			p.CarbonType = "received"
 		}
 		if strings.Contains(inner, nsForward) {
-			// Parse inner forwarded message
 			fwdInner := extractXMLBlock(inner, "message")
 			if fwdInner != "" {
 				p.CarbonMsg = c.parseMessageInner(fwdInner)
@@ -5450,7 +4741,6 @@ func (c *XMPPCore) parseMessageInner(inner string) *xmppParsedMessage {
 		}
 	}
 
-	// MAM (XEP-0313)
 	if strings.Contains(inner, nsMAM) {
 		p.MAMID = extractXMLAttr(inner, "result", "id")
 		p.MAMQueryID = extractXMLAttr(inner, "result", "queryid")
@@ -5464,10 +4754,6 @@ func (c *XMPPCore) parseMessageInner(inner string) *xmppParsedMessage {
 
 	return p
 }
-
-// ---------------------------------------------------------------------------
-// Session persistence
-// ---------------------------------------------------------------------------
 
 func (c *XMPPCore) saveSession() {
 	sess := xmppSession{
@@ -5538,10 +4824,6 @@ func (c *XMPPCore) loadSession() {
 	c.blockedMu.Unlock()
 }
 
-// ---------------------------------------------------------------------------
-// Helper: message buffer
-// ---------------------------------------------------------------------------
-
 func (c *XMPPCore) bufferMessage(chatID string, m *Message) {
 	c.messagesMu.Lock()
 	defer c.messagesMu.Unlock()
@@ -5554,10 +4836,6 @@ func (c *XMPPCore) bufferMessage(chatID string, m *Message) {
 func (c *XMPPCore) nextMsgID() string {
 	return "msg_" + strconv.FormatInt(atomic.AddInt64(&c.msgCounter, 1), 10)
 }
-
-// ---------------------------------------------------------------------------
-// Helper: update notification
-// ---------------------------------------------------------------------------
 
 func (c *XMPPCore) fireUpdate(u Update) {
 	c.updateMu.RLock()
@@ -5573,10 +4851,6 @@ func (c *XMPPCore) fireUpdate(u Update) {
 		h(u)
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Helper: JID utilities
-// ---------------------------------------------------------------------------
 
 func bareJID(jid string) string {
 	if sl := strings.Index(jid, "/"); sl > 0 {
@@ -5613,10 +4887,6 @@ func (c *XMPPCore) isRoom(jid string) bool {
 	return false
 }
 
-// ---------------------------------------------------------------------------
-// Helper: XML utilities
-// ---------------------------------------------------------------------------
-
 func xmlEscape(s string) string {
 	if !strings.ContainsAny(s, `<>&'"`) {
 		return s
@@ -5627,7 +4897,6 @@ func xmlEscape(s string) string {
 	return b.String()
 }
 
-// xmlUnescape reverses the five basic XML entities.
 func xmlUnescape(s string) string {
 	if !strings.Contains(s, "&") {
 		return s
@@ -5639,7 +4908,6 @@ func xmlUnescape(s string) string {
 }
 
 func extractXMLContent(xmlStr, elemName string) string {
-	// Simple extraction: <elemName>content</elemName>
 	start := "<" + elemName
 	end := "</" + elemName + ">"
 
@@ -5648,7 +4916,6 @@ func extractXMLContent(xmlStr, elemName string) string {
 		return ""
 	}
 
-	// Find the > after the start tag
 	rest := xmlStr[idx+len(start):]
 	gt := strings.IndexByte(rest, '>')
 	if gt < 0 {
@@ -5658,7 +4925,7 @@ func extractXMLContent(xmlStr, elemName string) string {
 
 	endIdx := strings.Index(rest, end)
 	if endIdx < 0 {
-		return rest // self-closing or no end
+		return rest
 	}
 
 	return rest[:endIdx]
@@ -5684,7 +4951,6 @@ func extractXMLContents(xmlStr, elemName string) []string {
 }
 
 func extractXMLAttr(xmlStr, elemName, attrName string) string {
-	// Find <elemName ... attrName='value' ...>
 	start := "<" + elemName
 	idx := strings.Index(xmlStr, start)
 	if idx < 0 {
@@ -5698,7 +4964,6 @@ func extractXMLAttr(xmlStr, elemName, attrName string) string {
 	}
 	tag := rest[:gt+1]
 
-	// Look for attrName='value' or attrName="value"
 	for _, quote := range []string{"'", `"`} {
 		pattern := attrName + "=" + quote
 		aIdx := strings.Index(tag, pattern)
@@ -5717,7 +4982,6 @@ func extractXMLAttr(xmlStr, elemName, attrName string) string {
 }
 
 func extractXMLBlock(xmlStr, elemName string) string {
-	// Extract full <elemName ...>...</elemName> block
 	start := "<" + elemName
 	idx := strings.Index(xmlStr, start)
 	if idx < 0 {
@@ -5742,7 +5006,6 @@ func parseJIDsFromInner(inner, elemName string) []string {
 			break
 		}
 		jids = append(jids, jid)
-		// Move past this element
 		endTag := "/>"
 		idx := strings.Index(remaining, jid)
 		if idx < 0 {
@@ -5767,7 +5030,6 @@ func parsePresenceShowStatus(inner string) (show, status string) {
 }
 
 func parseMUCUserItem(inner string) (role, affiliation, realJID string) {
-	// Find <item> inside muc#user namespace
 	role = extractXMLAttr(inner, "item", "role")
 	affiliation = extractXMLAttr(inner, "item", "affiliation")
 	realJID = extractXMLAttr(inner, "item", "jid")
@@ -5818,7 +5080,6 @@ func parseXDataForm(inner string) map[string]string {
 		if varName == "" {
 			break
 		}
-		// Find the value for this field
 		fieldStart := strings.Index(remaining, varName)
 		if fieldStart < 0 {
 			break
@@ -5832,7 +5093,6 @@ func parseXDataForm(inner string) map[string]string {
 }
 
 func parseUploadMaxSize(inner string) int64 {
-	// Look for max-file-size in x:data form
 	sizeStr := extractXMLContent(inner, "value")
 	if sizeStr != "" {
 		if size, err := strconv.ParseInt(sizeStr, 10, 64); err == nil {
@@ -5868,7 +5128,6 @@ func parseBookmarks(inner string) []xmppBookmark {
 			Name:     extractXMLAttr(remaining, "conference", "name"),
 			AutoJoin: extractXMLAttr(remaining, "conference", "autojoin") == "true",
 		}
-		// Find nick inside this conference element
 		confIdx := strings.Index(remaining, jid)
 		if confIdx >= 0 {
 			rest := remaining[confIdx:]
@@ -5886,8 +5145,7 @@ func parseBookmarks(inner string) []xmppBookmark {
 }
 
 func parseBookmarks2(inner string) []xmppBookmark {
-	// XEP-0402 PEP native bookmarks
-	return parseBookmarks(inner) // Same XML structure under different namespace
+	return parseBookmarks(inner)
 }
 
 func parseExternalServices(inner string) []map[string]string {
@@ -5917,11 +5175,6 @@ func parseExternalServices(inner string) []map[string]string {
 	return services
 }
 
-// ---------------------------------------------------------------------------
-// Helper: SCRAM
-// ---------------------------------------------------------------------------
-
-// xmppPBKDF2 derives a key using PBKDF2 (RFC 2898). Pure Go, no external deps.
 func xmppPBKDF2(password, salt []byte, iterations, keyLen int, h func() hash.Hash) []byte {
 	hashSize := h().Size()
 	numBlocks := (keyLen + hashSize - 1) / hashSize
@@ -5983,10 +5236,6 @@ func xorBytes(a, b []byte) []byte {
 	return result
 }
 
-// ---------------------------------------------------------------------------
-// Helper: Entity capabilities (XEP-0115)
-// ---------------------------------------------------------------------------
-
 func (c *XMPPCore) buildCapsElement() string {
 	c.capsElementOnce.Do(func() {
 		features := []string{
@@ -6008,9 +5257,6 @@ func (c *XMPPCore) buildCapsElement() string {
 	return c.capsElement
 }
 
-// ──────────────────────────── Message Moderation (XEP-0425) ────────────────────────────
-
-// ModerateMessage retracts another user's message in a MUC room.
 func (c *XMPPCore) ModerateMessage(roomJID, stanzaID, reason string) error {
 	inner := fmt.Sprintf(
 		`<apply-to xmlns='urn:xmpp:fasten:0' id='%s'>`+
@@ -6023,9 +5269,6 @@ func (c *XMPPCore) ModerateMessage(roomJID, stanzaID, reason string) error {
 		xmlEscape(roomJID), c.nextIQID(), inner))
 }
 
-// ──────────────────────────── Jingle Message Initiation (XEP-0353) ────────────────────────────
-
-// ProposeCall sends a pre-Jingle call proposal via message.
 func (c *XMPPCore) ProposeCall(toJID, sessionID string, descriptions string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<message to='%s' type='chat' id='%s'>`+
@@ -6033,7 +5276,6 @@ func (c *XMPPCore) ProposeCall(toJID, sessionID string, descriptions string) err
 		xmlEscape(toJID), c.nextIQID(), xmlEscape(sessionID), descriptions))
 }
 
-// AcceptProposal accepts a call proposal.
 func (c *XMPPCore) AcceptProposal(toJID, sessionID string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<message to='%s' type='chat' id='%s'>`+
@@ -6041,7 +5283,6 @@ func (c *XMPPCore) AcceptProposal(toJID, sessionID string) error {
 		xmlEscape(toJID), c.nextIQID(), xmlEscape(sessionID)))
 }
 
-// RejectProposal rejects a call proposal.
 func (c *XMPPCore) RejectProposal(toJID, sessionID string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<message to='%s' type='chat' id='%s'>`+
@@ -6049,7 +5290,6 @@ func (c *XMPPCore) RejectProposal(toJID, sessionID string) error {
 		xmlEscape(toJID), c.nextIQID(), xmlEscape(sessionID)))
 }
 
-// RetractProposal retracts a previously sent call proposal.
 func (c *XMPPCore) RetractProposal(toJID, sessionID string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<message to='%s' type='chat' id='%s'>`+
@@ -6057,7 +5297,6 @@ func (c *XMPPCore) RetractProposal(toJID, sessionID string) error {
 		xmlEscape(toJID), c.nextIQID(), xmlEscape(sessionID)))
 }
 
-// ProceedToJingle accepts a call proposal and indicates readiness for full Jingle.
 func (c *XMPPCore) ProceedToJingle(toJID, sessionID string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<message to='%s' type='chat' id='%s'>`+
@@ -6065,9 +5304,6 @@ func (c *XMPPCore) ProceedToJingle(toJID, sessionID string) error {
 		xmlEscape(toJID), c.nextIQID(), xmlEscape(sessionID)))
 }
 
-// ──────────────────────────── Jingle Extended (XEP-0166) ────────────────────────────
-
-// JingleContentAdd adds content to an active Jingle session.
 func (c *XMPPCore) JingleContentAdd(toJID, sessionID, contentXML string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<iq type='set' to='%s' id='%s'>`+
@@ -6075,7 +5311,6 @@ func (c *XMPPCore) JingleContentAdd(toJID, sessionID, contentXML string) error {
 		xmlEscape(toJID), c.nextIQID(), nsJingle, xmlEscape(sessionID), contentXML))
 }
 
-// JingleContentAccept accepts added content.
 func (c *XMPPCore) JingleContentAccept(toJID, sessionID, contentXML string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<iq type='set' to='%s' id='%s'>`+
@@ -6083,7 +5318,6 @@ func (c *XMPPCore) JingleContentAccept(toJID, sessionID, contentXML string) erro
 		xmlEscape(toJID), c.nextIQID(), nsJingle, xmlEscape(sessionID), contentXML))
 }
 
-// JingleContentReject rejects added content.
 func (c *XMPPCore) JingleContentReject(toJID, sessionID, name string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<iq type='set' to='%s' id='%s'>`+
@@ -6092,7 +5326,6 @@ func (c *XMPPCore) JingleContentReject(toJID, sessionID, name string) error {
 		xmlEscape(toJID), c.nextIQID(), nsJingle, xmlEscape(sessionID), xmlEscape(name)))
 }
 
-// JingleContentModify modifies content parameters mid-session.
 func (c *XMPPCore) JingleContentModify(toJID, sessionID, contentXML string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<iq type='set' to='%s' id='%s'>`+
@@ -6100,7 +5333,6 @@ func (c *XMPPCore) JingleContentModify(toJID, sessionID, contentXML string) erro
 		xmlEscape(toJID), c.nextIQID(), nsJingle, xmlEscape(sessionID), contentXML))
 }
 
-// JingleContentRemove removes content from a session.
 func (c *XMPPCore) JingleContentRemove(toJID, sessionID, name string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<iq type='set' to='%s' id='%s'>`+
@@ -6109,7 +5341,6 @@ func (c *XMPPCore) JingleContentRemove(toJID, sessionID, name string) error {
 		xmlEscape(toJID), c.nextIQID(), nsJingle, xmlEscape(sessionID), xmlEscape(name)))
 }
 
-// JingleTransportReplace proposes a fallback transport.
 func (c *XMPPCore) JingleTransportReplace(toJID, sessionID, contentName, transportXML string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<iq type='set' to='%s' id='%s'>`+
@@ -6119,7 +5350,6 @@ func (c *XMPPCore) JingleTransportReplace(toJID, sessionID, contentName, transpo
 		xmlEscape(contentName), transportXML))
 }
 
-// JingleTransportAccept accepts a transport replacement.
 func (c *XMPPCore) JingleTransportAccept(toJID, sessionID, contentName, transportXML string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<iq type='set' to='%s' id='%s'>`+
@@ -6129,7 +5359,6 @@ func (c *XMPPCore) JingleTransportAccept(toJID, sessionID, contentName, transpor
 		xmlEscape(contentName), transportXML))
 }
 
-// JingleTransportReject rejects a transport replacement.
 func (c *XMPPCore) JingleTransportReject(toJID, sessionID string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<iq type='set' to='%s' id='%s'>`+
@@ -6137,11 +5366,8 @@ func (c *XMPPCore) JingleTransportReject(toJID, sessionID string) error {
 		xmlEscape(toJID), c.nextIQID(), nsJingle, xmlEscape(sessionID)))
 }
 
-// ──────────────────────────── Jingle File Transfer (XEP-0234) ────────────────────────────
-
 const nsJingleFT = "urn:xmpp:jingle:apps:file-transfer:5"
 
-// JingleFileOffer initiates a Jingle file transfer session.
 func (c *XMPPCore) JingleFileOffer(toJID, sessionID, name string, size int64, hash, desc string) error {
 	fileXML := fmt.Sprintf(
 		`<file xmlns='%s'><name>%s</name><size>%d</size>`,
@@ -6165,12 +5391,10 @@ func (c *XMPPCore) JingleFileOffer(toJID, sessionID, name string, size int64, ha
 		xmlEscape(c.jid), nsJingleFT, fileXML, nsJingleICE))
 }
 
-// JingleFileRequest requests a file via Jingle.
 func (c *XMPPCore) JingleFileRequest(toJID, sessionID, name string, size int64) error {
 	return c.JingleFileOffer(toJID, sessionID, name, size, "", "")
 }
 
-// JingleFileChecksum sends a file checksum after transfer completes.
 func (c *XMPPCore) JingleFileChecksum(toJID, sessionID, algo, hash string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<iq type='set' to='%s' id='%s'>`+
@@ -6182,7 +5406,6 @@ func (c *XMPPCore) JingleFileChecksum(toJID, sessionID, algo, hash string) error
 		nsJingleFT, xmlEscape(algo), xmlEscape(hash)))
 }
 
-// JingleFileReceived acknowledges file receipt.
 func (c *XMPPCore) JingleFileReceived(toJID, sessionID string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<iq type='set' to='%s' id='%s'>`+
@@ -6191,7 +5414,6 @@ func (c *XMPPCore) JingleFileReceived(toJID, sessionID string) error {
 		xmlEscape(toJID), c.nextIQID(), nsJingle, xmlEscape(sessionID), nsJingleFT))
 }
 
-// JingleFileResume sends a resume request with offset.
 func (c *XMPPCore) JingleFileResume(toJID, sessionID string, offset int64) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<iq type='set' to='%s' id='%s'>`+
@@ -6200,9 +5422,6 @@ func (c *XMPPCore) JingleFileResume(toJID, sessionID string, offset int64) error
 		xmlEscape(toJID), c.nextIQID(), nsJingle, xmlEscape(sessionID), nsJingleFT, offset))
 }
 
-// ──────────────────────────── Jingle RTP Quality (XEP-0293/0294) ────────────────────────────
-
-// NegotiateRTCPFeedback includes RTCP feedback in the Jingle RTP description.
 func (c *XMPPCore) NegotiateRTCPFeedback(toJID, sessionID, contentName string, fbTypes []string) error {
 	fb := ""
 	for _, t := range fbTypes {
@@ -6213,7 +5432,6 @@ func (c *XMPPCore) NegotiateRTCPFeedback(toJID, sessionID, contentName string, f
 			xmlEscape(contentName), nsJingleRTP, fb))
 }
 
-// NegotiateRTPHeaderExtensions includes RTP header extensions in Jingle.
 func (c *XMPPCore) NegotiateRTPHeaderExtensions(toJID, sessionID, contentName string, extensions []string) error {
 	ext := ""
 	for i, uri := range extensions {
@@ -6224,11 +5442,8 @@ func (c *XMPPCore) NegotiateRTPHeaderExtensions(toJID, sessionID, contentName st
 			xmlEscape(contentName), nsJingleRTP, ext))
 }
 
-// ──────────────────────────── OMEMO (XEP-0384) ────────────────────────────
-
 const nsOMEMO = "urn:xmpp:omemo:2"
 
-// PublishOMEMODeviceList publishes the OMEMO device list via PEP.
 func (c *XMPPCore) PublishOMEMODeviceList(deviceIDs []int) error {
 	items := ""
 	for _, id := range deviceIDs {
@@ -6238,24 +5453,19 @@ func (c *XMPPCore) PublishOMEMODeviceList(deviceIDs []int) error {
 	return c.PublishPubSubItem("", nsOMEMO+":devices", "current", payload)
 }
 
-// FetchOMEMODeviceList fetches the OMEMO device list for a JID.
 func (c *XMPPCore) FetchOMEMODeviceList(jid string) (*XMPPIQ, error) {
 	return c.GetPubSubItems(jid, nsOMEMO+":devices")
 }
 
-// PublishOMEMOBundle publishes the OMEMO key bundle via PEP.
 func (c *XMPPCore) PublishOMEMOBundle(deviceID int, bundleXML string) error {
 	return c.PublishPubSubItem("", fmt.Sprintf("%s:bundles:%d", nsOMEMO, deviceID),
 		"current", bundleXML)
 }
 
-// FetchOMEMOBundle fetches the OMEMO key bundle for a JID's device.
 func (c *XMPPCore) FetchOMEMOBundle(jid string, deviceID int) (*XMPPIQ, error) {
 	return c.GetPubSubItems(jid, fmt.Sprintf("%s:bundles:%d", nsOMEMO, deviceID))
 }
 
-// OMEMOEncrypt encrypts a message payload using OMEMO (envelope XML).
-// OMEMOEncrypt encrypts a message payload using OMEMO envelope XML (XEP-0384).
 func (c *XMPPCore) OMEMOEncrypt(payload []byte, recipientKeys []map[string]string) (string, error) {
 	encoded := base64.StdEncoding.EncodeToString(payload)
 	keys := ""
@@ -6269,9 +5479,7 @@ func (c *XMPPCore) OMEMOEncrypt(payload []byte, recipientKeys []map[string]strin
 		nsOMEMO, c.bareJID, keys, "", encoded), nil
 }
 
-// OMEMODecrypt decrypts an OMEMO-encrypted message payload (XEP-0384).
 func (c *XMPPCore) OMEMODecrypt(encryptedXML string, sessionKey []byte) ([]byte, error) {
-	// Extract base64 payload from the XML
 	start := strings.Index(encryptedXML, "<payload>")
 	end := strings.Index(encryptedXML, "</payload>")
 	if start < 0 || end < 0 {
@@ -6281,17 +5489,13 @@ func (c *XMPPCore) OMEMODecrypt(encryptedXML string, sessionKey []byte) ([]byte,
 	return base64.StdEncoding.DecodeString(encoded)
 }
 
-// OMEMOBuildSession establishes an OMEMO session with a device.
 func (c *XMPPCore) OMEMOBuildSession(jid string, deviceID int) error {
 	_, err := c.FetchOMEMOBundle(jid, deviceID)
 	return err
 }
 
-// ──────────────────────────── MIX (XEP-0369) ────────────────────────────
-
 const nsMIX = "urn:xmpp:mix:core:1"
 
-// JoinMIXChannel joins a MIX channel.
 func (c *XMPPCore) JoinMIXChannel(channelJID, nick string, subscriptions []string) error {
 	subs := ""
 	for _, s := range subscriptions {
@@ -6304,21 +5508,18 @@ func (c *XMPPCore) JoinMIXChannel(channelJID, nick string, subscriptions []strin
 	return err
 }
 
-// LeaveMIXChannel leaves a MIX channel.
 func (c *XMPPCore) LeaveMIXChannel(channelJID string) error {
 	inner := fmt.Sprintf(`<leave xmlns='%s' channel='%s'/>`, nsMIX, xmlEscape(channelJID))
 	_, err := c.sendIQSync("set", channelJID, inner)
 	return err
 }
 
-// SetMIXNick changes the nick on a MIX channel.
 func (c *XMPPCore) SetMIXNick(channelJID, nick string) error {
 	inner := fmt.Sprintf(`<setnick xmlns='%s'><nick>%s</nick></setnick>`, nsMIX, xmlEscape(nick))
 	_, err := c.sendIQSync("set", channelJID, inner)
 	return err
 }
 
-// UpdateMIXSubscriptions updates subscriptions on a MIX channel.
 func (c *XMPPCore) UpdateMIXSubscriptions(channelJID string, subscribe, unsubscribe []string) error {
 	subs := ""
 	for _, s := range subscribe {
@@ -6332,23 +5533,18 @@ func (c *XMPPCore) UpdateMIXSubscriptions(channelJID string, subscribe, unsubscr
 	return err
 }
 
-// CreateMIXChannel creates a MIX channel.
 func (c *XMPPCore) CreateMIXChannel(serviceJID, channelName string) error {
 	inner := fmt.Sprintf(`<create xmlns='%s' channel='%s'/>`, nsMIX, xmlEscape(channelName))
 	_, err := c.sendIQSync("set", serviceJID, inner)
 	return err
 }
 
-// DestroyMIXChannel destroys a MIX channel.
 func (c *XMPPCore) DestroyMIXChannel(channelJID string) error {
 	inner := fmt.Sprintf(`<destroy xmlns='%s' channel='%s'/>`, nsMIX, xmlEscape(channelJID))
 	_, err := c.sendIQSync("set", channelJID, inner)
 	return err
 }
 
-// ──────────────────────────── Push Notifications (XEP-0357) ────────────────────────────
-
-// EnablePushNotifications enables push notifications via an app server.
 func (c *XMPPCore) EnablePushNotifications(pushServiceJID, node string, publishOptions map[string]string) error {
 	opts := ""
 	if len(publishOptions) > 0 {
@@ -6365,7 +5561,6 @@ func (c *XMPPCore) EnablePushNotifications(pushServiceJID, node string, publishO
 	return err
 }
 
-// DisablePushNotifications disables push notifications.
 func (c *XMPPCore) DisablePushNotifications(pushServiceJID, node string) error {
 	inner := fmt.Sprintf(
 		`<disable xmlns='urn:xmpp:push:0' jid='%s' node='%s'/>`,
@@ -6374,17 +5569,13 @@ func (c *XMPPCore) DisablePushNotifications(pushServiceJID, node string) error {
 	return err
 }
 
-// ──────────────────────────── Ad-Hoc Commands (XEP-0050) ────────────────────────────
-
 const nsCommands = "http://jabber.org/protocol/commands"
 
-// DiscoverCommands discovers available ad-hoc commands on a service.
 func (c *XMPPCore) DiscoverCommands(serviceJID string) (*XMPPIQ, error) {
 	inner := fmt.Sprintf(`<query xmlns='%s' node='%s'/>`, nsDiscoItem, nsCommands)
 	return c.sendIQSync("get", serviceJID, inner)
 }
 
-// ExecuteCommand executes an ad-hoc command.
 func (c *XMPPCore) ExecuteCommand(serviceJID, node, sessionID, action, formXML string) (*XMPPIQ, error) {
 	attrs := fmt.Sprintf(` xmlns='%s' node='%s'`, nsCommands, xmlEscape(node))
 	if sessionID != "" {
@@ -6399,7 +5590,6 @@ func (c *XMPPCore) ExecuteCommand(serviceJID, node, sessionID, action, formXML s
 	return c.sendIQSync("set", serviceJID, inner)
 }
 
-// CancelCommand cancels an in-progress ad-hoc command session.
 func (c *XMPPCore) CancelCommand(serviceJID, node, sessionID string) error {
 	inner := fmt.Sprintf(
 		`<command xmlns='%s' node='%s' sessionid='%s' action='cancel'/>`,
@@ -6408,47 +5598,37 @@ func (c *XMPPCore) CancelCommand(serviceJID, node, sessionID string) error {
 	return err
 }
 
-// ──────────────────────────── Privacy Lists (XEP-0016) ────────────────────────────
-
 const nsPrivacyLists = "jabber:iq:privacy"
 
-// GetPrivacyLists retrieves privacy lists.
 func (c *XMPPCore) GetPrivacyLists() (*XMPPIQ, error) {
 	inner := fmt.Sprintf(`<query xmlns='%s'/>`, nsPrivacyLists)
 	return c.sendIQSync("get", "", inner)
 }
 
-// SetActiveList sets the active privacy list.
 func (c *XMPPCore) SetActiveList(name string) error {
 	inner := fmt.Sprintf(`<query xmlns='%s'><active name='%s'/></query>`, nsPrivacyLists, xmlEscape(name))
 	_, err := c.sendIQSync("set", "", inner)
 	return err
 }
 
-// SetDefaultList sets the default privacy list.
 func (c *XMPPCore) SetDefaultList(name string) error {
 	inner := fmt.Sprintf(`<query xmlns='%s'><default name='%s'/></query>`, nsPrivacyLists, xmlEscape(name))
 	_, err := c.sendIQSync("set", "", inner)
 	return err
 }
 
-// ──────────────────────────── Flexible Offline Messages (XEP-0013) ────────────────────────────
-
 const nsOffline = "http://jabber.org/protocol/offline"
 
-// GetOfflineMessageCount returns the number of stored offline messages.
 func (c *XMPPCore) GetOfflineMessageCount() (*XMPPIQ, error) {
 	inner := fmt.Sprintf(`<query xmlns='%s'/>`, nsDiscoInfo)
 	return c.sendIQSync("get", c.domain, inner)
 }
 
-// GetOfflineMessageHeaders returns headers of stored offline messages.
 func (c *XMPPCore) GetOfflineMessageHeaders() (*XMPPIQ, error) {
 	inner := fmt.Sprintf(`<query xmlns='%s' node='%s'/>`, nsDiscoItem, nsOffline)
 	return c.sendIQSync("get", "", inner)
 }
 
-// RetrieveOfflineMessages retrieves specific offline messages by node IDs.
 func (c *XMPPCore) RetrieveOfflineMessages(nodeIDs []string) (*XMPPIQ, error) {
 	items := ""
 	for _, id := range nodeIDs {
@@ -6458,7 +5638,6 @@ func (c *XMPPCore) RetrieveOfflineMessages(nodeIDs []string) (*XMPPIQ, error) {
 	return c.sendIQSync("get", "", inner)
 }
 
-// RemoveOfflineMessages removes specific offline messages.
 func (c *XMPPCore) RemoveOfflineMessages(nodeIDs []string) error {
 	items := ""
 	for _, id := range nodeIDs {
@@ -6469,9 +5648,6 @@ func (c *XMPPCore) RemoveOfflineMessages(nodeIDs []string) error {
 	return err
 }
 
-// ──────────────────────────── Stanza Content Encryption (XEP-0420) ────────────────────────────
-
-// EncryptStanzaContent wraps stanza content in an SCE envelope.
 func (c *XMPPCore) EncryptStanzaContent(payload, rpad string) string {
 	return fmt.Sprintf(
 		`<envelope xmlns='urn:xmpp:sce:1'>`+
@@ -6484,7 +5660,6 @@ func (c *XMPPCore) EncryptStanzaContent(payload, rpad string) string {
 		time.Now().UTC().Format("2006-01-02T15:04:05Z"))
 }
 
-// DecryptStanzaContent extracts the payload from an SCE envelope.
 func (c *XMPPCore) DecryptStanzaContent(envelopeXML string) (string, error) {
 	start := strings.Index(envelopeXML, "<content>")
 	end := strings.Index(envelopeXML, "</content>")
@@ -6494,9 +5669,6 @@ func (c *XMPPCore) DecryptStanzaContent(envelopeXML string) (string, error) {
 	return envelopeXML[start+9 : end], nil
 }
 
-// ──────────────────────────── SASL2 / Bind2 / FAST (XEP-0388/0386/0484) ────────────────────────────
-
-// SASL2Authenticate performs inline SASL authentication (SASL2).
 func (c *XMPPCore) SASL2Authenticate(mechanism, initialResponse string, inlineFeatures string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<authenticate xmlns='urn:xmpp:sasl:2' mechanism='%s'>`+
@@ -6504,13 +5676,11 @@ func (c *XMPPCore) SASL2Authenticate(mechanism, initialResponse string, inlineFe
 		xmlEscape(mechanism), initialResponse, inlineFeatures))
 }
 
-// Bind2 performs inline resource binding (Bind2).
 func (c *XMPPCore) Bind2(tag string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<bind xmlns='urn:xmpp:bind:0'><tag>%s</tag></bind>`, xmlEscape(tag)))
 }
 
-// FASTReconnect performs token-based fast reconnect.
 func (c *XMPPCore) FASTReconnect(token, mechanism string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<authenticate xmlns='urn:xmpp:sasl:2' mechanism='%s'>`+
@@ -6519,26 +5689,20 @@ func (c *XMPPCore) FASTReconnect(token, mechanism string) error {
 		xmlEscape(mechanism), token))
 }
 
-// ──────────────────────────── Data Forms (XEP-0004) ────────────────────────────
-
-// SubmitForm submits a data form.
 func (c *XMPPCore) SubmitForm(toJID, formXML string) error {
 	_, err := c.sendIQSync("set", toJID,
 		fmt.Sprintf(`<x xmlns='%s' type='submit'>%s</x>`, nsXData, formXML))
 	return err
 }
 
-// CancelForm cancels a data form.
 func (c *XMPPCore) CancelForm(toJID, formXML string) error {
 	_, err := c.sendIQSync("set", toJID,
 		fmt.Sprintf(`<x xmlns='%s' type='cancel'>%s</x>`, nsXData, formXML))
 	return err
 }
 
-// ProcessFormResult processes a form result response.
 func (c *XMPPCore) ProcessFormResult(formXML string) map[string]string {
 	result := make(map[string]string)
-	// Simple XML parsing for field var/value pairs
 	for _, field := range strings.Split(formXML, "<field ") {
 		if !strings.Contains(field, "var=") {
 			continue
@@ -6561,25 +5725,18 @@ func (c *XMPPCore) ProcessFormResult(formXML string) map[string]string {
 	return result
 }
 
-// ──────────────────────────── Private XML Storage (XEP-0049) ────────────────────────────
-
-// StorePrivateXML stores data in private XML storage.
 func (c *XMPPCore) StorePrivateXML(innerXML string) error {
 	inner := fmt.Sprintf(`<query xmlns='%s'>%s</query>`, nsPrivate, innerXML)
 	_, err := c.sendIQSync("set", "", inner)
 	return err
 }
 
-// RetrievePrivateXML retrieves data from private XML storage.
 func (c *XMPPCore) RetrievePrivateXML(namespace, element string) (*XMPPIQ, error) {
 	inner := fmt.Sprintf(`<query xmlns='%s'><%s xmlns='%s'/></query>`,
 		nsPrivate, xmlEscape(element), xmlEscape(namespace))
 	return c.sendIQSync("get", "", inner)
 }
 
-// ──────────────────────────── PEP Native Bookmarks (XEP-0402) ────────────────────────────
-
-// SetBookmarkPEP sets a bookmark as an individual PubSub item (XEP-0402).
 func (c *XMPPCore) SetBookmarkPEP(roomJID, name, nick string, autoJoin bool) error {
 	aj := "false"
 	if autoJoin {
@@ -6591,16 +5748,12 @@ func (c *XMPPCore) SetBookmarkPEP(roomJID, name, nick string, autoJoin bool) err
 	return c.PublishPubSubItem("", nsBmk2, roomJID, payload)
 }
 
-// RemoveBookmarkPEP removes a bookmark PubSub item.
 func (c *XMPPCore) RemoveBookmarkPEP(roomJID string) error {
 	return c.RetractPubSubItem("", nsBmk2, roomJID)
 }
 
-// ──────────────────────────── Stateless File Sharing (XEP-0447) ────────────────────────────
-
 const nsSFS = "urn:xmpp:sfs:0"
 
-// ShareFileMetadata sends file metadata for stateless file sharing.
 func (c *XMPPCore) ShareFileMetadata(toJID, name, mediaType string, size int64, hash string) error {
 	msgType := "chat"
 	if c.isRoom(toJID) {
@@ -6616,7 +5769,6 @@ func (c *XMPPCore) ShareFileMetadata(toJID, name, mediaType string, size int64, 
 		xmlEscape(mediaType), xmlEscape(name), size, xmlEscape(hash)))
 }
 
-// ShareFileSources sends file source URLs for stateless file sharing.
 func (c *XMPPCore) ShareFileSources(toJID string, urls []string) error {
 	msgType := "chat"
 	if c.isRoom(toJID) {
@@ -6632,23 +5784,16 @@ func (c *XMPPCore) ShareFileSources(toJID string, urls []string) error {
 		xmlEscape(toJID), msgType, c.nextIQID(), nsSFS, sources))
 }
 
-// ──────────────────────────── vCard4 (XEP-0292) ────────────────────────────
-
 const nsVCard4 = "urn:ietf:params:xml:ns:vcard-4.0"
 
-// GetVCard4 retrieves a vCard4 from PubSub.
 func (c *XMPPCore) GetVCard4(jid string) (*XMPPIQ, error) {
 	return c.GetPubSubItems(jid, nsVCard4)
 }
 
-// SetVCard4 publishes a vCard4 via PubSub.
 func (c *XMPPCore) SetVCard4(vcardXML string) error {
 	return c.PublishPubSubItem("", nsVCard4, "current", vcardXML)
 }
 
-// ──────────────────────────── HTTP Authentication (XEP-0070) ────────────────────────────
-
-// VerifyHTTPRequest responds to an HTTP authentication request.
 func (c *XMPPCore) VerifyHTTPRequest(toJID, confirmID, method, url string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<iq type='result' to='%s' id='%s'>`+
@@ -6657,9 +5802,6 @@ func (c *XMPPCore) VerifyHTTPRequest(toJID, confirmID, method, url string) error
 		xmlEscape(method), xmlEscape(url)))
 }
 
-// ──────────────────────────── Message References (XEP-0372) ────────────────────────────
-
-// SendMessageReference sends a message with a reference to another message, URI, or data.
 func (c *XMPPCore) SendMessageReference(toJID, text, refType, refURI string) error {
 	msgType := "chat"
 	if c.isRoom(toJID) {
@@ -6673,9 +5815,6 @@ func (c *XMPPCore) SendMessageReference(toJID, text, refType, refURI string) err
 		xmlEscape(text), xmlEscape(refType), xmlEscape(refURI)))
 }
 
-// ──────────────────────────── XHTML-IM (XEP-0071) ────────────────────────────
-
-// SendRichTextMessage sends a message with XHTML-IM rich text body.
 func (c *XMPPCore) SendRichTextMessage(toJID, plainText, xhtmlBody string) error {
 	msgType := "chat"
 	if c.isRoom(toJID) {
@@ -6690,9 +5829,6 @@ func (c *XMPPCore) SendRichTextMessage(toJID, plainText, xhtmlBody string) error
 		xmlEscape(plainText), xhtmlBody))
 }
 
-// ──────────────────────────── Anonymous Occupant IDs (XEP-0421) ────────────────────────────
-
-// HandleOccupantId extracts the occupant-id from a MUC message stanza.
 func (c *XMPPCore) HandleOccupantId(stanzaXML string) string {
 	start := strings.Index(stanzaXML, `<occupant-id xmlns='urn:xmpp:occupant-id:0' id='`)
 	if start < 0 {
@@ -6706,15 +5842,11 @@ func (c *XMPPCore) HandleOccupantId(stanzaXML string) string {
 	return rest[:end]
 }
 
-// ──────────────────────────── MAM Preferences (XEP-0313/0441) ────────────────────────────
-
-// GetMAMPreferences retrieves MAM archive preferences.
 func (c *XMPPCore) GetMAMPreferences() (*XMPPIQ, error) {
 	inner := fmt.Sprintf(`<prefs xmlns='%s'/>`, nsMAM)
 	return c.sendIQSync("get", "", inner)
 }
 
-// SetMAMPreferences configures MAM archive preferences.
 func (c *XMPPCore) SetMAMPreferences(defaultPolicy string, alwaysJIDs, neverJIDs []string) error {
 	always := ""
 	if len(alwaysJIDs) > 0 {
@@ -6736,9 +5868,6 @@ func (c *XMPPCore) SetMAMPreferences(defaultPolicy string, alwaysJIDs, neverJIDs
 	return err
 }
 
-// ──────────────────────────── PubSub Extended (XEP-0060) ────────────────────────────
-
-// PurgeNode removes all items from a PubSub node.
 func (c *XMPPCore) PurgeNode(service, node string) error {
 	if service == "" {
 		service = c.domain
@@ -6748,7 +5877,6 @@ func (c *XMPPCore) PurgeNode(service, node string) error {
 	return err
 }
 
-// GetNodeAffiliations lists affiliations on a PubSub node.
 func (c *XMPPCore) GetNodeAffiliations(service, node string) (*XMPPIQ, error) {
 	if service == "" {
 		service = c.domain
@@ -6757,7 +5885,6 @@ func (c *XMPPCore) GetNodeAffiliations(service, node string) (*XMPPIQ, error) {
 	return c.sendIQSync("get", service, inner)
 }
 
-// SetNodeAffiliation sets a JID's affiliation on a PubSub node.
 func (c *XMPPCore) SetNodeAffiliation(service, node, jid, affiliation string) error {
 	if service == "" {
 		service = c.domain
@@ -6770,7 +5897,6 @@ func (c *XMPPCore) SetNodeAffiliation(service, node, jid, affiliation string) er
 	return err
 }
 
-// GetNodeSubscribers lists all subscribers to a PubSub node.
 func (c *XMPPCore) GetNodeSubscribers(service, node string) (*XMPPIQ, error) {
 	if service == "" {
 		service = c.domain
@@ -6779,19 +5905,13 @@ func (c *XMPPCore) GetNodeSubscribers(service, node string) (*XMPPIQ, error) {
 	return c.sendIQSync("get", service, inner)
 }
 
-// ──────────────────────────── Jabber Search (XEP-0055) ────────────────────────────
-
-// SearchUsersXMPP queries a user directory via data form search.
 func (c *XMPPCore) SearchUsersXMPP(serviceJID, formXML string) (*XMPPIQ, error) {
 	inner := fmt.Sprintf(`<query xmlns='jabber:iq:search'>%s</query>`, formXML)
 	return c.sendIQSync("set", serviceJID, inner)
 }
 
-// ──────────────────────────── In-Band Bytestreams (XEP-0047) ────────────────────────────
-
 const nsIBB = "http://jabber.org/protocol/ibb"
 
-// OpenIBBSession opens an in-band bytestream session.
 func (c *XMPPCore) OpenIBBSession(toJID, sid string, blockSize int) error {
 	inner := fmt.Sprintf(`<open xmlns='%s' sid='%s' block-size='%d' stanza='iq'/>`,
 		nsIBB, xmlEscape(sid), blockSize)
@@ -6799,7 +5919,6 @@ func (c *XMPPCore) OpenIBBSession(toJID, sid string, blockSize int) error {
 	return err
 }
 
-// SendIBBData sends a data chunk over an in-band bytestream.
 func (c *XMPPCore) SendIBBData(toJID, sid string, seq int, data []byte) error {
 	encoded := base64.StdEncoding.EncodeToString(data)
 	inner := fmt.Sprintf(`<data xmlns='%s' sid='%s' seq='%d'>%s</data>`,
@@ -6808,18 +5927,14 @@ func (c *XMPPCore) SendIBBData(toJID, sid string, seq int, data []byte) error {
 	return err
 }
 
-// CloseIBBSession closes an in-band bytestream session.
 func (c *XMPPCore) CloseIBBSession(toJID, sid string) error {
 	inner := fmt.Sprintf(`<close xmlns='%s' sid='%s'/>`, nsIBB, xmlEscape(sid))
 	_, err := c.sendIQSync("set", toJID, inner)
 	return err
 }
 
-// ──────────────────────────── SOCKS5 Bytestreams (XEP-0065) ────────────────────────────
-
 const nsS5B = "http://jabber.org/protocol/bytestreams"
 
-// InitiateS5B initiates a SOCKS5 proxy-mediated file transfer.
 func (c *XMPPCore) InitiateS5B(toJID, sid string, streamHosts []map[string]string) error {
 	hosts := ""
 	for _, h := range streamHosts {
@@ -6832,7 +5947,6 @@ func (c *XMPPCore) InitiateS5B(toJID, sid string, streamHosts []map[string]strin
 	return err
 }
 
-// ActivateS5B activates the bytestream after proxy connection.
 func (c *XMPPCore) ActivateS5B(proxyJID, sid, targetJID string) error {
 	inner := fmt.Sprintf(`<query xmlns='%s' sid='%s'><activate>%s</activate></query>`,
 		nsS5B, xmlEscape(sid), xmlEscape(targetJID))
@@ -6840,9 +5954,6 @@ func (c *XMPPCore) ActivateS5B(proxyJID, sid, targetJID string) error {
 	return err
 }
 
-// ──────────────────────────── MUC Voice Request (XEP-0045) ────────────────────────────
-
-// RequestMUCVoice requests voice (ability to speak) in a moderated MUC room.
 func (c *XMPPCore) RequestMUCVoice(roomJID string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<message to='%s'>`+
@@ -6853,37 +5964,28 @@ func (c *XMPPCore) RequestMUCVoice(roomJID string) error {
 		xmlEscape(roomJID), nsXData))
 }
 
-// ──────────────────────────── User Nickname (XEP-0172) ────────────────────────────
-
 const nsNick = "http://jabber.org/protocol/nick"
 
-// SetUserNickname publishes a PEP nickname.
 func (c *XMPPCore) SetUserNickname(nick string) error {
 	payload := fmt.Sprintf(`<nick xmlns='%s'>%s</nick>`, nsNick, xmlEscape(nick))
 	return c.PublishPubSubItem("", nsNick, "current", payload)
 }
 
-// GetUserNickname fetches a user's PEP nickname.
 func (c *XMPPCore) GetUserNickname(jid string) (*XMPPIQ, error) {
 	return c.GetPubSubItems(jid, nsNick)
 }
 
-// ──────────────────────────── OpenPGP for XMPP (XEP-0373/0374) ────────────────────────────
-
 const nsOX = "urn:xmpp:openpgp:0"
 
-// PublishOXPublicKey publishes an OpenPGP public key via PEP.
 func (c *XMPPCore) PublishOXPublicKey(fingerprint string, pubKeyB64 string) error {
 	payload := fmt.Sprintf(`<pubkey xmlns='%s'><data>%s</data></pubkey>`, nsOX, pubKeyB64)
 	return c.PublishPubSubItem("", nsOX+":public-keys:"+fingerprint, "current", payload)
 }
 
-// FetchOXPublicKey fetches a user's OpenPGP public key.
 func (c *XMPPCore) FetchOXPublicKey(jid, fingerprint string) (*XMPPIQ, error) {
 	return c.GetPubSubItems(jid, nsOX+":public-keys:"+fingerprint)
 }
 
-// OXEncrypt wraps a payload in an OX signcrypt element.
 func (c *XMPPCore) OXEncrypt(payload string) string {
 	return fmt.Sprintf(
 		`<signcrypt xmlns='%s'>`+
@@ -6896,7 +5998,6 @@ func (c *XMPPCore) OXEncrypt(payload string) string {
 		generateShortID(), payload)
 }
 
-// OXDecrypt extracts the payload from an OX signcrypt element.
 func (c *XMPPCore) OXDecrypt(signcryptXML string) (string, error) {
 	start := strings.Index(signcryptXML, "<payload>")
 	end := strings.Index(signcryptXML, "</payload>")
@@ -6906,7 +6007,6 @@ func (c *XMPPCore) OXDecrypt(signcryptXML string) (string, error) {
 	return signcryptXML[start+9 : end], nil
 }
 
-// OXSignEncrypt performs OX sign+encrypt (XEP-0374).
 func (c *XMPPCore) OXSignEncrypt(toJID, payload, openpgpB64 string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<message to='%s' type='chat' id='%s'>`+
@@ -6916,9 +6016,6 @@ func (c *XMPPCore) OXSignEncrypt(toJID, payload, openpgpB64 string) error {
 		xmlEscape(toJID), c.nextIQID(), nsOX, openpgpB64, nsOX))
 }
 
-// ──────────────────────────── Explicit Message Encryption (XEP-0380) ────────────────────────────
-
-// SetEncryptionHint adds an EME element indicating the encryption protocol.
 func (c *XMPPCore) SetEncryptionHint(namespace, name string) string {
 	if name != "" {
 		return fmt.Sprintf(`<encryption xmlns='urn:xmpp:eme:0' namespace='%s' name='%s'/>`,
@@ -6927,17 +6024,11 @@ func (c *XMPPCore) SetEncryptionHint(namespace, name string) string {
 	return fmt.Sprintf(`<encryption xmlns='urn:xmpp:eme:0' namespace='%s'/>`, xmlEscape(namespace))
 }
 
-// ──────────────────────────── Last User Interaction (XEP-0319) ────────────────────────────
-
-// GetLastUserInteraction queries the idle time for a contact.
 func (c *XMPPCore) GetLastUserInteraction(jid string) (*XMPPIQ, error) {
 	inner := fmt.Sprintf(`<query xmlns='%s'/>`, nsLast)
 	return c.sendIQSync("get", jid, inner)
 }
 
-// ──────────────────────────── Advanced Message Processing (XEP-0079) ────────────────────────────
-
-// SetAMPRules returns an AMP element with the given rules for inclusion in a message.
 func (c *XMPPCore) SetAMPRules(rules []map[string]string) string {
 	ruleXML := ""
 	for _, r := range rules {
@@ -6947,16 +6038,12 @@ func (c *XMPPCore) SetAMPRules(rules []map[string]string) string {
 	return fmt.Sprintf(`<amp xmlns='http://jabber.org/protocol/amp'>%s</amp>`, ruleXML)
 }
 
-// ──────────────────────────── Stickers (XEP-0449) ────────────────────────────
-
 const nsStickers = "urn:xmpp:stickers:0"
 
-// GetStickerPack retrieves a sticker pack from PubSub.
 func (c *XMPPCore) GetStickerPack(serviceJID, node string) (*XMPPIQ, error) {
 	return c.GetPubSubItems(serviceJID, node)
 }
 
-// SendStickerXEP sends a sticker per XEP-0449.
 func (c *XMPPCore) SendStickerXEP(toJID, stickerPackNode, stickerHash, fallbackBody string) error {
 	msgType := "chat"
 	if c.isRoom(toJID) {
@@ -6970,9 +6057,6 @@ func (c *XMPPCore) SendStickerXEP(toJID, stickerPackNode, stickerHash, fallbackB
 		xmlEscape(fallbackBody), nsStickers, xmlEscape(stickerPackNode), xmlEscape(stickerHash)))
 }
 
-// ──────────────────────────── Encrypted File Sharing (XEP-0448) ────────────────────────────
-
-// ShareEncryptedFile sends AESGCM-encrypted file sharing metadata.
 func (c *XMPPCore) ShareEncryptedFile(toJID, name, mediaType string, size int64, ivB64, keyB64, url string) error {
 	msgType := "chat"
 	if c.isRoom(toJID) {
@@ -6989,10 +6073,6 @@ func (c *XMPPCore) ShareEncryptedFile(toJID, name, mediaType string, size int64,
 		xmlEscape(mediaType), xmlEscape(name), size, xmlEscape(url)))
 }
 
-// ──────────────────────────── OMEMO Media Sharing (XEP-0454) ────────────────────────────
-
-// EncryptMedia encrypts plaintext bytes with a random AES-256-GCM key.
-// EncryptMedia encrypts plaintext bytes with a random AES-256-GCM key.
 func (c *XMPPCore) EncryptMedia(plaintext []byte) ([]byte, string, string, error) {
 	key := make([]byte, 32)
 	if _, err := rand.Read(key); err != nil {
@@ -7014,7 +6094,6 @@ func (c *XMPPCore) EncryptMedia(plaintext []byte) ([]byte, string, string, error
 	return ct, base64.StdEncoding.EncodeToString(iv), base64.StdEncoding.EncodeToString(key), nil
 }
 
-// DecryptMedia decrypts AES-256-GCM encrypted media using the provided key and IV.
 func (c *XMPPCore) DecryptMedia(ciphertext []byte, ivB64, keyB64 string) ([]byte, error) {
 	key, err := base64.StdEncoding.DecodeString(keyB64)
 	if err != nil {
@@ -7035,9 +6114,6 @@ func (c *XMPPCore) DecryptMedia(ciphertext []byte, ivB64, keyB64 string) ([]byte
 	return gcm.Open(nil, iv, ciphertext, nil)
 }
 
-// ──────────────────────────── Trust Messages (XEP-0434) ────────────────────────────
-
-// SendTrustMessage sends a trust message to communicate key trust/distrust.
 func (c *XMPPCore) SendTrustMessage(toJID, encryptionNS string, trustedKeys, distrustedKeys []string) error {
 	trustXML := ""
 	for _, k := range trustedKeys {
@@ -7054,9 +6130,6 @@ func (c *XMPPCore) SendTrustMessage(toJID, encryptionNS string, trustedKeys, dis
 		xmlEscape(toJID), c.nextIQID(), xmlEscape(encryptionNS), trustXML, distrustXML))
 }
 
-// ──────────────────────────── Message Displayed Synchronization (XEP-0490) ────────────────────────────
-
-// SyncDisplayedMessages publishes a displayed marker to PEP for cross-device sync.
 func (c *XMPPCore) SyncDisplayedMessages(jid, stanzaID string) error {
 	return c.PublishPubSubItem(c.bareJID, "urn:xmpp:mds:displayed:0", jid,
 		fmt.Sprintf(
@@ -7065,24 +6138,15 @@ func (c *XMPPCore) SyncDisplayedMessages(jid, stanzaID string) error {
 			xmlEscape(jid), xmlEscape(stanzaID)))
 }
 
-// ──────────────────────────── Fallback Indication (XEP-0428) ────────────────────────────
-
-// SetFallbackIndication returns XML element marking body as fallback for unsupported extensions.
 func (c *XMPPCore) SetFallbackIndication(forNS string) string {
 	return fmt.Sprintf(`<fallback xmlns='urn:xmpp:fallback:0' for='%s'/>`, xmlEscape(forNS))
 }
 
-// ──────────────────────────── SASL Channel-Binding (XEP-0440) ────────────────────────────
-
-// NegotiateChannelBinding advertises/selects SCRAM channel-binding type during SASL.
 func (c *XMPPCore) NegotiateChannelBinding(bindingType string) string {
 	return fmt.Sprintf(`<sasl-channel-binding xmlns='urn:xmpp:sasl-cb:0'><channel-binding type='%s'/></sasl-channel-binding>`,
 		xmlEscape(bindingType))
 }
 
-// ──────────────────────────── Alternative Connections (XEP-0156) ────────────────────────────
-
-// DiscoverAlternativeConnections queries well-known URLs for WebSocket/BOSH endpoints.
 func (c *XMPPCore) DiscoverAlternativeConnections(domain string) (wsURL, boshURL string, err error) {
 	url := "https://" + domain + "/.well-known/host-meta"
 	resp, err := apiHTTPClient.Get(url)
@@ -7095,7 +6159,6 @@ func (c *XMPPCore) DiscoverAlternativeConnections(domain string) (wsURL, boshURL
 		return "", "", fmt.Errorf("read host-meta: %w", err)
 	}
 	s := string(body)
-	// Parse Link elements for WebSocket and BOSH
 	for _, line := range strings.Split(s, "\n") {
 		if strings.Contains(line, "urn:xmpp:alt-connections:websocket") {
 			if i := strings.Index(line, "href='"); i >= 0 {
@@ -7127,17 +6190,12 @@ func (c *XMPPCore) DiscoverAlternativeConnections(domain string) (wsURL, boshURL
 	return wsURL, boshURL, nil
 }
 
-// ──────────────────────────── WebSocket Transport (RFC 7395) ────────────────────────────
-
-// ConnectWebSocket establishes an XMPP connection over WebSocket.
 func (c *XMPPCore) ConnectWebSocket(wsURL string) error {
-	// WebSocket XMPP uses framed XML (no stream wrapper)
 	dialer := &net.Dialer{Timeout: 10 * time.Second}
 	conn, err := tls.DialWithDialer(dialer, "tcp", wsURL, &tls.Config{InsecureSkipVerify: false})
 	if err != nil {
 		return fmt.Errorf("websocket dial: %w", err)
 	}
-	// Send WebSocket upgrade
 	host := wsURL
 	path := "/"
 	if i := strings.Index(wsURL, "://"); i >= 0 {
@@ -7158,7 +6216,6 @@ func (c *XMPPCore) ConnectWebSocket(wsURL string) error {
 		conn.Close()
 		return fmt.Errorf("websocket upgrade write: %w", err)
 	}
-	// Read upgrade response
 	buf := make([]byte, 4096)
 	n, err := conn.Read(buf)
 	if err != nil {
@@ -7169,7 +6226,6 @@ func (c *XMPPCore) ConnectWebSocket(wsURL string) error {
 		conn.Close()
 		return fmt.Errorf("websocket upgrade failed: %s", string(buf[:n]))
 	}
-	// Replace connection — XMPP framing over WebSocket uses the same XML stream
 	c.mu.Lock()
 	if c.conn != nil {
 		c.conn.Close()
@@ -7179,9 +6235,6 @@ func (c *XMPPCore) ConnectWebSocket(wsURL string) error {
 	return nil
 }
 
-// ──────────────────────────── BOSH Transport (XEP-0124/0206) ────────────────────────────
-
-// ConnectBOSH establishes an XMPP-over-BOSH session via HTTP long-polling.
 func (c *XMPPCore) ConnectBOSH(boshURL, domain string) (string, error) {
 	body := fmt.Sprintf(
 		`<body xmlns='http://jabber.org/protocol/httpbind' `+
@@ -7202,7 +6255,6 @@ func (c *XMPPCore) ConnectBOSH(boshURL, domain string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("bosh read: %w", err)
 	}
-	// Extract sid from response
 	s := string(respBody)
 	sid := ""
 	if i := strings.Index(s, "sid='"); i >= 0 {
@@ -7217,13 +6269,6 @@ func (c *XMPPCore) ConnectBOSH(boshURL, domain string) (string, error) {
 	return sid, nil
 }
 
-// ════════════════════════════════════════════════════════════════════════════════
-// Step 4 — New Methods (120 XEPs)
-// ════════════════════════════════════════════════════════════════════════════════
-
-// ── Connection & Authentication (10 XEPs) ──
-
-// ConnectDirectTLS connects via XEP-0368 xmpps-client SRV record.
 func (c *XMPPCore) ConnectDirectTLS(domain string) error {
 	_, addrs, err := net.LookupSRV("xmpps-client", "tcp", domain)
 	if err != nil || len(addrs) == 0 {
@@ -7241,13 +6286,11 @@ func (c *XMPPCore) ConnectDirectTLS(domain string) error {
 	return nil
 }
 
-// InstantStreamResumption implements XEP-0397 ISR token storage/negotiation.
 func (c *XMPPCore) InstantStreamResumption(token string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<resume xmlns='urn:xmpp:isr:0' token='%s'/>`, xmlEscape(token)))
 }
 
-// DiscoverHostMeta2 implements XEP-0487 Host Meta 2 — JSON-based host-meta discovery.
 func (c *XMPPCore) DiscoverHostMeta2(domain string) (map[string]string, error) {
 	url := fmt.Sprintf("https://%s/.well-known/host-meta.json", domain)
 	resp, err := apiHTTPClient.Get(url)
@@ -7274,32 +6317,27 @@ func (c *XMPPCore) DiscoverHostMeta2(domain string) (map[string]string, error) {
 	return links, nil
 }
 
-// OAuthClientLogin implements XEP-0493 — OAUTHBEARER SASL mechanism.
 func (c *XMPPCore) OAuthClientLogin(token string) error {
 	encoded := base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("n,,\x01auth=Bearer %s\x01\x01", token)))
 	return c.sendRawStanza(fmt.Sprintf(
 		`<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' mechanism='OAUTHBEARER'>%s</auth>`, encoded))
 }
 
-// RevokeClientAccess implements XEP-0494 — revoke per-client access.
 func (c *XMPPCore) RevokeClientAccess(clientID string) error {
 	_, err := c.sendIQSync("set", "",
 		fmt.Sprintf(`<revoke xmlns='urn:xmpp:cam:0' id='%s'/>`, xmlEscape(clientID)))
 	return err
 }
 
-// ListClientAccess lists authorized clients via XEP-0494.
 func (c *XMPPCore) ListClientAccess() (*XMPPIQ, error) {
 	return c.sendIQSync("get", "", `<list xmlns='urn:xmpp:cam:0'/>`)
 }
 
-// ConnectHappyEyeballs implements XEP-0495 — parallel A/AAAA lookups.
 func (c *XMPPCore) ConnectHappyEyeballs(host string, port int) (net.Conn, error) {
 	d := &net.Dialer{Timeout: 10 * time.Second, DualStack: true}
 	return d.Dial("tcp", net.JoinHostPort(host, strconv.Itoa(port)))
 }
 
-// InitAuthPipelining sends XEP-0509 pipelined auth request with SASL2.
 func (c *XMPPCore) InitAuthPipelining(mechanism, initialResponse string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<authenticate xmlns='urn:xmpp:sasl:2' mechanism='%s'>`+
@@ -7309,7 +6347,6 @@ func (c *XMPPCore) InitAuthPipelining(mechanism, initialResponse string) error {
 		xmlEscape(mechanism), initialResponse))
 }
 
-// GetStreamLimits implements XEP-0478 — parse stream limits from features.
 func (c *XMPPCore) GetStreamLimits() map[string]int {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -7319,15 +6356,11 @@ func (c *XMPPCore) GetStreamLimits() map[string]int {
 	}
 }
 
-// QuickstartTLS implements XEP-0305 — TLS session resumption with caps.
 func (c *XMPPCore) QuickstartTLS(domain string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<starttls xmlns='urn:ietf:params:xml:ns:xmpp-tls'><required/></starttls>`))
 }
 
-// ── Messaging (12 XEPs) ──
-
-// RetractMessage implements XEP-0424 — retract (unsend) a message.
 func (c *XMPPCore) RetractMessage(to, msgID string) error {
 	id := c.nextMsgID()
 	return c.sendRawStanza(fmt.Sprintf(
@@ -7342,10 +6375,8 @@ func (c *XMPPCore) RetractMessage(to, msgID string) error {
 		xmlEscape(to), id, xmlEscape(msgID)))
 }
 
-// ParseMessageStyling implements XEP-0393 — parse styling directives.
 func ParseMessageStyling(text string) []map[string]string {
 	var spans []map[string]string
-	// Simple parser for *bold*, _italic_, `code`, ~strike~, ```pre```
 	markers := map[byte]string{'*': "strong", '_': "emphasis", '`': "code", '~': "strike"}
 	for char, style := range markers {
 		for i := 0; i < len(text)-1; i++ {
@@ -7364,12 +6395,6 @@ func ParseMessageStyling(text string) []map[string]string {
 	return spans
 }
 
-// applyStyling is B-50's wiring layer: it runs the legacy
-// ParseMessageStyling scanner, strips the marker characters (including
-// adjacent runs, so ```pre``` blocks lose all six backticks), and
-// converts byte spans into the GUI's UTF-16 TextEntity format. Returns
-// the cleaned text and entities sorted by offset; plain text passes
-// through untouched.
 func applyStyling(text string) (string, []TextEntity) {
 	spans := ParseMessageStyling(text)
 	if len(spans) == 0 {
@@ -7378,13 +6403,13 @@ func applyStyling(text string) (string, []TextEntity) {
 	strip := make(map[int]bool)
 	type ent struct {
 		style   string
-		s, e    int // byte bounds of the INNER text in the original
-		openRun int // run length of the opening marker (≥3 = pre)
+		s, e    int
+		openRun int
 	}
 	var ents []ent
 	for _, sp := range spans {
 		start, err1 := strconv.Atoi(sp["start"])
-		end, err2 := strconv.Atoi(sp["end"]) // one past the closing marker
+		end, err2 := strconv.Atoi(sp["end"])
 		if err1 != nil || err2 != nil || end-1 <= start {
 			continue
 		}
@@ -7393,8 +6418,6 @@ func applyStyling(text string) (string, []TextEntity) {
 			continue
 		}
 		marker := text[start]
-		// Extend the strip set over adjacent runs of the same marker so
-		// ```pre``` loses all six backticks, not just the inner pair.
 		openL, openR := start, start+1
 		for openL-1 >= 0 && text[openL-1] == marker {
 			openL--
@@ -7422,8 +6445,6 @@ func applyStyling(text string) (string, []TextEntity) {
 		ents = append(ents, ent{style: style, s: openR, e: closeL, openRun: openR - openL})
 	}
 
-	// Single pass over the original: record orig-byte → output-UTF-16
-	// positions and copy with markers removed.
 	pos := make(map[int]int, len(text))
 	var sb strings.Builder
 	u := 0
@@ -7461,21 +6482,12 @@ func applyStyling(text string) (string, []TextEntity) {
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Offset < out[j].Offset })
 
-	// F-70: entity offsets come from per-chunk byte counting in the
-	// copy loop; on INVALID-UTF-8 input (our stanza parser does not
-	// enforce XML's UTF-8 rule — a hostile server can send anything)
-	// re-decoding the output can MERGE chunks and shrink the string
-	// (fuzz: `\xc3**\xa9*` → two counted chunks re-decode as ONE `é`),
-	// leaving entities pointing past the end of the text. The GUI
-	// renderer slices by these bounds — OOB. Clip to the REAL final
-	// bounds; on valid UTF-8 (the XML-spec case) counting and re-decode
-	// agree exactly, so nothing changes for real messages.
 	final := sb.String()
 	text16 := len(utf16.Encode([]rune(final)))
 	filtered := out[:0]
 	for _, e := range out {
 		if e.Offset >= text16 {
-			continue // wholly outside — drop
+			continue
 		}
 		if e.Offset+e.Length > text16 {
 			e.Length = text16 - e.Offset
@@ -7485,7 +6497,6 @@ func applyStyling(text string) (string, []TextEntity) {
 	return final, filtered
 }
 
-// SendSpoilerMessage implements XEP-0382 — send message with hidden content.
 func (c *XMPPCore) SendSpoilerMessage(to, body, hint string) error {
 	id := c.nextMsgID()
 	hintXML := ""
@@ -7500,7 +6511,6 @@ func (c *XMPPCore) SendSpoilerMessage(to, body, hint string) error {
 		xmlEscape(to), id, xmlEscape(body), hintXML))
 }
 
-// FastenPayload implements XEP-0422 — fasten a payload to a message.
 func (c *XMPPCore) FastenPayload(to, targetID, payload string) error {
 	id := c.nextMsgID()
 	return c.sendRawStanza(fmt.Sprintf(
@@ -7510,7 +6520,6 @@ func (c *XMPPCore) FastenPayload(to, targetID, payload string) error {
 		xmlEscape(to), id, xmlEscape(targetID), payload))
 }
 
-// SendJSONMessage implements XEP-0432 — send JSON payload.
 func (c *XMPPCore) SendJSONMessage(to string, jsonPayload json.RawMessage) error {
 	id := c.nextMsgID()
 	return c.sendRawStanza(fmt.Sprintf(
@@ -7520,7 +6529,6 @@ func (c *XMPPCore) SendJSONMessage(to string, jsonPayload json.RawMessage) error
 		xmlEscape(to), id, xmlEscape(string(jsonPayload))))
 }
 
-// SendQuickResponse implements XEP-0439 — send predefined response buttons.
 func (c *XMPPCore) SendQuickResponse(to, body string, responses []string) error {
 	id := c.nextMsgID()
 	var responseXML string
@@ -7534,7 +6542,6 @@ func (c *XMPPCore) SendQuickResponse(to, body string, responses []string) error 
 		xmlEscape(to), id, xmlEscape(body), responseXML))
 }
 
-// SendContentTypedMessage implements XEP-0481 — message with MIME content type.
 func (c *XMPPCore) SendContentTypedMessage(to, body, contentType string) error {
 	id := c.nextMsgID()
 	return c.sendRawStanza(fmt.Sprintf(
@@ -7545,7 +6552,6 @@ func (c *XMPPCore) SendContentTypedMessage(to, body, contentType string) error {
 		xmlEscape(to), id, xmlEscape(body), xmlEscape(contentType)))
 }
 
-// SendRealTimeText implements XEP-0301 — real-time text events.
 func (c *XMPPCore) SendRealTimeText(to string, seq int, actions []map[string]string) error {
 	id := c.nextMsgID()
 	var actionXML string
@@ -7567,17 +6573,14 @@ func (c *XMPPCore) SendRealTimeText(to string, seq int, actions []map[string]str
 		xmlEscape(to), id, seq, actionXML))
 }
 
-// RequestStanzaIDs implements XEP-0359 — request stanza-id from server.
 func (c *XMPPCore) RequestStanzaIDs() error {
 	return c.sendRawStanza(`<enable xmlns='urn:xmpp:sid:0'/>`)
 }
 
-// GetInbox implements XEP-0430 — server-side inbox.
 func (c *XMPPCore) GetInbox() (*XMPPIQ, error) {
 	return c.sendIQSync("get", "", `<inbox xmlns='urn:xmpp:inbox:1'/>`)
 }
 
-// SearchMAMFullText implements XEP-0431 — full-text search in MAM.
 func (c *XMPPCore) SearchMAMFullText(query string) (*XMPPIQ, error) {
 	return c.sendIQSync("set", "",
 		fmt.Sprintf(`<query xmlns='urn:xmpp:mam:2'>`+
@@ -7587,7 +6590,6 @@ func (c *XMPPCore) SearchMAMFullText(query string) (*XMPPIQ, error) {
 			`</x></query>`, xmlEscape(query)))
 }
 
-// SetReminder implements XEP-0435 — schedule a reminder.
 func (c *XMPPCore) SetReminder(to, text string, when time.Time) error {
 	id := c.nextMsgID()
 	return c.sendRawStanza(fmt.Sprintf(
@@ -7597,9 +6599,6 @@ func (c *XMPPCore) SetReminder(to, text string, when time.Time) error {
 		xmlEscape(to), id, when.UTC().Format(time.RFC3339), xmlEscape(text)))
 }
 
-// ── MUC Extensions (11 XEPs) ──
-
-// SendDirectMUCInvitation implements XEP-0249.
 func (c *XMPPCore) SendDirectMUCInvitation(to, room, reason, password string) error {
 	id := c.nextMsgID()
 	pwdAttr := ""
@@ -7613,7 +6612,6 @@ func (c *XMPPCore) SendDirectMUCInvitation(to, room, reason, password string) er
 		xmlEscape(to), id, xmlEscape(room), xmlEscape(reason), pwdAttr))
 }
 
-// SetMUCHat implements XEP-0317 — set visual role/badge.
 func (c *XMPPCore) SetMUCHat(room, nick, hatURI, hatTitle string) error {
 	_, err := c.sendIQSync("set", room,
 		fmt.Sprintf(`<hats xmlns='urn:xmpp:hats:0'>`+
@@ -7622,7 +6620,6 @@ func (c *XMPPCore) SetMUCHat(room, nick, hatURI, hatTitle string) error {
 	return err
 }
 
-// SearchChannels implements XEP-0433 — extended channel search.
 func (c *XMPPCore) SearchChannels(query string) (*XMPPIQ, error) {
 	return c.sendIQSync("get", "",
 		fmt.Sprintf(`<search xmlns='urn:xmpp:channel-search:0'>`+
@@ -7630,7 +6627,6 @@ func (c *XMPPCore) SearchChannels(query string) (*XMPPIQ, error) {
 			`<q>%s</q></search>`, xmlEscape(query)))
 }
 
-// EnableMUCPresenceVersioning implements XEP-0436.
 func (c *XMPPCore) EnableMUCPresenceVersioning(room string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<presence to='%s'>`+
@@ -7640,28 +6636,24 @@ func (c *XMPPCore) EnableMUCPresenceVersioning(room string) error {
 		xmlEscape(room)))
 }
 
-// SubscribeRoomActivity implements XEP-0437.
 func (c *XMPPCore) SubscribeRoomActivity(room string) error {
 	_, err := c.sendIQSync("set", "",
 		fmt.Sprintf(`<activity xmlns='urn:xmpp:room-activity:0' jid='%s'/>`, xmlEscape(room)))
 	return err
 }
 
-// SubscribeMUCMentions implements XEP-0452.
 func (c *XMPPCore) SubscribeMUCMentions(room string) error {
 	_, err := c.sendIQSync("set", room,
 		`<subscribe xmlns='urn:xmpp:muc-mention-notifications:0'/>`)
 	return err
 }
 
-// EnableMUCAffiliationVersioning implements XEP-0463.
 func (c *XMPPCore) EnableMUCAffiliationVersioning(room string) error {
 	_, err := c.sendIQSync("get", room,
 		`<affiliations xmlns='urn:xmpp:muc-affiliations-versioning:0'/>`)
 	return err
 }
 
-// SetMUCAvatar implements XEP-0486.
 func (c *XMPPCore) SetMUCAvatar(room string, pngData []byte) error {
 	b64 := base64.StdEncoding.EncodeToString(pngData)
 	_, err := c.sendIQSync("set", room,
@@ -7669,13 +6661,11 @@ func (c *XMPPCore) SetMUCAvatar(room string, pngData []byte) error {
 	return err
 }
 
-// CreateMUCTokenInvite implements XEP-0488.
 func (c *XMPPCore) CreateMUCTokenInvite(room string) (*XMPPIQ, error) {
 	return c.sendIQSync("set", room,
 		`<invite xmlns='urn:xmpp:muc-token-invite:0'/>`)
 }
 
-// SetMUCSlowMode implements XEP-0500.
 func (c *XMPPCore) SetMUCSlowMode(room string, intervalSeconds int) error {
 	_, err := c.sendIQSync("set", room,
 		fmt.Sprintf(`<query xmlns='http://jabber.org/protocol/muc#owner'>`+
@@ -7686,22 +6676,17 @@ func (c *XMPPCore) SetMUCSlowMode(room string, intervalSeconds int) error {
 	return err
 }
 
-// GetMUCActivityIndicator implements XEP-0502.
 func (c *XMPPCore) GetMUCActivityIndicator(room string) (*XMPPIQ, error) {
 	return c.sendIQSync("get", room,
 		`<activity xmlns='urn:xmpp:muc-activity-indicator:0'/>`)
 }
 
-// ── MIX Extensions (5 XEPs) ──
-
-// MIXPresenceSubscribe implements XEP-0403.
 func (c *XMPPCore) MIXPresenceSubscribe(channel string) error {
 	_, err := c.sendIQSync("set", channel,
 		`<subscribe xmlns='urn:xmpp:mix:nodes:presence'/>`)
 	return err
 }
 
-// MIXSetAnonymity implements XEP-0404.
 func (c *XMPPCore) MIXSetAnonymity(channel string, anonymous bool) error {
 	val := "false"
 	if anonymous {
@@ -7713,7 +6698,6 @@ func (c *XMPPCore) MIXSetAnonymity(channel string, anonymous bool) error {
 	return err
 }
 
-// MIXPAMJoin implements XEP-0405 — server-side MIX management.
 func (c *XMPPCore) MIXPAMJoin(channel string) error {
 	_, err := c.sendIQSync("set", "",
 		fmt.Sprintf(`<client-join xmlns='urn:xmpp:mix:pam:2' channel='%s'>`+
@@ -7725,7 +6709,6 @@ func (c *XMPPCore) MIXPAMJoin(channel string) error {
 	return err
 }
 
-// MIXAdminSetConfig implements XEP-0406.
 func (c *XMPPCore) MIXAdminSetConfig(channel string, fields map[string]string) error {
 	var fieldXML string
 	for k, v := range fields {
@@ -7737,7 +6720,6 @@ func (c *XMPPCore) MIXAdminSetConfig(channel string, fields map[string]string) e
 	return err
 }
 
-// MIXMiscSetAvatar implements XEP-0407.
 func (c *XMPPCore) MIXMiscSetAvatar(channel string, pngData []byte) error {
 	b64 := base64.StdEncoding.EncodeToString(pngData)
 	_, err := c.sendIQSync("set", channel,
@@ -7748,9 +6730,6 @@ func (c *XMPPCore) MIXMiscSetAvatar(channel string, pngData []byte) error {
 	return err
 }
 
-// ── Jingle / Calls (18 XEPs) ──
-
-// JingleRTPSession implements XEP-0167 — full RTP session description.
 func (c *XMPPCore) JingleRTPSession(to, sid, media string, payloadTypes []map[string]string) error {
 	var ptXML string
 	for _, pt := range payloadTypes {
@@ -7765,7 +6744,6 @@ func (c *XMPPCore) JingleRTPSession(to, sid, media string, payloadTypes []map[st
 	return err
 }
 
-// JingleRawUDP implements XEP-0177 — raw UDP transport.
 func (c *XMPPCore) JingleRawUDP(to, sid, candidateIP string, candidatePort int) error {
 	_, err := c.sendIQSync("set", to,
 		fmt.Sprintf(`<jingle xmlns='urn:xmpp:jingle:1' action='transport-info' sid='%s'>`+
@@ -7777,7 +6755,6 @@ func (c *XMPPCore) JingleRawUDP(to, sid, candidateIP string, candidatePort int) 
 	return err
 }
 
-// JingleZRTP implements XEP-0262 — ZRTP key agreement hash.
 func (c *XMPPCore) JingleZRTP(to, sid, zrtpHash, hashVersion string) error {
 	_, err := c.sendIQSync("set", to,
 		fmt.Sprintf(`<jingle xmlns='urn:xmpp:jingle:1' action='session-info' sid='%s'>`+
@@ -7786,7 +6763,6 @@ func (c *XMPPCore) JingleZRTP(to, sid, zrtpHash, hashVersion string) error {
 	return err
 }
 
-// JingleAudioCodecs returns XEP-0266 recommended audio codec list.
 func JingleAudioCodecs() []map[string]string {
 	return []map[string]string{
 		{"id": "111", "name": "opus", "clockrate": "48000", "channels": "2"},
@@ -7796,7 +6772,6 @@ func JingleAudioCodecs() []map[string]string {
 	}
 }
 
-// JingleMuji implements XEP-0272 — multiparty Jingle.
 func (c *XMPPCore) JingleMuji(room, media string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<presence to='%s'><muji xmlns='urn:xmpp:jingle:muji:0'>`+
@@ -7805,7 +6780,6 @@ func (c *XMPPCore) JingleMuji(room, media string) error {
 		xmlEscape(room), xmlEscape(media), xmlEscape(media)))
 }
 
-// JingleConferenceInfo implements XEP-0298 — conference state notification.
 func (c *XMPPCore) JingleConferenceInfo(to, sid string, users []string) error {
 	var userXML string
 	for _, u := range users {
@@ -7818,7 +6792,6 @@ func (c *XMPPCore) JingleConferenceInfo(to, sid string, users []string) error {
 	return err
 }
 
-// JingleVideoCodecs returns XEP-0299 recommended video codec list.
 func JingleVideoCodecs() []map[string]string {
 	return []map[string]string{
 		{"id": "96", "name": "VP8", "clockrate": "90000"},
@@ -7826,7 +6799,6 @@ func JingleVideoCodecs() []map[string]string {
 	}
 }
 
-// JingleDTLSSRTP implements XEP-0320 — DTLS fingerprint.
 func (c *XMPPCore) JingleDTLSSRTP(to, sid, fingerprint, setup string) error {
 	_, err := c.sendIQSync("set", to,
 		fmt.Sprintf(`<jingle xmlns='urn:xmpp:jingle:1' action='transport-info' sid='%s'>`+
@@ -7838,7 +6810,6 @@ func (c *XMPPCore) JingleDTLSSRTP(to, sid, fingerprint, setup string) error {
 	return err
 }
 
-// JingleGrouping implements XEP-0338 — SDP bundle.
 func (c *XMPPCore) JingleGrouping(to, sid string, contentNames []string) error {
 	var contentsXML string
 	for _, name := range contentNames {
@@ -7851,7 +6822,6 @@ func (c *XMPPCore) JingleGrouping(to, sid string, contentNames []string) error {
 	return err
 }
 
-// JingleSourceSSRC implements XEP-0339 — per-source SSRC attributes.
 func (c *XMPPCore) JingleSourceSSRC(to, sid string, ssrc uint32, params map[string]string) error {
 	var paramXML string
 	for k, v := range params {
@@ -7867,7 +6837,6 @@ func (c *XMPPCore) JingleSourceSSRC(to, sid string, ssrc uint32, params map[stri
 	return err
 }
 
-// JingleDataChannels implements XEP-0343 — WebRTC DTLS/SCTP data channels.
 func (c *XMPPCore) JingleDataChannels(to, sid string, port int) error {
 	_, err := c.sendIQSync("set", to,
 		fmt.Sprintf(`<jingle xmlns='urn:xmpp:jingle:1' action='session-initiate' sid='%s'>`+
@@ -7880,7 +6849,6 @@ func (c *XMPPCore) JingleDataChannels(to, sid string, port int) error {
 	return err
 }
 
-// JingleMessageRinging implements XEP-0353 ringing signal.
 func (c *XMPPCore) JingleMessageRinging(to, sid string) error {
 	id := c.nextMsgID()
 	return c.sendRawStanza(fmt.Sprintf(
@@ -7890,7 +6858,6 @@ func (c *XMPPCore) JingleMessageRinging(to, sid string) error {
 		xmlEscape(to), id, xmlEscape(sid)))
 }
 
-// PublishJingleSession implements XEP-0358 — advertise joinable session.
 func (c *XMPPCore) PublishJingleSession(sid, description string) error {
 	_, err := c.sendIQSync("set", "",
 		fmt.Sprintf(`<pubsub xmlns='http://jabber.org/protocol/pubsub'>`+
@@ -7901,7 +6868,6 @@ func (c *XMPPCore) PublishJingleSession(sid, description string) error {
 	return err
 }
 
-// JingleTrickleICE implements XEP-0371 — ICE transport with trickle.
 func (c *XMPPCore) JingleTrickleICE(to, sid string, candidate map[string]string) error {
 	_, err := c.sendIQSync("set", to,
 		fmt.Sprintf(`<jingle xmlns='urn:xmpp:jingle:1' action='transport-info' sid='%s'>`+
@@ -7915,7 +6881,6 @@ func (c *XMPPCore) JingleTrickleICE(to, sid string, candidate map[string]string)
 	return err
 }
 
-// JingleEncryptedTransport implements XEP-0391 — JET encryption.
 func (c *XMPPCore) JingleEncryptedTransport(to, sid, cipher, keyB64 string) error {
 	_, err := c.sendIQSync("set", to,
 		fmt.Sprintf(`<jingle xmlns='urn:xmpp:jingle:1' action='session-initiate' sid='%s'>`+
@@ -7927,7 +6892,6 @@ func (c *XMPPCore) JingleEncryptedTransport(to, sid, cipher, keyB64 string) erro
 	return err
 }
 
-// JingleJETOMEMO implements XEP-0396 — OMEMO for Jingle file transfers.
 func (c *XMPPCore) JingleJETOMEMO(to, sid string, deviceID int, keyData []byte) error {
 	b64 := base64.StdEncoding.EncodeToString(keyData)
 	_, err := c.sendIQSync("set", to,
@@ -7941,7 +6905,6 @@ func (c *XMPPCore) JingleJETOMEMO(to, sid string, deviceID int, keyData []byte) 
 	return err
 }
 
-// SendCallInvite implements XEP-0482 — invite to call.
 func (c *XMPPCore) SendCallInvite(to, sid string, audio, video bool) error {
 	id := c.nextMsgID()
 	var mediaXML string
@@ -7958,7 +6921,6 @@ func (c *XMPPCore) SendCallInvite(to, sid string, audio, video bool) error {
 		xmlEscape(to), id, xmlEscape(sid), mediaXML))
 }
 
-// JingleContentCategory implements XEP-0507 — distinguish webcam vs screenshare.
 func (c *XMPPCore) JingleContentCategory(to, sid, name, category string) error {
 	_, err := c.sendIQSync("set", to,
 		fmt.Sprintf(`<jingle xmlns='urn:xmpp:jingle:1' action='content-modify' sid='%s'>`+
@@ -7969,9 +6931,6 @@ func (c *XMPPCore) JingleContentCategory(to, sid, name, category string) error {
 	return err
 }
 
-// ── File Sharing & Media (5 XEPs) ──
-
-// JingleContentThumbnail implements XEP-0264 — thumbnails on file offers.
 func (c *XMPPCore) JingleContentThumbnail(to, sid, thumbnailURI, mimeType string, width, height int) error {
 	_, err := c.sendIQSync("set", to,
 		fmt.Sprintf(`<jingle xmlns='urn:xmpp:jingle:1' action='session-initiate' sid='%s'>`+
@@ -7983,7 +6942,6 @@ func (c *XMPPCore) JingleContentThumbnail(to, sid, thumbnailURI, mimeType string
 	return err
 }
 
-// SendSIMS implements XEP-0385 — stateless inline media sharing.
 func (c *XMPPCore) SendSIMS(to, url, mimeType string, size int64, desc string) error {
 	id := c.nextMsgID()
 	return c.sendRawStanza(fmt.Sprintf(
@@ -7997,7 +6955,6 @@ func (c *XMPPCore) SendSIMS(to, url, mimeType string, size int64, desc string) e
 		xmlEscape(to), id, xmlEscape(mimeType), size, xmlEscape(desc), xmlEscape(url)))
 }
 
-// ShareFileMetadataElem implements XEP-0446 — standalone file metadata.
 func (c *XMPPCore) ShareFileMetadataElem(to, name, mimeType string, size int64, hashAlgo, hashValue string) error {
 	id := c.nextMsgID()
 	return c.sendRawStanza(fmt.Sprintf(
@@ -8010,7 +6967,6 @@ func (c *XMPPCore) ShareFileMetadataElem(to, name, mimeType string, size int64, 
 		xmlEscape(hashAlgo), xmlEscape(hashValue)))
 }
 
-// PubSubFileShare implements XEP-0498 — file sharing via PubSub.
 func (c *XMPPCore) PubSubFileShare(node, itemID, name, url string) error {
 	_, err := c.sendIQSync("set", "",
 		fmt.Sprintf(`<pubsub xmlns='http://jabber.org/protocol/pubsub'>`+
@@ -8023,7 +6979,6 @@ func (c *XMPPCore) PubSubFileShare(node, itemID, name, url string) error {
 	return err
 }
 
-// DataFormsFileInput implements XEP-0505 — file upload in data forms.
 func (c *XMPPCore) DataFormsFileInput(to, formType, fieldVar, uploadURL string) error {
 	_, err := c.sendIQSync("set", to,
 		fmt.Sprintf(`<x xmlns='jabber:x:data' type='submit'>`+
@@ -8034,9 +6989,6 @@ func (c *XMPPCore) DataFormsFileInput(to, formType, fieldVar, uploadURL string) 
 	return err
 }
 
-// ── PubSub Extensions (15 XEPs) ──
-
-// PEPManageNode implements XEP-0163 explicit PEP node management.
 func (c *XMPPCore) PEPManageNode(node string, config map[string]string) error {
 	var fieldXML string
 	for k, v := range config {
@@ -8050,7 +7002,6 @@ func (c *XMPPCore) PEPManageNode(node string, config map[string]string) error {
 	return err
 }
 
-// PubSubPersistPublic implements XEP-0222 — best practices for public data storage.
 func (c *XMPPCore) PubSubPersistPublic(node, itemID, payload string) error {
 	_, err := c.sendIQSync("set", "",
 		fmt.Sprintf(`<pubsub xmlns='http://jabber.org/protocol/pubsub'>`+
@@ -8064,7 +7015,6 @@ func (c *XMPPCore) PubSubPersistPublic(node, itemID, payload string) error {
 	return err
 }
 
-// PubSubPersistPrivate implements XEP-0223 — best practices for private data storage.
 func (c *XMPPCore) PubSubPersistPrivate(node, itemID, payload string) error {
 	_, err := c.sendIQSync("set", "",
 		fmt.Sprintf(`<pubsub xmlns='http://jabber.org/protocol/pubsub'>`+
@@ -8078,7 +7028,6 @@ func (c *XMPPCore) PubSubPersistPrivate(node, itemID, payload string) error {
 	return err
 }
 
-// PubSubCollectionNode implements XEP-0248 — collection node creation.
 func (c *XMPPCore) PubSubCollectionNode(node, childNode string) error {
 	_, err := c.sendIQSync("set", "",
 		fmt.Sprintf(`<pubsub xmlns='http://jabber.org/protocol/pubsub'>`+
@@ -8089,7 +7038,6 @@ func (c *XMPPCore) PubSubCollectionNode(node, childNode string) error {
 	return err
 }
 
-// PublishMicroblog implements XEP-0277 — Atom-based social feed.
 func (c *XMPPCore) PublishMicroblog(content, author string) error {
 	id := c.nextMsgID()
 	_, err := c.sendIQSync("set", "",
@@ -8105,13 +7053,11 @@ func (c *XMPPCore) PublishMicroblog(content, author string) error {
 	return err
 }
 
-// QueryPubSubMAM implements XEP-0442 — MAM on PubSub archives.
 func (c *XMPPCore) QueryPubSubMAM(service, node string) (*XMPPIQ, error) {
 	return c.sendIQSync("set", service,
 		fmt.Sprintf(`<query xmlns='urn:xmpp:mam:2' node='%s'/>`, xmlEscape(node)))
 }
 
-// SetPubSubCachingHints implements XEP-0460.
 func (c *XMPPCore) SetPubSubCachingHints(node string, maxAge int) error {
 	_, err := c.sendIQSync("set", "",
 		fmt.Sprintf(`<pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>`+
@@ -8121,14 +7067,12 @@ func (c *XMPPCore) SetPubSubCachingHints(node string, maxAge int) error {
 	return err
 }
 
-// FilterPubSubByType implements XEP-0462.
 func (c *XMPPCore) FilterPubSubByType(service, nodeType string) (*XMPPIQ, error) {
 	return c.sendIQSync("get", service,
 		fmt.Sprintf(`<query xmlns='http://jabber.org/protocol/disco#items'>`+
 			`<filter xmlns='urn:xmpp:pubsub:filter:0' type='%s'/></query>`, xmlEscape(nodeType)))
 }
 
-// SetPubSubPublicSubscriptions implements XEP-0465.
 func (c *XMPPCore) SetPubSubPublicSubscriptions(node string, public bool) error {
 	val := "false"
 	if public {
@@ -8142,7 +7086,6 @@ func (c *XMPPCore) SetPubSubPublicSubscriptions(node string, public bool) error 
 	return err
 }
 
-// PubSubAttachment implements XEP-0470 — reactions/comments on PubSub items.
 func (c *XMPPCore) PubSubAttachment(targetNode, targetItem, attachmentPayload string) error {
 	id := c.nextMsgID()
 	_, err := c.sendIQSync("set", "",
@@ -8155,7 +7098,6 @@ func (c *XMPPCore) PubSubAttachment(targetNode, targetItem, attachmentPayload st
 	return err
 }
 
-// PublishSocialFeed implements XEP-0472.
 func (c *XMPPCore) PublishSocialFeed(content, contentType string) error {
 	id := c.nextMsgID()
 	_, err := c.sendIQSync("set", "",
@@ -8167,7 +7109,6 @@ func (c *XMPPCore) PublishSocialFeed(content, contentType string) error {
 	return err
 }
 
-// EncryptPubSubOX implements XEP-0473 — OpenPGP for PubSub.
 func (c *XMPPCore) EncryptPubSubOX(node, itemID, payload string) error {
 	_, err := c.sendIQSync("set", "",
 		fmt.Sprintf(`<pubsub xmlns='http://jabber.org/protocol/pubsub'>`+
@@ -8178,13 +7119,11 @@ func (c *XMPPCore) EncryptPubSubOX(node, itemID, payload string) error {
 	return err
 }
 
-// GetPubSubServerInfo implements XEP-0485.
 func (c *XMPPCore) GetPubSubServerInfo(service string) (*XMPPIQ, error) {
 	return c.sendIQSync("get", service,
 		`<query xmlns='http://jabber.org/protocol/disco#info' node='urn:xmpp:serverinfo:0'/>`)
 }
 
-// SetPubSubRelationship implements XEP-0496.
 func (c *XMPPCore) SetPubSubRelationship(node, parentNode string) error {
 	_, err := c.sendIQSync("set", "",
 		fmt.Sprintf(`<pubsub xmlns='http://jabber.org/protocol/pubsub#owner'>`+
@@ -8194,7 +7133,6 @@ func (c *XMPPCore) SetPubSubRelationship(node, parentNode string) error {
 	return err
 }
 
-// PubSubCompareAndPublish implements XEP-0395 — atomic CAS.
 func (c *XMPPCore) PubSubCompareAndPublish(node, itemID, payload, prevID string) error {
 	_, err := c.sendIQSync("set", "",
 		fmt.Sprintf(`<pubsub xmlns='http://jabber.org/protocol/pubsub'>`+
@@ -8205,9 +7143,6 @@ func (c *XMPPCore) PubSubCompareAndPublish(node, itemID, payload, prevID string)
 	return err
 }
 
-// ── Service Discovery (3 XEPs) ──
-
-// DiscoInfoExtended implements XEP-0128 — extended info in disco#info.
 func (c *XMPPCore) DiscoInfoExtended(to, node string) (*XMPPIQ, error) {
 	nodeAttr := ""
 	if node != "" {
@@ -8217,7 +7152,6 @@ func (c *XMPPCore) DiscoInfoExtended(to, node string) (*XMPPIQ, error) {
 		fmt.Sprintf(`<query xmlns='http://jabber.org/protocol/disco#info'%s/>`, nodeAttr))
 }
 
-// EntityCaps2 implements XEP-0390 — Entity Capabilities 2.0 hash.
 func (c *XMPPCore) EntityCaps2(hashAlgo string, features []string) string {
 	sort.Strings(features)
 	data := strings.Join(features, "<")
@@ -8232,15 +7166,11 @@ func (c *XMPPCore) EntityCaps2(hashAlgo string, features []string) string {
 	return base64.StdEncoding.EncodeToString(h.Sum(nil))
 }
 
-// GetDOAP implements XEP-0453 — machine-readable capability descriptions.
 func (c *XMPPCore) GetDOAP(to string) (*XMPPIQ, error) {
 	return c.sendIQSync("get", to,
 		`<query xmlns='http://jabber.org/protocol/disco#info' node='urn:xmpp:doap:0'/>`)
 }
 
-// ── Encryption (1 XEP) ──
-
-// OMEMOAutoTrust implements XEP-0450 — automatic trust management.
 func (c *XMPPCore) OMEMOAutoTrust(to string, deviceIDs []int) error {
 	var devicesXML string
 	for _, id := range deviceIDs {
@@ -8255,16 +7185,12 @@ func (c *XMPPCore) OMEMOAutoTrust(to string, deviceIDs []int) error {
 		xmlEscape(to), id, xmlEscape(to), devicesXML))
 }
 
-// ── User Profile & Social (4 XEPs) ──
-
-// AvatarConversion implements XEP-0398 — server-side avatar format hint.
 func (c *XMPPCore) AvatarConversion(to string) (*XMPPIQ, error) {
 	return c.sendIQSync("get", to,
 		`<pubsub xmlns='http://jabber.org/protocol/pubsub'>`+
 			`<items node='urn:xmpp:avatar:data' max_items='1'/></pubsub>`)
 }
 
-// SetReachability implements XEP-0152 — publish reachability addresses.
 func (c *XMPPCore) SetReachability(addresses []map[string]string) error {
 	var addrXML string
 	for _, a := range addresses {
@@ -8278,25 +7204,19 @@ func (c *XMPPCore) SetReachability(addresses []map[string]string) error {
 	return err
 }
 
-// SetVCardAvatar implements XEP-0153 — vCard-based avatar with presence hash.
 func (c *XMPPCore) SetVCardAvatar(pngData []byte) error {
-	// Set vCard photo
 	b64 := base64.StdEncoding.EncodeToString(pngData)
 	_, err := c.sendIQSync("set", "",
 		fmt.Sprintf(`<vCard xmlns='vcard-temp'><PHOTO><TYPE>image/png</TYPE><BINVAL>%s</BINVAL></PHOTO></vCard>`, b64))
 	if err != nil {
 		return err
 	}
-	// Broadcast presence with photo hash
 	h := sha1.Sum(pngData)
 	return c.sendRawStanza(fmt.Sprintf(
 		`<presence><x xmlns='vcard-temp:x:update'><photo>%s</photo></x></presence>`,
 		hex.EncodeToString(h[:])))
 }
 
-// ── Notification & Sync (2 XEPs) ──
-
-// SetChatNotificationSettings implements XEP-0492.
 func (c *XMPPCore) SetChatNotificationSettings(jid, level string) error {
 	_, err := c.sendIQSync("set", "",
 		fmt.Sprintf(`<pubsub xmlns='http://jabber.org/protocol/pubsub'>`+
@@ -8306,7 +7226,6 @@ func (c *XMPPCore) SetChatNotificationSettings(jid, level string) error {
 	return err
 }
 
-// SetServerNotificationFilter implements XEP-0351.
 func (c *XMPPCore) SetServerNotificationFilter(rules map[string]bool) error {
 	var ruleXML string
 	for eventType, enabled := range rules {
@@ -8321,9 +7240,6 @@ func (c *XMPPCore) SetServerNotificationFilter(rules map[string]bool) error {
 	return err
 }
 
-// ── Server Interaction (10 XEPs) ──
-
-// SearchUsersExtended implements XEP-0055 — search with data forms.
 func (c *XMPPCore) SearchUsersExtended(service string, fields map[string]string) (*XMPPIQ, error) {
 	var fieldXML string
 	for k, v := range fields {
@@ -8335,7 +7251,6 @@ func (c *XMPPCore) SearchUsersExtended(service string, fields map[string]string)
 			`<x xmlns='jabber:x:data' type='submit'>%s</x></query>`, fieldXML))
 }
 
-// HandleCAPTCHA implements XEP-0158 — respond to CAPTCHA challenge.
 func (c *XMPPCore) HandleCAPTCHA(to, challengeID, answer string) error {
 	_, err := c.sendIQSync("set", to,
 		fmt.Sprintf(`<captcha xmlns='urn:xmpp:captcha'>`+
@@ -8347,7 +7262,6 @@ func (c *XMPPCore) HandleCAPTCHA(to, challengeID, answer string) error {
 	return err
 }
 
-// EnableRosterVersioning implements XEP-0237 — request versioned roster.
 func (c *XMPPCore) EnableRosterVersioning(ver string) (*XMPPIQ, error) {
 	verAttr := ""
 	if ver != "" {
@@ -8357,40 +7271,32 @@ func (c *XMPPCore) EnableRosterVersioning(ver string) (*XMPPIQ, error) {
 		fmt.Sprintf(`<query xmlns='jabber:iq:roster'%s/>`, verAttr))
 }
 
-// CreateInvitationURI implements XEP-0401 — generate invitation URI.
 func (c *XMPPCore) CreateInvitationURI() (*XMPPIQ, error) {
 	return c.sendIQSync("set", "",
 		`<invite xmlns='urn:xmpp:invite:2'/>`)
 }
 
-// PreAuthenticatedIBR implements XEP-0445 — token-gated registration.
 func (c *XMPPCore) PreAuthenticatedIBR(token string) error {
 	return c.sendRawStanza(fmt.Sprintf(
 		`<register xmlns='urn:xmpp:ibr-token:0' token='%s'/>`, xmlEscape(token)))
 }
 
-// GetServiceOutageStatus implements XEP-0455 — server status.
 func (c *XMPPCore) GetServiceOutageStatus(domain string) (*XMPPIQ, error) {
 	return c.sendIQSync("get", domain,
 		`<status xmlns='urn:xmpp:service-status:0'/>`)
 }
 
-// GetDataPolicy implements XEP-0504 — data retention info.
 func (c *XMPPCore) GetDataPolicy(domain string) (*XMPPIQ, error) {
 	return c.sendIQSync("get", domain,
 		`<policy xmlns='urn:xmpp:data-policy:0'/>`)
 }
 
-// BookmarksConversion implements XEP-0411 — request server-side bookmark conversion.
 func (c *XMPPCore) BookmarksConversion() error {
 	_, err := c.sendIQSync("set", "",
 		`<enable xmlns='urn:xmpp:bookmarks-conversion:0'/>`)
 	return err
 }
 
-// ── Newer/Experimental (10 XEPs) ──
-
-// SendWebXDC implements XEP-0491 — interactive HTML/JS widget.
 func (c *XMPPCore) SendWebXDC(to, name string, data []byte) error {
 	id := c.nextMsgID()
 	b64 := base64.StdEncoding.EncodeToString(data)
@@ -8401,7 +7307,6 @@ func (c *XMPPCore) SendWebXDC(to, name string, data []byte) error {
 		xmlEscape(to), id, xmlEscape(name), b64))
 }
 
-// CreateServerSpace implements XEP-0503 — Discord-like channel categories.
 func (c *XMPPCore) CreateServerSpace(name string, channels []string) error {
 	var channelXML string
 	for _, ch := range channels {
@@ -8413,14 +7318,12 @@ func (c *XMPPCore) CreateServerSpace(name string, channels []string) error {
 	return err
 }
 
-// CreateForum implements XEP-0508 — threaded discussions.
 func (c *XMPPCore) CreateForum(service, name string) error {
 	_, err := c.sendIQSync("set", service,
 		fmt.Sprintf(`<create xmlns='urn:xmpp:forums:0' name='%s'/>`, xmlEscape(name)))
 	return err
 }
 
-// EncryptContactsMetadata implements XEP-0510.
 func (c *XMPPCore) EncryptContactsMetadata(jid string, encryptedPayload []byte) error {
 	b64 := base64.StdEncoding.EncodeToString(encryptedPayload)
 	_, err := c.sendIQSync("set", "",
@@ -8431,26 +7334,22 @@ func (c *XMPPCore) EncryptContactsMetadata(jid string, encryptedPayload []byte) 
 	return err
 }
 
-// GetLinkMetadata implements XEP-0511 — rich link previews.
 func (c *XMPPCore) GetLinkMetadata(url string) (*XMPPIQ, error) {
 	return c.sendIQSync("get", "",
 		fmt.Sprintf(`<link-metadata xmlns='urn:xmpp:link-metadata:0' url='%s'/>`, xmlEscape(url)))
 }
 
-// RequestOnlineMeeting implements XEP-0483 — HTTP online meetings.
 func (c *XMPPCore) RequestOnlineMeeting(service, meetingType string) (*XMPPIQ, error) {
 	return c.sendIQSync("get", service,
 		fmt.Sprintf(`<request xmlns='urn:xmpp:http:online-meetings:invite:0' type='%s'/>`,
 			xmlEscape(meetingType)))
 }
 
-// RequestBurnerJID implements XEP-0383 — temporary anonymous JID.
 func (c *XMPPCore) RequestBurnerJID(service string) (*XMPPIQ, error) {
 	return c.sendIQSync("get", service,
 		`<burner xmlns='urn:xmpp:burner:0'/>`)
 }
 
-// ForwardStanza implements XEP-0297 — standard stanza encapsulation.
 func (c *XMPPCore) ForwardStanza(to, originalFrom, originalStanza string) error {
 	id := c.nextMsgID()
 	return c.sendRawStanza(fmt.Sprintf(
@@ -8462,9 +7361,6 @@ func (c *XMPPCore) ForwardStanza(to, originalFrom, originalStanza string) error 
 		time.Now().UTC().Format("2006-01-02T15:04:05Z"), originalStanza))
 }
 
-// ── Miscellaneous (5 XEPs) ──
-
-// RSMQuery implements XEP-0059 — result set management pagination.
 func (c *XMPPCore) RSMQuery(to, queryNS string, max int, after string) (*XMPPIQ, error) {
 	afterXML := ""
 	if after != "" {
@@ -8476,7 +7372,6 @@ func (c *XMPPCore) RSMQuery(to, queryNS string, max int, after string) (*XMPPIQ,
 			xmlEscape(queryNS), max, afterXML))
 }
 
-// NegotiateSession implements XEP-0155 — stanza session negotiation.
 func (c *XMPPCore) NegotiateSession(to string, fields map[string]string) error {
 	var fieldXML string
 	for k, v := range fields {
@@ -8491,7 +7386,6 @@ func (c *XMPPCore) NegotiateSession(to string, fields map[string]string) error {
 		xmlEscape(to), id, fieldXML))
 }
 
-// SendBitsOfBinary implements XEP-0231 — inline small binary data.
 func (c *XMPPCore) SendBitsOfBinary(to string, data []byte, mimeType, cid string) error {
 	id := c.nextMsgID()
 	b64 := base64.StdEncoding.EncodeToString(data)
@@ -8502,37 +7396,30 @@ func (c *XMPPCore) SendBitsOfBinary(to string, data []byte, mimeType, cid string
 		xmlEscape(to), id, xmlEscape(cid), xmlEscape(mimeType), b64))
 }
 
-// MuteChat mutes notifications for a conversation.
 func (c *XMPPCore) MuteChat(chatID string, muted bool) error {
 	return fmt.Errorf("%w: %s does not support mute chat", ErrNotSupported, xmppPlatform)
 }
 
-// ArchiveChat archives a conversation by removing it from bookmarks.
 func (c *XMPPCore) ArchiveChat(chatID string, archived bool) error {
 	return fmt.Errorf("%w: %s does not support archive chat", ErrNotSupported, xmppPlatform)
 }
 
-// MarkUnread mark unread on the XMPP connection.
 func (c *XMPPCore) MarkUnread(chatID string, unread bool) error {
 	return fmt.Errorf("%w: %s does not support mark unread", ErrNotSupported, xmppPlatform)
 }
 
-// UnpinAllMessages unpin all messages on the XMPP connection.
 func (c *XMPPCore) UnpinAllMessages(chatID string) error {
 	return fmt.Errorf("%w: %s does not support unpin all messages", ErrNotSupported, xmppPlatform)
 }
 
-// AcceptCall accepts call.
 func (c *XMPPCore) AcceptCall(callID string) (*CallSession, error) {
 	return nil, fmt.Errorf("%w: %s does not support accept call", ErrNotSupported, xmppPlatform)
 }
 
-// DeclineCall declines an incoming call session.
 func (c *XMPPCore) DeclineCall(callID string) error {
 	return fmt.Errorf("%w: %s does not support decline call", ErrNotSupported, xmppPlatform)
 }
 
-// SendLocation sends a geographic location to the specified JID.
 func (c *XMPPCore) SendLocation(chatID string, lat float64, lon float64) (*Message, error) {
 	return nil, fmt.Errorf("%w: %s does not support send location", ErrNotSupported, xmppPlatform)
 }

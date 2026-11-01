@@ -6,12 +6,6 @@ import (
 	"uniclient/engine"
 )
 
-// Top peers strip (AyuGram parity slice 72): a pictured row of top
-// contacts above the chat list while the search field is focused and
-// empty. Telegram scopes it to the current account — with a unified
-// multi-account list there is no single "current account", so the strip
-// only renders when the scope is unambiguous. Pure derivation.
-
 func topPeersTestFrame() frame {
 	return frame{
 		accounts: []engine.AccountInfo{
@@ -52,9 +46,6 @@ func TestTopPeersScopeNoAccounts(t *testing.T) {
 }
 
 func TestTopPeersFilterUnread(t *testing.T) {
-	// The strip is "people you talk to most" — Telegram drops rows with no
-	// chat backing; the engine already resolves chats, but the GUI guards
-	// against empty titles all the same.
 	peers := []engine.ChatInfo{
 		{ChatID: "1", Title: "Alice"},
 		{ChatID: "", Title: ""},

@@ -1,11 +1,5 @@
 //go:build live
 
-// Live integration test for the IRC core against a REAL IRC network.
-// Not run in CI and gitignored (go/tests/): depends on external network
-// conditions and server policies (some networks block cloud IPs).
-//
-// Run: cd go && go test -tags goolm,live ./tests/ -run TestIRCLive -v -timeout 120s
-// Env: IRC_LIVE_SERVER (default "irc.libera.chat:6697"), IRC_LIVE_NICK (default random)
 package tests
 
 import (
@@ -45,8 +39,6 @@ func TestIRCLiveConnect(t *testing.T) {
 	}
 	t.Logf("connected to %s as %s", server, nick)
 
-	// The 001 (welcome) must have arrived during Authenticate (the core
-	// waits for registration); give the MOTD a moment to land too.
 	time.Sleep(3 * time.Second)
 	if motd := core.GetMOTD(); len(motd) > 0 {
 		t.Logf("MOTD: %d lines (first: %.80s)", len(motd), motd[0])

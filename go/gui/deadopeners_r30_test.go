@@ -7,20 +7,6 @@ import (
 	"uniclient/engine"
 )
 
-// R30 — the R29 systemic sweep: which openers reachable from surfaces that
-// render in EVERY window (header menu, attach menu, message menu, info
-// panel + member menu, boost panel, call overlay, saved-lists pane,
-// shortcuts, call bar) set state that ONLY layoutMain paints (content-pane
-// dialogs, the settings/voice pages, the main-branch window modals)? Every
-// one of those is a shown-but-dead button in a separate chat window —
-// forbidden by §1.10 ("what cannot work is HIDDEN, never faked"). The pure
-// derivation functions take a `separate` flag and drop the dead rows; the
-// inline gates use mainOnlySurfaceShown (R29's profileMusicSectionShown
-// shape, made the shared predicate of the class).
-
-// headerMenuItems must drop every row whose action opens a main-window
-// content pane (sound picker, TTL, chat theme, wallpaper, gift picker,
-// add-member) — the header menu renders in every window, the dialogs do not.
 func TestHeaderMenuSeparateDropsMainOnlyDialogs(t *testing.T) {
 	dm := engine.ChatInfo{AccountID: "a", ChatID: "u1", Type: engine.ChatTypeDMVal, WallpaperJSON: "w"}
 	for _, it := range headerMenuItems(dm, false, false, false, true, true) {
@@ -35,7 +21,6 @@ func TestHeaderMenuSeparateDropsMainOnlyDialogs(t *testing.T) {
 			t.Fatal("separate windows never render the add-member dialog — the row must be dropped (R30)")
 		}
 	}
-	// The main window keeps every one of them.
 	for _, dead := range []string{"notifsound", "autodelete", "gift", "theme", "wallpaper"} {
 		if !containsAction(headerMenuItems(dm, false, false, false, true, false), dead) {
 			t.Fatalf("main window lost the %q row", dead)
@@ -46,9 +31,6 @@ func TestHeaderMenuSeparateDropsMainOnlyDialogs(t *testing.T) {
 	}
 }
 
-// memberMenuItems must drop Restrict/Ban in separate windows (the boxes are
-// main-branch window modals); the direct engine actions (promote, demote,
-// remove, unban) stay — they work from any window.
 func TestMemberMenuSeparateDropsRestrictBan(t *testing.T) {
 	chat := engine.ChatInfo{AccountID: "a", ChatID: "g", Type: engine.ChatTypeGroupVal, IsAdmin: true}
 	m := engine.MemberInfo{UserID: "u2", Role: "member"}
@@ -63,9 +45,6 @@ func TestMemberMenuSeparateDropsRestrictBan(t *testing.T) {
 	}
 }
 
-// savedSublistMenuActions must drop the destructive "Delete messages" entry
-// in separate windows (its confirm card is a main-branch window modal);
-// pin/move stay — they are direct engine actions.
 func TestSavedSublistMenuSeparateDropsDelete(t *testing.T) {
 	if got := savedSublistMenuActions(false, false, false, true); len(got) != 1 || got[0] != "Pin" {
 		t.Fatalf("separate windows must not offer Delete (confirm card is main-only): got %v (R30)", got)
@@ -78,9 +57,6 @@ func TestSavedSublistMenuSeparateDropsDelete(t *testing.T) {
 	}
 }
 
-// attachMenuItems must drop Music/Location/Contact in separate windows (all
-// three open content-pane dialogs); Photo/File (system pickers) and Poll
-// (a chat-view overlay) stay.
 func TestAttachMenuSeparateDropsContentPanes(t *testing.T) {
 	sep := &App{separate: &chatKey{AccountID: "a", ChatID: "c"}}
 	for _, it := range sep.attachMenuItems() {
@@ -101,10 +77,6 @@ func TestAttachMenuSeparateDropsContentPanes(t *testing.T) {
 	}
 }
 
-// callBarInCall drives the separate-window call bar: JOIN joins (engine +
-// joined-call state) without the Voice-tab flip (mode 1 paints only in
-// layoutMain), and once THIS window has joined THIS chat's call the bar
-// becomes the in-call surface (LEAVE).
 func TestCallBarInCall(t *testing.T) {
 	chat := engine.ChatInfo{AccountID: "a", ChatID: "c1"}
 	if callBarInCall(chat, nil) {
@@ -121,9 +93,6 @@ func TestCallBarInCall(t *testing.T) {
 	}
 }
 
-// applyCallJoinResult: in a separate window the join must NOT flip the
-// Voice tab (mode 1 is a layoutMain-only surface — the flip painted
-// nothing); the joined-call state (the bar's LEAVE state) must still land.
 func TestApplyCallJoinSeparateSkipsVoiceFlip(t *testing.T) {
 	sep := &App{separate: &chatKey{AccountID: "a", ChatID: "c"}, eng: &engine.Engine{}}
 	sep.applyCallJoinResult(engine.ChatInfo{AccountID: "a", ChatID: "c", Title: "T"}, "call1", nil)
@@ -141,11 +110,6 @@ func TestApplyCallJoinSeparateSkipsVoiceFlip(t *testing.T) {
 	}
 }
 
-// mainOnlySurfaceShown is the shared R30 predicate (R29's
-// profileMusicSectionShown shape): it gates every inline opener whose
-// target surface only layoutMain paints — the mute-duration clock, the
-// "Filter Like This…" row, the prepaid-giveaway launch cells, the call
-// rating dialog, and the Ctrl+J contacts shortcut.
 func TestMainOnlySurfaceShown(t *testing.T) {
 	sep := &App{separate: &chatKey{AccountID: "a", ChatID: "c"}}
 	if mainOnlySurfaceShown(sep) {

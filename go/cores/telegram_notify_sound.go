@@ -6,12 +6,6 @@ import (
 	"github.com/gotd/td/tg"
 )
 
-// Per-chat notification-sound surface (slice 121). Read-modify-write over
-// account.getNotifySettings → account.updateNotifySettings so only the
-// sound changes and the peer's mute/silent settings survive untouched —
-// the same shape official clients use.
-
-// notifySoundForKind maps a GUI kind onto the wire sound class.
 func notifySoundForKind(kind string) (tg.NotificationSoundClass, error) {
 	switch kind {
 	case "default":
@@ -24,8 +18,6 @@ func notifySoundForKind(kind string) (tg.NotificationSoundClass, error) {
 	return nil, fmt.Errorf("unknown sound kind: %s", kind)
 }
 
-// kindForNotifySound maps a wire sound class back to the GUI kind ("" when
-// unset/unknown).
 func kindForNotifySound(s tg.NotificationSoundClass) string {
 	switch v := s.(type) {
 	case *tg.NotificationSoundDefault:
@@ -41,7 +33,6 @@ func kindForNotifySound(s tg.NotificationSoundClass) string {
 	return ""
 }
 
-// chatNotifySettings reads the current per-peer notify settings.
 func (t *TelegramCore) chatNotifySettings(chatID string) (*tg.PeerNotifySettings, tg.InputPeerClass, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -55,7 +46,6 @@ func (t *TelegramCore) chatNotifySettings(chatID string) (*tg.PeerNotifySettings
 	return s, inputPeer, nil
 }
 
-// GetChatNotifySound returns the chat's sound override kind ("" = unset).
 func (t *TelegramCore) GetChatNotifySound(chatID string) (string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -72,14 +62,11 @@ func (t *TelegramCore) GetChatNotifySound(chatID string) (string, error) {
 	return "", nil
 }
 
-// SetChatNotifySound overrides the chat's notification sound. Mute/silent
-// settings are preserved from the live state.
 func (t *TelegramCore) SetChatNotifySound(chatID, kind string) error {
 	snd, err := notifySoundForKind(kind)
 	if err != nil {
 		return err
 	}
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err

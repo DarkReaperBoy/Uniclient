@@ -1,9 +1,5 @@
 package engine
 
-// giveaways_test.go — slice 212 tests: the giveaway surface passthroughs
-// (options fetch, balance-funded creation, prepaid launch) and their
-// honest gates on plain cores.
-
 import (
 	"testing"
 
@@ -14,9 +10,9 @@ type giveawayStub struct {
 	cores.StubCore
 	options   []cores.StarsGiveawayOptionInfo
 	optCalls  int
-	created   []string // chatIDs passed to CreateStarsGiveaway
+	created   []string
 	createErr error
-	launched  []int64 // giveawayIDs passed to LaunchPrepaidGiveaway
+	launched  []int64
 	launchErr error
 }
 
@@ -70,7 +66,6 @@ func TestGiveawayOptionsPassthrough(t *testing.T) {
 		t.Fatalf("fetch calls = %d", st.optCalls)
 	}
 
-	// Plain stubs lack the surface → honest error, not a silent nil.
 	e2 := newGiveawayEngine(t, &plainStub{})
 	if _, err := e2.GetStarsGiveawayOptions("tg"); err == nil {
 		t.Error("plain stub must not expose giveaway options")
@@ -89,12 +84,10 @@ func TestCreateStarsGiveaway(t *testing.T) {
 		t.Fatalf("created = %v", st.created)
 	}
 
-	// Unknown account → honest error.
 	if err := e.CreateStarsGiveaway("ghost", "c", opt, cores.GiveawayParams{}); err == nil {
 		t.Error("unknown account must error")
 	}
 
-	// Plain core → honest unsupported error.
 	e2 := newGiveawayEngine(t, &plainStub{})
 	if err := e2.CreateStarsGiveaway("tg", "c", opt, cores.GiveawayParams{}); err == nil {
 		t.Error("plain stub must not create giveaways")
@@ -112,7 +105,6 @@ func TestLaunchPrepaidGiveaway(t *testing.T) {
 		t.Fatalf("launched = %v", st.launched)
 	}
 
-	// Plain core → honest unsupported error.
 	e2 := newGiveawayEngine(t, &plainStub{})
 	if err := e2.LaunchPrepaidGiveaway("tg", "c", 1, 0, 3, cores.GiveawayParams{}); err == nil {
 		t.Error("plain stub must not launch giveaways")

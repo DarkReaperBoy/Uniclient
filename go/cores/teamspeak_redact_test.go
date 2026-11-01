@@ -5,14 +5,6 @@ import (
 	"testing"
 )
 
-// TestTsRedactCmdMasksEveryPassword: tsRedactCmd looped but RETURNED
-// after redacting the FIRST cpw= occurrence, so any later password in
-// the same command reached the debug log in the clear (staticcheck
-// SA4004 flagged the never-repeated loop, slice-287).
-//
-// RED (behavioral, captured before the fix): the second occurrence
-// survives — `password visible in redacted log: "...cpw=<redacted>
-// ... cpw=secret2"`.
 func TestTsRedactCmdMasksEveryPassword(t *testing.T) {
 	got := tsRedactCmd("channelpassword cpw=secret1 flags cpw=secret2 more cpw=secret3")
 	if strings.Contains(got, "secret1") || strings.Contains(got, "secret2") || strings.Contains(got, "secret3") {
@@ -23,7 +15,6 @@ func TestTsRedactCmdMasksEveryPassword(t *testing.T) {
 	}
 }
 
-// TestTsRedactCmdPassesThroughCleanCommands: no cpw= → unchanged.
 func TestTsRedactCmdPassesThroughCleanCommands(t *testing.T) {
 	cmd := "cliententerview name=Alice"
 	if got := tsRedactCmd(cmd); got != cmd {
@@ -31,8 +22,6 @@ func TestTsRedactCmdPassesThroughCleanCommands(t *testing.T) {
 	}
 }
 
-// TestTsRedactCmdSingleOccurrence pins the original single-password
-// case that already worked.
 func TestTsRedactCmdSingleOccurrence(t *testing.T) {
 	got := tsRedactCmd("channelcreate cpw=s3cret")
 	if strings.Contains(got, "s3cret") {

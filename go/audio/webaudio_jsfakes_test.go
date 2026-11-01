@@ -8,20 +8,13 @@ import (
 	"testing"
 )
 
-// jsFakes assembles a browser-less WebAudio environment for the js/wasm
-// tests: a scriptable AudioContext stand-in whose nodes are plain JS
-// objects, plus a navigator.mediaDevices whose getUserMedia the test
-// controls (resolve or reject). The channel-data object is a plain JS
-// array — .length + index access only, NO sampleRate property — exactly
-// like a real Float32Array, so a wrong-object property read in production
-// code fails here exactly like it would in a browser.
 type jsFakes struct {
 	t         *testing.T
 	keepFuncs []js.Func
 
 	ctxCtor  js.Func
 	gum      js.Func
-	gumMode  string // "reject" | "resolve"
+	gumMode  string
 	lastNode js.Value
 }
 
@@ -104,10 +97,6 @@ func (f *jsFakes) release() {
 
 func (f *jsFakes) reject() { f.gumMode = "reject" }
 
-// pumpAudioBuffer delivers one input AudioBuffer to the capture node's
-// onaudioprocess handler, like the browser's audio thread would. The
-// channel data is a plain array (length + index only); the RATE lives on
-// the buffer object, as in a real browser.
 func (f *jsFakes) pumpAudioBuffer(samples []float64, rate float64) {
 	f.t.Helper()
 	handler := f.lastNode.Get("onaudioprocess")
@@ -130,8 +119,6 @@ func (f *jsFakes) pumpAudioBuffer(samples []float64, rate float64) {
 	handler.Invoke(ev)
 }
 
-// sineChunk returns n samples of a freq Hz sine sampled at rate Hz; phase
-// is the running sample index so consecutive chunks stay continuous.
 func sineChunk(n int, rate, freq float64, phase int) []float64 {
 	out := make([]float64, n)
 	for i := 0; i < n; i++ {

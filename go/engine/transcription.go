@@ -8,16 +8,6 @@ import (
 	"uniclient/cores"
 )
 
-// Voice-message transcription (slice 115, Telegram messages.transcribeAudio
-// + updateTranscribedAudio parity): the user taps the "A→A" glyph on a voice
-// bubble, the engine calls the core's TranscribeAudio, and the result —
-// immediately when final, or via the pushed update when the server needs
-// time — is stored per message and hydrated into CachedMessage rows so the
-// bubble renders the text block. Transcriptions only exist for messages the
-// user explicitly asked about (matching Telegram Desktop's behavior).
-
-// TranscriptionSupported reports whether the account's core can transcribe
-// voice messages (VoiceTranscriber).
 func (e *Engine) TranscriptionSupported(accountID string) bool {
 	e.accountsMu.RLock()
 	acc := e.accounts[accountID]
@@ -29,11 +19,6 @@ func (e *Engine) TranscriptionSupported(accountID string) bool {
 	return ok
 }
 
-// TranscribeVoiceNote requests a transcription for one voice message.
-// Returns the text and whether the server is still working (pending results
-// arrive later via UpdateTranscription; the engine stores them and emits
-// EventMsgTranscribed). Errors are passed through verbatim so the GUI can
-// surface the server's own reasons (premium-required, forbidden, ...).
 func (e *Engine) TranscribeVoiceNote(accountID, chatID, msgID string) (text string, pending bool, err error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -51,15 +36,11 @@ func (e *Engine) TranscribeVoiceNote(accountID, chatID, msgID string) (text stri
 		return "", false, err
 	}
 	if _, serr := e.storeTranscription(accountID, chatID, msgID, tid, txt, pend); serr != nil {
-		// The transcription worked server-side; a local store failure must
-		// not turn into a user-facing error — still return the text.
 		return txt, pend, nil
 	}
 	return txt, pend, nil
 }
 
-// GetCachedTranscription returns the stored transcription for one message
-// ("" / false when none exists).
 func (e *Engine) GetCachedTranscription(accountID, chatID, msgID string) (text string, pending bool) {
 	var txt string
 	var pend int
@@ -73,8 +54,6 @@ func (e *Engine) GetCachedTranscription(accountID, chatID, msgID string) (text s
 	return txt, pend != 0
 }
 
-// storeTranscription upserts one transcription row (latest write wins —
-// the server can refine the text across pushes).
 func (e *Engine) storeTranscription(accountID, chatID, msgID string, transcriptionID int64, text string, pending bool) (sql.Result, error) {
 	return e.db.Exec(
 		`INSERT INTO message_transcriptions (account_id, chat_id, msg_id, transcription_id, pending, text, created_at)
@@ -86,8 +65,6 @@ func (e *Engine) storeTranscription(accountID, chatID, msgID string, transcripti
 		accountID, chatID, msgID, transcriptionID, boolToInt(pending), text, time.Now().UnixMilli())
 }
 
-// populateTranscriptions hydrates the transcription fields of a chat's
-// cached messages in one query (only rows that have one).
 func (e *Engine) populateTranscriptions(accountID, chatID string, msgs []CachedMessage) {
 	if len(msgs) == 0 {
 		return
@@ -115,10 +92,6 @@ func (e *Engine) populateTranscriptions(accountID, chatID string, msgs []CachedM
 	}
 }
 
-// handleTranscriptionUpdate applies a pushed transcription (cores.
-// UpdateTranscription → tg.updateTranscribedAudio). Only messages that
-// already have a row (the user asked for them) are updated — unsolicited
-// transcriptions stay invisible, matching Telegram Desktop.
 func (e *Engine) handleTranscriptionUpdate(accountID, chatID string, tr *cores.TranscriptionUpdate) {
 	if tr == nil || tr.MessageID == "" {
 		return
@@ -133,7 +106,7 @@ func (e *Engine) handleTranscriptionUpdate(accountID, chatID string, tr *cores.T
 		return
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
-		return // nobody asked for this message's transcription
+		return
 	}
 	e.emitEvent(EventMsgTranscribed, accountID, MsgTranscribedEvent{
 		ChatID:  chatID,

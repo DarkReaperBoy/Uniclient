@@ -10,7 +10,6 @@ import (
 	"testing"
 )
 
-// decodeTrayPNG decodes rendered icon bytes for assertions.
 func decodeTrayPNG(t *testing.T, b []byte) image.Image {
 	t.Helper()
 	img, err := png.Decode(bytes.NewReader(b))
@@ -20,8 +19,6 @@ func decodeTrayPNG(t *testing.T, b []byte) image.Image {
 	return img
 }
 
-// TestRenderTrayIconPNGDecodes: the renderer emits a valid PNG of the
-// requested square size.
 func TestRenderTrayIconPNGDecodes(t *testing.T) {
 	for _, sz := range []int{64, 128, 256} {
 		b := renderTrayIconPNG(sz, color.NRGBA{R: 0x35, G: 0x7C, B: 0xF0, A: 0xFF}, 0)
@@ -32,15 +29,11 @@ func TestRenderTrayIconPNGDecodes(t *testing.T) {
 	}
 }
 
-// TestRenderTrayIconBadgePresence: count > 0 draws the badge circle (some
-// pixel far from the center differs from the no-badge render); count = 0
-// never does.
 func TestRenderTrayIconBadgePresence(t *testing.T) {
 	accent := color.NRGBA{R: 0x35, G: 0x7C, B: 0xF0, A: 0xFF}
 	plain := decodeTrayPNG(t, renderTrayIconPNG(128, accent, 0))
 	badged := decodeTrayPNG(t, renderTrayIconPNG(128, accent, 3))
 
-	// The badge sits in the bottom-right quadrant; scan it for a change.
 	changed := 0
 	for y := 96; y < 128; y++ {
 		for x := 96; x < 128; x++ {
@@ -55,7 +48,6 @@ func TestRenderTrayIconBadgePresence(t *testing.T) {
 		t.Fatalf("badge region changed only %d pixels, want >= 50", changed)
 	}
 
-	// Same region between two plain renders must be identical (determinism).
 	plain2 := decodeTrayPNG(t, renderTrayIconPNG(128, accent, 0))
 	for y := 96; y < 128; y++ {
 		for x := 96; x < 128; x++ {
@@ -66,8 +58,6 @@ func TestRenderTrayIconBadgePresence(t *testing.T) {
 	}
 }
 
-// TestRenderTrayIconDigitsDiffer: two different counts render differently
-// inside the badge; "9+" is used past the digit budget.
 func TestRenderTrayIconDigitsDiffer(t *testing.T) {
 	accent := color.NRGBA{R: 0x35, G: 0x7C, B: 0xF0, A: 0xFF}
 	i3 := decodeTrayPNG(t, renderTrayIconPNG(128, accent, 3))
@@ -97,7 +87,6 @@ func TestRenderTrayIconDigitsDiffer(t *testing.T) {
 	}
 }
 
-// TestTrayCountLabel: badge text formatting (pure).
 func TestTrayCountLabel(t *testing.T) {
 	cases := []struct {
 		n    int
@@ -112,8 +101,6 @@ func TestTrayCountLabel(t *testing.T) {
 	}
 }
 
-// TestRenderTrayIconDumpSamples: visual smoke — writes sample icons to
-// UNICLIENT_TRAY_ICON_DIR when set (screenshots for review; no-op in CI).
 func TestRenderTrayIconDumpSamples(t *testing.T) {
 	dir := os.Getenv("UNICLIENT_TRAY_ICON_DIR")
 	if dir == "" {

@@ -4,8 +4,6 @@ import (
 	"testing"
 )
 
-// autodlLimitLabel renders byte gates (slice 63): MB when whole, KB
-// otherwise, Unlimited for non-positive.
 func TestAutodlLimitLabel(t *testing.T) {
 	cases := map[int64]string{
 		0:                 "Unlimited",
@@ -24,8 +22,6 @@ func TestAutodlLimitLabel(t *testing.T) {
 	}
 }
 
-// autodlSummary joins the enabled type toggles and the media size gate;
-// all-off renders "Off" (slice 63).
 func TestAutodlSummary(t *testing.T) {
 	all := map[string]interface{}{
 		"photos":        true,
@@ -49,7 +45,6 @@ func TestAutodlSummary(t *testing.T) {
 	if got := autodlSummary(off); got != "Off" {
 		t.Errorf("off summary = %q", got)
 	}
-	// Unlimited media gate omits the size suffix.
 	unlimited := map[string]interface{}{
 		"photos":        true,
 		"files":         true,
@@ -63,9 +58,6 @@ func TestAutodlSummary(t *testing.T) {
 	}
 }
 
-// The editor's toggle rows + size gates must cover every key the engine's
-// auto-download settings map understands (slice 63) — keeps the GUI and
-// engine vocabularies in sync across renames.
 func TestAutodlRowsCoverEngineKeys(t *testing.T) {
 	engineKeys := []string{
 		"photos", "videos", "gifs", "videoMessages", "files",
@@ -75,8 +67,8 @@ func TestAutodlRowsCoverEngineKeys(t *testing.T) {
 	for _, r := range autodlToggleRows {
 		covered[r.key] = true
 	}
-	covered["downloadLimit"] = true // media size ladder
-	covered["autoPlayLimit"] = true // video size ladder
+	covered["downloadLimit"] = true
+	covered["autoPlayLimit"] = true
 	for _, k := range engineKeys {
 		if !covered[k] {
 			t.Errorf("autodl GUI missing engine key: %s", k)
@@ -85,7 +77,6 @@ func TestAutodlRowsCoverEngineKeys(t *testing.T) {
 	for _, k := range covered {
 		_ = k
 	}
-	// Every toggle row key must appear in the engine vocabulary.
 	for _, r := range autodlToggleRows {
 		found := false
 		for _, k := range engineKeys {
@@ -99,7 +90,6 @@ func TestAutodlRowsCoverEngineKeys(t *testing.T) {
 	}
 }
 
-// The three sources are the engine's source vocabulary (slice 63).
 func TestAutodlSourceLabels(t *testing.T) {
 	want := map[string]string{
 		"private": "In private chats",
@@ -116,8 +106,6 @@ func TestAutodlSourceLabels(t *testing.T) {
 	}
 }
 
-// The size ladders include the unlimited (0) option and are ascending
-// before it (slice 63).
 func TestAutodlLimitLadders(t *testing.T) {
 	for _, ladder := range [][]int64{autodlMediaLimits, autodlVideoLimits} {
 		if len(ladder) < 2 {
@@ -136,7 +124,6 @@ func TestAutodlLimitLadders(t *testing.T) {
 	}
 }
 
-// The dialog state carries the source it edits (slice 63).
 func TestAutodlDlgStateFields(t *testing.T) {
 	st := &autodlDlgState{source: "group"}
 	if st.source != "group" {
@@ -144,8 +131,6 @@ func TestAutodlDlgStateFields(t *testing.T) {
 	}
 }
 
-// autodlRowSummaryFor renders "" while the rules are still loading
-// (slice 63).
 func TestAutodlRowSummaryLoading(t *testing.T) {
 	if got := autodlRowSummaryFor(frame{}, "private"); got != "" {
 		t.Errorf("loading summary = %q, want empty", got)

@@ -1,21 +1,5 @@
 package gui
 
-// appicon.go — slice 170: the AyuGram app-icon selector, core registry
-// and renderer (platform-neutral; the apply layers live in
-// appicon_apply_*.go).
-//
-// Primary-source behavior (AyuGramDesktop dev, read 2026-09-13):
-//   - ayu_settings.h: `appIcon` (QString) persisted setting.
-//   - ayu/ui/components/icon_picker.cpp: 12 icon sets in a 4-column
-//     grid (kColumns = 4), cached previews, selection fades in over
-//     200ms, apply-on-click via Window::OverrideApplicationIcon +
-//     Core::App().refreshApplicationIcon() + tray update.
-//
-// Our mirror keeps the structure 1:1 (12 sets, 4-column grid,
-// apply-on-click, persisted config) with our OWN programmatic art: the
-// slice-137 tile + speech-bubble brand mark recolored per set. Assets
-// are never copied from AyuGram (§1.11: re-implement, never copy).
-
 import (
 	"bytes"
 	"image"
@@ -24,22 +8,15 @@ import (
 	"math"
 )
 
-// appIconSet is one selectable icon look. LiveAccent as Tile marks the
-// "follow the Material accent color" default (the slice-137 tray look);
-// every other set is a fixed palette.
 type appIconSet struct {
 	ID    string
 	Label string
-	Tile  color.NRGBA // LiveAccent here = live accent color
+	Tile  color.NRGBA
 	Mark  color.NRGBA
 }
 
-// liveAccentTile is the sentinel tile color meaning "use the app's
-// current Material accent" (the default set).
 var liveAccentTile = color.NRGBA{}
 
-// appIconSets returns the selectable icon sets, "default" first
-// (AyuGram's list has DEFAULT_ICON first too). Deterministic order.
 func appIconSets() []appIconSet {
 	white := color.NRGBA{R: 0xFF, G: 0xFF, B: 0xFF, A: 0xFF}
 	return []appIconSet{
@@ -58,9 +35,6 @@ func appIconSets() []appIconSet {
 	}
 }
 
-// appIconSetByID resolves a set by ID; unknown or empty IDs fall back
-// to the default set (a config written by a future build must never
-// blank the icon).
 func appIconSetByID(id string) appIconSet {
 	for _, s := range appIconSets() {
 		if s.ID == id {
@@ -74,25 +48,14 @@ func colorEq(a, b color.NRGBA) bool {
 	return a.R == b.R && a.G == b.G && a.B == b.B && a.A == b.A
 }
 
-// effectiveAppIconSet resolves the snapshot's configured set.
 func effectiveAppIconSet(cfg cfgSnapshot) appIconSet {
 	return appIconSetByID(cfg.AyuAppIcon)
 }
 
-// appIconPickerSupported: runtime icon application exists on linux
-// (_NET_WM_ICON over xgb) and windows (WM_SETICON). The web/Android
-// builds hide the picker (honest absence, §1.10).
 const appIconPickerSupported = appIconRuntimeApply
 
-// appIconAccentStandIn is the accent used when the default set renders
-// without an ambient accent (previews, tests, payloads): the Material
-// blue the boot path uses before the first theme refresh.
 var appIconAccentStandIn = color.NRGBA{R: 0x54, G: 0xA8, B: 0xF0, A: 0xFF}
 
-// renderAppIconRGBA composes the icon for a set at px×px: rounded
-// Material tile + speech-bubble mark, accent-following for the default
-// set (stand-in accent when none was substituted by the caller). Pure
-// composition, no assets.
 func renderAppIconRGBA(set appIconSet, px int) *image.NRGBA {
 	if px < 16 {
 		px = 16
@@ -104,9 +67,6 @@ func renderAppIconRGBA(set appIconSet, px int) *image.NRGBA {
 	return renderIconTile(px, tile, set.Mark, nil, 0)
 }
 
-// renderTrayIconForSetPNG renders the tray icon following the selected
-// set (AyuGram's tray shows the current app logo) with the unread badge
-// overlay. accent drives the default set's tile and the badge color.
 func renderTrayIconForSetPNG(px int, set appIconSet, accent color.NRGBA, count int) []byte {
 	if px < 16 {
 		px = 16
@@ -121,10 +81,6 @@ func renderTrayIconForSetPNG(px int, set appIconSet, accent color.NRGBA, count i
 	return buf.Bytes()
 }
 
-// renderIconTile is the shared composer (slice-137 geometry): rounded
-// tile with a slightly darkened bottom, brand mark on top, optional
-// unread badge + digits. badge accent follows the tile color so every
-// set reads coherently.
 func renderIconTile(px int, tile, mark color.NRGBA, _ *image.Alpha, count int) *image.NRGBA {
 	img := image.NewNRGBA(image.Rect(0, 0, px, px))
 	f := float64(px)
@@ -169,9 +125,6 @@ func renderIconTile(px int, tile, mark color.NRGBA, _ *image.Alpha, count int) *
 	return img
 }
 
-// netWMIconData builds the X11 _NET_WM_ICON property payload for one
-// icon: [width, height, ARGB cardinals...] (freedesktop spec: pixels
-// are 0xAARRGGBB, CARDINAL/32).
 func netWMIconData(set appIconSet, px int) []uint32 {
 	if px < 16 {
 		px = 16
@@ -192,12 +145,8 @@ func netWMIconData(set appIconSet, px int) []uint32 {
 	return data
 }
 
-// ── picker geometry (AyuGram icon_picker.cpp: kColumns = 4) ───────────────
-
-// appIconGridColumns mirrors IconPicker::kColumns.
 const appIconGridColumns = 4
 
-// appIconGridRows returns the picker's row count for n sets.
 func appIconGridRows(n int) int {
 	if n <= 0 {
 		return 0
@@ -205,7 +154,6 @@ func appIconGridRows(n int) int {
 	return (n + appIconGridColumns - 1) / appIconGridColumns
 }
 
-// appIconCellWidth returns one grid cell's width for a total width.
 func appIconCellWidth(w int) int {
 	if w <= 0 {
 		return 0
@@ -213,8 +161,6 @@ func appIconCellWidth(w int) int {
 	return w / appIconGridColumns
 }
 
-// appIconIsSelected reports whether the set is the picker's selected
-// one for the config (empty/unknown config = default set).
 func appIconIsSelected(set appIconSet, cfg cfgSnapshot) bool {
 	return appIconSetByID(cfg.AyuAppIcon).ID == set.ID
 }

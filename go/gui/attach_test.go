@@ -4,8 +4,6 @@ import (
 	"testing"
 )
 
-// Slice 81: the attach menu carries the Music flow (audio-filtered picker).
-
 func TestAttachMenuItemsMusic(t *testing.T) {
 	a := &App{}
 	items := a.attachMenuItems()
@@ -19,8 +17,6 @@ func TestAttachMenuItemsMusic(t *testing.T) {
 			t.Errorf("item %q has no run func", it.label)
 		}
 	}
-	// R30 grouped the main-only content-pane items (Music/Location/Contact)
-	// after the everywhere-items — same set, new order.
 	want := []string{"Photo or Video", "File", "Poll", "Music", "Location", "Contact"}
 	if len(labels) != len(want) {
 		t.Fatalf("menu = %v, want %v", labels, want)
@@ -30,7 +26,6 @@ func TestAttachMenuItemsMusic(t *testing.T) {
 			t.Fatalf("menu = %v, want %v", labels, want)
 		}
 	}
-	// The music filter accepts the common audio containers.
 	for _, ext := range []string{".mp3", ".ogg", ".opus", ".flac", ".m4a"} {
 		found := false
 		for _, e := range musicExts {

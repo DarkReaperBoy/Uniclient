@@ -8,13 +8,6 @@ import (
 	"testing"
 )
 
-// TestNoLockAcrossRPC (slice 192): pins the §8 invariant — no TelegramCore
-// method may hold t.mu (read OR write) across an RPC. Scans the source at
-// test time for the deferred-lock + t.api.* co-occurrence; the v2
-// lock-state scanner covered write locks, this catches the read-lock form
-// that 31 methods (boosts/stats/star-ref/notify-sound/read-participants)
-// still had after the "COMPLETE" report — a regression here reintroduces
-// the owner-reported freeze class (writers blocked behind a hung RPC).
 func TestNoLockAcrossRPC(t *testing.T) {
 	files, err := filepath.Glob("telegram*.go")
 	if err != nil || len(files) == 0 {

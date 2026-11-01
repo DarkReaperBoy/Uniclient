@@ -1,9 +1,5 @@
 package gui
 
-// wallpaper_test.go — slice 218 pure pins: the mirrored-JSON parse, the
-// spec blur chain (downscale-to-450 + separable box blur), and the box
-// scaler's averaging behavior.
-
 import (
 	"encoding/json"
 	"image"
@@ -32,7 +28,6 @@ func TestParseWallpaperJSON(t *testing.T) {
 }
 
 func TestWallpaperJSONRoundTripCore(t *testing.T) {
-	// The GUI parse must accept exactly what the core marshals.
 	info := cores.WallpaperInfo{ID: 1, AccessHash: 2, DocID: 3, DocHash: 4, Blurred: true, Intensity: -20, Colors: []int{0x445566}}
 	raw, err := json.Marshal(info)
 	if err != nil {
@@ -45,8 +40,6 @@ func TestWallpaperJSONRoundTripCore(t *testing.T) {
 }
 
 func TestBoxScaleRGBAverages(t *testing.T) {
-	// A 4×4 image with a 2×2 white block on black, scaled to 2×2: each
-	// destination pixel averages a 2×2 source footprint → exact quarters.
 	src := image.NewRGBA(image.Rect(0, 0, 4, 4))
 	for y := 0; y < 2; y++ {
 		for x := 0; x < 2; x++ {
@@ -61,7 +54,6 @@ func TestBoxScaleRGBAverages(t *testing.T) {
 	if r, g, b, _ := dst.At(1, 1).RGBA(); r != 0 || g != 0 || b != 0 {
 		t.Fatalf("bottom-right = (%d,%d,%d), want black", r, g, b)
 	}
-	// Uniform image stays uniform at any scale.
 	uniform := image.NewRGBA(image.Rect(0, 0, 9, 9))
 	for i := range uniform.Pix {
 		uniform.Pix[i] = []byte{90, 100, 110, 255}[i%4]
@@ -78,7 +70,6 @@ func TestBoxScaleRGBAverages(t *testing.T) {
 }
 
 func TestBoxBlurUniformInvariant(t *testing.T) {
-	// Blurring a uniform image must not change it.
 	src := image.NewRGBA(image.Rect(0, 0, 40, 40))
 	for i := 0; i < len(src.Pix); i += 4 {
 		src.Pix[i], src.Pix[i+1], src.Pix[i+2], src.Pix[i+3] = 120, 130, 140, 255
@@ -95,8 +86,6 @@ func TestBoxBlurUniformInvariant(t *testing.T) {
 }
 
 func TestBoxBlurSmearsEdges(t *testing.T) {
-	// A left-white/right-black image blurs into intermediate values near
-	// the seam while the far edges stay pure.
 	src := image.NewRGBA(image.Rect(0, 0, 64, 8))
 	for y := 0; y < 8; y++ {
 		for x := 0; x < 64; x++ {
@@ -124,7 +113,6 @@ func TestBoxBlurSmearsEdges(t *testing.T) {
 }
 
 func TestWallpaperBlurDownscales(t *testing.T) {
-	// A 2000×1000 image must come back ≤450 wide after the spec blur.
 	src := image.NewRGBA(image.Rect(0, 0, 2000, 1000))
 	for i := 0; i < len(src.Pix); i += 4 {
 		src.Pix[i], src.Pix[i+1], src.Pix[i+2], src.Pix[i+3] = 200, 210, 220, 255
@@ -133,7 +121,6 @@ func TestWallpaperBlurDownscales(t *testing.T) {
 	if w := dst.Bounds().Dx(); w > 450 {
 		t.Fatalf("blurred width = %d, want ≤450 (spec: fit 450×450)", w)
 	}
-	// Uniform content survives the blur chain.
 	r, g, b, _ := dst.At(dst.Bounds().Dx()/2, dst.Bounds().Dy()/2).RGBA()
 	if r>>8 < 190 || r>>8 > 210 {
 		t.Fatalf("uniform drifted: %d", r>>8)
@@ -143,7 +130,6 @@ func TestWallpaperBlurDownscales(t *testing.T) {
 }
 
 func TestWallpaperBlurSmallPassthrough(t *testing.T) {
-	// Under-450 images skip the downscale but still blur.
 	src := image.NewRGBA(image.Rect(0, 0, 100, 100))
 	dst := wallpaperBlur(src)
 	if dst.Bounds().Dx() != 100 {

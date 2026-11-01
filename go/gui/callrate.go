@@ -15,17 +15,8 @@ import (
 	"uniclient/cores"
 )
 
-// Call rating dialog (slice 179, parity row "Call rating dialog" —
-// tdesktop's RateCallBox): a call that actually connected and lasted
-// minRateCallDur opens the rating card after the call panel dismisses —
-// 1..5 stars + an optional comment, Send walks the engine's
-// SendCallRating (calls.setRating). Missed/declined and very short calls
-// never rate (tdesktop semantics).
-
-// minRateCallDur is how long a call must have lasted to be rateable.
 const minRateCallDur = 10 * time.Second
 
-// rateCallState is the rating dialog's live state.
 type rateCallState struct {
 	accountID string
 	callID    string
@@ -34,12 +25,10 @@ type rateCallState struct {
 	comment   string
 }
 
-// valid: a star count is chosen.
 func (s *rateCallState) valid() bool {
 	return s != nil && s.stars >= 1 && s.stars <= 5
 }
 
-// setStars records a star tap (1..5 only; same-count taps are no-ops).
 func (s *rateCallState) setStars(n int) {
 	if n < 1 || n > 5 {
 		return
@@ -47,18 +36,14 @@ func (s *rateCallState) setStars(n int) {
 	s.stars = n
 }
 
-// canSend: stars chosen.
 func (s *rateCallState) canSend() bool {
 	return s.valid()
 }
 
-// payloadComment: the trimmed comment the editor holds at send time.
 func (s *rateCallState) payloadComment() string {
 	return strings.TrimSpace(s.comment)
 }
 
-// callRateable: the ended session is worth rating — it connected and
-// lasted the minimum (missed/declined calls never did).
 func callRateable(c *callUI, now time.Time) bool {
 	if c == nil || c.state != string(cores.CallStateEnded) {
 		return false
@@ -75,7 +60,6 @@ func callRateable(c *callUI, now time.Time) bool {
 	return end.Sub(c.startedAt) >= minRateCallDur
 }
 
-// openRateCall arms the rating dialog for an ended call.
 func (a *App) openRateCall(c *callUI) {
 	if c == nil {
 		return
@@ -90,7 +74,6 @@ func (a *App) openRateCall(c *callUI) {
 	a.invalidate()
 }
 
-// closeRateCall dismisses it.
 func (a *App) closeRateCall() {
 	a.mu.Lock()
 	a.rateDlg = nil
@@ -98,7 +81,6 @@ func (a *App) closeRateCall() {
 	a.invalidate()
 }
 
-// sendRateCall submits the rating (calls.setRating through the engine).
 func (a *App) sendRateCall() {
 	a.mu.Lock()
 	st := a.rateDlg
@@ -119,7 +101,6 @@ func (a *App) sendRateCall() {
 	}()
 }
 
-// layoutRateCallDialog: the rating card (stars + comment + Send/Skip).
 func (a *App) layoutRateCallDialog(gtx layout.Context, f frame) layout.Dimensions {
 	st := f.rateDlg
 	growClickables(&a.wid.rateStars, 5)
@@ -138,7 +119,6 @@ func (a *App) layoutRateCallDialog(gtx layout.Context, f frame) layout.Dimension
 		a.closeRateCall()
 	}
 
-	// Scrim.
 	paint.FillShape(gtx.Ops, color.NRGBA{R: 0, G: 0, B: 0, A: 0x66},
 		clip.Rect{Max: image.Pt(gtx.Constraints.Max.X, gtx.Constraints.Max.Y)}.Op())
 

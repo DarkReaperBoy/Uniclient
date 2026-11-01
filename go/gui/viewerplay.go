@@ -1,20 +1,5 @@
 package gui
 
-// viewerplay.go — slice 221: in-app video playback in the media viewer,
-// parity row 276 "Playback controls (video): play/pause/seek/volume/
-// fullscreen".
-//
-// What is implemented: play, pause, scrub-to-seek, the elapsed/total
-// clocks, SOUND (slice 225 joins this bar to the engine's AAC playback
-// and adds the volume slider), and the viewer itself is the fullscreen
-// surface. See gui/videoaudio.go for how the two clocks are kept together.
-//
-// What is deliberately absent: nothing in this row — volume landed in
-// slice 225 once the pure-Go AAC path (research/aac_decoder.md) made a
-// slider that actually moves something. The slider is still gated on a
-// real audio backend existing (§1.10), and a clip with no audio track
-// plays picture-only rather than pretending.
-
 import (
 	"image/color"
 	"path/filepath"
@@ -29,12 +14,6 @@ import (
 	"uniclient/h264vid"
 )
 
-// ── pure helpers (unit-tested in viewerplay_test.go) ───────────────────
-
-// inAppVideoExt reports whether a path is a container the H.264 pipeline
-// might play. It is only a cheap pre-filter — h264vid.Parse decides for
-// real, and its failure falls back to the system player, so an HEVC file
-// inside an .mp4 never becomes a dead play button.
 func inAppVideoExt(path string) bool {
 	switch strings.ToLower(filepath.Ext(path)) {
 	case ".mp4", ".m4v":
@@ -43,15 +22,10 @@ func inAppVideoExt(path string) bool {
 	return false
 }
 
-// viewerCanPlayInApp is the in-app-vs-system decision: a downloaded
-// video (or round note) in a container we can attempt. Pure — unit-tested.
 func viewerCanPlayInApp(it engine.SharedMediaItem) bool {
 	return viewerIsVideo(it) && it.LocalPath != "" && inAppVideoExt(it.LocalPath)
 }
 
-// videoSeekFrac maps a playhead onto a 0..1 scrubber fraction, clamped at
-// both ends and safe with missing metadata (no divide-by-zero).
-// Pure — unit-tested.
 func videoSeekFrac(elapsed, total time.Duration) float64 {
 	if total <= 0 {
 		return 0
@@ -66,15 +40,10 @@ func videoSeekFrac(elapsed, total time.Duration) float64 {
 	return f
 }
 
-// videoTimes returns the elapsed and total labels for the control bar,
-// through fmtDur so an hour-long file reads 1:01:01 / 2:02:05 and a
-// missing or negative clock degrades to "0:00". Pure — unit-tested.
 func videoTimes(elapsed, total time.Duration) (string, string) {
 	return fmtDur(secondsFloor(elapsed)), fmtDur(secondsFloor(total))
 }
 
-// secondsFloor converts a clock to whole seconds, never negative
-// (fmtDur clamps too; flooring here keeps the intent explicit).
 func secondsFloor(d time.Duration) int {
 	if d <= 0 {
 		return 0
@@ -82,9 +51,6 @@ func secondsFloor(d time.Duration) int {
 	return int(d / time.Second)
 }
 
-// seekTarget maps a 0..1 fraction onto a clip time, clamping to bounds.
-// A clip without usable metadata yields 0 rather than a garbage position.
-// Caller must hold the cache mutex (it dereferences p.video).
 func seekTarget(p *h264Player, frac float64) time.Duration {
 	if p == nil || p.video == nil || p.video.Total <= 0 {
 		return 0
@@ -98,9 +64,6 @@ func seekTarget(p *h264Player, frac float64) time.Duration {
 	return time.Duration(frac * float64(p.video.Total))
 }
 
-// ── cache additions (seeking) ──────────────────────────────────────────
-
-// duration reports the clip length for the control bar's total label.
 func (c *h264PlayerCache) duration(msgID string) time.Duration {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -110,13 +73,6 @@ func (c *h264PlayerCache) duration(msgID string) time.Duration {
 	return 0
 }
 
-// seek jumps the playhead to a fraction of the clip.
-//
-// Two phases on purpose: the decode restart (h264vid.Player.Seek, which
-// rebuilds the decoder at a keyframe and can block) runs OFF the cache
-// lock, then the GUI clock is rebased onto the same target. Rebasing is
-// what makes scrubbing actually stick — without it FrameAt keeps painting
-// from the old playhead and the picture snaps back on the next frame.
 func (c *h264PlayerCache) seek(msgID string, frac float64) {
 	var (
 		pl    *h264vid.Player
@@ -147,18 +103,12 @@ func (c *h264PlayerCache) seek(msgID string, frac float64) {
 	c.mu.Unlock()
 }
 
-// viewerPopOut moves the viewer's video into the floating PiP panel and
-// closes the viewer. The clip keeps the SAME cache entry, so playback
-// continues instead of restarting — popping out is a hand-off, not a
-// second decoder.
 func (a *App) viewerPopOut(gtx layout.Context, it engine.SharedMediaItem) {
 	if !viewerVideoActive(it) {
-		// Not playing yet: kick the parse off; the panel starts painting
-		// as soon as publish() lands (ensureH264Player invalidates).
 		a.viewerPlayVideo(it)
 	}
 	vpW, vpH := a.vpW, a.vpH
-	if vpW <= 0 || vpH <= 0 { // first frame, before Root recorded a size
+	if vpW <= 0 || vpH <= 0 {
 		vpW, vpH = gtx.Constraints.Max.X, gtx.Constraints.Max.Y
 	}
 	vidW, vidH := it.Width, it.Height
@@ -170,11 +120,6 @@ func (a *App) viewerPopOut(gtx layout.Context, it engine.SharedMediaItem) {
 	a.invalidate()
 }
 
-// ── viewer wiring ──────────────────────────────────────────────────────
-
-// viewerVideoActive reports whether the current item has a live in-app
-// player (playing OR paused) — used to hide the poster's big play badge,
-// because the transport bar now owns start/stop.
 func viewerVideoActive(it engine.SharedMediaItem) bool {
 	if !viewerIsVideo(it) {
 		return false
@@ -183,10 +128,6 @@ func viewerVideoActive(it engine.SharedMediaItem) bool {
 	return ok && st.parsed && st.player != nil && st.video != nil
 }
 
-// viewerPlayVideo starts or toggles in-app playback for a viewer item.
-// Either way the click does something real: an already-parsed clip
-// toggles, a parse in flight is left alone (it repaints on publish), and
-// a missing parse is kicked off with an honest fallback if it fails.
 func (a *App) viewerPlayVideo(it engine.SharedMediaItem) {
 	st, have := h264Players.peek(it.MsgID)
 	var snap *h264PlayerState
@@ -205,12 +146,8 @@ func (a *App) viewerPlayVideo(it engine.SharedMediaItem) {
 		a.invalidate()
 		return
 	case noteActionWait:
-		return // parse already in flight; the publish path repaints
+		return
 	}
-	// Nothing parsed yet: read+parse it. Round notes loop (they are
-	// round by design); an ordinary video plays through and stops.
-	// On failure say so and hand the file to the system player, which
-	// also has the audio we cannot decode (§1.10: no dead play button).
 	path := it.LocalPath
 	loop := it.MediaType == engine.MediaVideoNote
 	acct, chat := a.viewerIdent()
@@ -220,9 +157,6 @@ func (a *App) viewerPlayVideo(it engine.SharedMediaItem) {
 	})
 }
 
-// viewerVideoBar renders the transport controls (play/pause, scrubber,
-// clocks) under the viewer's caption whenever the current item has an
-// in-app player. Zero-height otherwise, so photo viewing is untouched.
 func (a *App) viewerVideoBar(gtx layout.Context, f frame) layout.Dimensions {
 	it, _, ok := a.viewerCurrent(f)
 	if !ok {
@@ -254,8 +188,6 @@ func (a *App) viewerVideoBar(gtx layout.Context, f frame) layout.Dimensions {
 				layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 					return a.seekBarDo(gtx, "viewer|"+msgID, frac, func(fr float64) {
 						h264Players.seek(msgID, fr)
-						// One drag, two clocks: the sound moves to the
-						// same fraction the picture just jumped to.
 						a.videoAudioSeek(msgID, fr)
 					})
 				}),
@@ -265,10 +197,6 @@ func (a *App) viewerVideoBar(gtx layout.Context, f frame) layout.Dimensions {
 							return videoClockLabel(gtx, a, toLabel)
 						})
 				}),
-				// Volume: row 276's last control. Drawn only when the
-				// platform really has a speaker backend, because a
-				// slider that moves nothing is what section 1.10
-				// forbids; the icon flips to the crossed glyph at zero.
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					if !videoAudioAvailable() {
 						return layout.Dimensions{}
@@ -298,24 +226,16 @@ func (a *App) viewerVideoBar(gtx layout.Context, f frame) layout.Dimensions {
 			)
 		})
 
-	// Keep the clocks and the scrubber in step with the playhead. The
-	// frame itself re-arms through NextFrameIn; this tick covers the
-	// paused case, where no frame re-arm is pending.
 	gtx.Execute(op.InvalidateCmd{At: time.Now().Add(250 * time.Millisecond)})
 	return dims
 }
 
-// videoClockLabel is the dim elapsed/total readout beside the scrubber.
 func videoClockLabel(gtx layout.Context, a *App, s string) layout.Dimensions {
 	lbl := a.ui.Label(unit.Sp(11), s)
 	lbl.Color = color.NRGBA{R: 0xFF, G: 0xFF, B: 0xFF, A: 0xB0}
 	return lbl.Layout(gtx)
 }
 
-// videoTransportBtn is the play/pause toggle at the head of the bar:
-// accent while playing, neutral surface while paused. It moves BOTH
-// clocks — picture first, then the engine's audio — so the button can
-// never leave sound running behind a paused frame.
 func (a *App) videoTransportBtn(gtx layout.Context, it engine.SharedMediaItem, playing bool) layout.Dimensions {
 	msgID := it.MsgID
 	if a.wid.viewerVidPlayBtn.Clicked(gtx) {

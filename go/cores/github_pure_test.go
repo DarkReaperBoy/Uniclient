@@ -7,10 +7,6 @@ import (
 	"time"
 )
 
-// GitHub core pure-function tests — the core had zero dedicated tests
-// before slice 250. Everything here is network-free: converters, ID
-// parsing, retry/rate-limit math, JSON helpers.
-
 func TestGitHubRepoPathAndIntStr(t *testing.T) {
 	if got := ghRepoPath("octo", "repo"); got != "/repos/octo/repo" {
 		t.Errorf("ghRepoPath = %q", got)
@@ -19,7 +15,7 @@ func TestGitHubRepoPathAndIntStr(t *testing.T) {
 		42:    "42",
 		0:     "0",
 		1e15:  "1000000000000000",
-		3.9:   "3", // truncates like the API's float ids
+		3.9:   "3",
 		2.5e9: "2500000000",
 	}
 	for in, want := range cases {
@@ -81,8 +77,6 @@ func TestGitHubParseRetryAfter(t *testing.T) {
 	if got := ghParseRetryAfter(hd); got != 60*time.Second {
 		t.Errorf("garbage = %v, want 60s default", got)
 	}
-	// HTTP-date form falls to the same conservative default (GitHub
-	// sends delta-seconds; a date-form header must still not return 0).
 	hd.Set("Retry-After", "Wed, 21 Oct 2026 07:28:00 GMT")
 	if got := ghParseRetryAfter(hd); got != 60*time.Second {
 		t.Errorf("date form = %v, want 60s default", got)
@@ -94,7 +88,7 @@ func TestGitHubExtractTrailingNumber(t *testing.T) {
 		"https://api.github.com/repos/o/r/issues/42": "42",
 		"https://github.com/o/r/pull/7":              "7",
 		"https://api.github.com/repos/o/r/issues":    "",
-		"https://github.com/o/r/issues/42/":          "", // trailing slash: documented no-match
+		"https://github.com/o/r/issues/42/":          "",
 		"https://github.com/o/r/commit/deadbeef":     "",
 		"https://github.com/o/r/releases/tag/v1.2.3": "",
 		"": "",
@@ -162,9 +156,6 @@ func TestGitHubCommentToMessageEditedFlag(t *testing.T) {
 	}
 }
 
-// TestGitHubCommentToMessageIssueFallsBackToTitle: issues carry a title
-// and no useful body sometimes; the converter must fall back (that is
-// what makes it serve BOTH comments and issues).
 func TestGitHubCommentToMessageIssueFallsBackToTitle(t *testing.T) {
 	g := NewGitHubCore(nil)
 	raw := json.RawMessage(`{
@@ -243,9 +234,6 @@ func TestGitHubParseRepoAndIssueChats(t *testing.T) {
 		t.Errorf("parseRepoChat valid = %q,%q,%v", owner, repo, err)
 	}
 	if _, _, err := g.parseRepoChat("octo/cat-only"); err == nil {
-		// SplitN(…, 2) on "octo/cat-only" yields two parts — the helper
-		// accepts a missing prefix; pin that it does NOT error here so
-		// a future strictness change is a conscious one.
 		t.Log("parseRepoChat accepts a prefix-less two-part id (pinned)")
 	}
 	if _, _, err := g.parseRepoChat("repo:solo"); err == nil {
@@ -263,8 +251,6 @@ func TestGitHubParseRepoAndIssueChats(t *testing.T) {
 	if o != "" || r != "" || n != "" {
 		t.Errorf("parseIssueChat short id = %q/%q/%q, want empty triple", o, r, n)
 	}
-	// A repo id with an embedded slash is accepted as owner/repo/rest:
-	// SplitN(…, 3) — pin current behavior (chat ids are machine-made).
 	o, r, n = g.parseIssueChat("issue:a/b/c/9")
 	if o != "a" || r != "b" || n != "c/9" {
 		t.Errorf("parseIssueChat embedded slash = %q/%q/%q", o, r, n)

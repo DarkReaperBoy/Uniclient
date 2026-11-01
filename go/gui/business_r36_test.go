@@ -2,19 +2,10 @@ package gui
 
 import "testing"
 
-// TestBizQuickReplyEditSlotIsSingle pins R36: the quick-reply manager's
-// inline forms used to be two independent slots sharing one name editor
-// and one cancel button — the new-shortcut form and a rename row could be
-// open at the same time (opening a rename clobbered the form's text via
-// SetText), and the shared Cancel button only cleared the new-form flag,
-// so a started rename could NOT be cancelled at all. There is now exactly
-// one inline edit slot: opening either side closes the other, and cancel
-// closes whichever is open.
 func TestBizQuickReplyEditSlotIsSingle(t *testing.T) {
 	a := &App{}
 	a.businessPage = &businessPageState{accountID: "acc", loaded: true, editor: "replies"}
 
-	// Open the new-shortcut form.
 	a.bizQRNewClicked()
 	head := a.businessPage
 	if !head.qrNewOpen || head.qrRenameID != 0 {
@@ -25,7 +16,6 @@ func TestBizQuickReplyEditSlotIsSingle(t *testing.T) {
 		t.Fatal("opening the new form must clear the editors")
 	}
 
-	// A rename row opening must close the new form (one slot).
 	a.bizQRRenameRowClicked(42, "thanks")
 	head = a.businessPage
 	if head.qrRenameID != 42 {
@@ -38,8 +28,6 @@ func TestBizQuickReplyEditSlotIsSingle(t *testing.T) {
 		t.Fatalf("rename row must seed the name editor, got %q", bizQRNameEd.Text())
 	}
 
-	// Cancel must close the rename row (the dead-cancel half of R36:
-	// this exact path used to leave qrRenameID set).
 	a.bizQRCancelClicked()
 	head = a.businessPage
 	if head.qrNewOpen || head.qrRenameID != 0 {
@@ -47,7 +35,6 @@ func TestBizQuickReplyEditSlotIsSingle(t *testing.T) {
 			head.qrNewOpen, head.qrRenameID)
 	}
 
-	// Reopening the new form must clear any rename row.
 	a.bizQRRenameRowClicked(7, "hello")
 	a.bizQRNewClicked()
 	head = a.businessPage
@@ -56,7 +43,6 @@ func TestBizQuickReplyEditSlotIsSingle(t *testing.T) {
 			head.qrNewOpen, head.qrRenameID)
 	}
 
-	// Toggling the new form closed leaves no slot open.
 	a.bizQRNewClicked()
 	head = a.businessPage
 	if head.qrNewOpen {
@@ -64,11 +50,8 @@ func TestBizQuickReplyEditSlotIsSingle(t *testing.T) {
 	}
 }
 
-// TestBizQREditSlotOnClosedPage pins the nil-safety of the extracted
-// click handlers: a closed page (or a race where the page closed between
-// the frame and the click) must be a silent no-op, not a panic.
 func TestBizQREditSlotOnClosedPage(t *testing.T) {
-	a := &App{} // no business page at all
+	a := &App{}
 	a.bizQRNewClicked()
 	a.bizQRCancelClicked()
 	a.bizQRRenameRowClicked(1, "x")

@@ -1,15 +1,5 @@
 package engine
 
-// tests-first for BUGS.md B-7 — auto-download RequestDownload errors
-// must not be silent.
-//
-// maybeAutoDownload fired `e.RequestDownload(...)` with the result
-// thrown away: correct for ErrStreamActive (playback is already saving
-// the file), but every OTHER error — missing media row, uninitialized
-// media manager, … — vanished without a trace, so a broken
-// auto-download pipeline was indistinguishable from "settings said
-// no".
-
 import (
 	"bytes"
 	"log"
@@ -20,8 +10,6 @@ import (
 	"uniclient/cores"
 )
 
-// seedAutoDLChat creates the account (FK) + a DM chat row so the
-// auto-download source resolves to "private".
 func seedAutoDLChat(t *testing.T, e *Engine) {
 	t.Helper()
 	if _, err := e.db.Exec(
@@ -35,8 +23,6 @@ func seedAutoDLChat(t *testing.T, e *Engine) {
 	}
 }
 
-// autoDLMsg: one small photo attachment (default rules download photos
-// under 10 MB).
 func autoDLMsg() *cores.Message {
 	return &cores.Message{
 		ID:          "m1",
@@ -47,7 +33,7 @@ func autoDLMsg() *cores.Message {
 func TestAutoDownloadLogsUnexpectedRequestErrors(t *testing.T) {
 	e := newTestEngine(t)
 	seedAutoDLChat(t, e)
-	e.media = &MediaManager{} // gate only: the error fires before any enqueue
+	e.media = &MediaManager{}
 
 	var buf bytes.Buffer
 	log.SetOutput(&buf)
@@ -61,13 +47,10 @@ func TestAutoDownloadLogsUnexpectedRequestErrors(t *testing.T) {
 	}
 }
 
-// TestAutoDownloadStaysQuietOnStreamActive pins the benign exception:
-// the stream is already persisting these bytes, so a log line per
-// attachment would be noise.
 func TestAutoDownloadStaysQuietOnStreamActive(t *testing.T) {
 	e := newTestEngine(t)
 	seedAutoDLChat(t, e)
-	seedStreamRow(t, e, 4096, 0, "") // media row exists (incomplete, no file)
+	seedStreamRow(t, e, 4096, 0, "")
 	e.media = &MediaManager{}
 	if !e.claimStream(mediaGuardKey("a1", "c1", "m1", 0)) {
 		t.Fatal("claimStream failed on a fresh guard")

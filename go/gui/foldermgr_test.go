@@ -1,16 +1,11 @@
 package gui
 
-// foldermgr_test.go — slice 142 (tests-first): the pure halves of the
-// Folders manager sub-page — row labels, suggested-folder dedupe against
-// existing folders, and the reorder swap math.
-
 import (
 	"testing"
 
 	"uniclient/engine"
 )
 
-// TestFolderMgrChatsLabel: the folder row's chat-count subtitle.
 func TestFolderMgrChatsLabel(t *testing.T) {
 	cases := []struct {
 		n    int
@@ -27,9 +22,6 @@ func TestFolderMgrChatsLabel(t *testing.T) {
 	}
 }
 
-// TestFolderSuggestsVisible: suggestions whose name already exists as a
-// folder are hidden (tdesktop hides created suggestions); everything
-// else survives in order.
 func TestFolderSuggestsVisible(t *testing.T) {
 	sug := []engine.SuggestedFolderInfo{
 		{Name: "Unread", Description: "Chats with unread messages"},
@@ -48,19 +40,15 @@ func TestFolderSuggestsVisible(t *testing.T) {
 		t.Fatalf("visible = %v", vis)
 	}
 
-	// No folders → everything visible.
 	if got := folderSuggestsVisible(sug, nil); len(got) != 3 {
 		t.Fatalf("no-folder case = %d, want 3", len(got))
 	}
 
-	// Empty suggestions → empty result.
 	if got := folderSuggestsVisible(nil, folders); len(got) != 0 {
 		t.Fatalf("empty case = %d, want 0", len(got))
 	}
 }
 
-// TestSwapFolderIDs: the ▲▼ reorder computation for manager rows —
-// adjacent swap, clamped at both ends.
 func TestSwapFolderIDs(t *testing.T) {
 	ids := []string{"1", "2", "3", "4"}
 
@@ -80,7 +68,6 @@ func TestSwapFolderIDs(t *testing.T) {
 		}
 	}
 
-	// Clamps: no-ops that return the same order.
 	for _, c := range []struct{ idx, delta int }{
 		{0, -1}, {3, +1}, {-1, 0}, {4, -1},
 	} {
@@ -92,7 +79,6 @@ func TestSwapFolderIDs(t *testing.T) {
 		}
 	}
 
-	// Input is never mutated.
 	if ids[0] != "1" || ids[1] != "2" {
 		t.Fatalf("input mutated: %v", ids)
 	}

@@ -4,8 +4,6 @@ import (
 	"testing"
 )
 
-// SearchMessagesEx kind filters (slice 57): links keep URL-bearing
-// messages, files keep media-bearing messages, "" keeps everything.
 func TestSearchMessagesExKindFilters(t *testing.T) {
 	e := newTestEngine(t)
 	seed := func(id, text, raw string, hasMedia int) {
@@ -50,7 +48,6 @@ func TestSearchMessagesExKindFilters(t *testing.T) {
 		t.Fatalf("files = %+v, want m4", files)
 	}
 
-	// Back-compat wrapper: same as "" kind.
 	wrapped, err := e.SearchMessages("cat*", "a1", 30, "", "", "")
 	if err != nil || len(wrapped) != 4 {
 		t.Fatalf("wrapper = %d %v", len(wrapped), err)

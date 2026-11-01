@@ -1,9 +1,5 @@
 package gui
 
-// Local passcode lock (slice 87): hash derivation, vault mapping, the
-// attempt state machine (unlock / wrong / cooldown), autolock decisions,
-// and the settings dialog's step machine.
-
 import (
 	"testing"
 	"time"
@@ -48,7 +44,6 @@ func TestLockFromConfig(t *testing.T) {
 	if st.digits != 5 || st.autolockMin != 5 || st.salt != "aabb" || st.hash != "ccdd" {
 		t.Errorf("fields = %+v", st)
 	}
-	// Clamp ranges and defaults.
 	st = lockFromConfig(map[string]interface{}{
 		"enabled": true, "digits": 99.0, "autolock": -3.0, "salt": "s", "hash": "h",
 	})
@@ -81,7 +76,6 @@ func TestLockFeedAndUnlock(t *testing.T) {
 	st := lockForPin("1357")
 	st.locked = true
 
-	// Digits accumulate; non-digits and overflow are ignored.
 	if !lockFeedDigit(st, '1') || st.input != "1" {
 		t.Fatalf("first digit: %q", st.input)
 	}
@@ -103,7 +97,6 @@ func TestLockFeedAndUnlock(t *testing.T) {
 		t.Error("input beyond digits must be ignored")
 	}
 
-	// Correct PIN unlocks.
 	if !lockTryAttempt(st, now) {
 		t.Fatal("correct pin must unlock")
 	}
@@ -111,7 +104,6 @@ func TestLockFeedAndUnlock(t *testing.T) {
 		t.Errorf("post-unlock state: %+v", st)
 	}
 
-	// Wrong PIN: bookkeeping, then cooldown after maxLockWrong.
 	st.locked = true
 	for i := 1; i <= maxLockWrong-1; i++ {
 		for _, d := range "9999" {
@@ -133,11 +125,9 @@ func TestLockFeedAndUnlock(t *testing.T) {
 	if !lockFrozen(st, now) {
 		t.Error("5th wrong attempt must freeze the pad")
 	}
-	// Frozen pads reject input entirely.
 	if lockFeedDigit(st, '1') {
 		t.Error("frozen pad must ignore digits")
 	}
-	// Cooldown expires.
 	if lockFrozen(st, now.Add(lockFreezeSecond+time.Second)) {
 		t.Error("freeze must expire")
 	}
@@ -163,7 +153,7 @@ func TestLockShouldAutolock(t *testing.T) {
 	if lockShouldAutolock(st2, now.Add(100*time.Hour)) {
 		t.Error("autolock 0 = never")
 	}
-	st3 := &lockState{autolockMin: 1} // never active
+	st3 := &lockState{autolockMin: 1}
 	if lockShouldAutolock(st3, now) {
 		t.Error("no activity recorded: no autolock (avoid instant lock)")
 	}
@@ -220,7 +210,6 @@ func TestLockDlgFeedSteps(t *testing.T) {
 	now := time.Now()
 	cur := lockForPin("2468")
 
-	// Fresh install: new → confirm → saved.
 	d := &lockDlgState{step: lockDlgNew, digits: 4}
 	for _, k := range []string{"1", "2", "3", "4"} {
 		if act := lockDlgFeed(d, cur, k, now); act != "" {
@@ -230,7 +219,6 @@ func TestLockDlgFeedSteps(t *testing.T) {
 	if d.step != lockDlgConfirm || d.first != "1234" {
 		t.Fatalf("after new: step=%d first=%q", d.step, d.first)
 	}
-	// Mismatching confirm restarts from entry.
 	for _, k := range []string{"4", "3", "2", "1"} {
 		if act := lockDlgFeed(d, cur, k, now); act != "" {
 			t.Fatalf("confirm mismatch leaked action %q", act)
@@ -239,8 +227,6 @@ func TestLockDlgFeedSteps(t *testing.T) {
 	if d.step != lockDlgNew || !d.wrong {
 		t.Fatalf("mismatch must restart: step=%d wrong=%v", d.step, d.wrong)
 	}
-	// Matching confirm saves: entry step feeds return "", the confirm
-	// step's completing feed returns the save action.
 	d2 := &lockDlgState{step: lockDlgNew, digits: 4}
 	for _, k := range []string{"9", "8", "7", "6"} {
 		if act := lockDlgFeed(d2, cur, k, now); act != "" {
@@ -259,7 +245,6 @@ func TestLockDlgFeedSteps(t *testing.T) {
 		t.Fatalf("confirm action = %q, want saved:9876", act)
 	}
 
-	// Verify step: correct current PIN → verified; wrong → error state.
 	d3 := &lockDlgState{step: lockDlgVerify}
 	for _, k := range []string{"2", "4", "6"} {
 		lockDlgFeed(d3, cur, k, now)
@@ -275,7 +260,6 @@ func TestLockDlgFeedSteps(t *testing.T) {
 		t.Errorf("wrong verify: wrong=%v input=%q", d4.wrong, d4.input)
 	}
 
-	// Frozen dialog rejects input.
 	d5 := &lockDlgState{step: lockDlgNew, digits: 4, frozen: now.Add(time.Hour)}
 	if lockDlgFeed(d5, cur, "1", now) != "" || d5.input != "" {
 		t.Error("frozen dialog must ignore keys")
@@ -288,7 +272,7 @@ func TestLockDlgDigitsChanged(t *testing.T) {
 	if d.digits != 6 || d.input != "" || d.first != "" || d.wrong {
 		t.Errorf("digits change must reset entry: %+v", d)
 	}
-	lockDlgDigitsChanged(d, 6) // same value: no-op, no crash
+	lockDlgDigitsChanged(d, 6)
 }
 
 func TestAutolockLabel(t *testing.T) {

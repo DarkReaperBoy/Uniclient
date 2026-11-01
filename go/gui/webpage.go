@@ -14,15 +14,6 @@ import (
 	"uniclient/engine"
 )
 
-// Webpage/link previews (slice 117, Telegram parity rows "Webpage preview
-// toggle" + "Webpage/link preview card"): messages carrying a link preview
-// render the site card (thumb + site + title + description) above the text,
-// and the a.wid.composer gains the preview on/off toggle (link icon, visible only
-// while the text contains a link — §1.10 honest gating). The core already
-// caches wp_* fields in the message Extra (content_raw); sending without a
-// preview rides the new no_webpage flag (engine → SetNoWebpage).
-
-// webPageData is the parsed link preview of one message.
 type webPageData struct {
 	URL         string
 	SiteName    string
@@ -33,20 +24,15 @@ type webPageData struct {
 	Width       int
 	Height      int
 	Duration    int
-	PhotoID     string // slice 130: the page photo's download coords
+	PhotoID     string
 	PhotoExtra  string
-	HasIV       bool // slice 176: the page has an Instant View version
+	HasIV       bool
 }
 
-// hasPhotoID reports whether the card can ensure a full-res photo thumb.
 func (w *webPageData) hasPhotoID() bool {
 	return w != nil && w.PhotoID != "" && w.PhotoExtra != ""
 }
 
-// parseWebPage extracts the preview from a cached message's raw Extra
-// (cores.Message.Extra["wp_*"], written by the telegram core's
-// MessageMediaWebPage conversion). Nil when the message has none.
-// Pure — unit-tested.
 func parseWebPage(m *engine.CachedMessage) *webPageData {
 	if m == nil || len(m.ContentRaw) == 0 {
 		return nil
@@ -85,7 +71,6 @@ func parseWebPage(m *engine.CachedMessage) *webPageData {
 	return wp
 }
 
-// hostname returns the URL's host for display (raw string when malformed).
 func (w *webPageData) hostname() string {
 	s := w.URL
 	for _, prefix := range []string{"https://", "http://"} {
@@ -100,7 +85,6 @@ func (w *webPageData) hostname() string {
 	return s
 }
 
-// displayTitle: the page title, else the site name, else the host.
 func (w *webPageData) displayTitle() string {
 	if w.Title != "" {
 		return w.Title
@@ -111,8 +95,6 @@ func (w *webPageData) displayTitle() string {
 	return w.hostname()
 }
 
-// composedHasLink reports whether the a.wid.composer text carries an http(s)/www
-// link — the gate for the preview toggle. Pure — unit-tested.
 func composedHasLink(text string) bool {
 	for _, prefix := range []string{"https://", "http://", "www."} {
 		if strings.Contains(text, prefix) {
@@ -122,14 +104,11 @@ func composedHasLink(text string) bool {
 	return false
 }
 
-// linkPreviewOff tracks the a.wid.composer's preview toggle per chat (Telegram
-// remembers per chat; resets are per session). Keyed by chatKey.String().
 var (
 	linkPreviewMu sync.Mutex
 	linkPreview   = map[string]bool{}
 )
 
-// linkPreviewOffFor reports the toggle for the chat being sent to.
 func (a *App) linkPreviewOffFor(k *chatKey) bool {
 	if k == nil {
 		return false
@@ -138,8 +117,6 @@ func (a *App) linkPreviewOffFor(k *chatKey) bool {
 	defer linkPreviewMu.Unlock()
 	return linkPreview[k.String()]
 }
-
-// a.wid.webPageClickables pools the card clickables per message.
 
 func (a *App) webPageClickable(key string) *widget.Clickable {
 	if c, ok := a.wid.webPageClickables[key]; ok {
@@ -153,22 +130,16 @@ func (a *App) webPageClickable(key string) *widget.Clickable {
 	return c
 }
 
-// webPhotoEnsured guards one EnsureWebPagePhoto call per message (the
-// engine method is idempotent, but it hits the DB — the GUI must not call
-// it every frame). Failures pin permanently: no retry churn.
 var (
 	webPhotoMu     sync.Mutex
 	webPhotoDone   = map[string]bool{}
 	webPhotoFailed = map[string]bool{}
 )
 
-// ensureWebPagePhoto resolves the card's full-res photo into the download
-// pipeline (dice-style media-row rewrite, engine slice 130).
 func (a *App) ensureWebPagePhoto(m *engine.CachedMessage, wp *webPageData) {
 	if m == nil || wp == nil || !wp.hasPhotoID() {
 		return
 	}
-	// Already downloaded? Nothing to ensure.
 	if m.HasMedia && m.MediaDownloadState == engine.DownloadComplete && m.MediaLocalPath != "" {
 		return
 	}
@@ -189,9 +160,6 @@ func (a *App) ensureWebPagePhoto(m *engine.CachedMessage, wp *webPageData) {
 	}()
 }
 
-// webPageThumbWidget renders the card thumbnail: the downloaded full-res
-// photo when complete, the inline stripped thumb until then, nothing when
-// the page has neither (honest).
 func (a *App) webPageThumbWidget(gtx layout.Context, m *engine.CachedMessage, wp *webPageData) layout.Dimensions {
 	if m == nil || wp == nil {
 		return layout.Dimensions{}
@@ -203,7 +171,6 @@ func (a *App) webPageThumbWidget(gtx layout.Context, m *engine.CachedMessage, wp
 			return drawImageRRectCover(gtx, img, gtx.Dp(unit.Dp(52)))
 		}
 		a.decodeFileAsync(m.MediaLocalPath)
-		// Stripped thumb while the decode runs.
 		if wp.ThumbB64 != "" {
 			return a.mediaThumb(gtx, wp.ThumbB64, unit.Dp(52))
 		}
@@ -215,10 +182,6 @@ func (a *App) webPageThumbWidget(gtx layout.Context, m *engine.CachedMessage, wp
 	return layout.Dimensions{}
 }
 
-// webPageBlock renders the link-preview card above the message text:
-// thumbnail (when cached), site name (small, dim), title (semi-bold),
-// description (2 lines), optional duration pill. Tap opens the URL in the
-// system browser (the openext pipeline).
 func (a *App) webPageBlock(gtx layout.Context, m *engine.CachedMessage) layout.Dimensions {
 	wp := parseWebPage(m)
 	if wp == nil {
@@ -228,8 +191,6 @@ func (a *App) webPageBlock(gtx layout.Context, m *engine.CachedMessage) layout.D
 	a.ensureWebPagePhoto(m, wp)
 	btn := a.webPageClickable(key)
 	if btn.Clicked(gtx) {
-		// Slice 176: pages with an Instant View version open the in-app
-		// reader; everything else stays on the browser pipeline.
 		if wp.HasIV {
 			a.openInstantView(m.AccountID, wp.URL)
 		} else {
@@ -242,7 +203,6 @@ func (a *App) webPageBlock(gtx layout.Context, m *engine.CachedMessage) layout.D
 	}
 	return layout.Inset{Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return btn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			// Card frame: rounded surface-tinted panel.
 			return roundedFill(gtx, a.ui.p.SurfaceHi, unit.Dp(8), func(gtx layout.Context) layout.Dimensions {
 				return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					row := []layout.FlexChild{}

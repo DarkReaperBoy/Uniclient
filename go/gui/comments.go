@@ -10,24 +10,14 @@ import (
 	"uniclient/engine"
 )
 
-// Channel-post comments (slice 195, tdesktop's comments view): the
-// "N comments" chip on channel posts opens the comment thread — the
-// discussion group's messages filtered by the reply-to-top root
-// (messages.getDiscussionMessage + cached rows via engine
-// GetDiscussionThread/GetThreadMessages), scoped like a forum topic:
-// bar under the header (back → the channel), full composer redirected
-// to the discussion chat with reply-to the thread root.
-
-// threadScopeState: the open comment thread (nil = normal chat view).
 type threadScopeState struct {
-	postKey        chatKey // the CHANNEL chat the post belongs to
-	postID         string  // the channel post's message id
-	discussionChat string  // the linked discussion group's chat id
-	rootID         string  // the thread root inside the discussion chat
-	title          string  // the post's first line (bar subtitle)
+	postKey        chatKey
+	postID         string
+	discussionChat string
+	rootID         string
+	title          string
 }
 
-// commentsCountLabel: "N comment(s)" with compact counts. Pure.
 func commentsCountLabel(n int) string {
 	if n == 1 {
 		return "1 comment"
@@ -35,13 +25,10 @@ func commentsCountLabel(n int) string {
 	return viewsCountLabel(n) + " comments"
 }
 
-// commentsRowVisible: channel posts with a counted comment thread only.
-// Groups/DMs never show the chip (their replies are reply headers). Pure.
 func commentsRowVisible(chat engine.ChatInfo, comments int) bool {
 	return chat.Type == engine.ChatTypeChanVal && comments > 0
 }
 
-// threadBarTitle: "Comments" or "Comments · <first line>". Pure.
 func threadBarTitle(postText string) string {
 	postText = strings.TrimSpace(postText)
 	if postText == "" {
@@ -53,7 +40,6 @@ func threadBarTitle(postText string) string {
 	return "Comments · " + postText
 }
 
-// openCommentThread opens the thread view for a channel post.
 func (a *App) openCommentThread(m engine.CachedMessage) {
 	a.mu.Lock()
 	k := a.selected
@@ -63,7 +49,7 @@ func (a *App) openCommentThread(m engine.CachedMessage) {
 		title:   m.ContentText,
 	}
 	a.messages = nil
-	a.uiGen++ // R31: loaders still in flight for the previous view are stale
+	a.uiGen++
 	a.loadingMsgs = true
 	a.olderDone = false
 	a.loadingOlder = false
@@ -90,19 +76,15 @@ func (a *App) openCommentThread(m engine.CachedMessage) {
 		}
 		a.messages = rows
 		if len(rows) > 0 {
-			// The thread scope settles on the discussion chat + root.
 			a.threadScope.discussionChat = rows[0].ChatID
 			a.threadScope.rootID = threadRootOfRows(rows)
 		}
 		a.mu.Unlock()
 		a.invalidate()
-		// tdesktop marks the thread read on open.
 		go func() { _ = a.eng.ReadDiscussion(m.AccountID, m.ChatID, m.MsgID) }()
 	}()
 }
 
-// threadRootOfRows resolves the thread root from the loaded rows: the
-// row whose root is itself, else the most common ThreadRoot. Pure.
 func threadRootOfRows(rows []engine.CachedMessage) string {
 	for _, r := range rows {
 		if r.ThreadRoot == r.MsgID {
@@ -117,24 +99,11 @@ func threadRootOfRows(rows []engine.CachedMessage) string {
 	return ""
 }
 
-// threadOpenReq (slice 196): a comment-thread deep link pending the chat
-// open — the channel post's id plus the linked comment's id.
 type threadOpenReq struct {
 	postID    string
 	commentID string
 }
 
-// openCommentThreadDeep (slice 196): a comment deep link
-// (t.me/<channel>/<post>?comment=<id>) opens the just-opened channel
-// chat straight into the thread view and jumps onto the linked comment.
-// Mirrors openCommentThread minus the in-hand post row: the thread fetch
-// resolves the discussion chat + root, and the bar title falls back to
-// the root row's text (the forwarded post copy). The comment jump
-// targets the newest page first; an off-page comment resolves through
-// the engine (GetMessageTimestamp caches the row) and loads a
-// target-anchored window; a comment the engine cannot resolve leaves the
-// newest page in place, no jump (honest). Loader goroutine — state under
-// a.mu, mirroring the slice-189 topic jump.
 func (a *App) openCommentThreadDeep(k chatKey, req threadOpenReq) {
 	a.mu.Lock()
 	a.threadScope = &threadScopeState{
@@ -142,7 +111,7 @@ func (a *App) openCommentThreadDeep(k chatKey, req threadOpenReq) {
 		postID:  req.postID,
 	}
 	a.messages = nil
-	a.uiGen++ // R31: loaders still in flight for the previous view are stale
+	a.uiGen++
 	a.loadingMsgs = true
 	a.olderDone = false
 	a.loadingOlder = false
@@ -164,7 +133,6 @@ func (a *App) openCommentThreadDeep(k chatKey, req threadOpenReq) {
 		for i, j := 0, len(rows)-1; i < j; i, j = i+1, j-1 {
 			rows[i], rows[j] = rows[j], rows[i]
 		}
-		// rows is chronological (oldest first) now.
 		if len(rows) > 0 {
 			a.threadScope.discussionChat = rows[0].ChatID
 			a.threadScope.rootID = threadRootOfRows(rows)
@@ -180,9 +148,8 @@ func (a *App) openCommentThreadDeep(k chatKey, req threadOpenReq) {
 		go func() { _ = a.eng.ReadDiscussion(k.AccountID, k.ChatID, req.postID) }()
 
 		if req.commentID == "" {
-			return // thread open, no comment target
+			return
 		}
-		// The linked comment: newest page first...
 		a.mu.Lock()
 		row := rowIndexOf(rows, req.commentID, "")
 		discussion := ""
@@ -203,11 +170,9 @@ func (a *App) openCommentThreadDeep(k chatKey, req threadOpenReq) {
 		if discussion == "" || rootID == "" {
 			return
 		}
-		// ...else resolve the comment's timestamp (engine caches the row on
-		// the fetch) and load a target-anchored window.
 		ts, err := a.eng.GetMessageTimestamp(k.AccountID, discussion, req.commentID)
 		if err != nil || ts <= 0 {
-			return // honest: the newest page stays, no jump
+			return
 		}
 		older, err := a.eng.GetThreadMessages(k.AccountID, discussion, rootID, ts+1, 26)
 		if err != nil {
@@ -217,8 +182,6 @@ func (a *App) openCommentThreadDeep(k chatKey, req threadOpenReq) {
 		if win == nil || jump < 0 {
 			return
 		}
-		// Map the message index onto the render row (day dividers,
-		// albums) — same conversion jumpToMessageAt performs.
 		row = rowIndexOf(win, req.commentID, "")
 		if row < 0 {
 			return
@@ -238,8 +201,6 @@ func (a *App) openCommentThreadDeep(k chatKey, req threadOpenReq) {
 	}()
 }
 
-// threadRootRow finds the thread-root row (the forwarded post copy) in a
-// thread window. Pure.
 func threadRootRow(rows []engine.CachedMessage, rootID string) *engine.CachedMessage {
 	if rootID == "" {
 		return nil
@@ -252,16 +213,6 @@ func threadRootRow(rows []engine.CachedMessage, rootID string) *engine.CachedMes
 	return nil
 }
 
-// threadDeepJumpWindow (slice 196): assembles the comment deep-link
-// window around the linked comment. newest is the newest page
-// (chronological); older is the target-anchored page (newest-first,
-// target included). The window is reverse(older) plus the newest page's
-// rows newer than the target, in chronological order; jump is the
-// target's MESSAGE index (the caller maps it onto the render row via
-// rowIndexOf, exactly like jumpToMessageAt). A target already in the
-// newest page makes that page the window (older ignored); a target in
-// neither slice returns (nil, -1) — the caller keeps the newest page
-// (honest). Pure — locked by tests.
 func threadDeepJumpWindow(newest, older []engine.CachedMessage, commentID string) ([]engine.CachedMessage, int) {
 	if commentID == "" {
 		return nil, -1
@@ -286,7 +237,7 @@ func threadDeepJumpWindow(newest, older []engine.CachedMessage, commentID string
 		older[i], older[j] = older[j], older[i]
 	}
 	win = append(win, older...)
-	for i := range newest { // chronological: the newer tail rides in order
+	for i := range newest {
 		if newest[i].Timestamp > ts {
 			win = append(win, newest[i])
 		}
@@ -294,8 +245,6 @@ func threadDeepJumpWindow(newest, older []engine.CachedMessage, commentID string
 	return win, messageIndexOf(win, commentID)
 }
 
-// messageIndexOf is the plain message-index lookup (no render rows).
-// Pure.
 func messageIndexOf(msgs []engine.CachedMessage, msgID string) int {
 	for i := range msgs {
 		if msgs[i].MsgID == msgID {
@@ -305,13 +254,12 @@ func messageIndexOf(msgs []engine.CachedMessage, msgID string) int {
 	return -1
 }
 
-// closeCommentThread returns to the channel view.
 func (a *App) closeCommentThread() {
 	a.mu.Lock()
 	k := a.selected
 	a.threadScope = nil
 	a.messages = nil
-	a.uiGen++ // R31: the thread's in-flight loaders are stale now
+	a.uiGen++
 	a.loadingMsgs = true
 	a.mu.Unlock()
 	a.invalidate()
@@ -321,8 +269,6 @@ func (a *App) closeCommentThread() {
 	go a.refreshMessages()
 }
 
-// threadScopeFor returns the open thread scope when the selected chat is
-// the thread's channel ("" discussion chat = still resolving).
 func (a *App) threadScopeFor(k *chatKey) *threadScopeState {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -335,7 +281,6 @@ func (a *App) threadScopeFor(k *chatKey) *threadScopeState {
 	return a.threadScope
 }
 
-// layoutCommentsBar: the thread identity strip under the chat header.
 func (a *App) layoutCommentsBar(gtx layout.Context, f frame) layout.Dimensions {
 	if a.wid.threadBackBtn.Clicked(gtx) {
 		a.closeCommentThread()
@@ -365,7 +310,6 @@ func (a *App) layoutCommentsBar(gtx layout.Context, f frame) layout.Dimensions {
 	})
 }
 
-// commentsChip renders the tappable "N comments" pill for one post.
 func (a *App) commentsChip(gtx layout.Context, f frame, m engine.CachedMessage) layout.Dimensions {
 	chat := chatOf(f, m)
 	if !commentsRowVisible(chat, m.CommentsCount) {
@@ -390,7 +334,6 @@ func (a *App) commentsChip(gtx layout.Context, f frame, m engine.CachedMessage) 
 	})
 }
 
-// commentChipBtn pools per-post chip clickables (comment-thread targets).
 func (a *App) commentChipBtn(key string) *widget.Clickable {
 	if btn, ok := a.wid.commentChipBtns[key]; ok {
 		return btn

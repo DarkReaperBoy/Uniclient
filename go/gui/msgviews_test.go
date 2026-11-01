@@ -1,7 +1,5 @@
 package gui
 
-// Channel-post views (slice 187): the compact counter label.
-
 import "testing"
 
 func TestViewsCountLabel(t *testing.T) {

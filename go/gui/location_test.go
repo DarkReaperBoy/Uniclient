@@ -8,8 +8,6 @@ import (
 	"uniclient/engine"
 )
 
-// geo/content parse helpers (slice 56): location & contact payloads read
-// from content_raw Extra; nil paths and formatting locked here.
 func geoRaw(t *testing.T, extra map[string]interface{}) []byte {
 	t.Helper()
 	raw, err := json.Marshal(map[string]interface{}{"extra": extra})
@@ -41,7 +39,6 @@ func TestParseGeoMessage(t *testing.T) {
 	if g == nil || !g.Live || g.Period != 900 {
 		t.Fatalf("live geo = %+v", g)
 	}
-	// Slice 131: the badge counts down against the message timestamp.
 	if got := liveBadgeText(g, 1000, 1100); got != "live · 14m left" {
 		t.Errorf("liveBadgeText = %q", got)
 	}
@@ -51,7 +48,6 @@ func TestParseGeoMessage(t *testing.T) {
 	if got := liveBadgeText(g, 1000, 1000+900); got != "ended" {
 		t.Errorf("elapsed badge = %q", got)
 	}
-	// Unknown period: live, no countdown.
 	noPeriod := &geoData{Live: true}
 	if got := liveBadgeText(noPeriod, 1000, 1100); got != "live" {
 		t.Errorf("no-period badge = %q", got)
@@ -115,8 +111,6 @@ func TestParseCoords(t *testing.T) {
 	}
 }
 
-// ── map tiles (slice 129) ──────────────────────────────────────────────────
-
 func TestParseGeoAccessHashAndVenue(t *testing.T) {
 	m := &engine.CachedMessage{ContentRaw: geoRaw(t, map[string]interface{}{
 		"geo_lat": 41.0082, "geo_long": 28.9784,
@@ -133,7 +127,6 @@ func TestParseGeoAccessHashAndVenue(t *testing.T) {
 	if g.Venue != "Hagia Sophia" || g.Address != "Sultan Ahmet" {
 		t.Errorf("venue = %q / %q", g.Venue, g.Address)
 	}
-	// Plain shares carry the hash too (tiles need it), no venue.
 	m2 := &engine.CachedMessage{ContentRaw: geoRaw(t, map[string]interface{}{
 		"geo_lat": 1.5, "geo_long": -2.25, "geo_access_hash": float64(-7),
 	})}
@@ -184,33 +177,30 @@ func TestMapTileCacheSemantics(t *testing.T) {
 
 func TestLiveRemainingText(t *testing.T) {
 	cases := []struct {
-		period int // seconds
-		age    int // seconds since the share started
+		period int
+		age    int
 		want   string
 	}{
 		{900, 0, "live · 15m left"},
 		{900, 300, "live · 10m left"},
 		{3600, 3540, "live · 1m left"},
-		{900, 899, "live · 1m left"}, // round up: a partial minute still runs
-		{900, 900, "ended"},          // exactly elapsed
-		{900, 1200, "ended"},         // past
-		{0, 0, "live"},               // no period known: live, no countdown
-		{-1, 0, "live"},              // degenerate period: live, no countdown
+		{900, 899, "live · 1m left"},
+		{900, 900, "ended"},
+		{900, 1200, "ended"},
+		{0, 0, "live"},
+		{-1, 0, "live"},
 	}
 	for _, c := range cases {
 		if got := liveRemainingText(c.period, c.age); got != c.want {
 			t.Errorf("liveRemainingText(%d, %d) = %q, want %q", c.period, c.age, got, c.want)
 		}
 	}
-	// Non-live geo never produces a live label.
 	if got := liveRemainingText(0, 0); got != "live" {
-		// (covered above — sanity that a zero period is still "live")
 		_ = got
 	}
 }
 
 func TestLiveDurationChoices(t *testing.T) {
-	// tdesktop's live-location presets: 15 minutes, 1 hour, 8 hours.
 	if len(liveDurationChoices) != 3 {
 		t.Fatalf("liveDurationChoices = %v, want 3 presets", liveDurationChoices)
 	}
@@ -226,7 +216,6 @@ func TestLiveDurationChoices(t *testing.T) {
 }
 
 func TestLiveAge(t *testing.T) {
-	// Age is clamped at zero (clock skew protection).
 	if got := liveAge(1000, 990); got != 10 {
 		t.Errorf("liveAge = %d, want 10", got)
 	}

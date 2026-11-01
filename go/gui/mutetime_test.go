@@ -7,8 +7,6 @@ import (
 	"uniclient/engine"
 )
 
-// TestMuteRemainingLabel: tdesktop-style compact remaining-time labels
-// (single unit, floor, minimum 1 minute).
 func TestMuteRemainingLabel(t *testing.T) {
 	cases := []struct {
 		remain time.Duration
@@ -23,7 +21,7 @@ func TestMuteRemainingLabel(t *testing.T) {
 		{23 * time.Hour, "23h"},
 		{24 * time.Hour, "1d"},
 		{3*24*time.Hour + 5*time.Hour, "3d"},
-		{-time.Minute, "1m"}, // expired reads as the honest floor
+		{-time.Minute, "1m"},
 	}
 	for _, c := range cases {
 		if got := muteRemainingLabel(c.remain); got != c.want {
@@ -32,12 +30,11 @@ func TestMuteRemainingLabel(t *testing.T) {
 	}
 }
 
-// TestFormatMutedUntil: the profile row's "Muted until …" timestamp.
 func TestFormatMutedUntil(t *testing.T) {
 	now := time.Date(2026, 9, 11, 10, 0, 0, 0, time.Local)
-	sameDay := now.Add(4 * time.Hour) // 14:00 today
-	otherDay := now.AddDate(0, 0, 1)  // tomorrow
-	otherYear := now.AddDate(1, 0, 0) // next year
+	sameDay := now.Add(4 * time.Hour)
+	otherDay := now.AddDate(0, 0, 1)
+	otherYear := now.AddDate(1, 0, 0)
 
 	if got := formatMutedUntil(sameDay.Unix(), now.Unix()); got != sameDay.Format("15:04") {
 		t.Errorf("same-day = %q, want %q", got, sameDay.Format("15:04"))
@@ -50,8 +47,6 @@ func TestFormatMutedUntil(t *testing.T) {
 	}
 }
 
-// TestTrailingRowBadgesMuteTime: a timed mute adds a remaining-time badge
-// ahead of mentions/reactions/count; forever mutes do not.
 func TestTrailingRowBadgesMuteTime(t *testing.T) {
 	timed := engine.ChatInfo{
 		IsMuted:     true,
@@ -83,7 +78,6 @@ func TestTrailingRowBadgesMuteTime(t *testing.T) {
 	}
 }
 
-// TestMutedRowHasTimedMute: the sidebar tick-scheduling predicate.
 func TestMutedRowHasTimedMute(t *testing.T) {
 	if mutedRowHasTimedMute([]engine.ChatInfo{{IsMuted: true, MuteUntil: time.Now().Add(time.Hour).Unix()}}) != true {
 		t.Fatal("timed-mute row should be detected")

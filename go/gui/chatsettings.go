@@ -13,23 +13,10 @@ import (
 	"uniclient/engine"
 )
 
-// Chat settings (AyuGram parity slice 155): the tdesktop "Messages"
-// section of Chat settings — the a.wid.composer submit mode (Enter vs
-// Ctrl+Enter, tdesktop's send-submit-way radio) — plus AyuGram's
-// "Improve link previews" (Ayu preferences → General): outgoing links of
-// big platforms are rewritten to their preview-friendly mirrors (Ayu
-// getBetterLinkPreview: fixupx/kktiktok/vxreddit/kkclip/phixiv) so
-// Telegram renders richer embeds.
-
-// composerSubmitSends reports whether plain Enter submits the a.wid.composer
-// (tdesktop default; "" and "enter" both mean Enter). "ctrl-enter" moves
-// submission to Ctrl+Enter and makes Enter a newline.
 func composerSubmitSends(mode string) bool {
 	return mode != "ctrl-enter"
 }
 
-// composerSubmitLabel renders the setting's current value for the row
-// subtitle.
 func composerSubmitLabel(mode string) string {
 	if mode == "ctrl-enter" {
 		return "Ctrl+Enter"
@@ -37,10 +24,6 @@ func composerSubmitLabel(mode string) string {
 	return "Enter"
 }
 
-// improveLinkURLs rewrites http(s) URLs in an outgoing message when Ayu
-// "Improve link previews" is on. Only the host swaps — path, query, and
-// fragment survive (Ayu semantics). Non-matching hosts and plain text
-// pass through untouched.
 func improveLinkURLs(text string) string {
 	if !strings.Contains(text, "http://") && !strings.Contains(text, "https://") {
 		return text
@@ -59,13 +42,8 @@ func improveLinkURLs(text string) string {
 	})
 }
 
-// improveLinkTokenRe matches one whitespace-delimited http(s) token.
 var improveLinkTokenRe = regexp.MustCompile(`(?i)\bhttps?://[^\s]+`)
 
-// improveLinkHost maps a URL host to its preview-friendly mirror (Ayu
-// getBetterLinkPreview, host branch). "" = no rewrite. Case-insensitive;
-// subdomains only for tiktok (Ayu replaces the suffix — vm.tiktok.com →
-// vm.kktiktok.com).
 func improveLinkHost(host string) string {
 	h := strings.ToLower(strings.TrimSpace(host))
 	switch h {
@@ -86,15 +64,10 @@ func improveLinkHost(host string) string {
 	return ""
 }
 
-// ── widgets ──────────────────────────────────────────────────────────────
+var composerSubmitBtns [2]widget.Clickable
 
-var composerSubmitBtns [2]widget.Clickable // Enter | Ctrl+Enter
-
-// swipeActionBtns: one chip per quick action (tdesktop radioenum group).
 var swipeActionBtns [6]widget.Clickable
 
-// swipeActionOptions mirrors tdesktop's QuickDialogAction radio (order
-// per settings_chat.cpp: Mute, Pin, Read, Archive, Delete, Disabled).
 var swipeActionOptions = []struct {
 	value, label string
 }{
@@ -106,7 +79,6 @@ var swipeActionOptions = []struct {
 	{"delete", "Delete"},
 }
 
-// swipeActionOptionLabel finds the chip label for a stored value.
 func swipeActionOptionLabel(v string) string {
 	for _, o := range swipeActionOptions {
 		if o.value == v {
@@ -116,8 +88,6 @@ func swipeActionOptionLabel(v string) string {
 	return "Disabled"
 }
 
-// layoutMessagesSection renders the tdesktop "Messages" section rows on
-// the Appearance page: Send message with (Enter / Ctrl+Enter chips).
 func (a *App) layoutMessagesSection(gtx layout.Context, f frame) layout.Dimensions {
 	mode := f.cfg.ComposerSubmit
 	for i, v := range []string{"", "ctrl-enter"} {
@@ -154,23 +124,16 @@ func (a *App) layoutMessagesSection(gtx layout.Context, f frame) layout.Dimensio
 				)
 			})
 		}),
-		// Corner reply button (tdesktop cornerReply, default ON): the
-		// fast-reply pill on hovered incoming bubbles.
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.toggleRow(gtx, "cfg:corner_reply", "Reply button in the corner", f.cfg.CornerReply, func(v bool) {
 				a.applyConfigBool("corner_reply", v)
 			})
 		}),
-		// Corner reaction button (tdesktop cornerReaction, default ON,
-		// slice 159): the favorite-reaction pill on hovered bubbles.
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.toggleRow(gtx, "cfg:corner_reaction", "Reaction button in the corner", f.cfg.CornerReaction, func(v bool) {
 				a.applyConfigBool("corner_reaction", v)
 			})
 		}),
-		// Quick actions (tdesktop SetupChatListQuickAction, slice 158):
-		// the swipe-able dialog-row action. Disabled is the tdesktop
-		// default; each action is state-aware per row (Mute↔Unmute…).
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.sectionTitle(gtx, "Quick actions")
 		}),
@@ -210,17 +173,12 @@ func (a *App) layoutMessagesSection(gtx layout.Context, f frame) layout.Dimensio
 				return flex.Layout(gtx, children...)
 			})
 		}),
-		// React with (tdesktop favorite reaction, slice 159): the emoji the
-		// corner pill toggles. Per Telegram account (server-side default
-		// via help.getConfig reactions_default, saved through
-		// messages.setDefaultReaction); 👍 is the fallback.
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.layoutReactWithRow(gtx, f)
 		}),
 	)
 }
 
-// layoutReactWithRow renders the per-account favorite-reaction picker.
 func (a *App) layoutReactWithRow(gtx layout.Context, f frame) layout.Dimensions {
 	var tgAccounts []engine.AccountInfo
 	for _, acc := range f.accounts {
@@ -229,7 +187,7 @@ func (a *App) layoutReactWithRow(gtx layout.Context, f frame) layout.Dimensions 
 		}
 	}
 	if len(tgAccounts) == 0 {
-		return layout.Dimensions{} // nothing reacts without a Telegram account
+		return layout.Dimensions{}
 	}
 	children := []layout.FlexChild{
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -265,7 +223,6 @@ func (a *App) layoutReactWithRow(gtx layout.Context, f frame) layout.Dimensions 
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-// favoriteChipRow builds the emoji chip widgets for one account.
 func favoriteChipRow(a *App, gtx layout.Context, accountID, fav string, choices []string) []layout.FlexChild {
 	growClickables(&a.wid.reactWithBtns, len(choices))
 	var out []layout.FlexChild
@@ -291,8 +248,6 @@ func favoriteChipRow(a *App, gtx layout.Context, accountID, fav string, choices 
 	return out
 }
 
-// favoriteReactionChoices merges the account's available reaction emojis
-// with the fallback set (deduped, 👍 first).
 func favoriteReactionChoices(avail []string) []string {
 	seen := map[string]bool{}
 	choices := []string{"👍"}
@@ -309,9 +264,6 @@ func favoriteReactionChoices(avail []string) []string {
 	return choices
 }
 
-// a.wid.reactWithBtns pools the picker chips.
-
-// submitModeChip renders one segmented option chip (material clickable).
 func (a *App) submitModeChip(gtx layout.Context, btn *widget.Clickable, label string, active bool) layout.Dimensions {
 	bg := a.ui.p.SurfaceHi
 	fg := a.ui.p.Text

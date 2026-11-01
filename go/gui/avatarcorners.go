@@ -1,14 +1,5 @@
 package gui
 
-// Avatar Corners (AyuGram userpic styling, slice 215): AyuGramDesktop's
-// Appearance → "Avatar Corners" — a 24-step slider (0 = square, 23 =
-// circle, AyuGram kMaxAvatarCorners) that reshapes every userpic in the
-// app, plus the "Single Corner Radius" toggle that makes forum avatars
-// match (they otherwise keep tdesktop's native 30% rounding). Semantics
-// pinned 1:1 against ayu/ui/ayu_userpic.cpp ComputeRadius,
-// settings_appearance.cpp mapRadius and tdesktop's
-// ForumUserpicRadiusMultiplier — see research/avatar_corners.md.
-
 import (
 	"fmt"
 	"image"
@@ -25,12 +16,8 @@ import (
 	"uniclient/engine"
 )
 
-// avatarCornersMax mirrors AyuUiSettings::kMaxAvatarCorners (23): the
-// slider's top step renders a full circle.
 const avatarCornersMax = 23
 
-// avatarCornerRadiusPx is AyuGram's ComputeRadius: corners >= max →
-// circle (size/2), <= 0 → square, else a linear share of the half-size.
 func avatarCornerRadiusPx(corners, sizePx int) int {
 	if corners >= avatarCornersMax {
 		return sizePx / 2
@@ -41,8 +28,6 @@ func avatarCornerRadiusPx(corners, sizePx int) int {
 	return int(float64(corners) / float64(avatarCornersMax) * float64(sizePx) / 2.0)
 }
 
-// avatarCornersLabel is the pill beside the slider (mapRadius): SQUARE /
-// CIRCLE / the numeric step.
 func avatarCornersLabel(corners int) string {
 	if corners <= 0 {
 		return "SQUARE"
@@ -53,16 +38,10 @@ func avatarCornersLabel(corners int) string {
 	return strconv.Itoa(corners)
 }
 
-// forumAvatarRadiusPx is tdesktop's native forum-userpic rounding: 30%
-// of the avatar size (ForumUserpicRadiusMultiplier).
 func forumAvatarRadiusPx(sizePx int) int {
 	return int(float64(sizePx) * 0.3)
 }
 
-// chatAvatarCornerRadius resolves the corner radius for one chat's
-// avatar (AyuGram ShouldOverrideShape): normal chats always take the
-// slider shape; forums keep their native 30% rounding unless the Single
-// Corner Radius toggle is on.
 func chatAvatarCornerRadius(corners int, single, isForum bool, sizePx int) int {
 	if isForum && !single {
 		return forumAvatarRadiusPx(sizePx)
@@ -70,8 +49,6 @@ func chatAvatarCornerRadius(corners int, single, isForum bool, sizePx int) int {
 	return avatarCornerRadiusPx(corners, sizePx)
 }
 
-// avatarShapeClip builds the avatar outline for a corner radius: 0 =
-// square, size/2 = circle, else a rounded square (AyuGram PaintShape).
 func avatarShapeClip(ops *op.Ops, size, radius int) clip.Op {
 	switch {
 	case radius <= 0:
@@ -83,8 +60,6 @@ func avatarShapeClip(ops *op.Ops, size, radius int) clip.Op {
 	}
 }
 
-// avatarCornersFromSlider maps the slider's 0..1 float onto the 24 steps
-// (half-up rounding, tdesktop's pseudo-discrete slider).
 func avatarCornersFromSlider(v float32) int {
 	n := int(v*float32(avatarCornersMax) + 0.5)
 	if n < 0 {
@@ -96,9 +71,6 @@ func avatarCornersFromSlider(v float32) int {
 	return n
 }
 
-// avatarCornersPreviewState is the live-preview row's pure state: a
-// representative chat row whose avatar follows the current corner count
-// (AyuGram's avatar_corners_preview repaints the same way).
 type avatarCornersPreviewState struct {
 	title   string
 	sub     string
@@ -113,12 +85,9 @@ func newAvatarCornersPreview(corners int) avatarCornersPreviewState {
 	}
 }
 
-// radiusPx resolves the preview avatar's corner radius at a pixel size.
 func (s avatarCornersPreviewState) radiusPx(sizePx int) int {
 	return avatarCornerRadiusPx(s.corners, sizePx)
 }
-
-// --- settings section ----------------------------------------------------
 
 var (
 	avatarCornersSlider widget.Float
@@ -126,8 +95,6 @@ var (
 	avatarCornersTimer  *time.Timer
 )
 
-// seedAvatarCornersSlider syncs the slider from the effective config
-// once per settings session.
 func seedAvatarCornersSlider(corners int) {
 	if avatarCornersSeeded {
 		return
@@ -136,8 +103,6 @@ func seedAvatarCornersSlider(corners int) {
 	avatarCornersSlider.Value = float32(corners) / float32(avatarCornersMax)
 }
 
-// applyAvatarCornersUI applies one slider step live and schedules the
-// debounced persist (a drag must not hammer the config store).
 func (a *App) applyAvatarCornersUI(corners int) {
 	a.ui.applyAvatarCorners(corners)
 	a.invalidate()
@@ -155,8 +120,6 @@ func (a *App) applyAvatarCornersUI(corners int) {
 	})
 }
 
-// clampAvatarCornersGUI bounds the slider output (defensive twin of
-// utils.ClampAvatarCorners for the GUI fast path). Pure.
 func clampAvatarCornersGUI(v int) int {
 	if v < 0 {
 		return 0
@@ -167,8 +130,6 @@ func clampAvatarCornersGUI(v int) int {
 	return v
 }
 
-// layoutAvatarCornersRow renders the slider row: title + sub + the
-// SQUARE/CIRCLE/step pill, the 24-step track below.
 func (a *App) layoutAvatarCornersRow(gtx layout.Context, f frame) layout.Dimensions {
 	seedAvatarCornersSlider(f.cfg.AyuAvatarCorners)
 	if avatarCornersSlider.Update(gtx) {
@@ -209,10 +170,6 @@ func (a *App) layoutAvatarCornersRow(gtx layout.Context, f frame) layout.Dimensi
 	})
 }
 
-// layoutAvatarCornersPreview renders the live preview row: a chat row
-// whose avatar follows the current slider value (AyuGram's
-// avatar_corners_preview). It is a settings preview control, not app
-// content — the row is the standard chat-row geometry.
 func (a *App) layoutAvatarCornersPreview(gtx layout.Context, f frame) layout.Dimensions {
 	st := newAvatarCornersPreview(avatarCornersFromSlider(avatarCornersSlider.Value))
 	return layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(10), Left: unit.Dp(16), Right: unit.Dp(16)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {

@@ -7,17 +7,12 @@ import (
 	"uniclient/cores"
 )
 
-// twofaMainActions derives the main screen's action list from the live
-// password state (slice 120).
 func TestTwoFAMainActions(t *testing.T) {
-	// No password: only "set password" + no email rows (email without a
-	// password is meaningless server-side).
 	got := twofaMainActions(cores.CloudPasswordState{HasPassword: false})
 	if len(got) != 1 || got[0] != twofaActSet {
 		t.Errorf("unset: %v", got)
 	}
 
-	// Password set, no recovery email, nothing pending.
 	got = twofaMainActions(cores.CloudPasswordState{HasPassword: true})
 	want := []string{twofaActChange, twofaActDisable, twofaActSetEmail}
 	if len(got) != len(want) {
@@ -29,13 +24,11 @@ func TestTwoFAMainActions(t *testing.T) {
 		}
 	}
 
-	// Password set + confirmed recovery email.
 	got = twofaMainActions(cores.CloudPasswordState{HasPassword: true, HasRecovery: true})
 	if got[2] != twofaActChangeEmail {
 		t.Errorf("set-recovery: %v", got)
 	}
 
-	// Unconfirmed email waiting for its code: confirm row instead of set/change.
 	got = twofaMainActions(cores.CloudPasswordState{
 		HasPassword:             true,
 		EmailUnconfirmedPattern: "ma*****@gmail.com",
@@ -45,7 +38,6 @@ func TestTwoFAMainActions(t *testing.T) {
 	}
 }
 
-// twofaValidateNew guards the set/change form (slice 120).
 func TestTwoFAValidateNew(t *testing.T) {
 	cases := []struct {
 		name           string
@@ -76,7 +68,6 @@ func TestTwoFAValidateNew(t *testing.T) {
 	}
 }
 
-// twofaEmailStepAfter: submitting an email moves to the code step.
 func TestTwoFAEmailFlow(t *testing.T) {
 	d := &twofaDlgState{step: twofaStepEmail}
 	if !twofaGoToEmailCode(d) || d.step != twofaStepEmailCode {
@@ -84,7 +75,6 @@ func TestTwoFAEmailFlow(t *testing.T) {
 	}
 }
 
-// twofaStateSummary renders the state card line(s) from live state.
 func TestTwoFAStateSummary(t *testing.T) {
 	s := twofaStateSummary(cores.CloudPasswordState{})
 	if s != "Off" {
@@ -100,21 +90,17 @@ func TestTwoFAStateSummary(t *testing.T) {
 	}
 }
 
-// The 2FA editor takes the content-pane surface while open and yields to
-// nothing beneath settings (slice 120).
 func TestContentPaneDialogSurfaceTwoFA(t *testing.T) {
 	f := frame{twofaDlg: &twofaDlgState{accountID: "a"}, settingsOpen: true}
 	if got := contentDialogSurface(f); got != "twofa" {
 		t.Errorf("twofa + settings: = %q, want twofa", got)
 	}
-	// The passcode lock outranks the 2FA editor (security gate).
 	f = frame{twofaDlg: &twofaDlgState{accountID: "a"}, lockDlg: &lockDlgState{}}
 	if got := contentDialogSurface(f); got != "lock" {
 		t.Errorf("twofa + lock: = %q, want lock (security gate wins)", got)
 	}
 }
 
-// twofaRowValue: settings row badge.
 func TestTwoFARowValue(t *testing.T) {
 	if got := twofaRowValue(cores.CloudPasswordState{}); got != "Off" {
 		t.Errorf("off row value = %q", got)
@@ -124,7 +110,6 @@ func TestTwoFARowValue(t *testing.T) {
 	}
 }
 
-// twofaLooksLikeEmail: light sanity check.
 func TestTwoFALooksLikeEmail(t *testing.T) {
 	for _, good := range []string{"a@b.co", "user.name+tag@example.org"} {
 		if !twofaLooksLikeEmail(good) {

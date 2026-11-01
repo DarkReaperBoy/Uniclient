@@ -1,18 +1,11 @@
 package gui
 
-// premium_test.go — slice 143 (tests-first): the pure halves of the
-// Premium settings page — currency exponent + price formatting, plan
-// labels, and the limits comparison rows.
-
 import (
 	"testing"
 
 	"uniclient/cores"
 )
 
-// TestCurrencyExponent: smallest-unit exponents per the Telegram
-// currencies table (2 for the vast majority, 0 for the zero-decimal
-// currencies, 3 for the triple-decimal ones).
 func TestCurrencyExponent(t *testing.T) {
 	cases := []struct {
 		cur  string
@@ -21,8 +14,8 @@ func TestCurrencyExponent(t *testing.T) {
 		{"USD", 2}, {"EUR", 2}, {"GBP", 2}, {"INR", 2}, {"BRL", 2},
 		{"JPY", 0}, {"KRW", 0}, {"VND", 0}, {"CLP", 0},
 		{"BHD", 3}, {"IQD", 3}, {"JOD", 3}, {"KWD", 3}, {"LYD", 3}, {"OMR", 3}, {"TND", 3},
-		{"", 2},    // unknown → the majority rule
-		{"XXX", 2}, // unknown code → 2
+		{"", 2},
+		{"XXX", 2},
 	}
 	for _, c := range cases {
 		if got := currencyExponent(c.cur); got != c.want {
@@ -31,9 +24,6 @@ func TestCurrencyExponent(t *testing.T) {
 	}
 }
 
-// TestFormatPremiumPrice: wire amounts (smallest units) render as human
-// prices — trailing zeros trimmed sensibly, zero-decimal currencies
-// without a separator, triple-decimal currencies keep three.
 func TestFormatPremiumPrice(t *testing.T) {
 	cases := []struct {
 		cur    string
@@ -56,7 +46,6 @@ func TestFormatPremiumPrice(t *testing.T) {
 	}
 }
 
-// TestPremiumPlanLabel: duration labels.
 func TestPremiumPlanLabel(t *testing.T) {
 	cases := []struct {
 		months int
@@ -75,9 +64,6 @@ func TestPremiumPlanLabel(t *testing.T) {
 	}
 }
 
-// TestPremiumLimitRows: the limits map renders as comparison rows —
-// known keys become labeled rows in a fixed order; unknown keys are
-// skipped; the free/premium values come straight through.
 func TestPremiumLimitRows(t *testing.T) {
 	limits := map[string]int{
 		"free_limit":               10,
@@ -107,7 +93,6 @@ func TestPremiumLimitRows(t *testing.T) {
 		t.Fatalf("row 3 = %+v", rows[3])
 	}
 
-	// Missing keys degrade to zeros, never phantom rows.
 	rows = premiumLimitRows(map[string]int{"free_limit": 5})
 	if len(rows) != 4 {
 		t.Fatalf("degraded rows = %d, want 4", len(rows))
@@ -117,7 +102,6 @@ func TestPremiumLimitRows(t *testing.T) {
 	}
 }
 
-// TestPremiumPlanSubtitle: the plan row's price subtitle.
 func TestPremiumPlanSubtitle(t *testing.T) {
 	p := cores.PremiumPlanOption{Months: 12, Currency: "USD", Amount: 3999}
 	if got := premiumPlanSubtitle(p); got != "39.99 USD" {
@@ -125,9 +109,6 @@ func TestPremiumPlanSubtitle(t *testing.T) {
 	}
 }
 
-// effectiveAccountPremium resolves the client-side premium view:
-// server premium OR the per-account local flag (AyuGram local premium,
-// slice 162). Pure.
 func effectiveAccountPremium(serverPremium bool, local map[string]bool, accountID string) bool {
 	return serverPremium || local[accountID]
 }

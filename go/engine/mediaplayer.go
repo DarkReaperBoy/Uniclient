@@ -12,30 +12,20 @@ import (
 	"uniclient/voice"
 )
 
-// In-app playback of downloaded media (Ogg/Opus voice notes + opus
-// audio, and MP3 music since slice 185). The file is decoded fully into
-// PCM at load (voice notes are seconds-to-minutes — a few MB of PCM at
-// most), then played through the pure-Go audio device layer in pull
-// mode with position and speed (linear-interpolation resampling).
-// Formats neither decoder covers stay with the system-player handoff
-// (§1.10).
-
-// PlaybackState is the player's public snapshot.
 type PlaybackState struct {
 	AccountID string  `json:"account_id"`
 	ChatID    string  `json:"chat_id"`
 	MsgID     string  `json:"msg_id"`
 	Playing   bool    `json:"playing"`
 	Paused    bool    `json:"paused"`
-	Position  float64 `json:"position"` // seconds
-	Duration  float64 `json:"duration"` // seconds
+	Position  float64 `json:"position"`
+	Duration  float64 `json:"duration"`
 	Speed     float64 `json:"speed"`
-	Volume    float64 `json:"volume"`    // output gain, 0..1 (row 276's control)
-	HasAudio  bool    `json:"has_audio"` // false where no audio backend exists
+	Volume    float64 `json:"volume"`
+	HasAudio  bool    `json:"has_audio"`
 	Error     string  `json:"error,omitempty"`
 }
 
-// mediaSpeeds are the offered playback factors (Telegram's ladder).
 var mediaSpeeds = []float64{1, 1.5, 2, 0.5}
 
 type mediaPlayer struct {
@@ -43,34 +33,25 @@ type mediaPlayer struct {
 	eng  *Engine
 	sess *audio.Session
 
-	pcm     []int16 // mono 48 kHz
-	pos     float64 // sample position, fractional under speed != 1
+	pcm     []int16
+	pos     float64
 	speed   float64
 	ident   [3]string
-	dur     float64 // seconds
+	dur     float64
 	playing bool
 	paused  bool
 
-	// gain is the output volume, 0..1 (slice 224, parity row 276). It is
-	// applied to the samples fill hands the device and is deliberately
-	// NOT reset by stopLocked — the next track keeps the volume the user
-	// chose instead of jumping back to loud.
 	gain float64
 
 	lastEmit time.Time
 	lastErr  string
 }
 
-// newMediaPlayer lazily constructs the app-wide player.
 func (e *Engine) newMediaPlayer() *mediaPlayer {
 	return &mediaPlayer{eng: e, speed: 1, gain: 1}
 }
 
 func (e *Engine) player() *mediaPlayer {
-	// Seed a brand-new player's gain from config so the slider opens at
-	// the value the user saved instead of at full volume until the first
-	// track starts. e.mu is taken and RELEASED before mediaMu — the two
-	// locks are never nested, so there is no ordering to get wrong.
 	e.mu.Lock()
 	var (
 		gain    float64
@@ -93,8 +74,6 @@ func (e *Engine) player() *mediaPlayer {
 	return p
 }
 
-// IsOpusOgg reports whether the file at path is Ogg/Opus (the only
-// in-app playable format). Sniffs the first page's magic packets.
 func IsOpusOgg(path string) bool {
 	f, err := os.Open(path)
 	if err != nil {
@@ -109,11 +88,6 @@ func IsOpusOgg(path string) bool {
 	return string(pkt[:8]) == "OpusHead"
 }
 
-// decodeOpusOgg decodes an Ogg/Opus file into mono 48 kHz PCM.
-// Stereo input is mixed down; OpusHead rates other than 48k are
-// accepted (Opus decodes to the requested rate; the decoder is fixed
-// at 48k here, matching every Telegram voice note and opus-in-ogg
-// default the ecosystem produces).
 func decodeOpusOgg(path string) ([]int16, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -132,7 +106,7 @@ func decodeOpusOgg(path string) ([]int16, error) {
 		if err != nil {
 			return nil, fmt.Errorf("media: %w", err)
 		}
-		if idx < 2 { // OpusHead / OpusTags
+		if idx < 2 {
 			idx++
 			continue
 		}
@@ -149,26 +123,14 @@ func decodeOpusOgg(path string) ([]int16, error) {
 	return pcm, nil
 }
 
-// PlayMedia starts in-app playback of a downloaded message's file.
-// Switches playback from any previous message; emits EventPlaybackState.
-// PlayMedia decodes the clip's audio and plays it from the start (the
-// format rules above apply to every entry point).
 func (e *Engine) PlayMedia(acct, chat, msgID, path string) error {
 	return e.playMediaAt(acct, chat, msgID, path, 0)
 }
 
-// PlayMediaAt starts the sound at startAt — slice 229's join point
-// (row 281): a clip that played from the fetch-on-read stream only has
-// its bytes once the file completes, so the sound must start WHERE THE
-// PICTURE IS instead of replaying from zero.
 func (e *Engine) PlayMediaAt(acct, chat, msgID, path string, startAt time.Duration) error {
 	return e.playMediaAt(acct, chat, msgID, path, startAt)
 }
 
-// mediaStartPos clamps a start offset onto a track. Negative or
-// past-the-end offsets start at 0: an offset beyond the audio cannot
-// catch anything — the picture is about to loop, so the sound must too.
-// Pure — unit-tested.
 func mediaStartPos(startAt time.Duration, dur float64) float64 {
 	if startAt <= 0 || dur <= 0 {
 		return 0
@@ -181,10 +143,6 @@ func mediaStartPos(startAt time.Duration, dur float64) float64 {
 }
 
 func (e *Engine) playMediaAt(acct, chat, msgID, path string, startAt time.Duration) error {
-	// In-app playable formats: Ogg/Opus (voice notes, opus audio), MP3
-	// (music files, slice 185) and the AAC track of an MP4 (video and
-	// round video notes, slice 224) decode through the pure-Go pipeline;
-	// everything else stays with the system-player handoff (§1.10).
 	var pcm []int16
 	var err error
 	switch {
@@ -201,10 +159,6 @@ func (e *Engine) playMediaAt(acct, chat, msgID, path string, startAt time.Durati
 		return err
 	}
 
-	// Restore the configured volume for this track. With no config in
-	// memory (headless, tests) cfgGain stays nil and the runtime value
-	// set by SetMediaVolume stands — otherwise a fresh player in a test
-	// would start muted instead of at unity.
 	e.mu.Lock()
 	var cfgGain *float64
 	if e.config != nil {
@@ -230,8 +184,6 @@ func (e *Engine) playMediaAt(acct, chat, msgID, path string, startAt time.Durati
 	}
 	p.pcm = pcm
 	p.dur = float64(len(pcm)) / float64(voice.SampleRate)
-	// p.pos is a SAMPLE INDEX (stateLocked divides by the rate; seek
-	// scales by len(pcm)) — convert the clamped seconds here.
 	p.pos = mediaStartPos(startAt, p.dur) * float64(voice.SampleRate)
 	p.speed = 1
 	p.ident = [3]string{acct, chat, msgID}
@@ -246,7 +198,6 @@ func (e *Engine) playMediaAt(acct, chat, msgID, path string, startAt time.Durati
 	return nil
 }
 
-// TogglePauseMedia pauses/resumes the active playback.
 func (e *Engine) TogglePauseMedia() {
 	p := e.player()
 	p.mu.Lock()
@@ -257,7 +208,6 @@ func (e *Engine) TogglePauseMedia() {
 	e.emitPlayback()
 }
 
-// StopMedia stops playback and releases the audio session.
 func (e *Engine) StopMedia() {
 	p := e.player()
 	p.mu.Lock()
@@ -268,7 +218,6 @@ func (e *Engine) StopMedia() {
 	}
 }
 
-// CycleMediaSpeed steps through 1x → 1.5x → 2x → 0.5x.
 func (e *Engine) CycleMediaSpeed() {
 	p := e.player()
 	p.mu.Lock()
@@ -284,10 +233,6 @@ func (e *Engine) CycleMediaSpeed() {
 	e.emitPlayback()
 }
 
-// SeekMedia jumps the active playback to a fraction (0..1) of its
-// duration. A playback that already finished re-arms and resumes from
-// the seek point (tdesktop's replay-on-seek behavior); seeking with no
-// active playback is an honest error.
 func (e *Engine) SeekMedia(frac float64) error {
 	p := e.player()
 	p.mu.Lock()
@@ -303,9 +248,6 @@ func (e *Engine) SeekMedia(frac float64) error {
 	}
 	p.pos = frac * float64(len(p.pcm))
 	if p.sess != nil && !p.playing && !p.paused && p.pos < float64(len(p.pcm))-1 {
-		// Finished playback re-arms and resumes from the seek point
-		// (tdesktop's replay-on-seek) — only with a live audio device;
-		// a no-device player never fakes a Playing state (§1.10).
 		p.playing = true
 	}
 	p.mu.Unlock()
@@ -313,11 +255,6 @@ func (e *Engine) SeekMedia(frac float64) error {
 	return nil
 }
 
-// SetMediaVolume sets the live playback gain, clamped to 0..1. A drag on
-// a slider is the caller, so out-of-range input is bounded rather than
-// rejected. Persistence is the other half: the GUI also sends
-// ConfigChanges.MediaVolume, which is what survives a restart — this call
-// is the half that changes what is audible right now.
 func (e *Engine) SetMediaVolume(v float64) {
 	v = utils.ClampMediaVolume(v)
 	p := e.player()
@@ -327,7 +264,6 @@ func (e *Engine) SetMediaVolume(v float64) {
 	e.emitPlayback()
 }
 
-// MediaState snapshots the player.
 func (e *Engine) MediaState() PlaybackState {
 	p := e.player()
 	p.mu.Lock()
@@ -352,9 +288,6 @@ func (p *mediaPlayer) stateLocked() PlaybackState {
 	return st
 }
 
-// stopLocked halts playback and resets state. Returns whether
-// anything was playing (the caller emits AFTER releasing the lock —
-// emitPlayback re-locks).
 func (p *mediaPlayer) stopLocked() (had bool) {
 	if p.sess != nil {
 		p.sess.StopPlayback()
@@ -371,9 +304,6 @@ func (p *mediaPlayer) stopLocked() (had bool) {
 	return had
 }
 
-// fill is the pull-mode audio callback (runs on the device thread; must
-// not block). Advances the fractional source position by speed per
-// output sample with linear interpolation; emits throttled progress.
 func (p *mediaPlayer) fill(out []int16) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -386,11 +316,6 @@ func (p *mediaPlayer) fill(out []int16) {
 	n := float64(len(p.pcm))
 	for i := range out {
 		if p.pos >= n-1 {
-			// At the tail: emit the final sample once and pin the
-			// position at the end so the completion check below fires.
-			// Volume scales the OUTPUT only: p.pcm is never modified,
-			// so turning one track down cannot turn down the next one
-			// (TestMediaVolumeScalesPlayback pins this).
 			out[i] = int16(float64(p.pcm[int(n)-1]) * p.gain)
 			p.pos = n
 			continue
@@ -405,8 +330,6 @@ func (p *mediaPlayer) fill(out []int16) {
 		p.pos = n
 		p.playing = false
 	}
-	// Throttled progress events (~4/s) keep the GUI's bar and elapsed
-	// label live without flooding the event channel.
 	if time.Since(p.lastEmit) > 250*time.Millisecond || !p.playing {
 		p.lastEmit = time.Now()
 		snap := p.stateLocked()
@@ -414,7 +337,6 @@ func (p *mediaPlayer) fill(out []int16) {
 	}
 }
 
-// emitPlayback pushes a state snapshot to the host.
 func (e *Engine) emitPlayback() {
 	p := e.player()
 	p.mu.Lock()

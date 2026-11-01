@@ -12,16 +12,8 @@ import (
 	"uniclient/engine"
 )
 
-// Gift card bubbles (slice 180, parity row "Gift / star-gift messages"
-// — tdesktop's gift bubble): service messages carrying gift_* Extra
-// (written by the telegram core's convertServiceMessage for
-// messageActionStarGift / GiftStars / GiftTon) render as a centered
-// gift card — sticker artwork, star-count pill, the sender's note,
-// limited/converted chips — instead of the flat service line.
-
-// giftData is the parsed gift Extra of one message.
 type giftData struct {
-	Kind      string // stargift | stars | ton
+	Kind      string
 	Stars     int64
 	Text      string
 	ThumbB64  string
@@ -31,8 +23,6 @@ type giftData struct {
 	Refunded  bool
 }
 
-// parseGift extracts the gift fields from a cached message's raw Extra.
-// Nil when the message carries no gift. Pure — unit-tested.
 func parseGift(m *engine.CachedMessage) *giftData {
 	if m == nil || len(m.ContentRaw) == 0 {
 		return nil
@@ -63,7 +53,6 @@ func parseGift(m *engine.CachedMessage) *giftData {
 	return g
 }
 
-// giftStarsText: "1 Star" / "75 Stars" ("" when none). Pure.
 func giftStarsText(stars int64) string {
 	if stars <= 0 {
 		return ""
@@ -74,15 +63,10 @@ func giftStarsText(stars int64) string {
 	return itoa64(stars) + " Stars"
 }
 
-// giftBubbleVisible: parsed gifts render the card.
 func giftBubbleVisible(g *giftData) bool {
 	return g != nil
 }
 
-// layoutGiftBubble renders the gift card (centered, like tdesktop's):
-// sticker artwork (stripped thumb, square), the star-count pill, the
-// sender's note, and the status chips (Limited / Converted / Refunded /
-// Saved).
 func (a *App) layoutGiftBubble(gtx layout.Context, m *engine.CachedMessage, g *giftData) layout.Dimensions {
 	maxW := gtx.Constraints.Max.X
 	side := maxW
@@ -92,7 +76,6 @@ func (a *App) layoutGiftBubble(gtx layout.Context, m *engine.CachedMessage, g *g
 
 	var rows []layout.FlexChild
 
-	// Sticker artwork (stripped thumb; placeholder box while decoding).
 	if g.ThumbB64 != "" {
 		rows = append(rows, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -105,7 +88,6 @@ func (a *App) layoutGiftBubble(gtx layout.Context, m *engine.CachedMessage, g *g
 		}))
 	}
 
-	// Star-count pill (stars gifts + star gifts both carry counts).
 	if st := giftStarsText(g.Stars); st != "" && g.Kind != "ton" {
 		rows = append(rows, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Top: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -123,7 +105,6 @@ func (a *App) layoutGiftBubble(gtx layout.Context, m *engine.CachedMessage, g *g
 		}))
 	}
 
-	// The sender's note.
 	if g.Text != "" {
 		rows = append(rows, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Top: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -137,7 +118,6 @@ func (a *App) layoutGiftBubble(gtx layout.Context, m *engine.CachedMessage, g *g
 		}))
 	}
 
-	// Status chips.
 	var chips []string
 	if g.Limited {
 		chips = append(chips, "Limited")

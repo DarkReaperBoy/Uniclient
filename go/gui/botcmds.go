@@ -11,13 +11,6 @@ import (
 	"uniclient/engine"
 )
 
-// Bot commands menu (AyuGram parity slice 76): a "/" button in the
-// a.wid.composer (only for chats that have bot commands — engine
-// GetChatBotCommands, loaded lazily per chat) opens a panel listing every
-// command with its description; tapping a row inserts the command into
-// the a.wid.composer. No commands → no button, never a dead control (§1.10).
-
-// botCmdTitle renders the command chip (slash prefixed, never doubled).
 func botCmdTitle(c engine.BotCommandInfo) string {
 	cmd := strings.TrimSpace(c.Command)
 	if cmd == "" {
@@ -29,7 +22,6 @@ func botCmdTitle(c engine.BotCommandInfo) string {
 	return cmd
 }
 
-// botCmdSub renders the description line: "Bot — description".
 func botCmdSub(c engine.BotCommandInfo) string {
 	sub := strings.TrimSpace(c.Description)
 	name := strings.TrimSpace(c.BotName)
@@ -43,13 +35,10 @@ func botCmdSub(c engine.BotCommandInfo) string {
 	}
 }
 
-// botCmdPanelNeeded reports whether the "/" button should render.
 func botCmdPanelNeeded(cmds []engine.BotCommandInfo) bool {
 	return len(cmds) > 0
 }
 
-// botCmdInsertText merges a tapped command into the a.wid.composer's current
-// text (the editor keeps the cursor; this is the fallback merge).
 func botCmdInsertText(current, cmd string) string {
 	cmd = strings.TrimSpace(cmd)
 	if cmd == "" {
@@ -67,7 +56,6 @@ func botCmdInsertText(current, cmd string) string {
 	return current + cmd + " "
 }
 
-// toggleBotCmds opens/closes the commands panel.
 func (a *App) toggleBotCmds() {
 	a.mu.Lock()
 	a.botCmdsOn = !a.botCmdsOn
@@ -84,7 +72,6 @@ func (a *App) closeBotCmds() {
 	a.invalidate()
 }
 
-// loadBotCmds fetches the chat's bot commands (async, selected-guarded).
 func (a *App) loadBotCmds(k chatKey) {
 	go func() {
 		cmds, err := a.eng.GetChatBotCommands(k.AccountID, k.ChatID)
@@ -92,7 +79,6 @@ func (a *App) loadBotCmds(k chatKey) {
 			log.Printf("gui: bot commands: %v", err)
 			cmds = nil
 		}
-		// Keep only rows with a real command string.
 		kept := cmds[:0]
 		for _, c := range cmds {
 			if strings.TrimSpace(c.Command) != "" {
@@ -110,7 +96,6 @@ func (a *App) loadBotCmds(k chatKey) {
 	}()
 }
 
-// layoutBotCmdsPanel: the popup above the a.wid.composer listing the commands.
 func (a *App) layoutBotCmdsPanel(gtx layout.Context, f frame) layout.Dimensions {
 	cmds := f.botCmds
 	growClickables(&a.wid.botCmdBtns, len(cmds))
@@ -128,8 +113,6 @@ func (a *App) layoutBotCmdsPanel(gtx layout.Context, f frame) layout.Dimensions 
 		return layout.Dimensions{}
 	}
 
-	// Panel anchored above the a.wid.composer, right-aligned like the emoji
-	// picker; height capped so long command lists scroll.
 	maxH := gtx.Dp(unit.Dp(240))
 	if maxH > gtx.Constraints.Max.Y/2 {
 		maxH = gtx.Constraints.Max.Y / 2
@@ -169,7 +152,6 @@ func (a *App) layoutBotCmdsPanel(gtx layout.Context, f frame) layout.Dimensions 
 	})
 }
 
-// insertBotCommand puts the tapped command into the a.wid.composer (GUI thread).
 func (a *App) insertBotCommand(cmd string) {
 	if cmd == "" {
 		return

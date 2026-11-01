@@ -1,14 +1,5 @@
 package engine
 
-// Dice messages (slice 125): a dice/dart/basketball/football message's
-// animation lives in a per-emoji special sticker set — the engine resolves
-// the message's value to the pack document, rewrites the message's media
-// row to that document and lets the normal download pipeline fetch the
-// .tgs (the GUI renders it through the lottie player like a sticker).
-// Slot-machine values compose several reel stickers (tdesktop builds a
-// multi-sticker collage); UniClient honestly serves the plain emoji +
-// value text for those instead of faking a collage (§1.10).
-
 import (
 	"encoding/json"
 	"fmt"
@@ -17,25 +8,21 @@ import (
 	"uniclient/cores"
 )
 
-// DiceStickersFetcher is implemented by cores with dice pack support.
 type DiceStickersFetcher interface {
 	GetDiceStickers(emoji string) (*cores.DiceStickersResult, error)
 }
 
-// dicePackCache memoizes one account's pack per emoji.
 type dicePackCache struct {
 	emoji string
 	set   *cores.DiceStickersResult
 	err   error
 }
 
-// diceMsgInfo is the parsed dice metadata of a cached message.
 type diceMsgInfo struct {
 	Emoji string
 	Value int
 }
 
-// parseDiceExtra reads dice_emoji / dice_value from a message's raw JSON.
 func parseDiceExtra(raw []byte) (diceMsgInfo, bool) {
 	if len(raw) == 0 {
 		return diceMsgInfo{}, false
@@ -55,8 +42,6 @@ func parseDiceExtra(raw []byte) (diceMsgInfo, bool) {
 	return diceMsgInfo{Emoji: env.Extra.DiceEmoji, Value: env.Extra.DiceValue}, true
 }
 
-// diceStickerForValue picks the pack document for a dice value: 0 = the
-// rolling intro, 1..6 the outcome animation. Pure — unit-tested.
 func diceStickerForValue(set *cores.DiceStickersResult, value int) *cores.DiceSticker {
 	if set == nil {
 		return nil
@@ -69,8 +54,6 @@ func diceStickerForValue(set *cores.DiceStickersResult, value int) *cores.DiceSt
 	return nil
 }
 
-// dicePackWanted reports which emoji a dice message needs ("" = none).
-// The slot machine is out of scope for animation (see file comment).
 func dicePackWanted(info diceMsgInfo) string {
 	switch info.Emoji {
 	case "🎲", "🎯", "⚽", "🏀":
@@ -79,15 +62,6 @@ func dicePackWanted(info diceMsgInfo) string {
 	return ""
 }
 
-// EnsureDiceSticker resolves a dice message's animation document and routes
-// it through the standard download pipeline:
-//  1. read the message's dice emoji + value from the cache,
-//  2. fetch (and memoize) the account's dice pack for that emoji,
-//  3. rewrite the message's media row (seq 0) to the picked document,
-//  4. enqueue the download at prefetch priority.
-//
-// Idempotent: a row already pointing at the right document is left alone
-// (unless the previous download failed, which re-arms it).
 func (e *Engine) EnsureDiceSticker(accountID, chatID, msgID string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -113,7 +87,6 @@ func (e *Engine) EnsureDiceSticker(accountID, chatID, msgID string) error {
 		return fmt.Errorf("dice emoji %q has no animated pack support", info.Emoji)
 	}
 
-	// Memoized pack fetch per account+emoji (rolling → value swaps reuse it).
 	cacheKey := accountID + "|" + emoji
 	e.mu.Lock()
 	cached := e.dicePacks[cacheKey]
@@ -137,15 +110,13 @@ func (e *Engine) EnsureDiceSticker(accountID, chatID, msgID string) error {
 		return fmt.Errorf("dice pack %q has no sticker for value %d", emoji, info.Value)
 	}
 
-	// Rewrite the media row unless it already points at this document
-	// (and is not failed — a failed row re-arms the download).
 	var curRef string
 	var curState int
 	err := e.db.QueryRow(
 		"SELECT remote_ref, download_state FROM media WHERE account_id = ? AND chat_id = ? AND msg_id = ? AND seq = 0",
 		accountID, chatID, msgID).Scan(&curRef, &curState)
 	if err == nil && curRef == doc.FileID && curState != DownloadFailed {
-		return nil // already resolved (in flight or complete)
+		return nil
 	}
 
 	fileName := info.Emoji + ".tgs"

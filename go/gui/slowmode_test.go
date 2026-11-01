@@ -7,9 +7,6 @@ import (
 	"uniclient/engine"
 )
 
-// Slowmode + write-restriction a.wid.composer gating (AyuGram parity slice 69):
-// the a.wid.composer swaps to a restricted bar / countdown. Pure derivations.
-
 func TestSlowmodeRemain(t *testing.T) {
 	now := time.Unix(1_000_000, 0)
 	c := engine.ChatInfo{}
@@ -24,7 +21,6 @@ func TestSlowmodeRemain(t *testing.T) {
 	if d := slowmodeRemain(c, now); d != 12*time.Second {
 		t.Fatalf("remain = %v, want 12s", d)
 	}
-	// In the past → no wait.
 	c.SlowmodeNextSendDate = now.Add(-5 * time.Second).Unix()
 	if d := slowmodeRemain(c, now); d != 0 {
 		t.Fatalf("expired: remain = %v, want 0", d)
@@ -59,14 +55,11 @@ func TestComposerRestricted(t *testing.T) {
 	if !on || label != "Sorry, this group is not accessible." {
 		t.Fatalf("restriction text must be surfaced verbatim, got on=%v %q", on, label)
 	}
-	// Type set without a text: generic label.
 	c = engine.ChatInfo{WriteRestrictionType: 1}
 	on, label = composerRestricted(c)
 	if !on || label != composerRestrictedDefault {
 		t.Fatalf("typed restriction needs the generic label, got on=%v %q", on, label)
 	}
-	// Not-joined channels use the JOIN bar (slice 19), never the generic
-	// restriction: gate must not fire for them.
 	c = engine.ChatInfo{NotJoined: true, WriteRestrictionType: 1}
 	if on, _ := composerRestricted(c); on {
 		t.Fatal("not-joined preview chats must use the JOIN bar, not the restriction bar")

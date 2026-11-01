@@ -1,11 +1,5 @@
 package cores
 
-// tests-first for slice 228 — the ranged-read half of row 281. The RPC
-// itself needs a live DC (owner's rung), but everything the streaming
-// path depends on before the wire is testable here: location resolution
-// (document vs photo vs gif, Extra fallback, cache round-trip) and the
-// request validation that keeps malformed ranges off the network.
-
 import (
 	"errors"
 	"testing"
@@ -18,7 +12,7 @@ func TestFileLocationOfDocument(t *testing.T) {
 	loc, err := c.fileLocationOf(FileRef{
 		ID:       "5",
 		MimeType: "video/mp4",
-		Extra:    "777:Zm9v", // accessHash 777, file ref "foo"
+		Extra:    "777:Zm9v",
 	})
 	if err != nil {
 		t.Fatalf("fileLocationOf: %v", err)
@@ -37,9 +31,6 @@ func TestFileLocationOfDocument(t *testing.T) {
 		t.Errorf("FileReference = %q, want %q", doc.FileReference, "foo")
 	}
 
-	// The Extra decode must have been cached: a second resolve without
-	// Extra still finds the hash (this is how the engine's later reads
-	// of the same file skip re-parsing).
 	loc2, err := c.fileLocationOf(FileRef{ID: "5", MimeType: "video/mp4"})
 	if err != nil {
 		t.Fatalf("second resolve: %v", err)
@@ -51,7 +42,6 @@ func TestFileLocationOfDocument(t *testing.T) {
 
 func TestFileLocationOfPhotoAndGif(t *testing.T) {
 	c := &TelegramCore{}
-	// A photo resolves to the photo location at the largest thumb size.
 	loc, err := c.fileLocationOf(FileRef{ID: "9", MimeType: "image/jpeg", Extra: "42:"})
 	if err != nil {
 		t.Fatalf("photo: %v", err)
@@ -62,7 +52,6 @@ func TestFileLocationOfPhotoAndGif(t *testing.T) {
 		t.Errorf("ThumbSize = %q, want \"y\" (largest)", ph.ThumbSize)
 	}
 
-	// image/gif is a document despite the image/ prefix.
 	loc, err = c.fileLocationOf(FileRef{ID: "11", MimeType: "image/gif", Extra: "42:"})
 	if err != nil {
 		t.Fatalf("gif: %v", err)
@@ -79,9 +68,6 @@ func TestFileLocationOfRejectsEmptyID(t *testing.T) {
 	}
 }
 
-// TestReadFilePartValidatesRange: malformed ranges fail locally, before
-// withAPI (these cores are not connected here — getting the validation
-// error rather than a connection error is the point).
 func TestReadFilePartValidatesRange(t *testing.T) {
 	c := &TelegramCore{}
 	ref := FileRef{ID: "5", MimeType: "video/mp4"}
@@ -92,8 +78,6 @@ func TestReadFilePartValidatesRange(t *testing.T) {
 	if _, err := c.ReadFilePart(ref, 0, 0); !errors.Is(err, ErrInvalidInput) {
 		t.Errorf("zero limit: err = %v, want ErrInvalidInput", err)
 	}
-	// 4096-alignment is the upload.getFile rule the engine relies on;
-	// an unaligned request must be rejected here, not at the layer.
 	if _, err := c.ReadFilePart(ref, 100, 4096); !errors.Is(err, ErrInvalidInput) {
 		t.Errorf("unaligned offset: err = %v, want ErrInvalidInput", err)
 	}

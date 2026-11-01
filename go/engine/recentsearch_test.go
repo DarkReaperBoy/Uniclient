@@ -7,9 +7,6 @@ import (
 	"uniclient/utils"
 )
 
-// Recent searches (AyuGram parity slice 37): engine AddRecentSearch
-// dedupes, moves to front, and caps at 8.
-
 func newRecentsEngine(t *testing.T) *Engine {
 	dir := t.TempDir()
 	v, err := utils.CreateVault(filepath.Join(dir, "vault.db"), "test")
@@ -43,7 +40,7 @@ func TestAddRecentSearchDedupe(t *testing.T) {
 	e := newRecentsEngine(t)
 	_ = e.AddRecentSearch("alpha")
 	_ = e.AddRecentSearch("beta")
-	if err := e.AddRecentSearch("ALPHA"); err != nil { // case-insensitive dedupe
+	if err := e.AddRecentSearch("ALPHA"); err != nil {
 		t.Fatal(err)
 	}
 	got := e.GetConfig().RecentSearches

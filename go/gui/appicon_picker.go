@@ -1,11 +1,5 @@
 package gui
 
-// appicon_picker.go — slice 170: the Ayu · App icon settings section —
-// a 4-column preview grid (AyuGram icon_picker.cpp: kColumns = 4),
-// apply-on-click, selection ring like the accent swatches. Only offered
-// where the icon can actually be re-applied at runtime (linux+windows);
-// the web/Android builds hide the whole section (§1.10).
-
 import (
 	"image"
 	"image/color"
@@ -21,19 +15,15 @@ import (
 	"uniclient/engine"
 )
 
-// picker widget state (package-level, the settings-page convention).
 var (
 	appIconCells    []widget.Clickable
-	appIconPreviews = map[string]*image.RGBA{} // per-set cached preview
+	appIconPreviews = map[string]*image.RGBA{}
 )
 
-// layoutAppIconPicker renders the icon-set grid. Previews render once
-// per set (cached); the selected cell carries the accent ring.
 func (a *App) layoutAppIconPicker(gtx layout.Context, f frame) layout.Dimensions {
 	sets := appIconSets()
 	growClickables(&appIconCells, len(sets))
 
-	// Click handling first (the settings-row convention).
 	for i := range sets {
 		if appIconCells[i].Clicked(gtx) {
 			id := sets[i].ID
@@ -69,10 +59,6 @@ func (a *App) layoutAppIconPicker(gtx layout.Context, f frame) layout.Dimensions
 	})
 }
 
-// appIconCellLayout draws one preview tile: the set's rendered icon at
-// 52dp with the accent selection ring when active, plus the label
-// caption below (AyuGram shows a bare grid; the labels keep the choice
-// nameable for accessibility).
 func appIconCellLayout(a *App, gtx layout.Context, btn *widget.Clickable, set appIconSet, cfg cfgSnapshot, sz int) layout.Dimensions {
 	active := appIconIsSelected(set, cfg)
 	preview := appIconPreview(set)
@@ -80,12 +66,10 @@ func appIconCellLayout(a *App, gtx layout.Context, btn *widget.Clickable, set ap
 	return layout.Inset{Right: unit.Dp(12), Bottom: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical, Alignment: layout.Middle}.Layout(gtx,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				// Hit area + ripple tile.
 				return btn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					gtx.Constraints.Max = image.Pt(sz, sz)
 					gtx.Constraints.Min = image.Pt(sz, sz)
 
-					// Icon: painted scaled to the tile (linear filter).
 					imgSz := preview.Bounds().Dx()
 					s := float32(sz) / float32(imgSz)
 					trStack := op.Affine(f32.AffineId().Scale(f32.Point{}, f32.Pt(s, s))).Push(gtx.Ops)
@@ -117,9 +101,6 @@ func appIconCellLayout(a *App, gtx layout.Context, btn *widget.Clickable, set ap
 	})
 }
 
-// appIconPreview returns (and caches) the per-set preview image. The
-// default set previews with the standard Material accent stand-in so
-// the swatch is stable regardless of theme state.
 func appIconPreview(set appIconSet) *image.RGBA {
 	if img, ok := appIconPreviews[set.ID]; ok {
 		return img
@@ -133,8 +114,6 @@ func appIconPreview(set appIconSet) *image.RGBA {
 	return rgba
 }
 
-// applyAppIconChoice persists the choice and lets refreshConfig's hook
-// re-apply the runtime icon (engine first, then UI refresh).
 func (a *App) applyAppIconChoice(id string) {
 	go func() {
 		c := engine.ConfigChanges{AyuAppIcon: &id}

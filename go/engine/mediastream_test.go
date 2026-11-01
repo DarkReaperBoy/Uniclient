@@ -1,21 +1,5 @@
 package engine
 
-// tests-first for slice 228 — ranged media streaming, the engine half of
-// parity row 281 ("Playback without full download"). The core half is
-// Telegram's chunked upload.getFile; what must be pinned here is the
-// engine half's contract:
-//
-//   - fetch ONLY the byte ranges the reader touches (the measurement the
-//     whole row rests on — a "streaming" reader that reads the whole
-//     file is a download with extra steps),
-//   - seek anywhere without downloading the bytes in between,
-//   - promote itself to a completed download exactly once, at the same
-//     canonical path executeDownload writes, so cache accounting and
-//     eviction keep working unchanged,
-//   - NEVER serve an unfetched region as silent zeros: if a range cannot
-//     be fetched, the read errors (§1.10 — a corrupt first frame from a
-//     silent partial read would be fake playback).
-
 import (
 	"bytes"
 	"errors"
@@ -29,16 +13,14 @@ import (
 	"uniclient/cores"
 )
 
-// fakePartSource serves a deterministic byte pattern by range and records
-// exactly what the stream asked for.
 type fakePartSource struct {
 	data []byte
 
 	mu    sync.Mutex
 	calls int
 	got   int64
-	fail  error         // when set, every fetch fails
-	delay time.Duration // slow the RPC down — forces the duplicate-fetch window
+	fail  error
+	delay time.Duration
 }
 
 func (f *fakePartSource) ReadFilePart(_ cores.FileRef, offset, limit int64) ([]byte, error) {
@@ -68,7 +50,6 @@ func (f *fakePartSource) stats() (calls int, got int64) {
 	return f.calls, f.got
 }
 
-// streamPattern is the deterministic content every test compares against.
 func streamPattern(n int) []byte {
 	b := make([]byte, n)
 	for i := range b {
@@ -77,8 +58,6 @@ func streamPattern(n int) []byte {
 	return b
 }
 
-// newStreamForTest builds a stream over a fresh file, bypassing the DB
-// row (the row-level wiring has its own test below).
 func newStreamForTest(t *testing.T, src *fakePartSource, chunk int64, onDone func()) *mediaStream {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "clip.mp4")
@@ -95,8 +74,6 @@ func newStreamForTest(t *testing.T, src *fakePartSource, chunk int64, onDone fun
 	return s
 }
 
-// TestMediaStreamReadAtMatchesSource: exact bytes across chunk
-// boundaries, at the tail, and past EOF (ReaderAt semantics).
 func TestMediaStreamReadAtMatchesSource(t *testing.T) {
 	data := streamPattern(100_000)
 	src := &fakePartSource{data: data}
@@ -106,11 +83,11 @@ func TestMediaStreamReadAtMatchesSource(t *testing.T) {
 		off int64
 		n   int
 	}{
-		{0, 100},        // head
-		{4090, 20},      // crosses a chunk boundary
-		{99_000, 1_000}, // tail, exactly to EOF
-		{50_000, 8_192}, // interior, multi-chunk
-		{99_990, 100},   // starts 10 bytes before EOF
+		{0, 100},
+		{4090, 20},
+		{99_000, 1_000},
+		{50_000, 8_192},
+		{99_990, 100},
 	}
 	for _, tc := range cases {
 		got := make([]byte, tc.n)
@@ -128,17 +105,14 @@ func TestMediaStreamReadAtMatchesSource(t *testing.T) {
 			}
 		}
 	}
-	// Past EOF: EOF, never fabricated bytes.
 	n, err := s.ReadAt(make([]byte, 10), int64(len(data))+100)
 	if n != 0 || err != io.EOF {
 		t.Errorf("ReadAt past EOF = (%d,%v), want (0, io.EOF)", n, err)
 	}
 }
 
-// TestMediaStreamFetchesOnlyTouchedRanges is THE row-281 proof: reading
-// the first 8 KiB of a 1 MiB file must fetch KiBs, not MiBs.
 func TestMediaStreamFetchesOnlyTouchedRanges(t *testing.T) {
-	const size = 1 << 20 // 1 MiB
+	const size = 1 << 20
 	const chunk = 4096
 	data := streamPattern(size)
 	src := &fakePartSource{data: data}
@@ -154,7 +128,6 @@ func TestMediaStreamFetchesOnlyTouchedRanges(t *testing.T) {
 		}
 	}
 	calls, bytesFetched := src.stats()
-	// Head read touches chunks 0 and 1; readahead may fetch chunk 2.
 	if calls > 3 || bytesFetched > 3*chunk {
 		t.Errorf("head read fetched calls=%d bytes=%d, want ≤3/≤%d", calls, bytesFetched, 3*chunk)
 	}
@@ -163,9 +136,6 @@ func TestMediaStreamFetchesOnlyTouchedRanges(t *testing.T) {
 	}
 }
 
-// TestMediaStreamSeekDoesNotFetchBetween: seeking to the middle fetches
-// around the target only — the bytes between head and target stay
-// unfetched.
 func TestMediaStreamSeekDoesNotFetchBetween(t *testing.T) {
 	const size = 1 << 20
 	const chunk = 4096
@@ -195,9 +165,6 @@ func TestMediaStreamSeekDoesNotFetchBetween(t *testing.T) {
 	}
 }
 
-// TestMediaStreamCompletesExactlyOnce: reading every byte promotes the
-// stream to a completed download exactly once, no matter how many more
-// reads follow.
 func TestMediaStreamCompletesExactlyOnce(t *testing.T) {
 	const size = 20_000
 	data := streamPattern(size)
@@ -215,7 +182,6 @@ func TestMediaStreamCompletesExactlyOnce(t *testing.T) {
 	if !s.complete() {
 		t.Errorf("stream not marked complete after every byte arrived")
 	}
-	// More reads after completion: still exactly one promotion.
 	if _, err := r.Seek(0, io.SeekStart); err != nil {
 		t.Fatal(err)
 	}
@@ -227,9 +193,6 @@ func TestMediaStreamCompletesExactlyOnce(t *testing.T) {
 	}
 }
 
-// TestMediaStreamFetchErrorIsNotSilence: a failed range fetch must error
-// the read — serving zeros would decode as a corrupt frame (fake
-// playback, §1.10).
 func TestMediaStreamFetchErrorIsNotSilence(t *testing.T) {
 	data := streamPattern(16_384)
 	src := &fakePartSource{data: data, fail: errors.New("dc unreachable")}
@@ -244,15 +207,10 @@ func TestMediaStreamFetchErrorIsNotSilence(t *testing.T) {
 		t.Errorf("fetch failure misreported as EOF: %v", err)
 	}
 	if err != nil && n > 0 {
-		// Partial data fetched before the failure is fine, but the error
-		// must be reported so the caller does not treat it as complete.
 		t.Logf("partial n=%d with error (acceptable): %v", n, err)
 	}
 }
 
-// TestMediaStreamConcurrentReads: the producer goroutine reads while the
-// frame thread may seek — every goroutine must see exact bytes and the
-// chunk bookkeeping must stay consistent (-race in the gate).
 func TestMediaStreamConcurrentReads(t *testing.T) {
 	const size = 1 << 20
 	data := streamPattern(size)
@@ -285,11 +243,6 @@ func TestMediaStreamConcurrentReads(t *testing.T) {
 	wg.Wait()
 }
 
-// TestOpenMediaStreamPromotesRow: the row-level builder picks the SAME
-// canonical path executeDownload writes, and when the last byte arrives
-// the media row flips to DownloadComplete with that path — one cache
-// accounting path, not two. Also checks the file on disk holds the exact
-// bytes afterwards (streaming must end in a valid full file).
 func TestOpenMediaStreamPromotesRow(t *testing.T) {
 	e := newTestEngine(t)
 	e.mediaDir = t.TempDir()
@@ -310,7 +263,6 @@ func TestOpenMediaStreamPromotesRow(t *testing.T) {
 	}
 	defer s.Close()
 
-	// The canonical path lives under mediaDir/a1/full/<msgID>_<seq>.<ext>.
 	var (
 		state     int
 		localPath string
@@ -345,14 +297,11 @@ func TestOpenMediaStreamPromotesRow(t *testing.T) {
 	}
 }
 
-// TestOpenMediaStreamFastPathSkipsFetch: a fully downloaded file is
-// served straight from disk — no core, no ranged fetch, zero network.
 func TestOpenMediaStreamFastPathSkipsFetch(t *testing.T) {
 	e := newTestEngine(t)
 	e.mediaDir = t.TempDir()
 
 	data := streamPattern(8_192)
-	// Pre-write the completed file exactly where executeDownload put it.
 	dir := filepath.Join(e.mediaDir, "a1", "full")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
@@ -363,8 +312,6 @@ func TestOpenMediaStreamFastPathSkipsFetch(t *testing.T) {
 	}
 	seedStreamRow(t, e, int64(len(data)), DownloadComplete, path)
 
-	// No account/core exists on this engine: the fast path must not need
-	// one (and any attempt to fetch would fail loudly).
 	s, size, pth, err := e.OpenMediaStream("a1", "c1", "m1", 0)
 	if err != nil {
 		t.Fatalf("fast path: %v", err)
@@ -385,9 +332,6 @@ func TestOpenMediaStreamFastPathSkipsFetch(t *testing.T) {
 	}
 }
 
-// TestResolveStreamSourceRejectsUnsupported: cores without ranged reads
-// get ErrNoRangedRead (the caller keeps the download-then-play path) —
-// never a panic on a failed type assertion.
 func TestResolveStreamSourceRejectsUnsupported(t *testing.T) {
 	if _, err := resolveStreamSource(nil); !errors.Is(err, ErrNoRangedRead) {
 		t.Errorf("nil core: err = %v, want ErrNoRangedRead", err)
@@ -402,18 +346,11 @@ func TestResolveStreamSourceRejectsUnsupported(t *testing.T) {
 	}
 }
 
-// TestMediaStreamSingleFlightPerChunk: BUGS.md B-3 — the fetch runs
-// outside the bookkeeping lock, so (pre-patch) EVERY concurrent reader
-// that missed the same chunk issued its own RPC. fakePartSource.delay
-// makes that window deterministic: eight readers of one chunk must cost
-// exactly ONE RPC, and four concurrent whole-file readers must cost
-// exactly ceil(size/chunk) — the number the bug's evidence line names.
-// Both assertions fail without the single-flight patch.
 func TestMediaStreamSingleFlightPerChunk(t *testing.T) {
 	const size = 256 << 10
 	const chunk = 8192
 	data := streamPattern(size)
-	ceil := (size + chunk - 1) / chunk // 32 chunks
+	ceil := (size + chunk - 1) / chunk
 
 	t.Run("eight readers of one chunk share a single fetch", func(t *testing.T) {
 		src := &fakePartSource{data: data, delay: 80 * time.Millisecond}
@@ -477,7 +414,6 @@ func TestMediaStreamSingleFlightPerChunk(t *testing.T) {
 	})
 }
 
-// seedStreamRow inserts the media row streaming reads.
 func seedStreamRow(t *testing.T, e *Engine, size int64, state int, localPath string) {
 	t.Helper()
 	var path any
@@ -494,16 +430,8 @@ func seedStreamRow(t *testing.T, e *Engine, size int64, state int, localPath str
 	}
 }
 
-// TestMediaStreamDoneOnlyAfterLastChunk pins the completion contract:
-// onDone (the DB promotion to DownloadComplete + the
-// EventDownloadComplete emit) must fire EXACTLY ONCE, after THE LAST
-// chunk lands — never after chunk 0. The pre-patch done-check
-// `for _, ok := range s.have { if !ok { break }; s.done = true; …; break }`
-// inspected only the first bitmap slot (SA4004), so any file larger
-// than one chunk promoted itself complete over unfetched holes — the
-// exact §1.10 class (BUGS.md B-10). RED before the fix.
 func TestMediaStreamDoneOnlyAfterLastChunk(t *testing.T) {
-	const chunk = 1 << 16 // 64 KiB → exactly 3 chunks
+	const chunk = 1 << 16
 	data := streamPattern(chunk * 3)
 	src := &fakePartSource{data: data}
 
@@ -527,19 +455,18 @@ func TestMediaStreamDoneOnlyAfterLastChunk(t *testing.T) {
 		}
 	}
 
-	readAt(0) // chunk 0 lands
+	readAt(0)
 	if got := doneCount(); got != 0 {
 		t.Fatalf("onDone fired after chunk 0 of 3 (%d) — stream promoted complete while 2/3 of the file is still holes (B-10)", got)
 	}
-	readAt(int64(chunk)) // chunk 1
+	readAt(int64(chunk))
 	if got := doneCount(); got != 0 {
 		t.Fatalf("onDone fired after chunk 1 of 3 (%d) — still not complete (B-10)", got)
 	}
-	readAt(int64(2 * chunk)) // chunk 2 — the last one
+	readAt(int64(2 * chunk))
 	if got := doneCount(); got != 1 {
 		t.Fatalf("onDone count after the last chunk = %d, want 1", got)
 	}
-	// Exactly-once: re-reading present chunks must not re-promote.
 	readAt(0)
 	if got := doneCount(); got != 1 {
 		t.Fatalf("onDone fired %d times total, want exactly 1", got)

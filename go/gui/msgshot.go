@@ -1,12 +1,5 @@
 package gui
 
-// msgshot.go — slice 151: AyuGram's message shot — render a message
-// (forward header, reply quote, photo thumb, entity-styled text,
-// timestamp) into a shareable PNG, composed offscreen with the pure-Go
-// Go fonts (golang.org/x/image/font/gofont faces + manual rounded-rect
-// drawing — no window, no GPU, cross-platform). Saved through the
-// explorer's CreateFile save picker.
-
 import (
 	"bytes"
 	"encoding/base64"
@@ -37,9 +30,6 @@ import (
 	"uniclient/engine"
 )
 
-// ── pure model ───────────────────────────────────────────────────────────
-
-// shotRun is one styled text run of the message body.
 type shotRun struct {
 	text               string
 	bold, italic       bool
@@ -48,14 +38,10 @@ type shotRun struct {
 	url                string
 }
 
-// styled reports whether the run needs a non-default face/color.
 func (r shotRun) styled() bool {
 	return r.bold || r.italic || r.strike || r.mono || r.link || r.spoiler
 }
 
-// shotRunsFromEntities splits the message text into styled runs using
-// the entity list (offsets in UTF-16 code units, the Telegram
-// convention). Overlapping entities combine flags. Pure — unit-tested.
 func shotRunsFromEntities(text string, entities []cores.TextEntity) []shotRun {
 	if strings.TrimSpace(text) == "" {
 		return nil
@@ -64,12 +50,10 @@ func shotRunsFromEntities(text string, entities []cores.TextEntity) []shotRun {
 		return []shotRun{{text: text}}
 	}
 	runes := []rune(text)
-	// rune index → utf16 unit offset
 	units := make([]int, len(runes)+1)
 	for i, r := range runes {
 		units[i+1] = units[i] + utf16.RuneLen(r)
 	}
-	// binary search: first rune index whose unit offset >= u
 	runeAtUnit := func(u int) int {
 		lo, hi := 0, len(units)
 		for lo < hi {
@@ -84,7 +68,7 @@ func shotRunsFromEntities(text string, entities []cores.TextEntity) []shotRun {
 	}
 
 	type span struct {
-		lo, hi int // rune indexes (inclusive lo, exclusive hi)
+		lo, hi int
 		shotRun
 	}
 	var spans []span
@@ -113,7 +97,7 @@ func shotRunsFromEntities(text string, entities []cores.TextEntity) []shotRun {
 			s.link = true
 			s.url = e.URL
 		default:
-			continue // underline/blockquote/custom_emoji render plain (honest scope)
+			continue
 		}
 		spans = append(spans, s)
 	}
@@ -121,8 +105,6 @@ func shotRunsFromEntities(text string, entities []cores.TextEntity) []shotRun {
 		return []shotRun{{text: text}}
 	}
 
-	// boundary sweep: walk rune positions, recomputing flags from the
-	// active span set at every span start/end
 	type boundary struct {
 		pos  int
 		span *span
@@ -138,7 +120,7 @@ func shotRunsFromEntities(text string, entities []cores.TextEntity) []shotRun {
 		if bs[i].pos != bs[j].pos {
 			return bs[i].pos < bs[j].pos
 		}
-		return !bs[i].add // removes before adds at the same position
+		return !bs[i].add
 	})
 
 	var out []shotRun
@@ -179,26 +161,21 @@ func shotRunsFromEntities(text string, entities []cores.TextEntity) []shotRun {
 	return out
 }
 
-// shotLine is one wrapped display line.
 type shotLine struct{ runs []shotRun }
 
-// wrapShotLines greedily wraps runs into lines within maxW pixels
-// (measure returns a run-text's width). Unbreakable words longer than
-// the budget hard-split by rune. Pure — unit-tested.
 func wrapShotLines(runs []shotRun, maxW int, measure func(r shotRun, text string) int) []shotLine {
 	if maxW <= 0 {
 		return nil
 	}
 	type word struct {
 		run   shotRun
-		text  string // the word itself (no spaces)
-		space bool   // this token is a run of spaces
+		text  string
+		space bool
 	}
 	var words []word
 	for _, r := range runs {
 		rest := r.text
 		for rest != "" {
-			// leading spaces → one space token
 			if rest[0] == ' ' {
 				n := 0
 				for n < len(rest) && rest[n] == ' ' {
@@ -208,7 +185,6 @@ func wrapShotLines(runs []shotRun, maxW int, measure func(r shotRun, text string
 				rest = rest[n:]
 				continue
 			}
-			// the word up to the next space
 			w := strings.IndexByte(rest, ' ')
 			if w < 0 {
 				words = append(words, word{run: r, text: rest})
@@ -236,10 +212,9 @@ func wrapShotLines(runs []shotRun, maxW int, measure func(r shotRun, text string
 	for _, w := range words {
 		w := w
 		ww := measure(w.run, w.text)
-		// spaces: drop them when they'd start a line; else append
 		if w.space {
 			if curW > 0 && curW+ww <= maxW {
-				push(shotRun{ // spaces keep the style (font metrics equal anyway)
+				push(shotRun{
 					text: w.text,
 				})
 				curW += ww
@@ -247,19 +222,16 @@ func wrapShotLines(runs []shotRun, maxW int, measure func(r shotRun, text string
 			continue
 		}
 		if curW+ww <= maxW {
-			// fits on the current line
 			push(w.run.withText(w.text))
 			curW += ww
 			continue
 		}
-		// doesn't fit: break the line, retry
 		newline()
 		if ww <= maxW {
 			push(w.run.withText(w.text))
 			curW = ww
 			continue
 		}
-		// hard-split the long word by runes
 		remaining := w.text
 		for remaining != "" {
 			rr := []rune(remaining)
@@ -271,7 +243,7 @@ func wrapShotLines(runs []shotRun, maxW int, measure func(r shotRun, text string
 				take++
 			}
 			if take == 0 {
-				take = 1 // single rune wider than the budget — emit anyway
+				take = 1
 			}
 			piece := string(rr[:take])
 			remaining = string(rr[take:])
@@ -284,13 +256,11 @@ func wrapShotLines(runs []shotRun, maxW int, measure func(r shotRun, text string
 	return lines
 }
 
-// withText clones the run with new text.
 func (r shotRun) withText(text string) shotRun {
 	r.text = text
 	return r
 }
 
-// lineText joins a line's runs (for tests + the quote renderer).
 func lineText(l shotLine) string {
 	var b strings.Builder
 	for _, r := range l.runs {
@@ -299,10 +269,6 @@ func lineText(l shotLine) string {
 	return b.String()
 }
 
-// ── fonts ────────────────────────────────────────────────────────────────
-
-// shotFace returns a parsed Go-font face for the style (lazily cached;
-// nil only on parse failure, which the callers tolerate by skipping).
 func shotFace(bold, italic, mono bool) font.Face {
 	var key [3]bool
 	key[0], key[1], key[2] = bold, italic, mono
@@ -332,7 +298,6 @@ func shotFace(bold, italic, mono bool) font.Face {
 	return face
 }
 
-// shotFaceSmall is the 13px variant for quotes/meta rows.
 func shotFaceSmall() font.Face {
 	if shotSmallFaceCache != nil {
 		return shotSmallFaceCache
@@ -343,14 +308,6 @@ func shotFaceSmall() font.Face {
 	return shotSmallFaceCache
 }
 
-// shotMu serializes the whole render pipeline (R27): the face caches
-// below are lazily written on first render — a concurrent map write is a
-// fatal panic — and the cached opentype.Face values carry per-glyph
-// scratch state (buf sfnt.Buffer / rast / mask; x/image documents Font
-// calls as concurrent-safe only with one Buffer per call, and a Face owns
-// exactly one), so two simultaneous shots (two windows, or a re-trigger
-// before the first init completes) raced both layers. Shots are rare and
-// a render is milliseconds — one lock for the pipeline is the shape.
 var shotMu sync.Mutex
 
 var (
@@ -366,7 +323,6 @@ func parseShotFace(data []byte, size float64) (font.Face, error) {
 	return opentype.NewFace(f, &opentype.FaceOptions{Size: size, DPI: 72})
 }
 
-// shotMeasure measures a run-text with its face (px).
 func shotMeasure(r shotRun, text string) int {
 	if f := shotFace(r.bold, r.italic, r.mono); f != nil {
 		return font.MeasureString(f, text).Ceil()
@@ -374,9 +330,6 @@ func shotMeasure(r shotRun, text string) int {
 	return len([]rune(text)) * 8
 }
 
-// ── rendering ────────────────────────────────────────────────────────────
-
-// shotPalette carries the render colors (caller passes the live theme).
 type shotPalette struct {
 	bubble    color.NRGBA
 	bubbleOut color.NRGBA
@@ -385,7 +338,6 @@ type shotPalette struct {
 	accent    color.NRGBA
 }
 
-// shot layout geometry (px).
 const (
 	shotPad       = 18
 	shotMaxWidth  = 440
@@ -396,12 +348,8 @@ const (
 	shotThumbMax  = 240
 )
 
-// errShotEmpty is the honest no-content refusal (§1.10).
 var errShotEmpty = errors.New("message has no renderable content")
 
-// renderMessageShot composes the message into a PNG-ready image. The
-// whole body runs under shotMu (the face caches and the shared faces are
-// package render state — see shotMu).
 func renderMessageShot(m engine.CachedMessage, p shotPalette) (image.Image, error) {
 	shotMu.Lock()
 	defer shotMu.Unlock()
@@ -415,7 +363,6 @@ func renderMessageShot(m engine.CachedMessage, p shotPalette) (image.Image, erro
 	runs := shotRunsFromEntities(m.ContentText, entities)
 	lines := wrapShotLines(runs, shotMaxWidth-2*shotPad, shotMeasure)
 
-	// photo thumb (decoded, aspect-kept)
 	var thumb image.Image
 	if m.MediaThumbB64 != "" {
 		if raw, err := base64.StdEncoding.DecodeString(m.MediaThumbB64); err == nil {
@@ -423,7 +370,6 @@ func renderMessageShot(m engine.CachedMessage, p shotPalette) (image.Image, erro
 		}
 	}
 
-	// vertical budget
 	head := 0
 	if m.ForwardFrom != "" {
 		head += 20
@@ -508,14 +454,12 @@ func renderMessageShot(m engine.CachedMessage, p shotPalette) (image.Image, erro
 				drawHLine(img, x, y+shotBodyPx+2, w, p.accent)
 			}
 			if r.spoiler {
-				// conceal like tdesktop's static spoiler: cover the text
 				drawRoundedRect(img, image.Rect(x, y+2, x+w, y+shotBodyPx+3), bubble, 2)
 			}
 			x += w
 		}
 		y += shotBodyPx + shotLineGap
 	}
-	// timestamp (bottom-right)
 	ts := time.Unix(m.Timestamp, 0).Format("15:04")
 	if m.EditedAt > 0 {
 		ts = "edited " + ts
@@ -528,7 +472,6 @@ func renderMessageShot(m engine.CachedMessage, p shotPalette) (image.Image, erro
 	return img, nil
 }
 
-// shotDimMeasure measures with the small quote face.
 func shotDimMeasure(r shotRun, text string) int {
 	if f := shotFaceSmall(); f != nil {
 		return font.MeasureString(f, text).Ceil()
@@ -536,7 +479,6 @@ func shotDimMeasure(r shotRun, text string) int {
 	return len([]rune(text)) * 7
 }
 
-// drawShotText draws one text line at baseline y with a sized face.
 func drawShotText(img *image.RGBA, x, y int, text string, col color.NRGBA, bold, italic, mono bool, size int) {
 	var f font.Face
 	if size == shotQuotePx {
@@ -551,8 +493,6 @@ func drawShotText(img *image.RGBA, x, y int, text string, col color.NRGBA, bold,
 	d.DrawString(text)
 }
 
-// drawRoundedRect fills r (rounded by rad) with col — scanline fill with
-// per-pixel corner mask.
 func drawRoundedRect(img *image.RGBA, r image.Rectangle, col color.NRGBA, rad int) {
 	if rad <= 0 || r.Dx() < 2*rad || r.Dy() < 2*rad {
 		draw.Draw(img, r, image.NewUniform(col), image.Point{}, draw.Src)
@@ -580,7 +520,6 @@ func drawRoundedRect(img *image.RGBA, r image.Rectangle, col color.NRGBA, rad in
 	}
 }
 
-// drawHLine draws a 1px horizontal line.
 func drawHLine(img *image.RGBA, x, y, w int, col color.NRGBA) {
 	for i := 0; i < w; i++ {
 		if px := x + i; px >= 0 && px < img.Bounds().Dx() {
@@ -589,7 +528,6 @@ func drawHLine(img *image.RGBA, x, y, w int, col color.NRGBA) {
 	}
 }
 
-// shotFilename builds the default save name from the chat title.
 func shotFilename(title string) string {
 	var b strings.Builder
 	b.WriteString("shot-")
@@ -611,7 +549,6 @@ func shotFilename(title string) string {
 	return name + ".png"
 }
 
-// shotPNGBytes encodes the image.
 func shotPNGBytes(img image.Image) ([]byte, error) {
 	var buf bytes.Buffer
 	if err := png.Encode(&buf, img); err != nil {
@@ -620,14 +557,6 @@ func shotPNGBytes(img image.Image) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// ── save flow ────────────────────────────────────────────────────────────
-
-// saveMessageShot renders + saves the shot via the explorer save picker
-// (CreateFile). Rendering happens off the UI goroutine; the explorer
-// call rides the same pattern as the attach picker. The palette is
-// captured ON the GUI loop (u.p is GUI-thread state, written by applyTheme
-// with no lock) and handed to the goroutine as a copy — reading it inside
-// the goroutine raced a theme swap (R27).
 func (a *App) saveMessageShot(m engine.CachedMessage) {
 	msg := m
 	p := shotPalette{
@@ -664,7 +593,7 @@ func (a *App) saveMessageShot(m engine.CachedMessage) {
 		wc, err := a.expl.CreateFile(shotFilename(title))
 		if err != nil {
 			if err.Error() == "user declined" || strings.Contains(strings.ToLower(err.Error()), "declin") {
-				return // silent on cancel — the picker's own honesty
+				return
 			}
 			a.setToast("Message shot: " + err.Error())
 			return

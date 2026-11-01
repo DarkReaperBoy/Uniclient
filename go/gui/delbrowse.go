@@ -1,13 +1,5 @@
 package gui
 
-// Deleted-messages browser (AyuGram "View deleted messages", matrix row
-// 165, slice 97): the header ⋮ menu gains "View deleted messages…" —
-// a dialog listing the anti-recall copies kept for this chat (engine
-// messages WHERE is_deleted = 1), newest first, with a text filter,
-// "Load more" paging and the destructive "Clear all" (existing engine
-// ClearDeletedMessages). Read-only rows: the server copy is gone; what
-// anti-recall saved is the local copy.
-
 import (
 	"image"
 	"sort"
@@ -22,7 +14,6 @@ import (
 	"uniclient/engine"
 )
 
-// deletedDlgState is the open deleted-messages browser (nil when closed).
 type deletedDlgState struct {
 	chat   chatKey
 	msgs   []engine.CachedMessage
@@ -36,8 +27,6 @@ var (
 	deletedDlgKeyTag = new(struct{})
 )
 
-// deletedRowPreview (pure, testable): one browser row — "Sender: first
-// line", media rows use the typed label, "(no text)" for empty bodies.
 func deletedRowPreview(m engine.CachedMessage) string {
 	name := "someone"
 	switch {
@@ -49,7 +38,6 @@ func deletedRowPreview(m engine.CachedMessage) string {
 	return name + ": " + deletedRowBody(m)
 }
 
-// deletedRowBody (pure): the row body after the sender prefix.
 func deletedRowBody(m engine.CachedMessage) string {
 	if m.HasMedia {
 		if label := engine.MediaPreviewLabel(m.MediaType); label != "" {
@@ -66,7 +54,6 @@ func deletedRowBody(m engine.CachedMessage) string {
 	return t
 }
 
-// sortDeletedNewest (pure): rows newest-first.
 func sortDeletedNewest(msgs []engine.CachedMessage) []engine.CachedMessage {
 	out := make([]engine.CachedMessage, len(msgs))
 	copy(out, msgs)
@@ -74,7 +61,6 @@ func sortDeletedNewest(msgs []engine.CachedMessage) []engine.CachedMessage {
 	return out
 }
 
-// openDeletedDialog opens the browser for a chat and loads the first page.
 func (a *App) openDeletedDialog(k chatKey) {
 	a.mu.Lock()
 	a.deletedDlg = &deletedDlgState{chat: k}
@@ -83,7 +69,6 @@ func (a *App) openDeletedDialog(k chatKey) {
 	a.invalidate()
 }
 
-// closeDeletedDialog dismisses the browser.
 func (a *App) closeDeletedDialog() {
 	a.mu.Lock()
 	a.deletedDlg = nil
@@ -91,8 +76,6 @@ func (a *App) closeDeletedDialog() {
 	a.invalidate()
 }
 
-// loadDeleted fetches one page of deleted messages (appending when
-// paging; a changed search restarts from the top).
 func (a *App) loadDeleted(reset bool) {
 	a.mu.Lock()
 	d := a.deletedDlg
@@ -133,8 +116,6 @@ func (a *App) loadDeleted(reset bool) {
 	}()
 }
 
-// clearDeletedFromDialog wipes the chat's anti-recall copies (with the
-// existing header-menu action's engine call) and reloads the browser.
 func (a *App) clearDeletedFromDialog(k chatKey) {
 	go func() {
 		n, err := a.eng.ClearDeletedMessages(k.AccountID, k.ChatID)
@@ -147,7 +128,6 @@ func (a *App) clearDeletedFromDialog(k chatKey) {
 	}()
 }
 
-// layoutDeletedDialog renders the browser card over the chat pane.
 func (a *App) layoutDeletedDialog(gtx layout.Context, f frame) layout.Dimensions {
 	d := f.deletedDlg
 	{
@@ -250,7 +230,6 @@ func (a *App) layoutDeletedDialog(gtx layout.Context, f frame) layout.Dimensions
 	})
 }
 
-// deletedDlgRow: sender + deleted-at header, preview body.
 func (a *App) deletedDlgRow(gtx layout.Context, m engine.CachedMessage) layout.Dimensions {
 	return roundedFill(gtx, a.ui.p.SurfaceHi, 10, func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {

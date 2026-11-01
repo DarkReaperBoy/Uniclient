@@ -9,8 +9,6 @@ import (
 	"uniclient/cores"
 )
 
-// --- Auth state types ---
-
 const (
 	AuthStateChoose = "choose"
 	AuthStateInput  = "input"
@@ -23,34 +21,32 @@ const (
 	AuthStateError  = "error"
 )
 
-// AuthState represents the current auth step for a platform account.
 type AuthState struct {
 	AccountID string `json:"account_id"`
 	Platform  string `json:"platform"`
 	State     string `json:"state"`
 
-	// Fields used by different states:
-	Options           []AuthOption `json:"options,omitempty"`              // choose state
-	FieldType         string       `json:"field_type,omitempty"`           // input state
-	Label             string       `json:"label,omitempty"`                // input/otp/2fa
-	Hint              string       `json:"hint,omitempty"`                 // input/otp/2fa
-	Error             string       `json:"error,omitempty"`                // input/error state
-	CodeLength        int          `json:"code_length,omitempty"`          // otp state
-	SentTo            string       `json:"sent_to,omitempty"`              // otp state
-	TimeoutSecs       int          `json:"timeout_secs,omitempty"`         // otp state
-	CanResend         bool         `json:"can_resend,omitempty"`           // otp state
-	HasRecovery       bool         `json:"has_recovery,omitempty"`         // 2fa state
-	QRData            []byte       `json:"qr_data,omitempty"`              // qr state
-	QRExpiresIn       int          `json:"qr_expires_in,omitempty"`        // qr state
-	DisplayName       string       `json:"display_name,omitempty"`         // ready state
-	AvatarB64         string       `json:"avatar_b64,omitempty"`           // ready state
-	Message           string       `json:"message,omitempty"`              // error state
-	Recoverable       bool         `json:"recoverable,omitempty"`          // error state
-	CodeByTelegram    bool         `json:"code_by_telegram,omitempty"`     // otp state: code sent via Telegram app
-	CodeByFragmentUrl string       `json:"code_by_fragment_url,omitempty"` // otp state: open this URL instead of typing a code
-	Email             string       `json:"email,omitempty"`                // email state: prefilled address
-	EmailPatternSetup string       `json:"email_pattern_setup,omitempty"`  // otp state: masked email the verify code went to
-	EmailPatternLogin string       `json:"email_pattern_login,omitempty"`  // otp state: masked login email the login code went to
+	Options           []AuthOption `json:"options,omitempty"`
+	FieldType         string       `json:"field_type,omitempty"`
+	Label             string       `json:"label,omitempty"`
+	Hint              string       `json:"hint,omitempty"`
+	Error             string       `json:"error,omitempty"`
+	CodeLength        int          `json:"code_length,omitempty"`
+	SentTo            string       `json:"sent_to,omitempty"`
+	TimeoutSecs       int          `json:"timeout_secs,omitempty"`
+	CanResend         bool         `json:"can_resend,omitempty"`
+	HasRecovery       bool         `json:"has_recovery,omitempty"`
+	QRData            []byte       `json:"qr_data,omitempty"`
+	QRExpiresIn       int          `json:"qr_expires_in,omitempty"`
+	DisplayName       string       `json:"display_name,omitempty"`
+	AvatarB64         string       `json:"avatar_b64,omitempty"`
+	Message           string       `json:"message,omitempty"`
+	Recoverable       bool         `json:"recoverable,omitempty"`
+	CodeByTelegram    bool         `json:"code_by_telegram,omitempty"`
+	CodeByFragmentUrl string       `json:"code_by_fragment_url,omitempty"`
+	Email             string       `json:"email,omitempty"`
+	EmailPatternSetup string       `json:"email_pattern_setup,omitempty"`
+	EmailPatternLogin string       `json:"email_pattern_login,omitempty"`
 }
 
 type AuthOption struct {
@@ -58,23 +54,19 @@ type AuthOption struct {
 	Label string `json:"label"`
 }
 
-// authFlow tracks an in-progress auth flow.
 type authFlow struct {
 	mu        sync.Mutex
 	state     *AuthState
-	collected map[string]string // accumulated inputs
-	core      cores.Core        // core being authenticated
-	history   []*AuthState      // prior steps for back-navigation (intro _stepHistory)
+	collected map[string]string
+	core      cores.Core
+	history   []*AuthState
 }
 
 var (
 	authFlowsMu sync.Mutex
-	authFlows   = make(map[string]*authFlow) // accountID → flow
+	authFlows   = make(map[string]*authFlow)
 )
 
-// CurrentAuthState returns the live auth flow state for an account, or nil
-// when no flow is in progress. Hosts use it to re-sync their UI after an
-// async auth_state event (e.g. Telegram QR token refresh).
 func CurrentAuthState(accountID string) *AuthState {
 	authFlowsMu.Lock()
 	defer authFlowsMu.Unlock()
@@ -91,14 +83,12 @@ func CurrentAuthState(accountID string) *AuthState {
 	return &cp
 }
 
-// StartAuth begins the auth flow for a new account.
 func (e *Engine) StartAuth(accountID string) (*AuthState, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
 		return nil, fmt.Errorf("account %q not found", accountID)
 	}
 
-	// Create core instance.
 	factory := getCoreFactory()
 	if factory == nil {
 		return nil, fmt.Errorf("no core factory registered")
@@ -107,10 +97,8 @@ func (e *Engine) StartAuth(accountID string) (*AuthState, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create core: %w", err)
 	}
-	// Install any configured proxy before the core connects.
 	e.applyProxyToCore(core)
 
-	// Get initial state.
 	initial := initialAuthState(acc.Platform, accountID)
 
 	flow := &authFlow{
@@ -127,7 +115,6 @@ func (e *Engine) StartAuth(accountID string) (*AuthState, error) {
 	return initial, nil
 }
 
-// SubmitAuthInput advances the auth flow with user input.
 func (e *Engine) SubmitAuthInput(accountID, input string) (*AuthState, error) {
 	authFlowsMu.Lock()
 	flow, ok := authFlows[accountID]
@@ -148,7 +135,6 @@ func (e *Engine) SubmitAuthInput(accountID, input string) (*AuthState, error) {
 	prevCollected := len(flow.collected)
 	next, err := advanceAuth(acc.Platform, flow, input)
 	if err != nil {
-		// Return error state.
 		errState := &AuthState{
 			AccountID:   accountID,
 			Platform:    acc.Platform,
@@ -161,31 +147,18 @@ func (e *Engine) SubmitAuthInput(accountID, input string) (*AuthState, error) {
 		return errState, nil
 	}
 
-	// Record the step we are leaving onto the back-navigation history, but only
-	// for a genuine FORWARD step: either the step name changed (choose→input,
-	// input→otp, otp→2fa) or a new input was collected (multi-`input` platforms
-	// like Matrix, where homeserver→username→password are all "input"). Skip
-	// in-place refreshes that re-emit the same step without collecting anything
-	// new (otp→otp resend, qr→qr poll, 2fa→2fa recovery) and terminal states
-	// (ready/error), so back returns to the previous real step rather than
-	// toggling a refresh. Mirrors AyuGram appendStep pushing onto _stepHistory
-	// only when moving to a new Step (intro_widget.cpp:465-466).
 	forward := next.State != prevState || len(flow.collected) > prevCollected
 	if forward && next.State != AuthStateReady && next.State != AuthStateError {
 		flow.history = append(flow.history, flow.state)
 	}
 	flow.state = next
 
-	// Entering QR: install the push-refresh callback so an updateLoginToken
-	// (phone scanned the code) re-exports the token immediately rather than
-	// waiting for the expiry poll. Mirrors AyuGram QrWidget::checkForTokenUpdate.
 	if next.State == AuthStateQR {
 		if tc, ok := flow.core.(*cores.TelegramCore); ok {
 			tc.SetQRRefreshCallback(func() { go e.onQRTokenUpdate(accountID) })
 		}
 	}
 
-	// If ready, finalize.
 	if next.State == AuthStateReady {
 		e.finalizeAuth(accountID, acc, flow)
 	}
@@ -194,10 +167,6 @@ func (e *Engine) SubmitAuthInput(accountID, input string) (*AuthState, error) {
 	return next, nil
 }
 
-// onQRTokenUpdate re-exports the QR login token after an updateLoginToken push
-// and emits the resulting state to the UI. On acceptance the session is
-// finalized. Mirrors AyuGram QrWidget::checkForTokenUpdate → refreshCode().
-// Runs in its own goroutine (off the MTProto update path) to avoid blocking.
 func (e *Engine) onQRTokenUpdate(accountID string) {
 	authFlowsMu.Lock()
 	flow, ok := authFlows[accountID]
@@ -241,7 +210,6 @@ func (e *Engine) onQRTokenUpdate(accountID string) {
 	e.emitEvent(EventAuthState, accountID, base)
 }
 
-// CancelAuth cancels an in-progress auth flow.
 func (e *Engine) CancelAuth(accountID string) {
 	authFlowsMu.Lock()
 	flow, ok := authFlows[accountID]
@@ -254,16 +222,6 @@ func (e *Engine) CancelAuth(accountID string) {
 	authFlowsMu.Unlock()
 }
 
-// GoBackAuth steps the auth flow back to the previous step WITHIN the same live
-// flow: the MTProto connection and all collected inputs are preserved (so the
-// phone number survives and can be edited & re-submitted — which re-sends a fresh
-// code), unlike CancelAuth which closes the core and discards the whole flow. It
-// pops the step recorded by SubmitAuthInput and re-emits it. Returns (prev, true)
-// on a successful step-back, or (nil, false) when already at the first step (no
-// prior step to pop) — the caller then fully exits via CancelAuth. Mirrors
-// AyuGram Widget::backRequested → historyMove(StackAction::Back), which pops
-// _stepHistory and re-shows the previous Step, only fully exiting intro when
-// already at the first step (intro_widget.cpp:888-900, 373-385).
 func (e *Engine) GoBackAuth(accountID string) (*AuthState, bool) {
 	authFlowsMu.Lock()
 	flow, ok := authFlows[accountID]
@@ -276,7 +234,6 @@ func (e *Engine) GoBackAuth(accountID string) (*AuthState, bool) {
 	defer flow.mu.Unlock()
 
 	if len(flow.history) == 0 {
-		// Already at the first step — nothing to pop.
 		return nil, false
 	}
 
@@ -288,20 +245,6 @@ func (e *Engine) GoBackAuth(accountID string) (*AuthState, bool) {
 	return prev, true
 }
 
-// SwitchAuthMethod swaps the login method (e.g. phone↔qr_code) IN PLACE within the
-// SAME live auth flow, preserving the MTProto connection. Mirrors AyuGram's
-// QrWidget "log in by phone" link → goReplace<PhoneWidget>(Animate::Forward)
-// (intro_qr.cpp:274) and PhoneWidget "QR" link → goReplace<QrWidget>(Animate::Forward)
-// (intro_phone.cpp:129): goReplace constructs the new Step with the SAME _account
-// (live connection) and _data, swapping only the visible Step — no reconnect, no
-// empty/no-flow state (intro_step.h:139-142). Unlike CancelAuth+StartAuth, flow.core
-// is never Closed and never recreated, so the existing MTProto session keeps running.
-//
-// The flow is rewound to its choose decision point on the same core (fresh _data),
-// then the choose-transition for the new method is run immediately, so the caller
-// receives the target step (phone input / QR) DIRECTLY with no intermediate choose
-// state surfacing to the UI. History is left as [choose] — identical to picking the
-// method from the choose screen — so a later back-press behaves normally.
 func (e *Engine) SwitchAuthMethod(accountID, method string) (*AuthState, error) {
 	authFlowsMu.Lock()
 	flow, ok := authFlows[accountID]
@@ -318,18 +261,11 @@ func (e *Engine) SwitchAuthMethod(accountID, method string) (*AuthState, error) 
 		return nil, fmt.Errorf("account %q not found", accountID)
 	}
 
-	// Rewind to the choose decision point on the SAME core (= AyuGram's preserved
-	// _account / live connection); drop the previous method's collected inputs so
-	// the new step starts fresh (= goReplace's fresh _data-derived Step). flow.core
-	// is deliberately untouched — no Close, no recreate, no reconnect.
 	chooseState := initialAuthState(acc.Platform, accountID)
 	flow.state = chooseState
 	flow.collected = make(map[string]string)
 	flow.history = nil
 
-	// Run the choose-transition for the requested method on the same core, yielding
-	// the target step directly (phone input / QR / bot token). Errors surface as an
-	// error state, exactly like SubmitAuthInput.
 	next, err := advanceAuth(acc.Platform, flow, method)
 	if err != nil {
 		errState := &AuthState{
@@ -344,27 +280,17 @@ func (e *Engine) SwitchAuthMethod(accountID, method string) (*AuthState, error) 
 		return errState, nil
 	}
 
-	// Record the choose step on the back-history so a later back-press returns to
-	// the picker, exactly as a fresh choose→method pick would (SubmitAuthInput's
-	// forward rule). Skip for terminal states (an already-valid session can finish
-	// immediately, e.g. StartQRAuth returning ready).
 	if next.State != AuthStateReady && next.State != AuthStateError {
 		flow.history = append(flow.history, chooseState)
 	}
 	flow.state = next
 
-	// Entering QR: re-install the push-refresh callback so an updateLoginToken
-	// (phone scanned the code) re-exports the token immediately — same as
-	// SubmitAuthInput. (The callback no-ops while flow.state isn't QR, so the stale
-	// one left from the previous QR step is already inert after a switch away.)
 	if next.State == AuthStateQR {
 		if tc, ok := flow.core.(*cores.TelegramCore); ok {
 			tc.SetQRRefreshCallback(func() { go e.onQRTokenUpdate(accountID) })
 		}
 	}
 
-	// A switch can immediately complete if the session was already valid — finalize
-	// just like SubmitAuthInput.
 	if next.State == AuthStateReady {
 		e.finalizeAuth(accountID, acc, flow)
 	}
@@ -373,22 +299,17 @@ func (e *Engine) SwitchAuthMethod(accountID, method string) (*AuthState, error) 
 	return next, nil
 }
 
-// finalizeAuth saves credentials, attaches core, and starts connection.
 func (e *Engine) finalizeAuth(accountID string, acc *Account, flow *authFlow) {
-	// Build auth config from collected inputs.
 	cfg := buildAuthConfig(acc.Platform, flow.collected)
 
-	// Save credentials to vault.
 	e.SaveCredentials(accountID, cfg)
 
-	// Attach core to account.
 	e.accountsMu.Lock()
 	acc.Core = flow.core
 	acc.ConnState = ConnConnected
 	if flow.state.DisplayName != "" {
 		acc.DisplayName = flow.state.DisplayName
 	}
-	// Fetch self-profile for verified/premium badges, phone and username.
 	if profile, pErr := flow.core.GetProfile(""); pErr == nil && profile != nil {
 		acc.IsVerified = profile.IsVerified
 		acc.IsPremium = profile.IsPremium
@@ -397,34 +318,26 @@ func (e *Engine) finalizeAuth(accountID string, acc *Account, flow *authFlow) {
 	}
 	e.accountsMu.Unlock()
 
-	// Update DB.
 	e.UpdateAccountDisplay(accountID, acc.DisplayName, "")
 
-	// Register update handler.
 	flow.core.OnUpdate(func(u cores.Update) {
 		e.handleUpdate(accountID, u)
 	})
 
-	// Clean up flow.
 	authFlowsMu.Lock()
 	delete(authFlows, accountID)
 	authFlowsMu.Unlock()
 
-	// Emit connection state.
 	e.emitConnState(accountID, ConnConnected, "")
 	e.emitAccountList()
 
-	// Start background sync.
 	e.wg.Add(1)
 	go func() {
 		defer e.wg.Done()
-		e.syncAccount(context.Background(), accountID) // never nil (B-21)
+		e.syncAccount(context.Background(), accountID)
 	}()
 }
 
-// --- Platform-specific auth logic ---
-
-// initialAuthState returns the first auth state for a platform.
 func initialAuthState(platform, accountID string) *AuthState {
 	base := &AuthState{AccountID: accountID, Platform: platform}
 
@@ -484,8 +397,6 @@ func initialAuthState(platform, accountID string) *AuthState {
 	return base
 }
 
-// advanceAuth processes input and returns the next state.
-// When enough info is collected, calls core.Authenticate().
 func advanceAuth(platform string, flow *authFlow, input string) (*AuthState, error) {
 	s := flow.state
 	base := &AuthState{AccountID: s.AccountID, Platform: platform}
@@ -513,8 +424,6 @@ func advanceAuth(platform string, flow *authFlow, input string) (*AuthState, err
 		return nil, fmt.Errorf("unknown platform: %s", platform)
 	}
 }
-
-// --- Per-platform advance functions ---
 
 func advanceTelegram(flow *authFlow, input string, base *AuthState) (*AuthState, error) {
 	switch flow.state.State {
@@ -547,7 +456,6 @@ func advanceTelegram(flow *authFlow, input string, base *AuthState) (*AuthState,
 				return base, nil
 			}
 			if url == "" {
-				// Session was already valid
 				base.State = AuthStateReady
 				if profile, pErr := flow.core.GetProfile(""); pErr == nil && profile != nil {
 					base.DisplayName = profile.DisplayName
@@ -564,7 +472,6 @@ func advanceTelegram(flow *authFlow, input string, base *AuthState) (*AuthState,
 			return base, nil
 		}
 	case AuthStateQR:
-		// QR refresh/poll — re-export token and check acceptance
 		tc, ok := flow.core.(*cores.TelegramCore)
 		if !ok {
 			return nil, fmt.Errorf("expected TelegramCore for QR refresh")
@@ -596,13 +503,11 @@ func advanceTelegram(flow *authFlow, input string, base *AuthState) (*AuthState,
 			return tryAuth(flow, base)
 		}
 		flow.collected["phone"] = input
-		// Trigger phone auth — core will send OTP.
 		err := flow.core.Authenticate(cores.AuthConfig{
 			Mode:  cores.AuthModeUser,
 			Phone: input,
 		})
 		if err == nil {
-			// Session was already authenticated — skip OTP.
 			base.State = AuthStateReady
 			if profile, pErr := flow.core.GetProfile(""); pErr == nil && profile != nil {
 				base.DisplayName = profile.DisplayName
@@ -618,8 +523,6 @@ func advanceTelegram(flow *authFlow, input string, base *AuthState) (*AuthState,
 			return nil, fmt.Errorf("expected TelegramCore for phone auth")
 		}
 		if err.Error() == "email_setup_required" {
-			// The account must set up a login email before a phone code is sent
-			// (intro_email.cpp / EmailStatus::SetupRequired).
 			base.State = AuthStateEmail
 			base.FieldType = "email"
 			base.Label = "Add Email"
@@ -636,8 +539,6 @@ func advanceTelegram(flow *authFlow, input string, base *AuthState) (*AuthState,
 			return nil, fmt.Errorf("expected TelegramCore for OTP")
 		}
 		if input == "__no_telegram_code" {
-			// AyuGram CodeWidget::noTelegramCode — resend via the next method and
-			// switch out of Telegram-app delivery into the call-countdown mode.
 			length, timeout, err := tc.NoTelegramCode()
 			if err != nil {
 				return nil, fmt.Errorf("no-telegram-code resend: %w", err)
@@ -668,8 +569,6 @@ func advanceTelegram(flow *authFlow, input string, base *AuthState) (*AuthState,
 			base.CanResend = true
 			return base, nil
 		}
-		// Email-setup detour: the first code entered here verifies the email; the
-		// server then sends a phone code which we sign in with manually.
 		if flow.collected["email_mode"] == "verify" {
 			phoneLen, byTg, timeout, err := tc.VerifyEmailDuringAuth(input)
 			if err != nil {
@@ -705,7 +604,6 @@ func advanceTelegram(flow *authFlow, input string, base *AuthState) (*AuthState,
 			return nil, err
 		}
 		flow.collected["otp"] = input
-		// For Telegram user mode, use the interactive SubmitOTP method.
 		if flow.collected["method"] != "bot_token" {
 			err := tc.SubmitOTP(input)
 			if err == nil {
@@ -762,14 +660,11 @@ func advanceTelegram(flow *authFlow, input string, base *AuthState) (*AuthState,
 			return base, nil
 		}
 		flow.collected["2fa"] = input
-		// For Telegram user mode, use the interactive Submit2FA method.
 		if flow.collected["method"] != "bot_token" {
 			tc, ok := flow.core.(*cores.TelegramCore)
 			if !ok {
 				return nil, fmt.Errorf("expected TelegramCore for 2FA submit")
 			}
-			// In the email-setup detour the gotd flow is parked, so the SRP check
-			// must run on preAuthAPI directly.
 			var err error
 			if flow.collected["email_mode"] == "phone" {
 				err = tc.Submit2FAAfterEmail(input)
@@ -783,8 +678,6 @@ func advanceTelegram(flow *authFlow, input string, base *AuthState) (*AuthState,
 		}
 		return tryAuth(flow, base)
 	case AuthStateEmail:
-		// Login-email setup (intro_email.cpp). Collect the address, send the
-		// verification code, then move to the OTP step in email-verify mode.
 		tc, ok := flow.core.(*cores.TelegramCore)
 		if !ok {
 			return nil, fmt.Errorf("expected TelegramCore for email setup")
@@ -809,7 +702,6 @@ func advanceTelegram(flow *authFlow, input string, base *AuthState) (*AuthState,
 		base.EmailPatternSetup = pattern
 		return base, nil
 	case AuthStateSignUp:
-		// Input format: "firstName\nlastName"
 		tc, ok := flow.core.(*cores.TelegramCore)
 		if !ok {
 			return nil, fmt.Errorf("expected TelegramCore for signup")
@@ -836,7 +728,6 @@ func advanceTelegram(flow *authFlow, input string, base *AuthState) (*AuthState,
 	return nil, fmt.Errorf("unexpected state %s for telegram", flow.state.State)
 }
 
-// telegramReadyState marks the flow authenticated and fills the display profile.
 func telegramReadyState(flow *authFlow, base *AuthState) *AuthState {
 	base.State = AuthStateReady
 	if profile, pErr := flow.core.GetProfile(""); pErr == nil && profile != nil {
@@ -849,14 +740,6 @@ func telegramReadyState(flow *authFlow, base *AuthState) *AuthState {
 	return base
 }
 
-// applyTelegram2FAState fills the real cloud-password recovery flag (and hint)
-// onto a 2FA auth state by reading the live password state on the in-progress
-// connection, so the login UI offers recovery-by-email exactly when the account
-// has a recovery address — instead of always pushing toward account reset. The
-// engine used to hardcode HasRecovery=false here and only flip it true after a
-// recovery request, which the UI's own gate then prevented from ever being sent.
-// Mirrors AyuGram CodeWidget::gotPassword → pwdState.hasRecovery
-// (intro_code.cpp:341-358). Falls back to no-recovery if the state can't be read.
 func applyTelegram2FAState(tc *cores.TelegramCore, base *AuthState) {
 	hasRecovery, hint, err := tc.Get2FAStateDuringAuth()
 	if err != nil {
@@ -869,8 +752,6 @@ func applyTelegram2FAState(tc *cores.TelegramCore, base *AuthState) {
 	}
 }
 
-// telegramOTPState builds the OTP step from the code-delivery details captured by
-// the core (Telegram-app code, Fragment URL, SMS) — AyuGram updateDescText.
 func telegramOTPState(tc *cores.TelegramCore, base *AuthState) *AuthState {
 	byTg, fragURL, emailPattern, timeout, length := tc.AuthCodeInfo()
 	if length <= 0 {
@@ -932,13 +813,11 @@ func advanceBale(flow *authFlow, input string, base *AuthState) (*AuthState, err
 			return tryAuth(flow, base)
 		}
 		flow.collected["phone"] = input
-		// Trigger phone auth — Bale will send OTP via StartPhoneAuth.
 		err := flow.core.Authenticate(cores.AuthConfig{
 			Mode:  cores.AuthModeUser,
 			Phone: input,
 		})
 		if err == nil {
-			// Session was already valid — no OTP needed.
 			base.State = AuthStateReady
 			if profile, pErr := flow.core.GetProfile(""); pErr == nil && profile != nil {
 				base.DisplayName = profile.DisplayName
@@ -1036,12 +915,10 @@ func advanceIRC(flow *authFlow, input string, base *AuthState) (*AuthState, erro
 		return base, nil
 	case flow.collected["nickname"] == "":
 		flow.collected["nickname"] = input
-		// Try connecting — might work without password.
 		result, err := tryAuth(flow, base)
 		if err == nil {
 			return result, nil
 		}
-		// Ask for NickServ password.
 		base.State = AuthStateInput
 		base.FieldType = "password"
 		base.Label = "NickServ Password (optional)"
@@ -1062,10 +939,6 @@ func advanceXMPP(flow *authFlow, input string, base *AuthState) (*AuthState, err
 		base.Label = "Password"
 		return base, nil
 	case flow.collected["register_offer"] == "":
-		// Normal sign-in first; on failure offer in-band registration
-		// (XEP-0077) as the optional next step — same pattern as the
-		// TeamSpeak/Mumble optional-password steps. register_offer marks
-		// the offer as shown so the answer lands in the default branch.
 		flow.collected["password"] = input
 		result, err := tryAuth(flow, base)
 		if err == nil {
@@ -1083,7 +956,6 @@ func advanceXMPP(flow *authFlow, input string, base *AuthState) (*AuthState, err
 	}
 }
 
-// parseYesNo maps free-text yes/no answers to "true"/"false".
 func parseYesNo(input string) string {
 	switch strings.ToLower(strings.TrimSpace(input)) {
 	case "y", "yes", "1", "true", "register", "create":
@@ -1160,12 +1032,10 @@ func advanceMumble(flow *authFlow, input string, base *AuthState) (*AuthState, e
 	}
 }
 
-// tryAuth attempts to authenticate with the collected inputs.
 func tryAuth(flow *authFlow, base *AuthState) (*AuthState, error) {
 	cfg := buildAuthConfig(base.Platform, flow.collected)
 	err := flow.core.Authenticate(cfg)
 	if err != nil {
-		// Check for 2FA requirement.
 		if err.Error() == "2fa_required" {
 			base.State = AuthState2FA
 			base.Label = "Two-Factor Password"
@@ -1175,9 +1045,7 @@ func tryAuth(flow *authFlow, base *AuthState) (*AuthState, error) {
 		return nil, err
 	}
 
-	// Success.
 	base.State = AuthStateReady
-	// Try to get display name.
 	if profile, pErr := flow.core.GetProfile(""); pErr == nil && profile != nil {
 		base.DisplayName = profile.DisplayName
 		if base.DisplayName == "" {
@@ -1188,7 +1056,6 @@ func tryAuth(flow *authFlow, base *AuthState) (*AuthState, error) {
 	return base, nil
 }
 
-// buildAuthConfig converts collected inputs into a cores.AuthConfig.
 func buildAuthConfig(platform string, collected map[string]string) cores.AuthConfig {
 	cfg := cores.AuthConfig{
 		Extra: make(map[string]string),
@@ -1229,7 +1096,6 @@ func buildAuthConfig(platform string, collected map[string]string) cores.AuthCon
 		cfg.Extra["jid"] = collected["jid"]
 		cfg.Extra["password"] = collected["password"]
 		if collected["register"] == "true" {
-			// XEP-0077: create the account in-band before SASL.
 			cfg.Extra["register"] = "true"
 		}
 	case "github":

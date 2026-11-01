@@ -11,33 +11,17 @@ import (
 	"uniclient/cores"
 )
 
-// Stickers & GIFs panel tabs (AyuGram parity, matrix "Emoji picker panel"):
-// the a.wid.composer helper panel gains a top-level mode row — Emoji / Stickers /
-// GIFs. The sticker tab lists installed sticker packs as chips (plus a
-// Recent pseudo-pack) over a grid of sticker thumbnails; tapping a
-// sticker sends it (engine SendSticker). HOVERING a cell fetches its
-// document once and plays it (slice 217: .tgs lottie and .webm VP9 both
-// animate on hover — tdesktop panel behavior; static stripped thumbs
-// otherwise, honest freeze on unhover). The GIF tab grids the account's
-// saved GIFs (engine GetSavedGifs) and sends on tap through the same
-// document-send path; GIF documents are H.264 MP4s (no pure-Go decoder)
-// so their cells honestly stay static thumbs.
-
-// panel modes.
 const (
 	panelModeEmoji = iota
 	panelModeStickers
 	panelModeGifs
 )
 
-// stickerTab is one pack chip + its stickers.
 type stickerTab struct {
 	title    string
 	stickers []cores.StickerInfo
 }
 
-// stickerTabs builds the pack tabs (Recent first), clamping the selected
-// pack index into range. Pure — unit-tested.
 func stickerTabs(packs []cores.StickerPackSummary, recent []cores.StickerInfo, sel int) ([]stickerTab, int) {
 	var tabs []stickerTab
 	if len(recent) > 0 {
@@ -55,8 +39,6 @@ func stickerTabs(packs []cores.StickerPackSummary, recent []cores.StickerInfo, s
 	return tabs, sel
 }
 
-// setPanelMode switches the helper panel's top-level tab, lazily fetching
-// the mode's data on first entry.
 func (a *App) setPanelMode(mode int) {
 	a.mu.Lock()
 	if a.emojiMode == mode {
@@ -68,8 +50,6 @@ func (a *App) setPanelMode(mode int) {
 	a.invalidate()
 }
 
-// ensureStickerPacks loads installed packs + recent stickers once per
-// account scope (async; guards stale writes).
 func (a *App) ensureStickerPacks(accountID string) {
 	if accountID == "" {
 		return
@@ -79,7 +59,7 @@ func (a *App) ensureStickerPacks(accountID string) {
 		a.mu.Unlock()
 		return
 	}
-	a.stickersLoaded = true // in-flight guard
+	a.stickersLoaded = true
 	a.panelMediaFor = accountID
 	a.mu.Unlock()
 	go func() {
@@ -93,14 +73,13 @@ func (a *App) ensureStickerPacks(accountID string) {
 			a.recentStickers = recent
 		}
 		if errP != nil && errR != nil {
-			a.stickersLoaded = false // retry on next entry
+			a.stickersLoaded = false
 		}
 		a.mu.Unlock()
 		a.invalidate()
 	}()
 }
 
-// ensureSavedGifs loads the account's saved GIFs once per scope.
 func (a *App) ensureSavedGifs(accountID string) {
 	if accountID == "" {
 		return
@@ -126,17 +105,13 @@ func (a *App) ensureSavedGifs(accountID string) {
 	}()
 }
 
-// ensurePanelStickerArt fetches the hovered panel sticker's document
-// once (per-document dedup through the shared emojiArts cache — the same
-// doc may already be resolved as an inline custom emoji). Pure UI-side
-// prefetch; failures pin the entry (static thumb forever, no churn).
 func (a *App) ensurePanelStickerArt(acc string, st cores.StickerInfo) {
 	if acc == "" || st.FileID == "" {
 		return
 	}
 	docID, err := strconv.ParseInt(st.FileID, 10, 64)
 	if err != nil || docID == 0 {
-		return // non-numeric file IDs are not Telegram documents
+		return
 	}
 	e := emojiArts.get(docID)
 	if e.kind != emojiArtUnknown || e.failed {
@@ -166,8 +141,6 @@ func (a *App) ensurePanelStickerArt(acc string, st cores.StickerInfo) {
 	}()
 }
 
-// panelStickerArt returns the hovered cell's artwork entry when it is a
-// playable animation (lottie or video); nil otherwise.
 func panelStickerArt(st cores.StickerInfo) *emojiArt {
 	docID, err := strconv.ParseInt(st.FileID, 10, 64)
 	if err != nil || docID == 0 {
@@ -184,19 +157,14 @@ func panelStickerArt(st cores.StickerInfo) *emojiArt {
 	return nil
 }
 
-// sendStickerFile sends one sticker/GIF document into the open chat.
 func (a *App) sendStickerFile(f frame, fileID string) {
 	a.sendStickerOfKind(f, fileID, "sticker")
 }
 
-// sendGifFile sends a saved-GIF cell (same engine path; the Ayu
-// confirmation kind differs — slice 173).
 func (a *App) sendGifFile(f frame, fileID string) {
 	a.sendStickerOfKind(f, fileID, "gif")
 }
 
-// sendStickerOfKind: the shared sticker/GIF send, parked behind the Ayu
-// confirmation card when the per-kind toggle is on (slice 173).
 func (a *App) sendStickerOfKind(f frame, fileID, kind string) {
 	if f.selected == nil || fileID == "" {
 		return
@@ -215,7 +183,6 @@ func (a *App) sendStickerOfKind(f frame, fileID, kind string) {
 	})
 }
 
-// panelAccountID picks the account the helper panel acts for.
 func panelAccountID(f frame) string {
 	if f.selected != nil {
 		return f.selected.AccountID
@@ -226,8 +193,6 @@ func panelAccountID(f frame) string {
 	return ""
 }
 
-// layoutPanelModeRow renders the Emoji/Stickers/GIFs switch above the
-// panel body.
 func (a *App) layoutPanelModeRow(gtx layout.Context, f frame) layout.Dimensions {
 	labels := [...]string{"Emoji", "Stickers", "GIFs"}
 	growClickables(&a.wid.stickerModeBtns, len(labels))
@@ -264,7 +229,6 @@ func (a *App) layoutPanelModeRow(gtx layout.Context, f frame) layout.Dimensions 
 	})
 }
 
-// layoutStickerMode: pack chips + sticker grid.
 func (a *App) layoutStickerMode(gtx layout.Context, f frame) layout.Dimensions {
 	tabs, sel := stickerTabs(f.stickerPacks, f.recentStickers, a.stickerPackIdx)
 	a.mu.Lock()
@@ -281,7 +245,6 @@ func (a *App) layoutStickerMode(gtx layout.Context, f frame) layout.Dimensions {
 	growClickables(&a.wid.stickerCellBtns, len(stickers))
 
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		// pack chips
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Max.Y = gtx.Dp(unit.Dp(40))
 			return layout.Inset{Left: unit.Dp(4), Right: unit.Dp(4), Top: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -316,7 +279,6 @@ func (a *App) layoutStickerMode(gtx layout.Context, f frame) layout.Dimensions {
 				})
 			})
 		}),
-		// sticker grid
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			const cols = 5
 			const cellDp = unit.Dp(60)
@@ -345,9 +307,6 @@ func (a *App) layoutStickerMode(gtx layout.Context, f frame) layout.Dimensions {
 						bl.CornerRadius = 8
 						return bl.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							return centerLayout(gtx, func(gtx layout.Context) layout.Dimensions {
-								// Hover plays (slice 217): fetch on first
-								// hover, animate while hovered, freeze on
-								// unhover (tdesktop panel behavior).
 								if btn.Hovered() {
 									a.ensurePanelStickerArt(panelAccountID(f), st)
 									if art := panelStickerArt(st); art != nil {
@@ -367,15 +326,13 @@ func (a *App) layoutStickerMode(gtx layout.Context, f frame) layout.Dimensions {
 	)
 }
 
-// stickerThumb paints a sticker's static thumbnail (aspect-fit) or its
-// emoji as a text fallback while decoding / when missing.
 func (a *App) stickerThumb(gtx layout.Context, st cores.StickerInfo) layout.Dimensions {
 	max := gtx.Dp(unit.Dp(52))
 	if st.ThumbB64 != "" {
 		if img := a.avatarImage("", st.ThumbB64); img != nil {
 			return drawImageScaled(gtx, img, max, max, max/8)
 		}
-		return layout.Dimensions{Size: image.Pt(max, max)} // decode in flight
+		return layout.Dimensions{Size: image.Pt(max, max)}
 	}
 	if st.Emoji != "" {
 		lbl := a.ui.Label(unit.Sp(22), st.Emoji)
@@ -384,7 +341,6 @@ func (a *App) stickerThumb(gtx layout.Context, st cores.StickerInfo) layout.Dime
 	return layout.Dimensions{Size: image.Pt(max, max)}
 }
 
-// layoutGifMode: saved-GIF grid.
 func (a *App) layoutGifMode(gtx layout.Context, f frame) layout.Dimensions {
 	gifs := f.savedGifs
 	if len(gifs) == 0 {

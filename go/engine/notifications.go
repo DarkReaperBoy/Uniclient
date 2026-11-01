@@ -113,7 +113,6 @@ func (e *Engine) GetLocalNotifyConfig(accountID string) (map[string]interface{},
 		prefix+"%",
 	)
 	if err != nil {
-		// Fall back to legacy single-key format
 		var val string
 		err2 := e.db.QueryRow(
 			"SELECT value FROM kv WHERE key = ?",
@@ -390,8 +389,6 @@ type chatNotifySoundSetter interface {
 	SetChatNotifySound(chatID, kind string) error
 }
 
-// GetChatNotifySound reads one chat's notification-sound override kind
-// ("" = none set; "default"/"none"/"gentle") (slice 121).
 func (e *Engine) GetChatNotifySound(accountID, chatID string) (string, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -404,7 +401,6 @@ func (e *Engine) GetChatNotifySound(accountID, chatID string) (string, error) {
 	return g.GetChatNotifySound(chatID)
 }
 
-// SetChatNotifySound overrides one chat's notification sound kind (slice 121).
 func (e *Engine) SetChatNotifySound(accountID, chatID, kind string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {

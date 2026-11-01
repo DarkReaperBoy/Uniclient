@@ -12,15 +12,6 @@ import (
 	"uniclient/engine"
 )
 
-// Send-as identity picker (slice 178, parity row "Send-as channel (in
-// groups)"): chats where the account can post as more than one identity
-// (self + channels it admins) show a "Sending as <name>" row above the
-// composer; tapping it opens the identity picker; picking one persists
-// through engine.SaveDefaultSendAs (messages.saveDefaultSendAs — the
-// server applies the identity to subsequent sends). One identity or
-// none → the row hides entirely (§1.10 honest gating).
-
-// chatInfoFor looks the chat's info up (nil when not in the list).
 func (a *App) chatInfoFor(k chatKey) *engine.ChatInfo {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -33,13 +24,10 @@ func (a *App) chatInfoFor(k chatKey) *engine.ChatInfo {
 	return nil
 }
 
-// sendAsRowVisible: the row shows only with a real choice.
 func sendAsRowVisible(peers []engine.SendAsPeerInfo) bool {
 	return len(peers) > 1
 }
 
-// sendAsCurrent resolves the active identity: the saved one when still
-// offered, else the first non-channel (self).
 func sendAsCurrent(peers []engine.SendAsPeerInfo, saved string) string {
 	if saved != "" {
 		for _, p := range peers {
@@ -59,7 +47,6 @@ func sendAsCurrent(peers []engine.SendAsPeerInfo, saved string) string {
 	return ""
 }
 
-// sendAsName: the identity's display name.
 func sendAsName(peers []engine.SendAsPeerInfo, peerID string) (string, bool) {
 	for _, p := range peers {
 		if p.PeerID == peerID {
@@ -72,8 +59,6 @@ func sendAsName(peers []engine.SendAsPeerInfo, peerID string) (string, bool) {
 	return "", false
 }
 
-// ensureSendAs loads the offered identities for the open chat (once per
-// chat open; hidden entirely on error or single-identity results).
 func (a *App) ensureSendAs(f frame) {
 	k := f.selected
 	if k == nil {
@@ -114,7 +99,6 @@ func (a *App) ensureSendAs(f frame) {
 	}()
 }
 
-// openSendAsPicker shows the identity dialog for the open chat.
 func (a *App) openSendAsPicker() {
 	a.mu.Lock()
 	k := a.selected
@@ -127,7 +111,6 @@ func (a *App) openSendAsPicker() {
 	a.invalidate()
 }
 
-// closeSendAsPicker dismisses it.
 func (a *App) closeSendAsPicker() {
 	a.mu.Lock()
 	if !a.sendAsDlg {
@@ -139,8 +122,6 @@ func (a *App) closeSendAsPicker() {
 	a.invalidate()
 }
 
-// pickSendAs persists the chosen identity (messages.saveDefaultSendAs —
-// the server routes subsequent sends through it).
 func (a *App) pickSendAs(peerID string) {
 	a.mu.Lock()
 	k := a.selected
@@ -160,8 +141,6 @@ func (a *App) pickSendAs(peerID string) {
 	}()
 }
 
-// sendAsRow renders the "Sending as <name>" strip above the composer
-// input (avatar + name + chevron). Hidden when there is no choice.
 func (a *App) sendAsRow(gtx layout.Context, f frame) layout.Dimensions {
 	if !sendAsRowVisible(f.sendAs) {
 		return layout.Dimensions{}
@@ -201,7 +180,6 @@ func (a *App) sendAsRow(gtx layout.Context, f frame) layout.Dimensions {
 	})
 }
 
-// layoutSendAsDialog: the identity picker (modal list above the chat).
 func (a *App) layoutSendAsDialog(gtx layout.Context, f frame) layout.Dimensions {
 	peers := f.sendAs
 	cur := sendAsCurrent(peers, f.sendAsCur)
@@ -215,7 +193,6 @@ func (a *App) layoutSendAsDialog(gtx layout.Context, f frame) layout.Dimensions 
 		a.closeSendAsPicker()
 	}
 
-	// Scrim.
 	paint.FillShape(gtx.Ops, color.NRGBA{R: 0, G: 0, B: 0, A: 0x66},
 		clip.Rect{Max: image.Pt(gtx.Constraints.Max.X, gtx.Constraints.Max.Y)}.Op())
 

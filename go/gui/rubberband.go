@@ -11,23 +11,8 @@ import (
 	"gioui.org/op/paint"
 )
 
-// Rubber-band selection (AyuGram §3 "Message selection mode", slice 84):
-// in selection mode, dragging over the message list marks every visible
-// row the rectangle touches. The overlay passes pointer events through
-// (bubbles keep their tap-to-toggle; the list keeps wheel scrolling —
-// desktop mouse drags do not scroll a Gio List, so there is no fight).
-// Gesture state (rubberOn/rubberStart/rubberCur) lives on the App — R23:
-// this overlay renders in BOTH window branches (layoutChatView ←
-// layoutMain/separateChatView), and package-level state let another
-// window's frame kill an in-flight drag (selOn early-exit) or paint this
-// window's rectangle on the other viewport.
-
-// rubberTag is the overlay's opaque event tag (immutable — safe to share).
 var rubberTag = new(struct{})
 
-// rubberSelectRect normalizes the gesture's points into a rectangle —
-// drags in any direction (up-left, down-right…) produce the same rect.
-// Pure — locked by tests.
 func rubberSelectRect(start, cur image.Point) image.Rectangle {
 	r := image.Rectangle{Min: start, Max: cur}
 	if r.Min.X > r.Max.X {
@@ -39,8 +24,6 @@ func rubberSelectRect(start, cur image.Point) image.Rectangle {
 	return r.Canon()
 }
 
-// rubberHits returns the row indexes whose bounds intersect the rect.
-// Zero-area rects (plain taps) hit nothing. Pure — locked by tests.
 func rubberHits(bounds map[int]image.Rectangle, rect image.Rectangle) []int {
 	if rect.Dx() <= 0 && rect.Dy() <= 0 {
 		return nil
@@ -54,20 +37,12 @@ func rubberHits(bounds map[int]image.Rectangle, rect image.Rectangle) []int {
 	return hits
 }
 
-// rubberBandOverlay registers the drag gesture over the message viewport
-// and draws the selection rectangle while active. Called after the list
-// laid out (this frame's rowBounds are filled). Points are converted to
-// pane coordinates (rowBounds are pane-absolute).
 func (a *App) rubberBandOverlay(gtx layout.Context, f frame, size image.Point) {
 	if !f.selOn {
-		// Selection mode left mid-drag: drop the gesture.
 		a.rubberOn = false
 		return
 	}
 
-	// Pass-through hit node (bubbles underneath keep their tap-to-toggle;
-	// the list keeps wheel scrolling — desktop mouse drags do not scroll
-	// a Gio List, so there is no gesture fight).
 	defer pointer.PassOp{}.Push(gtx.Ops).Pop()
 	{
 		stack := clip.Rect{Max: size}.Push(gtx.Ops)
@@ -108,7 +83,6 @@ func (a *App) rubberBandOverlay(gtx layout.Context, f frame, size image.Point) {
 
 	if a.rubberOn {
 		rect := rubberSelectRect(a.rubberStart, a.rubberCur)
-		// Pane coords → this overlay's local space.
 		r := rect.Sub(image.Pt(0, a.listTop))
 		defer op.Offset(r.Min).Push(gtx.Ops).Pop()
 		sz := r.Max.Sub(r.Min)
@@ -117,7 +91,6 @@ func (a *App) rubberBandOverlay(gtx layout.Context, f frame, size image.Point) {
 	}
 }
 
-// rubberApply marks the hit messages (row indexes → msg ids).
 func (a *App) rubberApply(f frame, hits []int) {
 	if len(hits) == 0 {
 		return

@@ -6,8 +6,6 @@ import (
 	"uniclient/engine"
 )
 
-// Sidebar row meta + service pill (AyuGram parity slice 29).
-
 func TestRowBadgeKind(t *testing.T) {
 	cases := []struct {
 		c    engine.ChatInfo
@@ -36,7 +34,6 @@ func TestServicePillText(t *testing.T) {
 }
 
 func TestRowIconsRenderable(t *testing.T) {
-	// The custom IconVG pin glyph must decode (regression: hand-encoded bytes).
 	if iconCustomPin == nil {
 		t.Fatal("pin icon is nil")
 	}

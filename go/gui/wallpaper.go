@@ -1,15 +1,5 @@
 package gui
 
-// wallpaper.go — slice 218: per-chat custom wallpapers (tdesktop/AyuGram
-// "Set wallpaper" for private chats). The picker stages a local image
-// (explorer), previews it, and applies it through the engine
-// (account.uploadWallPaper for_chat → messages.setChatWallPaper, with the
-// blur transform and the premium for-both flag). The message pane renders
-// the chat's active wallpaper — received ones arrive via the
-// messageActionSetChatWallPaper service row (engine mirror) — cover-fit
-// behind the messages with the spec blur (downscale to 450 + box blur 12)
-// when the settings ask for it.
-
 import (
 	"encoding/json"
 	"image"
@@ -26,15 +16,11 @@ import (
 	"uniclient/engine"
 )
 
-// ── dialog state ──────────────────────────────────────────────────────────
-
-// wallpaperDlgState is the picker dialog (mirrors chatThemeDlgState).
 type wallpaperDlgState struct {
 	accountID string
 	chatID    string
 	title     string
 
-	// staged local image ("" = none picked yet).
 	path     string
 	preview  *image.RGBA
 	decoding bool
@@ -45,7 +31,6 @@ type wallpaperDlgState struct {
 	errMsg  string
 }
 
-// openWallpaperDialog opens the picker for a private chat.
 func (a *App) openWallpaperDialog(c engine.ChatInfo) {
 	a.mu.Lock()
 	a.wallpaperDlg = &wallpaperDlgState{accountID: c.AccountID, chatID: c.ChatID, title: c.Title}
@@ -53,7 +38,6 @@ func (a *App) openWallpaperDialog(c engine.ChatInfo) {
 	a.invalidate()
 }
 
-// closeWallpaperDialog dismisses the picker.
 func (a *App) closeWallpaperDialog() {
 	a.mu.Lock()
 	a.wallpaperDlg = nil
@@ -61,12 +45,8 @@ func (a *App) closeWallpaperDialog() {
 	a.invalidate()
 }
 
-// wallpaperExts are the image formats the wallpaper flow accepts
-// (account.uploadWallPaper takes JPEG/PNG).
 var wallpaperExts = []string{".jpg", ".jpeg", ".png"}
 
-// pickWallpaperImage opens the OS file picker and stages the chosen
-// image (async decode into the preview).
 func (a *App) pickWallpaperImage() {
 	a.mu.Lock()
 	d := a.wallpaperDlg
@@ -115,7 +95,6 @@ func (a *App) pickWallpaperImage() {
 	}()
 }
 
-// applyWallpaper uploads the staged image and sets it on the chat.
 func (a *App) applyWallpaper() {
 	a.mu.Lock()
 	d := a.wallpaperDlg
@@ -178,20 +157,11 @@ func (a *App) applyWallpaper() {
 	}()
 }
 
-// refreshWallpaperChat mirrors the freshly-set wallpaper onto the open
-// chat list entry (the engine already wrote chats.wallpaper_json; the
-// message-pane renderer reads ChatInfo.WallpaperJSON — same optimistic
-// local mirror as the theme apply, the echo confirms later).
-
-// ── dialog layout ─────────────────────────────────────────────────────────
-
-// layoutWallpaperDialog renders the picker as the content-pane surface.
 func (a *App) layoutWallpaperDialog(gtx layout.Context, f frame) layout.Dimensions {
 	st := f.wallpaperDlg
 	if st == nil {
 		return layout.Dimensions{}
 	}
-	// Esc closes (self-handled, same as the theme picker).
 	for {
 		ev, ok := gtx.Source.Event(key.Filter{Name: key.NameEscape})
 		if !ok {
@@ -228,7 +198,6 @@ func (a *App) layoutWallpaperDialog(gtx layout.Context, f frame) layout.Dimensio
 						lbl.Color = a.ui.p.TextFaint
 						return layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(10)}.Layout(gtx, lbl.Layout)
 					}),
-					// Preview: the staged image cover-fit, or the hint.
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						h := gtx.Dp(unit.Dp(130))
 						gtx.Constraints.Min = image.Pt(gtx.Constraints.Max.X, h)
@@ -301,12 +270,6 @@ func (a *App) layoutWallpaperDialog(gtx layout.Context, f frame) layout.Dimensio
 	})
 }
 
-// ── background rendering ──────────────────────────────────────────────────
-
-// wallpaperBackground paints the chat's custom wallpaper behind the
-// messages (cover-fit; spec blur when the settings ask). Returns whether
-// it painted — the theme gradient is skipped then (a custom wallpaper
-// replaces it, tdesktop behavior).
 func (a *App) wallpaperBackground(gtx layout.Context, chat engine.ChatInfo, f frame) bool {
 	if chat.WallpaperJSON == "" {
 		return false
@@ -324,11 +287,8 @@ func (a *App) wallpaperBackground(gtx layout.Context, chat engine.ChatInfo, f fr
 	return false
 }
 
-// wallpaperFetches guards one in-flight document download per doc.
 var wallpaperFetches sync.Map
 
-// ensureWallpaperImage downloads + decodes a wallpaper document into the
-// shared media cache (blur applied per the wallpaper settings).
 func (a *App) ensureWallpaperImage(accountID string, info cores.WallpaperInfo) {
 	if _, busy := wallpaperFetches.LoadOrStore(info.DocID, true); busy {
 		return
@@ -352,8 +312,6 @@ func (a *App) ensureWallpaperImage(accountID string, info cores.WallpaperInfo) {
 	}()
 }
 
-// parseWallpaperJSON decodes the mirrored WallpaperInfo ("" and garbage
-// both mean "no wallpaper"). Pure — unit-tested.
 func parseWallpaperJSON(js string) (cores.WallpaperInfo, bool) {
 	if js == "" {
 		return cores.WallpaperInfo{}, false
@@ -365,9 +323,6 @@ func parseWallpaperJSON(js string) (cores.WallpaperInfo, bool) {
 	return info, true
 }
 
-// drawWallpaperCover draws img cover-fit into the full constraints box
-// (scale to fill, center crop) — the wallpaper presentation, on top of
-// the album-crop primitive.
 func drawWallpaperCover(gtx layout.Context, img *image.RGBA) layout.Dimensions {
 	w := gtx.Constraints.Max.X
 	h := gtx.Constraints.Max.Y
@@ -383,17 +338,11 @@ func drawWallpaperCover(gtx layout.Context, img *image.RGBA) layout.Dimensions {
 	return layout.Dimensions{Size: image.Pt(w, h)}
 }
 
-// ── spec blur ─────────────────────────────────────────────────────────────
-
-// wallpaperBlur applies the API-spec image-wallpaper transform: downscale
-// to fit a 450×450 square, then box-blur with radius 12 (two passes for
-// a smoother result). Pure — unit-tested.
 func wallpaperBlur(src *image.RGBA) *image.RGBA {
 	if src == nil || src.Bounds().Empty() {
 		return src
 	}
 	w, h := src.Bounds().Dx(), src.Bounds().Dy()
-	// Downscale to fit 450 (box-average when shrinking for quality).
 	sw, sh := w, h
 	if sw > 450 || sh > 450 {
 		k := float64(450) / float64(maxInt(w, h))
@@ -401,7 +350,6 @@ func wallpaperBlur(src *image.RGBA) *image.RGBA {
 		sh = maxInt(1, int(float64(h)*k+0.5))
 	}
 	dst := boxScaleRGBA(src, sw, sh)
-	// Two separable box-blur passes at radius 12.
 	dst = boxBlurRGBA(dst, 12)
 	dst = boxBlurRGBA(dst, 12)
 	return dst
@@ -414,8 +362,6 @@ func maxInt(a, b int) int {
 	return b
 }
 
-// boxScaleRGBA resizes by box averaging (each destination pixel averages
-// its source footprint). Pure — unit-tested.
 func boxScaleRGBA(src *image.RGBA, w, h int) *image.RGBA {
 	sw, sh := src.Bounds().Dx(), src.Bounds().Dy()
 	if w <= 0 || h <= 0 || sw == 0 || sh == 0 {
@@ -469,8 +415,6 @@ func boxScaleRGBA(src *image.RGBA, w, h int) *image.RGBA {
 	return dst
 }
 
-// boxBlurRGBA is a separable moving-average box blur (edge clamp).
-// Pure — unit-tested.
 func boxBlurRGBA(src *image.RGBA, radius int) *image.RGBA {
 	if src == nil || radius <= 0 || src.Bounds().Empty() {
 		return src
@@ -478,7 +422,6 @@ func boxBlurRGBA(src *image.RGBA, radius int) *image.RGBA {
 	tmp := image.NewRGBA(src.Bounds())
 	dst := image.NewRGBA(src.Bounds())
 	w, h := src.Bounds().Dx(), src.Bounds().Dy()
-	// Horizontal.
 	for y := 0; y < h; y++ {
 		row := src.Pix[y*src.Stride:]
 		out := tmp.Pix[y*tmp.Stride:]
@@ -497,10 +440,6 @@ func boxBlurRGBA(src *image.RGBA, radius int) *image.RGBA {
 			out[x*4+1] = byte(g / n)
 			out[x*4+2] = byte(b / n)
 			out[x*4+3] = byte(a / n)
-			// Sliding update with CLAMPED indices: the edge-clamped
-			// window holds virtual copies of the edge samples, so the
-			// add/remove pair always fires (a guarded skip desyncs the
-			// multiset and overflows the average).
 			i := clampInt(x+radius+1, 0, w-1) * 4
 			r += uint64(row[i])
 			g += uint64(row[i+1])
@@ -513,7 +452,6 @@ func boxBlurRGBA(src *image.RGBA, radius int) *image.RGBA {
 			a -= uint64(row[i+3])
 		}
 	}
-	// Vertical.
 	for x := 0; x < w; x++ {
 		var r, g, b, a uint64
 		for y := -radius; y <= radius; y++ {
@@ -531,8 +469,6 @@ func boxBlurRGBA(src *image.RGBA, radius int) *image.RGBA {
 			dst.Pix[di+1] = byte(g / n)
 			dst.Pix[di+2] = byte(b / n)
 			dst.Pix[di+3] = byte(a / n)
-			// Same clamped always-add/always-remove as the horizontal
-			// pass (see the comment there for the invariant).
 			i := clampInt(y+radius+1, 0, h-1)*tmp.Stride + x*4
 			r += uint64(tmp.Pix[i])
 			g += uint64(tmp.Pix[i+1])
@@ -557,5 +493,3 @@ func clampInt(v, lo, hi int) int {
 	}
 	return v
 }
-
-// draw keeps the draw import honest for future tiling paths.

@@ -6,7 +6,6 @@ import (
 	"uniclient/engine"
 )
 
-// TestTransLangName: code → display name resolution with fallbacks.
 func TestTransLangName(t *testing.T) {
 	if got := transLangName("en"); got != "English" {
 		t.Fatalf("en = %q", got)
@@ -22,13 +21,12 @@ func TestTransLangName(t *testing.T) {
 	}
 }
 
-// TestNormalizeTransTarget: clamping to the curated list.
 func TestNormalizeTransTarget(t *testing.T) {
 	cases := []struct{ in, want string }{
 		{"", "en"},
 		{"en", "en"},
 		{"de", "de"},
-		{"EN", "en"}, // unknown (case-sensitive) → default
+		{"EN", "en"},
 		{"xx", "en"},
 		{"english", "en"},
 	}
@@ -39,7 +37,6 @@ func TestNormalizeTransTarget(t *testing.T) {
 	}
 }
 
-// TestTransLangsUnique: no duplicate codes in the picker list.
 func TestTransLangsUnique(t *testing.T) {
 	seen := map[string]bool{}
 	for _, l := range transLangs {
@@ -53,7 +50,6 @@ func TestTransLangsUnique(t *testing.T) {
 	}
 }
 
-// TestTransChatKey: stable per-chat key.
 func TestTransChatKey(t *testing.T) {
 	if got := transChatKey("acc1", "chat1"); got != "acc1|chat1" {
 		t.Fatalf("key = %q", got)
@@ -63,8 +59,6 @@ func TestTransChatKey(t *testing.T) {
 	}
 }
 
-// TestHeaderMenuTranslateEntry: the ⋮ menu carries the state-aware
-// translate rows (slice 150).
 func TestHeaderMenuTranslateEntry(t *testing.T) {
 	dm := engine.ChatInfo{Type: engine.ChatTypeDMVal}
 	off := headerMenuItems(dm, false, false, false, false, false)

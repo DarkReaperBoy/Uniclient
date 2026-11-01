@@ -9,7 +9,6 @@ import (
 	"uniclient/cores"
 )
 
-// SearchResult represents a message found via FTS5 search.
 type SearchResult struct {
 	AccountID  string `json:"account_id"`
 	ChatID     string `json:"chat_id"`
@@ -20,27 +19,15 @@ type SearchResult struct {
 	ChatTitle  string `json:"chat_title,omitempty"`
 }
 
-// SearchMessages performs a cross-account FTS5 search.
-// If accountID is non-empty, restricts to that account.
-// If chatID is non-empty, restricts to that chat.
-// If topicID is non-empty, restricts to that forum topic.
-// If senderID is non-empty, restricts to messages from that sender
-// (the "Search from [user]" filter — AyuGram ChatSearchIn `_from`).
-// Search message-kind filters (AyuGram search results tabs): Links keeps
-// messages carrying URLs (auto-detected or explicit entities, or a bare
-// http prefix in the text); Files keeps messages with media attachments.
 const (
 	SearchFilterLinks = "links"
 	SearchFilterFiles = "files"
 )
 
-// SearchMessages is the unrestricted search (all kinds).
 func (e *Engine) SearchMessages(query string, accountID string, limit int, chatID string, topicID string, senderID string) ([]SearchResult, error) {
 	return e.SearchMessagesEx(query, accountID, limit, chatID, topicID, senderID, "")
 }
 
-// SearchMessagesEx additionally restricts the hits to one message kind
-// (SearchFilterLinks / SearchFilterFiles; "" = all).
 func (e *Engine) SearchMessagesEx(query string, accountID string, limit int, chatID string, topicID string, senderID string, kind string) ([]SearchResult, error) {
 	if limit <= 0 {
 		limit = 50
@@ -51,8 +38,6 @@ func (e *Engine) SearchMessagesEx(query string, accountID string, limit int, cha
 
 	ftsQuery := buildFTSMatch(query)
 	if ftsQuery == "" {
-		// The query had no tokenizable characters (e.g. just "#"): there is
-		// nothing for FTS5 to match, so return no results instead of erroring.
 		return nil, nil
 	}
 
@@ -111,17 +96,6 @@ func (e *Engine) SearchMessagesEx(query string, accountID string, limit int, cha
 	return results, rows.Err()
 }
 
-// buildFTSMatch turns a raw user search string into a safe FTS5 MATCH
-// expression. Each whitespace-separated token is wrapped in double quotes (with
-// embedded quotes doubled per FTS5's escaping rules) so that FTS5 syntax
-// characters in user input — '#', ':', '^', '(', ')', '*', '"', '-', etc. — are
-// treated as literal text rather than query operators. Without this a query
-// like "#bitcoin" produced `SQL logic error: fts5: syntax error near "#"`.
-// The final token keeps a trailing '*' for search-as-you-type prefix matching,
-// preserving the previous `query + "*"` behavior. Tokens that contain no
-// letters or digits tokenize to nothing under the unicode61 tokenizer and are
-// dropped to avoid empty-phrase syntax errors; if every token drops out the
-// result is "" and the caller treats it as "no results".
 func buildFTSMatch(query string) string {
 	tokens := strings.Fields(query)
 	parts := make([]string, 0, len(tokens))
@@ -138,8 +112,6 @@ func buildFTSMatch(query string) string {
 	return strings.Join(parts, " ")
 }
 
-// hasTokenRune reports whether s contains at least one rune that the unicode61
-// tokenizer treats as a token character (a Unicode letter or digit).
 func hasTokenRune(s string) bool {
 	for _, r := range s {
 		if unicode.IsLetter(r) || unicode.IsDigit(r) {
@@ -149,7 +121,6 @@ func hasTokenRune(s string) bool {
 	return false
 }
 
-// CountMessagesFrom counts messages from a specific sender in a chat (local cache).
 func (e *Engine) CountMessagesFrom(accountID, chatID, senderID string) (int, error) {
 	var count int
 	err := e.db.QueryRow(
@@ -159,12 +130,6 @@ func (e *Engine) CountMessagesFrom(accountID, chatID, senderID string) (int, err
 	return count, err
 }
 
-// SearchMessagesByTag (matrix row 259, slice 92): messages carrying the
-// hashtag as a standalone token — "#news" matches "check #news now" but
-// not "newsletter". FTS narrows to the tag body (unicode61 treats '#' as
-// a separator, so the body word is the FTS phrase); a pure post-filter
-// then enforces the tagged token. Tag chars per Telegram: letters,
-// digits, underscore (so "#news2" must not match "#news").
 func (e *Engine) SearchMessagesByTag(accountID, chatID, tag string, limit int) ([]SearchResult, error) {
 	tag = strings.TrimSpace(tag)
 	body := strings.TrimPrefix(tag, "#")
@@ -184,14 +149,10 @@ func (e *Engine) SearchMessagesByTag(accountID, chatID, tag string, limit int) (
 	return out, nil
 }
 
-// isTagRune: characters that may continue a hashtag token.
 func isTagRune(r rune) bool {
 	return r == '_' || unicode.IsLetter(r) || unicode.IsDigit(r)
 }
 
-// matchHashtagToken reports whether text contains '#'+body as a
-// standalone token (case-insensitive — FTS matched the body that way).
-// Pure — locked by tests.
 func matchHashtagToken(text, body string) bool {
 	if text == "" || body == "" {
 		return false
@@ -206,7 +167,6 @@ func matchHashtagToken(text, body string) bool {
 		if lower[i:i+n] != needle {
 			continue
 		}
-		// Token must END after the body (next rune is not a tag char).
 		rest := lower[i+n:]
 		if rest != "" {
 			if isTagRune(firstRune(rest)) {
@@ -218,7 +178,6 @@ func matchHashtagToken(text, body string) bool {
 	return false
 }
 
-// firstRune decodes the first rune of s (0 for empty).
 func firstRune(s string) rune {
 	for _, r := range s {
 		return r
@@ -226,7 +185,6 @@ func firstRune(s string) rune {
 	return 0
 }
 
-// SearchChats searches chat titles across all accounts.
 func (e *Engine) SearchChats(query string, limit int) ([]ChatInfo, error) {
 	if limit <= 0 {
 		limit = 20
@@ -301,8 +259,6 @@ func (e *Engine) SearchGlobalChats(accountID, query string, limit int) ([]ChatIn
 	return result, nil
 }
 
-// SearchGlobalUsers returns contacts.Search USER results (id/name/username) for
-// the member picker's people search (add_participants_box.cpp:1894).
 func (e *Engine) SearchGlobalUsers(accountID, query string, limit int) ([]map[string]interface{}, error) {
 	if query == "" {
 		return nil, nil

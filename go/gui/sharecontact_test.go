@@ -7,9 +7,6 @@ import (
 	"uniclient/engine"
 )
 
-// Share contact (slice 83): the DM profile panel's Share button copies a
-// minimal vCard.
-
 func TestVcardFor(t *testing.T) {
 	u := engine.CachedUser{
 		DisplayName: "Alice Smith",
@@ -26,7 +23,6 @@ func TestVcardFor(t *testing.T) {
 		}
 	}
 
-	// Sparse profile: only the populated fields appear.
 	v = vcardFor(engine.CachedUser{DisplayName: "Bob"})
 	if strings.Contains(v, "TEL") || strings.Contains(v, "NICKNAME") {
 		t.Errorf("sparse vcard leaked empty fields:\n%s", v)

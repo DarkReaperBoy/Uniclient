@@ -1,10 +1,5 @@
 package gui
 
-// Corner reaction button (slice 159, tdesktop cornerReaction 1:1): the
-// NE-corner pill on hovered bubbles that toggles the account's default
-// (favorite) reaction — tdesktop Data::Reactions::favoriteId +
-// toggleFavoriteReaction semantics. Pure logic locked here.
-
 import (
 	"testing"
 
@@ -48,39 +43,32 @@ func TestCornerReactGate(t *testing.T) {
 }
 
 func TestToggleOwnReactionEmojis(t *testing.T) {
-	// Own reactions: 👍 (fav) + 🔥; others' 👍x3.
 	cur := []cores.Reaction{
 		{Emoji: "👍", Count: 4, ByMe: true},
 		{Emoji: "🔥", Count: 1, ByMe: true},
 		{Emoji: "🎉", Count: 2, ByMe: false},
 	}
 
-	// Favorite present → removed from the own list, others kept.
 	got := toggleOwnReactionEmojis(cur, "👍")
 	if len(got) != 1 || got[0] != "🔥" {
 		t.Errorf("remove favorite: %v", got)
 	}
 
-	// Favorite absent → appended after existing own reactions.
 	got = toggleOwnReactionEmojis(cur, "❤️")
 	if len(got) != 3 || got[0] != "👍" || got[1] != "🔥" || got[2] != "❤️" {
 		t.Errorf("add favorite: %v", got)
 	}
 
-	// No own reactions at all → the favorite alone.
 	got = toggleOwnReactionEmojis([]cores.Reaction{{Emoji: "🎉", Count: 2}}, "❤️")
 	if len(got) != 1 || got[0] != "❤️" {
 		t.Errorf("fresh add: %v", got)
 	}
 
-	// Only the favorite is own → removal yields the empty list (server
-	// semantics: empty reaction vector removes all own reactions).
 	got = toggleOwnReactionEmojis([]cores.Reaction{{Emoji: "👍", Count: 1, ByMe: true}}, "👍")
 	if len(got) != 0 {
 		t.Errorf("sole favorite removal: %v", got)
 	}
 
-	// No reactions at all → the favorite alone.
 	got = toggleOwnReactionEmojis(nil, "🔥")
 	if len(got) != 1 || got[0] != "🔥" {
 		t.Errorf("nil list: %v", got)
@@ -104,7 +92,6 @@ func TestOwnHasReaction(t *testing.T) {
 }
 
 func TestFavoriteReactionFallback(t *testing.T) {
-	// Empty stored favorite falls back to tdesktop's default 👍.
 	if fav := favoriteReactionOrDefault(""); fav != "👍" {
 		t.Errorf("empty favorite = %q, want 👍", fav)
 	}
@@ -113,9 +100,6 @@ func TestFavoriteReactionFallback(t *testing.T) {
 	}
 }
 
-// ── slice 172: custom-emoji favorites ────────────────────────────────────
-
-// customKeyDocID parses a "custom_<docID>" favorite key.
 func TestCustomKeyDocID(t *testing.T) {
 	if d, ok := customKeyDocID("custom_42"); !ok || d != 42 {
 		t.Errorf("custom_42 = (%d,%v), want (42,true)", d, ok)
@@ -128,8 +112,6 @@ func TestCustomKeyDocID(t *testing.T) {
 	}
 }
 
-// ownHasReaction must match custom favorites by document id (a favorite set
-// on another client arrives as reactions_default custom emoji).
 func TestOwnHasReactionCustom(t *testing.T) {
 	reacts := []cores.Reaction{
 		{Emoji: "", DocumentID: 42, Count: 1, ByMe: true},
@@ -146,21 +128,16 @@ func TestOwnHasReactionCustom(t *testing.T) {
 	}
 }
 
-// toggleOwnReactionEmojis must carry custom own reactions through the full
-// list sent to ReactToMessageList (keys, not empty emoji strings) and
-// toggle the custom favorite itself.
 func TestToggleOwnReactionEmojisCustom(t *testing.T) {
 	cur := []cores.Reaction{
 		{Emoji: "", DocumentID: 42, Count: 1, ByMe: true},
 		{Emoji: "🔥", Count: 1, ByMe: true},
 		{Emoji: "🎉", Count: 2, ByMe: false},
 	}
-	// Toggle the custom favorite OFF: removed, other own reactions kept.
 	got := toggleOwnReactionEmojis(cur, "custom_42")
 	if len(got) != 1 || got[0] != "🔥" {
 		t.Fatalf("custom toggle-off = %v, want [🔥]", got)
 	}
-	// Toggle a different custom favorite ON: existing custom kept by key.
 	got = toggleOwnReactionEmojis(cur, "custom_7")
 	if len(got) != 3 || got[0] != "custom_42" || got[1] != "🔥" || got[2] != "custom_7" {
 		t.Fatalf("custom toggle-on = %v, want [custom_42 🔥 custom_7]", got)

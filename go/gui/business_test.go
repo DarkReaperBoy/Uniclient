@@ -5,13 +5,10 @@ import (
 	"testing"
 )
 
-// TestBizWeekFromWire: wire intervals (minute-of-week, cross-midnight
-// friendly) split into per-day intervals; a piece crossing midnight
-// lands its tail on the following day.
 func TestBizWeekFromWire(t *testing.T) {
 	w := bizWeekFromWire([]interface{}{
-		map[string]interface{}{"start": 540, "end": 1020},              // Mon 09:00–17:00
-		map[string]interface{}{"start": 1440 + 540, "end": 1440 + 660}, // Tue 09:00–11:00
+		map[string]interface{}{"start": 540, "end": 1020},
+		map[string]interface{}{"start": 1440 + 540, "end": 1440 + 660},
 	})
 	if got := w[0]; len(got) != 1 || got[0].start != 540 || got[0].end != 1020 {
 		t.Fatalf("Mon = %v", got)
@@ -26,8 +23,6 @@ func TestBizWeekFromWire(t *testing.T) {
 	}
 }
 
-// TestBizWeekFromWireCrossMidnight: Sunday 21:00 → Monday 04:00 splits
-// into Sun 21:00–24:00 and Mon 00:00–04:00.
 func TestBizWeekFromWireCrossMidnight(t *testing.T) {
 	w := bizWeekFromWire([]interface{}{
 		map[string]interface{}{"start": 6*1440 + 21*60, "end": 7*1440 + 4*60},
@@ -40,21 +35,17 @@ func TestBizWeekFromWireCrossMidnight(t *testing.T) {
 	}
 }
 
-// TestBizWeekFromWireMerges: overlapping/adjacent intervals within a day
-// normalize to one.
 func TestBizWeekFromWireMerges(t *testing.T) {
 	w := bizWeekFromWire([]interface{}{
 		map[string]interface{}{"start": 540, "end": 720},
 		map[string]interface{}{"start": 720, "end": 1020},
-		map[string]interface{}{"start": 600, "end": 660}, // inside
+		map[string]interface{}{"start": 600, "end": 660},
 	})
 	if got := w[0]; len(got) != 1 || got[0].start != 540 || got[0].end != 1020 {
 		t.Fatalf("merged = %v", got)
 	}
 }
 
-// TestBizWeekToWireRoundTrip: model → wire → model is lossless for
-// simple (non-wrapping) schedules.
 func TestBizWeekToWireRoundTrip(t *testing.T) {
 	var w bizWeek
 	w[0] = []bizIVL{{start: 540, end: 1020}}
@@ -72,7 +63,6 @@ func TestBizWeekToWireRoundTrip(t *testing.T) {
 	}
 }
 
-// TestBizWeek247: the around-the-clock detection + setter.
 func TestBizWeek247(t *testing.T) {
 	var w bizWeek
 	if !w.empty() || w.is247() {
@@ -82,14 +72,12 @@ func TestBizWeek247(t *testing.T) {
 	if !w.is247() || w.empty() {
 		t.Fatalf("after set247: empty=%v 247=%v", w.empty(), w.is247())
 	}
-	// the single-interval 0..10080 wire form also reads back as 24/7
 	w2 := bizWeekFromWire([]interface{}{map[string]interface{}{"start": 0, "end": 10080}})
 	if !w2.is247() {
 		t.Fatalf("wire 24/7 not detected: %v", w2)
 	}
 }
 
-// TestBizWeekSummary: human schedule text collapses day ranges.
 func TestBizWeekSummary(t *testing.T) {
 	var w bizWeek
 	if w.summary() != "" {
@@ -113,7 +101,6 @@ func TestBizWeekSummary(t *testing.T) {
 	}
 }
 
-// TestBizParseTime: lenient time parsing.
 func TestBizParseTime(t *testing.T) {
 	cases := []struct {
 		in   string
@@ -140,14 +127,12 @@ func TestBizParseTime(t *testing.T) {
 	}
 }
 
-// TestBizFormatTime: zero-padded rendering.
 func TestBizFormatTime(t *testing.T) {
 	if bizFormatTime(540) != "09:00" || bizFormatTime(870) != "14:30" || bizFormatTime(1440) != "24:00" {
 		t.Fatalf("format = %q %q %q", bizFormatTime(540), bizFormatTime(870), bizFormatTime(1440))
 	}
 }
 
-// TestBizRecipientsRoundTrip: map → model → map is lossless.
 func TestBizRecipientsRoundTrip(t *testing.T) {
 	var r bizRecipients
 	r.fromMap(map[string]interface{}{
@@ -165,7 +150,6 @@ func TestBizRecipientsRoundTrip(t *testing.T) {
 	}
 }
 
-// TestBizUtcLabel: offset rendering.
 func TestBizUtcLabel(t *testing.T) {
 	if bizUtcLabel(3600) != "UTC+01:00" {
 		t.Fatalf("bizUtcLabel(3600) = %q", bizUtcLabel(3600))
@@ -175,7 +159,6 @@ func TestBizUtcLabel(t *testing.T) {
 	}
 }
 
-// TestBizSubMap: nested map digging.
 func TestBizSubMap(t *testing.T) {
 	info := map[string]interface{}{
 		"greeting": map[string]interface{}{"message": "hi"},
@@ -191,7 +174,6 @@ func TestBizSubMap(t *testing.T) {
 	}
 }
 
-// TestBizSectionSubs: the honest subtitle helpers.
 func TestBizSectionSubs(t *testing.T) {
 	if got := bizLocationSub(nil); got != "Not set" {
 		t.Fatalf("location sub = %q", got)
@@ -215,7 +197,6 @@ func TestBizSectionSubs(t *testing.T) {
 	if bizLocationSub(info) != "Main St 1" || bizGreetingSub(info) != "Hello!" {
 		t.Fatalf("subs = %q / %q", bizLocationSub(info), bizGreetingSub(info))
 	}
-	// away with schedule decoration
 	awInfo := map[string]interface{}{
 		"away": map[string]interface{}{"message": "Bye", "schedule": "outside_work_hours"},
 	}
@@ -224,7 +205,6 @@ func TestBizSectionSubs(t *testing.T) {
 	}
 }
 
-// TestParseBizDate: "YYYY-MM-DD" → unix seconds.
 func TestParseBizDate(t *testing.T) {
 	s, ok := parseBizDate("2026-09-12")
 	if !ok || s <= 0 {

@@ -11,13 +11,6 @@ import (
 	"testing"
 )
 
-// ───────────────────────────── TS3 key derivation ─────────────────────────────
-//
-// Official test vector from ts3j's EncryptionTest.java (Manevolent/ts3j):
-// a 64-byte ivStruct + CLIENT/CMD/generation 0/packetId 1 must derive the
-// exact key/nonce pair below. This pins the 1.6.2 key derivation from the
-// ts3protocol.md paper.
-
 func TestTS3KeyNonceDerivationVector(t *testing.T) {
 	ivStruct, err := base64.StdEncoding.DecodeString("/rn6nR71hV8eFl+15WO68fRU8pOCBw3t0FmcG5c7WNxIkeZ1NtaWTVMBde0cdU5tTKwOl8sE6gpHjnCEF4hhDw==")
 	if err != nil {
@@ -27,7 +20,6 @@ func TestTS3KeyNonceDerivationVector(t *testing.T) {
 		t.Fatalf("ivStruct length %d, want 64", len(ivStruct))
 	}
 
-	// CLIENT role (0x31), Command packet type (2), generation 0, PId 1.
 	key, nonce := tsCreateKeyNonce(0x02, 1, 0, 0x31, ivStruct)
 
 	wantKey, _ := base64.StdEncoding.DecodeString("BF+lO776+e45u+qYAOHihg==")
@@ -42,26 +34,21 @@ func TestTS3KeyNonceDerivationVector(t *testing.T) {
 }
 
 func TestTS3KeyNoncePIdXOR(t *testing.T) {
-	// key[0]^=(PId>>8), key[1]^=PId — different pIDs must give different keys.
 	iv := make([]byte, 64)
 	key1, _ := tsCreateKeyNonce(0x02, 1, 0, 0x31, iv)
 	key2, _ := tsCreateKeyNonce(0x02, 2, 0, 0x31, iv)
 	if key1[1] == key2[1] && key1[0] == key2[0] {
 		t.Fatal("packet id not mixed into key")
 	}
-	// Direction must change the key (0x30 vs 0x31).
 	keyS, _ := tsCreateKeyNonce(0x02, 1, 0, 0x30, iv)
 	if bytes.Equal(keyS[:], key1[:]) {
 		t.Fatal("direction byte not mixed into key")
 	}
-	// Flags must NOT change the key (only the low 4 bits of PT matter).
 	keyF, _ := tsCreateKeyNonce(0x22, 1, 0, 0x31, iv)
 	if !bytes.Equal(keyF[:], key1[:]) {
 		t.Fatal("PT flags leaked into key derivation (spec: type only)")
 	}
 }
-
-// ───────────────────────────── TS3 EAX ─────────────────────────────
 
 func TestTS3EAXRoundTrip(t *testing.T) {
 	key, nonce := tsCreateKeyNonce(0x02, 7, 0, 0x31, make([]byte, 64))
@@ -70,7 +57,6 @@ func TestTS3EAXRoundTrip(t *testing.T) {
 
 	mac, ciphertext := tsEAXEncrypt(key[:], nonce[:], header, plaintext)
 	if !bytes.Equal(ciphertext, plaintext) {
-		// ciphertext is CTR output — equal only by coincidence; just sanity lengths
 		if len(ciphertext) != len(plaintext) {
 			t.Fatalf("ciphertext length %d != plaintext %d", len(ciphertext), len(plaintext))
 		}
@@ -83,11 +69,9 @@ func TestTS3EAXRoundTrip(t *testing.T) {
 		t.Fatalf("round-trip mismatch: %q", got)
 	}
 
-	// Tampered header must fail MAC verification.
 	if _, err := tsEAXDecrypt(key[:], nonce[:], []byte{0x00, 0x08, 0x00, 0x00, 0x22}, ciphertext, mac); err == nil {
 		t.Fatal("tampered header accepted")
 	}
-	// Tampered ciphertext must fail.
 	ciphertext[0] ^= 0x01
 	if _, err := tsEAXDecrypt(key[:], nonce[:], header, ciphertext, mac); err == nil {
 		t.Fatal("tampered ciphertext accepted")
@@ -95,21 +79,16 @@ func TestTS3EAXRoundTrip(t *testing.T) {
 }
 
 func TestTS3FakeKeyConstants(t *testing.T) {
-	// The constants are part of the wire contract (ts3protocol.md §3).
-	// FAKE_KEY = "c:\windows\syste" (16 bytes), FAKE_NONCE = "m\firewall32.cpl".
 	if hex.EncodeToString(tsFakeKey[:]) != "633a5c77696e646f77735c7379737465" {
 		t.Fatalf("FAKE_KEY = %s", hex.EncodeToString(tsFakeKey[:]))
 	}
 	if hex.EncodeToString(tsFakeNonce[:]) != "6d5c6669726577616c6c33322e63706c" {
 		t.Fatalf("FAKE_NONCE = %s", hex.EncodeToString(tsFakeNonce[:]))
 	}
-	// Root key from ts3protocol.md §3.2.2.4.
 	if hex.EncodeToString(tsRootKey[:]) != "cd0de2aed46345509a7e3cfd8f68b3dc7555b29dccec73cd18750f993812408a" {
 		t.Fatalf("ROOT_KEY = %s", hex.EncodeToString(tsRootKey[:]))
 	}
 }
-
-// ───────────────────────────── TS3 init packets ─────────────────────────────
 
 func TestTS3Init0Packet(t *testing.T) {
 	var random0 [4]byte
@@ -194,7 +173,6 @@ func TestTS3Init1Parse(t *testing.T) {
 		t.Fatal("parse mismatch")
 	}
 
-	// step 127 must be rejected as a restart signal
 	data[0] = 127
 	if _, _, err := tsParseInit1(data); err == nil {
 		t.Fatal("step 127 not rejected")
@@ -270,18 +248,11 @@ func TestTS3Init4Packet(t *testing.T) {
 	}
 }
 
-// ───────────────────────────── TS3 version constants ─────────────────────────────
-
 func TestTS3InitVersionConstant(t *testing.T) {
-	// Fixed real client build timestamp (3.5.0 [Stable]) — time-derived
-	// values get rejected by live servers with error 522 or a step-127 loop
-	// (verified 2026-09 against ts.arcticblaze.net).
 	if tsInitVersion != 1566914096 {
 		t.Fatalf("tsInitVersion = %d, want 1566914096 (3.5.0)", tsInitVersion)
 	}
 }
-
-// ───────────────────────────── TS3 command escaping ─────────────────────────────
 
 func TestTS3CommandEscapeRoundTrip(t *testing.T) {
 	inputs := []string{
@@ -311,14 +282,11 @@ func TestTS3ParseCommand(t *testing.T) {
 	}
 }
 
-// ───────────────────────────── TS3 S2C/C2S packet parse ─────────────────────────────
-
 func TestTS3PacketParseS2C(t *testing.T) {
-	// MAC(8) + PId(2) + PT(1) + data
 	pkt := make([]byte, 11+5)
 	copy(pkt[:8], []byte{1, 2, 3, 4, 5, 6, 7, 8})
 	binary.BigEndian.PutUint16(pkt[8:10], 55)
-	pkt[10] = 0x12 // Command + Fragmented
+	pkt[10] = 0x12
 	copy(pkt[11:], []byte("hello"))
 
 	mac, pID, pType, data, err := tsParseS2CPacket(pkt)
@@ -346,26 +314,19 @@ func TestTS3BuildC2SPacket(t *testing.T) {
 	}
 }
 
-// ───────────────────────────── TS3 RSA puzzle ─────────────────────────────
-
 func TestTS3RSAPuzzleSolution(t *testing.T) {
-	// x^(2^level) mod n via square-and-multiply must match big.Int Exp.
 	x := big.NewInt(12345)
-	n := big.NewInt(999999937) // prime
+	n := big.NewInt(999999937)
 	level := uint32(64)
 
 	e := new(big.Int).Lsh(big.NewInt(1), uint(level))
 	want := new(big.Int).Exp(x, e, n)
 
-	// The implementation inside tsHandshake uses the same Exp call; here we
-	// verify the semantics the server checks (y == x^(2^level) mod n).
 	y := new(big.Int).Exp(x, e, n)
 	if y.Cmp(want) != 0 {
 		t.Fatal("RSA puzzle semantics mismatch")
 	}
 }
-
-// ───────────────────────────── TS3 identity ─────────────────────────────
 
 func TestTS3IdentitySignVerify(t *testing.T) {
 	id, err := tsNewIdentity()
@@ -390,7 +351,6 @@ func TestTS3IdentitySignVerify(t *testing.T) {
 }
 
 func TestTS3IdentityUID(t *testing.T) {
-	// UID = base64(sha1(omega)) per ts3protocol.md §4.2.
 	id, err := tsNewIdentity()
 	if err != nil {
 		t.Fatalf("identity: %v", err)
@@ -407,12 +367,6 @@ func TestTS3IdentityUID(t *testing.T) {
 		t.Fatalf("UID decoded length %d, want 20 (sha1)", len(decoded))
 	}
 }
-
-// ───────────────────────────── TS3 license chain + ECDH ─────────────────────────────
-//
-// Official test vector from ts3j's CryptoInit2Test.java: a full license
-// chain → root-key derivation → Curve25519 ECDH → shared IV + fake MAC.
-// This pins the entire §3.2.2.4 license-walk algorithm.
 
 func TestTS3LicenseDerivationVector(t *testing.T) {
 	licenseBytes, err := hex.DecodeString("0100358541498A24ACD30157918B8F50955C0DAE970AB65372CBE407" +
@@ -442,7 +396,6 @@ func TestTS3LicenseDerivationVector(t *testing.T) {
 
 	privScalar, err := new(edwards25519.Scalar).SetCanonicalBytes(privB)
 	if err != nil {
-		// fall back to clamping if not canonical
 		privScalar, err = new(edwards25519.Scalar).SetBytesWithClamping(privB)
 		if err != nil {
 			t.Fatalf("private key: %v", err)
@@ -458,22 +411,17 @@ func TestTS3LicenseDerivationVector(t *testing.T) {
 	}
 }
 
-// ── receive-side generation tracking (ts3j RemoteCounter semantics) ──
-
 func TestTS3RecvGenerationTracking(t *testing.T) {
 	tc := &tsConnection{}
 
-	// Fresh connection: first packet locks in without a generation bump.
 	if g := tc.tsTrackRecvPID(tsPktVoice, 0); g != 0 {
 		t.Fatalf("first packet gen = %d", g)
 	}
-	// Rising ids stay in generation 0.
 	for id := uint16(1); id < 200; id++ {
 		if g := tc.tsTrackRecvPID(tsPktVoice, id); g != 0 {
 			t.Fatalf("id %d: gen = %d, want 0", id, g)
 		}
 	}
-	// Wrap: last 0xFF00 → new 0x0010 bumps to generation 1.
 	if g := tc.tsTrackRecvPID(tsPktVoice, 0xFF00); g != 0 {
 		t.Fatalf("pre-wrap gen = %d", g)
 	}
@@ -485,14 +433,9 @@ func TestTS3RecvGenerationTracking(t *testing.T) {
 			t.Fatalf("gen1 id %d: gen = %d", id, g)
 		}
 	}
-	// A late pre-wrap packet (0xFFF0 after the wrap) reports the current
-	// generation — ts3j's "ahead to the right" rule — and relies on the
-	// generation±1 decrypt retry to land on the old one. It must NOT
-	// advance the wrap state, so a following high id is still gen 1.
 	if g := tc.tsTrackRecvPID(tsPktVoice, 0xFFF0); g != 1 {
 		t.Fatalf("late pre-wrap packet gen = %d, want 1 (retry resolves)", g)
 	}
-	// Second wrap.
 	if g := tc.tsTrackRecvPID(tsPktVoice, 0xFFE0); g != 1 {
 		t.Fatalf("second pre-wrap gen = %d, want 1", g)
 	}
@@ -503,7 +446,6 @@ func TestTS3RecvGenerationTracking(t *testing.T) {
 
 func TestTS3RecvGenerationPerType(t *testing.T) {
 	tc := &tsConnection{}
-	// Voice wraps; commands must be unaffected.
 	if g := tc.tsTrackRecvPID(tsPktVoice, 0xFF00); g != 0 {
 		t.Fatalf("voice pre-wrap gen = %d", g)
 	}
@@ -520,7 +462,6 @@ func TestTS3RecvGenerationPerType(t *testing.T) {
 
 func TestTS3RecvGenerationDupAndJitter(t *testing.T) {
 	tc := &tsConnection{}
-	// Duplicate ids must not bump the generation.
 	if g := tc.tsTrackRecvPID(tsPktVoice, 0xFF00); g != 0 {
 		t.Fatalf("dup base gen = %d", g)
 	}
@@ -532,7 +473,6 @@ func TestTS3RecvGenerationDupAndJitter(t *testing.T) {
 	if g := tc.tsTrackRecvPID(tsPktVoice, 0x0010); g != 1 {
 		t.Fatalf("post-dup wrap gen = %d, want 1", g)
 	}
-	// Small jitter around the wrap boundary must not double-bump.
 	if g := tc.tsTrackRecvPID(tsPktVoice, 0x0008); g != 1 {
 		t.Fatalf("jitter gen = %d", g)
 	}
@@ -550,11 +490,9 @@ func TestTS3DecryptRecvGenerationRetry(t *testing.T) {
 	meta := []byte{0x34, 0x12, 0x00}
 	payload := []byte("audio-frame-payload")
 
-	// Encrypt as the server would at generation 2 (S2C direction 0x30).
 	key, nonce := tsCreateKeyNonce(pktType, pID, 2, 0x30, iv[:])
 	mac, ciphertext := tsEAXEncrypt(key[:], nonce[:], meta, payload)
 
-	// Tracker says generation 1 (stale by one): the retry must find 2.
 	tc.pktState[pktType].recvInit = true
 	tc.pktState[pktType].lastRecvPID = pID - 1
 	tc.pktState[pktType].recvGenID = 1
@@ -570,8 +508,6 @@ func TestTS3DecryptRecvGenerationRetry(t *testing.T) {
 		t.Fatalf("generation not fast-forwarded: %d", tc.pktState[pktType].recvGenID)
 	}
 
-	// Tracker ahead by one (gen 3): retry at gen 2 must succeed WITHOUT
-	// rewinding the tracker.
 	plain2, err := tc.tsDecryptRecv(pktType, pID, meta, ciphertext, mac)
 	if err != nil {
 		t.Fatalf("ahead-retry decrypt failed: %v", err)
@@ -580,7 +516,6 @@ func TestTS3DecryptRecvGenerationRetry(t *testing.T) {
 		t.Fatalf("payload mismatch 2: %q", plain2)
 	}
 
-	// Tampered MAC must still fail on every generation.
 	var badMac [8]byte
 	copy(badMac[:], mac[:])
 	badMac[0] ^= 0xFF

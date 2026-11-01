@@ -13,7 +13,6 @@ import (
 	"uniclient/cores"
 )
 
-// downloadJob represents a queued media download.
 type downloadJob struct {
 	AccountID string
 	ChatID    string
@@ -22,21 +21,20 @@ type downloadJob struct {
 	RemoteRef string
 	FileName  string
 	MimeType  string
-	Extra     string // platform-specific metadata (e.g., Telegram access hash + file reference)
-	Priority  int    // 0=highest (user tap), 1=visible, 2=prefetch, 3=auto-download
+	Extra     string
+	Priority  int
 	cancelFn  context.CancelFunc
 }
 
-// MediaManager handles the download queue and LRU cache eviction.
 type MediaManager struct {
 	engine *Engine
 
 	mu      sync.Mutex
 	queue   []*downloadJob
 	active  int
-	maxConc int // max concurrent downloads total
+	maxConc int
 	wg      sync.WaitGroup
-	notify  chan struct{} // signal to process queue
+	notify  chan struct{}
 }
 
 func newMediaManager(e *Engine) *MediaManager {
@@ -48,7 +46,6 @@ func newMediaManager(e *Engine) *MediaManager {
 	return mm
 }
 
-// Start begins the download worker loop.
 func (mm *MediaManager) Start(ctx context.Context) {
 	mm.wg.Add(1)
 	go func() {
@@ -64,17 +61,14 @@ func (mm *MediaManager) Start(ctx context.Context) {
 	}()
 }
 
-// Stop waits for all active downloads to complete.
 func (mm *MediaManager) Stop() {
 	mm.wg.Wait()
 }
 
-// Enqueue adds a download job to the priority queue.
 func (mm *MediaManager) Enqueue(job *downloadJob) {
 	mm.mu.Lock()
 	defer mm.mu.Unlock()
 
-	// Insert sorted by priority (lower = higher priority).
 	inserted := false
 	for i, j := range mm.queue {
 		if job.Priority < j.Priority {
@@ -88,14 +82,12 @@ func (mm *MediaManager) Enqueue(job *downloadJob) {
 		mm.queue = append(mm.queue, job)
 	}
 
-	// Signal worker.
 	select {
 	case mm.notify <- struct{}{}:
 	default:
 	}
 }
 
-// Cancel removes a download from the queue or cancels an active one.
 func (mm *MediaManager) Cancel(accountID, chatID, msgID string, seq int) {
 	mm.mu.Lock()
 	defer mm.mu.Unlock()
@@ -130,7 +122,6 @@ func (mm *MediaManager) processQueue() {
 			mm.mu.Lock()
 			mm.active--
 			mm.mu.Unlock()
-			// Try next.
 			select {
 			case mm.notify <- struct{}{}:
 			default:
@@ -142,24 +133,17 @@ func (mm *MediaManager) processQueue() {
 func (mm *MediaManager) executeDownload(job *downloadJob) {
 	e := mm.engine
 
-	// Get core.
 	acc, ok := e.getAccount(job.AccountID)
 	if !ok || acc.Core == nil {
 		return
 	}
 
-	// Claim the file key: a fetch-on-read stream that opened first owns
-	// the path (os.Create below would truncate its sparse file under the
-	// player), and a second job for the same key duplicates the first.
-	// Either way this job contributes nothing — skip BEFORE touching the
-	// row (slice 230).
 	key := mediaGuardKey(job.AccountID, job.ChatID, job.MsgID, job.Seq)
 	if !e.claimDownload(key) {
 		return
 	}
 	defer e.releaseDownload(key)
 
-	// Determine local path.
 	dir := filepath.Join(e.mediaDir, job.AccountID, "full")
 	os.MkdirAll(dir, 0o755)
 
@@ -167,15 +151,12 @@ func (mm *MediaManager) executeDownload(job *downloadJob) {
 	if ext == "" {
 		ext = ".bin"
 	}
-	// F-71: job.MsgID is server-origin (matrix event IDs are opaque).
 	localPath := filepath.Join(dir, safePathSegment(job.MsgID)+"_"+fmt.Sprint(job.Seq)+ext)
 
-	// Update state to downloading.
 	e.db.Exec(
 		"UPDATE media SET download_state = ? WHERE account_id = ? AND chat_id = ? AND msg_id = ? AND seq = ?",
 		DownloadInProgress, job.AccountID, job.ChatID, job.MsgID, job.Seq)
 
-	// Create file ref for download.
 	ref := cores.FileRef{
 		ID:       job.RemoteRef,
 		Name:     job.FileName,
@@ -183,7 +164,6 @@ func (mm *MediaManager) executeDownload(job *downloadJob) {
 		Extra:    job.Extra,
 	}
 
-	// Download with progress reporting.
 	lastProgress := time.Now()
 	err := acc.Core.DownloadFile(ref, localPath, func(recv, total int64) {
 		if time.Since(lastProgress) < 100*time.Millisecond {
@@ -201,8 +181,6 @@ func (mm *MediaManager) executeDownload(job *downloadJob) {
 	})
 
 	if err != nil {
-		// F-78: a core that failed AFTER writing bytes must not leave the
-		// truncated file — any existence check would treat it as content.
 		os.Remove(localPath)
 		e.db.Exec(
 			"UPDATE media SET download_state = ? WHERE account_id = ? AND chat_id = ? AND msg_id = ? AND seq = ?",
@@ -217,7 +195,6 @@ func (mm *MediaManager) executeDownload(job *downloadJob) {
 		return
 	}
 
-	// Update media record.
 	now := time.Now().UnixMilli()
 	e.db.Exec(
 		`UPDATE media SET local_path = ?, download_state = ?, last_accessed = ?
@@ -232,30 +209,18 @@ func (mm *MediaManager) executeDownload(job *downloadJob) {
 		LocalPath: localPath,
 	})
 
-	// Check if eviction is needed.
 	mm.maybeEvict()
 }
 
-// mediaGuard is one media file's write slot: streams stack (refcounted —
-// duplicate opens of the same playing clip are tolerated), downloads are
-// single and exclude everything else. Slice 230: cores download with
-// os.Create (O_TRUNC), so a download landing during playback would
-// truncate the sparse file the stream's bitmap says is present — and
-// MediaManager.Cancel cannot touch an already-dequeued job. The guard is
-// what closes that window, in both directions.
 type mediaGuard struct {
-	streams int  // open fetch-on-read readers
-	dl      bool // a download worker holds the file
+	streams int
+	dl      bool
 }
 
-// mediaGuardKey identifies one media file across both claim sites.
 func mediaGuardKey(accountID, chatID, msgID string, seq int) string {
 	return accountID + "|" + chatID + "|" + msgID + "|" + fmt.Sprint(seq)
 }
 
-// claimStream registers an open stream reader for key; false when a
-// download worker holds the file (the caller falls back to
-// download-then-play, which is already happening).
 func (e *Engine) claimStream(key string) bool {
 	e.guardMu.Lock()
 	defer e.guardMu.Unlock()
@@ -274,8 +239,6 @@ func (e *Engine) claimStream(key string) bool {
 	return true
 }
 
-// releaseStream drops one stream reader for key (idempotent per reader:
-// mediaStream fires it exactly once on Close).
 func (e *Engine) releaseStream(key string) {
 	e.guardMu.Lock()
 	defer e.guardMu.Unlock()
@@ -287,9 +250,6 @@ func (e *Engine) releaseStream(key string) {
 	}
 }
 
-// claimDownload claims the file for a download worker; false while ANY
-// stream reader or another download holds it (the worker skips — the
-// stream is already saving the same file).
 func (e *Engine) claimDownload(key string) bool {
 	e.guardMu.Lock()
 	defer e.guardMu.Unlock()
@@ -308,7 +268,6 @@ func (e *Engine) claimDownload(key string) bool {
 	return true
 }
 
-// releaseDownload releases the worker's hold (only its own).
 func (e *Engine) releaseDownload(key string) {
 	e.guardMu.Lock()
 	defer e.guardMu.Unlock()
@@ -320,7 +279,6 @@ func (e *Engine) releaseDownload(key string) {
 	}
 }
 
-// streamActive reports whether an open stream reader owns the key.
 func (e *Engine) streamActive(key string) bool {
 	e.guardMu.Lock()
 	defer e.guardMu.Unlock()
@@ -328,14 +286,6 @@ func (e *Engine) streamActive(key string) bool {
 	return g != nil && g.streams > 0
 }
 
-// RequestDownload queues a download for a media attachment — or, when
-// the file is already complete, completes on the spot (slice 230:
-// re-downloading a finished file would os.Create-truncate it under any
-// reader, and a marker waiting on this row would otherwise never fire).
-// While a fetch-on-read stream owns the key it returns ErrStreamActive —
-// the stream IS the download for that file (it promotes the row when
-// its last chunk lands; auto-prefetch callers ignore the error and lose
-// nothing).
 func (e *Engine) RequestDownload(accountID, chatID, msgID string, seq, priority int) error {
 	var remoteRef, fileName, mimeType, extra sql.NullString
 	var state int
@@ -348,15 +298,12 @@ func (e *Engine) RequestDownload(accountID, chatID, msgID string, seq, priority 
 	}
 	if state == DownloadComplete && localPath.String != "" {
 		if _, serr := os.Stat(localPath.String); serr == nil {
-			// Already downloaded: complete now (event → markers fire), no
-			// network and no os.Create under whoever holds the file.
 			e.emitEvent(EventDownloadComplete, accountID, DownloadCompleteEvent{
 				AccountID: accountID, ChatID: chatID, MsgID: msgID, Seq: seq,
 				LocalPath: localPath.String,
 			})
 			return nil
 		}
-		// Row complete but the file was evicted: fall through and refetch.
 	}
 	if e.streamActive(mediaGuardKey(accountID, chatID, msgID, seq)) {
 		return ErrStreamActive
@@ -380,14 +327,12 @@ func (e *Engine) RequestDownload(accountID, chatID, msgID string, seq, priority 
 	return nil
 }
 
-// CancelDownload cancels a pending or active download.
 func (e *Engine) CancelDownload(accountID, chatID, msgID string, seq int) {
 	if e.media != nil {
 		e.media.Cancel(accountID, chatID, msgID, seq)
 	}
 }
 
-// GetCacheSize returns the total size of downloaded media files.
 func (e *Engine) GetCacheSize() (int64, error) {
 	var total sql.NullInt64
 	err := e.db.QueryRow(
@@ -399,16 +344,6 @@ func (e *Engine) GetCacheSize() (int64, error) {
 	return total.Int64, nil
 }
 
-// GetCacheSizesByTag returns the per-tag cached byte counts for the Local
-// Storage box, keyed by the same tag indices as ClearCacheByTag (0=Images,
-// 1=Stickers, 2=Voice messages, 3=Video messages, 4=Animations, 5=Media cache).
-// This is the authoritative per-type accounting straight from the cache DB —
-// mirroring AyuGram's _stats.tagged byte counts (local_storage_box.cpp:419-456)
-// — instead of a filesystem extension heuristic. Tags 0..4 are summed by exact
-// media_type; tag 5 (Media cache) absorbs everything else (videos/audio/files
-// plus any uncategorised blobs), so the six tags always sum to the full cache
-// size — like AyuGram's kFakeMediaCacheTag → _statsBig.full row. If accountID is
-// non-empty the totals are scoped to that account.
 func (e *Engine) GetCacheSizesByTag(accountID string) ([6]int64, error) {
 	var sizes [6]int64
 
@@ -459,7 +394,6 @@ func (e *Engine) GetCacheSizesByTag(accountID string) ([6]int64, error) {
 	return sizes, nil
 }
 
-// ClearCache deletes all downloaded media. If accountID is non-empty, only for that account.
 func (e *Engine) ClearCache(accountID string) error {
 	var rows *sql.Rows
 	var err error
@@ -490,11 +424,6 @@ func (e *Engine) ClearCache(accountID string) error {
 	return nil
 }
 
-// mediaTypesForTag maps a Local Storage UI cache-tag index to the engine media
-// type ids it represents. Tag indices match the host Local Storage box rows:
-// 0=Images, 1=Stickers, 2=Voice messages, 3=Video messages, 4=Animations,
-// 5=Media cache (everything else / big files). Mirrors AyuGram's per-tag cache
-// buckets (kImageCacheTag/kStickerCacheTag/… in data/data_cloud_file / cache tags).
 func mediaTypesForTag(tag int) []int {
 	switch tag {
 	case 0:
@@ -514,12 +443,6 @@ func mediaTypesForTag(tag int) []int {
 	}
 }
 
-// ClearCacheByTag deletes only the cached media files belonging to a single
-// Local Storage tag, leaving the rest of the cache intact. This mirrors
-// AyuGram's LocalStorageBox::clearByTag (boxes/local_storage_box.cpp:379-389),
-// where clicking "Clear" on one row surgically wipes that tag's entries only —
-// as opposed to ClearCache which nukes everything. If accountID is non-empty the
-// clear is scoped to that account.
 func (e *Engine) ClearCacheByTag(accountID string, tag int) error {
 	types := mediaTypesForTag(tag)
 	if len(types) == 0 {
@@ -561,32 +484,22 @@ func (e *Engine) ClearCacheByTag(accountID string, tag int) error {
 	return nil
 }
 
-// maybeEvict enforces all cache limits after a download completes: the
-// time-retention window, the per-media ("big files") size cap, and the total
-// cache size cap. Mirrors AyuGram's two-database (cache + cacheBig) model with
-// independent size limits plus a totalTimeLimit.
 func (mm *MediaManager) maybeEvict() {
 	mm.evictExpired()
 	mm.evictBigMedia()
 	mm.evictTotal()
 }
 
-// mediaVictim identifies one cached file targeted for eviction.
 type mediaVictim struct {
 	accID, chatID, msgID, localPath string
 	seq                             int
 	fileSize                        int64
 }
 
-// isThumb reports whether a local path lives in the account's thumbnail dir,
-// which is never evicted.
 func (e *Engine) isThumb(accID, localPath string) bool {
-	// F-71: identical sanitization as the builder — compare the same
-	// segment the path was built from.
 	return filepath.Dir(localPath) == filepath.Join(e.mediaDir, safePathSegment(accID), "thumb")
 }
 
-// dropVictim removes the file and clears its DB pointer.
 func (e *Engine) dropVictim(v mediaVictim) {
 	os.Remove(v.localPath)
 	e.db.Exec(
@@ -594,14 +507,8 @@ func (e *Engine) dropVictim(v mediaVictim) {
 		v.accID, v.chatID, v.msgID, v.seq)
 }
 
-// bigMediaTypes are the large-file media types accounted against the separate
-// "media cache size limit" (AyuGram's cacheBig database): videos, documents,
-// music, voice, round videos, and animations.
 var bigMediaTypes = []int{MediaVideo, MediaFile, MediaAudio, MediaVoice, MediaVideoNote, MediaGIF}
 
-// evictExpired drops cached media not accessed within the retention window
-// (localStorageTimeDays). 0 days == keep forever. Mirrors AyuGram's
-// totalTimeLimit eviction.
 func (mm *MediaManager) evictExpired() {
 	e := mm.engine
 	days := e.localStorageTimeDays
@@ -633,8 +540,6 @@ func (mm *MediaManager) evictExpired() {
 	}
 }
 
-// evictBigMedia enforces the independent "media cache" size cap
-// (localStorageMediaMB) over large files only, evicting oldest-accessed first.
 func (mm *MediaManager) evictBigMedia() {
 	e := mm.engine
 	if e.localStorageMediaMB <= 0 {
@@ -685,8 +590,6 @@ func (mm *MediaManager) evictBigMedia() {
 	}
 }
 
-// evictTotal enforces the overall cache size cap (maxCache / total limit),
-// evicting oldest-accessed files of any type first.
 func (mm *MediaManager) evictTotal() {
 	e := mm.engine
 	if e.maxCache <= 0 {

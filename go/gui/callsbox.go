@@ -22,35 +22,20 @@ import (
 	"uniclient/engine"
 )
 
-// The Calls box (AyuGram parity slice 154): tdesktop's calls_box_controller
-// 1:1 — a per-account "Calls" page opened from the drawer, listing the call
-// history from messages.search(inputMessagesFilterPhoneCalls) as rows
-// grouped by peer × calendar day × direction (in / out / missed), with the
-// redial action, show-in-chat jump, per-group delete, and the Clear-all flow
-// (messages.deletePhoneCallHistory + revoke). Chats with an active group
-// call render in a subsection above the history. Pure tdesktop behavior:
-// no search field, tdesktop's box has none; the drawer entry and the box
-// copy match its strings ("Calls", "Today at …", "3 calls, last …",
-// "No calls here yet").
-
-// Direction arrows (tdesktop callArrowIn/Out/Missed → Material icons).
 var (
 	iconCallMade     = mustIcon(icons.CommunicationCallMade)
 	iconCallReceived = mustIcon(icons.CommunicationCallReceived)
 	iconCallMissed   = mustIcon(icons.CommunicationCallMissed)
 )
 
-// callDir is the row's direction class (tdesktop BoxController::Row::Type).
 type callDir int
 
 const (
-	callDirIn  callDir = iota // received
-	callDirOut                // made
+	callDirIn callDir = iota
+	callDirOut
 	callDirMissed
 )
 
-// callDirOf maps an entry to its direction class: outgoing beats missed
-// (tdesktop ComputeType: item->out() first, then Busy/Missed reasons).
 func callDirOf(e engine.CallHistoryEntry) callDir {
 	if e.IsOutgoing {
 		return callDirOut
@@ -61,24 +46,17 @@ func callDirOf(e engine.CallHistoryEntry) callDir {
 	return callDirIn
 }
 
-// callBoxRow is one grouped row: every call between the same peer on the
-// same calendar day with the same direction collapses into it (tdesktop
-// Row::canAddItem), showing "N calls, last …" when the group is plural.
 type callBoxRow struct {
 	PeerID     string
 	PeerName   string
 	AvatarPath string
 	Dir        callDir
-	Video      bool // redial icon from the latest entry
+	Video      bool
 	Last       engine.CallHistoryEntry
 	MsgIDs     []string
 	Count      int
 }
 
-// groupCallEntries groups call-history entries (newest→oldest, the
-// messages.search order) into rows. Entries on different days, with
-// different directions, or from different peers never merge; rows are
-// ordered newest-first by message ID.
 func groupCallEntries(entries []engine.CallHistoryEntry) []callBoxRow {
 	if len(entries) == 0 {
 		return nil
@@ -114,12 +92,10 @@ func groupCallEntries(entries []engine.CallHistoryEntry) []callBoxRow {
 	for _, k := range order {
 		rows = append(rows, *groups[k])
 	}
-	// Newest-first by numeric message ID (tdesktop sorts rows by maxItemId).
 	sortCallBoxRows(rows)
 	return rows
 }
 
-// sortCallBoxRows orders rows newest-first by the group's newest message ID.
 func sortCallBoxRows(rows []callBoxRow) {
 	for i := 1; i < len(rows); i++ {
 		for j := i; j > 0; j-- {
@@ -136,9 +112,6 @@ func callBoxRowID(r callBoxRow) int {
 	return id
 }
 
-// callBoxStatus renders the row's secondary line, tdesktop phrases:
-// "Today at 15:04" / "Yesterday at 15:04" / "21 Aug at 15:04", and
-// "3 calls, last today at 15:04" for merged groups.
 func callBoxStatus(r callBoxRow, now time.Time) string {
 	if r.Last.Timestamp <= 0 {
 		return ""
@@ -156,16 +129,13 @@ func callBoxStatus(r callBoxRow, now time.Time) string {
 	if r.Count > 1 {
 		lower := when
 		if len(lower) > 0 && lower[0] >= 'A' && lower[0] <= 'Z' {
-			lower = string(lower[0]|0x20) + lower[1:] // "3 calls, last today at …"
+			lower = string(lower[0]|0x20) + lower[1:]
 		}
 		return strconv.Itoa(r.Count) + " calls, last " + lower
 	}
 	return when
 }
 
-// callsBoxNextOffset returns the pagination offset for the next page: the
-// oldest message ID across all loaded rows (messages.search offset_id is
-// exclusive — strictly older results).
 func callsBoxNextOffset(rows []callBoxRow) int {
 	min := 0
 	for _, r := range rows {
@@ -178,9 +148,6 @@ func callsBoxNextOffset(rows []callBoxRow) int {
 	return min
 }
 
-// callsBoxMenuItems derives the header ⋮ menu rows (pure, tested): call
-// settings always; "Clear all" only with something to clear (tdesktop adds
-// it only when the list is non-empty, attention-styled).
 func callsBoxMenuItems(rowCount int) []string {
 	items := []string{"Call settings"}
 	if rowCount > 0 {
@@ -189,21 +156,19 @@ func callsBoxMenuItems(rowCount int) []string {
 	return items
 }
 
-// ── widgets ──────────────────────────────────────────────────────────────
-
 var (
 	callsBoxList     widget.List
 	callsBoxBackBtn  widget.Clickable
 	callsBoxMenuBtn  widget.Clickable
-	callsBoxMenuRow  []widget.Clickable // header ⋮ menu rows
-	callsBoxRowBtns  []widget.Clickable // history rows
-	callsBoxRedial   []widget.Clickable // redial actions
-	callsBoxGcRow    []widget.Clickable // group-call rows
-	callsBoxGcJoin   []widget.Clickable // group-call join actions
-	callsCtxMenuRow  []widget.Clickable // row context menu rows
+	callsBoxMenuRow  []widget.Clickable
+	callsBoxRowBtns  []widget.Clickable
+	callsBoxRedial   []widget.Clickable
+	callsBoxGcRow    []widget.Clickable
+	callsBoxGcJoin   []widget.Clickable
+	callsCtxMenuRow  []widget.Clickable
 	callsClearOK     widget.Clickable
 	callsClearCancel widget.Clickable
-	callsClearRevoke widget.Bool // "Also delete for everyone"
+	callsClearRevoke widget.Bool
 	callsDelOK       widget.Clickable
 	callsDelCancel   widget.Clickable
 	callsDelRevoke   widget.Bool
@@ -213,28 +178,17 @@ func init() {
 	callsBoxList.Axis = layout.Vertical
 }
 
-// callsBoxKeyTag consumes Escape while the page is open (self-handled,
-// per escTarget's contract).
 var callsBoxKeyTag = new(struct{})
 
-// callsBoxPaneTag receives pointer presses across the calls box so
-// right-clicks open the row context menu anchored at the cursor (the
-// chatPaneTag pattern), and any press outside an open menu dismisses it.
 var callsBoxPaneTag = new(struct{})
 
-// callsBoxMenuTarget is the open header ⋮ menu (anchor position).
 type callsBoxMenuTarget struct{ pos image.Point }
 
-// callsRowMenuTarget is the open row context menu (row index + anchor).
 type callsRowMenuTarget struct {
 	row int
 	pos image.Point
 }
 
-// ── state transitions ────────────────────────────────────────────────────
-
-// openCallsBox opens the Calls page for an account and loads the first
-// page (tdesktop kFirstPageCount = 20).
 func (a *App) openCallsBox(accountID string) {
 	a.mu.Lock()
 	a.callsBoxOpen = true
@@ -253,7 +207,6 @@ func (a *App) openCallsBox(accountID string) {
 	a.loadCallsBoxPage(accountID, 0, 20)
 }
 
-// closeCallsBox dismisses the page and its sub-surfaces.
 func (a *App) closeCallsBox() {
 	a.mu.Lock()
 	a.callsBoxOpen = false
@@ -265,10 +218,6 @@ func (a *App) closeCallsBox() {
 	a.invalidate()
 }
 
-// loadCallsBoxPage fetches one page of call history at offsetID off the GUI
-// loop and hands the result to applyCallsBoxPage. The session key
-// (callsBoxGen) is captured at fire time so a switch, reopen, or clear
-// racing the round-trip drops the result instead of applying it (R50).
 func (a *App) loadCallsBoxPage(accountID string, offsetID, limit int) {
 	a.mu.Lock()
 	gen := a.callsBoxGen
@@ -279,21 +228,10 @@ func (a *App) loadCallsBoxPage(accountID string, offsetID, limit int) {
 	}()
 }
 
-// callsBoxSessionLive reports whether the given load session still owns
-// the box. Caller must hold a.mu.
 func (a *App) callsBoxSessionLive(accountID string, gen int) bool {
 	return a.callsBoxOpen && a.callsBoxFor == accountID && a.callsBoxGen == gen
 }
 
-// applyCallsBoxPage installs one fetched page into the head. R50: applies
-// only while the box is still open for the same account and load session —
-// a stale tail returns without touching busy (the newer session owns it)
-// or toasting its error. R49: pages merge through a FRESH slice, never
-// append into a.callsBoxRows — the head's backing array is shared with
-// in-flight frames, and the delete shift leaves spare capacity, so an
-// in-place append+sort would write into and permute what a frame is still
-// reading. Entries are filtered to strictly-older-than-offset as a dedupe
-// guard; a short or empty page marks the history exhausted.
 func (a *App) applyCallsBoxPage(accountID string, gen, offsetID, limit int, entries []engine.CallHistoryEntry, err error) {
 	a.mu.Lock()
 	if !a.callsBoxSessionLive(accountID, gen) {
@@ -336,8 +274,6 @@ func (a *App) applyCallsBoxPage(accountID string, gen, offsetID, limit int, entr
 	a.invalidate()
 }
 
-// loadCallsBoxMore loads the next page (tdesktop kPerPageCount = 100) when
-// the list scrolls to its end and more history may exist.
 func (a *App) loadCallsBoxMore() {
 	a.mu.Lock()
 	if a.callsBoxBusy || a.callsBoxDone || !a.callsBoxOpen {
@@ -349,7 +285,6 @@ func (a *App) loadCallsBoxMore() {
 	a.callsBoxBusy = true
 	a.mu.Unlock()
 	if offset <= 0 {
-		// No ids loaded yet — nothing to paginate from.
 		a.mu.Lock()
 		a.callsBoxBusy = false
 		a.mu.Unlock()
@@ -358,12 +293,6 @@ func (a *App) loadCallsBoxMore() {
 	a.loadCallsBoxPage(accountID, offset, 100)
 }
 
-// clearCallsBoxAll runs the Clear-all flow: deletePhoneCallHistory (revoke
-// honored), then reload the first page (tdesktop ClearCallsBox). R50: the
-// reload chains AFTER the engine clear — fired in parallel it raced the
-// deletion server-side and could land the pre-clear rows as the "cleared"
-// first page; a failed clear recovers the busy/loading flags under the
-// session guard instead of spinning "Loading…" forever.
 func (a *App) clearCallsBoxAll(revoke bool) {
 	a.mu.Lock()
 	acc := a.callsBoxFor
@@ -388,9 +317,6 @@ func (a *App) clearCallsBoxAll(revoke bool) {
 	}()
 }
 
-// callsBoxClearFailed recovers the busy/loading flags after a failed
-// clear. R50: session-guarded — if the box moved on (switch, reopen, or a
-// newer clear), the newer session owns the flags and they stay untouched.
 func (a *App) callsBoxClearFailed(accountID string, gen int) {
 	a.mu.Lock()
 	if a.callsBoxSessionLive(accountID, gen) {
@@ -401,9 +327,6 @@ func (a *App) callsBoxClearFailed(accountID string, gen int) {
 	a.invalidate()
 }
 
-// deleteCallsBoxGroup deletes one row's call messages (tdesktop row context
-// menu → DeleteMessagesBox; revoke honored per checkbox), then drops the
-// row locally.
 func (a *App) deleteCallsBoxGroup(idx int, revoke bool) {
 	a.mu.Lock()
 	if idx < 0 || idx >= len(a.callsBoxRows) {
@@ -432,8 +355,6 @@ func (a *App) deleteCallsBoxGroup(idx int, revoke bool) {
 	}()
 }
 
-// redialCallsBoxRow starts an outgoing 1:1 call to the row's peer (tdesktop
-// right action; camera icon for video rows).
 func (a *App) redialCallsBoxRow(idx int) {
 	a.mu.Lock()
 	if idx < 0 || idx >= len(a.callsBoxRows) {
@@ -447,8 +368,6 @@ func (a *App) redialCallsBoxRow(idx int) {
 	a.startDMCall(peer, row.Video)
 }
 
-// openCallsBoxPeer opens the row's chat and jumps to the latest call
-// message (tdesktop rowClicked → showPeerHistory at maxItemId).
 func (a *App) openCallsBoxPeer(idx int) {
 	a.mu.Lock()
 	if idx < 0 || idx >= len(a.callsBoxRows) {
@@ -476,14 +395,7 @@ func (a *App) openCallsBoxPeer(idx int) {
 	a.jumpToMessageAt(row.Last.MsgID, row.Last.Timestamp)
 }
 
-// ── layout ───────────────────────────────────────────────────────────────
-
-// layoutCallsBox renders the whole Calls page: header (back, title, ⋮),
-// group-calls subsection (when any chat of this account has an active
-// call), the grouped history list with redial actions, and the confirm
-// dialogs. Esc closes; right-click opens the row context menu.
 func (a *App) layoutCallsBox(gtx layout.Context, f frame) layout.Dimensions {
-	// Esc layer (self-handled, per escTarget's contract).
 	{
 		stack := clip.Rect{Max: gtx.Constraints.Max}.Push(gtx.Ops)
 		event.Op(gtx.Ops, callsBoxKeyTag)
@@ -500,7 +412,6 @@ func (a *App) layoutCallsBox(gtx layout.Context, f frame) layout.Dimensions {
 		}
 	}
 
-	// Header events.
 	if callsBoxBackBtn.Clicked(gtx) {
 		a.closeCallsBox()
 	}
@@ -536,7 +447,6 @@ func (a *App) layoutCallsBox(gtx layout.Context, f frame) layout.Dimensions {
 		}
 	}
 
-	// Row + redial events.
 	growClickables(&callsBoxRowBtns, len(f.callsBoxRows))
 	growClickables(&callsBoxRedial, len(f.callsBoxRows))
 	for i := range f.callsBoxRows {
@@ -549,7 +459,6 @@ func (a *App) layoutCallsBox(gtx layout.Context, f frame) layout.Dimensions {
 		}
 	}
 
-	// Group-call rows.
 	gcs := callsBoxGroupCalls(f)
 	growClickables(&callsBoxGcRow, len(gcs))
 	growClickables(&callsBoxGcJoin, len(gcs))
@@ -565,7 +474,6 @@ func (a *App) layoutCallsBox(gtx layout.Context, f frame) layout.Dimensions {
 		}
 	}
 
-	// Context menu actions (tdesktop: Delete, Show in chat).
 	growClickables(&callsCtxMenuRow, 2)
 	for i, action := range []string{"Show in chat", "Delete"} {
 		i, action := i, action
@@ -589,15 +497,12 @@ func (a *App) layoutCallsBox(gtx layout.Context, f frame) layout.Dimensions {
 		}
 	}
 
-	// Pane press routing: right-click → row menu; outside-press dismisses.
 	a.processCallsBoxEvents(gtx, f)
 
-	// Scroll-to-end pagination (tdesktop loadMoreRows).
 	if !callsBoxList.Position.BeforeEnd && !f.callsBoxBusy && !f.callsBoxDone && len(f.callsBoxRows) > 0 {
 		a.loadCallsBoxMore()
 	}
 
-	// Clear-all confirm buttons.
 	if callsClearOK.Clicked(gtx) {
 		a.clearCallsBoxAll(callsClearRevoke.Value)
 	}
@@ -608,7 +513,6 @@ func (a *App) layoutCallsBox(gtx layout.Context, f frame) layout.Dimensions {
 		a.invalidate()
 	}
 
-	// Delete-group confirm buttons.
 	if callsDelOK.Clicked(gtx) {
 		a.mu.Lock()
 		idx := a.callsDelDlg
@@ -663,7 +567,6 @@ func (a *App) layoutCallsBox(gtx layout.Context, f frame) layout.Dimensions {
 	)
 }
 
-// callsBoxGroupCalls lists this account's chats with an active group call.
 func callsBoxGroupCalls(f frame) []engine.ChatInfo {
 	var out []engine.ChatInfo
 	for _, c := range f.chats {
@@ -674,9 +577,6 @@ func callsBoxGroupCalls(f frame) []engine.ChatInfo {
 	return out
 }
 
-// processCallsBoxEvents registers the pane pointer interest and routes
-// presses: secondary (right) click over a row opens its context menu; any
-// press outside an open menu or dialog dismisses it.
 func (a *App) processCallsBoxEvents(gtx layout.Context, f frame) {
 	stack := clip.Rect{Max: gtx.Constraints.Max}.Push(gtx.Ops)
 	event.Op(gtx.Ops, callsBoxPaneTag)
@@ -701,7 +601,7 @@ func (a *App) onCallsBoxPress(f frame, pe pointer.Event) {
 			a.mu.Unlock()
 			a.invalidate()
 		}
-		return // presses inside the menu belong to its own buttons
+		return
 	}
 	if f.callsRowMenu != nil {
 		if !pointInRect(pos, a.callsRowMenuRect) {
@@ -725,8 +625,6 @@ func (a *App) onCallsBoxPress(f frame, pe pointer.Event) {
 	a.invalidate()
 }
 
-// callsRowAt maps a pane-space point to a history row index using the
-// bounds recorded by the previous frame's layout.
 func (a *App) callsRowAt(pos image.Point) int {
 	for idx, r := range a.callsRowBounds {
 		if pointInRect(pos, r) {
@@ -736,7 +634,6 @@ func (a *App) callsRowAt(pos image.Point) int {
 	return -1
 }
 
-// callsBoxHeader: back arrow, "Calls" title, ⋮ menu button.
 func (a *App) callsBoxHeader(gtx layout.Context, f frame) layout.Dimensions {
 	return insetAll(gtx, unit.Dp(6), unit.Dp(8), 4, unit.Dp(8), func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
@@ -760,8 +657,6 @@ func (a *App) callsBoxHeader(gtx layout.Context, f frame) layout.Dimensions {
 	})
 }
 
-// callsBoxBody: group-calls subsection (when live) + the history list
-// (loading / empty / rows), scrollable with the standard scrollbar.
 func (a *App) callsBoxBody(gtx layout.Context, f frame, gcs []engine.ChatInfo) layout.Dimensions {
 	var children []layout.FlexChild
 	if len(gcs) > 0 {
@@ -807,9 +702,6 @@ func (a *App) callsBoxBody(gtx layout.Context, f frame, gcs []engine.ChatInfo) l
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-// callsBoxGroupCallsSection: the "Group calls" subsection above the
-// history (tdesktop slide-wrap; only when a chat of this account has an
-// active call). Rows open the chat; the headset action joins.
 func (a *App) callsBoxGroupCallsSection(gtx layout.Context, f frame, gcs []engine.ChatInfo) layout.Dimensions {
 	return layout.Inset{Top: unit.Dp(8), Bottom: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
@@ -863,9 +755,6 @@ func (a *App) callsBoxGroupCallsSection(gtx layout.Context, f frame, gcs []engin
 	})
 }
 
-// callBoxRowWidget renders one grouped history row: avatar, direction
-// arrow (missed tinted red), name, tdesktop status line, and the redial
-// action (phone; camera for video rows).
 func (a *App) callBoxRowWidget(gtx layout.Context, f frame, idx int) layout.Dimensions {
 	row := f.callsBoxRows[idx]
 	name := row.PeerName
@@ -934,8 +823,6 @@ func (a *App) callBoxRowWidget(gtx layout.Context, f frame, idx int) layout.Dime
 	})
 }
 
-// layoutCallsBoxMenu renders the header ⋮ popup (Call settings / Clear all
-// — the latter attention-red, only when rows exist).
 func (a *App) layoutCallsBoxMenu(gtx layout.Context, f frame, items []string) layout.Dimensions {
 	m := f.callsBoxMenu
 	menuW := gtx.Dp(unit.Dp(220))
@@ -991,7 +878,6 @@ func (a *App) layoutCallsBoxMenu(gtx layout.Context, f frame, items []string) la
 	return dims
 }
 
-// layoutCallsRowMenu renders the row context menu (Show in chat / Delete).
 func (a *App) layoutCallsRowMenu(gtx layout.Context, f frame) layout.Dimensions {
 	m := f.callsRowMenu
 	actions := []string{"Show in chat", "Delete"}
@@ -1048,16 +934,12 @@ func (a *App) layoutCallsRowMenu(gtx layout.Context, f frame) layout.Dimensions 
 	return dims
 }
 
-// layoutCallsClearDialog: Clear-all confirm (tdesktop ClearCallsBox): the
-// "also delete for everyone" revoke checkbox rides the same RPC.
 func (a *App) layoutCallsClearDialog(gtx layout.Context, f frame) layout.Dimensions {
 	return a.callsConfirmCard(gtx, "Clear call history?",
 		"Are you sure you want to clear your entire call history?",
 		"Also delete for everyone", &callsClearRevoke, &callsClearOK, &callsClearCancel, "Clear")
 }
 
-// layoutCallsDeleteDialog: per-group delete confirm (tdesktop
-// DeleteMessagesBox semantics, revoke checkbox honored per message).
 func (a *App) layoutCallsDeleteDialog(gtx layout.Context, f frame) layout.Dimensions {
 	return a.callsConfirmCard(gtx, "Delete calls?",
 		"The selected call entries will be deleted for you"+deleteScopeSuffix(callsDelRevoke.Value)+".",
@@ -1071,9 +953,7 @@ func deleteScopeSuffix(revoke bool) string {
 	return ""
 }
 
-// callsConfirmCard renders the shared centered confirm card + scrim.
 func (a *App) callsConfirmCard(gtx layout.Context, title, body, checkLabel string, check *widget.Bool, ok, cancel *widget.Clickable, okLabel string) layout.Dimensions {
-	// Scrim behind the card.
 	paint.FillShape(gtx.Ops, color.NRGBA{R: 0, G: 0, B: 0, A: 0x66},
 		clip.Rect{Max: image.Pt(gtx.Constraints.Max.X, gtx.Constraints.Max.Y)}.Op())
 
@@ -1126,7 +1006,6 @@ func (a *App) callsConfirmCard(gtx layout.Context, title, body, checkLabel strin
 	})
 }
 
-// flexForEach builds n rigid children with idx-sourced widgets.
 func flexForEach(n int, w func(gtx layout.Context, idx int) layout.Dimensions) []layout.FlexChild {
 	children := make([]layout.FlexChild, 0, n)
 	for i := 0; i < n; i++ {

@@ -1,9 +1,5 @@
 package gui
 
-// fontpick_test.go — slice 146 (tests-first): the pure halves of the
-// custom-font support — collection face swapping, path validation and
-// display names.
-
 import (
 	"path/filepath"
 	"testing"
@@ -14,12 +10,8 @@ import (
 	"golang.org/x/image/font/gofont/goregular"
 )
 
-// goregularTTF exposes the embedded Go regular font bytes (a stand-in
-// for a picked .ttf in tests).
 func goregularTTF() []byte { return goregular.TTF }
 
-// fakeUserFace builds a real parsed face from the embedded Go fonts —
-// the same pipeline a picked .ttf goes through.
 func fakeUserFace(t *testing.T) font.Face {
 	t.Helper()
 	faces, err := opentype.ParseCollection(goregularTTF())
@@ -32,10 +24,6 @@ func fakeUserFace(t *testing.T) font.Face {
 	return faces[0].Face
 }
 
-// TestSwapCollectionFaces: swapping the default family's face objects
-// keeps every descriptor (typeface/weight/style) and the entry count —
-// matching behaves exactly as before, only the glyphs change. The mono
-// family only swaps when a mono face is given.
 func TestSwapCollectionFaces(t *testing.T) {
 	base := gofont.Collection()
 	userFace := fakeUserFace(t)
@@ -69,7 +57,6 @@ func TestSwapCollectionFaces(t *testing.T) {
 	}
 	_ = monoSwapped
 
-	// With a mono face, the mono family swaps too.
 	out2 := swapCollectionFaces(base, userFace, monoFace)
 	monoSwapped = 0
 	for i := range out2 {
@@ -85,8 +72,6 @@ func TestSwapCollectionFaces(t *testing.T) {
 	}
 }
 
-// TestSwapCollectionFacesNil: nil faces → the base collection unchanged
-// (same slice content).
 func TestSwapCollectionFacesNil(t *testing.T) {
 	base := gofont.Collection()
 	out := swapCollectionFaces(base, nil, nil)
@@ -100,7 +85,6 @@ func TestSwapCollectionFacesNil(t *testing.T) {
 	}
 }
 
-// TestIsFontPath: font extensions (case-insensitive).
 func TestIsFontPath(t *testing.T) {
 	cases := []struct {
 		path string
@@ -122,7 +106,6 @@ func TestIsFontPath(t *testing.T) {
 	}
 }
 
-// TestFontFileName: display name = base name of the path.
 func TestFontFileName(t *testing.T) {
 	cases := []struct {
 		path string

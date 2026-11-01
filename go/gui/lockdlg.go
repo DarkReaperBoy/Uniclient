@@ -1,12 +1,5 @@
 package gui
 
-// Passcode editor dialog (slice 87): Privacy & Security → "Passcode
-// lock". Set (new + confirm), change (verify current first), disable
-// (verify + armed confirm), and the autolock picker (1/5/60 minutes,
-// never) applied immediately through engine.UpdatePasscodeConfig. The
-// step machine is GUI-loop state; engine persistence runs async with
-// honest toasts. Locked by lock_test.go.
-
 import (
 	"image"
 	"time"
@@ -20,25 +13,23 @@ import (
 	"gioui.org/widget/material"
 )
 
-// lock dialog steps.
 const (
-	lockDlgVerify  = 0 // existing passcode: verify before options
-	lockDlgOptions = 1 // change / disable / autolock
-	lockDlgNew     = 2 // enter the new passcode
-	lockDlgConfirm = 3 // re-enter to confirm
+	lockDlgVerify  = 0
+	lockDlgOptions = 1
+	lockDlgNew     = 2
+	lockDlgConfirm = 3
 )
 
-// lockDlgState is the open passcode editor.
 type lockDlgState struct {
 	step         int
-	digits       int // chosen length for a new passcode
-	autolock     int // minutes, live-edited
+	digits       int
+	autolock     int
 	input        string
-	first        string // candidate from lockDlgNew
+	first        string
 	wrong        bool
 	wrongCount   int
 	frozen       time.Time
-	hasLock      bool // passcode already configured
+	hasLock      bool
 	disableArmed bool
 }
 
@@ -48,10 +39,9 @@ var (
 	lockDlgChangeBtn  widget.Clickable
 	lockDlgDisableBtn widget.Clickable
 	lockDlgDigitsBtns []widget.Clickable
-	lockDlgLockBtns   []widget.Clickable // autolock options
+	lockDlgLockBtns   []widget.Clickable
 )
 
-// openLockDialog opens the passcode editor.
 func (a *App) openLockDialog() {
 	cur := a.liveLockState()
 	dlg := &lockDlgState{hasLock: cur != nil, digits: 4, autolock: 1}
@@ -67,7 +57,6 @@ func (a *App) openLockDialog() {
 	a.invalidate()
 }
 
-// closeLockDialog dismisses the editor.
 func (a *App) closeLockDialog() {
 	a.mu.Lock()
 	a.lockDlg = nil
@@ -75,14 +64,12 @@ func (a *App) closeLockDialog() {
 	a.invalidate()
 }
 
-// liveLockState returns the live lock state (nil when unset).
 func (a *App) liveLockState() *lockState {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.lock
 }
 
-// lockDlgCaption is the step's prompt. Pure.
 func lockDlgCaption(d *lockDlgState, now time.Time) (string, bool) {
 	switch d.step {
 	case lockDlgVerify:
@@ -104,14 +91,10 @@ func lockDlgCaption(d *lockDlgState, now time.Time) (string, bool) {
 	return "", false
 }
 
-// lockDlgFrozen: wrong-attempt cooldown inside the dialog.
 func lockDlgFrozen(d *lockDlgState, now time.Time) bool {
 	return !d.frozen.IsZero() && now.Before(d.frozen)
 }
 
-// lockDlgFeed advances the step machine with one pad key. Returns the
-// resulting action ("", "verified", "saved:<pin>", "mismatch"). Pure-ish
-// (mutates the dialog state only).
 func lockDlgFeed(d *lockDlgState, cur *lockState, k string, now time.Time) string {
 	if lockDlgFrozen(d, now) {
 		return ""
@@ -168,13 +151,12 @@ func lockDlgFeed(d *lockDlgState, cur *lockState, k string, now time.Time) strin
 			}
 			d.input = ""
 			d.wrong = true
-			d.step = lockDlgNew // re-enter from the start
+			d.step = lockDlgNew
 		}
 	}
 	return ""
 }
 
-// lockDlgDigitsChanged resets entry state when the length picker moves.
 func lockDlgDigitsChanged(d *lockDlgState, n int) {
 	if d.digits == n {
 		return
@@ -185,7 +167,6 @@ func lockDlgDigitsChanged(d *lockDlgState, n int) {
 	d.wrong = false
 }
 
-// applyNewPasscode persists the new passcode and arms the live lock.
 func (a *App) applyNewPasscode(pin string, digits, autolockMin int) {
 	st := &lockState{
 		digits:      digits,
@@ -210,7 +191,6 @@ func (a *App) applyNewPasscode(pin string, digits, autolockMin int) {
 	}()
 }
 
-// disablePasscode removes the vault record and disarms the live lock.
 func (a *App) disablePasscode() {
 	go func() {
 		if err := a.eng.ClearPasscode(); err != nil {
@@ -226,7 +206,6 @@ func (a *App) disablePasscode() {
 	}()
 }
 
-// applyAutolock persists the autolock choice for the existing passcode.
 func (a *App) applyAutolock(minutes int) {
 	go func() {
 		if err := a.eng.UpdatePasscodeConfig(map[string]interface{}{"autolock": minutes}); err != nil {
@@ -247,17 +226,13 @@ func (a *App) applyAutolock(minutes int) {
 	}()
 }
 
-// layoutLockDialog renders the passcode editor (content-pane replacement,
-// like the other settings dialogs).
 func (a *App) layoutLockDialog(gtx layout.Context, f frame) layout.Dimensions {
 	d := f.lockDlg
 	now := f.now
 	if d.step == lockDlgVerify && !a.liveLockState().hasHash() {
-		// No armed passcode behind a verify step — start over.
 		d.step = lockDlgNew
 	}
 
-	// Esc closes; key events feed the pad.
 	{
 		stack := clip.Rect{Max: image.Pt(gtx.Constraints.Max.X, gtx.Constraints.Max.Y)}.Push(gtx.Ops)
 		event.Op(gtx.Ops, lockDlgTag)
@@ -314,7 +289,6 @@ func (a *App) layoutLockDialog(gtx layout.Context, f frame) layout.Dimensions {
 						if d.step == lockDlgOptions {
 							return layout.Dimensions{}
 						}
-						// Dots mirror the entry for pad steps.
 						cur := a.liveLockState()
 						n := d.digits
 						if d.step == lockDlgVerify && cur != nil {
@@ -323,7 +297,6 @@ func (a *App) layoutLockDialog(gtx layout.Context, f frame) layout.Dimensions {
 						return a.pinDots(gtx, n, len(d.input), d.wrong)
 					}),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						// Digit-length picker (new/confirm steps).
 						if d.step != lockDlgNew && d.step != lockDlgConfirm {
 							return layout.Dimensions{}
 						}
@@ -354,7 +327,6 @@ func (a *App) layoutLockDialog(gtx layout.Context, f frame) layout.Dimensions {
 	})
 }
 
-// lockDlgAction dispatches the step machine's outcomes.
 func (a *App) lockDlgAction(act string) {
 	switch {
 	case act == "verified":
@@ -370,7 +342,6 @@ func (a *App) lockDlgAction(act string) {
 	a.invalidate()
 }
 
-// lockDlgDigits/lockDlgAutolock read the dialog under the mutex.
 func (a *App) lockDlgDigits() int {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -389,7 +360,6 @@ func (a *App) lockDlgAutolock() int {
 	return a.lockDlg.autolock
 }
 
-// lockDlgDigitsRow: 4/5/6 segmented picker.
 func (a *App) lockDlgDigitsRow(gtx layout.Context, d *lockDlgState) layout.Dimensions {
 	opts := []int{4, 5, 6}
 	growClickables(&lockDlgDigitsBtns, len(opts))
@@ -443,7 +413,6 @@ func (a *App) lockDlgAutolockRow(gtx layout.Context, d *lockDlgState) layout.Dim
 	)
 }
 
-// autolockLabel renders an autolock choice. Pure.
 func autolockLabel(minutes int) string {
 	switch minutes {
 	case 0:
@@ -499,7 +468,6 @@ func (a *App) lockDlgOptionsBody(gtx layout.Context, f frame, d *lockDlgState) l
 	)
 }
 
-// hasHash guards the verify step against an incomplete vault record.
 func (st *lockState) hasHash() bool {
 	return st != nil && st.salt != "" && st.hash != ""
 }

@@ -1,14 +1,5 @@
 package gui
 
-// Export data wizard (AyuGram "Export data", matrix row 208, slice 100):
-// Settings → Data & Storage gains "Export data" — a content-pane dialog
-// with the takeout option groups (account / chats / media / other), a
-// size limit, Start / Cancel / Skip-file controls, live progress from
-// the engine's export events (step bar, per-file byte row), honest
-// error cards (takeout delay, disk IO, api errors) and a completion
-// card with the export path. Only accounts whose core supports takeout
-// offer the entry (capability gate, no dead UI).
-
 import (
 	"image"
 	"strconv"
@@ -25,20 +16,16 @@ import (
 	"uniclient/engine"
 )
 
-// exportOption is one checkbox row.
 type exportOption struct {
-	key   string // ExportSettings field name
+	key   string
 	label string
 }
 
-// exportGroup is one titled checkbox section.
 type exportGroup struct {
 	title string
 	opts  []exportOption
 }
 
-// exportOptionGroups (pure, testable): the wizard's checkbox layout —
-// AyuGram's export categories, every key a real engine settings field.
 func exportOptionGroups() []exportGroup {
 	return []exportGroup{
 		{"Account", []exportOption{
@@ -71,11 +58,10 @@ func exportOptionGroups() []exportGroup {
 	}
 }
 
-// exportDlgState is the open wizard (nil when closed).
 type exportDlgState struct {
 	accountID string
 	checked   map[string]bool
-	running   bool // engine export in flight
+	running   bool
 	progress  *engine.ExportProgressEvent
 	err       *engine.ExportErrorEvent
 	done      *engine.ExportCompleteEvent
@@ -89,11 +75,9 @@ var (
 	exportDlgSkip    widget.Clickable
 	exportDlgDoneBtn widget.Clickable
 	exportSizeEd     widget.Editor
-	exportOptBools   []widget.Bool // option checkbox pool, grown per frame
+	exportOptBools   []widget.Bool
 )
 
-// parseExportSizeLimit (pure, testable): the size editor's text → MB,
-// 0 on garbage, clamped to the engine's 8 GB ceiling.
 func parseExportSizeLimit(s string) int {
 	n, err := strconv.Atoi(strings.TrimSpace(s))
 	if err != nil || n < 0 {
@@ -105,8 +89,6 @@ func parseExportSizeLimit(s string) int {
 	return n
 }
 
-// exportProgressPercent (pure, testable): overall wizard progress from
-// the engine's step index + per-step fraction.
 func exportProgressPercent(step, total int, prog float64) float32 {
 	if total <= 0 {
 		return 0
@@ -121,8 +103,6 @@ func exportProgressPercent(step, total int, prog float64) float32 {
 	return f
 }
 
-// exportErrorText (pure, testable): an honest sentence for an export
-// error — the takeout delay carries the wait, disk errors the path.
 func exportErrorText(ev engine.ExportErrorEvent) string {
 	switch ev.ErrorType {
 	case "takeout_delay":
@@ -143,8 +123,6 @@ func exportErrorText(ev engine.ExportErrorEvent) string {
 	return msg
 }
 
-// exportSettingsFromChecks (pure, testable): the checkbox map + size
-// limit → the engine's ExportSettings.
 func exportSettingsFromChecks(checked map[string]bool, sizeMB int) engine.ExportSettings {
 	return engine.ExportSettings{
 		PersonalInfo:    checked["personal_info"],
@@ -170,7 +148,6 @@ func exportSettingsFromChecks(checked map[string]bool, sizeMB int) engine.Export
 	}
 }
 
-// openExportDialog opens the wizard for an account.
 func (a *App) openExportDialog(accountID string) {
 	a.mu.Lock()
 	a.exportDlg = &exportDlgState{
@@ -181,35 +158,20 @@ func (a *App) openExportDialog(accountID string) {
 			"media_photos": true, "media_video": true,
 		},
 	}
-	// R43: re-seed the checkbox pool on every open. The flag survived the
-	// close (nothing ever reset it), so the second open kept the previous
-	// session's toggles on screen while this fresh map held the defaults —
-	// Start would export the map, not the display. GUI-loop-only flag
-	// (layout + open/close; no background writer, unlike R41's load tail),
-	// so the plain bool stays — no atomic needed.
 	a.exportOptsSynced = false
 	a.mu.Unlock()
 	exportSizeEd.SetText("")
 	a.invalidate()
 }
 
-// closeExportDialog dismisses the wizard (cancels nothing — a running
-// export keeps going and reports via toasts).
 func (a *App) closeExportDialog() {
 	a.mu.Lock()
 	a.exportDlg = nil
-	// R43: same reset on close (R41's profileEdSynced shape) — the pool
-	// always re-seeds from the next open's fresh checked map.
 	a.exportOptsSynced = false
 	a.mu.Unlock()
 	a.invalidate()
 }
 
-// updateExportDlg (R42): copy-on-write installer — the R34/R40 discipline.
-// fn mutates a COPY of the wizard state (returning false leaves the head
-// alone); the copy is installed under a.mu, never an in-place mutation, so
-// a frame that captured the old pointer keeps a frozen view while the
-// engine's event goroutine and the start-failure tail swap the head.
 func (a *App) updateExportDlg(fn func(d *exportDlgState) bool) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -223,7 +185,6 @@ func (a *App) updateExportDlg(fn func(d *exportDlgState) bool) {
 	a.exportDlg = &next
 }
 
-// startExport runs the engine takeout with the checked options.
 func (a *App) startExport() {
 	checked := map[string]bool{}
 	accountID := ""
@@ -252,7 +213,7 @@ func (a *App) startExport() {
 			a.setToast("Export: " + err.Error())
 			a.updateExportDlg(func(cur *exportDlgState) bool {
 				if cur.accountID != accountID {
-					return false // stale tail: another dialog is open now
+					return false
 				}
 				cur.running = false
 				return true
@@ -263,7 +224,6 @@ func (a *App) startExport() {
 	a.invalidate()
 }
 
-// cancelExport stops the running engine export.
 func (a *App) cancelExport() {
 	accountID := ""
 	a.updateExportDlg(func(cur *exportDlgState) bool {
@@ -278,7 +238,6 @@ func (a *App) cancelExport() {
 	a.invalidate()
 }
 
-// skipExportFile skips the file the engine is currently downloading.
 func (a *App) skipExportFile() {
 	a.mu.Lock()
 	d := a.exportDlg
@@ -294,7 +253,6 @@ func (a *App) skipExportFile() {
 	a.eng.SkipExportFile(accountID, randomID)
 }
 
-// onExportProgress updates the wizard from an engine progress event.
 func (a *App) onExportProgress(ev engine.ExportProgressEvent, accountID string) {
 	p := ev
 	a.updateExportDlg(func(cur *exportDlgState) bool {
@@ -308,7 +266,6 @@ func (a *App) onExportProgress(ev engine.ExportProgressEvent, accountID string) 
 	a.invalidate()
 }
 
-// onExportError shows the engine's export failure.
 func (a *App) onExportError(ev engine.ExportErrorEvent, accountID string) {
 	e := ev
 	a.updateExportDlg(func(cur *exportDlgState) bool {
@@ -322,7 +279,6 @@ func (a *App) onExportError(ev engine.ExportErrorEvent, accountID string) {
 	a.invalidate()
 }
 
-// onExportComplete shows the engine's export success card.
 func (a *App) onExportComplete(ev engine.ExportCompleteEvent, accountID string) {
 	c := ev
 	a.updateExportDlg(func(cur *exportDlgState) bool {
@@ -336,7 +292,6 @@ func (a *App) onExportComplete(ev engine.ExportCompleteEvent, accountID string) 
 	a.invalidate()
 }
 
-// layoutExportDialog renders the wizard as the content pane.
 func (a *App) layoutExportDialog(gtx layout.Context, f frame) layout.Dimensions {
 	d := f.exportDlg
 	{
@@ -377,7 +332,6 @@ func (a *App) layoutExportDialog(gtx layout.Context, f frame) layout.Dimensions 
 		return roundedFill(gtx, a.ui.p.Surface, 16, func(gtx layout.Context) layout.Dimensions {
 			return layout.UniformInset(unit.Dp(18)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-					// Header + close.
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 							layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
@@ -397,7 +351,6 @@ func (a *App) layoutExportDialog(gtx layout.Context, f frame) layout.Dimensions 
 							return lbl.Layout(gtx)
 						})
 					}),
-					// Option groups / progress / result.
 					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 						if d.done != nil {
 							return a.exportDoneCard(gtx, *d.done)
@@ -407,7 +360,6 @@ func (a *App) layoutExportDialog(gtx layout.Context, f frame) layout.Dimensions 
 						}
 						return a.exportOptionsList(gtx, d)
 					}),
-					// Error line.
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						if d.err == nil {
 							return layout.Dimensions{}
@@ -418,7 +370,6 @@ func (a *App) layoutExportDialog(gtx layout.Context, f frame) layout.Dimensions 
 							return lbl.Layout(gtx)
 						})
 					}),
-					// Controls.
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Inset{Top: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
@@ -459,7 +410,6 @@ func (a *App) layoutExportDialog(gtx layout.Context, f frame) layout.Dimensions 
 	})
 }
 
-// exportOptionsList renders the checkbox groups + size limit.
 func (a *App) exportOptionsList(gtx layout.Context, d *exportDlgState) layout.Dimensions {
 	groups := exportOptionGroups()
 	n := 0
@@ -469,7 +419,6 @@ func (a *App) exportOptionsList(gtx layout.Context, d *exportDlgState) layout.Di
 	if len(exportOptBools) != n {
 		exportOptBools = make([]widget.Bool, n)
 	}
-	// Seed the pool from the dialog's checked map once per open.
 	if !a.exportOptsSynced {
 		j := 0
 		for _, g := range groups {
@@ -502,7 +451,6 @@ func (a *App) exportOptionsList(gtx layout.Context, d *exportDlgState) layout.Di
 					return chk.Layout(gtx)
 				})
 			}))
-			// Sync the click back into the dialog's checked map.
 			if exportOptBools[idx].Update(gtx) {
 				a.mu.Lock()
 				if a.exportDlg != nil {
@@ -513,7 +461,6 @@ func (a *App) exportOptionsList(gtx layout.Context, d *exportDlgState) layout.Di
 			i++
 		}
 	}
-	// Size limit row.
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Top: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
@@ -542,7 +489,6 @@ func (a *App) exportOptionsList(gtx layout.Context, d *exportDlgState) layout.Di
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-// exportProgressCard renders the live progress view.
 func (a *App) exportProgressCard(gtx layout.Context, d *exportDlgState) layout.Dimensions {
 	p := engine.ExportProgressEvent{Step: "Preparing…"}
 	if d.progress != nil {
@@ -588,7 +534,6 @@ func (a *App) exportProgressCard(gtx layout.Context, d *exportDlgState) layout.D
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-// exportDoneCard renders the completion view.
 func (a *App) exportDoneCard(gtx layout.Context, done engine.ExportCompleteEvent) layout.Dimensions {
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -610,8 +555,6 @@ func (a *App) exportDoneCard(gtx layout.Context, done engine.ExportCompleteEvent
 	)
 }
 
-// firstTakeoutAccount (pure, testable): the account the Export-data row
-// targets — the first takeout-capable account, "" hides the row.
 func firstTakeoutAccount(ids []string) string {
 	if len(ids) == 0 {
 		return ""

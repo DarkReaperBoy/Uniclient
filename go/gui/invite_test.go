@@ -21,13 +21,12 @@ func TestExtractInviteHash(t *testing.T) {
 		{"+AbCdEf12345", "AbCdEf12345", true},
 		{"www.t.me/+AbCdEf12345", "AbCdEf12345", true},
 		{"  https://t.me/+AbCdEf12345  ", "AbCdEf12345", true},
-		// Not invites: usernames, plain links, channels.
 		{"https://t.me/durov", "", false},
 		{"t.me/somechannel", "", false},
 		{"@durov", "", false},
 		{"hello world", "", false},
 		{"", "", false},
-		{"+ab", "", false}, // too short
+		{"+ab", "", false},
 	}
 	for _, tc := range cases {
 		got, ok := extractInviteHash(tc.q)

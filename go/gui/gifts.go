@@ -1,14 +1,5 @@
 package gui
 
-// gifts.go — slice 211: the gift picker (tdesktop star_gift_box.cpp's
-// catalog flow). Opened from the peer header menu ("Send a gift", user
-// peers on gift-capable platforms): the purchasable gift catalog with
-// sticker thumbnails, star prices and limited/sold-out badges, the
-// account's live balance line, an optional message + hide-name toggle,
-// and a Send that buys the gift from the star balance through the real
-// payments.getPaymentForm → payments.sendStarsForm chain. Insufficient
-// balance is an honest error pointing at the Stars settings page.
-
 import (
 	"image"
 	"strconv"
@@ -27,7 +18,7 @@ var (
 	giftSendBtn widget.Clickable
 	giftHideBtn widget.Clickable
 	giftList    widget.List
-	giftCells   []widget.Clickable // catalog cells (single-select)
+	giftCells   []widget.Clickable
 	giftMsgEd   widget.Editor
 )
 
@@ -36,27 +27,22 @@ func init() {
 	giftMsgEd.SingleLine = true
 }
 
-// giftDlgState is the open gift picker (nil when closed).
 type giftDlgState struct {
 	accountID string
 	chatID    string
 	peerTitle string
 	gifts     []cores.StarGiftItem
-	balance   int64 // nanostars
+	balance   int64
 	loaded    bool
 	err       string
-	sel       int64 // selected gift ID (0 = none)
+	sel       int64
 	sending   bool
 }
 
-// giftPriceLabel (pure, testable): whole-star price rendering.
 func giftPriceLabel(stars int64) string {
 	return itoa64(stars) + " Stars"
 }
 
-// giftBuyable (pure, testable): whether a catalog row can be bought —
-// sold-out gifts and balance-short gifts cannot (honest disable, the row
-// still shows).
 func giftBuyable(g cores.StarGiftItem, balanceNano int64, requirePremiumOwned bool) bool {
 	if g.SoldOut {
 		return false
@@ -67,14 +53,12 @@ func giftBuyable(g cores.StarGiftItem, balanceNano int64, requirePremiumOwned bo
 	return balanceNano >= g.Stars*1_000_000_000
 }
 
-// giftCellSubtitle (pure, testable): the badge line under the price.
 func giftCellSubtitle(g cores.StarGiftItem) string {
 	switch {
 	case g.SoldOut:
 		return "Sold out"
 	case g.Limited:
 		if g.Total > 0 {
-			// Availability counts are not unread badges — no 999+ clamp.
 			return "Limited · " + strconv.Itoa(g.Remaining) + "/" + strconv.Itoa(g.Total)
 		}
 		return "Limited"
@@ -84,8 +68,6 @@ func giftCellSubtitle(g cores.StarGiftItem) string {
 	return ""
 }
 
-// openGiftPicker opens the picker for a user peer and kicks the catalog +
-// balance loads.
 func (a *App) openGiftPicker(c engine.ChatInfo) {
 	st := &giftDlgState{
 		accountID: c.AccountID,
@@ -119,7 +101,6 @@ func (a *App) openGiftPicker(c engine.ChatInfo) {
 	}()
 }
 
-// closeGiftPicker dismisses the picker.
 func (a *App) closeGiftPicker() {
 	a.mu.Lock()
 	a.giftDlg = nil
@@ -127,7 +108,6 @@ func (a *App) closeGiftPicker() {
 	a.invalidate()
 }
 
-// sendGift purchases the selected gift through the engine.
 func (a *App) sendGift(f frame) {
 	st := f.giftDlg
 	if st == nil || st.sel == 0 || st.sending {
@@ -159,7 +139,6 @@ func (a *App) sendGift(f frame) {
 	}()
 }
 
-// layoutGiftPicker renders the picker (content-pane surface).
 func (a *App) layoutGiftPicker(gtx layout.Context, f frame) layout.Dimensions {
 	st := f.giftDlg
 	if st == nil {
@@ -226,7 +205,6 @@ func (a *App) layoutGiftPicker(gtx layout.Context, f frame) layout.Dimensions {
 				})
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return a.ui.Divider(gtx) }),
-		// Balance line.
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return a.ui.Dim(unit.Sp(12), "Your balance: "+formatStars(st.balance)+" Stars").Layout(gtx)
@@ -255,7 +233,6 @@ func (a *App) layoutGiftPicker(gtx layout.Context, f frame) layout.Dimensions {
 				return a.giftGridRow(gtx, f, gifts, r)
 			})
 		}),
-		// Footer: message + hide-name + Send.
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return a.ui.Divider(gtx) }),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Top: unit.Dp(8), Bottom: unit.Dp(8), Left: unit.Dp(12), Right: unit.Dp(12)}.Layout(gtx,
@@ -292,13 +269,11 @@ func (a *App) layoutGiftPicker(gtx layout.Context, f frame) layout.Dimensions {
 	)
 }
 
-// giftGridRows (pure, testable): row count for a 3-column grid.
 func giftGridRows(n int) int {
 	const cols = 3
 	return (n + cols - 1) / cols
 }
 
-// giftGridRow renders one 3-cell catalog row.
 func (a *App) giftGridRow(gtx layout.Context, f frame, gifts []cores.StarGiftItem, r int) layout.Dimensions {
 	const cols = 3
 	children := make([]layout.FlexChild, 0, cols)
@@ -315,8 +290,6 @@ func (a *App) giftGridRow(gtx layout.Context, f frame, gifts []cores.StarGiftIte
 	return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, children...)
 }
 
-// giftCell renders one catalog cell: sticker thumb (emoji fallback),
-// price, badge line, selected state, sold-out disable.
 func (a *App) giftCell(gtx layout.Context, f frame, g cores.StarGiftItem, idx int) layout.Dimensions {
 	st := f.giftDlg
 	sel := st != nil && st.sel == g.ID
@@ -369,9 +342,6 @@ func (a *App) giftCell(gtx layout.Context, f frame, g cores.StarGiftItem, idx in
 	})
 }
 
-// giftAccountOK (pure, testable): the account's platform exposes the
-// star-gift surface — Telegram accounts only (the engine's GiftCore is
-// telegram-side, slice 211).
 func giftAccountOK(f frame, accountID string) bool {
 	acc := accountByID(f, accountID)
 	return acc.Platform == "telegram" || acc.Platform == "Telegram"

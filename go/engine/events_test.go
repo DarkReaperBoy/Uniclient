@@ -5,7 +5,6 @@ import (
 	"testing"
 )
 
-// fanRecorder records deliveries to one subscriber.
 type fanRecorder struct {
 	mu   sync.Mutex
 	seen []string
@@ -23,9 +22,6 @@ func (r *fanRecorder) count() int {
 	return len(r.seen)
 }
 
-// TestEventSubscriberFanOut pins the multi-window event contract (slice 168):
-// every registered subscriber receives every pushed event, unsubscription
-// stops delivery for that subscriber only.
 func TestEventSubscriberFanOut(t *testing.T) {
 	e := &Engine{}
 	a, b := &fanRecorder{}, &fanRecorder{}
@@ -50,7 +46,6 @@ func TestEventSubscriberFanOut(t *testing.T) {
 		t.Fatalf("unsubscribed b=%d, want 2 (no delivery after unsubscribe)", b.count())
 	}
 
-	// Idempotent unsubscribe.
 	subB.Unsubscribe()
 	e.pushEvent([]byte("e4"))
 	if a.count() != 4 || b.count() != 2 {
@@ -59,9 +54,6 @@ func TestEventSubscriberFanOut(t *testing.T) {
 	subA.Unsubscribe()
 }
 
-// TestEventSubscriberSetCallbackCompat pins the legacy single-callback
-// contract: SetEventCallback replaces the whole subscriber list (it is the
-// boot-time registration used before any window exists).
 func TestEventSubscriberSetCallbackCompat(t *testing.T) {
 	e := &Engine{}
 	a, b, c := &fanRecorder{}, &fanRecorder{}, &fanRecorder{}
@@ -80,8 +72,6 @@ func TestEventSubscriberSetCallbackCompat(t *testing.T) {
 	}
 }
 
-// TestEventSubscriberNoopSafety pins that pushEvent with no subscribers and
-// nil-callback registrations are safe no-ops.
 func TestEventSubscriberNoopSafety(t *testing.T) {
 	e := &Engine{}
 	e.pushEvent([]byte("nobody home"))
@@ -89,5 +79,5 @@ func TestEventSubscriberNoopSafety(t *testing.T) {
 		t.Fatalf("Subscribe(nil) must return nil, got %v", s)
 	}
 	var nilSub *EventSubscription
-	nilSub.Unsubscribe() // no-op, must not panic
+	nilSub.Unsubscribe()
 }

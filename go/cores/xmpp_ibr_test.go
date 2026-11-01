@@ -5,8 +5,6 @@ import (
 	"testing"
 )
 
-// XEP-0077 in-band registration: stanza construction + response parsing.
-
 func TestXMPPRegisterIQStanza(t *testing.T) {
 	stanza := buildIBRStanza("reg42", "alice", "s3cret!pass")
 	want := `<iq type='set' id='reg42'><query xmlns='jabber:iq:register'><username>alice</username><password>s3cret!pass</password></query></iq>`
@@ -14,8 +12,6 @@ func TestXMPPRegisterIQStanza(t *testing.T) {
 		t.Fatalf("IBR stanza mismatch:\n got %s\nwant %s", stanza, want)
 	}
 
-	// XML-escaping must apply to both fields (xml.EscapeText emits
-	// numeric character references for quotes: &#34; and &#39;).
 	stanza = buildIBRStanza("r2", `a&"b"`, `p<'>'`)
 	if !strings.Contains(stanza, `<username>a&amp;&#34;b&#34;</username>`) {
 		t.Fatalf("username not escaped: %s", stanza)
@@ -26,31 +22,26 @@ func TestXMPPRegisterIQStanza(t *testing.T) {
 }
 
 func TestXMPPParseIBRResponse(t *testing.T) {
-	// Success.
 	err := parseIBRResponse(`<iq id='reg42' type='result'><query xmlns='jabber:iq:register'/></iq>`)
 	if err != nil {
 		t.Fatalf("success response returned error: %v", err)
 	}
 
-	// Username taken (conflict) — the classic case for retries.
 	err = parseIBRResponse(`<iq id='reg42' type='error'><error type='cancel'><conflict xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/><text xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'>Username already exists</text></error></iq>`)
 	if err == nil || !strings.Contains(err.Error(), "conflict") || !strings.Contains(err.Error(), "Username already exists") {
 		t.Fatalf("conflict not surfaced: %v", err)
 	}
 
-	// Server forbids IBR.
 	err = parseIBRResponse(`<iq id='reg42' type='error'><error type='cancel'><not-allowed xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/></error></iq>`)
 	if err == nil || !strings.Contains(err.Error(), "not-allowed") {
 		t.Fatalf("not-allowed not surfaced: %v", err)
 	}
 
-	// Web redirect (OOB) — server wants registration on a website.
 	err = parseIBRResponse(`<iq id='reg42' type='result'><query xmlns='jabber:iq:register'><x xmlns='jabber:x:oob'><url>https://xmpp.is/account/</url></x></query></iq>`)
 	if err == nil || !strings.Contains(err.Error(), "https://xmpp.is/account/") {
 		t.Fatalf("OOB redirect not surfaced: %v", err)
 	}
 
-	// Empty/timeout-ish garbage must not parse as success.
 	err = parseIBRResponse(``)
 	if err == nil {
 		t.Fatal("empty response must be an error")
@@ -67,7 +58,6 @@ func TestXMPPFeaturesAdvertiseIBR(t *testing.T) {
 		t.Fatal("IBR not detected in features (http://jabber.org/features/iq-register)")
 	}
 
-	// Absent → nil.
 	c2 := &XMPPCore{}
 	featXML2 := `<stream:features><mechanisms xmlns='urn:ietf:params:xml:ns:xmpp-sasl'><mechanism>PLAIN</mechanism></mechanisms></stream:features>`
 	if err := c2.parseStreamFeatures(featXML2); err != nil {
@@ -78,13 +68,7 @@ func TestXMPPFeaturesAdvertiseIBR(t *testing.T) {
 	}
 }
 
-// ── data-form registration (XEP-0077 §4 with jabber:x:data) ───────────────
-// Modern servers (ejabberd/MongooseIM with form-based IBR, e.g. sure.im)
-// reject the legacy <username/><password/> payload with "Use proper
-// DataForm registration" and answer the form GET with an x:data form.
-
 func TestXMPPParseIBRForm(t *testing.T) {
-	// Data-form GET response.
 	raw := `<iq id='f1' type='result'><query xmlns='jabber:iq:register'>` +
 		`<x xmlns='jabber:x:data' type='form'>` +
 		`<field var='FORM_TYPE' type='hidden'><value>urn:xmpp:ibr-token:0</value></field>` +
@@ -105,12 +89,10 @@ func TestXMPPParseIBRForm(t *testing.T) {
 		t.Errorf("password field wrong: %+v", fields[2])
 	}
 
-	// Legacy form → ok=false.
 	legacy := `<iq id='f2' type='result'><query xmlns='jabber:iq:register'><instructions>Choose a username.</instructions><username/><password/></query></iq>`
 	if _, ok := parseIBRForm(legacy); ok {
 		t.Error("legacy form parsed as data form")
 	}
-	// Error response → not a form.
 	if _, ok := parseIBRForm(`<iq id='f3' type='error'><error type='cancel'><not-allowed xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/></error></iq>`); ok {
 		t.Error("error response parsed as data form")
 	}
@@ -121,7 +103,7 @@ func TestXMPPBuildIBRDataFormSubmit(t *testing.T) {
 		{Var: "FORM_TYPE", Type: "hidden", Value: "urn:xmpp:ibr-token:0"},
 		{Var: "username", Type: "text-single", Required: true},
 		{Var: "password", Type: "text-private", Required: true},
-		{Var: "email", Type: "text-single"}, // unknown → omitted
+		{Var: "email", Type: "text-single"},
 	}
 	stanza := buildIBRDataFormSubmit("s7", fields, "alice", "s3cret")
 	if !strings.Contains(stanza, `<iq type='set' id='s7'><query xmlns='jabber:iq:register'>`) {
@@ -142,7 +124,6 @@ func TestXMPPBuildIBRDataFormSubmit(t *testing.T) {
 	if strings.Contains(stanza, "email") {
 		t.Errorf("unanswerable field must be omitted: %s", stanza)
 	}
-	// Values are XML-escaped.
 	stanza = buildIBRDataFormSubmit("s8", fields, `a&b`, `p<"'>`)
 	if !strings.Contains(stanza, `<value>a&amp;b</value>`) {
 		t.Errorf("username not escaped: %s", stanza)
@@ -161,9 +142,6 @@ func TestXMPPBuildIBRGetStanza(t *testing.T) {
 }
 
 func TestSASLElementMatch(t *testing.T) {
-	// The wire format real servers use: self-closing WITH the xmlns
-	// attribute — the old code only matched the literal <success/> and
-	// would time out on every real successful login.
 	cases := []struct {
 		data    string
 		name    string
@@ -181,7 +159,6 @@ func TestSASLElementMatch(t *testing.T) {
 			t.Errorf("saslElementMatch(%q) = %q,%q,%v want %q,%q", c.data, name, content, ok, c.name, c.content)
 		}
 	}
-	// Incomplete buffers must not match.
 	if _, _, ok := saslElementMatch(`<success xml`); ok {
 		t.Error("partial element matched")
 	}

@@ -1,13 +1,5 @@
 package gui
 
-// Member context menu (AyuGram parity slice 106): the profile panel's
-// member rows open an admin menu (tap on desktop/mobile — AyuGram uses
-// right-click/long-press; a tap is the honest mobile-friendly equivalent
-// for rows that had no other click behavior). Actions dispatch the real
-// engine member-admin calls (Promote/Demote/Restrict/Ban/Unban/Remove)
-// and refresh the panel. Owners and self are untouchable; non-admin
-// viewers get no menu at all — never dead UI (§1.10).
-
 import (
 	"image"
 
@@ -20,21 +12,12 @@ import (
 	"uniclient/engine"
 )
 
-// memberMenuState is the open member menu (nil when closed).
 type memberMenuState struct {
 	chat   engine.ChatInfo
 	member engine.MemberInfo
 	pos    image.Point
 }
 
-// memberMenuItems derives the admin actions for one member (pure).
-// Gated on the viewer's admin rights (chat.IsAdmin/IsCreator); the owner
-// role and self rows get nothing (the engine would refuse anyway — the
-// GUI never offers a dead action). separate: Restrict/Ban open the
-// restrict/ban boxes, which only the MAIN window paints (main-branch
-// window modal, slice 191) — the info panel and its member menu render in
-// every window, so those two rows are dropped in separate windows (R30);
-// the remaining actions are direct engine calls that work from any window.
 func memberMenuItems(m engine.MemberInfo, chat engine.ChatInfo, selfID string, separate bool) []chatMenuAction {
 	if !chat.IsAdmin && !chat.IsCreator {
 		return nil
@@ -67,12 +50,11 @@ func memberMenuItems(m engine.MemberInfo, chat engine.ChatInfo, selfID string, s
 		return admin("unban")
 	case "restricted":
 		return admin("restrict", "ban", "remove")
-	default: // member
+	default:
 		return admin("promote", "restrict", "ban", "remove")
 	}
 }
 
-// memberActionLabel maps a member-menu action id to its row label (pure).
 func memberActionLabel(id string) string {
 	switch id {
 	case "demote":
@@ -91,9 +73,6 @@ func memberActionLabel(id string) string {
 	return id
 }
 
-// member menu button pool.
-
-// openMemberMenu opens the member menu at pos (profile-panel coords).
 func (a *App) openMemberMenu(chat engine.ChatInfo, m engine.MemberInfo, pos image.Point) {
 	a.mu.Lock()
 	a.memberMenu = &memberMenuState{chat: chat, member: m, pos: pos}
@@ -101,7 +80,6 @@ func (a *App) openMemberMenu(chat engine.ChatInfo, m engine.MemberInfo, pos imag
 	a.invalidate()
 }
 
-// closeMemberMenu dismisses it.
 func (a *App) closeMemberMenu() {
 	a.mu.Lock()
 	a.memberMenu = nil
@@ -109,8 +87,6 @@ func (a *App) closeMemberMenu() {
 	a.invalidate()
 }
 
-// dispatchMemberMenu runs one admin action and refreshes the panel.
-// Restrict and Ban open their boxes (slice 191) instead of firing instantly.
 func (a *App) dispatchMemberMenu(st *memberMenuState, action string) {
 	a.closeMemberMenu()
 	if st == nil {
@@ -153,13 +129,11 @@ func (a *App) dispatchMemberMenu(st *memberMenuState, action string) {
 		k := a.panelChat
 		a.mu.Unlock()
 		if k.AccountID != "" {
-			go a.loadPanel(k) // refresh the member list
+			go a.loadPanel(k)
 		}
 	}()
 }
 
-// memberDisplayName renders a member's display name with an honest
-// fallback.
 func memberDisplayName(m engine.MemberInfo) string {
 	if m.DisplayName != "" {
 		return m.DisplayName
@@ -170,14 +144,11 @@ func memberDisplayName(m engine.MemberInfo) string {
 	return "user " + m.UserID
 }
 
-// ── layout ────────────────────────────────────────────────────────────────
-
-// layoutMemberMenu draws the member popup menu, clamped to its pane.
 func (a *App) layoutMemberMenu(gtx layout.Context, f frame) layout.Dimensions {
 	m := f.memberMenu
 	items := memberMenuItems(m.member, m.chat, selfIDOf(f, m.chat.AccountID), a.isSeparate())
 	if len(items) == 0 {
-		a.closeMemberMenu() // stale state — the viewer's rights changed
+		a.closeMemberMenu()
 		return layout.Dimensions{}
 	}
 	growClickables(&a.wid.memberMenuBtns, len(items))
@@ -231,7 +202,6 @@ func (a *App) layoutMemberMenu(gtx layout.Context, f frame) layout.Dimensions {
 	return dims
 }
 
-// memberMenuRow renders one row (destructive rows tinted).
 func memberMenuRow(gtx layout.Context, a *App, btn *widget.Clickable, item chatMenuAction, rowH int) layout.Dimensions {
 	bl := material.ButtonLayout(a.ui.Theme, btn)
 	bl.Background = a.ui.p.Surface
@@ -250,12 +220,10 @@ func memberMenuRow(gtx layout.Context, a *App, btn *widget.Clickable, item chatM
 	})
 }
 
-// selfIDOf resolves the account's self user ID.
 func selfIDOf(f frame, accountID string) string {
 	return accountByID(f, accountID).SelfUserID
 }
 
-// panelChatOf resolves the open profile panel's chat (slice 106).
 func panelChatOf(f frame) (engine.ChatInfo, bool) {
 	for _, c := range f.chats {
 		if c.AccountID == f.panelChat.AccountID && c.ChatID == f.panelChat.ChatID {
@@ -264,8 +232,6 @@ func panelChatOf(f frame) (engine.ChatInfo, bool) {
 	}
 	return engine.ChatInfo{}, false
 }
-
-// memberRowBtn pools member-row clickables by user ID.
 
 func (a *App) memberRowBtn(userID string) *widget.Clickable {
 	if btn, ok := a.wid.memberRowBtns[userID]; ok {

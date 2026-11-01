@@ -12,12 +12,6 @@ import (
 	"uniclient/voice"
 )
 
-// Voice-note recorder round-trip: synthetic 440 Hz frames → Opus
-// encode → Ogg container (the player's own demuxer!) → decode → the
-// tone must survive. Plus the state machine: level tracking, too-short
-// capture, cancel, mic-less honesty.
-
-// recToneFrames renders n frames of a sine as s16le mono.
 func recToneFrames(n int) [][]byte {
 	frames := make([][]byte, n)
 	for f := range frames {
@@ -33,9 +27,6 @@ func recToneFrames(n int) [][]byte {
 	return frames
 }
 
-// startRecorderNoDevice initializes the recorder's encode path without
-// touching audio devices (the mic loop is what wires the device; tests
-// feed frames directly).
 func startRecorderNoDevice(t *testing.T, e *Engine) *voiceRecorder {
 	t.Helper()
 	r := e.recorder()
@@ -56,7 +47,7 @@ func TestVoiceRecorderRoundTrip(t *testing.T) {
 	e := &Engine{}
 	r := startRecorderNoDevice(t, e)
 
-	frames := recToneFrames(50) // 1.0 s
+	frames := recToneFrames(50)
 	for _, f := range frames {
 		if err := r.feedFrame(f); err != nil {
 			t.Fatalf("feedFrame: %v", err)
@@ -83,9 +74,6 @@ func TestVoiceRecorderRoundTrip(t *testing.T) {
 	}
 	defer os.Remove(path)
 
-	// Demux + decode with the PLAYER's own path: the container we write
-	// must be exactly what the in-app player (and any Ogg/Opus player)
-	// reads back.
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
@@ -126,7 +114,6 @@ func TestVoiceRecorderRoundTrip(t *testing.T) {
 		t.Fatalf("decoded duration %.2fs, want ~1s", dur)
 	}
 
-	// The 440 Hz tone must survive the whole chain.
 	var s0, s1, s2 float64
 	k := 2 * math.Pi * 440 / float64(voice.SampleRate)
 	coeff := 2 * math.Cos(k)
@@ -147,7 +134,6 @@ func TestVoiceRecorderLevelAndMinDuration(t *testing.T) {
 	e := &Engine{}
 	r := startRecorderNoDevice(t, e)
 
-	// Silence keeps the level near zero.
 	for _, f := range recSilenceFrames(10) {
 		r.feedFrame(f)
 	}
@@ -158,7 +144,6 @@ func TestVoiceRecorderLevelAndMinDuration(t *testing.T) {
 		t.Fatalf("silence level %.3f, want ~0", lvl)
 	}
 
-	// Loud tone raises it.
 	for _, f := range recToneFrames(20) {
 		r.feedFrame(f)
 	}
@@ -169,7 +154,6 @@ func TestVoiceRecorderLevelAndMinDuration(t *testing.T) {
 		t.Fatalf("tone level %.3f, want >0.1", lvl)
 	}
 
-	// 0.6 s capture: below the minimum — Stop returns an empty path.
 	e2 := &Engine{}
 	r2 := startRecorderNoDevice(t, e2)
 	for _, f := range recToneFrames(30) {
@@ -194,7 +178,6 @@ func TestVoiceRecorderLevelAndMinDuration(t *testing.T) {
 func TestVoiceRecorderNoMicIsHonest(t *testing.T) {
 	e := &Engine{}
 	if err := e.StartVoiceRecording(); err == nil {
-		// A machine WITH a microphone: fine — cancel to clean up.
 		e.CancelVoiceRecording()
 		return
 	}
@@ -214,9 +197,6 @@ func TestVoiceRecorderStateSnapshot(t *testing.T) {
 	if !st.Active || st.HasMic != true && st.Seconds < 0 {
 		t.Fatalf("snapshot: %+v", st)
 	}
-	// The synthetic recorder has no session; HasMic reflects the
-	// Active path's session ownership. feedFrame-based capture still
-	// reports Active.
 	if !st.Active {
 		t.Fatal("recording must report Active while the encoder exists")
 	}

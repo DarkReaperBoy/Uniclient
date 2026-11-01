@@ -1,12 +1,5 @@
 package cores
 
-// telegram_geo_live_test.go — slice 131 tests-first: live-location media
-// builders (pure). The send path wraps InputMediaGeoLive{GeoPoint, Period};
-// the stop path is messages.editMessage with InputMediaGeoLive{Stopped:true}
-// (core.telegram.org/api/live-location: "In order to stop a live location,
-// simply use messages.editMessage with inputMediaGeoLive and the stopped
-// flag set").
-
 import (
 	"testing"
 
@@ -43,7 +36,6 @@ func TestLiveStopMedia(t *testing.T) {
 	if !gl.Stopped {
 		t.Error("stop media is not stopped")
 	}
-	// No geo point — the API takes stopped=true without coordinates.
 	if gl.GeoPoint != nil {
 		t.Errorf("stop media carried a geo point: %T", gl.GeoPoint)
 	}

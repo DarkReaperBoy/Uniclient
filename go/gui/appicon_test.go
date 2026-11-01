@@ -1,17 +1,5 @@
 package gui
 
-// appicon_test.go — slice 170: AyuGram app-icon selector (ayu_settings.h
-// appIcon + ayu/ui/components/icon_picker.cpp 1:1 in behavior).
-//
-// Primary source research (2026-09-13, GitHub API on AyuGramDesktop dev):
-// AyuGram ships 12 icon sets (default, alt, discord, spotify, extera,
-// nothing, bard, yaplus, win95, chibi, chibi2, extera2) picked in a
-// 4-column grid (IconPicker::kColumns = 4) with cached previews and
-// apply-on-click (Window::OverrideApplicationIcon + tray refresh). Our
-// mirror: 12 OWN art sets (reusing the slice-137 programmatic tile+mark
-// renderer with distinct palettes — never copied assets), the same grid
-// shape, apply-on-click, persisted as AyuAppIcon.
-
 import (
 	"image/color"
 	"testing"
@@ -50,8 +38,6 @@ func TestAppIconSetByID(t *testing.T) {
 			t.Errorf("appIconSetByID(%q) = %q", s.ID, got.ID)
 		}
 	}
-	// Unknown ID falls back to the default set (config from a newer build
-	// must never crash or render an empty icon).
 	if got := appIconSetByID("does-not-exist"); got.ID != "default" {
 		t.Fatalf("appIconSetByID(bogus) = %q, want default", got.ID)
 	}
@@ -66,9 +52,6 @@ func TestRenderAppIconDistinct(t *testing.T) {
 	if a == nil || b == nil {
 		t.Fatal("nil render")
 	}
-	// Sample the bare tile area (upper-left inside the rounded corner,
-	// outside the bubble mark which is white in both sets) — the tile
-	// colors must differ between the sets.
 	i := a.PixOffset(8, 8)
 	ra, ga, ba := a.Pix[i], a.Pix[i+1], a.Pix[i+2]
 	j := b.PixOffset(8, 8)
@@ -76,7 +59,6 @@ func TestRenderAppIconDistinct(t *testing.T) {
 	if ra == rb && ga == gb && ba == bb {
 		t.Fatalf("default and monochrome tile colors identical: %v", ra)
 	}
-	// Opaque inside the tile.
 	if a.Pix[i+3] != 0xFF {
 		t.Fatalf("default set tile alpha = %d, want 255", a.Pix[i+3])
 	}
@@ -105,9 +87,6 @@ func TestRenderAppIconSizes(t *testing.T) {
 	}
 }
 
-// TestNetWMIconDataFormat pins the X11 _NET_WM_ICON payload: for each
-// icon, [width, height, ARGB cardinals...] with ARGB packing
-// (0xAARRGGBB) — the freedesktop spec order (alpha, not RGBA).
 func TestNetWMIconDataFormat(t *testing.T) {
 	set := appIconSetByID("default")
 	data := netWMIconData(set, 24)
@@ -117,12 +96,10 @@ func TestNetWMIconDataFormat(t *testing.T) {
 	if data[0] != 24 || data[1] != 24 {
 		t.Fatalf("payload dims = %d x %d, want 24 x 24", data[0], data[1])
 	}
-	// Center pixel: on-tile, fully opaque, packed A in the top byte.
 	c := uint32(data[2+12*24+12])
 	if c&(0xFF<<24) != 0xFF<<24 {
 		t.Fatalf("center pixel alpha bits = %#x, want 0xFF000000", c&(0xFF<<24))
 	}
-	// Corner pixel: outside the rounded tile → fully transparent.
 	corner := uint32(data[2+0])
 	if corner != 0 {
 		t.Fatalf("corner pixel = %#x, want 0 (outside rounded tile)", corner)
@@ -146,8 +123,6 @@ func TestEffectiveAppIconSet(t *testing.T) {
 	}
 }
 
-// TestRenderTrayIconForSet: the tray keeps its unread badge but follows
-// the selected icon set's palette (AyuGram tray = current app logo).
 func TestRenderTrayIconForSet(t *testing.T) {
 	accent := color.NRGBA{R: 0x2E, G: 0x7D, B: 0x32, A: 0xFF}
 	set := appIconSetByID("grape")
@@ -157,9 +132,6 @@ func TestRenderTrayIconForSet(t *testing.T) {
 		t.Fatal("empty tray renders")
 	}
 	if len(noBadge) == len(withBadge) {
-		// Not a strict requirement, but the badge digits should almost
-		// always change the PNG size; if equal, at least verify the
-		// pixels differ.
 		t.Log("badge did not change PNG size (acceptable)")
 	}
 }

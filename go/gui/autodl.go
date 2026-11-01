@@ -12,17 +12,6 @@ import (
 	"gioui.org/widget/material"
 )
 
-// Automatic media download rules (AyuGram parity, matrix "Data & storage"):
-// the Data & Storage page gains per-source rows ("In private chats" /
-// "In groups" / "In channels") that open this editor dialog. It shows the
-// type toggles (photos, videos, GIFs & animations, video messages, files)
-// and the two size gates the engine applies (photos+files share the media
-// limit; videos/GIFs/round videos share the video limit). Every change
-// applies immediately through engine.SetAutoDownloadSettings, which feeds
-// the engine's incoming-message auto-download path and persists the rules
-// so they survive restarts.
-
-// autodlSourceLabels are the three editor targets, in AyuGram order.
 var autodlSourceLabels = []struct {
 	source string
 	label  string
@@ -32,7 +21,6 @@ var autodlSourceLabels = []struct {
 	{"channel", "In channels"},
 }
 
-// autodlToggleRows are the per-type toggles rendered in the editor.
 var autodlToggleRows = []struct {
 	key   string
 	label string
@@ -44,9 +32,6 @@ var autodlToggleRows = []struct {
 	{"files", "Files"},
 }
 
-// autodlMediaLimits / autodlVideoLimits are the size ladders, in bytes.
-// 0 means unlimited (the engine treats a non-positive limit as always
-// within).
 var autodlMediaLimits = []int64{
 	1 * 1024 * 1024,
 	5 * 1024 * 1024,
@@ -63,7 +48,6 @@ var autodlVideoLimits = []int64{
 	0,
 }
 
-// autodlLimitLabel renders a size gate for display (chips, summaries).
 func autodlLimitLabel(limit int64) string {
 	if limit <= 0 {
 		return "Unlimited"
@@ -76,8 +60,6 @@ func autodlLimitLabel(limit int64) string {
 	return itoa(int(kb)) + " KB"
 }
 
-// autodlSummary renders a row value summarizing what auto-downloads for a
-// source ("Photos, Videos · ≤10 MB" style, or "Off").
 func autodlSummary(settings map[string]interface{}) string {
 	on := make([]string, 0, 5)
 	for _, r := range autodlToggleRows {
@@ -105,7 +87,6 @@ func autodlSummary(settings map[string]interface{}) string {
 	return sum
 }
 
-// autodlDlgState is the open rules editor.
 type autodlDlgState struct {
 	source string
 }
@@ -114,12 +95,10 @@ var (
 	autodlDlgCloseBtn widget.Clickable
 	autodlMediaChips  []widget.Clickable
 	autodlVideoChips  []widget.Clickable
-	autodlRowBtns     []widget.Clickable // Data & Storage page rows
+	autodlRowBtns     []widget.Clickable
 	autodlDlgKeyTag   = new(struct{})
 )
 
-// openAutodlDialog opens the rules editor for one source and resyncs the
-// toggle pool so the switches show the effective values.
 func (a *App) openAutodlDialog(source string) {
 	a.mu.Lock()
 	a.autoDlDlg = &autodlDlgState{source: source}
@@ -130,7 +109,6 @@ func (a *App) openAutodlDialog(source string) {
 	a.invalidate()
 }
 
-// closeAutodlDialog dismisses it.
 func (a *App) closeAutodlDialog() {
 	a.mu.Lock()
 	a.autoDlDlg = nil
@@ -138,9 +116,6 @@ func (a *App) closeAutodlDialog() {
 	a.invalidate()
 }
 
-// applyAutodl copies the current effective settings for the source, applies
-// one override, pushes the whole map to the engine (persists + feeds the
-// auto-download path), and refreshes the cached summary.
 func (a *App) applyAutodl(source string, override map[string]interface{}) {
 	a.mu.Lock()
 	merged := map[string]interface{}{}
@@ -161,7 +136,6 @@ func (a *App) applyAutodl(source string, override map[string]interface{}) {
 	a.invalidate()
 }
 
-// loadAutoDl reads the effective rules per source (memory read, quick).
 func (a *App) loadAutoDl() {
 	st := a.eng.GetAutoDownloadSettings()
 	a.mu.Lock()
@@ -170,7 +144,6 @@ func (a *App) loadAutoDl() {
 	a.invalidate()
 }
 
-// layoutAutoDlChip renders one size-gate chip (active = accent).
 func (a *App) layoutAutoDlChip(gtx layout.Context, btn *widget.Clickable, label string, active bool) layout.Dimensions {
 	bl := material.ButtonLayout(a.ui.Theme, btn)
 	if active {
@@ -194,15 +167,12 @@ func (a *App) layoutAutoDlChip(gtx layout.Context, btn *widget.Clickable, label 
 	})
 }
 
-// layoutAutoDownloadDialog renders the rules editor (content-pane
-// replacement, like the other settings dialogs).
 func (a *App) layoutAutoDownloadDialog(gtx layout.Context, f frame) layout.Dimensions {
 	st := f.autoDlDlg
 	settings := f.autoDlRules[st.source]
 	growClickables(&autodlMediaChips, len(autodlMediaLimits))
 	growClickables(&autodlVideoChips, len(autodlVideoLimits))
 
-	// Esc closes (self-handled).
 	{
 		stack := clip.Rect{Max: image.Pt(gtx.Constraints.Max.X, gtx.Constraints.Max.Y)}.Push(gtx.Ops)
 		event.Op(gtx.Ops, autodlDlgKeyTag)
@@ -288,7 +258,6 @@ func (a *App) layoutAutoDownloadDialog(gtx layout.Context, f frame) layout.Dimen
 	})
 }
 
-// autodlChipRow builds the chip list for one size ladder.
 func (a *App) autodlChipRow(gtx layout.Context, btns []widget.Clickable, limits []int64, current int64, field, source string) []layout.FlexChild {
 	children := make([]layout.FlexChild, 0, len(limits))
 	for i, limit := range limits {
@@ -304,8 +273,6 @@ func (a *App) autodlChipRow(gtx layout.Context, btns []widget.Clickable, limits 
 	return children
 }
 
-// autodlRowSummaryFor renders the per-source row value shown on the Data &
-// Storage page ("" while loading).
 func autodlRowSummaryFor(f frame, source string) string {
 	if !f.autoDlOn {
 		return ""

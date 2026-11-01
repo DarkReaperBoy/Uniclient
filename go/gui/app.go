@@ -18,38 +18,23 @@ import (
 	"gioui.org/widget"
 )
 
-// frameMu serializes the frame loops of all live windows (slice 168): each
-// window's Root runs under it, so residual package-level state (lottie
-// players, art caches, static tables) is never touched by two frames at
-// once. Per-window state lives on each App (a.wid).
 var frameMu sync.Mutex
 
-// Root renders the whole app: welcome screen (no accounts + no auth flow),
-// or main layout (sidebar + chat view / voice view), plus toast overlay.
 func (a *App) Root(gtx layout.Context) {
 	frameMu.Lock()
 	defer frameMu.Unlock()
 
-	// Window size, kept for overlays that are sized against the VIEWPORT
-	// rather than their own container (slice 222: picture-in-picture — the
-	// viewer's top bar only ever sees a strip of it).
 	if sz := gtx.Constraints.Max; sz.X > 0 && sz.Y > 0 {
 		a.vpW, a.vpH = sz.X, sz.Y
 	}
 
-	// GUI-goroutine hop: a background goroutine scheduled a chat to open
-	// (e.g. after group/channel creation). openChat must run on this loop.
 	a.consumePendingOpen()
-	// Cross-window hops (slice 168): takeovers + the shared passcode state.
 	a.consumeCrossWindowHops()
-	// Clipboard hop (slice 34): background goroutines queue text to copy.
 	a.flushClipboard(gtx)
 
 	f := a.snapshot()
 	a.ui.paintBackground(gtx)
 
-	// Separate chat window (slice 168): the chat surface + its overlays
-	// only — no sidebar, drawer, settings or voice tab ever renders here.
 	if a.isSeparate() {
 		if f.lock != nil && f.lock.locked {
 			a.layoutLockScreen(gtx, f)
@@ -73,17 +58,12 @@ func (a *App) Root(gtx layout.Context) {
 		if f.call != nil {
 			a.layoutCallOverlay(gtx, f)
 		}
-		// Picture-in-picture (slice 222): floats over this window's chat
-		// surface too, below the toast + shortcut layers.
 		a.layoutPip(gtx, f)
 		a.layoutToast(gtx, f)
 		a.layoutShortcuts(gtx, f)
 		return
 	}
 
-	// Local passcode gate (slice 87): locked → ONLY the lock screen
-	// renders (no chat content is drawn while locked). Unlocked → the
-	// pass-through activity listener feeds the autolock timer.
 	if f.lock != nil {
 		if f.lock.locked {
 			a.layoutLockScreen(gtx, f)
@@ -103,52 +83,33 @@ func (a *App) Root(gtx layout.Context) {
 	if f.viewer != nil {
 		a.layoutMediaView(gtx, f)
 	}
-	// Instant View reader (slice 176): full-window overlay above the media
-	// viewer, below the story/call layers.
 	if f.iv != nil {
 		a.layoutInstantView(gtx, f)
 	}
-	// Story viewer (slice 104): full-window overlay above the media viewer.
 	if f.storyView != nil {
 		a.layoutStoryViewer(gtx, f)
 	}
-	// 1:1 call overlay (slice 101): modal over everything except the
-	// toast + shortcut layers.
 	if f.call != nil {
 		a.layoutCallOverlay(gtx, f)
 	}
-	// Call rating dialog (slice 179): above the call overlay.
 	if f.rateDlg != nil {
 		a.layoutRateCallDialog(gtx, f)
 	}
-	// Clear-history confirm (slice 190): window-level modal — the trigger
-	// is the sidebar chat-row menu, so it must render with no chat open.
 	if f.clearDlg != nil {
 		a.layoutClearDialog(gtx, f)
 	}
-	// Restrict/ban box (slice 191): window-level modal — the trigger is the
-	// profile-panel member menu.
 	if f.restrictDlg != nil {
 		a.layoutRestrictDialog(gtx, f)
 	}
-	// Saved-sublist delete confirm (slice 204): window-level modal — the
-	// trigger is the Lists-pane row menu.
 	if f.savedDelDlg != nil {
 		a.layoutSavedDeleteDialog(gtx, f)
 	}
 	if f.drawerOpen {
 		a.layoutDrawer(gtx, f)
 	}
-	// Hover chat-preview popup (slice 145): window-level overlay — the
-	// sidebar renders before the chat pane, so drawing there would land
-	// underneath it. Passive card (no input areas).
 	a.layoutChatPeek(gtx, f)
-	// Picture-in-picture (slice 222, parity row 279): floats over every
-	// surface below it, so you can watch while you keep using the app.
 	a.layoutPip(gtx, f)
 	a.layoutToast(gtx, f)
-	// Global keyboard layer (slice 43): registered last so surface-local
-	// key handlers consume their events first.
 	a.layoutShortcuts(gtx, f)
 }
 
@@ -161,7 +122,6 @@ func paintFill(ops *op.Ops, c color.NRGBA, size image.Point) {
 	paint.Fill(ops, c)
 }
 
-// layoutMain: adaptive two-pane on wide windows, single-pane on narrow.
 func (a *App) layoutMain(gtx layout.Context, f frame) {
 	sidebarMin := gtx.Dp(unit.Dp(300))
 	narrow := gtx.Constraints.Max.X < sidebarMin+gtx.Dp(unit.Dp(380))
@@ -169,13 +129,10 @@ func (a *App) layoutMain(gtx layout.Context, f frame) {
 	showChat := f.selected != nil || f.auth != nil || f.showPicker
 
 	if s := contentDialogSurface(f); s != "" {
-		// Phone layout: the full-pane dialog replaces everything below
-		// the surface chain (same priority on both layouts).
 		a.layoutContentPaneDialog(gtx, f, s)
 		return
 	}
 	if narrow {
-		// Phone layout: settings, chat list, or open chat (with back button).
 		if f.settingsOpen {
 			a.layoutSettings(gtx, f, narrow)
 			return
@@ -194,7 +151,6 @@ func (a *App) layoutMain(gtx layout.Context, f frame) {
 		return
 	}
 
-	// Desktop: sidebar | content. Login view overlays the content pane.
 	layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Max.X = gtx.Dp(unit.Dp(340))
@@ -205,16 +161,6 @@ func (a *App) layoutMain(gtx layout.Context, f frame) {
 			return a.ui.DividerV(gtx)
 		}),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			// Full-pane dialogs (contentDialogSurface — same priority
-			// as the narrow chain, including the passcode LOCK, a
-			// security gate that must never lose to a surface beneath
-			// it). Settings then wins over the login pane: the sidebar
-			// gear stays reachable mid-auth (AyuGram keeps Settings
-			// reachable); its back button returns to the login form.
-			// Regression (2026-09-09): c1fca15c put settings first
-			// here, which hid the auto-download editor (opened from
-			// settings) and the autolocked PIN screen on desktop
-			// whenever settings was open.
 			if s := contentDialogSurface(f); s != "" {
 				return a.layoutContentPaneDialog(gtx, f, s)
 			}
@@ -235,13 +181,6 @@ func (a *App) layoutMain(gtx layout.Context, f frame) {
 	)
 }
 
-// contentDialogSurface names the full-pane dialog that replaces the
-// content surface, in fixed priority order — shared verbatim by the
-// narrow and desktop chains. The passcode LOCK is a security gate: it
-// must never lose to a surface beneath it (autolock can fire while
-// settings or a chat is open). Dialogs opened from settings beat the
-// settings page. Pure — pinned by TestContentPaneDialogSurface after
-// the c1fca15c ordering regression (2026-09-09).
 func contentDialogSurface(f frame) string {
 	switch {
 	case f.newDlg != nil:
@@ -296,8 +235,6 @@ func contentDialogSurface(f frame) string {
 	return ""
 }
 
-// layoutContentPaneDialog renders the surface named by
-// contentDialogSurface as the whole content pane.
 func (a *App) layoutContentPaneDialog(gtx layout.Context, f frame, surface string) layout.Dimensions {
 	switch surface {
 	case "newChat":
@@ -352,7 +289,6 @@ func (a *App) layoutContentPaneDialog(gtx layout.Context, f frame, surface strin
 	return a.layoutEmptyState(gtx)
 }
 
-// layoutEmptyState is the "no chat selected" placeholder.
 func (a *App) layoutEmptyState(gtx layout.Context) layout.Dimensions {
 	return centerLayout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical, Alignment: layout.Middle}.Layout(gtx,
@@ -372,13 +308,11 @@ func (a *App) layoutEmptyState(gtx layout.Context) layout.Dimensions {
 	})
 }
 
-// layoutToast shows transient messages bottom-center.
 func (a *App) layoutToast(gtx layout.Context, f frame) {
 	if f.toast == "" || time.Since(f.toastAt) > 4*time.Second {
 		return
 	}
 	in := layout.Inset{Bottom: unit.Dp(24), Left: unit.Dp(24), Right: unit.Dp(24)}
-	// anchor bottom
 	gtx.Constraints.Min.Y = 0
 	layout.Stack{Alignment: layout.S}.Layout(gtx,
 		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
@@ -396,8 +330,6 @@ func (a *App) layoutToast(gtx layout.Context, f frame) {
 	)
 }
 
-// ── shared widget helpers ────────────────────────────────────────────────
-
 func insetAll(gtx layout.Context, top, right, bottom, left unit.Dp, w layout.Widget) layout.Dimensions {
 	return layout.Inset{Top: top, Right: right, Bottom: bottom, Left: left}.Layout(gtx, w)
 }
@@ -406,7 +338,6 @@ func centerLayout(gtx layout.Context, w layout.Widget) layout.Dimensions {
 	return layout.Center.Layout(gtx, w)
 }
 
-// surfaceBox paints a rounded rect surface behind w.
 func surfaceBox(gtx layout.Context, u *UI, c color.NRGBA, radius unit.Dp, w layout.Widget) layout.Dimensions {
 	return layout.Stack{}.Layout(gtx,
 		layout.Expanded(func(gtx layout.Context) layout.Dimensions {
@@ -421,7 +352,6 @@ func surfaceBox(gtx layout.Context, u *UI, c color.NRGBA, radius unit.Dp, w layo
 	)
 }
 
-// DividerV is a vertical divider.
 func (u *UI) DividerV(gtx layout.Context) layout.Dimensions {
 	w := gtx.Dp(unit.Dp(1))
 	h := gtx.Constraints.Max.Y
@@ -433,7 +363,6 @@ func (u *UI) DividerV(gtx layout.Context) layout.Dimensions {
 var _ = widget.Clickable{}
 var _ = app.FrameEvent{}
 
-// flushClipboard executes one queued copy (queued by copyTextSoon).
 func (a *App) flushClipboard(gtx layout.Context) {
 	a.mu.Lock()
 	txt := a.pendingCopy

@@ -1,13 +1,5 @@
 package gui
 
-// Telegram Business settings page (tdesktop Settings → Telegram
-// Business, slice 148): opening hours, location, greeting messages,
-// away messages, quick replies and the profile intro — per Telegram
-// account, all real RPCs through engine.{Get,Set}BusinessFeature and
-// the quick-reply surface. Editors expand inline; nothing fakes
-// capability (§1.10): rows show honest "Not set" states and the page
-// only appears with Telegram-platform accounts.
-
 import (
 	"encoding/json"
 	"fmt"
@@ -25,20 +17,12 @@ import (
 	"uniclient/cores"
 )
 
-// ── pure model (unit-tested in business_test.go) ─────────────────────────
-
-// bizIVL is one opening interval in minutes-of-day (0..1440; end may be
-// 1440 = midnight close).
 type bizIVL struct{ start, end int }
 
-// bizWeek is the per-day opening-hours model (Mon..Sun).
 type bizWeek [7][]bizIVL
 
 var bizDayNames = [7]string{"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"}
 
-// bizWeekFromWire splits wire intervals (minute-of-week, cross-midnight
-// friendly, end up to 8*24*60) into per-day intervals: a piece crossing
-// midnight lands its tail on the following day (Sunday wraps to Monday).
 func bizWeekFromWire(ivs []interface{}) bizWeek {
 	var w bizWeek
 	for _, raw := range ivs {
@@ -67,8 +51,6 @@ func bizWeekFromWire(ivs []interface{}) bizWeek {
 	return w
 }
 
-// normalizeBizIVLs sorts, merges overlapping/adjacent intervals and
-// drops empties within one day.
 func normalizeBizIVLs(ivls []bizIVL) []bizIVL {
 	if len(ivls) == 0 {
 		return nil
@@ -77,7 +59,7 @@ func normalizeBizIVLs(ivls []bizIVL) []bizIVL {
 	out := []bizIVL{ivls[0]}
 	for _, iv := range ivls[1:] {
 		last := &out[len(out)-1]
-		if iv.start <= last.end { // overlap or adjacent → merge
+		if iv.start <= last.end {
 			if iv.end > last.end {
 				last.end = iv.end
 			}
@@ -88,9 +70,6 @@ func normalizeBizIVLs(ivls []bizIVL) []bizIVL {
 	return out
 }
 
-// toWire converts the per-day model back to sorted, merged wire
-// intervals (minute-of-week; cross-midnight pieces stay split — the
-// server accepts both shapes equivalently).
 func (w bizWeek) toWire() []interface{} {
 	type wireIVL struct{ start, end int }
 	var flat []wireIVL
@@ -110,7 +89,6 @@ func (w bizWeek) toWire() []interface{} {
 	return out
 }
 
-// empty reports whether the week has no intervals at all.
 func (w bizWeek) empty() bool {
 	for _, ivls := range w {
 		if len(ivls) > 0 {
@@ -120,8 +98,6 @@ func (w bizWeek) empty() bool {
 	return true
 }
 
-// is247 reports the around-the-clock schedule (every day fully open,
-// allowing the single 0..10080 wire form too).
 func (w bizWeek) is247() bool {
 	for _, ivls := range w {
 		if len(ivls) != 1 || ivls[0].start != 0 || ivls[0].end != 1440 {
@@ -131,15 +107,12 @@ func (w bizWeek) is247() bool {
 	return true
 }
 
-// set247 installs the around-the-clock schedule.
 func (w *bizWeek) set247() {
 	for d := range w {
 		w[d] = []bizIVL{{start: 0, end: 1440}}
 	}
 }
 
-// summary renders a human schedule ("Mon–Fri 09:00–17:00, Sat 10:00–14:00"
-// style): days with identical intervals collapse into ranges.
 func (w bizWeek) summary() string {
 	if w.empty() {
 		return ""
@@ -163,7 +136,7 @@ func (w bizWeek) summary() string {
 	var parts []string
 	for _, sp := range spans {
 		if sp.ivls == "" {
-			continue // closed days stay implicit
+			continue
 		}
 		var label string
 		switch {
@@ -179,8 +152,6 @@ func (w bizWeek) summary() string {
 	return strings.Join(parts, ", ")
 }
 
-// bizFormatDay renders one day's intervals ("09:00–17:00" or "" when
-// closed).
 func bizFormatDay(ivls []bizIVL) string {
 	var parts []string
 	for _, iv := range ivls {
@@ -192,7 +163,6 @@ func bizFormatDay(ivls []bizIVL) string {
 	return strings.Join(parts, ", ")
 }
 
-// bizFormatTime renders minutes-of-day as "09:30".
 func bizFormatTime(m int) string {
 	if m < 0 {
 		m = 0
@@ -203,8 +173,6 @@ func bizFormatTime(m int) string {
 	return fmt.Sprintf("%02d:%02d", m/60, m%60)
 }
 
-// bizParseTime leniently parses "9", "9:30", "09.30", "9 30" into
-// minutes-of-day.
 func bizParseTime(s string) (int, bool) {
 	s = strings.TrimSpace(strings.ReplaceAll(s, ".", ":"))
 	if s == "" {
@@ -230,7 +198,6 @@ func bizParseTime(s string) (int, bool) {
 	return h*60 + m, true
 }
 
-// bizDayShort renders the 3-letter day name.
 func bizDayShort(d int) string {
 	if d < 0 || d > 6 {
 		return "?"
@@ -238,12 +205,10 @@ func bizDayShort(d int) string {
 	return bizDayNames[d][:3]
 }
 
-// bizRecipients is the greeting/away recipient selection.
 type bizRecipients struct {
 	existing, newChats, contacts, nonContacts, exclude bool
 }
 
-// fromMap reads the wire-shaped flags.
 func (r *bizRecipients) fromMap(m map[string]interface{}) {
 	if len(m) == 0 {
 		return
@@ -255,7 +220,6 @@ func (r *bizRecipients) fromMap(m map[string]interface{}) {
 	r.exclude = mapBool(m, "exclude_selected")
 }
 
-// toMap writes the wire-shaped flags.
 func (r bizRecipients) toMap() map[string]interface{} {
 	return map[string]interface{}{
 		"existing_chats":   r.existing,
@@ -266,14 +230,10 @@ func (r bizRecipients) toMap() map[string]interface{} {
 	}
 }
 
-// any reports whether at least one positive recipient class is selected
-// (the server rejects an all-false selection — the client-side guard
-// mirrors the date-range validation's shape).
 func (r bizRecipients) any() bool {
 	return r.existing || r.newChats || r.contacts || r.nonContacts
 }
 
-// mapBool/mapInt read leniently from the engine's JSON-decoded maps.
 func mapBool(m map[string]interface{}, k string) bool {
 	if v, ok := m[k].(bool); ok {
 		return v
@@ -305,7 +265,6 @@ func mapStr(m map[string]interface{}, k string) string {
 	return ""
 }
 
-// bizSubMap digs a nested map out of the read model.
 func bizSubMap(info map[string]interface{}, key string) map[string]interface{} {
 	if m, ok := info[key].(map[string]interface{}); ok {
 		return m
@@ -313,7 +272,6 @@ func bizSubMap(info map[string]interface{}, key string) map[string]interface{} {
 	return nil
 }
 
-// bizUtcLabel renders "UTC+03:00" from an offset in seconds.
 func bizUtcLabel(off int) string {
 	sign := "+"
 	if off < 0 {
@@ -322,9 +280,6 @@ func bizUtcLabel(off int) string {
 	return fmt.Sprintf("UTC%s%02d:%02d", sign, off/3600, (off%3600)/60)
 }
 
-// ── page state ───────────────────────────────────────────────────────────
-
-// businessPageState is the open Telegram Business sub-page.
 type businessPageState struct {
 	accountID string
 	loading   bool
@@ -336,32 +291,31 @@ type businessPageState struct {
 	tzLoaded  bool
 	replies   []cores.QuickReplyInfo
 
-	editor    string // "" | location | hours | greeting | away | intro | replies
-	busy      bool   // an apply/remove/create RPC is in flight
+	editor    string
+	busy      bool
 	editorErr string
 
-	hours  bizWeek // hours editor model
-	tzPick string  // selected timezone id
-	tzOpen bool    // timezone picker expanded
+	hours  bizWeek
+	tzPick string
+	tzOpen bool
 
-	recips    bizRecipients // greeting/away recipient model
-	inactDays int           // 7 | 14 | 21 | 28
-	awayMode  string        // always | outside_work_hours | custom
-	awayFrom  string        // "YYYY-MM-DD"
-	awayTo    string        // "YYYY-MM-DD"
-	offline   bool          // away offline-only
+	recips    bizRecipients
+	inactDays int
+	awayMode  string
+	awayFrom  string
+	awayTo    string
+	offline   bool
 
-	// quick-reply inline editors
 	qrNewOpen  bool
-	qrRenameID int // shortcut being renamed (0 = none)
+	qrRenameID int
 }
 
 var (
-	bizOpenBtn     widget.Clickable // Settings → Main entry card
+	bizOpenBtn     widget.Clickable
 	bizBackBtn     widget.Clickable
 	bizReloadBtn   widget.Clickable
 	bizAcctBtns    []widget.Clickable
-	bizEditorBtns  []widget.Clickable // section rows (tap to expand)
+	bizEditorBtns  []widget.Clickable
 	bizApplyBtn    widget.Clickable
 	bizRemoveBtn   widget.Clickable
 	biz247Btn      widget.Clickable
@@ -369,32 +323,32 @@ var (
 	bizTzRowBtns   []widget.Clickable
 	bizAddIvlBtns  []widget.Clickable
 	bizDelIvlBtns  []widget.Clickable
-	bizDayChips    []widget.Clickable // quick day presets (weekday/all/none)
-	bizInactChips  []widget.Clickable // 7/14/21/28
-	bizAwayChips   []widget.Clickable // schedule modes
-	bizRecChks     []widget.Bool      // recipient checkboxes
+	bizDayChips    []widget.Clickable
+	bizInactChips  []widget.Clickable
+	bizAwayChips   []widget.Clickable
+	bizRecChks     []widget.Bool
 	bizOfflineChk  widget.Bool
 	bizExcludeChk  widget.Bool
 
-	bizMsgEd     widget.Editor // greeting/away message text
-	bizAddrEd    widget.Editor // location address
+	bizMsgEd     widget.Editor
+	bizAddrEd    widget.Editor
 	bizLatEd     widget.Editor
 	bizLonEd     widget.Editor
-	bizTitleEd   widget.Editor // intro title
-	bizDescEd    widget.Editor // intro description
+	bizTitleEd   widget.Editor
+	bizDescEd    widget.Editor
 	bizTzSearch  widget.Editor
-	bizQRNameEd  widget.Editor // quick-reply create/rename name
-	bizQRTextEd  widget.Editor // quick-reply create text
+	bizQRNameEd  widget.Editor
+	bizQRTextEd  widget.Editor
 	bizTimeEds   []*widget.Editor
-	bizFromEd    widget.Editor // away custom range
+	bizFromEd    widget.Editor
 	bizToEd      widget.Editor
 	bizQRNewBtn  widget.Clickable
 	bizQRCancel  widget.Clickable
 	bizQRCreate  widget.Clickable
-	bizQRRows    []widget.Clickable // shortcut rows
+	bizQRRows    []widget.Clickable
 	bizQRRenBtns []widget.Clickable
 	bizQRDelBtns []widget.Clickable
-	bizQRUpdBtn  widget.Clickable // rename apply
+	bizQRUpdBtn  widget.Clickable
 	bizScroll    widget.List
 )
 
@@ -412,20 +366,6 @@ func init() {
 	bizToEd.SingleLine = true
 }
 
-// updateBusinessPage applies fn to a COPY of the live business page state
-// and installs the copy under a.mu — snapshot()'s contract ("only ever
-// replaced, never mutated in place") extended to the sub-page: the struct
-// a frame holds stays immutable for that frame's life, so the RPC tails
-// can no longer write-race the layout's field reads (R34; the pre-fix
-// shape mutated *businessPageState in place under a.mu while the GUI loop
-// read it through the frame pointer under frameMu only — R32's class).
-// fn runs under the lock on the fresh copy and must re-validate staleness
-// itself (accountID match, busy guards — the head may have been replaced
-// since dispatch); returning false aborts the install, leaving the head
-// alone. Returns the installed copy, or nil when the page is closed / fn
-// aborted. Callers may read the RETURNED struct afterwards (it is retired
-// the moment a later install replaces it, and retired structs are never
-// written again — that is the whole point).
 func (a *App) updateBusinessPage(fn func(st *businessPageState) bool) *businessPageState {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -440,11 +380,10 @@ func (a *App) updateBusinessPage(fn func(st *businessPageState) bool) *businessP
 	return &next
 }
 
-// openBusinessPage starts the page for an account and loads its data.
 func (a *App) openBusinessPage(accountID string) {
 	a.mu.Lock()
 	a.businessPage = &businessPageState{accountID: accountID, loading: true}
-	a.profileEdit = nil // one sub-page at a time (settings shell)
+	a.profileEdit = nil
 	a.stickerMgr = nil
 	a.folderMgr = nil
 	a.premiumPage = nil
@@ -454,7 +393,6 @@ func (a *App) openBusinessPage(accountID string) {
 	a.invalidate()
 }
 
-// closeBusinessPage dismisses the page.
 func (a *App) closeBusinessPage() {
 	a.mu.Lock()
 	a.businessPage = nil
@@ -462,7 +400,6 @@ func (a *App) closeBusinessPage() {
 	a.invalidate()
 }
 
-// loadBusinessPage fetches the read model + timezone list in parallel.
 func (a *App) loadBusinessPage(accountID string) {
 	raw, errI := a.eng.GetBusinessInfo(accountID)
 	var info map[string]interface{}
@@ -476,7 +413,7 @@ func (a *App) loadBusinessPage(accountID string) {
 	replies, errR := a.eng.GetQuickReplies(accountID)
 	a.updateBusinessPage(func(n *businessPageState) bool {
 		if n.accountID != accountID {
-			return false // closed or switched mid-fetch
+			return false
 		}
 		n.loading = false
 		if errI != nil {
@@ -497,7 +434,6 @@ func (a *App) loadBusinessPage(accountID string) {
 	a.invalidate()
 }
 
-// reloadBusinessPage re-pulls after a mutation or manual reload.
 func (a *App) reloadBusinessPage() {
 	acc := ""
 	a.updateBusinessPage(func(n *businessPageState) bool {
@@ -511,8 +447,6 @@ func (a *App) reloadBusinessPage() {
 	}
 }
 
-// bizEditorData assembles the feature map from the open editor's
-// widget state; called on Apply (reads editors under the UI lock).
 func (a *App) bizEditorData(st *businessPageState) (map[string]interface{}, error) {
 	switch st.editor {
 	case "location":
@@ -541,11 +475,6 @@ func (a *App) bizEditorData(st *businessPageState) (map[string]interface{}, erro
 			"weekly_open": w.toWire(),
 		}, nil
 	case "greeting", "away":
-		// R35: the recipient/offline checkboxes used to be pure
-		// decoration — Save sent the wire-primed st.recips/st.offline,
-		// so nothing the user checked ever applied. The widgets are now
-		// seeded on editor open (bizToggleEditor) and read back here,
-		// on the UI goroutine, exactly like the text editors.
 		growBools(&bizRecChks, 4)
 		rec := bizRecipients{
 			newChats:    bizRecChks[0].Value,
@@ -597,7 +526,6 @@ func parseBizFloat(s string) (float64, bool) {
 	return f, true
 }
 
-// parseBizDate parses "YYYY-MM-DD" into unix seconds (UTC).
 func parseBizDate(s string) (int64, bool) {
 	s = strings.TrimSpace(s)
 	t, err := time.Parse("2006-01-02", s)
@@ -607,17 +535,12 @@ func parseBizDate(s string) (int64, bool) {
 	return t.Unix(), true
 }
 
-// bizApplyClicked runs on the UI goroutine: captures the open editor's
-// widget state into the feature map, then dispatches the RPC.
 func (a *App) bizApplyClicked(st *businessPageState) {
 	if st == nil || st.busy {
 		return
 	}
 	data, err := a.bizEditorData(st)
 	acc, feature := st.accountID, st.editor
-	// The busy flag is claimed on the CURRENT head (the frame's copy may
-	// be one update behind) — the install aborts if a prior apply is
-	// still in flight or the page moved on (R34 + R31's staleness rule).
 	if a.updateBusinessPage(func(n *businessPageState) bool {
 		if n.accountID != acc || n.busy {
 			return false
@@ -635,7 +558,7 @@ func (a *App) bizApplyClicked(st *businessPageState) {
 		}
 		a.updateBusinessPage(func(n *businessPageState) bool {
 			if n.accountID != acc {
-				return false // switched accounts mid-apply
+				return false
 			}
 			n.busy = false
 			if err != nil {
@@ -652,7 +575,6 @@ func (a *App) bizApplyClicked(st *businessPageState) {
 	}()
 }
 
-// removeBusinessFeature clears the open editor's feature.
 func (a *App) removeBusinessFeature() {
 	acc, feature := "", ""
 	if a.updateBusinessPage(func(n *businessPageState) bool {
@@ -671,7 +593,7 @@ func (a *App) removeBusinessFeature() {
 	err := a.eng.SetBusinessFeature(acc, feature, map[string]interface{}{})
 	a.updateBusinessPage(func(n *businessPageState) bool {
 		if n.accountID != acc {
-			return false // switched accounts mid-remove
+			return false
 		}
 		n.busy = false
 		if err != nil {
@@ -687,8 +609,6 @@ func (a *App) removeBusinessFeature() {
 	a.reloadBusinessPage()
 }
 
-// bizCreateQuickReply creates a shortcut; name/text are captured on the
-// UI goroutine by the caller.
 func (a *App) bizCreateQuickReply(name, text string) {
 	acc := ""
 	if a.updateBusinessPage(func(n *businessPageState) bool {
@@ -723,8 +643,6 @@ func (a *App) bizCreateQuickReply(name, text string) {
 	a.reloadBusinessPage()
 }
 
-// bizRenameQuickReply applies the inline rename; the name is captured on
-// the UI goroutine by the caller.
 func (a *App) bizRenameQuickReply(id int, name string) {
 	acc := ""
 	if a.updateBusinessPage(func(n *businessPageState) bool {
@@ -759,7 +677,6 @@ func (a *App) bizRenameQuickReply(id int, name string) {
 	a.reloadBusinessPage()
 }
 
-// bizDeleteQuickReply removes a shortcut (slice 139's engine surface).
 func (a *App) bizDeleteQuickReply(id int) {
 	acc := ""
 	if a.updateBusinessPage(func(n *businessPageState) bool {
@@ -792,10 +709,6 @@ func (a *App) bizDeleteQuickReply(id int) {
 	a.reloadBusinessPage()
 }
 
-// ── editor pool sync ─────────────────────────────────────────────────────
-
-// bizEditorSlots counts the editor pairs the model needs (a closed day
-// still renders one empty pair so it can be filled in).
 func bizEditorSlots(w bizWeek) int {
 	n := 0
 	for _, ivls := range w {
@@ -808,12 +721,8 @@ func bizEditorSlots(w bizWeek) int {
 	return n
 }
 
-// bizSlotDay maps each time-editor index to its owning day; rebuilt by
-// syncBizTimeEditors alongside the pool.
 var bizSlotDay []int
 
-// syncBizTimeEditors rebuilds the time-editor pool from the model
-// (structure changes only — add/remove/24-7/reset/open).
 func syncBizTimeEditors(w bizWeek) {
 	n := bizEditorSlots(w)
 	for len(bizTimeEds) < n {
@@ -839,9 +748,6 @@ func syncBizTimeEditors(w bizWeek) {
 	}
 }
 
-// bizWeekFromEditors parses the editor pool back into a week model
-// (slot ownership comes from bizSlotDay — the pool layout is immutable
-// between structural syncs).
 func bizWeekFromEditors() (bizWeek, error) {
 	var w bizWeek
 	for i := 0; i+1 < len(bizTimeEds); i += 2 {
@@ -854,7 +760,7 @@ func bizWeekFromEditors() (bizWeek, error) {
 		}
 		sTxt, eTxt := bizTimeEds[i].Text(), bizTimeEds[i+1].Text()
 		if strings.TrimSpace(sTxt) == "" && strings.TrimSpace(eTxt) == "" {
-			continue // closed slot
+			continue
 		}
 		s, okS := bizParseTime(sTxt)
 		e, okE := bizParseTime(eTxt)
@@ -872,9 +778,6 @@ func bizWeekFromEditors() (bizWeek, error) {
 	return w, nil
 }
 
-// ── layout ───────────────────────────────────────────────────────────────
-
-// layoutBusinessPage renders the Telegram Business sub-page.
 func (a *App) layoutBusinessPage(gtx layout.Context, f frame) layout.Dimensions {
 	st := f.businessPage
 	if st == nil {
@@ -914,7 +817,6 @@ func (a *App) layoutBusinessPage(gtx layout.Context, f frame) layout.Dimensions 
 		})
 	}))
 
-	// account switcher chips (multiple accounts only)
 	if len(f.accounts) > 1 {
 		growClickables(&bizAcctBtns, len(f.accounts))
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -938,7 +840,6 @@ func (a *App) layoutBusinessPage(gtx layout.Context, f frame) layout.Dimensions 
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 	}
 
-	// premium note: business features are Premium-gated server-side.
 	if v, _ := st.info["premium"].(bool); !v {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Bottom: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -948,7 +849,6 @@ func (a *App) layoutBusinessPage(gtx layout.Context, f frame) layout.Dimensions 
 		}))
 	}
 
-	// section rows
 	type section struct {
 		key, title, sub string
 		icon            *widget.Icon
@@ -1007,7 +907,6 @@ func (a *App) layoutBusinessPage(gtx layout.Context, f frame) layout.Dimensions 
 				})
 			})
 		}))
-		// the expanded editor body
 		if active {
 			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return a.bizEditorBody(gtx, f, st, sec.key)
@@ -1015,7 +914,6 @@ func (a *App) layoutBusinessPage(gtx layout.Context, f frame) layout.Dimensions 
 		}
 	}
 
-	// editor error + busy row
 	if st.editorErr != "" {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			lbl := a.ui.Dim(unit.Sp(12), st.editorErr)
@@ -1026,15 +924,11 @@ func (a *App) layoutBusinessPage(gtx layout.Context, f frame) layout.Dimensions 
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-// bizToggleEditor opens/closes a section editor (priming the widget
-// state from the loaded read model on open). Widget priming (SetText /
-// checkbox seeding) is GUI-loop-only state; the state writes go through
-// the copy-on-write installer (R34).
 func (a *App) bizToggleEditor(key string) {
 	opened := false
 	st := a.updateBusinessPage(func(n *businessPageState) bool {
 		if n.editor == key {
-			n.editor = "" // close: no re-priming below
+			n.editor = ""
 			return true
 		}
 		opened = true
@@ -1078,9 +972,6 @@ func (a *App) bizToggleEditor(key string) {
 	if !opened {
 		return
 	}
-	// Widget priming — the checkboxes were never seeded pre-R35 (they
-	// rendered unchecked regardless of the server's state, and nothing
-	// read them back on Save either).
 	switch key {
 	case "location":
 		loc := bizSubMap(st.info, "location")
@@ -1118,10 +1009,6 @@ func (a *App) bizToggleEditor(key string) {
 	}
 }
 
-// seedBizRecipWidgets primes the recipient checkboxes from the state the
-// wire primed (R35): the label order is New chats / Existing chats /
-// Contacts / Non-contacts, matching bizMsgEditor's rows, plus the
-// exclude and (away editor only) offline toggles.
 func seedBizRecipWidgets(st *businessPageState) {
 	growBools(&bizRecChks, 4)
 	bizRecChks[0].Value = st.recips.newChats
@@ -1134,7 +1021,6 @@ func seedBizRecipWidgets(st *businessPageState) {
 	}
 }
 
-// mapSlice digs the weekly_open slice out of the read model.
 func mapSlice(m map[string]interface{}, k string) []interface{} {
 	if m == nil {
 		return nil
@@ -1145,7 +1031,6 @@ func mapSlice(m map[string]interface{}, k string) []interface{} {
 	return nil
 }
 
-// bizEditorBody renders the open editor's body.
 func (a *App) bizEditorBody(gtx layout.Context, f frame, st *businessPageState, key string) layout.Dimensions {
 	var children []layout.FlexChild
 	switch key {
@@ -1184,7 +1069,6 @@ func (a *App) bizEditorBody(gtx layout.Context, f frame, st *businessPageState, 
 	case "replies":
 		children = append(children, a.bizRepliesEditor(gtx, st)...)
 	}
-	// actions
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Top: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
@@ -1217,7 +1101,6 @@ func (a *App) bizEditorBody(gtx layout.Context, f frame, st *businessPageState, 
 	})
 }
 
-// bizFieldRow renders a labeled single editor line.
 func (a *App) bizFieldRow(gtx layout.Context, ed *widget.Editor, hint string) layout.Dimensions {
 	return layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		in := a.ui.Editor(ed, hint)
@@ -1225,7 +1108,6 @@ func (a *App) bizFieldRow(gtx layout.Context, ed *widget.Editor, hint string) la
 	})
 }
 
-// bizHoursEditor renders the opening-hours editor body pieces.
 func (a *App) bizHoursEditor(gtx layout.Context, st *businessPageState) []layout.FlexChild {
 	if biz247Btn.Clicked(gtx) {
 		if n := a.updateBusinessPage(func(n *businessPageState) bool {
@@ -1252,7 +1134,6 @@ func (a *App) bizHoursEditor(gtx layout.Context, st *businessPageState) []layout
 	growClickables(&bizDayChips, 3)
 
 	var children []layout.FlexChild
-	// quick presets + timezone row
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
@@ -1275,7 +1156,6 @@ func (a *App) bizHoursEditor(gtx layout.Context, st *businessPageState) []layout
 			)
 		})
 	}))
-	// timezone picker (expanded)
 	if st.tzOpen {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Bottom: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -1287,7 +1167,6 @@ func (a *App) bizHoursEditor(gtx layout.Context, st *businessPageState) []layout
 			})
 		}))
 	}
-	// per-day rows
 	i := 0
 	for d := 0; d < 7; d++ {
 		d := d
@@ -1322,7 +1201,6 @@ func (a *App) bizHoursEditor(gtx layout.Context, st *businessPageState) []layout
 						return lbl.Layout(gtx)
 					}),
 					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-						// render this day's editor pairs
 						n := len(ivls)
 						if n == 0 {
 							return a.bizTimePair(gtx, i)
@@ -1359,7 +1237,6 @@ func (a *App) bizHoursEditor(gtx layout.Context, st *businessPageState) []layout
 	return children
 }
 
-// bizTimePair renders one start/end editor pair from the pool.
 func (a *App) bizTimePair(gtx layout.Context, idx int) layout.Dimensions {
 	if idx+1 >= len(bizTimeEds) {
 		return layout.Dimensions{}
@@ -1400,7 +1277,6 @@ func (a *App) bizTimePair(gtx layout.Context, idx int) layout.Dimensions {
 	)
 }
 
-// bizTzLabel renders the picked timezone (or the honest fallback).
 func bizTzLabel(st *businessPageState) string {
 	if st.tzPick == "" {
 		return "not set"
@@ -1413,7 +1289,6 @@ func bizTzLabel(st *businessPageState) string {
 	return st.tzPick
 }
 
-// bizTzPicker renders the searchable timezone list.
 func (a *App) bizTzPicker(gtx layout.Context, st *businessPageState) layout.Dimensions {
 	for {
 		ev, ok := bizTzSearch.Update(gtx)
@@ -1510,7 +1385,6 @@ func (a *App) bizTzPicker(gtx layout.Context, st *businessPageState) layout.Dime
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-// bizMsgEditor renders the greeting (or away) message editor body.
 func (a *App) bizMsgEditor(gtx layout.Context, st *businessPageState, greeting bool) []layout.FlexChild {
 	var children []layout.FlexChild
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -1532,7 +1406,6 @@ func (a *App) bizMsgEditor(gtx layout.Context, st *businessPageState, greeting b
 		in := a.ui.Editor(&bizMsgEd, hint)
 		return in.Layout(gtx)
 	}))
-	// recipients
 	labels := []string{"New chats", "Existing chats", "Contacts", "Non-contacts"}
 	growBools(&bizRecChks, 4)
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -1562,7 +1435,6 @@ func (a *App) bizMsgEditor(gtx layout.Context, st *businessPageState, greeting b
 		})
 	}))
 	if greeting {
-		// inactivity picker
 		growClickables(&bizInactChips, 4)
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Top: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -1588,7 +1460,6 @@ func (a *App) bizMsgEditor(gtx layout.Context, st *businessPageState, greeting b
 			})
 		}))
 	} else {
-		// schedule + offline toggle
 		growClickables(&bizAwayChips, 3)
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Top: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -1662,20 +1533,17 @@ func (a *App) bizMsgEditor(gtx layout.Context, st *businessPageState, greeting b
 	return children
 }
 
-// mustAtoi is strconv.Atoi with a 0 default.
 func mustAtoi(s string) int {
 	n, _ := strconv.Atoi(s)
 	return n
 }
 
-// growBools grows a checkbox pool.
 func growBools(pool *[]widget.Bool, n int) {
 	for len(*pool) < n {
 		*pool = append(*pool, widget.Bool{})
 	}
 }
 
-// bizChipRow renders a horizontal chip selector.
 func (a *App) bizChipRow(gtx layout.Context, st *businessPageState, options []string,
 	onPick func(sel string), active func(sel string) bool, pool *[]widget.Clickable) []layout.FlexChild {
 	growClickables(pool, len(options))
@@ -1710,17 +1578,13 @@ func (a *App) bizChipRow(gtx layout.Context, st *businessPageState, options []st
 	return children
 }
 
-// bizQRNewClicked opens (or closes) the new-shortcut form — exactly one
-// inline edit slot (R36): opening the form closes any open rename row.
-// The editor priming is GUI-loop widget state, done on the caller's
-// (UI) goroutine.
 func (a *App) bizQRNewClicked() {
 	open := false
 	n := a.updateBusinessPage(func(n *businessPageState) bool {
 		open = !n.qrNewOpen
 		n.qrNewOpen = open
 		if open {
-			n.qrRenameID = 0 // one slot at a time
+			n.qrRenameID = 0
 		}
 		return true
 	})
@@ -1731,9 +1595,6 @@ func (a *App) bizQRNewClicked() {
 	a.invalidate()
 }
 
-// bizQRCancelClicked closes whichever inline edit slot is open. Pre-R36
-// this only cleared the new-form flag, so a rename row could NOT be
-// cancelled — its Cancel button was a no-op once renaming started.
 func (a *App) bizQRCancelClicked() {
 	a.updateBusinessPage(func(n *businessPageState) bool {
 		n.qrNewOpen = false
@@ -1743,10 +1604,6 @@ func (a *App) bizQRCancelClicked() {
 	a.invalidate()
 }
 
-// bizQRRenameRowClicked opens a shortcut's inline rename row — one slot
-// (R36): the new-shortcut form closes (it shared the name editor and the
-// cancel button with the rename row before; opening both at once
-// clobbered each other's text).
 func (a *App) bizQRRenameRowClicked(id int, name string) {
 	n := a.updateBusinessPage(func(n *businessPageState) bool {
 		n.qrRenameID = id
@@ -1759,7 +1616,6 @@ func (a *App) bizQRRenameRowClicked(id int, name string) {
 	a.invalidate()
 }
 
-// bizRepliesEditor renders the quick-reply manager body.
 func (a *App) bizRepliesEditor(gtx layout.Context, st *businessPageState) []layout.FlexChild {
 	if bizQRNewBtn.Clicked(gtx) {
 		a.bizQRNewClicked()
@@ -1778,7 +1634,6 @@ func (a *App) bizRepliesEditor(gtx layout.Context, st *businessPageState) []layo
 	growClickables(&bizQRDelBtns, len(st.replies))
 
 	var children []layout.FlexChild
-	// new-shortcut row
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			btn := material.Button(a.ui.Theme, &bizQRNewBtn, "New shortcut")
@@ -1814,7 +1669,6 @@ func (a *App) bizRepliesEditor(gtx layout.Context, st *businessPageState) []layo
 			}),
 		)
 	}
-	// shortcut rows
 	if len(st.replies) == 0 && !st.qrNewOpen {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.centeredStateLabel(gtx, "No quick reply shortcuts")
@@ -1895,7 +1749,6 @@ func (a *App) bizRepliesEditor(gtx layout.Context, st *businessPageState) []layo
 	return children
 }
 
-// bizAcctChips renders the account switcher chips.
 func (a *App) bizAcctChips(gtx layout.Context, f frame, st *businessPageState) []layout.FlexChild {
 	var children []layout.FlexChild
 	for i, acc := range f.accounts {
@@ -1926,8 +1779,6 @@ func (a *App) bizAcctChips(gtx layout.Context, f frame, st *businessPageState) [
 	}
 	return children
 }
-
-// ── section subtitles (honest state summaries) ───────────────────────────
 
 func bizLocationSub(info map[string]interface{}) string {
 	loc := bizSubMap(info, "location")
@@ -1992,9 +1843,6 @@ func bizIntroSub(info map[string]interface{}) string {
 	return mapStr(in, "title")
 }
 
-// ── Settings → Main entry card ───────────────────────────────────────────
-
-// businessEntryRow renders the Settings → Main entry card.
 func (a *App) businessEntryRow(gtx layout.Context, f frame) layout.Dimensions {
 	if bizOpenBtn.Clicked(gtx) {
 		a.openBusinessPage(mgrAccountID(f))

@@ -4,8 +4,6 @@ import (
 	"testing"
 )
 
-// Reactions-notify settings (slice 61): the from-value coercion and the
-// state struct's wiring contract.
 func TestReactionsFromValue(t *testing.T) {
 	if got := reactionsFromValue("contacts"); got != "contacts" {
 		t.Errorf("contacts = %q", got)

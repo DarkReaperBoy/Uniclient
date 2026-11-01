@@ -6,8 +6,6 @@ import (
 	"uniclient/engine"
 )
 
-// Selection-mode state machine (gui/select.go, slice 14).
-
 func newSelApp() *App { return &App{} }
 
 func TestSelectionToggle(t *testing.T) {
@@ -16,13 +14,11 @@ func TestSelectionToggle(t *testing.T) {
 	if !a.selOn || !a.sel["m1"] || a.selectionCount() != 1 {
 		t.Fatalf("start = on=%v sel=%v count=%d", a.selOn, a.sel, a.selectionCount())
 	}
-	// Toggle off/on.
 	a.toggleMsgSel("m1")
 	a.toggleMsgSel("m2")
 	if a.sel["m1"] || !a.sel["m2"] || a.selectionCount() != 1 {
 		t.Fatalf("after toggles: sel=%v", a.sel)
 	}
-	// Toggle while OFF is a no-op.
 	a.cancelSelection()
 	a.toggleMsgSel("m3")
 	if a.selOn || a.sel != nil {
@@ -72,8 +68,6 @@ func TestForwardSelectedBuildsBatch(t *testing.T) {
 	}
 }
 
-// ── slice 126: forward comment ────────────────────────────────────────────
-
 func TestTrimForwardComment(t *testing.T) {
 	cases := []struct {
 		in, want string
@@ -92,9 +86,6 @@ func TestTrimForwardComment(t *testing.T) {
 }
 
 func TestForwardCommentOrder(t *testing.T) {
-	// The comment ships as its own message BEFORE the forwarded batch
-	// (Telegram share-sheet semantics): the plan is comment-first per
-	// recipient, then the forward.
 	steps := forwardCommitSteps("note", []string{"m1", "m2"})
 	if len(steps) != 2 || steps[0].kind != fwdStepComment || steps[0].text != "note" {
 		t.Fatalf("steps = %+v, want comment first", steps)
@@ -102,7 +93,6 @@ func TestForwardCommentOrder(t *testing.T) {
 	if steps[1].kind != fwdStepForward || len(steps[1].ids) != 2 {
 		t.Fatalf("forward step wrong: %+v", steps[1])
 	}
-	// No comment → only the forward step.
 	steps = forwardCommitSteps("", []string{"m1"})
 	if len(steps) != 1 || steps[0].kind != fwdStepForward {
 		t.Fatalf("no-comment steps = %+v", steps)

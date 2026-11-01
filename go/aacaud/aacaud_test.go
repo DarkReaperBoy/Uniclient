@@ -1,39 +1,5 @@
 package aacaud
 
-// tests-first pins for the AAC audio path (slice 223).
-//
-// The fixtures under testdata/ are shaped like what Telegram sends: an
-// MP4 carrying H.264 video plus an AAC-LC audio track.
-//
-//      talk.mp4    regular video: 128x96 H.264 + AAC-LC 96k STEREO 48 kHz, 1.5 s
-//      note.mp4    round video note: 192x192 H.264 + AAC-LC 64k MONO 48 kHz, 1.0 s
-//      silent.mp4  video only — the negative case (no `soun` trak)
-//
-// Two independent kinds of pin:
-//
-//  1. FIXTURE INTEGRITY. Pinned SHA-256 of the committed MP4s, so a
-//     silently regenerated fixture cannot make a broken decoder pass.
-//
-//  2. PCM CORRECTNESS (byte-exact vs ffmpeg). The pinned hashes below are
-//     the digest of what *ffmpeg* writes when it decodes these same MP4s
-//     with its FIXED-POINT AAC decoder, NOT the digest of our output, so a
-//     passing test proves sample equality rather than self-consistency.
-//     Derivation, repeatable anywhere:
-//
-//     ffmpeg -c:a aac_fixed -i talk.mp4 -vn -c:a pcm_s16le -f s16le ref.raw
-//     sha256sum ref.raw
-//
-//     THE FLAG ORDER MATTERS AND BITES TWICE WHILE WRITING THIS:
-//     `aac_fixed` is a DECODER, so it must be given BEFORE `-i`. Put it
-//     after `-i` and ffmpeg treats it as an encoder, reports `Unknown
-//     encoder 'aac_fixed'`, and — if another -c:a follows it — silently
-//     falls back to the FLOAT decoder instead. ffmpeg's float and fixed
-//     AAC decoders do NOT agree byte-for-byte (measured here: talk
-//     5ea29f46… vs d9d10e1d…), so the wrong flag order yields a pin that
-//     looks authoritative and belongs to the other decoder. Our decoder is
-//     a port of ffmpeg's fixed-point one, so FIXED is the correct oracle,
-//     and TestReferenceIsGenuineFFmpeg re-runs that exact invocation.
-
 import (
 	"bytes"
 	"crypto/sha256"
@@ -49,17 +15,15 @@ import (
 )
 
 const (
-	// fixture digests
 	talkFixtureSHA256   = "a28f06fb73a7b812ed314bdf6de1949185adfbd94015a2bbd6711d029eb9ebda"
 	noteFixtureSHA256   = "0e839834d9a87b5e4a9b4fea56dcf6887cb05c13b4511d271aa15512b7bf6aa9"
 	silentFixtureSHA256 = "b062ba426f19eb0a83ebde2dec410d9f7bdb7d9b13695e8081852015df55dd2b"
 
-	// ffmpeg `aac_fixed` PCM digests (little-endian S16 interleaved)
 	talkPCMFFmpegSHA256 = "d9d10e1dbd0693c8b27ace05be0e576b7f2182b977df3d2562e59d188a7dc0e9"
 	notePCMFFmpegSHA256 = "3759035b944e9148d9f3cc91a28449cc366390434e69dd779dd1e0a1f043bf0e"
 
-	talkPCMLen = 288000 // 1.5 s × 48000 × 2ch × 2B
-	notePCMLen = 96000  // 1.0 s × 48000 × 1ch × 2B
+	talkPCMLen = 288000
+	notePCMLen = 96000
 )
 
 func fixture(t *testing.T, name string) []byte {
@@ -80,8 +44,6 @@ func parseFixture(t *testing.T, name string) *Track {
 	return tr
 }
 
-// ── fixture integrity ────────────────────────────────────────────────────
-
 func TestFixtureIntegrity(t *testing.T) {
 	for _, c := range []struct{ file, want string }{
 		{"talk.mp4", talkFixtureSHA256},
@@ -99,8 +61,6 @@ func TestFixtureIntegrity(t *testing.T) {
 	}
 }
 
-// ── parsing ──────────────────────────────────────────────────────────────
-
 func TestParseTalkTrack(t *testing.T) {
 	tr := parseFixture(t, "talk.mp4")
 	if tr.SampleRate != 48000 {
@@ -115,8 +75,6 @@ func TestParseTalkTrack(t *testing.T) {
 	if tr.Timescale != 48000 {
 		t.Errorf("Timescale = %d, want 48000", tr.Timescale)
 	}
-	// The edit list carries AAC's 1024-sample encoder priming; if Parse
-	// stops reading it, every sample lands 21 ms late.
 	if tr.Priming != 1024 {
 		t.Errorf("Priming = %d, want 1024", tr.Priming)
 	}
@@ -153,8 +111,6 @@ func TestParseNoteTrack(t *testing.T) {
 	}
 }
 
-// Every access unit must be present, non-empty, and scheduled strictly
-// after the previous one — this is the input A/V sync will live on.
 func TestSampleTimingIsMonotonic(t *testing.T) {
 	for _, name := range []string{"talk.mp4", "note.mp4"} {
 		t.Run(name, func(t *testing.T) {
@@ -177,8 +133,6 @@ func TestSampleTimingIsMonotonic(t *testing.T) {
 						i, s.DTS, tr.Samples[i-1].DTS)
 				}
 			}
-			// AAC-LC frames are 1024 samples; a constant tick delta is
-			// what makes the clock predictable for the audio sink.
 			want := int64(1024)
 			if d := tr.Samples[1].DTS - tr.Samples[0].DTS; d != want {
 				t.Errorf("frame delta = %d ticks, want %d", d, want)
@@ -186,8 +140,6 @@ func TestSampleTimingIsMonotonic(t *testing.T) {
 		})
 	}
 }
-
-// ── the headline pin: PCM equals ffmpeg's fixed-point decoder ────────────
 
 func TestDecodeMatchesFFmpegReference(t *testing.T) {
 	for _, c := range []struct {
@@ -215,11 +167,6 @@ func TestDecodeMatchesFFmpegReference(t *testing.T) {
 	}
 }
 
-// ffmpeg reference digests per ffmpeg major line. The aac_fixed decoder is
-// frozen upstream, but its output still legitimately differs BETWEEN major
-// versions; a pin is only meaningful against the line it was derived from.
-// ffmpeg 6.x = the CI runner line (ubuntu-latest), ffmpeg 7.x derived on
-// Debian trixie's 7.1.5 with this exact invocation.
 var ffmpegRefPins = map[int]map[string]string{
 	6: {"talk.mp4": talkPCMFFmpegSHA256, "note.mp4": notePCMFFmpegSHA256},
 	7: {
@@ -228,9 +175,6 @@ var ffmpegRefPins = map[int]map[string]string{
 	},
 }
 
-// Provenance: re-derive the pinned constants from the committed MP4s with
-// ffmpeg itself, so the pins are never taken on trust. Skipped when ffmpeg
-// is absent (CI) or its major line has no characterized pin table.
 func TestReferenceIsGenuineFFmpeg(t *testing.T) {
 	ff, err := exec.LookPath("ffmpeg")
 	if err != nil {
@@ -282,8 +226,6 @@ func TestReferenceIsGenuineFFmpeg(t *testing.T) {
 	}
 }
 
-// ── honest failure modes ─────────────────────────────────────────────────
-
 func TestVideoOnlyFileReportsNoAudio(t *testing.T) {
 	_, err := Parse(bytes.NewReader(fixture(t, "silent.mp4")))
 	if !errors.Is(err, ErrNoAudio) {
@@ -292,14 +234,10 @@ func TestVideoOnlyFileReportsNoAudio(t *testing.T) {
 }
 
 func TestRejectHEAACConfig(t *testing.T) {
-	// AudioObjectType 5 = SBR (HE-AAC). Our decoder is AAC-LC only, and a
-	// decoder that decodes HE-AAC as if it were LC produces plausible-
-	// looking noise, so the config must be refused up front.
-	heAAC := []byte{0x28, 0x06, 0x56, 0xE5, 0x00} // AOT=5, 48 kHz, 2ch
+	heAAC := []byte{0x28, 0x06, 0x56, 0xE5, 0x00}
 	if err := checkASC(heAAC); !errors.Is(err, ErrUnsupported) {
 		t.Errorf("checkASC(HE-AAC) = %v, want ErrUnsupported", err)
 	}
-	// and the real configs must be accepted, or the check is just "reject"
 	if err := checkASC([]byte{0x11, 0x90, 0x56, 0xE5, 0x00}); err != nil {
 		t.Errorf("checkASC(AAC-LC stereo) = %v, want nil", err)
 	}
@@ -328,9 +266,6 @@ func TestTruncatedFileIsRejectedNotPanicked(t *testing.T) {
 	}
 }
 
-// Decode must refuse a track whose access units cannot be represented —
-// go-aac's raw framing prefixes each unit with a uint16, and silently
-// truncating a length would desynchronise every frame after it.
 func TestDecodeRejectsOversizedAccessUnit(t *testing.T) {
 	tr := parseFixture(t, "talk.mp4")
 	tr.Samples[0].Data = make([]byte, 0x10001)

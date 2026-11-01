@@ -7,11 +7,6 @@ import (
 	"uniclient/utils"
 )
 
-// Hostile-server fuzzing (slice 260): everything a remote server can
-// put on the wire goes through these parsers, and a panic in any of
-// them kills the whole client (§1.10 — drop the packet, never the
-// app). Contract: never panic.
-
 func FuzzTSCommand(f *testing.F) {
 	f.Add([]byte(""))
 	f.Add([]byte("error id=0 msg=ok"))
@@ -29,8 +24,8 @@ func FuzzTSPacket(f *testing.F) {
 	f.Add([]byte{})
 	f.Add([]byte{0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 0, 2, 0x02})
 	f.Add([]byte{0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 0, 2, 0x62})
-	f.Add(make([]byte, 13))               // header-only, empty payload
-	f.Add(append(make([]byte, 13), 0xAA)) // header + one byte
+	f.Add(make([]byte, 13))
+	f.Add(append(make([]byte, 13), 0xAA))
 	f.Fuzz(func(t *testing.T, data []byte) {
 		_, _, _, _, _ = tsParseS2CPacket(data)
 	})
@@ -46,14 +41,10 @@ func FuzzTSEAXDecrypt(f *testing.F) {
 		}
 		var macIn [8]byte
 		copy(macIn[:], mac)
-		// Fake-key path: what pre-crypto and hostile inputs hit.
 		_, _ = tsEAXDecrypt(tsFakeKey[:], tsFakeNonce[:], header, ciphertext, macIn)
 	})
 }
 
-// FuzzTSHandleServerCommand dispatches a parsed server line through the
-// REAL notify handlers on a production-shaped core. Setup is hoisted
-// (a per-iteration vault build throttles the worker to ~5 execs/s).
 func FuzzTSHandleServerCommand(f *testing.F) {
 	f.Add([]byte(""))
 	f.Add([]byte("notifyclientmoved ctid=43 clid=7"))
@@ -70,16 +61,12 @@ func FuzzTSHandleServerCommand(f *testing.F) {
 	f.Fuzz(func(t *testing.T, data []byte) {
 		name, params := tsParseCommand(data)
 		if name == "notifyconnectioninforequest" {
-			// Spawns a SetConnectionInfo exec goroutine per hit — unit-
-			// tested elsewhere; fuzzing it would fork thousands of workers.
 			t.Skip()
 		}
 		core.tsHandleServerCommand(tsIncomingCmd{name: name, params: params, raw: string(data)})
 	})
 }
 
-// FuzzMumbleURL: mumble:// links are user/paste-controlled — parsing
-// must never panic (§1.10).
 func FuzzMumbleURL(f *testing.F) {
 	f.Add("")
 	f.Add("mumble://user:pass@host:64738/Channel/Sub")
@@ -92,13 +79,6 @@ func FuzzMumbleURL(f *testing.F) {
 	})
 }
 
-// newWireFuzzCore builds a production-shaped core + connection exactly
-// the way tsConnect leaves them before the receive loop runs:
-// constructor maps, fully-initialized tsConnection (pendingCmds, both
-// recvQueues, buffered cmdCh), a live UDP socket so handler-spawned
-// command goroutines have somewhere to write, and a distinguishable
-// self identity. Cleanup registers on t. Shared by the wire fuzz
-// targets (called once, hoisted) and the receive-path unit tests.
 func newWireFuzzCore(t testing.TB) (*TeamSpeakCore, *tsConnection) {
 	t.Helper()
 	vault, err := utils.CreateVault(t.TempDir()+"/fuzz.vault", "fuzz")

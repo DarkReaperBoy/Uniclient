@@ -1,22 +1,5 @@
 package gui
 
-// tgsplayer.go — slice 123: animated .tgs sticker playback in the chat
-// (on top of the pure-Go lottie engine, slice 122 A/B/C). Telegram
-// animated stickers are gzip-compressed Lottie JSON; once the document
-// downloads, it parses once per message and renders on the frame clock:
-// each painted frame schedules the next window invalidation at the
-// animation's own rate (clamped 20..60fps), looping at the animation
-// duration. Taps replay from frame 0 (AyuGram behavior). Static .webp
-// stickers render from the downloaded file (webp decode registered by
-// custemoji.go) with the inline thumb as the pre-download fallback;
-// .webm video stickers play through the pure-Go VP9 pipeline (slice 216:
-// uniclient/webm demux + govpx decode + alpha pairing — see vp9player.go);
-// tap replays them like AyuGram does.
-//
-// Sticker messages also render WITHOUT the chat-bubble chrome (AyuGram:
-// bare artwork with a translucent meta pill overlaid bottom-right) — see
-// bareStickerBubble, wired from messageRow.
-
 import (
 	"fmt"
 	"image"
@@ -33,22 +16,16 @@ import (
 	"uniclient/lottie"
 )
 
-// ── kind detection ────────────────────────────────────────────────────────
-
-// Sticker render paths.
 const (
-	stickerKindTgs    = iota // animated: application/x-tgsticker (gzip Lottie)
-	stickerKindWebm          // video sticker: video/webm (VP9 pipeline, slice 216)
-	stickerKindStatic        // static webp (or unknown): image decode path
+	stickerKindTgs = iota
+	stickerKindWebm
+	stickerKindStatic
 )
 
-// isTgsMime reports the Telegram animated-sticker mime.
 func isTgsMime(mime string) bool {
 	return mime == "application/x-tgsticker"
 }
 
-// gzipMagic reports whether the file at path starts with the gzip magic
-// (0x1f 0x8b) — the .tgs container sniff. Missing/short files are not gzip.
 func gzipMagic(path string) bool {
 	f, err := os.Open(path)
 	if err != nil {
@@ -62,9 +39,6 @@ func gzipMagic(path string) bool {
 	return hdr[0] == 0x1f && hdr[1] == 0x8b
 }
 
-// stickerRenderKind picks the render path for a sticker message: the mime
-// decides when present; otherwise the local file is sniffed for the gzip
-// container (animated); everything else renders statically.
 func stickerRenderKind(m *engine.CachedMessage) int {
 	switch m.MediaMimeType {
 	case "application/x-tgsticker":
@@ -80,16 +54,11 @@ func stickerRenderKind(m *engine.CachedMessage) int {
 	return stickerKindStatic
 }
 
-// ── playback math (pure) ──────────────────────────────────────────────────
-
-// Frame-rate clamps for the invalidation clock: never redraw slower than
-// 20fps (visible stutter) nor faster than 60fps (burning CPU for nothing).
 const (
 	tgsMinFPS = 20
 	tgsMaxFPS = 60
 )
 
-// tgsFrameInterval returns the redraw interval for an animation frame rate.
 func tgsFrameInterval(fps float64) time.Duration {
 	if fps < tgsMinFPS {
 		fps = tgsMinFPS
@@ -100,7 +69,6 @@ func tgsFrameInterval(fps float64) time.Duration {
 	return time.Duration(float64(time.Second) / fps)
 }
 
-// tgsLoopFrame maps an elapsed play time to the looping frame number.
 func tgsLoopFrame(anim *lottie.Animation, elapsed time.Duration) float64 {
 	if anim == nil {
 		return 0
@@ -116,8 +84,6 @@ func tgsLoopFrame(anim *lottie.Animation, elapsed time.Duration) float64 {
 	return anim.FrameAt(e)
 }
 
-// tgsFrameAt resolves the frame for an elapsed time, looping by default
-// or holding the final frame (dice outcomes rest on their value face).
 func tgsFrameAt(anim *lottie.Animation, elapsed time.Duration, hold bool) float64 {
 	if hold {
 		if anim == nil {
@@ -135,9 +101,6 @@ func tgsFrameAt(anim *lottie.Animation, elapsed time.Duration, hold bool) float6
 	return tgsLoopFrame(anim, elapsed)
 }
 
-// stickerBox returns the pixel box for a sticker of w0×h0 animation units
-// inside a maxSide square (AyuGram sticker size ~256dp), aspect-true with
-// a square fallback for degenerate dims.
 func stickerBox(maxSide, w0, h0 int) (int, int) {
 	if maxSide <= 0 {
 		return 0, 0
@@ -163,20 +126,15 @@ func stickerBox(maxSide, w0, h0 int) (int, int) {
 	return w, h
 }
 
-// ── per-message player cache ──────────────────────────────────────────────
-
-// tgsPlayer is one message's parsed animation + play clock.
 type tgsPlayer struct {
 	anim    *lottie.Animation
 	start   time.Time
-	path    string // source file (a changed path re-parses: dice value swaps)
-	parsed  bool   // anim successfully parsed (anim != nil)
-	failed  bool   // permanently unplayable (bad container/document)
-	reading bool   // async file read + parse in flight
+	path    string
+	parsed  bool
+	failed  bool
+	reading bool
 }
 
-// tgsPlayerCache keeps per-msgID players; pruned wholesale when oversized
-// (same policy as a.wid.mediaClicks — scrolling chats churn entries).
 type tgsPlayerCache struct {
 	mu      sync.Mutex
 	players map[string]*tgsPlayer
@@ -200,7 +158,6 @@ func (c *tgsPlayerCache) get(msgID string) *tgsPlayer {
 	return p
 }
 
-// setAnim publishes a parsed animation and starts its clock.
 func (c *tgsPlayerCache) setAnim(msgID, path string, anim *lottie.Animation) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -214,7 +171,6 @@ func (c *tgsPlayerCache) setAnim(msgID, path string, anim *lottie.Animation) {
 	p.start = time.Now()
 }
 
-// reset clears a parsed animation (new source file for the message).
 func (c *tgsPlayerCache) reset(msgID string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -223,7 +179,6 @@ func (c *tgsPlayerCache) reset(msgID string) {
 	}
 }
 
-// failParse pins the message to the static fallback (no re-parse churn).
 func (c *tgsPlayerCache) failParse(msgID string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -235,7 +190,6 @@ func (c *tgsPlayerCache) failParse(msgID string) {
 	p.failed, p.reading = true, false
 }
 
-// replay restarts the play clock from frame 0.
 func (c *tgsPlayerCache) replay(msgID string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -244,7 +198,6 @@ func (c *tgsPlayerCache) replay(msgID string) {
 	}
 }
 
-// markReading claims the async read slot; false while one is in flight.
 func (c *tgsPlayerCache) markReading(msgID string) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -260,7 +213,6 @@ func (c *tgsPlayerCache) markReading(msgID string) bool {
 	return true
 }
 
-// endReading releases the read slot (retryable failures).
 func (c *tgsPlayerCache) endReading(msgID string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -269,8 +221,6 @@ func (c *tgsPlayerCache) endReading(msgID string) {
 	}
 }
 
-// parseTgsBytes parses raw .tgs bytes, rejecting documents that cannot
-// animate (parse error, no duration, no layers).
 func parseTgsBytes(data []byte) (*lottie.Animation, bool) {
 	anim, err := lottie.ParseTgs(data)
 	if err != nil || anim == nil {
@@ -282,15 +232,12 @@ func parseTgsBytes(data []byte) (*lottie.Animation, bool) {
 	return anim, true
 }
 
-// ensureTgsAnim kicks off the one-time async parse of a downloaded .tgs
-// document; repaints when the animation lands.
 func (a *App) ensureTgsAnim(m *engine.CachedMessage) {
 	if m == nil || m.MediaLocalPath == "" {
 		return
 	}
 	p := tgsPlayers.get(m.MsgID)
 	if p.parsed && p.path != m.MediaLocalPath {
-		// New file for the same message (dice value swap): re-parse.
 		tgsPlayers.reset(m.MsgID)
 		p = tgsPlayers.get(m.MsgID)
 	}
@@ -304,12 +251,12 @@ func (a *App) ensureTgsAnim(m *engine.CachedMessage) {
 	go func() {
 		data, err := os.ReadFile(path)
 		if err != nil {
-			tgsPlayers.endReading(msgID) // retry on a later frame
+			tgsPlayers.endReading(msgID)
 			return
 		}
 		anim, ok := parseTgsBytes(data)
 		if !ok {
-			tgsPlayers.failParse(msgID) // static fallback, permanently
+			tgsPlayers.failParse(msgID)
 			return
 		}
 		tgsPlayers.setAnim(msgID, path, anim)
@@ -317,7 +264,6 @@ func (a *App) ensureTgsAnim(m *engine.CachedMessage) {
 	}()
 }
 
-// replaySticker restarts an animated sticker from frame 0 (tap action).
 func (a *App) replaySticker(m *engine.CachedMessage) {
 	if m == nil {
 		return
@@ -326,11 +272,6 @@ func (a *App) replaySticker(m *engine.CachedMessage) {
 	a.invalidate()
 }
 
-// ── gating helpers ────────────────────────────────────────────────────────
-
-// isBareStickerMsg reports whether a message renders without the chat
-// bubble chrome (AyuGram: bare sticker artwork). Stickers with captions,
-// service rows and poll bodies keep the regular bubble.
 func isBareStickerMsg(m *engine.CachedMessage) bool {
 	if m == nil || m.IsService {
 		return false
@@ -339,8 +280,6 @@ func isBareStickerMsg(m *engine.CachedMessage) bool {
 		m.ContentText == "" && !pollIsBody(m)
 }
 
-// autoDownloadable reports which media types prefetch as they scroll into
-// view (AyuGram auto-download): photos, GIFs and stickers (all small).
 func autoDownloadable(mt int) bool {
 	switch mt {
 	case engine.MediaImage, engine.MediaGIF, engine.MediaSticker:
@@ -349,11 +288,7 @@ func autoDownloadable(mt int) bool {
 	return false
 }
 
-// messageMetaLabel builds the meta line (time, edited mark, scheduled
-// prefix) shared by the in-bubble meta row and the sticker overlay pill.
 func messageMetaLabel(m engine.CachedMessage, ayuEditedMark string) string {
-	// Ayu showMessageSeconds (slice 173): message meta times carry
-	// seconds when the toggle is on (formatMessageTime semantics).
 	meta := msgTimeLabel(m.Timestamp)
 	if m.EditedAt != 0 {
 		meta = editedMark(ayuEditedMark) + msgTimeLabel(m.EditedAt)
@@ -364,9 +299,6 @@ func messageMetaLabel(m engine.CachedMessage, ayuEditedMark string) string {
 	return meta
 }
 
-// viewsCountLabel renders channel-post view/forward counters the way
-// tdesktop does (1.2K / 15K / 1.2M — one decimal below ten, then
-// integers). Pure — unit-tested.
 func viewsCountLabel(n int) string {
 	switch {
 	case n < 1000:
@@ -382,11 +314,6 @@ func viewsCountLabel(n int) string {
 	}
 }
 
-// ── widgets ───────────────────────────────────────────────────────────────
-
-// stickerBubble renders a sticker media block (~256dp): the animated frame
-// when a .tgs is parsed, the downloaded static image when complete, the
-// inline thumbnail otherwise. Drives its own repaint clock while animating.
 func (a *App) stickerBubble(gtx layout.Context, f frame, m *engine.CachedMessage, state int) layout.Dimensions {
 	maxSide := gtx.Dp(unit.Dp(256))
 	if avail := gtx.Constraints.Max.X; avail > 0 && avail < maxSide {
@@ -395,9 +322,6 @@ func (a *App) stickerBubble(gtx layout.Context, f frame, m *engine.CachedMessage
 
 	kind := stickerRenderKind(m)
 
-	// Dice messages resolve their pack document through the engine before
-	// the download pipeline can run; the emoji glyph is the honest
-	// pre-download state (slot machines stay textual — no fake collage).
 	if m.MediaType == engine.MediaDice {
 		info, hasDice := parseDiceMessage(m)
 		if !hasDice {
@@ -412,9 +336,6 @@ func (a *App) stickerBubble(gtx layout.Context, f frame, m *engine.CachedMessage
 		}
 	}
 
-	// Animated: parse once the document is local, then draw the looping
-	// frame on the animation's own clock (dice outcomes hold their final
-	// frame instead of looping).
 	hold := false
 	if m.MediaType == engine.MediaDice {
 		if info, ok := parseDiceMessage(m); ok {
@@ -428,8 +349,6 @@ func (a *App) stickerBubble(gtx layout.Context, f frame, m *engine.CachedMessage
 			w, h := stickerBox(maxSide, int(p.anim.Width), int(p.anim.Height))
 			if w > 0 && h > 0 {
 				elapsed := time.Since(p.start)
-				// Power saving (slice 135): the first frame renders
-				// statically with no re-arm — loops are the battery cost.
 				if powerSavingBlocks(powerSaving.flags, powerSaving.forceAll, psClassStickers) {
 					lottie.Draw(p.anim, 0, gtx.Ops, image.Rect(0, 0, w, h))
 					return layout.Dimensions{Size: image.Pt(w, h)}
@@ -444,9 +363,6 @@ func (a *App) stickerBubble(gtx layout.Context, f frame, m *engine.CachedMessage
 		}
 	}
 
-	// Video sticker (.webm, slice 216): the pure-Go VP9 pipeline plays it
-	// in-chat — per-message player, looping on the frame clock, tap
-	// replays; while the producer warms up the static thumbnail shows.
 	if kind == stickerKindWebm && state == engine.DownloadComplete && m.MediaLocalPath != "" {
 		a.ensureWebmPlayer(m)
 		if dims, ok := a.drawWebmSticker(gtx, m, maxSide); ok {
@@ -454,8 +370,6 @@ func (a *App) stickerBubble(gtx layout.Context, f frame, m *engine.CachedMessage
 		}
 	}
 
-	// Static (or animated-but-not-yet-parsed): the downloaded file when it
-	// is a decodable image, else the inline thumbnail.
 	if state == engine.DownloadComplete && m.MediaLocalPath != "" && isDisplayableImage(m.MediaLocalPath) {
 		key := "file:" + m.MediaLocalPath
 		if img := mediaImgs.get(key); img != nil {
@@ -473,19 +387,12 @@ func (a *App) stickerBubble(gtx layout.Context, f frame, m *engine.CachedMessage
 		a.decodeThumbAsync(key, m.MediaThumbB64)
 	}
 
-	// Honest placeholder box (aspect from the document dims) while the
-	// thumb decodes; tapped downloads reveal real pixels.
 	w, h := stickerBox(maxSide, m.MediaWidth, m.MediaHeight)
 	return layout.Dimensions{Size: image.Pt(w, h)}
 }
 
-// bareStickerBubble lays out a sticker message without the bubble chrome:
-// forwarded header and reply quote keep their own surfaces, the artwork
-// renders bare with a translucent meta pill overlaid at its bottom-right
-// (Telegram/AyuGram sticker look), reactions strip below.
 func (a *App) bareStickerBubble(gtx layout.Context, f frame, m *engine.CachedMessage, out, deleted bool) layout.Dimensions {
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		// Forwarded-from header (bare, dim).
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if m.ForwardFrom == "" {
 				return layout.Dimensions{}
@@ -497,14 +404,12 @@ func (a *App) bareStickerBubble(gtx layout.Context, f frame, m *engine.CachedMes
 			}
 			return layout.Inset{Bottom: unit.Dp(3)}.Layout(gtx, lbl.Layout)
 		}),
-		// Reply quote (own surface).
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if m.ReplyPreview == "" {
 				return layout.Dimensions{}
 			}
 			return a.replyQuote(gtx, f, *m, *f.msgFor)
 		}),
-		// Artwork + meta pill overlay.
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Stack{Alignment: layout.SE}.Layout(gtx,
 				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
@@ -515,7 +420,6 @@ func (a *App) bareStickerBubble(gtx layout.Context, f frame, m *engine.CachedMes
 				}),
 			)
 		}),
-		// Reactions strip.
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if len(m.Reactions) == 0 {
 				return layout.Dimensions{}
@@ -527,7 +431,6 @@ func (a *App) bareStickerBubble(gtx layout.Context, f frame, m *engine.CachedMes
 	)
 }
 
-// stickerMetaPill renders the translucent time (+ticks) overlay pill.
 func (a *App) stickerMetaPill(gtx layout.Context, f frame, m *engine.CachedMessage, out, deleted bool) layout.Dimensions {
 	text := messageMetaLabel(*m, f.cfg.AyuEditedMark)
 	if deleted {

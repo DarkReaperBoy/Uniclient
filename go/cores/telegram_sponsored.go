@@ -1,21 +1,5 @@
 package cores
 
-// Sponsored messages (Telegram, slice 163): the channel/bot ad surface.
-//
-// Wire contract (core.telegram.org/api/sponsored-messages, layer as of
-// gotd v0.161): channels.getSponsoredMessages(peer) →
-// messages.SponsoredMessages{ posts_between?, messages[], chats[], users[] }.
-// Sponsored messages must be displayed below all other posts in channels
-// (after the user scrolls past the last message) or as an action bar above
-// bot chats; clicks/views/reports are reported back through
-// messages.clickSponsoredMessage / .viewSponsoredMessage /
-// .reportSponsoredMessage (report returns a choose-option chain via
-// channels.sponsoredMessageReportResult). The result must be cached for
-// 5 minutes (the engine does that part).
-//
-// RPC hygiene: every method here follows the withAPI snapshot rule (§8) —
-// the RLock is never held across an RPC.
-
 import (
 	"encoding/hex"
 	"fmt"
@@ -23,39 +7,28 @@ import (
 	"github.com/gotd/td/tg"
 )
 
-// SponsoredMessageInfo is one converted sponsored message, engine-facing.
 type SponsoredMessageInfo struct {
-	RandomID       string `json:"random_id"`
-	URL            string `json:"url"`
-	Title          string `json:"title"`
-	Message        string `json:"message"`
-	ButtonText     string `json:"button_text,omitempty"`
-	SponsorInfo    string `json:"sponsor_info,omitempty"`
-	AdditionalInfo string `json:"additional_info,omitempty"`
-	// ThumbB64 is the custom profile photo bubble (stripped inline thumb,
-	// base64 JPEG), like a group message sender avatar.
-	ThumbB64 string `json:"thumb_b64,omitempty"`
-	// MediaThumbB64 / MediaIsVideo describe the optional media attachment
-	// (photo or video poster); honest scope: in-app video decode is blocked,
-	// so video media renders as a poster with a play badge.
-	MediaThumbB64 string       `json:"media_thumb_b64,omitempty"`
-	MediaIsVideo  bool         `json:"media_is_video,omitempty"`
-	Recommended   bool         `json:"recommended,omitempty"`
-	CanReport     bool         `json:"can_report,omitempty"`
-	AccentColorID int          `json:"accent_color_id,omitempty"`
-	Entities      []TextEntity `json:"entities,omitempty"`
+	RandomID       string       `json:"random_id"`
+	URL            string       `json:"url"`
+	Title          string       `json:"title"`
+	Message        string       `json:"message"`
+	ButtonText     string       `json:"button_text,omitempty"`
+	SponsorInfo    string       `json:"sponsor_info,omitempty"`
+	AdditionalInfo string       `json:"additional_info,omitempty"`
+	ThumbB64       string       `json:"thumb_b64,omitempty"`
+	MediaThumbB64  string       `json:"media_thumb_b64,omitempty"`
+	MediaIsVideo   bool         `json:"media_is_video,omitempty"`
+	Recommended    bool         `json:"recommended,omitempty"`
+	CanReport      bool         `json:"can_report,omitempty"`
+	AccentColorID  int          `json:"accent_color_id,omitempty"`
+	Entities       []TextEntity `json:"entities,omitempty"`
 }
 
-// SponsoredReportOption is one step in the iterative ad-report flow.
 type SponsoredReportOption struct {
 	Text   string `json:"text"`
-	Option string `json:"option"` // hex; "" = request the option list
+	Option string `json:"option"`
 }
 
-// GetSponsoredMessages fetches the sponsored messages for a channel or bot
-// chat. Returns the converted list and posts_between (0 = show one block
-// after the last message; >0 = additional blocks interleaved between
-// posts, spaced that many messages apart).
 func (t *TelegramCore) GetSponsoredMessages(chatID string) ([]SponsoredMessageInfo, int, error) {
 	api, ctx, err := t.withAPI()
 	if err != nil {
@@ -81,15 +54,12 @@ func (t *TelegramCore) GetSponsoredMessages(chatID string) ([]SponsoredMessageIn
 	case *tg.MessagesSponsoredMessages:
 		list, postsBetween = convertSponsoredMessages(v)
 	case *tg.MessagesSponsoredMessagesEmpty:
-		// No ads right now — the honest empty state.
 	default:
 		return nil, 0, fmt.Errorf("unexpected sponsored result %T", res)
 	}
 	return list, postsBetween, nil
 }
 
-// ViewSponsoredMessage reports that the ad's full text became visible
-// (messages.viewSponsoredMessage). Fire-and-forget at the call sites.
 func (t *TelegramCore) ViewSponsoredMessage(randomID string) error {
 	api, ctx, err := t.withAPI()
 	if err != nil {
@@ -103,9 +73,6 @@ func (t *TelegramCore) ViewSponsoredMessage(randomID string) error {
 	return err
 }
 
-// ClickSponsoredMessage reports a click on the sponsored message
-// (messages.clickSponsoredMessage): media=true when the click was on the
-// media block, fullscreen=true when a video ad was clicked in fullscreen.
 func (t *TelegramCore) ClickSponsoredMessage(randomID string, media, fullscreen bool) error {
 	api, ctx, err := t.withAPI()
 	if err != nil {
@@ -126,10 +93,6 @@ func (t *TelegramCore) ClickSponsoredMessage(randomID string, media, fullscreen 
 	return err
 }
 
-// ReportSponsoredMessage walks one step of the iterative report flow
-// (messages.reportSponsoredMessage). An empty option requests the option
-// list; a chosen option submits it. The result is the next choose-option
-// chain (title + options) — empty title means the report is complete.
 func (t *TelegramCore) ReportSponsoredMessage(randomID, option string) (string, []SponsoredReportOption, error) {
 	api, ctx, err := t.withAPI()
 	if err != nil {
@@ -156,9 +119,6 @@ func (t *TelegramCore) ReportSponsoredMessage(randomID, option string) (string, 
 	return title, opts, nil
 }
 
-// ToggleSponsoredMessages turns account-wide sponsored messages off/on
-// (account.toggleSponsoredMessages — the AyuGram "disable ads" lever; it
-// is a setter, not a flip, so calls are idempotent).
 func (t *TelegramCore) ToggleSponsoredMessages(enabled bool) error {
 	api, ctx, err := t.withAPI()
 	if err != nil {
@@ -168,9 +128,6 @@ func (t *TelegramCore) ToggleSponsoredMessages(enabled bool) error {
 	return err
 }
 
-// ── pure conversion (unit-tested) ─────────────────────────────────────────
-
-// convertSponsoredMessages maps the wire payload to engine-facing structs.
 func convertSponsoredMessages(res *tg.MessagesSponsoredMessages) ([]SponsoredMessageInfo, int) {
 	if res == nil {
 		return nil, 0
@@ -210,8 +167,6 @@ func convertSponsoredMessages(res *tg.MessagesSponsoredMessages) ([]SponsoredMes
 	return list, postsBetween
 }
 
-// sponsoredAccentColorID extracts the palette id from the optional
-// PeerColor accent (0 = default).
 func sponsoredAccentColorID(c tg.PeerColorClass) int {
 	if c == nil {
 		return 0
@@ -222,8 +177,6 @@ func sponsoredAccentColorID(c tg.PeerColorClass) int {
 	return 0
 }
 
-// sponsoredMediaInfo extracts the media poster thumb (photo or video
-// document) and whether the media is a video.
 func sponsoredMediaInfo(m tg.MessageMediaClass) (thumbB64 string, isVideo bool) {
 	if m == nil {
 		return "", false
@@ -248,15 +201,12 @@ func sponsoredMediaInfo(m tg.MessageMediaClass) (thumbB64 string, isVideo bool) 
 	return "", false
 }
 
-// parseSponsoredReportResult unpacks the report step result: a
-// choose-option chain (title + options) or a terminal state ("" title).
 func parseSponsoredReportResult(res tg.ChannelsSponsoredMessageReportResultClass) (string, []SponsoredReportOption) {
 	if res == nil {
 		return "", nil
 	}
 	choose, ok := res.(*tg.ChannelsSponsoredMessageReportResultChooseOption)
 	if !ok {
-		// Reported / AdsHidden / Internal: the flow is done.
 		return "", nil
 	}
 	opts := make([]SponsoredReportOption, 0, len(choose.Options))

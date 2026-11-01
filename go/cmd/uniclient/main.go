@@ -1,12 +1,3 @@
-// Command uniclient is the Uniclient app: one native Gio GUI, one binary,
-// every platform (Linux, Windows, Android; the web build is the same code
-// compiled to WASM).
-//
-// Usage:
-//
-//	uniclient              # normal launch
-//	uniclient -dir PATH    # config directory (default ~/.uniclient)
-//	uniclient -password P  # vault password (default UNICLIENT_PASSWORD env or "uniclient")
 package main
 
 import (
@@ -31,9 +22,6 @@ func main() {
 	password := flag.String("password", defaultVaultPassword(), "vault password")
 	flag.Parse()
 
-	// Toast click-through (slice 202, Windows): a launcher process that
-	// the shell started with a uniclient:// URI forwards the open to the
-	// running instance and exits — the engine never boots for a click.
 	if gui.HandleLaunchURI(flag.Args(), *dir) {
 		return
 	}
@@ -54,13 +42,12 @@ func main() {
 }
 
 func run(w *app.Window, dir, password string) error {
-	// Engine boots off the UI thread; vault+DB init is blocking I/O.
 	eng, err := bootstrap.Init(
 		dir,
 		filepath.Join(dir, "cache"),
 		filepath.Join(dir, "downloads"),
 		password,
-		nil, // events are subscribed by the GUI (it needs its own callback)
+		nil,
 	)
 	if err != nil {
 		return fmt.Errorf("engine init: %w", err)
@@ -69,23 +56,15 @@ func run(w *app.Window, dir, password string) error {
 
 	ui := gui.New(w, eng)
 	ui.Start()
-	// Own the toast click-through channel (slice 202, Windows): scheme
-	// registration + the single-instance command listener; no-ops on the
-	// other platforms.
 	ui.ServeInstanceCommands(dir)
-	defer ui.Shutdown() // release the tray icon on exit (slice 137)
+	defer ui.Shutdown()
 
 	var ops op.Ops
 	for {
 		e := w.Event()
-		// The file explorer needs every window event (ViewEvent on mobile).
 		ui.ListenEvents(e)
 		switch e := e.(type) {
 		case app.DestroyEvent:
-			// Multi-window chats (slice 168): closing the main window quits
-			// the app — close every separate window and wait for their loops
-			// to exit before the engine tears down (no live frames race the
-			// shutdown).
 			gui.CloseSeparateWindowsAndWait()
 			return e.Err
 		case app.FrameEvent:

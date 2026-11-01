@@ -6,19 +6,11 @@ import (
 	"testing"
 )
 
-// B-6 → (F-62): MSC3401 membership layer for full-mesh group calls.
-// This file pins the PURE state machine first: content encode/parse,
-// expiry filtering (spec: expired devices are ignored), renewal
-// timing, and the full-mesh marker (empty foci). Transport and mesh
-// wiring follow in later slices.
-//
-// Seam-RED (WORKLOG 294): undefined: buildGroupMemberContent.
-
 func TestGroupMemberContentRoundTrip(t *testing.T) {
 	in := matrixCallMemberContent{
 		Calls: []matrixCallMemberCall{{
 			CallID: "conf_abc",
-			Foci:   nil, // empty foci = full-mesh (Tier 1)
+			Foci:   nil,
 			Devices: []matrixCallDevice{{
 				DeviceID:  "DEV1",
 				SessionID: "sess1",
@@ -55,8 +47,6 @@ func TestGroupMemberContentRoundTrip(t *testing.T) {
 	}
 }
 
-// TestGroupMemberJSONShape: the wire keys must be MSC3401's literal
-// dotted names, not our Go field names.
 func TestGroupMemberJSONShape(t *testing.T) {
 	raw, err := json.Marshal(matrixCallMemberContent{
 		Calls: []matrixCallMemberCall{{
@@ -78,9 +68,6 @@ func TestGroupMemberJSONShape(t *testing.T) {
 	}
 }
 
-// TestLiveDevicesDropsExpired: expired devices must be ignored (MSC3401:
-// expired devices are ignored), live ones kept. now is injected — no
-// wall-clock dependence (F-9 rule).
 func TestLiveDevicesDropsExpired(t *testing.T) {
 	const now int64 = 1_760_000_000_000
 	call := matrixCallMemberCall{
@@ -100,8 +87,6 @@ func TestLiveDevicesDropsExpired(t *testing.T) {
 	}
 }
 
-// TestNextRenewal: membership must be renewed at half the TTL so a
-// dropped update never expires us mid-call.
 func TestNextRenewal(t *testing.T) {
 	const now int64 = 1_760_000_000_000
 	got := matrixNextRenewalAt(now)
@@ -113,7 +98,6 @@ func TestNextRenewal(t *testing.T) {
 	}
 }
 
-// TestNewConfIDUnique: conf ids must differ across calls.
 func TestNewConfIDUnique(t *testing.T) {
 	a, b := matrixNewConfID(), matrixNewConfID()
 	if a == b || len(a) < 8 {

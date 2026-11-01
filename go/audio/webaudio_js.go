@@ -11,9 +11,6 @@ import (
 
 const audioAvailable = true
 
-// webDevice uses the browser's WebAudio API for playback and
-// getUserMedia + WebAudio for capture. Everything runs through
-// syscall/js — pure Go, same GUI code.
 type webDevice struct {
 	mu sync.Mutex
 
@@ -21,18 +18,10 @@ type webDevice struct {
 	ctxRate float64
 
 	playNode  js.Value
-	playFn    js.Func // keep the Go callback alive
+	playFn    js.Func
 	playFnSet bool
 	playFill  func(out []int16)
 
-	// micStop is the LIVE attempt's stop channel; it is non-nil from
-	// startMic until the attempt is ended (stopMic or a rejected
-	// getUserMedia), which is exactly the "mic already running" window.
-	// micDone closes when that attempt's cleanup goroutine finished.
-	// Everything else a mic attempt needs lives in per-attempt locals
-	// captured by its own goroutine, so overlapping attempts (a failed
-	// one unwinding while a fresh one starts) never touch each other's
-	// js.Funcs (risk R2).
 	micStop chan struct{}
 	micDone chan struct{}
 }
@@ -52,7 +41,6 @@ func openDevice() (device, error) {
 	return &webDevice{ctx: ctx, ctxRate: rate}, nil
 }
 
-// resample linearly maps 48 kHz samples to the context's rate.
 func resample(in []int16, fromRate, toRate float64) []int16 {
 	if fromRate == toRate || len(in) == 0 {
 		return in
@@ -76,7 +64,6 @@ func resample(in []int16, fromRate, toRate float64) []int16 {
 	return out
 }
 
-// startPlayback streams fill() through a ScriptProcessorNode.
 func (d *webDevice) startPlayback(fill func(out []int16)) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -94,7 +81,6 @@ func (d *webDevice) startPlayback(fill func(out []int16)) error {
 			scratch = make([]int16, n)
 		}
 		fill(scratch[:n])
-		// 48k fill → context rate (no-op when equal).
 		out := resample(scratch[:n], 48000, d.ctxRate)
 		for i := 0; i < n && i < len(out); i++ {
 			ch.SetIndex(i, float64(out[i])/32768)
@@ -129,8 +115,6 @@ func (d *webDevice) stopPlayback() {
 	d.playFill = nil
 }
 
-// startMic captures getUserMedia audio and repackages it into 20 ms
-// 48 kHz s16le frames.
 func (d *webDevice) startMic() (<-chan []byte, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -151,20 +135,11 @@ func (d *webDevice) startMic() (<-chan []byte, error) {
 	constraints.Set("audio", audio)
 
 	promise := media.Call("getUserMedia", constraints)
-	// The promise resolves asynchronously; wire the node up in the
-	// then-callback while the frame channel exists from the start.
 	frames := make(chan []byte, 8)
 	stop := make(chan struct{})
 	done := make(chan struct{})
 	d.micStop, d.micDone = stop, done
 
-	// endMicAttempt is the single "this attempt is over" transition: it
-	// un-publishes the attempt from the device exactly once (so a fresh
-	// startMic may begin immediately) and releases the cleanup goroutine.
-	// The identity check under the mutex is the close guard: if stopMic
-	// already ended this attempt (permission dialog still open), the
-	// channel is closed and nil-published, and a late failure callback
-	// must not close it twice.
 	endMicAttempt := func() {
 		d.mu.Lock()
 		defer d.mu.Unlock()
@@ -174,14 +149,11 @@ func (d *webDevice) startMic() (<-chan []byte, error) {
 		}
 	}
 
-	var pending []float64 // banked input samples at the mic's rate
+	var pending []float64
 	var micRate float64
 	fn := js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 		buf := args[0].Get("inputBuffer")
 		if micRate == 0 {
-			// The rate lives on the AudioBuffer; the channel data it
-			// hands out has no such property (reading it there was a
-			// first-callback panic — R3).
 			micRate = buf.Get("sampleRate").Float()
 			if micRate == 0 {
 				micRate = 48000
@@ -192,15 +164,8 @@ func (d *webDevice) startMic() (<-chan []byte, error) {
 		for i := 0; i < n; i++ {
 			pending = append(pending, ch.Index(i).Float())
 		}
-		// Emit 20 ms 48 kHz s16 frames. Browsers may run the context at
-		// its own rate despite the requested 48000 (older Safari) — the
-		// bank is resampled from micRate to 48k, so framing and pitch
-		// stay correct (R3). At 48k the interpolation collapses to a
-		// bit-exact passthrough.
 		const outRate = 48000.0
-		step := micRate * 960 / outRate // input samples per output frame
-		// The last output sample interpolates at input position
-		// step*959/960; one input beyond it must exist.
+		step := micRate * 960 / outRate
 		need := int(step*959/960) + 2
 		for len(pending) >= need {
 			frame := make([]byte, 1920)
@@ -231,16 +196,13 @@ func (d *webDevice) startMic() (<-chan []byte, error) {
 		return nil
 	})
 
-	// node/stream are this attempt's js handles, published by setup and
-	// torn down by the cleanup goroutine below — both see the same
-	// per-attempt values, never another attempt's.
 	var node, stream js.Value
 	setup := js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 		d.mu.Lock()
 		defer d.mu.Unlock()
 		select {
 		case <-stop:
-			return nil // stopped while permission dialog was open
+			return nil
 		default:
 		}
 		stream = args[0]
@@ -248,8 +210,6 @@ func (d *webDevice) startMic() (<-chan []byte, error) {
 		n := d.ctx.Get("createScriptProcessor").Invoke(2048, 1, 1)
 		n.Set("onaudioprocess", fn)
 		src.Call("connect", n)
-		// A ScriptProcessor needs a destination to actually run; route
-		// it through a zero-gain node so nothing is echoed.
 		zero := d.ctx.Get("createGain").Invoke()
 		zero.Get("gain").Set("value", 0)
 		n.Call("connect", zero)
@@ -260,9 +220,6 @@ func (d *webDevice) startMic() (<-chan []byte, error) {
 		node = n
 		return nil
 	})
-	// A rejected getUserMedia is an honest mic-end for the reader AND an
-	// attempt-end for cleanup — without the second half the attempt's
-	// goroutine and all its js.Funcs leaked forever (risk R2).
 	failed := js.FuncOf(func(this js.Value, args []js.Value) interface{} {
 		close(frames)
 		endMicAttempt()
@@ -270,10 +227,6 @@ func (d *webDevice) startMic() (<-chan []byte, error) {
 	})
 	promise.Call("then", setup, failed)
 
-	// One cleanup goroutine per attempt, owning ONLY this attempt's
-	// resources. It cannot race a newer attempt: every value it touches
-	// is captured here, and the js teardown happens at most once per
-	// attempt because `stop` closes exactly once.
 	go func() {
 		defer close(done)
 		<-stop

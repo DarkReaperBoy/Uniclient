@@ -1,12 +1,5 @@
 package gui
 
-// Sticker pack info/add (AyuGram parity slice 108): sticker messages gain
-// a context-menu "View sticker pack" — a card dialog over the engine's
-// sticker-set info (title, count, kind, installed state, thumbnail grid)
-// with an Install button dispatching engine.InstallStickerSet. Set keys
-// parse from the message's cached MediaExtra; sticker messages without
-// keys (or cores without the fetcher) honestly get no menu item (§1.10).
-
 import (
 	"encoding/json"
 	"image"
@@ -22,7 +15,6 @@ import (
 	"uniclient/engine"
 )
 
-// stickerSetDlgState is the open sticker-pack dialog.
 type stickerSetDlgState struct {
 	accountID  string
 	shortName  string
@@ -34,8 +26,6 @@ type stickerSetDlgState struct {
 	err     string
 }
 
-// stickerSetKeys parses the pack identifier from a sticker message's
-// cached media extra (pure).
 func stickerSetKeys(m engine.CachedMessage) (shortName string, setID, accessHash int64, ok bool) {
 	if m.MediaType != engine.MediaSticker || m.MediaExtra == "" {
 		return "", 0, 0, false
@@ -57,13 +47,11 @@ func stickerSetKeys(m engine.CachedMessage) (shortName string, setID, accessHash
 	return "", 0, 0, false
 }
 
-// stickerPackMenuGate: which messages offer the pack dialog item.
 func stickerPackMenuGate(m engine.CachedMessage) bool {
 	_, _, _, ok := stickerSetKeys(m)
 	return ok
 }
 
-// stickerPackSummaryLabel renders the count line.
 func stickerPackSummaryLabel(s *cores.StickerSetResult) string {
 	switch {
 	case s == nil || s.Count == 0:
@@ -75,7 +63,6 @@ func stickerPackSummaryLabel(s *cores.StickerSetResult) string {
 	}
 }
 
-// stickerPackKindLabel renders the pack kind line.
 func stickerPackKindLabel(s *cores.StickerSetResult) string {
 	if s == nil {
 		return "static"
@@ -91,13 +78,10 @@ func stickerPackKindLabel(s *cores.StickerSetResult) string {
 	return "static"
 }
 
-// ── state transitions ─────────────────────────────────────────────────────
-
 var (
 	stickerSetKeyTag = new(struct{})
 )
 
-// openStickerSetDialog opens the pack viewer for a sticker message.
 func (a *App) openStickerSetDialog(m *engine.CachedMessage) {
 	if m == nil {
 		return
@@ -135,7 +119,6 @@ func (a *App) openStickerSetDialog(m *engine.CachedMessage) {
 	}()
 }
 
-// closeStickerSetDialog dismisses it.
 func (a *App) closeStickerSetDialog() {
 	a.mu.Lock()
 	a.stickerSetDlg = nil
@@ -143,7 +126,6 @@ func (a *App) closeStickerSetDialog() {
 	a.invalidate()
 }
 
-// installStickerSet dispatches the engine install.
 func (a *App) installStickerSet(d *stickerSetDlgState) {
 	if d == nil || d.set == nil {
 		return
@@ -168,13 +150,9 @@ func (a *App) installStickerSet(d *stickerSetDlgState) {
 	}()
 }
 
-// ── layout ────────────────────────────────────────────────────────────────
-
-// layoutStickerSetDialog renders the pack card (msgDetail card pattern).
 func (a *App) layoutStickerSetDialog(gtx layout.Context, f frame) layout.Dimensions {
 	d := f.stickerSetDlg
 
-	// Keyboard: Esc closes.
 	{
 		stack := clip.Rect{Max: gtx.Constraints.Max}.Push(gtx.Ops)
 		event.Op(gtx.Ops, stickerSetKeyTag)
@@ -222,7 +200,6 @@ func (a *App) layoutStickerSetDialog(gtx layout.Context, f frame) layout.Dimensi
 		return roundedFill(gtx, a.ui.p.Surface, 14, func(gtx layout.Context) layout.Dimensions {
 			return layout.UniformInset(unit.Dp(16)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-					// Header: title + close.
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 							layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
@@ -236,7 +213,6 @@ func (a *App) layoutStickerSetDialog(gtx layout.Context, f frame) layout.Dimensi
 							}),
 						)
 					}),
-					// Status / summary / install.
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							switch {
@@ -276,8 +252,6 @@ func (a *App) layoutStickerSetDialog(gtx layout.Context, f frame) layout.Dimensi
 							}
 						})
 					}),
-					// Sticker grid (5 columns, thumbnails only — the
-					// a.wid.composer picker's cell rendering).
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						if len(stickers) == 0 {
 							return layout.Dimensions{}

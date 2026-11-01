@@ -6,7 +6,6 @@ import (
 	"uniclient/cores"
 )
 
-// selfStub: a core exposing SelfUserID (the Saved-Messages capability).
 type selfStub struct {
 	cores.StubCore
 	selfID string
@@ -51,8 +50,6 @@ func TestSavedMessagesChatID(t *testing.T) {
 func TestOpenSavedMessagesIdempotent(t *testing.T) {
 	e := newTestEngine(t)
 	e.accounts = map[string]*Account{"tg": {ID: "tg", Core: selfStub{selfID: "42"}}}
-	// The chats table references accounts(id); ConnectAccount inserts that
-	// row in real flows — mirror it here.
 	if _, err := e.db.Exec(
 		`INSERT OR IGNORE INTO accounts (id, platform, display_name, sort_order, created_at)
                  VALUES ('tg', 'telegram', 'Test', 0, 0)`); err != nil {

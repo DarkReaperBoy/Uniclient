@@ -7,7 +7,6 @@ import (
 	"uniclient/cores"
 )
 
-// seedChat inserts a minimal chat row for mute tests.
 func seedChatRow(t *testing.T, e *Engine, chatID string) {
 	t.Helper()
 	_, err := e.db.Exec(
@@ -33,8 +32,6 @@ func getChatRow(t *testing.T, e *Engine, chatID string) ChatInfo {
 	return ChatInfo{}
 }
 
-// TestMuteChatTimedStoresUntil: a timed mute must persist mute_until ≈
-// now + duration so the UI can show the remaining time.
 func TestMuteChatTimedStoresUntil(t *testing.T) {
 	e := newTestEngine(t)
 	seedChatRow(t, e, "100")
@@ -52,7 +49,6 @@ func TestMuteChatTimedStoresUntil(t *testing.T) {
 	}
 }
 
-// TestMuteChatForeverClearsUntil: muting forever must clear any expiry.
 func TestMuteChatForeverClearsUntil(t *testing.T) {
 	e := newTestEngine(t)
 	seedChatRow(t, e, "100")
@@ -68,7 +64,6 @@ func TestMuteChatForeverClearsUntil(t *testing.T) {
 	}
 }
 
-// TestMuteChatUnmuteClearsUntil: unmuting clears both flag and expiry.
 func TestMuteChatUnmuteClearsUntil(t *testing.T) {
 	e := newTestEngine(t)
 	seedChatRow(t, e, "100")
@@ -84,8 +79,6 @@ func TestMuteChatUnmuteClearsUntil(t *testing.T) {
 	}
 }
 
-// TestTimedMuteExpiresSweep: a timed mute whose deadline has passed must
-// read back as unmuted (the server unmutes automatically at mute_until).
 func TestTimedMuteExpiresSweep(t *testing.T) {
 	e := newTestEngine(t)
 	seedChatRow(t, e, "100")
@@ -101,7 +94,6 @@ func TestTimedMuteExpiresSweep(t *testing.T) {
 	}
 }
 
-// TestTimedMuteNotExpired: an unexpired timed mute stays muted.
 func TestTimedMuteNotExpired(t *testing.T) {
 	e := newTestEngine(t)
 	seedChatRow(t, e, "100")
@@ -117,8 +109,6 @@ func TestTimedMuteNotExpired(t *testing.T) {
 	}
 }
 
-// TestNotifyPeerChatID: the notify-settings peer mapping (tg peer kinds →
-// engine chat-id conventions).
 func TestNotifyPeerChatID(t *testing.T) {
 	cases := []struct {
 		peerType string
@@ -139,8 +129,6 @@ func TestNotifyPeerChatID(t *testing.T) {
 	}
 }
 
-// TestHandleNotifySettingsTimedMute: a server-pushed notify-settings
-// update (cross-device sync) must update the cache, including the expiry.
 func TestHandleNotifySettingsTimedMute(t *testing.T) {
 	e := newTestEngine(t)
 	seedChatRow(t, e, "12345")
@@ -156,26 +144,21 @@ func TestHandleNotifySettingsTimedMute(t *testing.T) {
 		t.Fatalf("MuteUntil = %d, want %d", c.MuteUntil, until)
 	}
 
-	// Unmute push clears it.
 	e.handleUpdate("a1", notifySettingsUpdateForTest("user", 12345, false, 0))
 	c = getChatRow(t, e, "12345")
 	if c.IsMuted || c.MuteUntil != 0 {
 		t.Fatalf("unmute push: muted=%v until=%d, want false/0", c.IsMuted, c.MuteUntil)
 	}
 
-	// Group peer maps to the negative chat-id convention.
 	e.handleUpdate("a1", notifySettingsUpdateForTest("group", 678, true, until))
 	c = getChatRow(t, e, "-678")
 	if !c.IsMuted {
 		t.Fatal("group chat should be muted after notify-settings update")
 	}
 
-	// Default-scope pushes (no chat row) must not crash or touch rows.
 	e.handleUpdate("a1", notifySettingsUpdateForTest("default_group", 0, true, until))
 }
 
-// notifySettingsUpdateForTest builds a cores.Update for the notify-settings
-// path (test seam around the dispatcher payload).
 func notifySettingsUpdateForTest(peerType string, peerID int64, muted bool, until int32) cores.Update {
 	return cores.Update{
 		Type: cores.UpdateNotifySettings,

@@ -1,10 +1,5 @@
 package gui
 
-// Sponsored messages (slice 163): pure derivations locked here — the
-// eligible placements (broadcast channel + bot chat), the channel
-// row-model extension (caption + 1-based ad rows appended after all
-// message rows), and the view-report ledger semantics.
-
 import (
 	"testing"
 
@@ -44,7 +39,6 @@ func TestAppendSponsoredRows(t *testing.T) {
 		{RandomID: "bb", Title: "B"},
 	}
 
-	// Channel with ads: caption + one row per ad, after the messages.
 	got := appendSponsoredRows(append([]chatRow{}, base...), chan1, "", ads)
 	if len(got) != len(base)+3 {
 		t.Fatalf("rows = %d, want %d+3", len(got), len(base))
@@ -59,7 +53,6 @@ func TestAppendSponsoredRows(t *testing.T) {
 			t.Fatalf("ad row %d = %+v", i, r)
 		}
 	}
-	// Message rows untouched (compare the comparable fields).
 	for i := range base {
 		if got[i].day != base[i].day || got[i].msgIdx != base[i].msgIdx ||
 			got[i].unread != base[i].unread || got[i].album != nil {
@@ -67,20 +60,16 @@ func TestAppendSponsoredRows(t *testing.T) {
 		}
 	}
 
-	// No ads → unchanged.
 	if got := appendSponsoredRows(append([]chatRow{}, base...), chan1, "", nil); len(got) != len(base) {
 		t.Fatalf("no-ads rows = %d, want %d", len(got), len(base))
 	}
-	// Non-channel → unchanged (bots use the top bar).
 	bot := &engine.ChatInfo{Type: engine.ChatTypeDMVal, IsBot: true}
 	if got := appendSponsoredRows(append([]chatRow{}, base...), bot, "", ads); len(got) != len(base) {
 		t.Fatalf("bot rows = %d, want %d (top bar placement)", len(got), len(base))
 	}
-	// Topic view inside a channel → unchanged.
 	if got := appendSponsoredRows(append([]chatRow{}, base...), chan1, "12", ads); len(got) != len(base) {
 		t.Fatalf("topic-view rows = %d, want %d", len(got), len(base))
 	}
-	// nil chat → unchanged.
 	if got := appendSponsoredRows(append([]chatRow{}, base...), nil, "", ads); len(got) != len(base) {
 		t.Fatalf("nil-chat rows = %d, want %d", len(got), len(base))
 	}
@@ -100,9 +89,6 @@ func TestSponsoredViewOnce(t *testing.T) {
 }
 
 func TestAppendSimilarRow(t *testing.T) {
-	// Slice 167: the similar-channels block appends after the sponsored
-	// block for broadcast channels only (hide=false, collapsed=false —
-	// the settings gating itself is pinned in similar_settings_test.go).
 	chan1 := &engine.ChatInfo{Type: engine.ChatTypeChanVal}
 	base := []chatRow{{msgIdx: 0}}
 	if got := appendSimilarRow(append([]chatRow{}, base...), chan1, "", 3, false, false); len(got) != len(base)+1 || !got[len(got)-1].simBlock {

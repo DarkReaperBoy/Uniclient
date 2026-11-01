@@ -1,9 +1,5 @@
 package cores
 
-// telegram_earn_test.go — slice 213 tests-first: the stars-revenue
-// withdrawal request builder (ton vs amount flag mapping, SRP payload
-// choice — tdesktop HandleWithdrawalButton semantics).
-
 import (
 	"testing"
 
@@ -14,7 +10,6 @@ func TestWithdrawStarsRevenueRequest(t *testing.T) {
 	peer := &tg.InputPeerChannel{ChannelID: 42, AccessHash: 7}
 	empty := &tg.InputCheckPasswordEmpty{}
 
-	// TON mode: f_ton only, amount unset (channel revenue — full balance).
 	req := withdrawStarsRevenueRequest(peer, true, 0, empty)
 	if !req.Ton {
 		t.Error("ton flag missing")
@@ -29,7 +24,6 @@ func TestWithdrawStarsRevenueRequest(t *testing.T) {
 		t.Errorf("password = %T, want empty check", req.Password)
 	}
 
-	// Stars mode: f_amount (nanostars), no ton flag.
 	srp := &tg.InputCheckPasswordSRP{SRPID: 99}
 	req2 := withdrawStarsRevenueRequest(peer, false, 500_000_000_000, srp)
 	if req2.Ton {

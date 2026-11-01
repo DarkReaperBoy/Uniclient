@@ -10,9 +10,6 @@ import (
 	"github.com/coder/websocket"
 )
 
-// baleWSDial connects to the Bale WebSocket endpoint with browser-impersonation
-// headers (cookie auth, UA, Origin). Native only — browsers cannot set
-// Cookie/User-Agent/Origin headers on a WebSocket handshake.
 func baleWSDial(ctx context.Context, url, token string) (*websocket.Conn, error) {
 	headers := http.Header{}
 	headers.Set("Cookie", "access_token="+token)

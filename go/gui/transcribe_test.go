@@ -6,10 +6,6 @@ import (
 	"uniclient/engine"
 )
 
-// Voice-note transcription (slice 115) — pure decision logic: glyph
-// visibility, pending/final text routing, collapse depth. The engine-side
-// store/update/event chain is pinned in engine/transcription_test.go.
-
 func voiceMsg() *engine.CachedMessage {
 	return &engine.CachedMessage{
 		AccountID: "a",
@@ -23,7 +19,6 @@ func voiceMsg() *engine.CachedMessage {
 func TestTranscribeWanted(t *testing.T) {
 	m := voiceMsg()
 
-	// Capability gate first: no core support → no button.
 	if transcribeWanted(m, false) {
 		t.Fatal("glyph must hide without core support")
 	}
@@ -31,28 +26,24 @@ func TestTranscribeWanted(t *testing.T) {
 		t.Fatal("glyph must show for an untranscribed voice message")
 	}
 
-	// Non-voice media → hidden.
 	photo := voiceMsg()
 	photo.MediaType = engine.MediaImage
 	if transcribeWanted(photo, true) {
 		t.Fatal("glyph must hide for non-voice media")
 	}
 
-	// Already transcribed → the text block takes over.
 	done := voiceMsg()
 	done.TranscriptionText = "hello"
 	if transcribeWanted(done, true) {
 		t.Fatal("glyph must hide when text exists")
 	}
 
-	// Pending (in flight) → hidden too.
 	pend := voiceMsg()
 	pend.TranscriptionPending = true
 	if transcribeWanted(pend, true) {
 		t.Fatal("glyph must hide while pending")
 	}
 
-	// Nil safety.
 	if transcribeWanted(nil, true) {
 		t.Fatal("nil message must not show the glyph")
 	}
@@ -67,7 +58,6 @@ func TestTranscriptLabelText(t *testing.T) {
 	if got := transcriptLabelText(pend); got != "Transcribing…" {
 		t.Fatalf("pending text = %q", got)
 	}
-	// Partial text while pending renders the partial (server pushed a draft).
 	pend.TranscriptionText = "partial draf"
 	if got := transcriptLabelText(pend); got != "partial draf" {
 		t.Fatalf("pending partial = %q", got)
@@ -77,7 +67,6 @@ func TestTranscriptLabelText(t *testing.T) {
 	if got := transcriptLabelText(final); got != "the final words" {
 		t.Fatalf("final text = %q", got)
 	}
-	// No transcription at all → no block.
 	if got := transcriptLabelText(voiceMsg()); got != "" {
 		t.Fatalf("unrequested text = %q", got)
 	}
@@ -108,8 +97,6 @@ func TestTranscriptClickablesStable(t *testing.T) {
 	if k1 == k2 {
 		t.Fatal("different messages must key differently")
 	}
-	// Two invocations split across variables — same determinism check,
-	// SA4000-clean syntax (staticcheck flagged the identical pair).
 	cStable1 := a.transcribeClickable(k1)
 	cStable2 := a.transcribeClickable(k1)
 	if cStable1 != cStable2 {

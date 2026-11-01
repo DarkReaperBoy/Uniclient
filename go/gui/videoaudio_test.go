@@ -1,14 +1,5 @@
 package gui
 
-// tests-first for slice 225: the glue between the picture (h264 player)
-// and the sound (engine AAC playback), plus the volume slider that closes
-// parity row 276.
-//
-// The pure decisions are table-tested here without a device, an engine or
-// a fixture: which playback a control is allowed to touch, whether a
-// looping clip must re-arm its audio, and whether a failure means "this
-// clip is simply silent" (quiet, correct) or a real problem (toast).
-
 import (
 	"errors"
 	"fmt"
@@ -17,8 +8,6 @@ import (
 	"uniclient/aacaud"
 	"uniclient/engine"
 )
-
-// ── identity: a control may only move ITS message's audio ───────────────
 
 func TestVideoAudioMine(t *testing.T) {
 	playing := engine.PlaybackState{MsgID: "m1", Playing: true}
@@ -36,9 +25,6 @@ func TestVideoAudioMine(t *testing.T) {
 		{"ours paused", paused, "m1", true},
 		{"someone else's track", other, "m1", false},
 		{"nothing playing", idle, "m1", false},
-		// The empty msgID case is the one that matters most: every video
-		// shares "", so treating it as "mine" would let any pause button
-		// stop whatever else is playing.
 		{"empty msg id is never ours", playing, "", false},
 		{"empty state", idle, "", false},
 	}
@@ -49,8 +35,6 @@ func TestVideoAudioMine(t *testing.T) {
 	}
 }
 
-// ── failures: silent clip (quiet) vs real failure (says so) ─────────────
-
 func TestIsSilentVideoErr(t *testing.T) {
 	cases := []struct {
 		name string
@@ -59,8 +43,6 @@ func TestIsSilentVideoErr(t *testing.T) {
 	}{
 		{"nil", nil, false},
 		{"direct ErrNoAudio", aacaud.ErrNoAudio, true},
-		// decodeMp4Audio wraps it ("mp4: ..."), so the unwrapped check
-		// would miss the only error that means "correctly silent".
 		{"wrapped ErrNoAudio", fmt.Errorf("mp4: %w", aacaud.ErrNoAudio), true},
 		{"wrapped twice", fmt.Errorf("media: %w", fmt.Errorf("mp4: %w", aacaud.ErrNoAudio)), true},
 		{"unsupported (HE-AAC)", fmt.Errorf("mp4: %w", aacaud.ErrUnsupported), false},
@@ -74,15 +56,13 @@ func TestIsSilentVideoErr(t *testing.T) {
 	}
 }
 
-// ── loop sync: a looping picture must not outrun silent sound ───────────
-
 func TestVideoAudioShouldLoop(t *testing.T) {
 	const dur = 1.0
 	cases := []struct {
 		name  string
 		mine  bool
 		video bool
-		aud   bool // hasAudio
+		aud   bool
 		aPlay bool
 		aPaus bool
 		pos   float64
@@ -108,12 +88,6 @@ func TestVideoAudioShouldLoop(t *testing.T) {
 	}
 }
 
-// ── volume: the slider's two halves ─────────────────────────────────────
-
-// The slider reads one value and writes one value; both go through the
-// engine, so this covers the read/write pair including clamping — and the
-// persistence path runs against a bare &engine.Engine{} with no config,
-// which used to be a nil dereference in a goroutine (now an error).
 func TestMediaVolumeSliderSources(t *testing.T) {
 	a := &App{eng: &engine.Engine{}}
 
@@ -122,10 +96,10 @@ func TestMediaVolumeSliderSources(t *testing.T) {
 	}
 	for _, c := range []struct{ in, want float64 }{
 		{0.4, 0.4},
-		{0, 0}, // mute must be readable, not mistaken for "unset"
+		{0, 0},
 		{0.75, 0.75},
-		{9, 1},  // clamped up
-		{-2, 0}, // clamped down
+		{9, 1},
+		{-2, 0},
 	} {
 		a.setMediaVolume(c.in)
 		if got := a.mediaVolume(); got != c.want {
@@ -134,11 +108,8 @@ func TestMediaVolumeSliderSources(t *testing.T) {
 	}
 }
 
-// Every helper must be safe on a bare App — the render path can reach
-// them before an engine exists (tests, and any frame drawn during
-// start-up). No panics, no state changes.
 func TestVideoAudioHelpersTolerateMissingEngine(t *testing.T) {
-	a := &App{} // deliberately no engine, no UI
+	a := &App{}
 	a.videoAudioPlay("acct", "chat", "m1", "some.mp4")
 	a.viewerVideoAudioPlay(engine.SharedMediaItem{MsgID: "m1", LocalPath: "x.mp4"})
 	a.videoAudioPause("m1")

@@ -11,15 +11,6 @@ import (
 	"uniclient/voice"
 )
 
-// In-app MP3 playback (slice 185, parity row "Audio file"): music files
-// decode through the pure-Go go-mp3 decoder, mix down to mono and
-// linearly resample to the player's 48 kHz — the same PCM pipeline the
-// Opus voice path uses, so play/pause/speed/seek-elapsed all work
-// in-app. Non-Opus non-MP3 files keep the system-player handoff
-// (§1.10).
-
-// IsMp3 reports whether the file at path looks like MPEG audio: an
-// ID3v2 header or a raw MPEG frame sync. Sniffs the first 512 bytes.
 func IsMp3(path string) bool {
 	f, err := os.Open(path)
 	if err != nil {
@@ -31,15 +22,12 @@ func IsMp3(path string) bool {
 	if n < 4 {
 		return false
 	}
-	_ = err // a short read is fine — we only sniff what we got
-	// ID3v2: "ID3" + version bytes.
+	_ = err
 	if string(buf[:3]) == "ID3" {
 		return true
 	}
-	// MPEG frame sync: 11 set bits (0xFF then 0xE0 mask).
 	for i := 0; i+1 < n; i++ {
 		if buf[i] == 0xFF && buf[i+1]&0xE0 == 0xE0 {
-			// Layer bits (buf[i+1] bits 4..5) must not be reserved.
 			layer := (buf[i+1] >> 1) & 0x3
 			if layer != 0 {
 				return true
@@ -49,14 +37,10 @@ func IsMp3(path string) bool {
 	return false
 }
 
-// IsInAppPlayable: the file decodes through one of the in-app decoders
-// (Ogg/Opus, MP3, or the AAC track of an MP4 — slice 224).
 func IsInAppPlayable(path string) bool {
 	return IsOpusOgg(path) || IsMp3(path) || IsMp4(path)
 }
 
-// mixdownStereo averages interleaved stereo pairs into mono; mono input
-// passes through; a dangling odd sample drops. Pure — unit-tested.
 func mixdownStereo(in []int16) []int16 {
 	if len(in) < 2 {
 		return in
@@ -68,9 +52,6 @@ func mixdownStereo(in []int16) []int16 {
 	return out
 }
 
-// resampleLinear resamples mono PCM between sample rates with linear
-// interpolation. Same-rate and degenerate inputs pass through. Pure —
-// unit-tested.
 func resampleLinear(in []int16, from, to int) []int16 {
 	if len(in) == 0 || from <= 0 || to <= 0 || from == to {
 		return in
@@ -97,9 +78,6 @@ func resampleLinear(in []int16, from, to int) []int16 {
 	return out
 }
 
-// decodeMp3 decodes an MPEG audio file into mono 48 kHz PCM through
-// the pure-Go go-mp3 decoder (stereo mixes down; the source rate
-// linearly resamples to the player's fixed 48 kHz).
 func decodeMp3(path string) ([]int16, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -117,7 +95,6 @@ func decodeMp3(path string) ([]int16, error) {
 	if len(raw) < 4 {
 		return nil, fmt.Errorf("mp3: no audio in %s", path)
 	}
-	// go-mp3 yields interleaved 16-bit LE stereo at the source rate.
 	samples := make([]int16, len(raw)/2)
 	for i := range samples {
 		samples[i] = int16(binary.LittleEndian.Uint16(raw[i*2 : i*2+2]))

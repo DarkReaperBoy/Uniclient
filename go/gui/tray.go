@@ -2,17 +2,6 @@
 
 package gui
 
-// tray.go — slice 137: the system tray (AyuGram/tdesktop parity).
-//
-// Linux speaks the freedesktop StatusNotifierItem + com.canonical.dbusmenu
-// protocols (via github.com/gogpu/systray, pure Go on godbus — the same D-Bus
-// stack the notification banners use); Windows rides Shell_NotifyIconW
-// through x/sys/windows. The icon is rendered in-process (trayicon.go) and
-// carries the unread counter badge; the menu mirrors AyuGram's tray:
-// Show, per-account rows with unread counts, Ghost mode and Streamer mode
-// toggles, and Quit. The web/Android builds have no system tray at all —
-// the honest absence there is tray_stub.go.
-
 import (
 	"image/color"
 	"log"
@@ -25,11 +14,8 @@ import (
 	"uniclient/utils"
 )
 
-// traySupportedOn reports whether this platform has a system tray at all
-// (drives the settings toggle's visibility — no dead UI, §1.10).
 const traySupportedOn = true
 
-// trayController owns the platform tray icon + menu for the app lifetime.
 type trayController struct {
 	a    *App
 	tray *systray.SystemTray
@@ -37,28 +23,24 @@ type trayController struct {
 	mu   sync.Mutex
 	snap traySnapshot
 
-	// menu item handles for live updates
 	miAccounts []*systray.MenuItem
 	miGhost    *systray.MenuItem
 	miStream   *systray.MenuItem
 
-	// last rendered icon state (dedupes regeneration)
 	iconCount  int
 	iconAccent color.NRGBA
-	iconSetID  string // selected app icon set (slice 170)
+	iconSetID  string
 
 	once sync.Once
 }
 
-// startTray creates the tray for the app. Never nil: the library absorbs
-// a missing tray service (registration retries when a watcher appears).
 func startTray(a *App) *trayController {
 	c := &trayController{a: a}
 	c.iconAccent = a.initialTrayAccent()
 	c.tray = systray.New()
 	c.tray.SetAppName("Uniclient")
 	c.tray.SetTooltip("Uniclient")
-	c.tray.OnClick(func() { // hosts that send Activate despite ItemIsMenu
+	c.tray.OnClick(func() {
 		c.showWindow()
 	})
 	{
@@ -77,13 +59,10 @@ func startTray(a *App) *trayController {
 	return c
 }
 
-// initialTrayAccent snapshots the accent for the first icon (safe on the
-// boot path — Start runs before the frame loop starts).
 func (a *App) initialTrayAccent() color.NRGBA {
 	return a.ui.p.Accent
 }
 
-// buildMenu constructs the tray menu for a snapshot (AyuGram layout).
 func (c *trayController) buildMenu(snap traySnapshot) {
 	m := systray.NewMenu()
 	m.Add("Show UniClient", c.showWindow)
@@ -111,8 +90,6 @@ func (c *trayController) buildMenu(snap traySnapshot) {
 	c.tray.SetMenu(m)
 }
 
-// sync pushes a fresh snapshot: badge icon, tooltip, account labels,
-// checkbox states. Cheap when nothing changed.
 func (c *trayController) sync(snap traySnapshot, accent color.NRGBA, iconSetCfg cfgSnapshot) {
 	c.mu.Lock()
 	prev := c.snap
@@ -124,8 +101,6 @@ func (c *trayController) sync(snap traySnapshot, accent color.NRGBA, iconSetCfg 
 		c.iconCount = snap.TotalUnread
 		c.iconAccent = accent
 		c.iconSetID = set.ID
-		// Slice 170: the tray shows the selected app icon set (AyuGram's
-		// tray uses the current app logo) with the unread badge on top.
 		c.tray.SetIcon(renderTrayIconForSetPNG(128, set, accent, snap.TotalUnread))
 	}
 
@@ -135,7 +110,6 @@ func (c *trayController) sync(snap traySnapshot, accent color.NRGBA, iconSetCfg 
 	}
 	c.tray.SetTooltip(tooltip)
 
-	// The account set changes rarely; relabel in place otherwise.
 	if accountSetChanged(snap.Accounts, prev.Accounts) {
 		c.buildMenu(snap)
 		return
@@ -153,7 +127,6 @@ func (c *trayController) sync(snap traySnapshot, accent color.NRGBA, iconSetCfg 
 	}
 }
 
-// accountSetChanged reports whether the account rows differ by ID/name.
 func accountSetChanged(a, b []trayAccount) bool {
 	if len(a) != len(b) {
 		return true
@@ -166,23 +139,18 @@ func accountSetChanged(a, b []trayAccount) bool {
 	return false
 }
 
-// showWindow raises the main window (tray "Show", tdesktop behavior).
 func (c *trayController) showWindow() {
 	if w := c.a.win; w != nil {
 		w.Perform(system.ActionRaise)
 	}
 }
 
-// quitApp closes the main window; the normal shutdown path (DestroyEvent)
-// stops the engine and exits.
 func (c *trayController) quitApp() {
 	if w := c.a.win; w != nil {
 		w.Perform(system.ActionClose)
 	}
 }
 
-// switchAccount scopes the sidebar to one account (same path as the
-// drawer account rows).
 func (c *trayController) switchAccount(accountID string) {
 	a := c.a
 	a.mu.Lock()
@@ -198,8 +166,6 @@ func (c *trayController) switchAccount(accountID string) {
 	a.invalidate()
 }
 
-// toggleGhost flips the AyuGram master ghost profile (the same eight
-// flags as the drawer toggle).
 func (c *trayController) toggleGhost() {
 	c.mu.Lock()
 	on := !c.snap.Ghost
@@ -211,7 +177,6 @@ func (c *trayController) toggleGhost() {
 	c.a.setGhostAll(on)
 }
 
-// toggleStreamer flips streamer mode (same call as the drawer toggle).
 func (c *trayController) toggleStreamer() {
 	c.mu.Lock()
 	on := !c.snap.Streamer
@@ -223,7 +188,6 @@ func (c *trayController) toggleStreamer() {
 	c.a.applyStreamer(on)
 }
 
-// stop removes the tray icon and releases D-Bus resources (idempotent).
 func (c *trayController) stop() {
 	c.once.Do(func() {
 		if c.tray != nil {
@@ -232,8 +196,6 @@ func (c *trayController) stop() {
 	})
 }
 
-// updateTray is the App-side hook: project state + push to the tray.
-// Called from the refresh paths (accounts/chats/config changes).
 func (a *App) updateTray() {
 	a.mu.Lock()
 	snap := traySnapshotFrom(a.accounts, a.chats, a.cfg)
@@ -241,9 +203,6 @@ func (a *App) updateTray() {
 	cfg := a.cfg
 	tr := a.tray
 	a.mu.Unlock()
-	// Windows taskbar overlay badge (slice 153): the same unread total
-	// rides the taskbar button; independent of the tray icon so it works
-	// with the tray turned off too.
 	updateTaskbarBadge(snap.TotalUnread, accent)
 	if tr == nil {
 		return
@@ -251,7 +210,6 @@ func (a *App) updateTray() {
 	tr.sync(snap, accent, cfg)
 }
 
-// startTrayIfNeeded boots the tray when the config enables it.
 func (a *App) startTrayIfNeeded() {
 	a.mu.Lock()
 	already := a.tray != nil
@@ -271,7 +229,6 @@ func (a *App) startTrayIfNeeded() {
 	_ = accent
 }
 
-// stopTray shuts the tray down (config toggle off or app exit).
 func (a *App) stopTray() {
 	a.mu.Lock()
 	tr := a.tray
@@ -280,6 +237,4 @@ func (a *App) stopTray() {
 	if tr != nil {
 		tr.stop()
 	}
-	// the taskbar overlay is independent of the tray icon — it keeps
-	// running until app Shutdown (slice 153)
 }

@@ -1,9 +1,5 @@
 package qrscan
 
-// Hostile-input fuzzing for the QR scanner entry points (slice 255):
-// scanned images are attacker-supplied — DecodeBytes/DecodeImage must
-// never panic (§1.10: fail the scan, never kill the camera session).
-
 import (
 	"image"
 	"image/color"
@@ -17,7 +13,7 @@ func FuzzDecodeBytes(f *testing.F) {
 	f.Add([]byte{0xFF, 0xD8, 0xFF, 0xE0})
 	f.Add([]byte("no image at all"))
 	f.Fuzz(func(t *testing.T, data []byte) {
-		_, _ = DecodeBytes(data) // error is fine; a panic is not
+		_, _ = DecodeBytes(data)
 	})
 }
 

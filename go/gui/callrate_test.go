@@ -7,22 +7,15 @@ import (
 	"uniclient/cores"
 )
 
-// Call rating dialog (slice 179, parity row "Call rating dialog"):
-// pure logic — after-call gating, star selection, send payload. Layout
-// verified by compile + review.
-
 func TestCallRateGating(t *testing.T) {
-	// Short calls (< minRateCallDur) never rate.
 	c := &callUI{state: string(cores.CallStateActive), startedAt: time.Now().Add(-4 * time.Second)}
 	if callRateable(c, time.Now()) {
 		t.Fatal("4s call must not be rateable")
 	}
-	// Missed/declined (never active) never rate.
 	c2 := &callUI{state: string(cores.CallStateEnded)}
 	if callRateable(c2, time.Now()) {
 		t.Fatal("never-active call must not be rateable")
 	}
-	// A real conversation is rateable.
 	c3 := &callUI{
 		state:     string(cores.CallStateEnded),
 		startedAt: time.Now().Add(-2 * time.Minute),
@@ -31,7 +24,6 @@ func TestCallRateGating(t *testing.T) {
 	if !callRateable(c3, time.Now()) {
 		t.Fatal("2-minute ended call must be rateable")
 	}
-	// Ended long after start but still measured from startedAt.
 	c4 := &callUI{
 		state:     string(cores.CallStateEnded),
 		startedAt: time.Now().Add(-minRateCallDur - time.Second),
@@ -51,11 +43,10 @@ func TestCallRateStars(t *testing.T) {
 	if st.stars != 3 || !st.valid() {
 		t.Fatalf("stars = %d valid=%v", st.stars, st.valid())
 	}
-	st.setStars(3) // tapping the same star again is a no-op
+	st.setStars(3)
 	if st.stars != 3 {
 		t.Fatalf("second tap on same star changed it to %d", st.stars)
 	}
-	// Out-of-range taps are ignored.
 	st2 := &rateCallState{}
 	st2.setStars(6)
 	if st2.stars != 0 {
@@ -72,7 +63,6 @@ func TestCallRatePayload(t *testing.T) {
 	if st.payloadComment() != "" {
 		t.Fatalf("comment = %q", st.payloadComment())
 	}
-	// Send is enabled once stars chosen.
 	if !st.canSend() {
 		t.Fatal("4 stars must be sendable")
 	}

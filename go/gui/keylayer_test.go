@@ -13,12 +13,6 @@ import (
 	"gioui.org/widget"
 )
 
-// TestShortcutsLayerDoesNotBlockPointerInput reproduces the input-freeze
-// regression at unit level: a button rendered UNDER the window-wide
-// keyboard layer (the layoutShortcuts position — last in Root) must still
-// receive clicks. Before the pointer.PassOp fix the opaque hit node at
-// the top of the hit tree short-circuited the hit-test walk for every
-// position and no widget below the layer received pointer events.
 func TestShortcutsLayerDoesNotBlockPointerInput(t *testing.T) {
 	var (
 		r   input.Router
@@ -30,8 +24,6 @@ func TestShortcutsLayerDoesNotBlockPointerInput(t *testing.T) {
 		Source:      r.Source(),
 		Constraints: layout.Exact(image.Pt(800, 600)),
 	}
-	// Frame 1 declares the handlers to the router so the following pointer
-	// events are propagated (mirrors widget/example_test.go).
 	layoutFrame := func() {
 		btn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Dimensions{Size: image.Pt(100, 100)}
@@ -49,11 +41,6 @@ func TestShortcutsLayerDoesNotBlockPointerInput(t *testing.T) {
 	}
 }
 
-// TestShortcutsEscapeReachesLayer checks the layer still receives key
-// events while staying pointer-transparent. Key events are routed with
-// the filters registered by the PREVIOUS frame's drain, so the event is
-// queued between frames and picked up by the next drain — mirroring the
-// real frame cadence.
 func TestShortcutsEscapeReachesLayer(t *testing.T) {
 	var (
 		r   input.Router

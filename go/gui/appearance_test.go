@@ -5,15 +5,12 @@ import (
 	"testing"
 )
 
-// Accent & font scale (slice 59): hex parsing, blending, clamping, and
-// preset integrity.
 func TestParseAccentHex(t *testing.T) {
 	c, ok := parseAccentHex("#4f6ef7")
 	if !ok || c.R != 0x4f || c.G != 0x6e || c.B != 0xf7 || c.A != 0xFF {
 		t.Fatalf("parse = %+v %v", c, ok)
 	}
 	for _, bad := range []string{"", "#12345", "4f6ef7", "#zzzzzz", "#1234567", " #4f6ef7"} {
-		// note: " #4f6ef7" trims to valid — only test truly malformed here
 		if bad == " #4f6ef7" {
 			continue
 		}

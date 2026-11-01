@@ -6,8 +6,6 @@ import (
 	"uniclient/engine"
 )
 
-// Header "..." menu (gui/headermenu.go, slice 15).
-
 func dmChat() engine.ChatInfo {
 	return engine.ChatInfo{AccountID: "a", ChatID: "u1", Type: engine.ChatTypeDMVal, Title: "Alice"}
 }
@@ -82,7 +80,6 @@ func TestHeaderMenuItemsGroupChannel(t *testing.T) {
 	if !actions["leave"] || !actions["clear"] || !actions["profile"] {
 		t.Fatalf("group menu missing rows: %v", actions)
 	}
-	// slice 79: search + add-members on groups/channels, never DMs.
 	if !actions["search"] || !actions["addmember"] {
 		t.Fatalf("group menu missing slice-79 rows: %v", actions)
 	}

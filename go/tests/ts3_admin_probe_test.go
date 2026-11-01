@@ -2,11 +2,6 @@
 
 package tests
 
-// Temporary diagnostic (B-58 classification): do the remaining no-data
-// commands SUCCEED silently (→ need proof wiring) or reply? Guest perms
-// are pre-granted on the local server; failures print failed_permid
-// (from the wire) for the next grant round.
-
 import (
 	"bufio"
 	"fmt"
@@ -40,7 +35,6 @@ func TestTS3AdminSilentClassification(t *testing.T) {
 	}
 
 	suffix := fmt.Sprint(rand.Intn(100000))
-	// 1. channelcreate — data row (grace) vs silent?
 	rows, err := core.RawExec("channelcreate channel_name=szprobe" + suffix + " channel_flag_permanent=1")
 	t.Logf("CLASSIFY channelcreate → err=%v rows=%v", err, rows)
 	cid := ""
@@ -50,7 +44,6 @@ func TestTS3AdminSilentClassification(t *testing.T) {
 		}
 	}
 	if cid == "" {
-		// Fall back to the broadcast-filled cache (notifychannelcreated).
 		for _, d := range func() []cores.Dialog {
 			ds, _ := core.GetDialogs(cores.PaginationOpts{Limit: 100})
 			return ds
@@ -88,23 +81,18 @@ func TestTS3AdminSilentClassification(t *testing.T) {
 		t.Logf("CLASSIFY channelcreate → no cid; skipping edit/delete chain")
 	}
 
-	// 2. subscribe family (already known silent — pinned)
 	if _, e := core.RawExec("channelsubscribeall"); e != nil {
 		t.Logf("CLASSIFY channelsubscribeall → err=%v", e)
 	} else {
 		t.Logf("CLASSIFY channelsubscribeall → OK (nil)")
 	}
 
-	// 3. bandel (UnbanMember product path) — needs a ban to exist and
-	// guest ban-delete permission; failed_permid on the wire drives the
-	// grant round.
 	if _, e := core.RawExec("bandel banid=1"); e != nil {
 		t.Logf("CLASSIFY bandel → err=%v", e)
 	} else {
 		t.Logf("CLASSIFY bandel → OK (nil)")
 	}
 
-	// 4. bandel against a REAL ban (serverquery-created; id via env).
 	if banid := osGetenvDefault("TS3_PROBE_BANID", ""); banid != "" {
 		if _, e := core.RawExec("bandel banid=" + banid); e != nil {
 			t.Logf("CLASSIFY bandel(real) → err=%v", e)
@@ -115,7 +103,6 @@ func TestTS3AdminSilentClassification(t *testing.T) {
 		t.Logf("CLASSIFY bandel(real) → skipped (no TS3_PROBE_BANID)")
 	}
 
-	// 5. servergroupaddclient (SetAdmin product path) on OUR OWN dbid.
 	if wrows, werr := core.RawExec("whoami"); werr == nil && len(wrows) > 0 {
 		t.Logf("CLASSIFY whoami rows: %v", wrows)
 		dbid := wrows[0]["client_database_id"]
@@ -135,8 +122,6 @@ func TestTS3AdminSilentClassification(t *testing.T) {
 		t.Logf("CLASSIFY servergroupaddclient → whoami failed: %v", werr)
 	}
 
-	// 6a. Promote SELF to ServerAdmin (sgid=3) via serverquery so the
-	// admin read-back commands run in their REAL product context.
 	if sqpw := osGetenvDefault("TS3_SQ_PASSWORD", ""); sqpw != "" {
 		if wrows, e := core.RawExec("whoami"); e == nil && len(wrows) > 0 {
 			dbid := ""
@@ -155,7 +140,6 @@ func TestTS3AdminSilentClassification(t *testing.T) {
 		}
 	}
 
-	// 6b. SetAdmin chain (F-86): clid vs dbid + sgcl row format.
 	if sg := osGetenvDefault("TS3_PROBE_SGID", ""); sg != "" {
 		if wrows, e := core.RawExec("whoami"); e == nil && len(wrows) > 0 {
 			clid := wrows[0]["client_id"]
@@ -194,8 +178,6 @@ func TestTS3AdminSilentClassification(t *testing.T) {
 		}
 	}
 
-	// 6. Read-back formats (F-86 design input): empty banlist,
-	// empty servergroup client list, own clientinfo (clid→dbid).
 	if rows, e := core.RawExec("banlist"); e != nil {
 		t.Logf("CLASSIFY banlist → err=%v", e)
 	} else {
@@ -215,7 +197,6 @@ func TestTS3AdminSilentClassification(t *testing.T) {
 		}
 	}
 
-	// 7. clientedit on SELF (needs own clid from whoami)
 	prof, perr := core.GetProfile("")
 	if perr == nil && prof != nil && prof.ID != "" {
 		if _, e := core.RawExec("clientedit clid=" + prof.ID + " client_description=probe"); e != nil {
@@ -228,9 +209,6 @@ func TestTS3AdminSilentClassification(t *testing.T) {
 	}
 }
 
-// sqGrantServerAdmin promotes a client DB id into the ServerAdmin
-// server group over the raw ServerQuery port (diagnostic only — the
-// temp classification probe; deleted after evidence).
 func sqGrantServerAdmin(password, cldbid string) error {
 	conn, err := net.DialTimeout("tcp", "127.0.0.1:10011", 5*time.Second)
 	if err != nil {
@@ -243,10 +221,10 @@ func sqGrantServerAdmin(password, cldbid string) error {
 		line, err := reader.ReadString('\n')
 		return strings.ReplaceAll(strings.ReplaceAll(line, "\r", ""), "\x00", ""), err
 	}
-	if _, err := readline(); err != nil { // TS3
+	if _, err := readline(); err != nil {
 		return err
 	}
-	if _, err := readline(); err != nil { // welcome
+	if _, err := readline(); err != nil {
 		return err
 	}
 	for _, c := range []string{

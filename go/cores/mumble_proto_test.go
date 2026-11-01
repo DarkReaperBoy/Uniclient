@@ -8,14 +8,6 @@ import (
 	"testing"
 )
 
-// ───────────────────────────── Mumble OCB2 crypto ─────────────────────────────
-//
-// Mirrors upstream TestCrypt.cpp (mumble-voip/mumble): IV recovery, replay
-// rejection and the 30-packet out-of-order window.
-
-// mumbleTestCryptPair mirrors upstream TestCrypt.cpp: the decrypting side
-// gets the encrypting side's encrypt IV as ITS decrypt IV (as if the
-// "server" side of the pair were the encrypter).
 func mumbleTestCryptPair(t *testing.T) (enc, dec *mumbleCryptState) {
 	t.Helper()
 	key := make([]byte, 16)
@@ -59,7 +51,6 @@ func TestMumbleOCB2RoundTrip(t *testing.T) {
 		t.Fatalf("round-trip mismatch: %q != %q", plain, secret)
 	}
 
-	// Reusing the same IV (replaying the packet) must fail.
 	if _, err := dec.decrypt(plain, dst); err == nil {
 		t.Fatal("replayed packet accepted — replay protection broken")
 	}
@@ -75,21 +66,18 @@ func TestMumbleOCB2OutOfOrderWindow(t *testing.T) {
 		enc.encrypt(crypted[i][:pktLen], secret)
 	}
 
-	// Decrypting newest→oldest works within 30 packets.
 	for i := 0; i < 30; i++ {
 		plain := make([]byte, len(secret))
 		if _, err := dec.decrypt(plain, crypted[127-i][:pktLen]); err != nil {
 			t.Fatalf("in-window OOO packet %d rejected: %v", i, err)
 		}
 	}
-	// Beyond 30 packets late must fail.
 	for i := 30; i < 128; i++ {
 		plain := make([]byte, len(secret))
 		if _, err := dec.decrypt(plain, crypted[127-i][:pktLen]); err == nil {
 			t.Fatalf("out-of-window OOO packet %d accepted", i)
 		}
 	}
-	// Already-seen packets must fail (full replay guard).
 	for i := 0; i < 30; i++ {
 		plain := make([]byte, len(secret))
 		if _, err := dec.decrypt(plain, crypted[127-i][:pktLen]); err == nil {
@@ -128,14 +116,12 @@ func TestMumbleOCB2TamperDetection(t *testing.T) {
 	dst := make([]byte, 4+len(secret))
 	enc.encrypt(dst, secret)
 
-	dst[5] ^= 0xFF // flip a ciphertext bit
+	dst[5] ^= 0xFF
 	plain := make([]byte, len(secret))
 	if _, err := dec.decrypt(plain, dst); err == nil {
 		t.Fatal("tampered packet accepted — OCB2 tag not enforced")
 	}
 }
-
-// ───────────────────────────── Mumble varint ─────────────────────────────
 
 func TestMumbleVarintRoundTrip(t *testing.T) {
 	values := []int64{0, 1, 7, 8, 63, 64, 127, 128, 255, 256, 8191, 8192,
@@ -156,8 +142,6 @@ func TestMumbleVarintRoundTrip(t *testing.T) {
 	}
 }
 
-// ───────────────────────────── Mumble protobuf ─────────────────────────────
-
 func TestMumbleVersionRoundTrip(t *testing.T) {
 	v := &mumbleVersion{
 		VersionV1: mumbleVersionV1,
@@ -177,8 +161,6 @@ func TestMumbleVersionRoundTrip(t *testing.T) {
 }
 
 func TestMumbleAuthenticateWire(t *testing.T) {
-	// Field order/numbers per official Mumble.proto:
-	// username=1 password=2 tokens=3 celt=4 opus=5 client_type=6.
 	a := &mumbleAuthenticate{
 		Username: "u1",
 		Password: "pw",
@@ -186,11 +168,9 @@ func TestMumbleAuthenticateWire(t *testing.T) {
 		Opus:     true,
 	}
 	wire := a.marshal()
-	// username: field 1, LEN 2 → tag 0x0A
 	if wire[0] != 0x0A {
 		t.Fatalf("Authenticate field 1 tag = %#x, want 0x0A", wire[0])
 	}
-	// opus: field 5, VARINT → tag 0x28
 	foundOpus := false
 	for i := 0; i < len(wire); i++ {
 		if wire[i] == 0x28 {
@@ -261,7 +241,6 @@ func TestMumbleUserStateAllFields(t *testing.T) {
 
 func TestMumbleCryptSetupRoundTrip(t *testing.T) {
 	m := &mumbleCryptSetupMsg{}
-	// hand-build fields through the struct
 	key := make([]byte, 16)
 	cn := make([]byte, 16)
 	sn := make([]byte, 16)
@@ -277,7 +256,6 @@ func TestMumbleCryptSetupRoundTrip(t *testing.T) {
 	_ = cn
 	_ = sn
 	_ = m2
-	// CryptSetup fields: key=1 client_nonce=2 server_nonce=3 (bytes).
 	cs := &mumbleCryptSetupMsg{}
 	var e pbEncoder
 	e.writeBytes(1, key)
@@ -290,11 +268,7 @@ func TestMumbleCryptSetupRoundTrip(t *testing.T) {
 	_ = cs
 }
 
-// ───────────────────────────── Mumble TCP framing ─────────────────────────────
-
 func TestMumbleTCPPingWire(t *testing.T) {
-	// TCP Ping: timestamp=1 (varint). A marshaled Ping with only timestamp
-	// set must be tag 0x08 followed by varint.
 	p := &mumblePingMsg{Timestamp: 12345}
 	wire := p.marshal()
 	if len(wire) < 2 || wire[0] != 0x08 {
@@ -309,10 +283,7 @@ func TestMumbleTCPPingWire(t *testing.T) {
 	}
 }
 
-// ───────────────────────────── Mumble message IDs ─────────────────────────────
-
 func TestMumbleMessageTypeIDs(t *testing.T) {
-	// Official Mumble.proto ordering (IDs are the wire contract).
 	cases := []struct {
 		id   uint16
 		name string
@@ -334,22 +305,16 @@ func TestMumbleMessageTypeIDs(t *testing.T) {
 }
 
 func TestMumbleUDPPingFormat(t *testing.T) {
-	// The legacy UDP ping request: 12 bytes = 4 zero bytes + 8 ident bytes.
-	// Response: version(4) + ident(8) + users(4) + max(4) + bandwidth(4) = 24.
 	req := make([]byte, 12)
 	resp := make([]byte, 24)
-	binary.BigEndian.PutUint32(resp[12:16], 3)  // users
-	binary.BigEndian.PutUint32(resp[16:20], 50) // max users
+	binary.BigEndian.PutUint32(resp[12:16], 3)
+	binary.BigEndian.PutUint32(resp[16:20], 50)
 	binary.BigEndian.PutUint32(resp[20:24], 72000)
 	if len(req) != 12 || len(resp) != 24 {
 		t.Fatal("ping format length mismatch")
 	}
 }
 
-// TestOCB2OfficialVectors pins ocb2Encrypt/ocb2Decrypt against the
-// draft-krovetz-ocb-00 vectors used by upstream TestCrypt::testvectors.
-// If this fails, every encrypted UDP packet we send is unreadable to
-// real Murmur servers (tag mismatch → silent drop).
 func TestOCB2OfficialVectors(t *testing.T) {
 	key := []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
 	block, err := aes.NewCipher(key)
@@ -357,7 +322,6 @@ func TestOCB2OfficialVectors(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Empty message: tag BF3108130773AD5EC70EC69E7875A7B0.
 	var tag [16]byte
 	ocb2Encrypt(block, nil, nil, key, tag[:])
 	wantBlank := []byte{0xBF, 0x31, 0x08, 0x13, 0x07, 0x73, 0xAD, 0x5E, 0xC7, 0x0E, 0xC6, 0x9E, 0x78, 0x75, 0xA7, 0xB0}
@@ -365,7 +329,6 @@ func TestOCB2OfficialVectors(t *testing.T) {
 		t.Fatalf("blank tag mismatch:\n got %x\nwant %x", tag[:], wantBlank)
 	}
 
-	// 40-byte message 0..39.
 	src := make([]byte, 40)
 	for i := range src {
 		src[i] = byte(i)
@@ -381,7 +344,6 @@ func TestOCB2OfficialVectors(t *testing.T) {
 		t.Fatalf("40-byte ciphertext mismatch:\n got %x\nwant %x", ct, wantCT)
 	}
 
-	// Decrypt round-trip of the same vector through ocb2Decrypt.
 	pt := make([]byte, 40)
 	if !ocb2Decrypt(block, pt, wantCT, key, wantTag) {
 		t.Fatal("vector decrypt failed")
@@ -391,12 +353,6 @@ func TestOCB2OfficialVectors(t *testing.T) {
 	}
 }
 
-// TestOCB2ClientServerDirections simulates the full crypt handshake
-// exactly as Murmur does it: the server generates key+nonces; the
-// client encrypts with client_nonce as its initial IV, the server
-// decrypts the same stream with client_nonce as its decrypt IV. If the
-// first packet fails, every encrypted UDP datagram is silently dropped
-// by real servers.
 func TestOCB2ClientServerDirections(t *testing.T) {
 	key := make([]byte, 16)
 	clientNonce := make([]byte, 16)
@@ -405,21 +361,15 @@ func TestOCB2ClientServerDirections(t *testing.T) {
 	rand.Read(clientNonce)
 	rand.Read(serverNonce)
 
-	// Client state: encrypt from client_nonce, decrypt from server_nonce.
 	client := &mumbleCryptState{}
 	if err := client.init(key, clientNonce, serverNonce); err != nil {
 		t.Fatal(err)
 	}
-	// Server state (mirrors murmur): the server's OWN encryption IV is
-	// server_nonce (its stream to us), and its decryption IV for OUR
-	// stream is client_nonce — the nonce pair from the client's
-	// perspective, swapped.
 	server := &mumbleCryptState{}
 	if err := server.init(key, serverNonce, clientNonce); err != nil {
 		t.Fatal(err)
 	}
 
-	// Client → server: 5 packets.
 	for i := 0; i < 5; i++ {
 		plain := []byte{1, 0x08, byte(i), 0x01}
 		wire := make([]byte, mumbleCryptoOverhead+len(plain))
@@ -437,7 +387,6 @@ func TestOCB2ClientServerDirections(t *testing.T) {
 		}
 	}
 
-	// Server → client: the reply direction.
 	for i := 0; i < 5; i++ {
 		plain := []byte{1, 0x08, byte(i), 0x01}
 		wire := make([]byte, mumbleCryptoOverhead+len(plain))
@@ -453,12 +402,6 @@ func TestOCB2ClientServerDirections(t *testing.T) {
 	}
 }
 
-// TestMumbleExportedCryptWrappers activates the exported wrappers
-// (deadcode: unreachable even with tests — they existed "for testing"
-// but nothing tested them). Self round-trip on ONE state: clientNonce
-// drives encryption, serverNonce decryption, both starting byte 0 so
-// the ±30 late-window accepts the first packet (same trick as
-// mumbleTestCryptPair). Tamper must NOT yield the original.
 func TestMumbleExportedCryptWrappers(t *testing.T) {
 	key := make([]byte, 16)
 	encIV := make([]byte, 16)
@@ -469,10 +412,6 @@ func TestMumbleExportedCryptWrappers(t *testing.T) {
 		decIV[i] = byte(i * 13)
 	}
 
-	// Self round-trip: BOTH IVs seed from the encrypt stream — the
-	// decrypt side must start on the encrypter's IV (the same rule
-	// mumbleTestCryptPair encodes as "the decrypting side gets the
-	// encrypting side's IV"), or the OCB2 keystream never matches.
 	var s MumbleCryptState
 	if err := s.Init(key, encIV, encIV); err != nil {
 		t.Fatalf("Init: %v", err)
@@ -494,8 +433,6 @@ func TestMumbleExportedCryptWrappers(t *testing.T) {
 		t.Fatalf("round-trip mismatch: n=%d plain=%q want=%q", m, plain, secret)
 	}
 
-	// Tamper: flip a ciphertext byte — the result must never be the
-	// original (replay/history guard or OCB2 tag must reject it).
 	bad := make([]byte, n)
 	copy(bad, dst[:n])
 	bad[6] ^= 0xFF
@@ -505,7 +442,6 @@ func TestMumbleExportedCryptWrappers(t *testing.T) {
 		t.Fatal("tampered packet decrypted to the original — no integrity rejection")
 	}
 
-	// Direct OCB2 pair wrappers: official-vector style single message.
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		t.Fatal(err)

@@ -1,11 +1,5 @@
 package cores
 
-// telegram_gifts_test.go — slice 211 tests-first: star gifts — the
-// payments.getStarGifts catalog normalization (unified starGift: prices,
-// limited flags, sticker thumbs), the gift-invoice builder
-// (inputInvoiceStarGift flag mapping), and the stars gift-amount options
-// normalization.
-
 import (
 	"testing"
 
@@ -44,7 +38,6 @@ func TestStarGiftsFromWire(t *testing.T) {
 			},
 		},
 	}
-	// limited + sold-out + require-premium flags on the second gift.
 	g := res.Gifts[1].(*tg.StarGift)
 	g.SetLimited(true)
 	g.SetSoldOut(true)
@@ -86,7 +79,6 @@ func TestStarGiftsFromWireEmptyAndUnique(t *testing.T) {
 	if out := starGiftsFromWire(nil).Gifts; len(out) != 0 {
 		t.Errorf("nil res = %d", len(out))
 	}
-	// Collectible (unique) gifts are resale objects, not catalog purchases.
 	res := &tg.PaymentsStarGifts{Gifts: []tg.StarGiftClass{
 		&tg.StarGiftUnique{ID: 99},
 	}}

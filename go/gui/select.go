@@ -15,20 +15,6 @@ import (
 	"uniclient/engine"
 )
 
-// Message selection mode (AyuGram parity §3 "Message selection mode",
-// P1): "Select" in the context menu (or tapping rows once the mode is on)
-// marks messages with check circles; a header action bar offers Forward
-// (engine.ForwardMessages batch), Delete (per-message engine.DeleteMessage
-// with revoke=outgoing) and Copy; Escape or ✕ cancels. Selection is
-// per-visit GUI state over the real cached messages — nothing faked.
-
-// selection button pool.
-
-// a.wid.fwdComment is the forward picker's optional comment (AyuGram share
-// sheet, slice 126): shipped as its own message before the forwarded
-// batch in every picked recipient chat.
-
-// forward commit step kinds (pure plan, unit-tested).
 const (
 	fwdStepComment = iota
 	fwdStepForward
@@ -40,14 +26,10 @@ type fwdCommitStep struct {
 	ids  []string
 }
 
-// trimForwardComment normalizes the comment box text (whitespace-only
-// counts as no comment). Pure.
 func trimForwardComment(s string) string {
 	return strings.TrimSpace(s)
 }
 
-// forwardCommitSteps plans one recipient's commit: the comment message
-// first (Telegram share-sheet semantics), then the forward batch. Pure.
 func forwardCommitSteps(comment string, ids []string) []fwdCommitStep {
 	var steps []fwdCommitStep
 	if c := trimForwardComment(comment); c != "" {
@@ -61,9 +43,6 @@ func forwardCommitSteps(comment string, ids []string) []fwdCommitStep {
 
 var selectionKeyTag = new(struct{})
 
-// ── state transitions ─────────────────────────────────────────────────────
-
-// startSelection enters selection mode with the first message marked.
 func (a *App) startSelection(msgID string) {
 	a.mu.Lock()
 	a.selOn = true
@@ -76,7 +55,6 @@ func (a *App) startSelection(msgID string) {
 	a.invalidate()
 }
 
-// toggleMsgSel flips one message's mark (only in selection mode).
 func (a *App) toggleMsgSel(msgID string) {
 	a.mu.Lock()
 	if a.selOn {
@@ -93,7 +71,6 @@ func (a *App) toggleMsgSel(msgID string) {
 	a.invalidate()
 }
 
-// cancelSelection leaves selection mode.
 func (a *App) cancelSelection() {
 	a.mu.Lock()
 	a.selOn = false
@@ -102,7 +79,6 @@ func (a *App) cancelSelection() {
 	a.invalidate()
 }
 
-// selectionCount counts marked messages in the open window.
 func (a *App) selectionCount() int {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -116,7 +92,6 @@ func (a *App) selectionCount() int {
 	return n
 }
 
-// selectedMessages returns marked messages from the open chat window (copy).
 func (a *App) selectedMessages() []engine.CachedMessage {
 	a.mu.Lock()
 	k := a.msgFor
@@ -136,8 +111,6 @@ func (a *App) selectedMessages() []engine.CachedMessage {
 	return out
 }
 
-// forwardSelected opens the forward picker over the selected messages.
-// reportSelected opens the report flow for the selected messages.
 func (a *App) reportSelected() {
 	msgs := a.selectedMessages()
 	if len(msgs) == 0 {
@@ -148,8 +121,6 @@ func (a *App) reportSelected() {
 	a.openReportDialog(batch)
 }
 
-// openForward opens the forward picker for a batch and resets the
-// recipient selection (slice 41).
 func (a *App) openForward(msgs []engine.CachedMessage) {
 	a.fwdSel = map[string]bool{}
 	a.wid.fwdComment.SetText("")
@@ -157,8 +128,6 @@ func (a *App) openForward(msgs []engine.CachedMessage) {
 	a.fwd = msgs
 	capOK := a.savedCap
 	a.mu.Unlock()
-	// Saved Messages as a forward target (slice 116): ensure the saved chat
-	// exists before the picker renders.
 	if len(msgs) > 0 && capOK[msgs[0].AccountID] {
 		a.ensureForwardSavedChat(msgs[0])
 	}
@@ -179,13 +148,11 @@ func (a *App) forwardSelected() {
 	a.openForward(batch)
 }
 
-// deleteSelected removes the selected messages (revoke for own messages).
 func (a *App) deleteSelected() {
 	msgs := a.selectedMessages()
 	if len(msgs) == 0 {
 		return
 	}
-	// Bulk delete goes through the same confirm dialog (revoke checkbox).
 	chat := engine.ChatInfo{}
 	if k := a.msgForLocked(); k != nil {
 		for _, c := range a.chatsLocked() {
@@ -199,7 +166,6 @@ func (a *App) deleteSelected() {
 	a.openDeleteDialog(msgs, chat)
 }
 
-// msgForLocked returns a copy of the open chat key.
 func (a *App) msgForLocked() *chatKey {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -210,14 +176,12 @@ func (a *App) msgForLocked() *chatKey {
 	return &k
 }
 
-// chatsLocked returns a copy of the chat list.
 func (a *App) chatsLocked() []engine.ChatInfo {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.chats
 }
 
-// copySelectedText joins the selected messages' text onto the clipboard.
 func (a *App) copySelectedText(gtx layout.Context) {
 	msgs := a.selectedMessages()
 	var b strings.Builder
@@ -234,11 +198,6 @@ func (a *App) copySelectedText(gtx layout.Context) {
 	a.setToast("Copied " + itoa(len(msgs)) + " message(s)")
 }
 
-// ── layout ────────────────────────────────────────────────────────────────
-
-// layoutSelBar renders the selection action bar that replaces the pinned
-// bar while selecting: "N selected" + Forward / Delete / Copy / ✕. Escape
-// cancels.
 func (a *App) layoutSelBar(gtx layout.Context, f frame) layout.Dimensions {
 	if a.wid.selBarFwdBtn.Clicked(gtx) {
 		a.forwardSelected()
@@ -256,7 +215,6 @@ func (a *App) layoutSelBar(gtx layout.Context, f frame) layout.Dimensions {
 		a.cancelSelection()
 	}
 
-	// Escape cancels (global key filter, like the media viewer).
 	{
 		stack := clip.Rect{Max: gtx.Constraints.Max}.Push(gtx.Ops)
 		event.Op(gtx.Ops, selectionKeyTag)
@@ -323,7 +281,6 @@ func (a *App) layoutSelBar(gtx layout.Context, f frame) layout.Dimensions {
 		})
 }
 
-// selectionCircle renders the leading check circle for a message row.
 func (a *App) selectionCircle(gtx layout.Context, on bool) layout.Dimensions {
 	d := gtx.Dp(unit.Dp(22))
 	gtx.Constraints.Min = image.Pt(d, d)

@@ -1,13 +1,5 @@
 package cores
 
-// tests-first for BUGS.md B-19 — the command-queue gap branch must
-// surface out-of-order diagnostics instead of doing dead work.
-//
-// Pre-pitch the branch built `keys` from recvQueue and dropped the
-// slice on an empty line (staticcheck SA4010): a wasted allocation on
-// every gap event and the intended queued-packet logging never
-// happened.
-
 import (
 	"bytes"
 	"log"
@@ -22,7 +14,7 @@ func TestTSCommandQueueLogsGapWithQueuedIDs(t *testing.T) {
 		7: {},
 		9: {},
 	}
-	tc.pktState[tsPktCommand].nextRecvID = 5 // 5,6 missing; 7,9 queued
+	tc.pktState[tsPktCommand].nextRecvID = 5
 
 	var buf bytes.Buffer
 	log.SetOutput(&buf)
@@ -41,13 +33,6 @@ func TestTSCommandQueueLogsGapWithQueuedIDs(t *testing.T) {
 	}
 }
 
-// TestTSCommandQueueLogsGapOncePerGap: BUGS B-43 — the B-19 gap
-// diagnostic fired on EVERY packet arriving while one gap was open
-// (the slice-247 live storms: 229 identical lines per run), so a
-// hostile server could flood stderr the same way B-42 flooded stdout.
-// One line per gap (re-log only when the EXPECTED id changes), and a
-// fresh gap after resolution must still log. RED pre-fix: 50 lines
-// for one gap.
 func TestTSCommandQueueLogsGapOncePerGap(t *testing.T) {
 	tc := &tsConnection{}
 	tc.recvQueue[0] = map[uint16]*tsDecryptedPkt{
@@ -62,7 +47,7 @@ func TestTSCommandQueueLogsGapOncePerGap(t *testing.T) {
 
 	tc.recvQueueMu.Lock()
 	for i := 0; i < 50; i++ {
-		tc.tsProcessCommandQueue(0) // 50 packets arrive during the SAME gap
+		tc.tsProcessCommandQueue(0)
 	}
 	tc.recvQueueMu.Unlock()
 
@@ -70,8 +55,6 @@ func TestTSCommandQueueLogsGapOncePerGap(t *testing.T) {
 		t.Fatalf("one gap must log ONCE, got %d lines (B-43): %q", n, buf.String())
 	}
 
-	// Resolve the gap (5 and 6 arrive): queue drains 5,6,7,9 → empty →
-	// gap state resets. Then open a NEW gap (10 missing, 11 queued).
 	tc.recvQueueMu.Lock()
 	tc.recvQueue[0][5] = &tsDecryptedPkt{pID: 5, flags: 0x02, plaintext: []byte("a=b")}
 	tc.recvQueue[0][6] = &tsDecryptedPkt{pID: 6, flags: 0x02, plaintext: []byte("c=d")}

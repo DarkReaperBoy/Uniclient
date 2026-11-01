@@ -1,19 +1,5 @@
 package gui
 
-// Slice 221 — in-app video playback controls in the media viewer
-// (parity row 276: "Play/pause/seek/volume/fullscreen").
-//
-// Scope, stated honestly: play, pause, scrub-to-seek and the clocks are
-// implemented in-app. VOLUME is deliberately NOT — Telegram ships
-// H.264+AAC in MP4 and there is still no AAC decoder, so a volume slider
-// would control nothing, and §1.10 forbids UI that fakes a capability.
-// The system-player handoff stays one tap away and carries the audio.
-//
-// Tests lock the pure logic first: the in-app-vs-system decision, the
-// seek math, the clock labels, and — the part most likely to regress —
-// the player cache's seek semantics, where the GUI playhead must be
-// rebased onto the target or the very next paint jumps back to frame 0.
-
 import (
 	"testing"
 	"time"
@@ -30,11 +16,8 @@ func TestVideoSeekFrac(t *testing.T) {
 		{"start", 0, 10 * time.Second, 0},
 		{"half", 5 * time.Second, 10 * time.Second, 0.5},
 		{"end", 10 * time.Second, 10 * time.Second, 1},
-		// Past the end (a loop wrap or a clamped clock) must not seek
-		// beyond the clip.
 		{"past end", 25 * time.Second, 10 * time.Second, 1},
 		{"negative clock", -time.Second, 10 * time.Second, 0},
-		// No duration yet (metadata missing) must not divide by zero.
 		{"no duration", time.Second, 0, 0},
 		{"nothing at all", 0, 0, 0},
 	}
@@ -55,10 +38,7 @@ func TestVideoTimes(t *testing.T) {
 	}{
 		{0, 42 * time.Second, "0:00", "0:42"},
 		{65 * time.Second, 125 * time.Second, "1:05", "2:05"},
-		// Hour-long files keep the h:mm:ss form fmtDur already uses.
 		{3661 * time.Second, 7325 * time.Second, "1:01:01", "2:02:05"},
-		// A negative or missing clock degrades to a readable label
-		// rather than printing garbage in the control bar.
 		{-5 * time.Second, -time.Second, "0:00", "0:00"},
 	}
 	for _, c := range cases {
@@ -87,7 +67,6 @@ func TestViewerCanPlayInApp(t *testing.T) {
 		{"downloaded round note", note, true},
 		{"photo is never a video", photo, false},
 		{"missing file must download first", notDownloaded, false},
-		// .webm goes through the VP9 path / system player, never h264vid.
 		{"foreign container", otherContainer, false},
 		{"extension check is case-insensitive", uppercase, true},
 	}
@@ -100,16 +79,11 @@ func TestViewerCanPlayInApp(t *testing.T) {
 	}
 }
 
-// TestPlayerCacheSeekRebasesPlayhead: seeking must move the GUI clock
-// onto the target. If it does not, FrameAt keeps rendering from the old
-// playhead and the picture snaps back — the classic "scrubbing does
-// nothing until you pause" bug.
 func TestPlayerCacheSeekRebasesPlayhead(t *testing.T) {
 	video := parseRoundFixture(t)
 	c := &h264PlayerCache{players: make(map[string]*h264Player)}
 	t.Cleanup(func() { c.reset("v") })
 
-	// Unknown message: every accessor is a safe no-op.
 	c.seek("nope", 0.5)
 	if got := c.duration("nope"); got != 0 {
 		t.Errorf("duration of an unknown message = %v, want 0", got)
@@ -118,12 +92,11 @@ func TestPlayerCacheSeekRebasesPlayhead(t *testing.T) {
 		t.Errorf("elapsed of an unknown message = %v, want 0", got)
 	}
 
-	c.publish("v", "/tmp/v.mp4", video, false) // viewer clips play through
+	c.publish("v", "/tmp/v.mp4", video, false)
 	if got := c.duration("v"); got != video.Total {
 		t.Fatalf("duration = %v, want %v", got, video.Total)
 	}
 
-	// Seeking while PLAYING rebases start so elapsed lands on the target.
 	c.seek("v", 0.5)
 	want := video.Total / 2
 	got := c.elapsed("v")
@@ -131,8 +104,6 @@ func TestPlayerCacheSeekRebasesPlayhead(t *testing.T) {
 		t.Errorf("elapsed after seek while playing = %v, want ~%v", got, want)
 	}
 
-	// Seeking while PAUSED sets the position exactly and it must not
-	// drift afterwards.
 	c.pause("v")
 	c.seek("v", 0.25)
 	want = video.Total / 4
@@ -144,8 +115,6 @@ func TestPlayerCacheSeekRebasesPlayhead(t *testing.T) {
 		t.Errorf("elapsed advanced while paused: %v, want %v", got, want)
 	}
 
-	// Out-of-range fractions clamp to the clip bounds instead of
-	// producing a negative or past-the-end playhead.
 	c.seek("v", 99)
 	if got := c.elapsed("v"); got != video.Total {
 		t.Errorf("seek(99) = %v, want %v (clamped to the end)", got, video.Total)
@@ -155,7 +124,6 @@ func TestPlayerCacheSeekRebasesPlayhead(t *testing.T) {
 		t.Errorf("seek(-1) = %v, want 0 (clamped to the start)", got)
 	}
 
-	// A clip without usable metadata must not divide by zero.
 	empty := &h264Player{}
 	if got := seekTarget(empty, 0.5); got != 0 {
 		t.Errorf("seekTarget without metadata = %v, want 0", got)

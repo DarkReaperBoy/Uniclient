@@ -5,35 +5,23 @@ import (
 	"gioui.org/widget"
 )
 
-// widgets is the per-window interactive widget state for the chat surface
-// (slice 168: multi-window chats — every window owns its widgets; nothing
-// interactive is shared between windows).
-//
-// Grouped by the surface that owns them; the group comments name the file
-// the state previously lived in.
 type widgets struct {
-
-	// addmember.go
 	addMemAddBtn   widget.Clickable
 	addMemCloseBtn widget.Clickable
 	addMemList     widget.List
 	addMemRowBtns  []widget.Clickable
 	addMemSearchEd widget.Editor
 
-	// attach.go
 	attachBtn      widget.Clickable
 	attachMenuBtns []widget.Clickable
 
-	// botcmds.go
 	botCmdBtn   widget.Clickable
 	botCmdBtns  []widget.Clickable
 	botCmdClose widget.Clickable
 	botCmdList  widget.List
 
-	// callbar.go
 	callJoinBtn widget.Clickable
 
-	// callui.go
 	callAcceptBtn  widget.Clickable
 	callCamBtn     widget.Clickable
 	callCloseBtn   widget.Clickable
@@ -41,7 +29,6 @@ type widgets struct {
 	callEndBtn     widget.Clickable
 	callMuteBtn    widget.Clickable
 
-	// chat.go
 	chatBackBtn widget.Clickable
 	chatSendBtn widget.Clickable
 	composer    widget.Editor
@@ -50,46 +37,37 @@ type widgets struct {
 	msgList     widget.List
 	silentBtn   widget.Clickable
 
-	// chatmenu.go
 	chatMenuBtns []widget.Clickable
 
-	// paidmedia.go
 	paidUnlockBtns map[string]*widget.Clickable
 	paidConfirmBtn widget.Clickable
 	paidCancelBtn  widget.Clickable
 
-	// callrate.go
 	rateStars     []widget.Clickable
 	rateSendBtn   widget.Clickable
 	rateSkipBtn   widget.Clickable
 	rateCommentEd widget.Editor
 
-	// sendas.go
 	sendAsBtn      widget.Clickable
 	sendAsCloseBtn widget.Clickable
 	sendAsRowBtns  []widget.Clickable
 	sendAsList     widget.List
 
-	// statsview.go
-	statsPanelBack widget.Clickable
-	// slice 213: stats Earn tab.
+	statsPanelBack   widget.Clickable
 	statsTabOverview widget.Clickable
 	statsTabEarn     widget.Clickable
 	statsWithdrawBtn widget.Clickable
 	statsWithdrawEd  widget.Editor
 
-	// boostview.go
 	boostPanelBack   widget.Clickable
 	boostTabBoosters widget.Clickable
 	boostTabGifts    widget.Clickable
 	boostMoreBtn     widget.Clickable
 	boostApplyBtn    widget.Clickable
-	// slice 212: giveaway entry + prepaid launch rows.
 	boostGiveawayBtn widget.Clickable
 	boostLaunchCells []widget.Clickable
 	statsPanelList   widget.List
 
-	// adminlog.go
 	adminPanelBack  widget.Clickable
 	adminSearchBtn  widget.Clickable
 	adminMoreBtn    widget.Clickable
@@ -98,7 +76,6 @@ type widgets struct {
 	adminFilterList widget.List
 	adminFilterBtns []widget.Clickable
 
-	// instantview.go
 	ivBackBtn    widget.Clickable
 	ivOpenBtn    widget.Clickable
 	ivSlidePrev  widget.Clickable
@@ -106,7 +83,6 @@ type widgets struct {
 	ivList       widget.List
 	ivClickables map[string]*widget.Clickable
 
-	// chatsearch.go
 	inSearchCloseBtn widget.Clickable
 	inSearchEd       widget.Editor
 	inSearchFromBtn  widget.Clickable
@@ -117,52 +93,42 @@ type widgets struct {
 	inSearchPrevBtn  widget.Clickable
 	inSearchRows     []widget.Clickable
 
-	// chatsettings.go
 	reactWithBtns []widget.Clickable
 
-	// chattheme.go
 	chatThemeChipBtns     []widget.Clickable
 	chatThemeDlgCancelBtn widget.Clickable
 	chatThemeResetBtn     widget.Clickable
 
-	// wallpaper.go
 	wallpaperPickBtn   widget.Clickable
 	wallpaperCancelBtn widget.Clickable
 	wallpaperSetBtn    widget.Clickable
 	wallpaperBlurChk   widget.Bool
 	wallpaperBothChk   widget.Bool
 
-	// chrome.go
 	pinnedBarBtn   widget.Clickable
 	pinnedCycleBtn widget.Clickable
 
-	// cloudthemes.go
 	cloudThemeDlgCancelBtn  widget.Clickable
 	cloudThemeDlgInstallBtn widget.Clickable
 	cloudThemeRowBtns       []widget.Clickable
 
-	// delbrowse.go
 	deletedDlgClear widget.Clickable
 	deletedDlgClose widget.Clickable
 	deletedDlgMore  widget.Clickable
 
-	// deldlg.go
 	delDlgCancel widget.Clickable
 	delDlgChk    widget.Bool
 	delDlgDelete widget.Clickable
 
-	// cleardlg.go
 	clearDlgCancel widget.Clickable
 	clearDlgChk    widget.Bool
 	clearDlgClear  widget.Clickable
 
-	// restrictdlg.go
 	restrictDlgCancel  widget.Clickable
 	restrictDlgApply   widget.Clickable
 	restrictDlgDurBtns []widget.Clickable
 	restrictDlgSw      []widget.Bool
 
-	// drafts.go
 	composerSchedBtn   widget.Clickable
 	schedDateEd        widget.Editor
 	schedDlgCancel     widget.Clickable
@@ -171,11 +137,9 @@ type widgets struct {
 	schedDlgWhenOnline widget.Clickable
 	schedTimeEd        widget.Editor
 
-	// edithistory.go
 	editHistClose widget.Clickable
 	editHistMore  widget.Clickable
 
-	// emoji.go
 	emojiBackspace widget.Clickable
 	emojiBtn       widget.Clickable
 	emojiCellBtns  []widget.Clickable
@@ -184,11 +148,9 @@ type widgets struct {
 	emojiTabBtns   []widget.Clickable
 	emojiTabsList  widget.List
 
-	// emojicomplete.go
 	emojiAcBtns []widget.Clickable
 	emojiAcList widget.List
 
-	// headermenu.go
 	headerCxlBtn       widget.Clickable
 	headerMenuBtns     []widget.Clickable
 	headerMoreBtn      widget.Clickable
@@ -197,14 +159,12 @@ type widgets struct {
 	headerVideoCallBtn widget.Clickable
 	headerVoiceCallBtn widget.Clickable
 
-	// inlinebots.go
 	inlineGridBtns []widget.Clickable
 	inlineList     widget.List
 	inlineMoreBtn  widget.Clickable
 	inlinePMBtn    widget.Clickable
 	inlineRowBtns  []widget.Clickable
 
-	// location.go
 	attachDlgCloseBtn widget.Clickable
 	attachDlgContacts widget.List
 	attachDlgLiveBtn  widget.Clickable
@@ -214,35 +174,28 @@ type widgets struct {
 	attachLonEditor   widget.Editor
 	liveDurationBtns  []widget.Clickable
 
-	// lock.go
 	lockPadBtns []widget.Clickable
 
-	// mediaview.go
-	filmClicks      []widget.Clickable
-	filmList        widget.List
-	viewerCloseBtn  widget.Clickable
-	viewerDelBtn    widget.Clickable
-	viewerDelNoBtn  widget.Clickable
-	viewerDelYesBtn widget.Clickable
-	viewerFolderBtn widget.Clickable
-	viewerNextBtn   widget.Clickable
-	viewerPlayBtn   widget.Clickable
-	// viewerplay.go
+	filmClicks       []widget.Clickable
+	filmList         widget.List
+	viewerCloseBtn   widget.Clickable
+	viewerDelBtn     widget.Clickable
+	viewerDelNoBtn   widget.Clickable
+	viewerDelYesBtn  widget.Clickable
+	viewerFolderBtn  widget.Clickable
+	viewerNextBtn    widget.Clickable
+	viewerPlayBtn    widget.Clickable
 	viewerVidPlayBtn widget.Clickable
-	// mediaview.go: pop the playing video out to picture-in-picture
-	viewerPipBtn widget.Clickable
-	// pip.go: the floating panel's transport + its drag target
-	pipPlayBtn     widget.Clickable
-	pipCloseBtn    widget.Clickable
-	pipTag         *struct{}
-	viewerPrevBtn  widget.Clickable
-	viewerSaveBtn  widget.Clickable
-	viewerShareBtn widget.Clickable
+	viewerPipBtn     widget.Clickable
+	pipPlayBtn       widget.Clickable
+	pipCloseBtn      widget.Clickable
+	pipTag           *struct{}
+	viewerPrevBtn    widget.Clickable
+	viewerSaveBtn    widget.Clickable
+	viewerShareBtn   widget.Clickable
 
-	// membermenu.go
 	memberMenuBtns []widget.Clickable
 
-	// menu.go
 	chipCancelBtn   widget.Clickable
 	fwdCancelBtn    widget.Clickable
 	fwdChatBtns     []widget.Clickable
@@ -255,12 +208,10 @@ type widgets struct {
 	menuReactBtns   []widget.Clickable
 	reactList       widget.List
 
-	// msgdetail.go
 	detailCloseBtn widget.Clickable
 	detailList     widget.List
 	detailRowBtns  []widget.Clickable
 
-	// mutedlg.go
 	muteClockBtn     widget.Clickable
 	muteDlgCancelBtn widget.Clickable
 	muteDlgCustomBtn widget.Clickable
@@ -268,14 +219,11 @@ type widgets struct {
 	muteDlgCustomGo  widget.Clickable
 	muteDlgRowBtns   []widget.Clickable
 	muteDlgUnmuteBtn widget.Clickable
-	// Notify exceptions (slice 174): sound + previews switches.
-	muteDlgSound    widget.Bool
-	muteDlgPreviews widget.Bool
+	muteDlgSound     widget.Bool
+	muteDlgPreviews  widget.Bool
 
-	// nextunread.go
 	nextUnreadBtn widget.Clickable
 
-	// poll.go
 	pollAddOptBtn   widget.Clickable
 	pollAnonSw      widget.Bool
 	pollCorrectBtns []widget.Clickable
@@ -286,7 +234,6 @@ type widgets struct {
 	pollQEd         widget.Editor
 	pollQuizSw      widget.Bool
 
-	// profile.go
 	botPanelCmdBtns []widget.Clickable
 	botPrivacyBtn   widget.Clickable
 	memberSearchEd  widget.Editor
@@ -298,28 +245,23 @@ type widgets struct {
 	panelShareBtn   widget.Clickable
 	photoGridClicks []widget.Clickable
 
-	// reactors.go
 	reactorsClose   widget.Clickable
 	reactorsMoreBtn widget.Clickable
 	reactorsTabs    []widget.Clickable
 
-	// report.go
 	reportCancelBtn widget.Clickable
 	reportCommentEd widget.Editor
 	reportOptBtns   []widget.Clickable
 	reportSendBtn   widget.Clickable
 
-	// schedpanel.go
 	schedPanelBack  widget.Clickable
 	schedPanelList  widget.List
 	schedRowDelete  []widget.Clickable
 	schedRowResched []widget.Clickable
 	schedRowSend    []widget.Clickable
 
-	// seenby.go
 	seenDlgClose widget.Clickable
 
-	// select.go
 	fwdComment    widget.Editor
 	selBarCopyBtn widget.Clickable
 	selBarDelBtn  widget.Clickable
@@ -327,15 +269,12 @@ type widgets struct {
 	selBarRptBtn  widget.Clickable
 	selBarXBtn    widget.Clickable
 
-	// sharedtabs.go
 	sharedRowClicks []widget.Clickable
 
-	// similar.go
 	similarCardBtns    []widget.Clickable
-	similarExpandBtn   widget.Clickable // slice 169: collapsed-bar expander
-	similarCollapseBtn widget.Clickable // slice 169: expanded-block collapser
+	similarExpandBtn   widget.Clickable
+	similarCollapseBtn widget.Clickable
 
-	// sponsored.go
 	sponsoredAboutBtn   widget.Clickable
 	sponsoredAdClicks   []widget.Clickable
 	sponsoredBarClick   widget.Clickable
@@ -344,7 +283,6 @@ type widgets struct {
 	sponsoredOptBtns    []widget.Clickable
 	sponsoredReportBtn  widget.Clickable
 
-	// stickers.go
 	gifCellBtns      []widget.Clickable
 	gifGridList      widget.List
 	stickerCellBtns  []widget.Clickable
@@ -353,13 +291,11 @@ type widgets struct {
 	stickerPackBtns  []widget.Clickable
 	stickerPacksList widget.List
 
-	// stickerset.go
 	stickerSetCellBtns   []widget.Clickable
 	stickerSetCloseBtn   widget.Clickable
 	stickerSetGrid       widget.List
 	stickerSetInstallBtn widget.Clickable
 
-	// stories.go
 	storyCloseBtn      widget.Clickable
 	storyNextBtn       widget.Clickable
 	storyPlayBtn       widget.Clickable
@@ -373,25 +309,20 @@ type widgets struct {
 	storyShareBtn      widget.Clickable
 	storyStripList     widget.List
 
-	// topictabs.go
 	topicTabBtns []widget.Clickable
 	topicTabList widget.List
 
-	// topics.go
 	forumActBtns []widget.Clickable
 	forumBackBtn widget.Clickable
 
-	// comments.go (slice 195)
 	threadBackBtn   widget.Clickable
 	commentChipBtns map[string]*widget.Clickable
 
-	// savedsublists.go (slice 197)
 	savedListBtn     widget.Clickable
 	savedBackBtn     widget.Clickable
 	savedListRowBtns []widget.Clickable
 	savedTagRowBtns  []widget.Clickable
 
-	// savedsublists.go (slice 204: row menu + delete confirm)
 	savedSublistMenuRows []widget.Clickable
 	savedDelOK           widget.Clickable
 	savedDelCancel       widget.Clickable
@@ -403,12 +334,10 @@ type widgets struct {
 	forumTitleEd         widget.Editor
 	forumTopicBtns       []widget.Clickable
 
-	// translatebar.go
 	transBarLangBtn widget.Clickable
 	transBarOffBtn  widget.Clickable
 	transLangBtns   []widget.Clickable
 
-	// keyed clickable maps (per message id — per-window copies)
 	albumCellClicks            map[string]*widget.Clickable
 	callBtnPool                map[string]*widget.Clickable
 	commonGroupBtns            map[string]*widget.Clickable
@@ -417,8 +346,8 @@ type widgets struct {
 	mediaClicks                map[string]*widget.Clickable
 	mediaPlayClickables        map[string]*widget.Clickable
 	memberRowBtns              map[string]*widget.Clickable
-	panelSwitches              map[string]*widget.Bool // R22: per-window mute-toggle pool (was package-level — fatal map race with two panels)
-	panelSynced                map[string]bool         // R22: one-shot sync bookkeeping, per window
+	panelSwitches              map[string]*widget.Bool
+	panelSynced                map[string]bool
 	seekBarTags                map[string]*struct{}
 	seekBarApplied             map[string]float64
 	msgReactBtns               map[string]*widget.Clickable
@@ -436,8 +365,6 @@ type widgets struct {
 	webPageClickables          map[string]*widget.Clickable
 }
 
-// init applies the one-time widget setup (migrated from the old
-// package init()s) and materializes the keyed clickable maps.
 func (w *widgets) init() {
 	w.albumCellClicks = make(map[string]*widget.Clickable)
 	w.callBtnPool = make(map[string]*widget.Clickable)
@@ -446,7 +373,7 @@ func (w *widgets) init() {
 	w.liveStopBtns = make(map[string]*widget.Clickable)
 	w.mediaClicks = make(map[string]*widget.Clickable)
 	w.mediaPlayClickables = make(map[string]*widget.Clickable)
-	w.paidUnlockBtns = make(map[string]*widget.Clickable) // slice 238: star-wall unlock (B-12 — first wall render wrote a nil map)
+	w.paidUnlockBtns = make(map[string]*widget.Clickable)
 	w.memberRowBtns = make(map[string]*widget.Clickable)
 	w.panelSwitches = make(map[string]*widget.Bool)
 	w.panelSynced = make(map[string]bool)
@@ -472,7 +399,7 @@ func (w *widgets) init() {
 	w.botCmdList.Axis = layout.Vertical
 	w.composer.SingleLine = false
 	w.msgList.Axis = layout.Vertical
-	w.msgList.ScrollToEnd = true // stick to bottom, AyuGram-style
+	w.msgList.ScrollToEnd = true
 	w.ivList.Axis = layout.Vertical
 	w.inSearchList.Axis = layout.Vertical
 	w.emojiAcList.Axis = layout.Horizontal

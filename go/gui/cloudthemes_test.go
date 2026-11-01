@@ -6,8 +6,6 @@ import (
 	"uniclient/cores"
 )
 
-// argbToHex converts Telegram 0xAARRGGBB ints to "#RRGGBB"; zero yields
-// "" (accent not set) (slice 66).
 func TestArgbToHex(t *testing.T) {
 	cases := map[int]string{
 		0xFF4F6EF7: "#4F6EF7",
@@ -22,7 +20,6 @@ func TestArgbToHex(t *testing.T) {
 	}
 }
 
-// The install dialog carries the account + theme it acts on (slice 66).
 func TestCloudThemeDlgStateFields(t *testing.T) {
 	th := cores.CloudThemeInfo{ID: 12, Title: "Peach", Slug: "peach", AccentColor: 0xFFE0851E}
 	st := &cloudThemeDlgState{accountID: "a1", theme: th}
@@ -31,8 +28,6 @@ func TestCloudThemeDlgStateFields(t *testing.T) {
 	}
 }
 
-// The dialog's install path stays a no-op without an engine behind it —
-// guard the theme accent conversion feeding applyAccent (slice 66).
 func TestCloudThemeAccentConversion(t *testing.T) {
 	th := cores.CloudThemeInfo{AccentColor: 0xFF40A358}
 	hex := argbToHex(th.AccentColor)

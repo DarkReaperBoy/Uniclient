@@ -1,14 +1,5 @@
 package gui
 
-// OS handoff for media and links (AyuGram slice 86, rows 134/135/136/267
-// + 159 + link opening). In-app streaming playback waits on the engine
-// core; until it lands, downloaded media plays through the platform: the
-// OS default player for voice/audio/video/documents, the browser for
-// tapped links, the file manager for "Show in folder". The decision
-// helpers are pure (locked by openext_test.go); the platform layer is
-// injected through openExternalAsync/revealAsync so tests never spawn
-// processes.
-
 import (
 	"errors"
 	"path/filepath"
@@ -17,29 +8,20 @@ import (
 	"uniclient/engine"
 )
 
-// errNoOpener is returned by platforms without an opener (android).
 var errNoOpener = errors.New("no system opener on this platform")
 
-// openExternalAsync launches the platform opener for a file or URL and
-// reports the outcome through done. Platform files override it in init();
-// the shared default fails every call (kept for platforms with no tagged
-// file). done must be safe to call from any goroutine — every current
-// callback only touches toast helpers, which lock.
 var openExternalAsync = func(target string, done func(error)) {
 	if done != nil {
 		done(errNoOpener)
 	}
 }
 
-// revealAsync reveals a downloaded file in the platform file manager.
 var revealAsync = func(path string, done func(error)) {
 	if done != nil {
 		done(errNoOpener)
 	}
 }
 
-// openOnDone marks a media download so its completion auto-opens the
-// saved file (the tap expressed play/view intent).
 func (a *App) setOpenOnDone(acct, chat, msg string, seq int) {
 	a.mu.Lock()
 	if a.openOnDone == nil {
@@ -49,14 +31,12 @@ func (a *App) setOpenOnDone(acct, chat, msg string, seq int) {
 	a.mu.Unlock()
 }
 
-// consumeOpenOnDone reports and clears the auto-open mark for a download.
 func (a *App) consumeOpenOnDone(acct, chat, msg string, seq int) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.consumeOpenOnDoneLocked(acct, chat, msg, seq)
 }
 
-// consumeOpenOnDoneLocked is consumeOpenOnDone for callers holding a.mu.
 func (a *App) consumeOpenOnDoneLocked(acct, chat, msg string, seq int) bool {
 	if a.openOnDone == nil {
 		return false
@@ -67,9 +47,6 @@ func (a *App) consumeOpenOnDoneLocked(acct, chat, msg string, seq int) bool {
 	return v
 }
 
-// setSaveOnDone marks a media download so its completion copies the file
-// into the user's Downloads directory (slice 99 — save of undownloaded
-// media: the download finishes, then the save runs).
 func (a *App) setSaveOnDone(acct, chat, msg string, seq int) {
 	a.mu.Lock()
 	if a.saveOnDone == nil {
@@ -79,7 +56,6 @@ func (a *App) setSaveOnDone(acct, chat, msg string, seq int) {
 	a.mu.Unlock()
 }
 
-// consumeSaveOnDoneLocked reports and clears the save mark (a.mu held).
 func (a *App) consumeSaveOnDoneLocked(acct, chat, msg string, seq int) bool {
 	if a.saveOnDone == nil {
 		return false
@@ -90,9 +66,6 @@ func (a *App) consumeSaveOnDoneLocked(acct, chat, msg string, seq int) bool {
 	return v
 }
 
-// saveMediaToDownloads copies the message's media file into the engine's
-// downloads directory (slice 99). "start-download" tells the caller to
-// kick RequestDownload — the completion path re-runs this copy.
 func (a *App) saveMediaToDownloads(acct, chat, msg string, seq int) {
 	go func() {
 		dest, err := a.eng.SaveMessageMediaToDownloads(acct, chat, msg, seq)
@@ -101,7 +74,7 @@ func (a *App) saveMediaToDownloads(acct, chat, msg string, seq int) {
 			a.setToast("Saved to " + dest)
 			revealAsync(dest, func(rerr error) {
 				if rerr != nil {
-					return // the toast already told the user where it landed
+					return
 				}
 				a.setToast("Saved to Downloads")
 			})
@@ -118,14 +91,10 @@ func (a *App) saveMediaToDownloads(acct, chat, msg string, seq int) {
 	}()
 }
 
-// saveToDownloadsMenuGate (pure, testable): which messages offer
-// "Save to Downloads" — real media rows, never service rows.
 func saveToDownloadsMenuGate(m engine.CachedMessage) bool {
 	return m.HasMedia && !m.IsService
 }
 
-// sanitizeURL admits only http/https/tg links for browser opening —
-// anything else (javascript:, file:, bare hosts) falls back to copy.
 func sanitizeURL(u string) (string, bool) {
 	u = strings.TrimSpace(u)
 	if u == "" {
@@ -138,8 +107,6 @@ func sanitizeURL(u string) (string, bool) {
 	return "", false
 }
 
-// openArgsFor maps a target (path or URL) to the platform opener command.
-// A "" program means the platform has no opener.
 func openArgsFor(goos, target string) (string, []string) {
 	switch goos {
 	case "linux":
@@ -152,9 +119,6 @@ func openArgsFor(goos, target string) (string, []string) {
 	return "", nil
 }
 
-// revealArgsFor maps a downloaded file to a file-manager reveal command
-// (select the file where the platform supports it, open the folder
-// otherwise — xdg-open has no select flag).
 func revealArgsFor(goos, path string) (string, []string) {
 	switch goos {
 	case "linux":
@@ -167,8 +131,6 @@ func revealArgsFor(goos, path string) (string, []string) {
 	return "", nil
 }
 
-// openMedia hands a completed media file to the system (player/viewer)
-// and toasts the outcome honestly.
 func (a *App) openMedia(path string, playing bool) {
 	if path == "" {
 		return
@@ -185,7 +147,6 @@ func (a *App) openMedia(path string, playing bool) {
 	})
 }
 
-// revealMedia shows a downloaded file in the file manager.
 func (a *App) revealMedia(path string) {
 	if path == "" {
 		return
@@ -199,10 +160,6 @@ func (a *App) revealMedia(path string) {
 	})
 }
 
-// openLinkExternal opens a tapped link — deep links the app can act on
-// (invite joins, username resolves, slice 95) route inside; everything
-// else opens in the platform browser (AyuGram behavior); platforms or
-// schemes without an opener fall back to the slice-34 clipboard copy.
 func (a *App) openLinkExternal(url string) {
 	if a.tryDeepLink(url) {
 		return

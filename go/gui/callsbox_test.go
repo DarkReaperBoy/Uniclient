@@ -7,7 +7,6 @@ import (
 	"uniclient/engine"
 )
 
-// mkCall builds a CallHistoryEntry with the fields the calls box groups on.
 func mkCall(msgID string, peer string, ts int64, out, missed, video bool) engine.CallHistoryEntry {
 	return engine.CallHistoryEntry{
 		MsgID:      msgID,
@@ -21,8 +20,6 @@ func mkCall(msgID string, peer string, ts int64, out, missed, video bool) engine
 }
 
 func TestGroupCallEntriesMergesSamePeerDayDir(t *testing.T) {
-	// Three incoming calls from the same peer on the same day merge into
-	// one row (tdesktop Row::canAddItem: same type + history + date).
 	day := time.Date(2026, 9, 10, 0, 0, 0, 0, time.UTC)
 	ts := func(h int64) int64 { return day.Add(time.Duration(h) * time.Hour).Unix() }
 	entries := []engine.CallHistoryEntry{
@@ -50,17 +47,16 @@ func TestGroupCallEntriesSeparatesDirAndDay(t *testing.T) {
 	day := time.Date(2026, 9, 10, 0, 0, 0, 0, time.UTC)
 	next := day.AddDate(0, 0, 1)
 	entries := []engine.CallHistoryEntry{
-		mkCall("40", "7", next.Add(3*time.Hour).Unix(), false, false, false), // in, day 2
-		mkCall("30", "7", day.Add(15*time.Hour).Unix(), false, false, false), // in, day 1
-		mkCall("29", "7", day.Add(12*time.Hour).Unix(), true, false, false),  // out, day 1
-		mkCall("28", "7", day.Add(9*time.Hour).Unix(), false, true, false),   // missed, day 1
-		mkCall("27", "8", day.Add(9*time.Hour).Unix(), false, false, false),  // other peer
+		mkCall("40", "7", next.Add(3*time.Hour).Unix(), false, false, false),
+		mkCall("30", "7", day.Add(15*time.Hour).Unix(), false, false, false),
+		mkCall("29", "7", day.Add(12*time.Hour).Unix(), true, false, false),
+		mkCall("28", "7", day.Add(9*time.Hour).Unix(), false, true, false),
+		mkCall("27", "8", day.Add(9*time.Hour).Unix(), false, false, false),
 	}
 	rows := groupCallEntries(entries)
 	if len(rows) != 5 {
 		t.Fatalf("rows = %d, want 5 (day, direction, and peer each split)", len(rows))
 	}
-	// Newest-first ordering by message id.
 	if rows[0].Last.MsgID != "40" || rows[1].Last.MsgID != "30" || rows[4].Last.MsgID != "27" {
 		t.Fatalf("order = %s,%s,...,%s, want 40,30,...,27 (newest first)",
 			rows[0].Last.MsgID, rows[1].Last.MsgID, rows[4].Last.MsgID)
@@ -77,9 +73,6 @@ func TestGroupCallEntriesEmpty(t *testing.T) {
 }
 
 func TestCallBoxStatusPhrases(t *testing.T) {
-	// callBoxStatus renders through time.Unix, i.e. in local time, so the
-	// fixtures are built local too — otherwise these literals only hold on
-	// a UTC machine.
 	now := time.Date(2026, 9, 12, 18, 0, 0, 0, time.Local)
 	today := now.Add(-2 * time.Hour)
 	yesterday := now.AddDate(0, 0, -1)
@@ -134,27 +127,21 @@ func TestCallsBoxMenuItems(t *testing.T) {
 }
 
 func TestContentPaneDialogSurfaceCallsBox(t *testing.T) {
-	// Solo wins.
 	if got := contentDialogSurface(frame{callsBoxOpen: true}); got != "callsBox" {
 		t.Fatalf("solo callsBox: = %q, want callsBox", got)
 	}
-	// A full-pane dialog (newChat) beats the page, same as contacts.
 	if got := contentDialogSurface(frame{callsBoxOpen: true, newDlg: &newChatDlg{}}); got != "newChat" {
 		t.Fatalf("newChat + callsBox: = %q, want newChat", got)
 	}
-	// The page beats the settings pane (drawer gear beneath it).
 	if got := contentDialogSurface(frame{callsBoxOpen: true, settingsOpen: true}); got != "callsBox" {
 		t.Fatalf("settings + callsBox: = %q, want callsBox", got)
 	}
-	// Same chain position as the contacts page (both are drawer pages):
-	// contacts first, calls box next.
 	if got := contentDialogSurface(frame{callsBoxOpen: true, contactsOpen: true}); got != "contacts" {
 		t.Fatalf("contacts + callsBox: = %q, want contacts (page order)", got)
 	}
 }
 
 func TestEscTargetCallsBoxSelfHandled(t *testing.T) {
-	// The calls box consumes Esc in its own layout (like contacts).
 	f := frame{callsBoxOpen: true, menu: &menuTarget{}}
 	if got := escTarget(f); got != "" {
 		t.Errorf("callsBox + menu: escTarget = %q, want empty (box consumes Esc)", got)

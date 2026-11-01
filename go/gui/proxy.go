@@ -13,16 +13,9 @@ import (
 	"uniclient/utils"
 )
 
-// Connection settings (AyuGram Data & Storage "Proxy", slice 85): proxy
-// mode (disabled / system / custom), custom fields for SOCKS5 / HTTP /
-// MTProto, Apply pushes engine.SetProxy (immediate — every live core
-// redials through it) and persists the AppConfig.ProxyConfig so Init
-// restores it. The download-path row switches the engine's downloads
-// directory.
-
 var (
-	proxyModeBtns     [3]widget.Clickable // disabled / system / custom
-	proxyTypeBtns     [3]widget.Clickable // socks5 / http / mtproto
+	proxyModeBtns     [3]widget.Clickable
+	proxyTypeBtns     [3]widget.Clickable
 	proxyHostEd       widget.Editor
 	proxyPortEd       widget.Editor
 	proxyUserEd       widget.Editor
@@ -39,13 +32,10 @@ func init() {
 	}
 }
 
-// proxyModeLabels names the three proxy modes.
 var proxyModeLabels = []string{"Disabled", "System", "Custom"}
 
-// proxyTypeTokens are the engine's lowercase proxy type tokens.
 var proxyTypeTokens = []string{"socks5", "http", "mtproto"}
 
-// proxyModeIndex maps a config mode int to the segment index. Pure.
 func proxyModeIndex(mode int) int {
 	if mode < 0 || mode > 2 {
 		return 0
@@ -53,7 +43,6 @@ func proxyModeIndex(mode int) int {
 	return mode
 }
 
-// proxyTypeIndex maps a type token to the segment index. Pure.
 func proxyTypeIndex(ptype string) int {
 	for i, t := range proxyTypeTokens {
 		if t == strings.ToLower(strings.TrimSpace(ptype)) {
@@ -63,7 +52,6 @@ func proxyTypeIndex(ptype string) int {
 	return 0
 }
 
-// normalizeProxyPort parses the port editor's text (0 on junk). Pure.
 func normalizeProxyPort(s string) int {
 	p, err := strconv.Atoi(strings.TrimSpace(s))
 	if err != nil || p < 0 || p > 65535 {
@@ -72,9 +60,6 @@ func normalizeProxyPort(s string) int {
 	return p
 }
 
-// ── state transitions ─────────────────────────────────────────────────────
-
-// applyProxySettings pushes the form to the engine and persists it.
 func (a *App) applyProxySettings(mode int, ptype, host, port, user, pass string) {
 	portN := normalizeProxyPort(port)
 	ptype = strings.ToLower(strings.TrimSpace(ptype))
@@ -93,7 +78,6 @@ func (a *App) applyProxySettings(mode int, ptype, host, port, user, pass string)
 	}()
 }
 
-// applyDownloadPath switches the engine downloads directory and persists.
 func (a *App) applyDownloadPath(path string) {
 	path = strings.TrimSpace(path)
 	go func() {
@@ -109,13 +93,7 @@ func (a *App) applyDownloadPath(path string) {
 	}()
 }
 
-// ── layout ────────────────────────────────────────────────────────────────
-
-// layoutProxySection renders the proxy + download-path settings block.
-// Called from the Data & Storage page.
 func (a *App) layoutProxySection(gtx layout.Context, f frame) layout.Dimensions {
-	// Seed the editors once from the live engine settings (frame thread;
-	// the engine getter is a cheap RLock read).
 	if !proxyEditorsReady {
 		mode, host, port, ptype, user, pass := a.eng.GetProxySettings()
 		proxyHostEd.SetText(host)
@@ -136,7 +114,6 @@ func (a *App) layoutProxySection(gtx layout.Context, f frame) layout.Dimensions 
 		return a.settingRow(gtx, "Connection", "Route every backend through a proxy (SOCKS5 / HTTP / MTProto)")
 	}))
 
-	// Mode segments.
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		cells := make([]layout.FlexChild, 0, 3)
 		for i, label := range proxyModeLabels {
@@ -157,7 +134,6 @@ func (a *App) layoutProxySection(gtx layout.Context, f frame) layout.Dimensions 
 	}))
 
 	if proxyFormMode == 2 {
-		// Type segments.
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			cells := make([]layout.FlexChild, 0, 3)
 			for i, tok := range proxyTypeTokens {
@@ -190,7 +166,6 @@ func (a *App) layoutProxySection(gtx layout.Context, f frame) layout.Dimensions 
 		}))
 	}
 
-	// Apply.
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		if proxyApplyBtn.Clicked(gtx) {
 			a.applyProxySettings(proxyFormMode, proxyTypeTokens[proxyFormType],
@@ -201,7 +176,6 @@ func (a *App) layoutProxySection(gtx layout.Context, f frame) layout.Dimensions 
 		return layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(8)}.Layout(gtx, btn.Layout)
 	}))
 
-	// Download path.
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.sectionTitle(gtx, "Download path")
 	}))
@@ -222,13 +196,11 @@ func (a *App) layoutProxySection(gtx layout.Context, f frame) layout.Dimensions 
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-// proxyFormMode/Type are the segment selections (frame thread).
 var (
 	proxyFormMode int
 	proxyFormType int
 )
 
-// proxyEditorRow renders a labeled single-line editor.
 func (a *App) proxyEditorRow(gtx layout.Context, ed *widget.Editor, label, hint string) layout.Dimensions {
 	return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(2), Left: unit.Dp(14), Right: unit.Dp(14)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
@@ -257,7 +229,6 @@ func (a *App) proxyEditorRow(gtx layout.Context, ed *widget.Editor, label, hint 
 	})
 }
 
-// segmentChip renders one selectable segment (accent when active).
 func segmentChip(gtx layout.Context, a *App, btn *widget.Clickable, label string, active bool) layout.Dimensions {
 	b := material.Button(a.ui.Theme, btn, label)
 	b.Background = a.ui.p.SurfaceHi

@@ -7,8 +7,6 @@ import (
 	"uniclient/engine"
 )
 
-// Poll data rides in the cached message's raw JSON (cores.Message.Extra,
-// filled by the telegram core's MessageMediaPoll conversion).
 func pollRawMessage(t *testing.T, extra map[string]interface{}) []byte {
 	t.Helper()
 	type rawMsg struct {
@@ -92,8 +90,8 @@ func TestApplyPollOverlay(t *testing.T) {
 		Question:    "Q",
 		TotalVoters: 2,
 		Options: []pollOption{
-			{Text: "A", Voters: 2, Chosen: true}, // server already counted me
-			{Text: "B", Voters: 0},               // my new vote
+			{Text: "A", Voters: 2, Chosen: true},
+			{Text: "B", Voters: 0},
 			{Text: "C"},
 		},
 	}
@@ -166,8 +164,6 @@ func TestValidatePollDraft(t *testing.T) {
 	}
 }
 
-// ── slice 124: retract / multi-vote / stop / solution ─────────────────────
-
 func pollMsg(extra string) *engine.CachedMessage {
 	return &engine.CachedMessage{
 		AccountID:  "acc",
@@ -187,7 +183,6 @@ func TestApplyPollOverlayRetract(t *testing.T) {
 			{Text: "B", Voters: 1},
 		},
 	}
-	// Empty (non-nil) overlay = full retraction of my server-counted vote.
 	applyPollOverlay(d, map[int]bool{})
 	if d.Options[0].Chosen || d.Options[0].Voters != 1 {
 		t.Errorf("retract did not remove own vote: %+v", d.Options[0])
@@ -195,7 +190,6 @@ func TestApplyPollOverlayRetract(t *testing.T) {
 	if d.TotalVoters != 1 {
 		t.Errorf("total = %d, want 1", d.TotalVoters)
 	}
-	// nil overlay = no opinion (server truth untouched).
 	d2 := &pollData{TotalVoters: 5, Options: []pollOption{{Text: "A", Voters: 5, Chosen: true}}}
 	applyPollOverlay(d2, nil)
 	if !d2.Options[0].Chosen || d2.TotalVoters != 5 {

@@ -1,12 +1,5 @@
 package gui
 
-// mutedlg.go — slice 134: the mute-duration picker (tdesktop's "Mute for"
-// dialog). The notifications switch stays the instant on/off; the clock
-// chip next to it opens this picker with Telegram's presets
-// (1 hour / 8 hours / 2 days / until turned back on) plus an Unmute row.
-// Timed mutes ride engine.MuteChat(muted, durationSeconds) → the core's
-// MuteChatFor (account.updateNotifySettings mute_until).
-
 import (
 	"image"
 	"strconv"
@@ -25,13 +18,11 @@ import (
 	"uniclient/cores"
 )
 
-// mutePreset is one "Mute for…" option.
 type mutePreset struct {
 	label string
 	secs  int
 }
 
-// mutePresets: tdesktop's list (forever = secs 0 → plain muted flag).
 var mutePresets = []mutePreset{
 	{"1 hour", 3600},
 	{"8 hours", 8 * 3600},
@@ -39,23 +30,15 @@ var mutePresets = []mutePreset{
 	{"Until turned back on", 0},
 }
 
-// mutePresetAction maps a preset to the engine wire (muted flag +
-// duration). Pure — unit-tested.
 func mutePresetAction(secs int) (muted bool, duration int32) {
 	return true, int32(secs)
 }
 
-// parseCustomMuteDuration parses a user-typed mute duration: unit
-// suffixes h/m/s/d (combinable, whitespace-insensitive) or a plain
-// number of seconds. Zero/negative results reject; absurd durations
-// (past 2038 when added to now — Telegram's int32 forever semantics)
-// cap to forever (0). Pure — unit-tested.
 func parseCustomMuteDuration(s string) (int, bool) {
 	s = strings.TrimSpace(strings.ToLower(s))
 	if s == "" {
 		return 0, false
 	}
-	// plain number = seconds
 	if n, err := strconv.Atoi(s); err == nil {
 		return customMuteCap(n)
 	}
@@ -63,10 +46,9 @@ func parseCustomMuteDuration(s string) (int, bool) {
 	rest := s
 	consumed := false
 	for rest != "" {
-		// find the next unit letter
 		idx := strings.IndexAny(rest, "smhd")
 		if idx <= 0 {
-			return 0, false // no number before a unit, or trailing junk
+			return 0, false
 		}
 		n, err := strconv.Atoi(strings.TrimSpace(rest[:idx]))
 		if err != nil {
@@ -92,21 +74,16 @@ func parseCustomMuteDuration(s string) (int, bool) {
 	return customMuteCap(total)
 }
 
-// customMuteCap clamps a duration to the forever value when it would
-// overflow Telegram's int32 mute_until unix time.
 func customMuteCap(secs int) (int, bool) {
 	if secs <= 0 {
 		return 0, false
 	}
 	if time.Now().Unix()+int64(secs) > 1<<31-1 {
-		return 0, true // forever
+		return 0, true
 	}
 	return secs, true
 }
 
-// muteDlgState is the open mute/notifications picker. ns carries the
-// live per-chat exception state once the async read lands (nil = still
-// loading or unsupported — the exceptions section hides, §1.10).
 type muteDlgState struct {
 	accountID string
 	chatID    string
@@ -118,20 +95,15 @@ var (
 	muteDlgKeyTag = new(struct{})
 )
 
-// Custom-duration entry (slice 149): "Custom…" reveals a text field.
 var (
 	muteDlgCustomOpen bool
 )
 
-// Notify-exception switches (slice 174): edge-detection previous values,
-// re-synced when the live settings read lands.
 var (
 	prevMuteDlgSound    bool
 	prevMuteDlgPreviews bool
 )
 
-// openMuteDialog opens the mute-duration picker for the open chat and
-// kicks the live exception read (sound/previews, slice 174).
 func (a *App) openMuteDialog(k chatKey, title string) {
 	a.mu.Lock()
 	a.muteDlg = &muteDlgState{accountID: k.AccountID, chatID: k.ChatID, title: title}
@@ -140,7 +112,7 @@ func (a *App) openMuteDialog(k chatKey, title string) {
 	go func() {
 		ns, err := a.eng.GetChatNotifySettings(k.AccountID, k.ChatID)
 		if err != nil {
-			return // unsupported platform or transient failure: hide the section
+			return
 		}
 		a.mu.Lock()
 		if a.muteDlg != nil && a.muteDlg.accountID == k.AccountID && a.muteDlg.chatID == k.ChatID {
@@ -155,7 +127,6 @@ func (a *App) openMuteDialog(k chatKey, title string) {
 	}()
 }
 
-// closeMuteDialog dismisses it.
 func (a *App) closeMuteDialog() {
 	a.mu.Lock()
 	a.muteDlg = nil
@@ -163,7 +134,6 @@ func (a *App) closeMuteDialog() {
 	a.invalidate()
 }
 
-// applyMutePreset applies a picked preset (async + toast).
 func (a *App) applyMutePreset(accountID, chatID string, secs int) {
 	muted, dur := mutePresetAction(secs)
 	label := "Muted"
@@ -180,7 +150,6 @@ func (a *App) applyMutePreset(accountID, chatID string, secs int) {
 	}()
 }
 
-// applyUnmute unmutes the chat (async + toast).
 func (a *App) applyUnmute(accountID, chatID string) {
 	a.closeMuteDialog()
 	go func() {
@@ -192,13 +161,10 @@ func (a *App) applyUnmute(accountID, chatID string) {
 	}()
 }
 
-// layoutMuteDialog renders the duration picker (content-pane replacement,
-// like the other header dialogs).
 func (a *App) layoutMuteDialog(gtx layout.Context, f frame) layout.Dimensions {
 	st := f.muteDlg
 	growClickables(&a.wid.muteDlgRowBtns, len(mutePresets))
 
-	// Esc closes (self-handled).
 	{
 		stack := clip.Rect{Max: image.Pt(gtx.Constraints.Max.X, gtx.Constraints.Max.Y)}.Push(gtx.Ops)
 		event.Op(gtx.Ops, muteDlgKeyTag)
@@ -241,10 +207,6 @@ func (a *App) layoutMuteDialog(gtx layout.Context, f frame) layout.Dimensions {
 		}
 		a.invalidate()
 	}
-	// Notify exceptions (slice 174): sound + message previews switches —
-	// each write preserves the current mute and updates one field. Edge
-	// detection against the synced previous values (widget.Bool carries no
-	// Changed signal — the drawer-toggle pattern).
 	if st.ns != nil {
 		if a.wid.muteDlgSound.Value != prevMuteDlgSound {
 			prevMuteDlgSound = a.wid.muteDlgSound.Value
@@ -299,8 +261,6 @@ func (a *App) layoutMuteDialog(gtx layout.Context, f frame) layout.Dimensions {
 							return btn.Layout(gtx)
 						})
 					}),
-					// Notify exceptions (slice 174, tdesktop exceptions): sound +
-					// message previews for this chat, live server state.
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return a.layoutNotifyExceptions(gtx, st)
 					}),
@@ -320,11 +280,6 @@ func (a *App) layoutMuteDialog(gtx layout.Context, f frame) layout.Dimensions {
 	})
 }
 
-// a.wid.muteClockBtn opens the picker from the notifications row.
-
-// muteRowWithPicker renders the notifications row with the duration chip.
-// While a timed mute is active the label gains a "Muted until …" subtitle
-// (slice 136) that re-renders on the minute.
 func (a *App) muteRowWithPicker(gtx layout.Context, f frame, k chatKey, sw *widget.Bool) layout.Dimensions {
 	if a.wid.muteClockBtn.Clicked(gtx) && mainOnlySurfaceShown(a) {
 		title := ""
@@ -338,7 +293,6 @@ func (a *App) muteRowWithPicker(gtx layout.Context, f frame, k chatKey, sw *widg
 		a.mu.Unlock()
 		a.openMuteDialog(k, title)
 	}
-	// Timed-mute subtitle + minute-boundary tick.
 	sub := ""
 	var muteUntil int64
 	a.mu.Lock()
@@ -380,10 +334,6 @@ func (a *App) muteRowWithPicker(gtx layout.Context, f frame, k chatKey, sw *widg
 				})
 			}),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				// R30: the clock opens the mute-duration picker (a
-				// content-pane dialog) — dead in separate windows, so the
-				// button is hidden there. The switch beside it is a direct
-				// engine action and stays everywhere.
 				if !mainOnlySurfaceShown(a) {
 					return layout.Dimensions{}
 				}
@@ -402,7 +352,6 @@ func (a *App) muteRowWithPicker(gtx layout.Context, f frame, k chatKey, sw *widg
 	})
 }
 
-// notifyOnOff renders a toggle state for toasts. Pure.
 func notifyOnOff(v bool) string {
 	if v {
 		return "on"
@@ -410,8 +359,6 @@ func notifyOnOff(v bool) string {
 	return "off"
 }
 
-// applyNotifyException writes one notify-exception field (sound or
-// previews), preserving the chat's current mute (slice 174).
 func (a *App) applyNotifyException(accountID, chatID string, muteUntil int32, soundOn, showPreviews *bool, toastLabel string) {
 	go func() {
 		if err := a.eng.SetChatNotifySettings(accountID, chatID, muteUntil, soundOn, showPreviews); err != nil {
@@ -422,9 +369,6 @@ func (a *App) applyNotifyException(accountID, chatID string, muteUntil int32, so
 	}()
 }
 
-// layoutNotifyExceptions renders the sound + message-preview switches
-// (slice 174). Hidden until the live read lands (st.ns), then it stays
-// for the dialog's life — §1.10: nothing renders without real state.
 func (a *App) layoutNotifyExceptions(gtx layout.Context, st *muteDlgState) layout.Dimensions {
 	if st.ns == nil {
 		return layout.Dimensions{}

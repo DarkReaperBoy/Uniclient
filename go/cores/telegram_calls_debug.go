@@ -8,9 +8,6 @@ import (
 	"github.com/pion/webrtc/v4"
 )
 
-// logCallTransceivers dumps the transceiver table of an active call for
-// debugging (called from OnTrack). Native-only: the js/wasm transceiver API
-// lacks Mid() and Receiver().Track().
 func logCallTransceivers(call *tgCall) {
 	if call == nil || call.pc == nil {
 		return

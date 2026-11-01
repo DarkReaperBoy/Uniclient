@@ -7,8 +7,6 @@ import (
 	"gioui.org/op"
 )
 
-// renderDrawSmoke: a full document renders every frame without panicking
-// and emits paint operations (Stage C).
 func TestRenderDrawSmoke(t *testing.T) {
 	src := `{
 		"v":"5.7.4","fr":30,"ip":0,"op":30,"w":100,"h":100,"nm":"smoke",
@@ -42,29 +40,21 @@ func TestRenderDrawSmoke(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
-	// Every frame renders without panicking (the ops themselves are
-	// validated by Gio at draw time; here we exercise the full walker:
-	// groups, transforms, parent chain, fill + stroke styles).
 	for f := 0.0; f < 30; f += 0.7 {
 		var ops op.Ops
 		Draw(anim, f, &ops, image.Rect(0, 0, 128, 128))
 	}
-	// The same document with an in-range frame emits paint ops: verify
-	// via the fill counter (renderer tracks fills for tests).
 	r := &renderer{anim: anim, frame: 15, ops: &op.Ops{}}
 	r.fit(image.Rect(0, 0, 128, 128))
 	r.drawLayers(r.anim.Layers, identity(), 0)
 	if r.fills == 0 || r.strokes == 0 {
 		t.Fatalf("emitted %d fills / %d strokes, want both > 0", r.fills, r.strokes)
 	}
-	// Degenerate rects never panic.
 	var ops op.Ops
 	Draw(anim, 0, &ops, image.Rect(0, 0, 0, 0))
 	Draw(nil, 0, &ops, image.Rect(0, 0, 10, 10))
 }
 
-// Letterboxing: a 2:1 animation in a square viewport centers content
-// (the fit scale is the min axis).
 func TestRenderFitScale(t *testing.T) {
 	anim := &Animation{Width: 200, Height: 100, FrameRate: 30, OutPoint: 1}
 	r := &renderer{anim: anim}
@@ -77,7 +67,6 @@ func TestRenderFitScale(t *testing.T) {
 	}
 }
 
-// fit helper for tests (the Draw path computes the same values).
 func (r *renderer) fit(into image.Rectangle) {
 	w, h := r.anim.Width, r.anim.Height
 	r.kx = float64(into.Dx()) / w

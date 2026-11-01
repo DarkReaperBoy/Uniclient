@@ -7,11 +7,6 @@ import (
 	"uniclient/engine"
 )
 
-// Webpage previews (slice 117) — pure logic: Extra parsing (the same
-// content_raw contract as poll/location bubbles), link detection for the
-// a.wid.composer toggle, card visibility. Engine-side no_webpage wiring is pinned
-// in engine/webpage_test.go.
-
 func wpMessage(extra map[string]interface{}) *engine.CachedMessage {
 	env := struct {
 		Extra map[string]interface{} `json:"extra"`
@@ -46,19 +41,15 @@ func TestParseWebPage(t *testing.T) {
 		t.Fatalf("desc/duration = %q/%d", wp.Description, wp.Duration)
 	}
 
-	// No extra → nil (plain text message).
 	if parseWebPage(&engine.CachedMessage{ContentText: "hi"}) != nil {
 		t.Fatal("plain message must not parse as webpage")
 	}
-	// wp_url alone is enough (other fields optional).
 	m2 := wpMessage(map[string]interface{}{"wp_url": "https://x.org"})
 	wp2 := parseWebPage(m2)
 	if wp2 == nil || wp2.URL != "https://x.org" {
 		t.Fatalf("url-only parse = %+v", wp2)
 	}
 
-	// Slice 130: the page photo's download coordinates ride along and
-	// hasPhotoID gates the ensure path.
 	m3 := wpMessage(map[string]interface{}{
 		"wp_url":         "https://x.org/p",
 		"wp_photo_id":    "9001",
@@ -110,8 +101,8 @@ func TestComposedHasLink(t *testing.T) {
 		{"check https://example.com now", true},
 		{"http://plain.org", true},
 		{"see www.example.com/page", true},
-		{"visit example.com directly", false}, // bare domain: Telegram requires scheme/www
-		{"ftp://files.example.com", false},    // only http(s)/www count
+		{"visit example.com directly", false},
+		{"ftp://files.example.com", false},
 	}
 	for _, c := range cases {
 		if got := composedHasLink(c.text); got != c.want {

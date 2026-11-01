@@ -20,19 +20,18 @@ import (
 	"uniclient/engine"
 )
 
-// Sidebar widgets (created once, reused every frame).
 var (
 	sidebarSearch      widget.Editor
 	sidebarAddBtn      widget.Clickable
 	sidebarChatsList   widget.List
 	sidebarFolderTabs  widget.List
-	chatListBtns       []widget.Clickable // one per visible chat row
-	rowQuickBtns       []widget.Clickable // hover quick actions, 2 per row (slice 89)
+	chatListBtns       []widget.Clickable
+	rowQuickBtns       []widget.Clickable
 	accountSwitchBtn   widget.Clickable
 	accountMenuBtns    []widget.Clickable
 	accountMenuOpen    bool
 	accountMenuRemove  []widget.Clickable
-	sidebarMenuBtn     widget.Clickable // ☰ hamburger (drawer)
+	sidebarMenuBtn     widget.Clickable
 	sidebarModeChatBtn widget.Clickable
 	sidebarModeVoiceBt widget.Clickable
 	sidebarSettingsBtn widget.Clickable
@@ -44,22 +43,17 @@ func init() {
 	sidebarFolderTabs.Axis = layout.Horizontal
 }
 
-// layoutSidebar: account bar, mode tabs, search, folder tabs, chat list.
 func (a *App) layoutSidebar(gtx layout.Context, f frame, narrow bool) layout.Dimensions {
-	// Route sidebar presses (chat-row context menu, menu dismissal).
 	a.processSidebarEvents(gtx, f)
 
-	// Hover peek (slice 145): the preview anchors beside this pane.
 	a.sidebarW = gtx.Constraints.Max.X
 
-	// Pre-size the per-row clickables.
 	visible := filterChats(f)
 	for len(chatListBtns) < len(visible) {
 		chatListBtns = append(chatListBtns, widget.Clickable{})
 	}
 	growClickables(&rowQuickBtns, len(visible)*2)
 
-	// Reset this frame's row-bounds bookkeeping; filled by layoutChatList.
 	a.chatRowBounds = make(map[int]image.Rectangle, len(visible))
 	a.sbVisible = visible
 	a.sbAboveList = 0
@@ -73,7 +67,6 @@ func (a *App) layoutSidebar(gtx layout.Context, f frame, narrow bool) layout.Dim
 	}
 
 	dims := layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		// Account bar (+ dropdown menu when open)
 		layout.Rigid(record(func(gtx layout.Context) layout.Dimensions {
 			barFn := a.layoutAccountBar(gtx, f)
 			if !accountMenuOpen || len(f.accounts) == 0 {
@@ -86,85 +79,63 @@ func (a *App) layoutSidebar(gtx layout.Context, f frame, narrow bool) layout.Dim
 				}),
 			)
 		})),
-		// Chat / Voice mode tabs
 		layout.Rigid(record(func(gtx layout.Context) layout.Dimensions {
 			return a.layoutModeTabs(gtx, f)
 		})),
-		// Search
 		layout.Rigid(record(func(gtx layout.Context) layout.Dimensions {
 			return insetAll(gtx, unit.Dp(8), unit.Dp(12), 4, unit.Dp(12), func(gtx layout.Context) layout.Dimensions {
 				return a.searchField(gtx, f)
 			})
 		})),
-		// Search result tabs (AyuGram results screen, slice 57)
 		layout.Rigid(record(func(gtx layout.Context) layout.Dimensions {
 			return a.layoutSearchTabs(gtx, f)
 		})),
-		// Recent searches dropdown (AyuGram, slice 37): below the field while
-		// it is focused and empty.
 		layout.Rigid(record(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Left: unit.Dp(12), Right: unit.Dp(12), Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return a.layoutRecentSearches(gtx, f)
 			})
 		})),
-		// Top peers strip (AyuGram, slice 72): pictured row above the list
-		// while the search field is focused and empty.
 		layout.Rigid(record(func(gtx layout.Context) layout.Dimensions {
 			return a.layoutTopPeers(gtx, f)
 		})),
-		// Stories row (AyuGram, slice 104): horizontal story circles.
 		layout.Rigid(record(func(gtx layout.Context) layout.Dimensions {
 			return a.layoutStoryStrip(gtx, f)
 		})),
-		// Saved Messages shortcut (AyuGram, slice 116): pinned rows above
-		// the folder tabs, one per capable account.
 		layout.Rigid(record(func(gtx layout.Context) layout.Dimensions {
 			return a.layoutSavedRow(gtx, f)
 		})),
-		// Folder tabs (or the archive-view back row, slice 67)
 		layout.Rigid(record(func(gtx layout.Context) layout.Dimensions {
 			if f.archiveView {
 				return a.archiveHeader(gtx, f)
 			}
 			return a.layoutFolders(gtx, f)
 		})),
-		// Top-bar suggestion card (tdesktop dialogs/suggestions, slice
-		// 171): one server/local suggestion above the dialog rows;
-		// renders nothing when nothing is pending (honest empty §1.10).
 		layout.Rigid(record(func(gtx layout.Context) layout.Dimensions {
 			return a.layoutSuggestionBar(gtx, f)
 		})),
-		// Chat list (scrollable)
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			return a.layoutChatList(gtx, f, visible)
 		}),
 	)
 
-	// Chat-row context menu on top of the sidebar.
 	if f.chatMenu != nil {
 		a.layoutChatMenu(gtx, f)
 	}
-	// Folder-tab context menu on top of the sidebar (slice 54).
 	if f.folderMenu != nil {
 		a.layoutFolderMenu(gtx, f)
 	}
-	// Floating next-unread jump button (AyuGram, slice 30).
 	a.layoutNextUnreadBtn(gtx, f, visible)
-	// Invite-link confirm dialog (slice 24).
 	if f.inviteDlg != nil {
 		a.layoutInviteDialog(gtx, f)
 	}
 	return dims
 }
 
-// layoutAccountBar: current account (avatar+name+conn dot) + add button +
-// dropdown menu for account switching/removal.
 func (a *App) layoutAccountBar(gtx layout.Context, f frame) func(gtx layout.Context) layout.Dimensions {
 	return func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Top: unit.Dp(8), Left: unit.Dp(12), Right: unit.Dp(8), Bottom: unit.Dp(4)}.Layout(gtx,
 			func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-					// ☰ hamburger: AyuGram main-menu drawer (slice 17).
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						if sidebarMenuBtn.Clicked(gtx) {
 							a.openDrawer()
@@ -173,7 +144,6 @@ func (a *App) layoutAccountBar(gtx layout.Context, f frame) func(gtx layout.Cont
 						btn.Color = a.ui.p.TextDim
 						return btn.Layout(gtx)
 					}),
-					// account switcher (opens menu)
 					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 						current := currentAccount(f)
 						accBtn := &accountSwitchBtn
@@ -186,8 +156,6 @@ func (a *App) layoutAccountBar(gtx layout.Context, f frame) func(gtx layout.Cont
 								layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 									name := accountName(current)
 									return layout.Inset{Right: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-										// per-account unread badge on the bar avatar (AyuGram
-										// account-rail parity, slice 165)
 										unread := accountUnread(f.chats, current.ID)
 										if unread <= 0 {
 											return a.ui.Avatar(gtx, name, unit.Dp(38), connDotFor(current))
@@ -217,7 +185,6 @@ func (a *App) layoutAccountBar(gtx layout.Context, f frame) func(gtx layout.Cont
 							)
 						})
 					}),
-					// add-account button
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						if sidebarAddBtn.Clicked(gtx) {
 							a.mu.Lock()
@@ -229,7 +196,6 @@ func (a *App) layoutAccountBar(gtx layout.Context, f frame) func(gtx layout.Cont
 						btn.Color = a.ui.p.Accent
 						return btn.Layout(gtx)
 					}),
-					// settings (gear) — AyuGram settings entry
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						if sidebarSettingsBtn.Clicked(gtx) {
 							a.openSettings(setSectionMain)
@@ -244,8 +210,6 @@ func (a *App) layoutAccountBar(gtx layout.Context, f frame) func(gtx layout.Cont
 	}
 }
 
-// accountMenu: dropdown listing accounts (click = filter list to that
-// account; trash button = remove) + "All accounts" reset row.
 func (a *App) accountMenu(gtx layout.Context, f frame) layout.Dimensions {
 	for len(accountMenuBtns) < len(f.accounts)+1 {
 		accountMenuBtns = append(accountMenuBtns, widget.Clickable{})
@@ -253,7 +217,6 @@ func (a *App) accountMenu(gtx layout.Context, f frame) layout.Dimensions {
 	for len(accountMenuRemove) < len(f.accounts) {
 		accountMenuRemove = append(accountMenuRemove, widget.Clickable{})
 	}
-	// Row 0: All accounts (clears filter).
 	if accountMenuBtns[0].Clicked(gtx) {
 		a.mu.Lock()
 		a.acctFilter = ""
@@ -304,8 +267,6 @@ func (a *App) accountMenu(gtx layout.Context, f frame) layout.Dimensions {
 					}
 					return menuRow(gtx, a.ui, &accountMenuBtns[i+1], lbl)
 				}),
-				// per-account unread badge (slice 165 — the switcher's
-				// per-account unread dots, drawer-row parity)
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					if unread := accountUnread(f.chats, acc.ID); unread > 0 {
 						return layout.Inset{Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -333,7 +294,6 @@ func (a *App) accountMenu(gtx layout.Context, f frame) layout.Dimensions {
 		})
 }
 
-// menuRow: a flat clickable row.
 func menuRow(gtx layout.Context, u *UI, btn *widget.Clickable, lbl material.LabelStyle) layout.Dimensions {
 	return material.ButtonLayout(u.Theme, btn).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.X = 0
@@ -341,7 +301,6 @@ func menuRow(gtx layout.Context, u *UI, btn *widget.Clickable, lbl material.Labe
 	})
 }
 
-// layoutModeTabs: Chat | Voice segmented control.
 func (a *App) layoutModeTabs(gtx layout.Context, f frame) layout.Dimensions {
 	if sidebarModeChatBtn.Clicked(gtx) {
 		a.mu.Lock()
@@ -353,7 +312,7 @@ func (a *App) layoutModeTabs(gtx layout.Context, f frame) layout.Dimensions {
 		a.mu.Lock()
 		a.mode = 1
 		a.mu.Unlock()
-		go a.loadCalls() // slice 64: recent calls for the Voice tab
+		go a.loadCalls()
 		a.invalidate()
 	}
 	return layout.Inset{Left: unit.Dp(12), Right: unit.Dp(12), Bottom: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -371,7 +330,6 @@ type segItem struct {
 	btn    *widget.Clickable
 }
 
-// segControl renders a rounded segmented control.
 func segControl(gtx layout.Context, u *UI, items [2]segItem) layout.Dimensions {
 	h := gtx.Dp(unit.Dp(40))
 	return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
@@ -415,8 +373,7 @@ func segCell(gtx layout.Context, u *UI, it segItem) layout.Dimensions {
 
 func (a *App) searchField(gtx layout.Context, f frame) layout.Dimensions {
 	sidebarSearch.SingleLine = true
-	sidebarSearch.Submit = true // Enter records recent searches (slice 37)
-	// Update search state from editor.
+	sidebarSearch.Submit = true
 	for {
 		ev, ok := sidebarSearch.Update(gtx)
 		if !ok {
@@ -435,8 +392,6 @@ func (a *App) searchField(gtx layout.Context, f frame) layout.Dimensions {
 	ed := a.ui.Editor(&sidebarSearch, "Search")
 	return roundedFill(gtx, a.ui.p.SurfaceHi, 10, func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Top: unit.Dp(9), Bottom: unit.Dp(9), Left: unit.Dp(12), Right: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			// Row 306: the search field takes an invite link OR, via the
-			// trailing glyph, a QR image holding one (slice 227).
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 				layout.Flexed(1, ed.Layout),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -447,12 +402,7 @@ func (a *App) searchField(gtx layout.Context, f frame) layout.Dimensions {
 	})
 }
 
-// layoutFolders: horizontal scrollable folder tabs (AyuGram parity).
-// Right-clicking a real server folder tab opens the folder editor (the tab
-// bounds recorded here feed the sidebar press routing).
 func (a *App) layoutFolders(gtx layout.Context, f frame) layout.Dimensions {
-	// Real server folders when an account is scoped and its core supports
-	// them; smart fallback tabs otherwise (AyuGram parity §2).
 	tabs := buildFolderTabs(f.acctFilter, f.folders, f.foldersSupported, f.cfg.HideAllChats)
 	for len(folderBtns) < len(tabs) {
 		folderBtns = append(folderBtns, widget.Clickable{})
@@ -469,8 +419,6 @@ func (a *App) layoutFolders(gtx layout.Context, f frame) layout.Dimensions {
 			}
 		}
 	}
-	// Tab bounds in sidebar-pane coords (y fixed by the accumulated layout,
-	// x scrolled with the tab list).
 	tabY := a.sbAboveList
 	tabH := gtx.Dp(unit.Dp(30))
 	a.sbTabBounds = a.sbTabBounds[:0]
@@ -491,13 +439,11 @@ func (a *App) layoutFolders(gtx layout.Context, f frame) layout.Dimensions {
 
 var folderBtns []widget.Clickable
 
-// search-result row clickables (slice 16).
 var (
 	searchMsgBtns    []widget.Clickable
 	searchGlobalBtns []widget.Clickable
 )
 
-// filterChats applies folder + search.
 func filterChats(f frame) []engine.ChatInfo {
 	q := strings.ToLower(strings.TrimSpace(f.search))
 	tabs := buildFolderTabs(f.acctFilter, f.folders, f.foldersSupported, f.cfg.HideAllChats)
@@ -510,9 +456,6 @@ func filterChats(f frame) []engine.ChatInfo {
 		if f.acctFilter != "" && c.AccountID != f.acctFilter {
 			continue
 		}
-		// Archive split (slice 67): the main list hides archived chats behind
-		// the collapsed Archived row (search still matches them, like
-		// Telegram); the archive view is scoped to archived chats only.
 		if f.archiveView {
 			if !c.IsArchived {
 				continue
@@ -532,7 +475,6 @@ func filterChats(f frame) []engine.ChatInfo {
 	return out
 }
 
-// layoutChatList: the scrolling list of chat rows + loading/empty states.
 func (a *App) layoutChatList(gtx layout.Context, f frame, visible []engine.ChatInfo) layout.Dimensions {
 	if len(f.accounts) == 0 {
 		return centerLayout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -553,9 +495,6 @@ func (a *App) layoutChatList(gtx layout.Context, f frame, visible []engine.ChatI
 		})
 	}
 
-	// Click handling. Update (not Clicked) so the click's modifier set is
-	// available: Ctrl+click opens the chat in its own window (slice 168,
-	// tdesktop Window::IsCtrlPressed parity).
 	for i := range visible {
 		if i >= len(chatListBtns) {
 			break
@@ -568,20 +507,15 @@ func (a *App) layoutChatList(gtx layout.Context, f frame, visible []engine.ChatI
 				continue
 			}
 			a.mu.Lock()
-			a.folder = f.folder // keep
+			a.folder = f.folder
 			a.mu.Unlock()
 			a.openChat(k, c.Title)
 		}
 	}
 
-	// Global search: message + server-chat result sections under the local
-	// matches (slice 16); hashtag queries add the public-Posts section
-	// (slice 138).
 	global := searchGlobalScope(f.searchGlobal, f.acctFilter)
 	rows := buildSearchRows(visible, f.searchMsgs, f.searchPosts, global, f.acctFilter)
 	rows = filterSearchRows(rows, f.searchTab)
-	// Invite links: the query itself can be a t.me/+hash join link
-	// (slice 24) — surface the join row above the results.
 	inviteHash, isInvite := extractInviteHash(f.search)
 	if isInvite {
 		rows = append([]sbRow{{kind: sbRowInvite, title: inviteHash}}, rows...)
@@ -636,15 +570,13 @@ func (a *App) layoutChatList(gtx layout.Context, f frame, visible []engine.ChatI
 	list := material.List(a.ui.Theme, &sidebarChatsList)
 	y := a.sbAboveList - sidebarChatsList.Position.Offset
 	paneW := gtx.Constraints.Max.X
-	// Collapsed Archived-Chats row (slice 67): first row of the main list,
-	// only when there are archived chats to show and no search is running.
 	archived := archivedChatsFor(f)
 	showArchiveRow := !f.archiveView && len(archived) > 0
 	n := len(visible)
 	if showArchiveRow {
 		n++
 	}
-	a.resetChatHoverFrame() // hover peek (slice 145): rows mark hover below
+	a.resetChatHoverFrame()
 	dims := list.Layout(gtx, n, func(gtx layout.Context, i int) layout.Dimensions {
 		if showArchiveRow && i == 0 {
 			d := a.archiveRow(gtx, f, archived)
@@ -661,14 +593,8 @@ func (a *App) layoutChatList(gtx layout.Context, f frame, visible []engine.ChatI
 		y += d.Size.Y
 		return d
 	})
-	a.checkChatHoverFrame() // no hovered row this frame → hide the peek
-	// Swipe quick actions (slice 158): pass-through drag layer over the
-	// plain chat list (rows keep hover/clicks; the list keeps scrolling).
+	a.checkChatHoverFrame()
 	a.processSidebarSwipe(gtx, f, dims.Size)
-	// Timed-mute countdown (slice 136): while any visible row shows a
-	// remaining-mute chip, re-render at the next minute boundary so the
-	// label ticks down; once one expires, pull the swept chat list so the
-	// row flips to unmuted without waiting for the next server event.
 	if mutedRowHasTimedMute(visible) {
 		now := time.Now()
 		nextMinute := now.Truncate(time.Minute).Add(time.Minute + 50*time.Millisecond)
@@ -683,7 +609,6 @@ func (a *App) layoutChatList(gtx layout.Context, f frame, visible []engine.ChatI
 	return dims
 }
 
-// chatRow: avatar, title, last message, time, unread badge, typing indicator.
 func (a *App) chatRow(gtx layout.Context, f frame, c engine.ChatInfo, selected bool, btn *widget.Clickable, quick *[2]widget.Clickable, rowIdx int) layout.Dimensions {
 	bg := color00
 	hovered := false
@@ -692,21 +617,11 @@ func (a *App) chatRow(gtx layout.Context, f frame, c engine.ChatInfo, selected b
 	} else if btn.Hovered() {
 		hovered = true
 		bg = a.ui.p.SurfaceHi
-		// Hover peek (slice 145): resting the mouse arms the preview
-		// timer; the selected chat never peeks (its content is visible).
 		a.noteChatHover(c)
 	}
 	return roundedFill(gtx, bg, 0, func(gtx layout.Context) layout.Dimensions {
 		return material.ButtonLayout(a.ui.Theme, btn).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			// Swipe quick actions (slice 158): while this row is being
-			// swiped the body slides right and the action strip paints
-			// behind it; a leftward drag shows the swipe-back hint.
 			return a.swipeRowShift(gtx, f, c, rowIdx, func(gtx layout.Context) layout.Dimensions {
-				// Hover quick actions (slice 89): an East-anchored overlay of
-				// mute/read toggles over the row's trailing badges. The overlay
-				// lives inside the row's hit area (hover is not lost moving onto
-				// the buttons) but renders last → topmost opaque hit nodes, so
-				// button presses don't open the chat.
 				return layout.Stack{Alignment: layout.E}.Layout(gtx,
 					layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 						return a.chatRowBody(gtx, f, c)
@@ -720,7 +635,6 @@ func (a *App) chatRow(gtx layout.Context, f frame, c engine.ChatInfo, selected b
 	})
 }
 
-// chatRowBody is the chat row's content (avatar, title, preview, badges).
 func (a *App) chatRowBody(gtx layout.Context, f frame, c engine.ChatInfo) layout.Dimensions {
 	return layout.Inset{Top: unit.Dp(6), Bottom: unit.Dp(6), Left: unit.Dp(12), Right: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
@@ -736,8 +650,6 @@ func (a *App) chatRowBody(gtx layout.Context, f frame, c engine.ChatInfo) layout
 							layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 								return a.streamerTitle(gtx, f, c.Title, unit.Sp(15))
 							}),
-							// peer badges next to the title (slice 68):
-							// verified/premium icons, scam/fake tags.
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 								return a.layoutRowTitleBadges(gtx, rowTitleBadges(c))
 							}),
@@ -765,7 +677,6 @@ func (a *App) chatRowBody(gtx layout.Context, f frame, c engine.ChatInfo) layout
 					}),
 				)
 			}),
-			// last-message media thumb (AyuGram rows, slice 24).
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				if c.LastMsgThumbB64 == "" {
 					return layout.Dimensions{}
@@ -774,8 +685,6 @@ func (a *App) chatRowBody(gtx layout.Context, f frame, c engine.ChatInfo) layout
 					return a.mediaThumb(gtx, c.LastMsgThumbB64, unit.Dp(34))
 				})
 			}),
-			// trailing badges (slice 68): @-mentions, unread reactions,
-			// then the unread count/mark.
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				if len(trailingRowBadges(c)) == 0 {
 					return layout.Dimensions{}
@@ -788,15 +697,11 @@ func (a *App) chatRowBody(gtx layout.Context, f frame, c engine.ChatInfo) layout
 	})
 }
 
-// rowQuickPair returns the idx-th row's pair of quick-action buttons.
 func rowQuickPair(idx int) *[2]widget.Clickable {
 	growClickables(&rowQuickBtns, (idx+1)*2)
 	return (*[2]widget.Clickable)(rowQuickBtns[idx*2:])
 }
 
-// rowQuickActions renders the hover overlay (mute + read toggles). Pure
-// decisions live in rowQuickMuteAction/rowQuickReadAction (locked by
-// tests); the dispatch is real engine calls with honest toasts.
 func (a *App) rowQuickActions(gtx layout.Context, c engine.ChatInfo, quick *[2]widget.Clickable, show bool) layout.Dimensions {
 	if !show || quick == nil {
 		return layout.Dimensions{}
@@ -851,7 +756,6 @@ func (a *App) rowQuickActions(gtx layout.Context, c engine.ChatInfo, quick *[2]w
 	})
 }
 
-// quickIconBtn: one compact hover-action icon button.
 func (a *App) quickIconBtn(gtx layout.Context, btn *widget.Clickable, icon *widget.Icon, desc string) layout.Dimensions {
 	b := a.ui.IconButton(btn, icon, desc)
 	b.Color = a.ui.p.TextDim
@@ -861,15 +765,13 @@ func (a *App) quickIconBtn(gtx layout.Context, btn *widget.Clickable, icon *widg
 	return b.Layout(gtx)
 }
 
-// rowQuickAction is one hover quick action's decision. Pure.
 type rowQuickAction struct {
-	kind  string // "mute" | "unmute" | "read" | "unread"
-	label string // accessibility description
-	done  string // completion toast
+	kind  string
+	label string
+	done  string
 	icon  *widget.Icon
 }
 
-// rowQuickMuteAction decides the row's mute toggle. Pure.
 func rowQuickMuteAction(c engine.ChatInfo) rowQuickAction {
 	if c.IsMuted {
 		return rowQuickAction{"unmute", "Unmute chat", "Unmuted", iconSocialNotif}
@@ -877,7 +779,6 @@ func rowQuickMuteAction(c engine.ChatInfo) rowQuickAction {
 	return rowQuickAction{"mute", "Mute chat", "Muted", iconSocialNotifOff}
 }
 
-// rowQuickReadAction decides the row's read toggle. Pure.
 func rowQuickReadAction(c engine.ChatInfo) rowQuickAction {
 	if c.UnreadCount > 0 || c.UnreadMark {
 		return rowQuickAction{"read", "Mark as read", "Marked as read", iconActionCheckCircle}
@@ -885,7 +786,6 @@ func rowQuickReadAction(c engine.ChatInfo) rowQuickAction {
 	return rowQuickAction{"unread", "Mark as unread", "Marked as unread", iconContentMarkUnread}
 }
 
-// inviteRow: the "join by invite link" row at the top of search results.
 func (a *App) inviteRow(gtx layout.Context, hash string) layout.Dimensions {
 	return layout.Inset{Left: unit.Dp(8), Right: unit.Dp(8), Top: unit.Dp(4), Bottom: unit.Dp(4)}.Layout(gtx,
 		func(gtx layout.Context) layout.Dimensions {
@@ -932,8 +832,6 @@ func previewText(c engine.ChatInfo) string {
 	if c.LastMsgText != "" {
 		return prefix + c.LastMsgText
 	}
-	// Media-only last message: typed label like AyuGram's dialog rows
-	// ("Photo", "Voice message", ...).
 	if c.LastMsgMediaType != 0 {
 		return prefix + engine.MediaPreviewLabel(c.LastMsgMediaType)
 	}
@@ -979,8 +877,6 @@ func itoa(n int) string {
 	return string(b[i:])
 }
 
-// currentAccount picks the account to show in the account bar: the one owning
-// the selected chat, else the first.
 func currentAccount(f frame) engine.AccountInfo {
 	if f.selected != nil {
 		for _, acc := range f.accounts {
@@ -1024,15 +920,12 @@ func accountSubtitle(acc engine.AccountInfo, f frame) string {
 	}
 }
 
-// ── drawing helpers ──────────────────────────────────────────────────────
-
 var color00 = transparent()
 
 func transparent() color.NRGBA {
 	return color.NRGBA{}
 }
 
-// roundedFill paints a rounded-rect background behind w.
 func roundedFill(gtx layout.Context, c color.NRGBA, radius unit.Dp, w layout.Widget) layout.Dimensions {
 	return layout.Stack{}.Layout(gtx,
 		layout.Expanded(func(gtx layout.Context) layout.Dimensions {

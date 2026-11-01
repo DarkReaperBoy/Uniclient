@@ -8,10 +8,6 @@ import (
 	"uniclient/engine"
 )
 
-// Group-call live bar in the chat view (AyuGram parity slice 70): a bar
-// under the chat header while the chat has an active group call, fed by
-// engine.GetGroupCall. Pure derivations locked here.
-
 func TestCallBarSubtitle(t *testing.T) {
 	c := engine.ChatInfo{Title: "chat"}
 	if s := callBarSubtitle(c, nil, false); s != "group call · live" {
@@ -68,9 +64,6 @@ func TestVoiceRoomChat(t *testing.T) {
 }
 
 func TestCallBarPollNeeded(t *testing.T) {
-	// The bar polls GetGroupCall while its chat is open and has a call;
-	// chats without a call never start a poll loop — except standing
-	// voice rooms, whose occupancy changes as users join/leave.
 	c := engine.ChatInfo{ChatID: "1"}
 	if callBarPollNeeded(c, false) {
 		t.Fatal("chat without an active call must not poll")
@@ -91,9 +84,6 @@ func TestCallBarJoinedToast(t *testing.T) {
 	}
 }
 
-// Talk-power block surfacing (BUGS B-26): when the server silently
-// discards our voice, the polled subtitle must SAY so instead of
-// showing a healthy participant count while the mic is dead.
 func TestCallBarSubtitleShowsTalkPowerBlock(t *testing.T) {
 	c := engine.ChatInfo{Title: "chat"}
 	blocked := &engine.GroupCallInfo{ParticipantsCount: 2, TalkPowerBlocked: true}

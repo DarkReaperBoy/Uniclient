@@ -1,16 +1,5 @@
 package gui
 
-// Stickers & Emoji manager (AyuGram parity slice 139): tdesktop's
-// Settings → "Stickers and Emoji" — a sub-page of Settings → Main with
-// Stickers / Emoji tabs over the account's installed sets. Stickers tab:
-// search (server results with Add), Trending (featured, Add), installed
-// rows with move-up/move-down (ReorderStickerSets), Archive
-// (installStickerSet Archived flag — hides without deleting), Delete
-// (uninstall), plus an Archived section with Restore/Delete. Emoji tab:
-// installed custom-emoji packs with Delete. Every action reloads the
-// listing from the server (honest state, §1.10); unsupported accounts
-// show the engine error, never a dead row.
-
 import (
 	"image"
 	"strings"
@@ -24,13 +13,11 @@ import (
 	"uniclient/cores"
 )
 
-// manager tabs.
 const (
 	stickerMgrTabStickers = iota
 	stickerMgrTabEmoji
 )
 
-// stickerMgrState is the open manager page.
 type stickerMgrState struct {
 	accountID string
 	tab       int
@@ -38,7 +25,7 @@ type stickerMgrState struct {
 	loading   bool
 	err       string
 
-	packs    []cores.StickerPackSummary // installed + archived rows
+	packs    []cores.StickerPackSummary
 	featured []cores.StickerPackSummary
 
 	emojiSets    []cores.EmojiSetSummary
@@ -49,7 +36,7 @@ type stickerMgrState struct {
 	searchQ   string
 	searchRes []cores.StickerPackSummary
 	searching bool
-	searchFor string // stale-run key
+	searchFor string
 }
 
 var (
@@ -59,13 +46,13 @@ var (
 	stickerMgrSearchEd  widget.Editor
 
 	stickerMgrTabBtns      []widget.Clickable
-	stickerMgrUpBtns       []widget.Clickable // installed: move up
-	stickerMgrDownBtns     []widget.Clickable // installed: move down
-	stickerMgrArchBtns     []widget.Clickable // installed: archive
-	stickerMgrDelBtns      []widget.Clickable // installed: delete
-	stickerMgrUnarchBtns   []widget.Clickable // archived: restore
-	stickerMgrArchDelBtns  []widget.Clickable // archived: delete
-	stickerMgrAddBtns      []widget.Clickable // featured + search: install
+	stickerMgrUpBtns       []widget.Clickable
+	stickerMgrDownBtns     []widget.Clickable
+	stickerMgrArchBtns     []widget.Clickable
+	stickerMgrDelBtns      []widget.Clickable
+	stickerMgrUnarchBtns   []widget.Clickable
+	stickerMgrArchDelBtns  []widget.Clickable
+	stickerMgrAddBtns      []widget.Clickable
 	stickerMgrEmojiDelBtns []widget.Clickable
 	stickerMgrAcctBtns     []widget.Clickable
 )
@@ -74,10 +61,6 @@ func init() {
 	stickerMgrSearchEd.SingleLine = true
 }
 
-// ── pure helpers ────────────────────────────────────────────────────────
-
-// stickerMgrSplit partitions summaries into installed and archived rows,
-// order preserved.
 func stickerMgrSplit(packs []cores.StickerPackSummary) (installed, archived []cores.StickerPackSummary) {
 	for _, p := range packs {
 		if p.Archived {
@@ -89,8 +72,6 @@ func stickerMgrSplit(packs []cores.StickerPackSummary) (installed, archived []co
 	return installed, archived
 }
 
-// stickerMgrMoveOrder returns the set-ID order after moving index i by
-// delta (clamped at the edges). Input is not mutated.
 func stickerMgrMoveOrder(ids []int64, i, delta int) []int64 {
 	out := make([]int64, len(ids))
 	copy(out, ids)
@@ -102,7 +83,6 @@ func stickerMgrMoveOrder(ids []int64, i, delta int) []int64 {
 	return out
 }
 
-// stickerMgrSetOrder extracts the set-ID order of a summary list.
 func stickerMgrSetOrder(packs []cores.StickerPackSummary) []int64 {
 	ids := make([]int64, 0, len(packs))
 	for _, p := range packs {
@@ -111,7 +91,6 @@ func stickerMgrSetOrder(packs []cores.StickerPackSummary) []int64 {
 	return ids
 }
 
-// stickerMgrRowSubtitle renders the set's count + kind line.
 func stickerMgrRowSubtitle(p cores.StickerPackSummary) string {
 	n := p.Count
 	plural := "s"
@@ -138,7 +117,6 @@ func stickerMgrRowSubtitle(p cores.StickerPackSummary) string {
 	return line
 }
 
-// stickerMgrEmojiSubtitle renders an emoji pack's count line.
 func stickerMgrEmojiSubtitle(s cores.EmojiSetSummary) string {
 	line := itoa(s.Count) + " emoji"
 	if s.Premium {
@@ -147,8 +125,6 @@ func stickerMgrEmojiSubtitle(s cores.EmojiSetSummary) string {
 	return line
 }
 
-// stickerMgrFilter filters summaries by a query on title or short name
-// (case-insensitive, trimmed).
 func stickerMgrFilter(packs []cores.StickerPackSummary, q string) []cores.StickerPackSummary {
 	q = strings.TrimSpace(strings.ToLower(q))
 	if q == "" {
@@ -164,8 +140,6 @@ func stickerMgrFilter(packs []cores.StickerPackSummary, q string) []cores.Sticke
 	return out
 }
 
-// stickerMgrFeaturedVisible drops featured rows already known (installed
-// or archived).
 func stickerMgrFeaturedVisible(featured, known []cores.StickerPackSummary) []cores.StickerPackSummary {
 	knownIDs := make(map[int64]bool, len(known))
 	for _, p := range known {
@@ -180,22 +154,10 @@ func stickerMgrFeaturedVisible(featured, known []cores.StickerPackSummary) []cor
 	return out
 }
 
-// stickerMgrSearchMerge keeps only server-search rows the account doesn't
-// already know (dedup against installed + archived).
 func stickerMgrSearchMerge(results, known []cores.StickerPackSummary) []cores.StickerPackSummary {
 	return stickerMgrFeaturedVisible(results, known)
 }
 
-// ── page lifecycle ──────────────────────────────────────────────────────
-
-// updateStickerMgr applies fn to a COPY of the live Stickers & Emoji
-// manager state and installs the copy under a.mu — R34's copy-on-write
-// contract (R40, the fourth sibling swept): the struct a frame holds
-// stays immutable for that frame's life, so the load/search/tab tails
-// cannot write-race the layout's field reads. fn re-validates staleness
-// itself (accountID match / searchFor key); false aborts the install.
-// Returns the installed copy, or nil when the page is closed / fn
-// aborted.
 func (a *App) updateStickerMgr(fn func(st *stickerMgrState) bool) *stickerMgrState {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -210,22 +172,20 @@ func (a *App) updateStickerMgr(fn func(st *stickerMgrState) bool) *stickerMgrSta
 	return &next
 }
 
-// openStickerMgr starts the manager for an account and loads its data.
 func (a *App) openStickerMgr(accountID string) {
 	a.mu.Lock()
 	a.stickerMgr = &stickerMgrState{accountID: accountID, loading: true}
-	a.profileEdit = nil  // one sub-page at a time (settings shell) — the
-	a.folderMgr = nil    // exclusivity matrix is COMPLETE now (R39's audit
-	a.businessPage = nil // found this opener missing three siblings; the
-	a.premiumPage = nil  // shell's shadow order made the gaps benign but
-	a.starsPage = nil    // a stale page reappeared after close)
+	a.profileEdit = nil
+	a.folderMgr = nil
+	a.businessPage = nil
+	a.premiumPage = nil
+	a.starsPage = nil
 	a.mu.Unlock()
 	stickerMgrSearchEd.SetText("")
 	go a.loadStickerMgr(accountID)
 	a.invalidate()
 }
 
-// closeStickerMgr dismisses the page.
 func (a *App) closeStickerMgr() {
 	a.mu.Lock()
 	a.stickerMgr = nil
@@ -233,13 +193,12 @@ func (a *App) closeStickerMgr() {
 	a.invalidate()
 }
 
-// loadStickerMgr fetches the account's set listing + featured packs.
 func (a *App) loadStickerMgr(accountID string) {
 	packs, errP := a.eng.GetStickerSetSummaries(accountID)
 	featured, errF := a.eng.GetFeaturedStickerPacks(accountID)
 	a.updateStickerMgr(func(n *stickerMgrState) bool {
 		if n.accountID != accountID {
-			return false // closed or switched mid-fetch
+			return false
 		}
 		n.loading = false
 		if errP != nil {
@@ -257,7 +216,6 @@ func (a *App) loadStickerMgr(accountID string) {
 	a.invalidate()
 }
 
-// loadStickerMgrEmoji lazy-loads the emoji tab on first entry.
 func (a *App) loadStickerMgrEmoji(accountID string) {
 	sets, err := a.eng.GetInstalledEmojiSets(accountID)
 	a.updateStickerMgr(func(n *stickerMgrState) bool {
@@ -277,7 +235,6 @@ func (a *App) loadStickerMgrEmoji(accountID string) {
 	a.invalidate()
 }
 
-// reloadStickerMgr re-runs the current tab's load.
 func (a *App) reloadStickerMgr() {
 	accountID := ""
 	tab := 0
@@ -298,8 +255,6 @@ func (a *App) reloadStickerMgr() {
 	}
 }
 
-// onStickerMgrSearchChanged (GUI goroutine) launches the async server
-// search; stale writes dropped by key (in-chat-search pattern).
 func (a *App) onStickerMgrSearchChanged(q string, accountID string) {
 	q = strings.TrimSpace(q)
 	key := accountID + "|" + q
@@ -329,7 +284,7 @@ func (a *App) onStickerMgrSearchChanged(q string, accountID string) {
 		}
 		a.updateStickerMgr(func(n *stickerMgrState) bool {
 			if n.searchFor != key {
-				return false // a newer query superseded this run
+				return false
 			}
 			n.searchRes = results
 			n.searching = false
@@ -340,8 +295,6 @@ func (a *App) onStickerMgrSearchChanged(q string, accountID string) {
 	a.invalidate()
 }
 
-// ── actions (async, reload on completion) ───────────────────────────────
-
 func (a *App) stickerMgrAct(accountID string, do func() error) {
 	go func() {
 		if err := do(); err != nil {
@@ -351,7 +304,6 @@ func (a *App) stickerMgrAct(accountID string, do func() error) {
 	}()
 }
 
-// stickerMgrMove reorders installed sets after moving row i by delta.
 func (a *App) stickerMgrMove(accountID string, installed []cores.StickerPackSummary, i, delta int) {
 	order := stickerMgrMoveOrder(stickerMgrSetOrder(installed), i, delta)
 	a.stickerMgrAct(accountID, func() error {
@@ -359,30 +311,24 @@ func (a *App) stickerMgrMove(accountID string, installed []cores.StickerPackSumm
 	})
 }
 
-// stickerMgrArchive toggles a set's archived flag.
 func (a *App) stickerMgrArchive(accountID string, p cores.StickerPackSummary, archived bool) {
 	a.stickerMgrAct(accountID, func() error {
 		return a.eng.ArchiveStickerSet(accountID, p.SetID, p.AccessHash, archived)
 	})
 }
 
-// stickerMgrDelete uninstalls a set.
 func (a *App) stickerMgrDelete(accountID string, p cores.StickerPackSummary) {
 	a.stickerMgrAct(accountID, func() error {
 		return a.eng.UninstallStickerSet(accountID, p.SetID, p.AccessHash)
 	})
 }
 
-// stickerMgrInstall adds a featured/search result.
 func (a *App) stickerMgrInstall(accountID string, p cores.StickerPackSummary) {
 	a.stickerMgrAct(accountID, func() error {
 		return a.eng.InstallStickerSet(accountID, p.SetID, p.AccessHash)
 	})
 }
 
-// ── layout ──────────────────────────────────────────────────────────────
-
-// layoutStickerMgr renders the manager sub-page inside the settings shell.
 func (a *App) layoutStickerMgr(gtx layout.Context, f frame) layout.Dimensions {
 	st := f.stickerMgr
 	if st == nil {
@@ -397,7 +343,6 @@ func (a *App) layoutStickerMgr(gtx layout.Context, f frame) layout.Dimensions {
 
 	var children []layout.FlexChild
 
-	// header: back + title + reload
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Bottom: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
@@ -418,7 +363,6 @@ func (a *App) layoutStickerMgr(gtx layout.Context, f frame) layout.Dimensions {
 		})
 	}))
 
-	// account switcher chips (multiple accounts only)
 	if len(f.accounts) > 1 {
 		growClickables(&stickerMgrAcctBtns, len(f.accounts))
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -428,7 +372,6 @@ func (a *App) layoutStickerMgr(gtx layout.Context, f frame) layout.Dimensions {
 		}))
 	}
 
-	// tabs
 	growClickables(&stickerMgrTabBtns, 2)
 	for i := range [...]string{"Stickers", "Emoji"} {
 		if stickerMgrTabBtns[i].Clicked(gtx) {
@@ -444,7 +387,6 @@ func (a *App) layoutStickerMgr(gtx layout.Context, f frame) layout.Dimensions {
 		})
 	}))
 
-	// body
 	if st.tab == stickerMgrTabEmoji {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.layoutStickerMgrEmoji(gtx, st)
@@ -458,7 +400,6 @@ func (a *App) layoutStickerMgr(gtx layout.Context, f frame) layout.Dimensions {
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-// setStickerMgrTab switches tabs, lazily loading the emoji listing.
 func (a *App) setStickerMgrTab(tab int) {
 	needEmoji := false
 	accountID := ""
@@ -482,7 +423,6 @@ func (a *App) setStickerMgrTab(tab int) {
 	}
 }
 
-// acctChipsFlexChildren builds the account chip row.
 func (a *App) acctChipsFlexChildren(gtx layout.Context, f frame, st *stickerMgrState) []layout.FlexChild {
 	var children []layout.FlexChild
 	for i, acc := range f.accounts {
@@ -515,7 +455,6 @@ func (a *App) acctChipsFlexChildren(gtx layout.Context, f frame, st *stickerMgrS
 	return children
 }
 
-// mgrTabChild renders one tab chip.
 func (a *App) mgrTabChild(gtx layout.Context, idx int, label string, active bool) layout.FlexChild {
 	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		bg := a.ui.p.SurfaceHi
@@ -525,8 +464,6 @@ func (a *App) mgrTabChild(gtx layout.Context, idx int, label string, active bool
 			txtCol = a.ui.p.Accent
 		}
 		return layout.Inset{Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			// ButtonLayout renders the clickable's event area — a bare
-			// roundedFill would leave Clicked() dead (§1.10).
 			bl := material.ButtonLayout(a.ui.Theme, &stickerMgrTabBtns[idx])
 			bl.Background = bg
 			bl.CornerRadius = 16
@@ -541,14 +478,11 @@ func (a *App) mgrTabChild(gtx layout.Context, idx int, label string, active bool
 	})
 }
 
-// layoutStickerMgrStickers renders the stickers tab: search field,
-// search results, trending, installed, archived.
 func (a *App) layoutStickerMgrStickers(gtx layout.Context, f frame, st *stickerMgrState) layout.Dimensions {
 	installed, archived := stickerMgrSplit(st.packs)
 
 	var children []layout.FlexChild
 
-	// search field (live server search, 2+ runes)
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Bottom: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			for {
@@ -578,7 +512,6 @@ func (a *App) layoutStickerMgrStickers(gtx layout.Context, f frame, st *stickerM
 		})
 	}))
 
-	// state rows
 	if st.loading {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.centeredStateLabel(gtx, "Loading…")
@@ -591,7 +524,6 @@ func (a *App) layoutStickerMgrStickers(gtx layout.Context, f frame, st *stickerM
 		}))
 	}
 
-	// search results (server hits not already known)
 	visible := stickerMgrSearchMerge(st.searchRes, st.packs)
 	if st.searching {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -603,7 +535,6 @@ func (a *App) layoutStickerMgrStickers(gtx layout.Context, f frame, st *stickerM
 		children = append(children, a.mgrResultRows(gtx, st, visible)...)
 	}
 
-	// trending (featured minus known) — hidden while searching
 	if !st.searching && len(st.searchQ) == 0 {
 		if trending := stickerMgrFeaturedVisible(st.featured, st.packs); len(trending) > 0 {
 			children = append(children, a.mgrSectionTitleChild("Trending"))
@@ -611,7 +542,6 @@ func (a *App) layoutStickerMgrStickers(gtx layout.Context, f frame, st *stickerM
 		}
 	}
 
-	// installed rows (filtered locally when query present)
 	filtered := stickerMgrFilter(installed, st.searchQ)
 	if !st.loading && st.err == "" {
 		children = append(children, a.mgrSectionTitleChild("Installed"))
@@ -632,7 +562,6 @@ func (a *App) layoutStickerMgrStickers(gtx layout.Context, f frame, st *stickerM
 			}
 		}
 
-		// archived rows
 		if len(archived) > 0 {
 			children = append(children, a.mgrSectionTitleChild("Archived"))
 			growClickables(&stickerMgrUnarchBtns, len(archived))
@@ -646,11 +575,9 @@ func (a *App) layoutStickerMgrStickers(gtx layout.Context, f frame, st *stickerM
 		}
 	}
 
-	// rides the settings shell's scroll list (profileEdit pattern)
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-// layoutStickerMgrEmoji renders the emoji tab.
 func (a *App) layoutStickerMgrEmoji(gtx layout.Context, st *stickerMgrState) layout.Dimensions {
 	var children []layout.FlexChild
 	if st.emojiLoading {
@@ -676,21 +603,16 @@ func (a *App) layoutStickerMgrEmoji(gtx layout.Context, st *stickerMgrState) lay
 			}))
 		}
 	}
-	// rides the settings shell's scroll list (profileEdit pattern)
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-// mgrSectionTitleChild builds a section heading flex child.
 func (a *App) mgrSectionTitleChild(title string) layout.FlexChild {
 	return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.sectionTitle(gtx, title)
 	})
 }
 
-// mgrResultRows builds Add-rows for featured/search results.
 func (a *App) mgrResultRows(gtx layout.Context, st *stickerMgrState, rows []cores.StickerPackSummary) []layout.FlexChild {
-	// clickable pool spans the union of trending + search rows; size by
-	// the larger of the two to keep indices stable within one frame.
 	pool := len(rows)
 	if len(st.featured) > pool {
 		pool = len(st.featured)
@@ -709,7 +631,6 @@ func (a *App) mgrResultRows(gtx layout.Context, st *stickerMgrState, rows []core
 	return children
 }
 
-// mgrResultRow renders a featured/search row with an Add button.
 func (a *App) mgrResultRow(gtx layout.Context, st *stickerMgrState, p cores.StickerPackSummary, i int) layout.Dimensions {
 	if stickerMgrAddBtns[i].Clicked(gtx) {
 		a.stickerMgrInstall(st.accountID, p)
@@ -745,8 +666,6 @@ func (a *App) mgrResultRow(gtx layout.Context, st *stickerMgrState, p cores.Stic
 	})
 }
 
-// mgrInstalledRow renders an installed set row: thumb, title, subtitle,
-// move up/down, archive, delete.
 func (a *App) mgrInstalledRow(gtx layout.Context, st *stickerMgrState, p cores.StickerPackSummary, i, n int, installed []cores.StickerPackSummary) layout.Dimensions {
 	if i > 0 && stickerMgrUpBtns[i].Clicked(gtx) {
 		a.stickerMgrMove(st.accountID, installed, i, -1)
@@ -809,7 +728,6 @@ func (a *App) mgrInstalledRow(gtx layout.Context, st *stickerMgrState, p cores.S
 	})
 }
 
-// mgrArchivedRow renders an archived set row: restore + delete.
 func (a *App) mgrArchivedRow(gtx layout.Context, st *stickerMgrState, p cores.StickerPackSummary, i int) layout.Dimensions {
 	if stickerMgrUnarchBtns[i].Clicked(gtx) {
 		a.stickerMgrArchive(st.accountID, p, false)
@@ -852,7 +770,6 @@ func (a *App) mgrArchivedRow(gtx layout.Context, st *stickerMgrState, p cores.St
 	})
 }
 
-// mgrEmojiRow renders an installed emoji pack row with Delete.
 func (a *App) mgrEmojiRow(gtx layout.Context, st *stickerMgrState, s cores.EmojiSetSummary, i int) layout.Dimensions {
 	if stickerMgrEmojiDelBtns[i].Clicked(gtx) {
 		a.stickerMgrDelete(st.accountID, cores.StickerPackSummary{SetID: s.SetID, AccessHash: s.AccessHash})
@@ -888,7 +805,6 @@ func (a *App) mgrEmojiRow(gtx layout.Context, st *stickerMgrState, s cores.Emoji
 	})
 }
 
-// mgrPackThumb paints the set's thumbnail or a generic emoji tile.
 func (a *App) mgrPackThumb(gtx layout.Context, p cores.StickerPackSummary) layout.Dimensions {
 	max := gtx.Dp(unit.Dp(44))
 	if p.ThumbB64 != "" {
@@ -901,7 +817,6 @@ func (a *App) mgrPackThumb(gtx layout.Context, p cores.StickerPackSummary) layou
 	return lbl.Layout(gtx)
 }
 
-// mgrEmojiThumb paints an emoji pack's first sticker thumb or a tile.
 func (a *App) mgrEmojiThumb(gtx layout.Context, s cores.EmojiSetSummary) layout.Dimensions {
 	max := gtx.Dp(unit.Dp(44))
 	for _, st := range s.Stickers {
@@ -916,9 +831,6 @@ func (a *App) mgrEmojiThumb(gtx layout.Context, s cores.EmojiSetSummary) layout.
 	return lbl.Layout(gtx)
 }
 
-// stickerMgrEntryRow renders the Settings → Main entry card: tappable row
-// opening the manager for the first Telegram-capable account (the manager
-// itself offers per-account chips when several accounts exist).
 func (a *App) stickerMgrEntryRow(gtx layout.Context, f frame) layout.Dimensions {
 	if stickerMgrOpenBtn.Clicked(gtx) {
 		a.openStickerMgr(mgrAccountID(f))
@@ -953,9 +865,6 @@ func (a *App) stickerMgrEntryRow(gtx layout.Context, f frame) layout.Dimensions 
 	})
 }
 
-// mgrAccountID picks the manager's default account: the active chat's
-// account, else the first telegram-platform account, else the first
-// account (the page reports platform support honestly).
 func mgrAccountID(f frame) string {
 	if f.selected != nil {
 		return f.selected.AccountID

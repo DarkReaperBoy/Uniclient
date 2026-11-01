@@ -48,12 +48,6 @@ func TestVaultMissingKey(t *testing.T) {
 	}
 }
 
-// TestLoadSessionNotFoundMapsToErrNotExist pins LoadSession's
-// documented contract ("Returns os.ErrNotExist if not found") on BOTH
-// not-found branches: virgin vault = sessions bucket missing, saved
-// vault = account key missing. Callers (matrix.go) distinguish
-// "no session" from real failures with errors.Is(err, os.ErrNotExist),
-// so this mapping must stay exact — slice-280 pin.
 func TestLoadSessionNotFoundMapsToErrNotExist(t *testing.T) {
 	v, _ := newTestVault(t)
 	var dest any
@@ -68,13 +62,6 @@ func TestLoadSessionNotFoundMapsToErrNotExist(t *testing.T) {
 	}
 }
 
-// TestVaultWriteKeepsOldFileWhenWriteFails: writeVaultBytes must be
-// atomic — a replacement that cannot complete must leave the previous
-// vault bytes intact. The old os.WriteFile implementation truncated the
-// destination FIRST, so disk-full or a crash mid-save destroyed the
-// only copy of every account credential (slice-282 finding; this test
-// is RED against the truncating writer: the write "succeeds" and the
-// original content is gone).
 func TestVaultWriteKeepsOldFileWhenWriteFails(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "v.vault")
@@ -84,8 +71,6 @@ func TestVaultWriteKeepsOldFileWhenWriteFails(t *testing.T) {
 	if err := os.Chmod(dir, 0o555); err != nil {
 		t.Skipf("chmod dir: %v", err)
 	}
-	// Root (or CAP_DAC_OVERRIDE) ignores directory permissions; probe
-	// before asserting on them.
 	if probe, perr := os.CreateTemp(dir, "probe-*"); perr == nil {
 		os.Remove(probe.Name())
 		probe.Close()
@@ -93,7 +78,7 @@ func TestVaultWriteKeepsOldFileWhenWriteFails(t *testing.T) {
 		t.Skip("directory permissions not enforced (running privileged)")
 	}
 	err := writeVaultBytes(path, []byte("v2-content"))
-	os.Chmod(dir, 0o755) // restore for read + TempDir cleanup
+	os.Chmod(dir, 0o755)
 	if err == nil {
 		t.Fatal("expected the impossible write to report an error — the old os.WriteFile truncated and " +
 			"'succeeded' silently, destroying the previous vault")
@@ -185,8 +170,6 @@ func TestVaultExportImport(t *testing.T) {
 		t.Fatalf("export file missing: %v", err)
 	}
 
-	// Import the export into a fresh path (password = source vault password;
-	// the import re-saves the decrypted vault under the new path).
 	importPath := filepath.Join(dir, "imported.vault")
 	v2, err := ImportVault(exportPath, importPath, "hunter2")
 	if err != nil {

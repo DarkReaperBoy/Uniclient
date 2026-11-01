@@ -5,13 +5,6 @@ import (
 	"time"
 )
 
-// TestLoopLogAllowed: BUGS B-44 — `videoAudioLoop` runs from the
-// per-frame draw path (`drawVideoNoteFrame` invalidates every frame),
-// so a persistently failing `SeekMedia` logged once per frame (~60
-// lines/second while a round note plays). The emission decision is a
-// PURE function with an INJECTED clock — deterministic at every
-// wall-clock time (F-9 discipline), no time.Now() in the test.
-// RED (build): the helper does not exist yet.
 func TestLoopLogAllowed(t *testing.T) {
 	var last time.Time
 	base := time.Date(2026, 9, 25, 12, 0, 0, 0, time.UTC)

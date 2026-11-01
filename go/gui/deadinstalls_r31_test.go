@@ -6,15 +6,6 @@ import (
 	"uniclient/engine"
 )
 
-// R31 — four async installers of a.messages had no install-time staleness
-// guard: a chat (or scope) switch mid-fetch let the OLD view's window land
-// in the NEW view (cross-chat content under the wrong header, and msgFor
-// misdirecting the next send). The fix is a generation counter: every
-// message-scope reset (openChat, deselect, topic/comment/saved-scope
-// switches) bumps a.uiGen under a.mu; every async installer captures the
-// gen before its engine call and installs only if the gen still matches.
-// These tests drive the extracted installers directly on bare Apps.
-
 func TestApplyOpenChatMessagesGenGuard(t *testing.T) {
 	k := chatKey{AccountID: "a", ChatID: "c"}
 	mk := func(id string) []engine.CachedMessage { return []engine.CachedMessage{{MsgID: id}} }
@@ -31,7 +22,6 @@ func TestApplyOpenChatMessagesGenGuard(t *testing.T) {
 		t.Fatalf("current-gen install must land: msgs=%v msgFor=%v loading=%v", cur.messages, cur.msgFor, cur.loadingMsgs)
 	}
 
-	// A scope reset happened while the fetch was in flight → drop.
 	stale := &App{}
 	stale.mu.Lock()
 	stale.selected = &k
@@ -42,7 +32,6 @@ func TestApplyOpenChatMessagesGenGuard(t *testing.T) {
 		t.Fatalf("stale-gen install must be dropped: msgs=%v msgFor=%v", stale.messages, stale.msgFor)
 	}
 
-	// The chat was switched or deselected → drop even at a matching gen.
 	moved := &App{}
 	other := chatKey{AccountID: "a", ChatID: "other"}
 	moved.mu.Lock()
@@ -82,8 +71,6 @@ func TestMergeMessagesGenGuard(t *testing.T) {
 		t.Fatalf("stale-gen merge must be dropped (R31): %v", stale.messages)
 	}
 
-	// Merge keeps pre-loaded older pages outside the fresh window (the
-	// AyuGram behavior the function exists for) — verified on a live gen.
 	keep := &App{}
 	keep.mu.Lock()
 	keep.selected = &k
@@ -127,7 +114,7 @@ func TestApplyForumTopicWindowGenGuard(t *testing.T) {
 	switched := &App{}
 	switched.mu.Lock()
 	switched.selected = &k
-	switched.forumTopic = "T2" // the user opened another topic mid-fetch
+	switched.forumTopic = "T2"
 	switched.uiGen = 5
 	switched.mu.Unlock()
 	switched.applyForumTopicWindow(k, "T1", 5, msgs)

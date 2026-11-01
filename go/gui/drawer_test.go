@@ -15,7 +15,6 @@ func TestGhostAllOn(t *testing.T) {
 	if !ghostAllOn(all) {
 		t.Fatal("all flags on: expected ghost on")
 	}
-	// Each single flag off must flip the master state.
 	fields := []func(c *cfgSnapshot) *bool{
 		func(c *cfgSnapshot) *bool { return &c.SendReadReceipts },
 		func(c *cfgSnapshot) *bool { return &c.SendUploadProgress },
@@ -118,16 +117,9 @@ func TestContactChat(t *testing.T) {
 	if c, ok := contactChat(chats, "acc1", "100"); !ok || c.Title != "Alice" {
 		t.Fatalf("expected Alice DM, got %+v ok=%v", c, ok)
 	}
-	// A group chat keyed by the same ID must not match (DM only).
 	if _, ok := contactChat(chats, "acc1", "200"); ok {
 		t.Fatal("group must not match a user ID lookup")
 	}
-	// Account scoping matters: acc2/100 is ITS OWN DM — a scoped
-	// lookup must return it (and never acc1's Alice; the first
-	// assertion above pins that side). The old branch here had an
-	// empty body and asserted nothing (B-20, staticcheck SA4006+SA9003
-	// — production scoping is correct, contacts.go:140-147; the fix is
-	// the assertion itself).
 	if c, ok := contactChat(chats, "acc2", "100"); !ok || c.Title != "Other account" {
 		t.Errorf("account scoping: acc2/100 = %+v ok=%v, want its own DM %q", c, ok, "Other account")
 	}
@@ -136,11 +128,7 @@ func TestContactChat(t *testing.T) {
 	}
 }
 
-// LRead/SRead drawer toggles (AyuGram parity slice 75): local read and
-// send-read are independent flags — the config layer must round-trip both.
-
 func TestLReadSReadIndependentChanges(t *testing.T) {
-	// The field-mapping layer produces distinct changes for each toggle.
 	lr := configFieldChanges("local_read_mark", false)
 	if lr == nil || lr.LocalReadMark == nil || *lr.LocalReadMark {
 		t.Fatalf("local_read_mark change: %+v", lr)
@@ -149,7 +137,6 @@ func TestLReadSReadIndependentChanges(t *testing.T) {
 	if sr == nil || sr.SendReadReceipts == nil || *sr.SendReadReceipts {
 		t.Fatalf("send_read_receipts change: %+v", sr)
 	}
-	// Flipping LRead must not touch SRead and vice versa.
 	if lr.SendReadReceipts != nil {
 		t.Fatal("LRead change must not carry SRead")
 	}
@@ -159,7 +146,6 @@ func TestLReadSReadIndependentChanges(t *testing.T) {
 }
 
 func TestGhostAllOnUnaffectedByLRead(t *testing.T) {
-	// ghostAllOn stays keyed to the send-side flags only.
 	c := cfgSnapshot{SendReadReceipts: true, SendUploadProgress: true, SendReadStories: true,
 		SendOnlinePackets: true, SendOfflineAfterOnline: true, MarkReadAfterAction: true,
 		UseScheduledMessages: true, SendWithoutSound: true}

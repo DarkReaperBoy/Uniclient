@@ -9,19 +9,8 @@ import (
 	"uniclient/engine"
 )
 
-// Global keyboard shortcuts (AyuGram parity, matrix "Keyboard shortcuts"):
-// Esc closes the topmost surface, Ctrl+F opens search (in-chat when a chat
-// is open, the sidebar filter otherwise), Ctrl+Up/Down and Ctrl+PgUp/PgDn
-// switch to the previous/next chat in the list. Dialogs, the media viewer,
-// the drawer and contacts handle Esc inside their own layouts (they render
-// earlier and consume the event first), so this layer only picks up the
-// remaining surfaces, top-down — mirrors AyuGram's dismissal order.
-
 var shortcutKeyTag = new(struct{})
 
-// escTarget names the surface a global Esc should close ("" = nothing).
-// Pure over the frame — unit-tested. Self-handled surfaces (dialogs,
-// viewer, drawer, contacts, settings) return "" so the layer stays idle.
 func escTarget(f frame) string {
 	switch {
 	case f.delDlg != nil,
@@ -41,21 +30,21 @@ func escTarget(f frame) string {
 		f.editHistDlg != nil,
 		f.deletedDlg != nil,
 		f.seenDlg != nil,
-		f.msgDetailDlg != nil,  // self-handled: details dialog Esc (slice 105)
-		f.stickerSetDlg != nil, // self-handled: sticker pack Esc (slice 108)
+		f.msgDetailDlg != nil,
+		f.stickerSetDlg != nil,
 		f.folderImportDlg != nil,
 		f.exportDlg != nil,
 		f.inviteDlg != nil,
 		f.newDlg != nil,
 		f.viewer != nil,
-		f.storyView != nil, // self-handled: story viewer Esc layer (slice 104)
-		f.call != nil,      // self-handled: the call overlay has its own Esc layer (slice 101)
+		f.storyView != nil,
+		f.call != nil,
 		f.drawerOpen,
 		f.contactsOpen,
 		f.callsBoxOpen,
 		f.settingsOpen,
 		f.schedPanel:
-		return "" // those surfaces consume Esc in their own layouts
+		return ""
 	case f.menu != nil:
 		return "menu"
 	case f.headerMenu != nil:
@@ -84,10 +73,6 @@ func escTarget(f frame) string {
 	return ""
 }
 
-// chatSwitchAction maps a ctrl-modified key press to a chat-list step
-// (+1 next, -1 previous, 0 none). Pure — unit-tested.
-// chatSwitchAction: Ctrl+Up/Down/PgUp/PgDn and Alt+Up/Down (tdesktop
-// ChatNext/ChatPrevious bindings) step through the chat list.
 func chatSwitchAction(name key.Name, ctrl, alt bool) int {
 	if ctrl {
 		switch name {
@@ -109,9 +94,6 @@ func chatSwitchAction(name key.Name, ctrl, alt bool) int {
 	return 0
 }
 
-// jumplistDigit maps the tdesktop Ctrl+digit family: 1..8 = jump to the
-// Nth pinned chat (ChatPinned1..8), 9 = ShowArchive, 10 = ChatSelf
-// (Saved Messages); 0 = not a jumplist key.
 func jumplistDigit(name key.Name, ctrl bool) int {
 	if !ctrl {
 		return 0
@@ -121,13 +103,11 @@ func jumplistDigit(name key.Name, ctrl bool) int {
 	}
 	d := int(name[0] - '0')
 	if d == 0 {
-		return 10 // ChatSelf
+		return 10
 	}
 	return d
 }
 
-// pinnedJumpChat resolves the Nth pinned chat of the visible list (the
-// list is pinned-first, so this walks the pinned prefix).
 func pinnedJumpChat(chats []engine.ChatInfo, n int) (engine.ChatInfo, bool) {
 	if n <= 0 {
 		return engine.ChatInfo{}, false
@@ -145,8 +125,6 @@ func pinnedJumpChat(chats []engine.ChatInfo, n int) (engine.ChatInfo, bool) {
 	return engine.ChatInfo{}, false
 }
 
-// chatEdgeAction: Ctrl+Alt+Home = ChatFirst (1), Ctrl+Alt+End =
-// ChatLast (2).
 func chatEdgeAction(name key.Name, ctrl, alt bool) int {
 	if !ctrl || !alt {
 		return 0
@@ -160,18 +138,14 @@ func chatEdgeAction(name key.Name, ctrl, alt bool) int {
 	return 0
 }
 
-// showContactsKey: Ctrl+J = ShowContacts.
 func showContactsKey(name key.Name, ctrl bool) bool {
 	return ctrl && name == "J"
 }
 
-// readChatKey: Ctrl+R = ReadChat (mark the open chat read).
 func readChatKey(name key.Name, ctrl bool) bool {
 	return ctrl && name == "R"
 }
 
-// accountScopeCycle steps the account scope through "" (all chats) and
-// every account ID in list order, wrapping. Pure — unit-tested.
 func accountScopeCycle(accounts []engine.AccountInfo, cur string, delta int) string {
 	if len(accounts) == 0 || delta == 0 {
 		return cur
@@ -192,8 +166,6 @@ func accountScopeCycle(accounts []engine.AccountInfo, cur string, delta int) str
 	return scopes[next]
 }
 
-// accountSwitchStep maps a Tab key press to an account-scope step
-// (+1 Ctrl+Tab, -1 Ctrl+Shift+Tab, 0 otherwise). Pure — unit-tested.
 func accountSwitchStep(name key.Name, ctrl, shift bool) int {
 	if !ctrl || name != key.NameTab {
 		return 0
@@ -204,8 +176,6 @@ func accountSwitchStep(name key.Name, ctrl, shift bool) int {
 	return 1
 }
 
-// switchAccountScope applies one account-scope step (the same path as
-// the sidebar/tray account rows).
 func (a *App) switchAccountScope(delta int) {
 	a.mu.Lock()
 	next := accountScopeCycle(a.accounts, a.acctFilter, delta)
@@ -221,9 +191,6 @@ func (a *App) switchAccountScope(delta int) {
 	a.invalidate()
 }
 
-// neighborChat picks the chat delta steps away from the current one in the
-// list (wrapping). cur == nil selects the first (delta > 0) or last chat.
-// Pure — unit-tested.
 func neighborChat(chats []engine.ChatInfo, cur *chatKey, delta int) (engine.ChatInfo, bool) {
 	if len(chats) == 0 || delta == 0 {
 		return engine.ChatInfo{}, false
@@ -249,12 +216,8 @@ func neighborChat(chats []engine.ChatInfo, cur *chatKey, delta int) (engine.Chat
 	return chats[next], true
 }
 
-// layoutShortcuts registers the global key layer. Called at the END of
-// Root so surface-local handlers consume their events first.
 func (a *App) layoutShortcuts(gtx layout.Context, f frame) {
 	{
-		// Window-wide key listener, transparent to pointer hit-testing —
-		// see keyLayer (input-freeze regression, 2026-09-09).
 		keyLayer(gtx, shortcutKeyTag)
 	}
 
@@ -291,7 +254,6 @@ func (a *App) layoutShortcuts(gtx layout.Context, f frame) {
 			a.handleChatSwitch(f, step)
 			continue
 		}
-		// Slice 166: the tdesktop jumplist family.
 		if edge := chatEdgeAction(ke.Name, ctrl, alt); edge != 0 {
 			a.handleChatEdge(f, edge)
 			continue
@@ -301,9 +263,6 @@ func (a *App) layoutShortcuts(gtx layout.Context, f frame) {
 			continue
 		}
 		if showContactsKey(ke.Name, ctrl) {
-			// R30: the contacts page is a main-window content pane —
-			// the shortcut layer runs in every window, so separate
-			// windows consume the key without the dead opener.
 			if acc := currentAccount(f); acc.ID != "" && mainOnlySurfaceShown(a) {
 				a.openContacts(acc.ID)
 			}
@@ -314,11 +273,6 @@ func (a *App) layoutShortcuts(gtx layout.Context, f frame) {
 			continue
 		}
 	}
-	// Ctrl+Tab / Ctrl+Shift+Tab (slice 147): cycle the account scope
-	// ("" = all chats, then each account, wrapping). MUST drain BEFORE the
-	// generic ModCtrl loop below: a key event is delivered to a handler
-	// once per frame, so the broader filter would otherwise consume Tab
-	// presses without acting on them (R16 — account cycling was dead).
 	for {
 		ev, ok := gtx.Source.Event(key.Filter{Name: key.NameTab, Required: key.ModCtrl})
 		if !ok {
@@ -330,7 +284,6 @@ func (a *App) layoutShortcuts(gtx layout.Context, f frame) {
 			}
 		}
 	}
-	// Alt+Up/Down (tdesktop ChatNext/ChatPrevious) ride the same switch.
 	for {
 		ev, ok := gtx.Source.Event(key.Filter{Required: key.ModAlt})
 		if !ok {
@@ -346,7 +299,6 @@ func (a *App) layoutShortcuts(gtx layout.Context, f frame) {
 	}
 }
 
-// handleEscTarget closes the surface named by escTarget.
 func (a *App) handleEscTarget(target string) {
 	switch target {
 	case "menu":
@@ -372,12 +324,10 @@ func (a *App) handleEscTarget(target string) {
 	case "search":
 		sidebarSearch.SetText("")
 	case "archive":
-		a.exitArchive() // slice 67: Esc leaves the archived-chats view
+		a.exitArchive()
 	}
 }
 
-// handleSearchShortcut: Ctrl+F opens the in-chat search when a chat is
-// open (AyuGram behavior), otherwise focuses the sidebar search field.
 func (a *App) handleSearchShortcut(gtx layout.Context, f frame) {
 	if f.selected != nil && !f.inSearch {
 		a.toggleInChatSearch()
@@ -386,7 +336,6 @@ func (a *App) handleSearchShortcut(gtx layout.Context, f frame) {
 	gtx.Execute(key.FocusCmd{Tag: &sidebarSearch})
 }
 
-// handleChatSwitch opens the neighbor chat in the list.
 func (a *App) handleChatSwitch(f frame, step int) {
 	c, ok := neighborChat(f.chats, f.selected, step)
 	if !ok {
@@ -395,8 +344,6 @@ func (a *App) handleChatSwitch(f frame, step int) {
 	a.openChat(chatKey{AccountID: c.AccountID, ChatID: c.ChatID}, c.Title)
 }
 
-// handleChatEdge jumps to the first (which=1) or last (which=2) chat of
-// the visible list (tdesktop ChatFirst/ChatLast, Ctrl+Alt+Home/End).
 func (a *App) handleChatEdge(f frame, which int) {
 	visible := filterChats(f)
 	if len(visible) == 0 {
@@ -409,17 +356,14 @@ func (a *App) handleChatEdge(f frame, which int) {
 	a.openChat(chatKey{AccountID: c.AccountID, ChatID: c.ChatID}, c.Title)
 }
 
-// handleJumplistDigit: Ctrl+1..8 jump to the Nth pinned chat
-// (ChatPinned1..8); Ctrl+9 opens the archive view (ShowArchive); Ctrl+0
-// opens Saved Messages (ChatSelf).
 func (a *App) handleJumplistDigit(f frame, n int) {
 	switch {
-	case n == 9: // ShowArchive
+	case n == 9:
 		a.mu.Lock()
 		a.archiveView = true
 		a.mu.Unlock()
 		a.invalidate()
-	case n == 10: // ChatSelf → Saved Messages
+	case n == 10:
 		accID := ""
 		if sel := f.selected; sel != nil {
 			accID = sel.AccountID
@@ -431,14 +375,13 @@ func (a *App) handleJumplistDigit(f frame, n int) {
 		if accID != "" {
 			a.openSavedMessages(accID)
 		}
-	default: // ChatPinned1..8
+	default:
 		if c, ok := pinnedJumpChat(filterChats(f), n); ok {
 			a.openChat(chatKey{AccountID: c.AccountID, ChatID: c.ChatID}, c.Title)
 		}
 	}
 }
 
-// handleReadChat marks the open chat read (tdesktop ReadChat, Ctrl+R).
 func (a *App) handleReadChat(f frame) {
 	if f.selected == nil {
 		return

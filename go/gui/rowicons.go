@@ -13,12 +13,6 @@ import (
 	"uniclient/engine"
 )
 
-// Sidebar row meta icons + unread-mark dot + service-message pill
-// (AyuGram parity slice 29).
-
-// rowMetaIcons draws the pin and mute markers right of the chat title,
-// before the timestamp — Telegram shows a small pin for pinned rows and a
-// muted icon for muted ones.
 func (a *App) rowMetaIcons(gtx layout.Context, f frame, c engine.ChatInfo) layout.Dimensions {
 	return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -45,7 +39,6 @@ func (a *App) rowMetaIcons(gtx layout.Context, f frame, c engine.ChatInfo) layou
 	)
 }
 
-// layoutIconPx draws an icon scaled to a pixel size with a small margin.
 func layoutIconPx(gtx layout.Context, icon iconDrawer, col color.NRGBA, sz int) layout.Dimensions {
 	if icon == nil {
 		return layout.Dimensions{}
@@ -54,15 +47,12 @@ func layoutIconPx(gtx layout.Context, icon iconDrawer, col color.NRGBA, sz int) 
 	return icon.Layout(gtx, col)
 }
 
-// unreadMarkDot renders the small "marked unread" dot Telegram shows for
-// rows explicitly flagged unread without a count.
 func unreadMarkDot(gtx layout.Context, u *UI, muted bool) layout.Dimensions {
 	col := u.p.Accent
 	if muted {
 		col = u.p.TextFaint
 	}
 	sz := gtx.Dp(unit.Dp(8))
-	// Center the dot in the badge-sized cell so rows don't shift.
 	cell := gtx.Dp(unit.Dp(18))
 	off := (cell - sz) / 2
 	if off < 0 {
@@ -73,13 +63,10 @@ func unreadMarkDot(gtx layout.Context, u *UI, muted bool) layout.Dimensions {
 	return layout.Dimensions{Size: image.Pt(cell, cell)}
 }
 
-// iconDrawer is the widget.Icon layout surface (keeps tests free of gio).
 type iconDrawer interface {
 	Layout(gtx layout.Context, col color.NRGBA) layout.Dimensions
 }
 
-// serviceRow renders a service message as a centered dim pill —
-// Telegram/AyuGram style ("Alice joined the group", "photo changed").
 func (a *App) serviceRow(gtx layout.Context, m *engine.CachedMessage) layout.Dimensions {
 	text := m.ContentText
 	if text == "" {
@@ -100,14 +87,12 @@ func (a *App) serviceRow(gtx layout.Context, m *engine.CachedMessage) layout.Dim
 	})
 }
 
-// rowBadgeKind picks which trailing badge a row shows.
 const (
 	rowBadgeNone  = "none"
 	rowBadgeCount = "count"
 	rowBadgeMark  = "mark"
 )
 
-// rowBadgeKindFor: unread count wins, then the explicit unread mark.
 func rowBadgeKindFor(c engine.ChatInfo) string {
 	switch {
 	case c.UnreadCount > 0:
@@ -119,7 +104,6 @@ func rowBadgeKindFor(c engine.ChatInfo) string {
 	}
 }
 
-// servicePillText derives the centered pill text for a service message.
 func servicePillText(m engine.CachedMessage) string {
 	if m.ContentText != "" {
 		return m.ContentText
@@ -127,7 +111,6 @@ func servicePillText(m engine.CachedMessage) string {
 	return "(service message)"
 }
 
-// accountUnread sums unread counts for one account's chats.
 func accountUnread(chats []engine.ChatInfo, accountID string) int {
 	n := 0
 	for _, c := range chats {

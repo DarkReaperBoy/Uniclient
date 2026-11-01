@@ -23,29 +23,13 @@ import (
 	"uniclient/engine"
 )
 
-// Polls (AyuGram parity §4 "Attach menu: Poll" + poll results): the attach
-// menu gains a Poll entry that opens a creation dialog (question, options,
-// anonymous/multiple/quiz toggles) wired to engine CreatePollEx; received
-// polls render as an interactive bubble — question, tappable options, vote
-// bars with percentages once voted, quiz correct/wrong reveal + solution
-// line, and a vote-count footer. Telegram vote semantics (slice 124):
-// single polls vote once and tap-own-choice retracts; multiple polls
-// toggle options with the full set on the wire (VotePollMulti); quizzes
-// lock after the answer; the creator can Stop poll from the context menu.
-// Optimistic overlays mirror server truth (UpdateMessagePoll merges
-// counts into the cache).
-
-// ── model ──────────────────────────────────────────────────────────────────
-
-// pollOption is one answer row of a poll.
 type pollOption struct {
 	Text    string
 	Voters  int
-	Chosen  bool // voted by me (server data)
-	Correct bool // quiz: this is the right answer
+	Chosen  bool
+	Correct bool
 }
 
-// pollData is the parsed poll carried by a message Extra (content_raw).
 type pollData struct {
 	Question    string
 	Options     []pollOption
@@ -54,34 +38,27 @@ type pollData struct {
 	Quiz        bool
 	Closed      bool
 	Public      bool
-	Solution    string // quiz explanation, shown after voting
+	Solution    string
 }
 
-// rawEnvelope decodes just the Extra map of a marshaled cores.Message.
 type rawEnvelope struct {
 	Extra map[string]interface{} `json:"extra"`
 }
 
-// extraNum pulls a JSON number out of a decoded interface{} value.
 func extraNum(v interface{}) (float64, bool) {
 	f, ok := v.(float64)
 	return f, ok
 }
 
-// strVal coerces a decoded JSON value to string ("" when absent).
 func strVal(v interface{}) string {
 	s, _ := v.(string)
 	return s
 }
 
-// parsePollMessage extracts poll data from a cached message's raw JSON
-// (cores.Message.Extra["poll_*"], written by the telegram core's
-// MessageMediaPoll conversion). nil when the message is not a usable poll.
 func parsePollMessage(m *engine.CachedMessage) *pollData {
 	if m == nil || len(m.ContentRaw) == 0 {
 		return nil
 	}
-	// Cheap pre-check before the full unmarshal (runs per row per frame).
 	if !bytes.Contains(m.ContentRaw, []byte(`"poll_question"`)) {
 		return nil
 	}
@@ -126,16 +103,10 @@ func parsePollMessage(m *engine.CachedMessage) *pollData {
 	return d
 }
 
-// applyPollOverlay folds this session's optimistic votes into the parsed
-// poll: an option voted locally that the server has not counted yet gets
-// its Chosen flag and a +1 on the counters. Pure — unit-tested.
 func applyPollOverlay(d *pollData, votes map[int]bool) {
 	if d == nil || votes == nil {
 		return
 	}
-	// The overlay is the user's FULL current vote set (supersedes the
-	// server's Chosen snapshot): additions gain a voter, retractions
-	// drop one, counts never go negative.
 	added, removed := 0, 0
 	for i := range d.Options {
 		was, now := d.Options[i].Chosen, votes[i]
@@ -158,7 +129,6 @@ func applyPollOverlay(d *pollData, votes map[int]bool) {
 	}
 }
 
-// pollPercent is the vote share of an option (0 when nobody voted). Pure.
 func pollPercent(voters, total int) int {
 	if total <= 0 || voters <= 0 {
 		return 0
@@ -170,8 +140,6 @@ func pollPercent(voters, total int) int {
 	return p
 }
 
-// pollSubtitle is the small label under the question (Telegram wording).
-// Pure — unit-tested.
 func pollSubtitle(d *pollData) string {
 	if d == nil {
 		return ""
@@ -185,7 +153,6 @@ func pollSubtitle(d *pollData) string {
 	return "Anonymous poll"
 }
 
-// pollFooterLabel: "N votes" / "No votes yet" (+ closed mark). Pure.
 func pollFooterLabel(d *pollData) string {
 	if d == nil || d.TotalVoters <= 0 {
 		if d != nil && d.Closed {
@@ -203,14 +170,10 @@ func pollFooterLabel(d *pollData) string {
 	return s
 }
 
-// pollVoteKey identifies one poll message for the optimistic-vote overlay.
 func pollVoteKey(m *engine.CachedMessage) string {
 	return m.AccountID + "|" + m.ChatID + "|" + m.MsgID
 }
 
-// pollIsBody reports whether the message's text body duplicates the poll
-// question (the telegram core prefixes it with the 📊 glyph) — the poll
-// block already renders the question, so the bubble body is suppressed.
 func pollIsBody(m *engine.CachedMessage) bool {
 	if m == nil || len(m.ContentRaw) == 0 {
 		return false
@@ -221,15 +184,6 @@ func pollIsBody(m *engine.CachedMessage) bool {
 	return parsePollMessage(m) != nil
 }
 
-// ── voting ─────────────────────────────────────────────────────────────────
-
-// pollTapAction decides what a tap on option idx does (Telegram
-// semantics, pure — unit-tested):
-//
-//	"vote"    single poll, first vote
-//	"retract" single poll, tapping own choice takes it back (non-quiz)
-//	"toggle"  multiple poll: flip idx within the vote set
-//	"none"    closed / quiz-locked / switching options / invalid
 func pollTapAction(d *pollData, overlay map[int]bool, idx int) string {
 	if d == nil || idx < 0 || idx >= len(d.Options) || d.Closed {
 		return "none"
@@ -244,7 +198,7 @@ func pollTapAction(d *pollData, overlay map[int]bool, idx int) string {
 	if d.Quiz {
 		for i := range d.Options {
 			if chosen(i) {
-				return "none" // quizzes lock after the first answer
+				return "none"
 			}
 		}
 		return "vote"
@@ -262,12 +216,10 @@ func pollTapAction(d *pollData, overlay map[int]bool, idx int) string {
 	case mine == idx:
 		return "retract"
 	default:
-		return "none" // single polls cannot switch to another option
+		return "none"
 	}
 }
 
-// nextMultiVoteSet flips idx inside cur and returns the sorted full set
-// (sendVote semantics: the whole set goes on the wire). Pure.
 func nextMultiVoteSet(cur map[int]bool, idx int) []int {
 	next := make(map[int]bool, len(cur)+1)
 	for i, v := range cur {
@@ -288,9 +240,6 @@ func nextMultiVoteSet(cur map[int]bool, idx int) []int {
 	return out
 }
 
-// tapPollOption handles a tap on poll option idx: first vote, retraction
-// (non-quiz single polls) or set-toggle (multiple polls, full set on the
-// wire via VotePollMulti). Optimistic overlay mirrors the server truth.
 func (a *App) tapPollOption(m *engine.CachedMessage, d *pollData, idx int) {
 	if m == nil || d == nil {
 		return
@@ -316,7 +265,7 @@ func (a *App) tapPollOption(m *engine.CachedMessage, d *pollData, idx int) {
 				a.setToast("Retract failed: " + err.Error())
 				return
 			}
-			a.setPollOverlay(k, map[int]bool{}) // explicitly empty = retracted
+			a.setPollOverlay(k, map[int]bool{})
 		}()
 	case "toggle":
 		cur := overlay
@@ -344,9 +293,6 @@ func (a *App) tapPollOption(m *engine.CachedMessage, d *pollData, idx int) {
 	}
 }
 
-// pollEffectiveClosed folds the optimistic stop overlay into the poll
-// state (a server-confirmed stop stays locally closed until the poll
-// update lands). Pure.
 func pollEffectiveClosed(d *pollData, stopped bool) bool {
 	if d == nil {
 		return false
@@ -354,8 +300,6 @@ func pollEffectiveClosed(d *pollData, stopped bool) bool {
 	return d.Closed || stopped
 }
 
-// stopPollMessage closes an own open poll through the engine and pins the
-// optimistic closed overlay.
 func (a *App) stopPollMessage(m *engine.CachedMessage) {
 	if m == nil {
 		return
@@ -378,7 +322,6 @@ func (a *App) stopPollMessage(m *engine.CachedMessage) {
 	}()
 }
 
-// stopPollMenuGate: the creator's own, still-open polls offer Stop poll.
 func stopPollMenuGate(m *engine.CachedMessage) bool {
 	if m == nil || !m.IsOutgoing || !pollIsBody(m) {
 		return false
@@ -387,13 +330,12 @@ func stopPollMenuGate(m *engine.CachedMessage) bool {
 	return d != nil && !d.Closed
 }
 
-// pollVotesFor returns a copy of the overlay votes for a message key.
 func (a *App) pollVotesFor(key string) map[int]bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	src, ok := a.pollVotes[key]
 	if !ok {
-		return nil // no overlay this session — server truth stands
+		return nil
 	}
 	out := make(map[int]bool, len(src))
 	for i, v := range src {
@@ -402,8 +344,6 @@ func (a *App) pollVotesFor(key string) map[int]bool {
 	return out
 }
 
-// setPollOverlay stores the user's full vote set for a poll (empty map =
-// explicitly retracted) and repaints.
 func (a *App) setPollOverlay(key string, votes map[int]bool) {
 	a.mu.Lock()
 	if a.pollVotes == nil {
@@ -417,14 +357,11 @@ func (a *App) setPollOverlay(key string, votes map[int]bool) {
 	a.invalidate()
 }
 
-// pollStoppedFor reports the optimistic stop overlay for a poll.
 func (a *App) pollStoppedFor(key string) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.pollStopped[key]
 }
-
-// ── poll option clickables (stable per poll+option) ────────────────────────
 
 func (a *App) pollOptClickable(key string) *widget.Clickable {
 	if c, ok := a.wid.pollClicks[key]; ok {
@@ -438,10 +375,6 @@ func (a *App) pollOptClickable(key string) *widget.Clickable {
 	return c
 }
 
-// ── bubble rendering ───────────────────────────────────────────────────────
-
-// pollBlock renders the poll inside a message bubble: question, subtitle,
-// tappable option rows (vote bars once voted / closed), vote-count footer.
 func (a *App) pollBlock(gtx layout.Context, m *engine.CachedMessage) layout.Dimensions {
 	d := parsePollMessage(m)
 	if d == nil {
@@ -487,7 +420,6 @@ func (a *App) pollBlock(gtx layout.Context, m *engine.CachedMessage) layout.Dime
 			return lbl.Layout(gtx)
 		})
 	}))
-	// Quiz explanation (AyuGram: the solution line appears once voted).
 	if d.Quiz && voted && d.Solution != "" {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Top: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -501,17 +433,13 @@ func (a *App) pollBlock(gtx layout.Context, m *engine.CachedMessage) layout.Dime
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-// pollOptionRow renders one answer: a plain radio row before voting; after
-// voting (or once closed) a Telegram-style bar with the vote share, the
-// chosen answer highlighted, and quiz correct/wrong marks revealed.
 func (a *App) pollOptionRow(gtx layout.Context, m *engine.CachedMessage, d *pollData, opt pollOption, idx int, baseKey string, showResults, voted bool) layout.Dimensions {
 	btn := a.pollOptClickable(baseKey + "|" + itoa(idx))
 	if !d.Closed && btn.Clicked(gtx) {
-		a.tapPollOption(m, d, idx) // vote / retract / toggle, locks inside
+		a.tapPollOption(m, d, idx)
 	}
 
 	if !showResults {
-		// Pre-vote: radio circle + option text, full-row clickable.
 		return roundedFill(gtx, a.ui.p.SurfaceHi, 8, func(gtx layout.Context) layout.Dimensions {
 			return material.ButtonLayout(a.ui.Theme, btn).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layout.Inset{Top: unit.Dp(6), Bottom: unit.Dp(6), Left: unit.Dp(8), Right: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -532,7 +460,6 @@ func (a *App) pollOptionRow(gtx layout.Context, m *engine.CachedMessage, d *poll
 		})
 	}
 
-	// Results: share bar under the text, quiz marks, voter count.
 	share := pollPercent(opt.Voters, d.TotalVoters)
 	barCol := a.ui.p.AccentDim
 	if opt.Chosen {
@@ -541,7 +468,6 @@ func (a *App) pollOptionRow(gtx layout.Context, m *engine.CachedMessage, d *poll
 	quizReveal := d.Quiz && voted
 
 	row := roundedFill(gtx, a.ui.p.SurfaceHi, 8, func(gtx layout.Context) layout.Dimensions {
-		// Record the content first, then paint the bar underneath it.
 		macro := op.Record(gtx.Ops)
 		dims := material.ButtonLayout(a.ui.Theme, btn).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Top: unit.Dp(6), Bottom: unit.Dp(6), Left: unit.Dp(8), Right: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -593,7 +519,6 @@ func (a *App) pollOptionRow(gtx layout.Context, m *engine.CachedMessage, d *poll
 	return row
 }
 
-// pollRadioOutline draws the pre-vote answer circle.
 func pollRadioOutline(gtx layout.Context, col color.NRGBA) layout.Dimensions {
 	sz := gtx.Dp(unit.Dp(18))
 	var p clip.Path
@@ -611,8 +536,6 @@ func pollRadioOutline(gtx layout.Context, col color.NRGBA) layout.Dimensions {
 	return layout.Dimensions{Size: image.Pt(sz, sz)}
 }
 
-// pollRadioFilled draws a filled answer circle (chosen / quiz-correct),
-// with a white check inside.
 func pollRadioFilled(gtx layout.Context, a *App, chosen, correct bool) layout.Dimensions {
 	sz := gtx.Dp(unit.Dp(18))
 	col := a.ui.p.Accent
@@ -625,7 +548,6 @@ func pollRadioFilled(gtx layout.Context, a *App, chosen, correct bool) layout.Di
 	return check(gtx, color.NRGBA{R: 255, G: 255, B: 255, A: 255}, sz, 0)
 }
 
-// pollQuizMark draws the quiz ✓ (green) / ✗ (red) glyph at an option row.
 func pollQuizMark(gtx layout.Context, a *App, correct bool) layout.Dimensions {
 	sz := gtx.Dp(unit.Dp(16))
 	col := a.ui.p.Error
@@ -651,28 +573,18 @@ func pollQuizMark(gtx layout.Context, a *App, correct bool) layout.Dimensions {
 	return layout.Dimensions{Size: image.Pt(sz, sz)}
 }
 
-// ── creation dialog ────────────────────────────────────────────────────────
-
-// pollDlgState: open poll-creation dialog (nil when closed).
 type pollDlgState struct {
 	busy    bool
-	correct int // quiz: chosen correct option index
+	correct int
 }
 
 var (
 	pollOptEds   []widget.Editor
-	pollQuizWas  bool // previous-frame values for change detection
+	pollQuizWas  bool
 	pollMultiWas bool
 	pollKeyTag   = new(struct{})
 )
 
-// updatePollDlg copy-on-write installs a mutated poll-dialog head. R51:
-// the frame carries the *pollDlgState POINTER (the state.go snapshot),
-// so in-place busy/correct writes raced the frameMu-side reads in
-// layoutPollDialog (d.busy drives the Create/Sending label, d.correct
-// the quiz answer highlight) — a frozen head must never change. fn
-// edits a copy; returning false aborts with the head untouched.
-// Reports whether it installed.
 func (a *App) updatePollDlg(fn func(d *pollDlgState) bool) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -689,7 +601,6 @@ func (a *App) updatePollDlg(fn func(d *pollDlgState) bool) bool {
 
 const pollMaxOptions = 10
 
-// validatePollDraft (pure, testable): "" = valid, else the error message.
 func validatePollDraft(question string, options []string) string {
 	if strings.TrimSpace(question) == "" {
 		return "Add a question"
@@ -706,11 +617,10 @@ func validatePollDraft(question string, options []string) string {
 	return ""
 }
 
-// openPollDialog resets and shows the poll creation dialog.
 func (a *App) openPollDialog() {
 	a.mu.Lock()
 	a.pollDlg = &pollDlgState{correct: 0}
-	a.pollDlgGen++ // R51: new dialog session — in-flight send tails retire
+	a.pollDlgGen++
 	a.mu.Unlock()
 	if len(pollOptEds) < 2 {
 		pollOptEds = make([]widget.Editor, 2)
@@ -726,7 +636,6 @@ func (a *App) openPollDialog() {
 	a.invalidate()
 }
 
-// closePollDialog hides the poll creation dialog.
 func (a *App) closePollDialog() {
 	a.mu.Lock()
 	a.pollDlg = nil
@@ -734,11 +643,10 @@ func (a *App) closePollDialog() {
 	a.invalidate()
 }
 
-// submitPollDialog validates and sends the poll (engine CreatePollEx).
 func (a *App) submitPollDialog() {
 	a.mu.Lock()
 	k := a.selected
-	gen := a.pollDlgGen // R51: the send tail's session key
+	gen := a.pollDlgGen
 	dlg := a.pollDlg
 	a.mu.Unlock()
 	if dlg == nil || k == nil {
@@ -746,7 +654,7 @@ func (a *App) submitPollDialog() {
 	}
 	if !a.updatePollDlg(func(d *pollDlgState) bool {
 		if d.busy {
-			return false // already sending
+			return false
 		}
 		d.busy = true
 		return true
@@ -768,14 +676,10 @@ func (a *App) submitPollDialog() {
 		return
 	}
 
-	// R52: capture the switch state HERE, on the GUI loop — a.wid is
-	// GUI-loop-only state; reading it from the send goroutine raced the
-	// layout-side switch writes (material.Switch updates .Value during
-	// Layout).
 	anon := a.wid.pollAnonSw.Value
 	multi := a.wid.pollMultiSw.Value
 	quiz := a.wid.pollQuizSw.Value
-	correct := dlg.correct // install-preserved by the busy install above
+	correct := dlg.correct
 	acc, chat := k.AccountID, k.ChatID
 	go func() {
 		_, err := a.eng.CreatePollEx(acc, chat, q, opts, engine.PollOptions{
@@ -788,12 +692,6 @@ func (a *App) submitPollDialog() {
 	}()
 }
 
-// pollSendDone lands the send tail. R51: the busy flag clears and the
-// dialog closes only while the SAME dialog session still owns the head —
-// a tail racing a cancel+reopen (pollDlgGen bumped) must not un-busy or
-// close the new draft. A failure toasts regardless of session: the poll
-// really was sent and really failed — honest-UI beats session purity
-// for errors the user's own action produced.
 func (a *App) pollSendDone(gen int, err error) {
 	a.mu.Lock()
 	live := a.pollDlg != nil && a.pollDlgGen == gen
@@ -810,7 +708,6 @@ func (a *App) pollSendDone(gen int, err error) {
 	}
 }
 
-// layoutPollDialog renders the poll creation card over the chat pane.
 func (a *App) layoutPollDialog(gtx layout.Context, f frame) layout.Dimensions {
 	d := f.pollDlg
 	{
@@ -842,7 +739,7 @@ func (a *App) layoutPollDialog(gtx layout.Context, f frame) layout.Dimensions {
 		if a.wid.pollDelOptBtns[i].Clicked(gtx) && len(pollOptEds) > 2 {
 			pollOptEds = append(pollOptEds[:i], pollOptEds[i+1:]...)
 			a.wid.pollDelOptBtns = a.wid.pollDelOptBtns[:len(pollOptEds)]
-			a.updatePollDlg(func(d *pollDlgState) bool { // R51: copy-on-write
+			a.updatePollDlg(func(d *pollDlgState) bool {
 				if d.correct != i {
 					return false
 				}
@@ -852,8 +749,6 @@ func (a *App) layoutPollDialog(gtx layout.Context, f frame) layout.Dimensions {
 			a.invalidate()
 		}
 	}
-	// Quiz and multiple answers are mutually exclusive (Telegram rule);
-	// widget.Bool has no change event — track the previous values.
 	if a.wid.pollQuizSw.Value != pollQuizWas || a.wid.pollMultiSw.Value != pollMultiWas {
 		if a.wid.pollQuizSw.Value && !pollQuizWas {
 			a.wid.pollMultiSw.Value = false
@@ -881,7 +776,6 @@ func (a *App) layoutPollDialog(gtx layout.Context, f frame) layout.Dimensions {
 						lbl := a.ui.H3("New poll")
 						return lbl.Layout(gtx)
 					}),
-					// Question editor.
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Inset{Top: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							return roundedFill(gtx, a.ui.p.SurfaceHi, 10, func(gtx layout.Context) layout.Dimensions {
@@ -892,7 +786,6 @@ func (a *App) layoutPollDialog(gtx layout.Context, f frame) layout.Dimensions {
 							})
 						})
 					}),
-					// Option editors + add/remove + quiz-correct marks.
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						growClickables(&a.wid.pollCorrectBtns, len(pollOptEds))
 						rows := make([]layout.FlexChild, 0, len(pollOptEds)+1)
@@ -929,7 +822,7 @@ func (a *App) layoutPollDialog(gtx layout.Context, f frame) layout.Dimensions {
 											}
 											return layout.Inset{Left: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 												if a.wid.pollCorrectBtns[i].Clicked(gtx) {
-													a.updatePollDlg(func(d *pollDlgState) bool { d.correct = i; return true }) // R51: copy-on-write
+													a.updatePollDlg(func(d *pollDlgState) bool { d.correct = i; return true })
 													a.invalidate()
 												}
 												btn := a.ui.IconButton(&a.wid.pollCorrectBtns[i], iconNavigationCheck, "Correct answer")
@@ -957,7 +850,6 @@ func (a *App) layoutPollDialog(gtx layout.Context, f frame) layout.Dimensions {
 						}))
 						return layout.Flex{Axis: layout.Vertical}.Layout(gtx, rows...)
 					}),
-					// Toggles.
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Inset{Top: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
@@ -973,7 +865,6 @@ func (a *App) layoutPollDialog(gtx layout.Context, f frame) layout.Dimensions {
 							)
 						})
 					}),
-					// Actions.
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Inset{Top: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
@@ -996,7 +887,6 @@ func (a *App) layoutPollDialog(gtx layout.Context, f frame) layout.Dimensions {
 	})
 }
 
-// pollSwitchRow renders a label + material switch for the poll dialog.
 func (a *App) pollSwitchRow(gtx layout.Context, sw *widget.Bool, label string) layout.Dimensions {
 	return layout.Inset{Top: unit.Dp(3), Bottom: unit.Dp(3)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,

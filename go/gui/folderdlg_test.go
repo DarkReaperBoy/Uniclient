@@ -6,25 +6,20 @@ import (
 	"uniclient/engine"
 )
 
-// Folder editor state machine (gui/folders.go, slice 13).
-
 func newDlgApp() *App { return &App{} }
 
 func TestCycleFolderDlgChat(t *testing.T) {
 	a := newDlgApp()
 	a.folderDlg = &folderDlgState{include: map[string]bool{}, exclude: map[string]bool{}}
 
-	// none → include
 	a.cycleFolderDlgChat("c1")
 	if !a.folderDlg.include["c1"] || a.folderDlg.exclude["c1"] {
 		t.Fatalf("after 1st tap: include=%v exclude=%v", a.folderDlg.include["c1"], a.folderDlg.exclude["c1"])
 	}
-	// include → exclude
 	a.cycleFolderDlgChat("c1")
 	if a.folderDlg.include["c1"] || !a.folderDlg.exclude["c1"] {
 		t.Fatalf("after 2nd tap: include=%v exclude=%v", a.folderDlg.include["c1"], a.folderDlg.exclude["c1"])
 	}
-	// exclude → none
 	a.cycleFolderDlgChat("c1")
 	if a.folderDlg.include["c1"] || a.folderDlg.exclude["c1"] {
 		t.Fatalf("after 3rd tap: both should be clear")
@@ -33,9 +28,7 @@ func TestCycleFolderDlgChat(t *testing.T) {
 
 func TestCycleFolderDlgChatNoDialog(t *testing.T) {
 	a := newDlgApp()
-	a.cycleFolderDlgChat("c1") // must not panic with no dialog open
-	// slice-280 pin: the no-dialog path must also not CREATE one — the
-	// panic oracle alone would stay green while the nil-guard vanished.
+	a.cycleFolderDlgChat("c1")
 	if a.folderDlg != nil {
 		t.Fatal("cycle with no dialog open must not create a dialog state")
 	}

@@ -1,9 +1,5 @@
 package gui
 
-// giveaways_pickers_test.go — slice 214 tests: pure helpers for the
-// giveaway country + channel pickers (labels, search filter, candidate
-// filtering, selection labels).
-
 import (
 	"testing"
 
@@ -15,7 +11,6 @@ func TestCountryLabel(t *testing.T) {
 	if got := countryLabel(cores.CountryInfo{ISO2: "DE", Name: "Deutschland"}); got != "Deutschland" {
 		t.Errorf("label = %q", got)
 	}
-	// Localized name missing → default name.
 	if got := countryLabel(cores.CountryInfo{ISO2: "FR", Name: "France"}); got != "France" {
 		t.Errorf("label = %q", got)
 	}
@@ -33,8 +28,6 @@ func TestCountryMatches(t *testing.T) {
 	if got := countryMatches(list, "united"); len(got) != 1 || got[0].ISO2 != "US" {
 		t.Errorf("multi-word search = %+v", got)
 	}
-	// "d" matches both Deutschland and Unite*d* States — substring,
-	// case-insensitive, exactly like tdesktop's filter.
 	if got := countryMatches(list, "D"); len(got) != 2 {
 		t.Errorf("case-insensitive = %+v", got)
 	}
@@ -68,7 +61,6 @@ func TestGiveawayChannelCandidates(t *testing.T) {
 		{AccountID: "b", ChatID: "3", Type: engine.ChatTypeChanVal, Title: "Other acct"},
 		{AccountID: "a", ChatID: "4", Type: engine.ChatTypeDMVal, Title: "DM"},
 	}
-	// Only same-account channels, excluding the giveaway channel itself.
 	got := giveawayChannelCandidates(chats, "a", "1")
 	if len(got) != 0 {
 		t.Fatalf("self-channel must be excluded: %+v", got)

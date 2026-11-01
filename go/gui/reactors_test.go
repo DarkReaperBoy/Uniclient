@@ -10,7 +10,7 @@ import (
 func TestReactorTabs(t *testing.T) {
 	m := &engine.CachedMessage{Reactions: []cores.Reaction{
 		{Emoji: "👍", Count: 3},
-		{Emoji: "", Count: 1, DocumentID: 7}, // custom-emoji placeholder skipped
+		{Emoji: "", Count: 1, DocumentID: 7},
 		{Emoji: "🔥", Count: 1},
 	}}
 	tabs := reactorTabs(m)

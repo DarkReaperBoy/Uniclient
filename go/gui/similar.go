@@ -1,18 +1,5 @@
 package gui
 
-// Similar channels (slice 167): the channel-recommendations block under
-// the last post of broadcast channels (tdesktop
-// channels.getChannelRecommendations surface — the engine/core already
-// fetch them; this renders it). Horizontal card row: avatar, title,
-// member count; tap opens the channel (access hashes are cached by the
-// core, so the ID resolves even without a prior dialog).
-//
-// Slice 169 — AyuGram settings (primary source: ayu_settings.h):
-// hideSimilarChannels never renders the block; collapseSimilarChannels
-// (default ON) starts it collapsed into a compact bar with an expander
-// (tdesktop ChannelDataFlag::SimilarExpanded parity: per-chat runtime
-// state, not persisted).
-
 import (
 	"log"
 	"strings"
@@ -25,9 +12,6 @@ import (
 	"uniclient/engine"
 )
 
-// similarBlockMode is the pure render decision for the block: "off"
-// (hidden), "collapsed" (compact bar) or "expanded" (card row). Hide
-// wins over collapse.
 func similarBlockMode(hide, collapsed bool) string {
 	switch {
 	case hide:
@@ -39,15 +23,10 @@ func similarBlockMode(hide, collapsed bool) string {
 	}
 }
 
-// similarExpandedDefault derives a channel's initial expanded state from
-// the collapse config: collapse ON → channels start collapsed.
 func similarExpandedDefault(collapseCfg bool) bool {
 	return !collapseCfg
 }
 
-// similarEffectiveExpanded resolves the per-chat expanded state: an
-// explicit toggle beats the config default; absent falls back to it.
-// Pure (the map is read-only here).
 func similarEffectiveExpanded(expanded map[string]bool, key string, def bool) bool {
 	if v, ok := expanded[key]; ok {
 		return v
@@ -55,7 +34,6 @@ func similarEffectiveExpanded(expanded map[string]bool, key string, def bool) bo
 	return def
 }
 
-// loadSimilar fetches the recommendations for the open channel chat.
 func (a *App) loadSimilar(k chatKey) {
 	go func() {
 		var chat *engine.ChatInfo
@@ -88,9 +66,6 @@ func (a *App) loadSimilar(k chatKey) {
 	}()
 }
 
-// layoutSimilarBlock renders the block: caption + the horizontal card
-// row. Shown for broadcast channels (not in topic views) with
-// recommendations.
 func (a *App) layoutSimilarBlock(gtx layout.Context, f frame) layout.Dimensions {
 	if len(f.similar) == 0 || f.selected == nil {
 		return layout.Dimensions{}
@@ -147,9 +122,6 @@ func (a *App) layoutSimilarBlock(gtx layout.Context, f frame) layout.Dimensions 
 	})
 }
 
-// layoutSimilarCollapsed renders the compact bar (slice 169): caption +
-// recommendation count + the expander. Tapping it expands the block for
-// this chat (runtime per-chat state, tdesktop SimilarExpanded parity).
 func (a *App) layoutSimilarCollapsed(gtx layout.Context, f frame) layout.Dimensions {
 	if len(f.similar) == 0 || f.selected == nil {
 		return layout.Dimensions{}
@@ -185,8 +157,6 @@ func (a *App) layoutSimilarCollapsed(gtx layout.Context, f frame) layout.Dimensi
 	})
 }
 
-// setSimilarExpanded records this App's expanded preference for the open
-// chat (keyed like similarFor). Runs on the GUI loop.
 func (a *App) setSimilarExpanded(v bool) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -199,7 +169,6 @@ func (a *App) setSimilarExpanded(v bool) {
 	a.similarExpanded[a.selected.AccountID+"|"+a.selected.ChatID] = v
 }
 
-// similarCard: one recommendation — avatar, title, member count.
 func (a *App) similarCard(gtx layout.Context, c *engine.SimilarChannelInfo, btn *widget.Clickable) layout.Dimensions {
 	bl := material.ButtonLayout(a.ui.Theme, btn)
 	bl.Background = a.ui.p.Surface
@@ -237,7 +206,6 @@ func (a *App) similarCard(gtx layout.Context, c *engine.SimilarChannelInfo, btn 
 	})
 }
 
-// similarAvatar: the recommendation's stripped thumb or a letter bubble.
 func (a *App) similarAvatar(gtx layout.Context, c *engine.SimilarChannelInfo) layout.Dimensions {
 	if c.AvatarB64 != "" {
 		key := "thumb:" + c.AvatarB64

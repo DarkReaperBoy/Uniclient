@@ -32,8 +32,6 @@ import (
 	"uniclient/utils"
 )
 
-// ──────────────────────────── constants ────────────────────────────
-
 const (
 	tsVoicePort      = "9987"
 	tsMaxMsgBuffer   = 500
@@ -42,16 +40,15 @@ const (
 	tsDialTimeout    = 10 * time.Second
 	tsRetransmitBase = 500 * time.Millisecond
 	tsMaxRetransmit  = 30 * time.Second
-	tsMaxPayloadC2S  = 487 // 500 - 13 byte header
-	tsMaxPayloadS2C  = 489 // 500 - 11 byte header
+	tsMaxPayloadC2S  = 487
+	tsMaxPayloadS2C  = 489
 	tsHeaderC2S      = 13
 	tsHeaderS2C      = 11
-	tsVersionTS      = 1466672534 // 3.0.19.3 build timestamp
+	tsVersionTS      = 1466672534
 	tsEpochOffset    = 1356998400
-	tsInitVersion    = 1566914096 // 3.5.0 [Stable] build timestamp — accepted by live servers
+	tsInitVersion    = 1566914096
 )
 
-// Packet types
 const (
 	tsPktVoice        = 0x00
 	tsPktVoiceWhisper = 0x01
@@ -64,7 +61,6 @@ const (
 	tsPktInit         = 0x08
 )
 
-// Flags
 const (
 	tsFlagUnencrypted = 0x80
 	tsFlagCompressed  = 0x40
@@ -72,14 +68,11 @@ const (
 	tsFlagFragmented  = 0x10
 )
 
-// Init MAC ("TS3INIT1")
 var tsInitMAC = [8]byte{0x54, 0x53, 0x33, 0x49, 0x4E, 0x49, 0x54, 0x31}
 
-// FAKE_KEY and FAKE_NONCE for the first encrypted command exchange
 var tsFakeKey = [16]byte{0x63, 0x3A, 0x5C, 0x77, 0x69, 0x6E, 0x64, 0x6F, 0x77, 0x73, 0x5C, 0x73, 0x79, 0x73, 0x74, 0x65}
 var tsFakeNonce = [16]byte{0x6D, 0x5C, 0x66, 0x69, 0x72, 0x65, 0x77, 0x61, 0x6C, 0x6C, 0x33, 0x32, 0x2E, 0x63, 0x70, 0x6C}
 
-// ROOT_KEY for Ed25519 license chain
 var tsRootKey = [32]byte{
 	0xcd, 0x0d, 0xe2, 0xae, 0xd4, 0x63, 0x45, 0x50,
 	0x9a, 0x7e, 0x3c, 0xfd, 0x8f, 0x68, 0xb3, 0xdc,
@@ -87,14 +80,10 @@ var tsRootKey = [32]byte{
 	0x18, 0x75, 0x0f, 0x99, 0x38, 0x12, 0x40, 0x8a,
 }
 
-// Version string and platform for clientinit
 const tsVersionStr = "3.?.? [Build: 5680278000]"
-const tsPlatform = "Linux" // TS3 clientinit platform field
+const tsPlatform = "Linux"
 const ts3Platform = "teamspeak"
 const tsVersionSign = "Hjd+N58Gv3ENhoKmGYy2bNRBsNNgm5kpiaQWxOj5HN2DXttG6REjymSwJtpJ8muC2gSwRuZi0R+8Laan5ts5CQ=="
-
-// ──────────────────────────── QuickLZ Level 1 ────────────────────────────
-// Pure Go decompressor for QuickLZ Level 1 as used by TS3.
 
 func tsQuickLZDecompress(src []byte) ([]byte, error) {
 	if len(src) < 3 {
@@ -106,7 +95,6 @@ func tsQuickLZDecompress(src []byte) ([]byte, error) {
 	var headerLen int
 
 	if flags&0x02 != 0 {
-		// Long header (9 bytes)
 		if len(src) < 9 {
 			return nil, fmt.Errorf("quicklz: long header but only %d bytes", len(src))
 		}
@@ -114,7 +102,6 @@ func tsQuickLZDecompress(src []byte) ([]byte, error) {
 		compressedSize = binary.LittleEndian.Uint32(src[1:5])
 		decompressedSize = binary.LittleEndian.Uint32(src[5:9])
 	} else {
-		// Short header (3 bytes)
 		headerLen = 3
 		compressedSize = uint32(src[1])
 		decompressedSize = uint32(src[2])
@@ -127,20 +114,18 @@ func tsQuickLZDecompress(src []byte) ([]byte, error) {
 		return nil, fmt.Errorf("quicklz: decompressed size too large: %d", decompressedSize)
 	}
 
-	// Not compressed — stored raw
 	if flags&0x01 == 0 {
 		out := make([]byte, decompressedSize)
 		copy(out, src[headerLen:])
 		return out, nil
 	}
 
-	// Decompress
 	in := src[headerLen:compressedSize]
 	out := make([]byte, 0, decompressedSize)
 	var hashtable [4096]uint32
 	inPos := 0
 
-	control := uint32(1) // forces immediate read
+	control := uint32(1)
 
 	nextHashed := 0
 
@@ -154,7 +139,6 @@ func tsQuickLZDecompress(src []byte) ([]byte, error) {
 		}
 
 		if control&1 != 0 {
-			// Back-reference
 			control >>= 1
 			if inPos+2 > len(in) {
 				break
@@ -178,14 +162,12 @@ func tsQuickLZDecompress(src []byte) ([]byte, error) {
 
 			offset := hashtable[hash]
 
-			// Copy matchlen bytes (byte-by-byte for overlapping)
 			for i := uint32(0); i < matchlen; i++ {
 				if int(offset+i) < len(out) {
 					out = append(out, out[offset+i])
 				}
 			}
 
-			// Update hashtable
 			end := len(out) + 1 - int(matchlen)
 			if end < 0 {
 				end = 0
@@ -198,7 +180,6 @@ func tsQuickLZDecompress(src []byte) ([]byte, error) {
 			nextHashed = len(out)
 
 		} else if uint32(len(out)) >= decompressedSize-10 || decompressedSize < 10 {
-			// Near end — emit remaining literals
 			for uint32(len(out)) < decompressedSize {
 				if control == 1 {
 					if inPos+4 > len(in) {
@@ -216,7 +197,6 @@ func tsQuickLZDecompress(src []byte) ([]byte, error) {
 			}
 			break
 		} else {
-			// Literal byte
 			control >>= 1
 			if inPos >= len(in) {
 				break
@@ -224,7 +204,6 @@ func tsQuickLZDecompress(src []byte) ([]byte, error) {
 			out = append(out, in[inPos])
 			inPos++
 
-			// Update hashtable
 			end := len(out) - 2
 			if end < 0 {
 				end = 0
@@ -243,23 +222,6 @@ func tsQuickLZDecompress(src []byte) ([]byte, error) {
 	return out, nil
 }
 
-// tsQuickLZCompress returns the QuickLZ level-1 stream for src — the exact
-// bytes official QuickLZ 1.5.0 emits in the TeamSpeak configuration
-// (QLZ_COMPRESSION_LEVEL 1, QLZ_STREAMING_BUFFER 0, QLZ_PTR_64): the
-// vectors in teamspeak_quicklz_test.go are gcc-built reference output and
-// this function must stay byte-identical to it, because the server
-// decompresses with that same reference code.
-//
-// ok is false only for empty input (no valid stream exists). A returned
-// stream may be the stored-raw form (reference ratio give-up), so callers
-// must compare sizes before preferring it over the raw command.
-//
-// This closes BUGS.md B-1: without it every command > tsMaxPayloadC2S
-// went out as raw fragments while reference clients send compressed
-// payloads (the send-side gap this function closes at tsSendCommand).
-//
-// Provenance: faithful port of the GPL/commercial quicklz.c reference
-// (never vendored — gcc-built vectors only); tracked in BUGS.md B-8.
 func tsQuickLZCompress(src []byte) ([]byte, bool) {
 	size := len(src)
 	if size == 0 || uint64(size) > uint64(0xffffffff-400) {
@@ -270,17 +232,9 @@ func tsQuickLZCompress(src []byte) ([]byte, bool) {
 		base = 3
 	}
 
-	// A fresh state per call is exactly reset_table_compress() on a
-	// zeroed reference state (offsets AND caches): table 0 = empty — with
-	// QLZ_PTR_64 the reference stores absolute positions with
-	// OFFSET_BASE = source, so a stored position 0 reads back as
-	// "empty"; that quirk is reproduced here bit-for-bit.
 	var table [4096]uint32
 	var cache [4096]uint32
 
-	// Literal worst case: one control word per 31 literal bytes
-	// (4/31 ≈ 0.129) → size + size/7 + slack covers every non-give-up
-	// outcome; matches only ever shrink dst relative to pos.
 	out := make([]byte, base+size+size/7+64)
 
 	le24 := func(p int) uint32 {
@@ -291,8 +245,6 @@ func tsQuickLZCompress(src []byte) ([]byte, bool) {
 			out[at+i] = byte(v >> (8 * i))
 		}
 	}
-	// same(): true when the 7 bytes at src[pos-3 .. pos+3] are all equal
-	// (C compares src[n] == src[0] for n = 6 down to 1).
 	same7 := func(pos int) bool {
 		b := src[pos-3]
 		for i := 1; i <= 6; i++ {
@@ -304,10 +256,10 @@ func tsQuickLZCompress(src []byte) ([]byte, bool) {
 	}
 
 	lastByte := size - 1
-	lastMatchStart := lastByte - 6 - 4 // UNCONDITIONAL_MATCHLEN + UNCOMPRESSED_END
+	lastMatchStart := lastByte - 6 - 4
 
 	cwordPtr := base
-	dstPos := base + 4 // space for the first control word
+	dstPos := base + 4
 	cwordVal := uint32(1) << 31
 	lits := 0
 	pos := 0
@@ -320,8 +272,6 @@ func tsQuickLZCompress(src []byte) ([]byte, bool) {
 mainLoop:
 	for pos <= lastMatchStart {
 		if cwordVal&1 == 1 {
-			// Ratio give-up: store uncompressed when compression is
-			// not paying off — exact condition from qlz_compress_core.
 			if pos > size>>1 && dstPos-base > pos-(pos>>5) {
 				giveUp = true
 				break mainLoop
@@ -344,12 +294,10 @@ mainLoop:
 			cwordVal = cwordVal>>1 | 1<<31
 			hsh := h << 4
 			if src[o+3] != src[pos+3] {
-				// Short match: exactly 3 bytes (byte 3 differs).
-				writeLE(1|hsh, dstPos, 2) // (3-2) | hash<<4
+				writeLE(1|hsh, dstPos, 2)
 				dstPos += 2
 				pos += 3
 			} else {
-				// Long match: bytes 0..3 already known equal, extend.
 				oldPos := pos
 				pos += 4
 				if src[o+(pos-oldPos)] == src[pos] {
@@ -386,8 +334,6 @@ mainLoop:
 		}
 	}
 
-	// Tail: everything after last_match_start is emitted as literals; the
-	// tail still inserts final hash entries and flushes the control word.
 	if !giveUp {
 		for pos <= lastByte {
 			if cwordVal&1 == 1 {
@@ -413,9 +359,6 @@ mainLoop:
 		writeLE((cwordVal>>1)|(1<<31), cwordPtr, 4)
 	}
 
-	// Header + give-up handling (qlz_compress). Core output is padded to
-	// a minimum of 9 bytes like the reference; unread padding reads as
-	// zeros here and is never consumed by a correct decompressor.
 	coreLen := dstPos - base
 	if coreLen < 9 {
 		coreLen = 9
@@ -423,13 +366,12 @@ mainLoop:
 	compressed := byte(1)
 	r := base + coreLen
 	if giveUp {
-		// The core returned 0: stored-raw stream (flag bit 0 clear).
 		compressed = 0
 		coreLen = 0
 		copy(out[base:], src)
 		r = size + base
 	}
-	fl := compressed | (1 << 2) | (1 << 6) // level 1, streaming=0
+	fl := compressed | (1 << 2) | (1 << 6)
 	if base == 3 {
 		out[0] = fl
 		out[1] = byte(r)
@@ -442,15 +384,10 @@ mainLoop:
 	return out[:r], true
 }
 
-// ──────────────────────────── AES-128-EAX ────────────────────────────
-// EAX mode with 8-byte (truncated) tag as used by TS3.
-
-// tsOMAC1 computes OMAC1 (CMAC) using AES-128. Returns full 16-byte tag.
 func tsOMAC1(key, data []byte) []byte {
 	block, _ := aes.NewCipher(key)
 	bs := block.BlockSize()
 
-	// Generate subkeys
 	var zero [16]byte
 	l := make([]byte, bs)
 	block.Encrypt(l, zero[:])
@@ -458,7 +395,6 @@ func tsOMAC1(key, data []byte) []byte {
 	k1 := tsDbl(l)
 	k2 := tsDbl(k1)
 
-	// Process data
 	n := len(data)
 	var flag bool
 	if n == 0 {
@@ -469,7 +405,6 @@ func tsOMAC1(key, data []byte) []byte {
 	}
 
 	if flag {
-		// Complete last block
 		tmp := make([]byte, n)
 		copy(tmp, data)
 		for i := 0; i < bs; i++ {
@@ -477,7 +412,6 @@ func tsOMAC1(key, data []byte) []byte {
 		}
 		data = tmp
 	} else {
-		// Pad last block
 		padded := make([]byte, ((n/bs)+1)*bs)
 		copy(padded, data)
 		padded[n] = 0x80
@@ -488,7 +422,6 @@ func tsOMAC1(key, data []byte) []byte {
 		n = len(padded)
 	}
 
-	// CBC-MAC
 	mac := make([]byte, bs)
 	for i := 0; i < n; i += bs {
 		for j := 0; j < bs; j++ {
@@ -499,7 +432,6 @@ func tsOMAC1(key, data []byte) []byte {
 	return mac
 }
 
-// tsDbl doubles a value in GF(2^128) with the AES polynomial.
 func tsDbl(b []byte) []byte {
 	var r [16]byte
 	carry := b[0] >> 7
@@ -513,79 +445,62 @@ func tsDbl(b []byte) []byte {
 	return r[:]
 }
 
-// tsEAXEncrypt encrypts with EAX mode (AES-128) and returns 8-byte truncated tag + ciphertext.
 func tsEAXEncrypt(key, nonce, header, plaintext []byte) (mac [8]byte, ciphertext []byte) {
 	block, _ := aes.NewCipher(key)
 
-	// N = OMAC(0 || nonce)
 	nonceInput := make([]byte, 16+len(nonce))
-	// first 16 bytes are tag 0x00...00 (already zero)
 	copy(nonceInput[16:], nonce)
 	n := tsOMAC1(key, nonceInput)
 
-	// H = OMAC(1 || header)
 	headerInput := make([]byte, 16+len(header))
 	headerInput[15] = 0x01
 	copy(headerInput[16:], header)
 	h := tsOMAC1(key, headerInput)
 
-	// CTR encrypt using N as IV
 	ciphertext = make([]byte, len(plaintext))
 	stream := cipher.NewCTR(block, n)
 	stream.XORKeyStream(ciphertext, plaintext)
 
-	// C = OMAC(2 || ciphertext)
 	cInput := make([]byte, 16+len(ciphertext))
 	cInput[15] = 0x02
 	copy(cInput[16:], ciphertext)
 	c := tsOMAC1(key, cInput)
 
-	// Tag = N ^ H ^ C (truncated to 8 bytes)
 	for i := 0; i < 8; i++ {
 		mac[i] = n[i] ^ h[i] ^ c[i]
 	}
 	return
 }
 
-// tsEAXDecrypt decrypts with EAX mode (AES-128), verifying the 8-byte truncated tag.
 func tsEAXDecrypt(key, nonce, header, ciphertext []byte, macIn [8]byte) ([]byte, error) {
 	block, _ := aes.NewCipher(key)
 
-	// N = OMAC(0 || nonce)
 	nonceInput := make([]byte, 16+len(nonce))
 	copy(nonceInput[16:], nonce)
 	n := tsOMAC1(key, nonceInput)
 
-	// H = OMAC(1 || header)
 	headerInput := make([]byte, 16+len(header))
 	headerInput[15] = 0x01
 	copy(headerInput[16:], header)
 	h := tsOMAC1(key, headerInput)
 
-	// C = OMAC(2 || ciphertext)
 	cInput := make([]byte, 16+len(ciphertext))
 	cInput[15] = 0x02
 	copy(cInput[16:], ciphertext)
 	c := tsOMAC1(key, cInput)
 
-	// Verify tag
 	for i := 0; i < 8; i++ {
 		if macIn[i] != n[i]^h[i]^c[i] {
 			return nil, fmt.Errorf("EAX: MAC mismatch")
 		}
 	}
 
-	// CTR decrypt
 	plaintext := make([]byte, len(ciphertext))
 	stream := cipher.NewCTR(block, n)
 	stream.XORKeyStream(plaintext, ciphertext)
 	return plaintext, nil
 }
 
-// ──────────────────────────── Per-packet key derivation ────────────────────────────
-
-// tsCreateKeyNonce derives the per-packet AES key and nonce from SharedIV.
-// direction: 0x30 = S2C, 0x31 = C2S
 func tsCreateKeyNonce(pType byte, pID uint16, genID uint32, direction byte, sharedIV []byte) (key [16]byte, nonce [16]byte) {
 	var temp [70]byte
 	temp[0] = direction
@@ -602,12 +517,9 @@ func tsCreateKeyNonce(pType byte, pID uint16, genID uint32, direction byte, shar
 	return
 }
 
-// ──────────────────────────── P-256 Identity (LibTomCrypt ASN.1) ────────────────────────────
-
-// tsP256Identity holds the client's ECDSA P-256 identity keypair.
 type tsP256Identity struct {
 	key       *ecdsa.PrivateKey
-	keyOffset uint64 // hashcash offset
+	keyOffset uint64
 }
 
 func tsNewIdentity() (*tsP256Identity, error) {
@@ -616,20 +528,16 @@ func tsNewIdentity() (*tsP256Identity, error) {
 		return nil, err
 	}
 	id := &tsP256Identity{key: key}
-	// Compute hashcash offset for level 8 (server minimum)
 	omega := id.tsOmega()
 	id.keyOffset = tsHashCash(omega, 8)
 	return id, nil
 }
 
-// tsOmega encodes the public key in LibTomCrypt ASN.1-DER format (for omega parameter).
-// Format: SEQUENCE { BIT STRING (1 bit, value 0), INTEGER 32, INTEGER X, INTEGER Y }
 func (id *tsP256Identity) tsOmega() string {
 	pub := id.key.PublicKey
 	xBytes := pub.X.Bytes()
 	yBytes := pub.Y.Bytes()
 
-	// Pad to 32 bytes
 	for len(xBytes) < 32 {
 		xBytes = append([]byte{0}, xBytes...)
 	}
@@ -637,19 +545,13 @@ func (id *tsP256Identity) tsOmega() string {
 		yBytes = append([]byte{0}, yBytes...)
 	}
 
-	// Build ASN.1 DER manually
-	// BIT STRING: tag 0x03, length 2, unused_bits=7, data=0x00 (1 bit value 0, rest padding)
 	bitString := []byte{0x03, 0x02, 0x07, 0x00}
 
-	// INTEGER 32: tag 0x02, length 1, value 32
 	int32 := []byte{0x02, 0x01, 0x20}
 
-	// INTEGER X
 	intX := tsASN1Integer(xBytes)
-	// INTEGER Y
 	intY := tsASN1Integer(yBytes)
 
-	// SEQUENCE
 	inner := make([]byte, 0, len(bitString)+len(int32)+len(intX)+len(intY))
 	inner = append(inner, bitString...)
 	inner = append(inner, int32...)
@@ -663,13 +565,10 @@ func (id *tsP256Identity) tsOmega() string {
 	return base64.StdEncoding.EncodeToString(seq)
 }
 
-// tsASN1Integer encodes a big-endian unsigned integer as ASN.1 INTEGER.
 func tsASN1Integer(b []byte) []byte {
-	// Strip leading zeros but keep at least one byte
 	for len(b) > 1 && b[0] == 0 {
 		b = b[1:]
 	}
-	// If high bit set, prepend 0x00
 	if len(b) > 0 && b[0]&0x80 != 0 {
 		b = append([]byte{0x00}, b...)
 	}
@@ -679,7 +578,6 @@ func tsASN1Integer(b []byte) []byte {
 	return result
 }
 
-// tsASN1Length encodes an ASN.1 length.
 func tsASN1Length(n int) []byte {
 	if n < 0x80 {
 		return []byte{byte(n)}
@@ -690,21 +588,18 @@ func tsASN1Length(n int) []byte {
 	return []byte{0x82, byte(n >> 8), byte(n)}
 }
 
-// tsUID computes the TeamSpeak UID: base64(sha1(omega_base64_string))
 func (id *tsP256Identity) tsUID() string {
 	omega := id.tsOmega()
 	h := sha1.Sum([]byte(omega))
 	return base64.StdEncoding.EncodeToString(h[:])
 }
 
-// tsSign signs data with ECDSA P-256 (SHA-256), returns DER-encoded signature.
 func (id *tsP256Identity) tsSign(data []byte) ([]byte, error) {
 	hash := sha256.Sum256(data)
 	r, s, err := ecdsa.Sign(rand.Reader, id.key, hash[:])
 	if err != nil {
 		return nil, err
 	}
-	// DER encode
 	rBytes := r.Bytes()
 	sBytes := s.Bytes()
 	rDer := tsASN1Integer(rBytes)
@@ -716,21 +611,17 @@ func (id *tsP256Identity) tsSign(data []byte) ([]byte, error) {
 	return seq, nil
 }
 
-// tsVerifyP256 verifies a DER-encoded ECDSA signature against a P-256 public key.
 func tsVerifyP256(pubX, pubY *big.Int, data, sig []byte) bool {
 	pub := &ecdsa.PublicKey{Curve: elliptic.P256(), X: pubX, Y: pubY}
 	hash := sha256.Sum256(data)
 	return ecdsa.VerifyASN1(pub, hash[:], sig)
 }
 
-// tsParseOmega parses a LibTomCrypt ASN.1-DER encoded P-256 public key.
-// Returns X, Y coordinates.
 func tsParseOmega(b64 string) (*big.Int, *big.Int, error) {
 	data, err := base64.StdEncoding.DecodeString(b64)
 	if err != nil {
 		return nil, nil, err
 	}
-	// Parse: SEQUENCE { BIT STRING, INTEGER(32), INTEGER(X), INTEGER(Y) }
 	if len(data) < 2 || data[0] != 0x30 {
 		return nil, nil, fmt.Errorf("not a SEQUENCE")
 	}
@@ -741,7 +632,6 @@ func tsParseOmega(b64 string) (*big.Int, *big.Int, error) {
 	offset := len(data) - len(inner)
 	_ = offset
 
-	// Skip BIT STRING
 	if len(inner) < 2 || inner[0] != 0x03 {
 		return nil, nil, fmt.Errorf("expected BIT STRING")
 	}
@@ -751,7 +641,6 @@ func tsParseOmega(b64 string) (*big.Int, *big.Int, error) {
 	}
 	rest = rest[bsLen:]
 
-	// Skip INTEGER 32
 	if len(rest) < 2 || rest[0] != 0x02 {
 		return nil, nil, fmt.Errorf("expected INTEGER (keysize)")
 	}
@@ -761,7 +650,6 @@ func tsParseOmega(b64 string) (*big.Int, *big.Int, error) {
 	}
 	rest = rest2[ksLen:]
 
-	// Read INTEGER X
 	if len(rest) < 2 || rest[0] != 0x02 {
 		return nil, nil, fmt.Errorf("expected INTEGER (X)")
 	}
@@ -772,7 +660,6 @@ func tsParseOmega(b64 string) (*big.Int, *big.Int, error) {
 	x := new(big.Int).SetBytes(xData[:xLen])
 	rest = xData[xLen:]
 
-	// Read INTEGER Y
 	if len(rest) < 2 || rest[0] != 0x02 {
 		return nil, nil, fmt.Errorf("expected INTEGER (Y)")
 	}
@@ -816,11 +703,6 @@ func tsASN1ParseLength(data []byte) (int, []byte, error) {
 	return n, data[1+nBytes:], nil
 }
 
-// ──────────────────────────── Ed25519 License Chain ────────────────────────────
-
-// tsDeriveLicenseKey derives the server's ephemeral Ed25519 public key from the license chain.
-// Algorithm per block: next_key = block_public_key * hash_key + parent_key
-// hash_key = clamp(sha512(block_data[1:])[0:32]) as Ed25519 scalar
 func tsDeriveLicenseKey(licenseData []byte, rootKey [32]byte) (*edwards25519.Point, error) {
 	parentPoint, err := new(edwards25519.Point).SetBytes(rootKey[:])
 	if err != nil {
@@ -830,7 +712,6 @@ func tsDeriveLicenseKey(licenseData []byte, rootKey [32]byte) (*edwards25519.Poi
 	if len(licenseData) < 1 {
 		return nil, fmt.Errorf("empty license data")
 	}
-	// Skip version byte
 	offset := 1
 	for offset < len(licenseData) {
 		if offset+42 > len(licenseData) {
@@ -839,48 +720,39 @@ func tsDeriveLicenseKey(licenseData []byte, rootKey [32]byte) (*edwards25519.Poi
 
 		blockData := licenseData[offset:]
 
-		// key_type = blockData[0] (should be 0x00 for public key)
-		// pub_key = blockData[1:33]
-		// block_type = blockData[33]
-		// not_valid_before = blockData[34:38]
-		// not_valid_after = blockData[38:42]
-		// content follows (variable length)
-
 		pubKeyBytes := blockData[1:33]
 		blockType := blockData[33]
 
-		// Determine block length (need to find content end)
 		contentStart := 42
 		blockLen := contentStart
 		switch blockType {
-		case 0: // Intermediate: 4 bytes unknown + null-terminated string
+		case 0:
 			blockLen = contentStart + 4
 			for blockLen < len(blockData) && blockData[blockLen] != 0 {
 				blockLen++
 			}
 			if blockLen < len(blockData) {
-				blockLen++ // skip null terminator
+				blockLen++
 			}
-		case 2: // Server: 1 byte license type + 4 bytes max clients + null-terminated string
+		case 2:
 			blockLen = contentStart + 5
 			for blockLen < len(blockData) && blockData[blockLen] != 0 {
 				blockLen++
 			}
 			if blockLen < len(blockData) {
-				blockLen++ // skip null terminator
+				blockLen++
 			}
-		case 1, 3: // Website/Code: null-terminated string
+		case 1, 3:
 			blockLen = contentStart
 			for blockLen < len(blockData) && blockData[blockLen] != 0 {
 				blockLen++
 			}
 			if blockLen < len(blockData) {
-				blockLen++ // skip null terminator
+				blockLen++
 			}
-		case 32: // Ephemeral: no content
+		case 32:
 			blockLen = contentStart
 		default:
-			// Unknown block type, try to parse as null-terminated
 			blockLen = contentStart
 			for blockLen < len(blockData) && blockData[blockLen] != 0 {
 				blockLen++
@@ -890,31 +762,26 @@ func tsDeriveLicenseKey(licenseData []byte, rootKey [32]byte) (*edwards25519.Poi
 			}
 		}
 
-		// Get hash_key: clamp(sha512(blockData[1:blockLen])[0:32])
 		fullHash := sha512.Sum512(blockData[1:blockLen])
 		var hashKeyBytes [32]byte
 		copy(hashKeyBytes[:], fullHash[:32])
-		// Clamp
 		hashKeyBytes[0] &= 248
 		hashKeyBytes[31] &= 63
 		hashKeyBytes[31] |= 64
 
 		hashKeyScalar, err := new(edwards25519.Scalar).SetCanonicalBytes(hashKeyBytes[:])
 		if err != nil {
-			// Try SetBytesWithClamping
 			hashKeyScalar, err = new(edwards25519.Scalar).SetBytesWithClamping(fullHash[:32])
 			if err != nil {
 				return nil, fmt.Errorf("invalid hash key scalar: %w", err)
 			}
 		}
 
-		// Get block public key point
 		blockPubPoint, err := new(edwards25519.Point).SetBytes(pubKeyBytes)
 		if err != nil {
 			return nil, fmt.Errorf("invalid block public key: %w", err)
 		}
 
-		// next = block_pub * hash_key + parent
 		scaledPub := new(edwards25519.Point).ScalarMult(hashKeyScalar, blockPubPoint)
 		parentPoint = new(edwards25519.Point).Add(scaledPub, parentPoint)
 
@@ -924,22 +791,14 @@ func tsDeriveLicenseKey(licenseData []byte, rootKey [32]byte) (*edwards25519.Poi
 	return parentPoint, nil
 }
 
-// ──────────────────────────── Shared IV/MAC computation ────────────────────────────
-
-// tsComputeSharedIVMAC computes the shared IV and shared MAC for the new protocol (initivexpand2).
-// alpha: 10 bytes, beta: 54 bytes
-// shared_secret from Ed25519 ECDH
 func tsComputeSharedIVMAC(alpha [10]byte, beta [54]byte, ekPriv *edwards25519.Scalar, serverEK *edwards25519.Point) ([64]byte, [8]byte) {
-	// ECDH: shared_secret = ekPriv * serverEK
 	sharedSecret := new(edwards25519.Point).ScalarMult(ekPriv, serverEK)
 	secretBytes := sharedSecret.Bytes()
 
-	// SharedIV = SHA-512(shared_secret)
 	var sharedIV [64]byte
 	h := sha512.Sum512(secretBytes)
 	copy(sharedIV[:], h[:])
 
-	// XOR alpha and beta
 	for i := 0; i < 10; i++ {
 		sharedIV[i] ^= alpha[i]
 	}
@@ -947,7 +806,6 @@ func tsComputeSharedIVMAC(alpha [10]byte, beta [54]byte, ekPriv *edwards25519.Sc
 		sharedIV[i+10] ^= beta[i]
 	}
 
-	// SharedMAC = SHA-1(SharedIV)[0:8]
 	var sharedMAC [8]byte
 	macHash := sha1.Sum(sharedIV[:])
 	copy(sharedMAC[:], macHash[:8])
@@ -955,10 +813,6 @@ func tsComputeSharedIVMAC(alpha [10]byte, beta [54]byte, ekPriv *edwards25519.Sc
 	return sharedIV, sharedMAC
 }
 
-// ──────────────────────────── Hashcash ────────────────────────────
-
-// tsHashCash computes the hashcash offset for identity proof-of-work.
-// Returns offset such that leading zero bits of SHA1(omega + offset) >= level.
 func tsHashCash(omega string, level byte) uint64 {
 	base := []byte(omega)
 	buf := make([]byte, len(base), len(base)+20)
@@ -981,7 +835,6 @@ func tsCountLeadingZeros(data []byte) byte {
 		if b == 0 {
 			count += 8
 		} else {
-			// Count trailing zeros of the byte (TS3 counts from LSB per byte in big-endian hash)
 			for i := byte(0); i < 8; i++ {
 				if b&(1<<i) != 0 {
 					break
@@ -993,8 +846,6 @@ func tsCountLeadingZeros(data []byte) byte {
 	}
 	return count
 }
-
-// ──────────────────────────── TS3 Command Escape ────────────────────────────
 
 func tsEscape(s string) string {
 	needsEscape := false
@@ -1125,7 +976,6 @@ func tsParseKVList(s string) []map[string]string {
 	return result
 }
 
-// tsParseCommand parses "cmdname key=val key=val" into (name, params).
 func tsParseCommand(data []byte) (string, map[string]string) {
 	end := len(data)
 	for end > 0 && data[end-1] == 0 {
@@ -1139,10 +989,6 @@ func tsParseCommand(data []byte) (string, map[string]string) {
 	return string(data[:spaceIdx]), tsParseKV(string(data[spaceIdx+1:]))
 }
 
-// ──────────────────────────── Packet Building ────────────────────────────
-
-// tsBuildC2SPacket creates a C2S packet.
-// Header: MAC(8) + PId(2) + CId(2) + PT(1) = 13 bytes
 func tsBuildC2SPacket(mac [8]byte, pID, cID uint16, pType byte, data []byte) []byte {
 	pkt := make([]byte, 13+len(data))
 	copy(pkt[:8], mac[:])
@@ -1153,8 +999,6 @@ func tsBuildC2SPacket(mac [8]byte, pID, cID uint16, pType byte, data []byte) []b
 	return pkt
 }
 
-// tsParseS2CPacket parses a S2C packet.
-// Header: MAC(8) + PId(2) + PT(1) = 11 bytes
 func tsParseS2CPacket(raw []byte) (mac [8]byte, pID uint16, pType byte, data []byte, err error) {
 	if len(raw) < 11 {
 		err = fmt.Errorf("packet too short: %d bytes", len(raw))
@@ -1167,22 +1011,19 @@ func tsParseS2CPacket(raw []byte) (mac [8]byte, pID uint16, pType byte, data []b
 	return
 }
 
-// ──────────────────────────── Init Packets ────────────────────────────
-
 func tsBuildInit0(version uint32, timestamp uint32, random0 [4]byte) []byte {
 	data := make([]byte, 21)
 	binary.BigEndian.PutUint32(data[0:4], version)
-	data[4] = 0x00 // step 0
+	data[4] = 0x00
 	binary.BigEndian.PutUint32(data[5:9], timestamp)
 	copy(data[9:13], random0[:])
-	// data[13:21] = zeros (reserved)
 	return tsBuildC2SPacket(tsInitMAC, 101, 0, tsFlagUnencrypted|tsPktInit, data)
 }
 
 func tsBuildInit2(version uint32, random1 [16]byte, random0r [4]byte) []byte {
 	data := make([]byte, 25)
 	binary.BigEndian.PutUint32(data[0:4], version)
-	data[4] = 0x02 // step 2
+	data[4] = 0x02
 	copy(data[5:21], random1[:])
 	copy(data[21:25], random0r[:])
 	return tsBuildC2SPacket(tsInitMAC, 101, 0, tsFlagUnencrypted|tsPktInit, data)
@@ -1191,7 +1032,7 @@ func tsBuildInit2(version uint32, random1 [16]byte, random0r [4]byte) []byte {
 func tsBuildInit4(version uint32, x, n [64]byte, level uint32, random2 [100]byte, y [64]byte, commandData []byte) []byte {
 	data := make([]byte, 301+len(commandData))
 	binary.BigEndian.PutUint32(data[0:4], version)
-	data[4] = 0x04 // step 4
+	data[4] = 0x04
 	copy(data[5:69], x[:])
 	copy(data[69:133], n[:])
 	binary.BigEndian.PutUint32(data[133:137], level)
@@ -1200,11 +1041,9 @@ func tsBuildInit4(version uint32, x, n [64]byte, level uint32, random2 [100]byte
 	if len(commandData) > 0 {
 		copy(data[301:], commandData)
 	}
-	// Note: init4 can exceed 500 bytes (the clientinitiv command appended to it)
 	return tsBuildC2SPacket(tsInitMAC, 101, 0, tsFlagUnencrypted|tsPktInit, data[:301+len(commandData)])
 }
 
-// tsParseInit1 parses an Init1 (step 1) S2C response.
 func tsParseInit1(data []byte) (random1 [16]byte, random0r [4]byte, err error) {
 	if len(data) < 21 {
 		err = fmt.Errorf("init1 too short: %d", len(data))
@@ -1219,7 +1058,6 @@ func tsParseInit1(data []byte) (random1 [16]byte, random0r [4]byte, err error) {
 	return
 }
 
-// tsParseInit3 parses an Init3 (step 3) S2C response.
 func tsParseInit3(data []byte) (x, n [64]byte, level uint32, random2 [100]byte, err error) {
 	if len(data) < 233 {
 		err = fmt.Errorf("init3 too short: %d", len(data))
@@ -1241,25 +1079,22 @@ func tsParseInit3(data []byte) (x, n [64]byte, level uint32, random2 [100]byte, 
 	return
 }
 
-// ──────────────────────────── TS3 Connection State ────────────────────────────
-
 type tsPacketState struct {
 	nextSendID  uint16
 	nextRecvID  uint16
 	sendGenID   uint32
 	recvGenID   uint32
-	recvInit    bool   // first packet of this type seen
-	lastRecvPID uint16 // high-water packet id in the current generation
+	recvInit    bool
+	lastRecvPID uint16
 }
 
 type tsPendingCmd struct {
 	pktID  uint16
-	data   []byte // full packet for retransmission
+	data   []byte
 	sentAt time.Time
 	acked  bool
 }
 
-// tsDecryptedPkt holds a decrypted command packet waiting for in-order processing.
 type tsDecryptedPkt struct {
 	pID       uint16
 	flags     byte
@@ -1270,62 +1105,36 @@ type tsConnection struct {
 	conn     *net.UDPConn
 	addr     *net.UDPAddr
 	identity *tsP256Identity
-	owner    *TeamSpeakCore // back-reference for voice callbacks
+	owner    *TeamSpeakCore
 
-	// Per-type packet counters
-	pktState [9]tsPacketState // indexed by packet type
+	pktState [9]tsPacketState
 
-	// genMu guards receive-side generation tracking (tsTrackRecvPID);
-	// packet handlers run concurrently.
 	genMu sync.Mutex
 
-	// Crypto state
 	sharedIV  [64]byte
 	sharedMAC [8]byte
 	cryptoOK  bool
-	// clientID is atomic: the receive loop reads it for every ACK/PONG
-	// while the handshake goroutine installs it from initserver (B-40).
-	clientID atomic.Uint32
+	clientID  atomic.Uint32
 
-	// Receive queue for out-of-order command packets (per command type)
-	recvQueue   [2]map[uint16]*tsDecryptedPkt // [0]=Command, [1]=CommandLow
-	recvQueueMu sync.Mutex
-	// gapLogged marks that the diagnostic for the CURRENT missing packet
-	// was already emitted (B-43: one line per gap, not one per packet —
-	// otherwise a hostile server floods stderr the way B-42 flooded
-	// stdout). Guarded by recvQueueMu; reset when the gap resolves.
+	recvQueue    [2]map[uint16]*tsDecryptedPkt
+	recvQueueMu  sync.Mutex
 	gapLogged    [2]bool
 	gapLoggedFor [2]uint16
 
-	// Fragment assembly state (per command type)
-	fragBuf   [2][]byte // accumulated fragment data
-	fragFlags [2]byte   // flags from first fragment (has Compressed bit)
+	fragBuf   [2][]byte
+	fragFlags [2]byte
 
-	// Pending commands awaiting ACK
 	pendingCmds  map[uint16]*tsPendingCmd
 	pendingCmdMu sync.Mutex
 
-	// Incoming command channel
 	cmdCh chan tsIncomingCmd
 
-	// F-83/F-84: buffered in-band success proofs. The in-client TS3
-	// protocol does NOT reliably send `error id=0` replies for no-data
-	// commands — the server's own broadcast (typed name+clid) IS the
-	// proof: our text echo for sendtextmessage, notifyclientmoved for
-	// clientmove, notifyclientupdated for clientupdate (wire-proven on
-	// both live servers, WORKLOGs 318/319).
 	proofs chan tsProof
 
-	// When set, tsExec is waiting for a response — tsCommandLoop defers to it
 	execCh   chan tsIncomingCmd
 	execMu   sync.Mutex
 	execWait bool
-	// execSeq serializes WHOLE exec sessions (arm → send → wait): the
-	// tc.execCh field is shared, so a concurrent caller used to replace
-	// the channel mid-flight and responses were delivered to the wrong
-	// waiter (B-35). TS3 answers commands in order — serial sessions
-	// pair perfectly, each bounded by tsExecVoidTimeout.
-	execSeq sync.Mutex
+	execSeq  sync.Mutex
 
 	mu sync.Mutex
 }
@@ -1336,8 +1145,6 @@ type tsIncomingCmd struct {
 	raw    string
 }
 
-// ──────────────────────────── TeamSpeakCore ────────────────────────────
-
 type TeamSpeakCore struct {
 	mu sync.RWMutex
 
@@ -1346,78 +1153,54 @@ type TeamSpeakCore struct {
 	authed   bool
 	nickname string
 
-	// Server connection info
 	serverAddr string
 
-	// Self info (from initserver). myClientID/myName are guarded by
-	// clientInfoMu (B-40: the receive loop reads them while initserver
-	// installs them); myUID is read only in WhoAmI after Authenticate
-	// returns, so program order covers it unguarded.
 	myClientID int
 	myUID      string
 	myName     string
 
-	// Current channel (guarded by clientInfoMu — see tsHandleClientMoved)
 	myChannelID int
-	// Own talk power from notifyclientupdated's client_talk_power
-	// (guarded by clientInfoMu; 0 = unknown → checks fail open, B-26)
 	myTalkPower int
 
-	// local mic mute mirror (server state set via clientupdate)
 	micMuted bool
 
-	// default channel (channel_flag_default from channellist); -1 until
-	// known. Leaving a voice room moves here.
 	defaultChannelID int
 
-	// defaultChannelMu guards defaultChannelID.
 	defaultChannelMu sync.RWMutex
 
-	// serverName is the virtual server's name carried by initserver
-	// pushes ("" until one arrives); own mutex, like the other hot-path
-	// fields — GetDialogs reads it while holding t.mu.RLock.
 	serverNameMu sync.RWMutex
 	serverName   string
 
 	session *utils.SessionStore
 
-	// Update handlers
 	updateHandlers []func(Update)
-	eventHandlers  map[string][]func(map[string]string) // event name → handlers
+	eventHandlers  map[string][]func(map[string]string)
 	updateMu       sync.RWMutex
 
-	// Message buffer
 	msgBuffer  map[string][]Message
 	msgBufMu   sync.RWMutex
 	msgCounter atomic.Int64
 
-	// Client cache: clid → info
 	clientInfo   map[int]tsClientInfo
 	clientInfoMu sync.RWMutex
 
-	// Channel cache: cid → info
 	channels   map[int]tsChannelInfo
 	channelsMu sync.RWMutex
 
-	// Voice state
 	voiceHandler   func(VoicePacket)
 	voiceHandlerMu sync.RWMutex
 
-	// speaking activity: clid → last voice-packet arrival
 	speakingMu    sync.Mutex
 	speakingUntil map[int]time.Time
 
-	// Bandwidth stats
 	bwStats tsBandwidthStats
 
-	// 3D audio state
 	listener3D       ts3DListener
 	client3DPos      map[int][3]float32
 	wave3DPos        map[int][3]float32
 	distanceFactor3D float32
 	rolloffScale3D   float32
 
-	// Audio device state
 	playbackDevice     string
 	captureDevice      string
 	captureActive      bool
@@ -1428,18 +1211,14 @@ type TeamSpeakCore struct {
 	waveNextHandle     int
 	recording          bool
 
-	// Whisper state
 	whisperChannels []int
 	whisperClients  []int
 
-	// Bookmarks
 	bookmarks []map[string]string
 
-	// Auto-reconnect
 	autoReconnect bool
-	authCfg       AuthConfig // stored credentials for reconnection
+	authCfg       AuthConfig
 
-	// Context
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -1447,14 +1226,13 @@ type TeamSpeakCore struct {
 
 var _ Core = (*TeamSpeakCore)(nil)
 
-// VoicePacket represents incoming or outgoing voice audio data.
 type VoicePacket struct {
-	SenderClientID int    // S2C only: who sent this voice
-	Codec          byte   // 0=SpeexNB, 1=SpeexWB, 2=SpeexUWB, 3=CeltMono, 4=OpusVoice, 5=OpusMusic
-	AudioData      []byte // encoded audio frame
+	SenderClientID int
+	Codec          byte
+	AudioData      []byte
 	PacketCounter  uint16
 	IsWhisper      bool
-	ServerFlag     byte // decoder session tracking (0 if not present)
+	ServerFlag     byte
 	HasServerFlag  bool
 }
 
@@ -1468,16 +1246,12 @@ type tsClientInfo struct {
 }
 
 type tsChannelInfo struct {
-	cid          int
-	pid          int
-	name         string
-	topic        string
-	totalClients int
-	order        int
-	// Talk power (BUGS B-26): channel_needed_talk_power from
-	// `channelinfo` (channellist does NOT carry it), fetched after a
-	// join; talkPowerKnown distinguishes "fetched: 0" from "never
-	// fetched" so checks fail open until the fetch lands.
+	cid            int
+	pid            int
+	name           string
+	topic          string
+	totalClients   int
+	order          int
 	talkPower      int
 	talkPowerKnown bool
 }
@@ -1485,11 +1259,10 @@ type tsChannelInfo struct {
 type tsSession struct {
 	ServerAddr string `json:"server_address"`
 	Nickname   string `json:"nickname,omitempty"`
-	// Identity key (P-256 private key, base64 encoded)
-	IdentityD string `json:"identity_d,omitempty"`
-	IdentityX string `json:"identity_x,omitempty"`
-	IdentityY string `json:"identity_y,omitempty"`
-	KeyOffset uint64 `json:"key_offset,omitempty"`
+	IdentityD  string `json:"identity_d,omitempty"`
+	IdentityX  string `json:"identity_x,omitempty"`
+	IdentityY  string `json:"identity_y,omitempty"`
+	KeyOffset  uint64 `json:"key_offset,omitempty"`
 }
 
 func NewTeamSpeakCore(session *utils.SessionStore) *TeamSpeakCore {
@@ -1505,15 +1278,11 @@ func NewTeamSpeakCore(session *utils.SessionStore) *TeamSpeakCore {
 	}
 }
 
-// Name returns the platform identifier for this core.
 func (t *TeamSpeakCore) Name() string { return ts3Platform }
 
-// Capabilities returns the list of supported features for the TeamSpeak core.
 func (t *TeamSpeakCore) Capabilities() []string {
 	return []string{CapText, CapChannels, CapVoice, CapGroupCalls, CapVoiceRooms, CapAdmin, CapSessions, CapTyping}
 }
-
-// ──────────────────────────── UDP Transport ────────────────────────────
 
 func (tc *tsConnection) tsNextPktID(pType byte) uint16 {
 	idx := pType & 0x0f
@@ -1525,12 +1294,6 @@ func (tc *tsConnection) tsNextPktID(pType byte) uint16 {
 	return id
 }
 
-// tsTrackRecvPID maintains receive-side generation state for one packet
-// type, mirroring ts3j's RemoteCounter: a 16-bit packet ID that wraps
-// (high → low) bumps recvGenID; a late pre-wrap packet resolves to the
-// generation it belongs to. The returned generation is the one to
-// decrypt with. Without this, any stream crossing 65536 packets (about
-// 22 minutes of 50 pkt/s voice) fails EAX decryption forever.
 func (tc *tsConnection) tsTrackRecvPID(pktType byte, pID uint16) uint32 {
 	tc.genMu.Lock()
 	defer tc.genMu.Unlock()
@@ -1542,29 +1305,19 @@ func (tc *tsConnection) tsTrackRecvPID(pktType byte, pID uint16) uint32 {
 		return st.recvGenID
 	}
 	if pID == st.lastRecvPID {
-		return st.recvGenID // duplicate or retransmission
+		return st.recvGenID
 	}
 	switch {
 	case pID > st.lastRecvPID:
-		// Ahead in the current generation (ts3j: "outside the buffer to
-		// the right"). Covers small reordering jitter backwards as well
-		// via the retry path below when it is really a late packet.
 		st.lastRecvPID = pID
 	case st.lastRecvPID > 0xC000 && pID < 0x4000:
-		// High → low: the 16-bit id wrapped; a new generation begins.
 		st.recvGenID++
 		st.lastRecvPID = pID
 	default:
-		// Small backward step inside the same generation (reorder).
-		// Deliberately no state change.
 	}
 	return st.recvGenID
 }
 
-// tsDecryptRecv decrypts an S2C packet of pktType with EAX, retrying
-// the neighboring generations when the tracked one fails its MAC
-// (robust against reordering exactly at a wrap boundary, the TSLib
-// behavior). A success at gen+1 fast-forwards the tracker.
 func (tc *tsConnection) tsDecryptRecv(pktType byte, pID uint16, meta, data []byte, mac [8]byte) ([]byte, error) {
 	gen := tc.tsTrackRecvPID(pktType, pID)
 	key := tsRecvKey(pktType, pID, gen, tc.sharedIV[:])
@@ -1598,7 +1351,6 @@ func (tc *tsConnection) tsDecryptRecv(pktType byte, pID uint16, meta, data []byt
 	return nil, err
 }
 
-// tsRecvKey/tsRecvNonce derive the S2C EAX material (0x30 MAC type).
 func tsRecvKey(pktType byte, pID uint16, gen uint32, iv []byte) (key [16]byte) {
 	k, _ := tsCreateKeyNonce(pktType, pID, gen, 0x30, iv)
 	return k
@@ -1609,7 +1361,6 @@ func tsRecvNonce(pktType byte, pID uint16, gen uint32, iv []byte) (nonce [16]byt
 	return n
 }
 
-// tsDebug enables verbose packet logging when UNICLIENT_TS3_DEBUG is set.
 var tsDebug = os.Getenv("UNICLIENT_TS3_DEBUG") != ""
 
 func tsLogf(format string, args ...interface{}) {
@@ -1618,15 +1369,7 @@ func tsLogf(format string, args ...interface{}) {
 	}
 }
 
-// tsRedactCmd masks password values (cpw=...) so debug command logs
-// (UNICLIENT_TS3_DEBUG) never leak channel/server passwords — everything
-// else stays visible for protocol diagnosis.
 func tsRedactCmd(cmd string) string {
-	// Search forward from pos so a freshly written "cpw=<redacted>" is
-	// never re-found: the naive "loop without return" redid the SAME
-	// index forever (infinite loop — caught as a test HANG in slice-287
-	// before landing). pos advances past each marker; every cpw= gets
-	// masked (behavioral RED: `cpw=<redacted> ... cpw=secret2`).
 	for pos := 0; ; {
 		rel := strings.Index(cmd[pos:], "cpw=")
 		if rel < 0 {
@@ -1642,7 +1385,6 @@ func tsRedactCmd(cmd string) string {
 	}
 }
 
-// tsSendRaw sends a raw UDP packet.
 func (tc *tsConnection) tsSendRaw(pkt []byte) error {
 	if tsDebug && len(pkt) >= 12 {
 		pt := pkt[12]
@@ -1658,7 +1400,6 @@ func (tc *tsConnection) tsSendRaw(pkt []byte) error {
 	return err
 }
 
-// tsSendCommand sends an encrypted Command packet. Handles compression and fragmentation.
 func (tc *tsConnection) tsSendCommand(cmdStr string) (uint16, error) {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
@@ -1666,12 +1407,6 @@ func (tc *tsConnection) tsSendCommand(cmdStr string) (uint16, error) {
 	cmdBytes := []byte(cmdStr)
 	tsLogf("TX cmd: %s", tsRedactCmd(cmdStr))
 
-	// Compress large commands with QuickLZ, exactly like the reference
-	// clients: a >487-byte command becomes one compressed packet when it
-	// fits, otherwise the COMPRESSED stream is fragmented (the 0x40 flag
-	// rides the first fragment; the peer reassembles then decompresses).
-	// Incompressible commands (ratio give-up → stored-raw stream) are
-	// larger than the original, so they keep raw fragmentation.
 	compressed := false
 	if len(cmdBytes) > tsMaxPayloadC2S {
 		if qz, ok := tsQuickLZCompress(cmdBytes); ok && len(qz) < len(cmdBytes) {
@@ -1680,9 +1415,7 @@ func (tc *tsConnection) tsSendCommand(cmdStr string) (uint16, error) {
 		}
 	}
 
-	// Check if fragmentation needed
 	if len(cmdBytes) <= tsMaxPayloadC2S {
-		// Single packet
 		pID := tc.tsNextPktID(tsPktCommand)
 		flags := byte(tsPktCommand) | tsFlagNewprotocol
 		if compressed {
@@ -1704,7 +1437,6 @@ func (tc *tsConnection) tsSendCommand(cmdStr string) (uint16, error) {
 
 		pkt := tsBuildC2SPacket(mac, pID, uint16(tc.clientID.Load()), flags, ciphertext)
 
-		// Track for ACK
 		tc.pendingCmdMu.Lock()
 		tc.pendingCmds[pID] = &tsPendingCmd{pktID: pID, data: pkt, sentAt: time.Now()}
 		tc.pendingCmdMu.Unlock()
@@ -1718,7 +1450,6 @@ func (tc *tsConnection) tsSendCommand(cmdStr string) (uint16, error) {
 		return pID, nil
 	}
 
-	// Fragmentation
 	numChunks := (len(cmdBytes) + tsMaxPayloadC2S - 1) / tsMaxPayloadC2S
 	chunks := make([][]byte, 0, numChunks)
 	remaining := cmdBytes
@@ -1773,7 +1504,6 @@ func (tc *tsConnection) tsSendCommand(cmdStr string) (uint16, error) {
 	return firstPID, nil
 }
 
-// tsSendAck sends an ACK for a received command packet.
 func (tc *tsConnection) tsSendAck(pID uint16) error {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
@@ -1801,7 +1531,6 @@ func (tc *tsConnection) tsSendAck(pID uint16) error {
 	return tc.tsSendRaw(pkt)
 }
 
-// tsSendPing sends a ping packet.
 func (tc *tsConnection) tsSendPing() error {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
@@ -1812,7 +1541,6 @@ func (tc *tsConnection) tsSendPing() error {
 	return tc.tsSendRaw(pkt)
 }
 
-// tsSendPong sends a pong in response to a ping.
 func (tc *tsConnection) tsSendPong(pingID uint16) error {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
@@ -1825,8 +1553,6 @@ func (tc *tsConnection) tsSendPong(pingID uint16) error {
 	pkt := tsBuildC2SPacket(tc.sharedMAC, pID, uint16(tc.clientID.Load()), flags, pongData[:])
 	return tc.tsSendRaw(pkt)
 }
-
-// ──────────────────────────── Receive Loop ────────────────────────────
 
 func (tc *tsConnection) tsReceiveLoop(ctx context.Context) {
 
@@ -1870,16 +1596,14 @@ func (tc *tsConnection) tsHandlePacket(raw []byte) {
 	}
 	tsLogf("RX type=0x%02x pID=%d len=%d mac=%x data=%x", pType, pID, len(data), mac[:4], preview)
 
-	// Track received bandwidth
 	if tc.owner != nil {
 		tc.owner.bwStats.recordRecv(packetType, len(raw))
 	}
 
 	switch packetType {
 	case tsPktCommand, tsPktCommandLow:
-		// Decrypt
 		var plaintext []byte
-		meta := raw[8:11] // PId(2) + PT(1) for S2C
+		meta := raw[8:11]
 
 		if flags&tsFlagUnencrypted != 0 {
 			plaintext = data
@@ -1897,10 +1621,8 @@ func (tc *tsConnection) tsHandlePacket(raw []byte) {
 			}
 		}
 
-		// Send ACK immediately regardless of ordering
 		tc.tsSendAck(pID)
 
-		// Queue the decrypted packet for in-order processing
 		cmdI := 0
 		if packetType == tsPktCommandLow {
 			cmdI = 1
@@ -1911,16 +1633,13 @@ func (tc *tsConnection) tsHandlePacket(raw []byte) {
 		tc.recvQueueMu.Unlock()
 
 	case tsPktAck:
-		// An ACK for one of our commands
 		if len(data) >= 2 {
 			var ackPlain []byte
 			meta := raw[8:11]
 
 			if flags&tsFlagUnencrypted != 0 {
-				// Unencrypted ACK — data is plaintext
 				ackPlain = data
 			} else if pID <= 1 {
-				// Early ACKs: try fake decrypt first, fallback to real
 				ackPlain, err = tsEAXDecrypt(tsFakeKey[:], tsFakeNonce[:], meta, data, mac)
 				if err != nil && tc.cryptoOK {
 					ackPlain, err = tc.tsDecryptRecv(tsPktAck, pID, meta, data, mac)
@@ -1945,19 +1664,15 @@ func (tc *tsConnection) tsHandlePacket(raw []byte) {
 		}
 
 	case tsPktPing:
-		// Respond with pong
 		tc.tsSendPong(pID)
 
 	case tsPktPong:
-		// Pong received (keepalive response), nothing to do
 
 	case tsPktInit:
-		// S2C init packets handled during handshake, not in the receive loop
 
 	case tsPktVoice, tsPktVoiceWhisper:
-		// Voice data — decrypt and dispatch
 		var plaintext []byte
-		meta := raw[8:11] // PId(2) + PT(1)
+		meta := raw[8:11]
 
 		if flags&tsFlagUnencrypted != 0 {
 			plaintext = data
@@ -1970,15 +1685,13 @@ func (tc *tsConnection) tsHandlePacket(raw []byte) {
 			}
 		} else {
 			tsLogf("VOICE no crypto for voice pID=%d", pID)
-			return // can't decrypt voice without crypto
+			return
 		}
 
 		tc.owner.tsHandleVoicePacket(packetType, byte(flags), plaintext)
 	}
 }
 
-// tsProcessCommandQueue processes command packets in order.
-// Must be called with recvQueueMu held.
 func (tc *tsConnection) tsProcessCommandQueue(cmdI int) {
 	pktType := tsPktCommand
 	if cmdI == 1 {
@@ -1990,12 +1703,6 @@ func (tc *tsConnection) tsProcessCommandQueue(cmdI int) {
 		pkt, ok := tc.recvQueue[cmdI][nextID]
 		if !ok {
 			if len(tc.recvQueue[cmdI]) > 0 {
-				// Out-of-order packets ARE queued while the in-order one
-				// is missing — surface the gap instead of doing dead work
-				// with it (B-19: keys were built and dropped on an empty
-				// line, SA4010). ONCE per gap: every further packet that
-				// arrives during the same gap re-entered here and the
-				// repeated lines were a stderr flood (B-43).
 				if !tc.gapLogged[cmdI] || tc.gapLoggedFor[cmdI] != nextID {
 					keys := make([]uint16, 0, len(tc.recvQueue[cmdI]))
 					for k := range tc.recvQueue[cmdI] {
@@ -2006,39 +1713,33 @@ func (tc *tsConnection) tsProcessCommandQueue(cmdI int) {
 					tc.gapLoggedFor[cmdI] = nextID
 				}
 			}
-			return // waiting for the next in-order packet
+			return
 		}
 		delete(tc.recvQueue[cmdI], nextID)
 
-		// Advance expected packet ID
 		tc.pktState[pktType].nextRecvID++
-		tc.gapLogged[cmdI] = false // gap resolved — the next gap must log (B-43)
+		tc.gapLogged[cmdI] = false
 
 		flags := pkt.flags & 0xf0
 		plaintext := pkt.plaintext
 
-		// Fragmentation handling
 		hasFR := flags&tsFlagFragmented != 0
 		if hasFR && tc.fragBuf[cmdI] == nil {
-			// First fragment: FR set, may have Compressed flag
 			tc.fragBuf[cmdI] = make([]byte, 0, 4096)
 			tc.fragFlags[cmdI] = flags
 			tc.fragBuf[cmdI] = append(tc.fragBuf[cmdI], plaintext...)
 
 			continue
 		} else if tc.fragBuf[cmdI] != nil && !hasFR {
-			// Middle fragment: no FR flag, append
 			tc.fragBuf[cmdI] = append(tc.fragBuf[cmdI], plaintext...)
 
 			continue
 		} else if tc.fragBuf[cmdI] != nil && hasFR {
-			// Last fragment: FR set again
 			tc.fragBuf[cmdI] = append(tc.fragBuf[cmdI], plaintext...)
 			assembled := tc.fragBuf[cmdI]
 			firstFlags := tc.fragFlags[cmdI]
 			tc.fragBuf[cmdI] = nil
 
-			// Decompress if first fragment had Compressed flag
 			if firstFlags&tsFlagCompressed != 0 {
 				decompressed, err := tsQuickLZDecompress(assembled)
 				if err != nil {
@@ -2051,7 +1752,6 @@ func (tc *tsConnection) tsProcessCommandQueue(cmdI int) {
 
 			plaintext = assembled
 		} else {
-			// Non-fragmented packet: decompress if needed
 			if flags&tsFlagCompressed != 0 {
 				decompressed, err := tsQuickLZDecompress(plaintext)
 				if err != nil {
@@ -2062,8 +1762,6 @@ func (tc *tsConnection) tsProcessCommandQueue(cmdI int) {
 			}
 		}
 
-		// TS3 sends multiple commands per packet separated by \n\r (0x0A 0x0D).
-		// Split on \n to handle both \n\r and bare \n.
 		lines := bytes.Split(plaintext, []byte("\n"))
 		for _, line := range lines {
 			line = bytes.TrimRight(line, "\x00\r\n")
@@ -2081,8 +1779,6 @@ func (tc *tsConnection) tsProcessCommandQueue(cmdI int) {
 	}
 }
 
-// ──────────────────────────── Keepalive ────────────────────────────
-
 func (tc *tsConnection) tsKeepaliveLoop(ctx context.Context) {
 	ticker := time.NewTicker(tsPingInterval)
 	defer ticker.Stop()
@@ -2095,8 +1791,6 @@ func (tc *tsConnection) tsKeepaliveLoop(ctx context.Context) {
 		}
 	}
 }
-
-// ──────────────────────────── Connection & Handshake ────────────────────────────
 
 func (t *TeamSpeakCore) tsConnect(addr string) error {
 	host, port, err := net.SplitHostPort(addr)
@@ -2126,7 +1820,6 @@ func (t *TeamSpeakCore) tsConnect(addr string) error {
 		proofs:      make(chan tsProof, 8),
 	}
 
-	// Initialize packet IDs to 0
 	for i := 0; i < 9; i++ {
 		tc.pktState[i].nextSendID = 0
 		tc.pktState[i].nextRecvID = 0
@@ -2136,18 +1829,13 @@ func (t *TeamSpeakCore) tsConnect(addr string) error {
 	return nil
 }
 
-// tsHandshake performs the full TS3 init handshake (steps 0-4) + high-level handshake.
 func (t *TeamSpeakCore) tsHandshake(nickname string) error {
 	return t.tsHandshakeRetry(nickname, 5)
 }
 
-// tsHandshakeRetry bounds the number of full restarts a server can force
-// with step-127 responses (some servers signal "restart" on every attempt;
-// without a bound the handshake would recurse forever).
 func (t *TeamSpeakCore) tsHandshakeRetry(nickname string, restartsLeft int) error {
 	tc := t.tsConn
 
-	// Generate or load identity
 	if tc.identity == nil {
 		id, err := tsNewIdentity()
 		if err != nil {
@@ -2156,23 +1844,14 @@ func (t *TeamSpeakCore) tsHandshakeRetry(nickname string, restartsLeft int) erro
 		tc.identity = id
 	}
 
-	// Version for Init packets: the client build timestamp. A fixed real
-	// value (3.5.0 [Stable], 1566914096 — the constant TSLib uses) works
-	// live against public servers; time-derived values get rejected with
-	// init error 522 (client_version_outdated) or a step-127 restart loop
-	// (verified 2026-09 against ts.arcticblaze.net:9987).
 	version := uint32(tsInitVersion)
 	timestamp := uint32(time.Now().Unix())
 
 	var random0 [4]byte
 	rand.Read(random0[:])
 
-	// The handshake reads packets directly from the UDP connection for Init steps 0-4.
-	// The receive loop is started later, after crypto is established, for command exchange.
-	// cancelRecv is a no-op during init steps; set properly when receive loop starts.
-	cancelRecv := func() {} // no-op initially
+	cancelRecv := func() {}
 
-	// --- Init Step 0 → Step 1 ---
 	var random1 [16]byte
 	var random0r [4]byte
 
@@ -2183,7 +1862,6 @@ func (t *TeamSpeakCore) tsHandshakeRetry(nickname string, restartsLeft int) erro
 			return fmt.Errorf("%w: init0 send: %v", ErrNetwork, err)
 		}
 
-		// Wait for Init1 response
 		buf := make([]byte, 2048)
 		tc.conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 		n, _, err := tc.conn.ReadFromUDP(buf)
@@ -2205,7 +1883,6 @@ func (t *TeamSpeakCore) tsHandshakeRetry(nickname string, restartsLeft int) erro
 			return fmt.Errorf("%w: unexpected response to init0 (ptype=0x%02x, len=%d, mac=%x)", ErrNetwork, pType, n, mac)
 		}
 
-		// Check if this is the TS3INIT1 MAC
 		if mac != tsInitMAC {
 			if attempt < 4 {
 				continue
@@ -2225,7 +1902,6 @@ func (t *TeamSpeakCore) tsHandshakeRetry(nickname string, restartsLeft int) erro
 		break
 	}
 
-	// --- Init Step 2 → Step 3 ---
 	init2 := tsBuildInit2(version, random1, random0r)
 	if err := tc.tsSendRaw(init2); err != nil {
 		cancelRecv()
@@ -2242,7 +1918,6 @@ func (t *TeamSpeakCore) tsHandshakeRetry(nickname string, restartsLeft int) erro
 		nRead, _, err := tc.conn.ReadFromUDP(buf)
 		if err != nil {
 			if attempt < 4 {
-				// Resend init2
 				tc.tsSendRaw(init2)
 				continue
 			}
@@ -2258,8 +1933,6 @@ func (t *TeamSpeakCore) tsHandshakeRetry(nickname string, restartsLeft int) erro
 		x, n, level, random2, err = tsParseInit3(data)
 		if err != nil {
 			if strings.Contains(err.Error(), "step 127") {
-				// Server says restart — per spec §2.4 note. Sleep briefly
-				// (ts3j waits 1s) and start over with fresh randoms.
 				cancelRecv()
 				if restartsLeft <= 1 {
 					return fmt.Errorf("%w: server keeps requesting handshake restart (step 127)", ErrNetwork)
@@ -2276,7 +1949,6 @@ func (t *TeamSpeakCore) tsHandshakeRetry(nickname string, restartsLeft int) erro
 		break
 	}
 
-	// --- Solve RSA puzzle: y = x^(2^level) mod n ---
 	xBig := new(big.Int).SetBytes(x[:])
 	nBig := new(big.Int).SetBytes(n[:])
 	eBig := new(big.Int).Lsh(big.NewInt(1), uint(level))
@@ -2284,10 +1956,8 @@ func (t *TeamSpeakCore) tsHandshakeRetry(nickname string, restartsLeft int) erro
 
 	var yBytes [64]byte
 	yRaw := yBig.Bytes()
-	// Right-align (pad from left with zeros)
 	copy(yBytes[64-len(yRaw):], yRaw)
 
-	// --- Build clientinitiv command ---
 	var alpha [10]byte
 	rand.Read(alpha[:])
 	alphaB64 := base64.StdEncoding.EncodeToString(alpha[:])
@@ -2297,22 +1967,15 @@ func (t *TeamSpeakCore) tsHandshakeRetry(nickname string, restartsLeft int) erro
 	clientinitiv := fmt.Sprintf("clientinitiv alpha=%s omega=%s ot=1 ip=%s",
 		tsEscape(alphaB64), tsEscape(omega), tsEscape(ip))
 
-	// --- Init Step 4 ---
 	init4 := tsBuildInit4(version, x, n, level, random2, yBytes, []byte(clientinitiv))
 	if err := tc.tsSendRaw(init4); err != nil {
 		cancelRecv()
 		return fmt.Errorf("%w: init4 send: %v", ErrNetwork, err)
 	}
 
-	// --- Wait for initivexpand2 (encrypted with fake key, may be fragmented) ---
 	var initivCmd tsIncomingCmd
-	var fragBuf []byte // reassembly buffer for fragmented commands
+	var fragBuf []byte
 	var fragmenting bool
-	// Track the highest command pID consumed by the handshake: the
-	// server's command counter continues from there (initivexpand2 may
-	// span several fragmented pIDs; the next real command — initserver —
-	// continues the sequence). Hardcoding nextRecvID=1 stalls the queue
-	// forever when initivexpand2 takes 2+ pIDs (verified live).
 	maxCmdPID := uint16(0)
 	for attempt := 0; attempt < 20; attempt++ {
 		buf := make([]byte, 4096)
@@ -2330,15 +1993,12 @@ func (t *TeamSpeakCore) tsHandshakeRetry(nickname string, restartsLeft int) erro
 		pktType := pType & 0x0f
 		flags := pType & 0xf0
 		if pktType == tsPktCommand {
-			// Decrypt with fake key
-			meta := buf[8:11] // S2C: bytes after MAC = PId(2) + PT(1)
+			meta := buf[8:11]
 			plaintext, err := tsEAXDecrypt(tsFakeKey[:], tsFakeNonce[:], meta, data, mac)
 			if err != nil {
 				continue
 			}
 
-			// ACK it (with an incrementing ACK pID, fake-encrypted
-			// like the handshake commands per spec §3)
 			ackData := make([]byte, 2)
 			binary.BigEndian.PutUint16(ackData, pID)
 			ackPID := tc.tsNextPktID(tsPktAck)
@@ -2354,31 +2014,24 @@ func (t *TeamSpeakCore) tsHandshakeRetry(nickname string, restartsLeft int) erro
 				maxCmdPID = pID
 			}
 
-			// Handle fragmentation
 			isFragmented := flags&tsFlagFragmented != 0
 			if isFragmented && !fragmenting {
-				// First fragment — start reassembly
 				fragmenting = true
 				fragBuf = append([]byte{}, plaintext...)
 				continue
 			} else if fragmenting && !isFragmented {
-				// Middle fragment — append
 				fragBuf = append(fragBuf, plaintext...)
 				continue
 			} else if fragmenting && isFragmented {
-				// Last fragment — complete
 				fragBuf = append(fragBuf, plaintext...)
 				plaintext = fragBuf
 				fragmenting = false
 			}
-			// else: single unfragmented packet
 
 			name, params := tsParseCommand(plaintext)
 			initivCmd = tsIncomingCmd{name: name, params: params, raw: string(plaintext)}
 			break
 		} else if pktType == tsPktPing {
-			// Pong the server's handshake-phase pings so it does not
-			// consider us dead mid-handshake (spec §4.3).
 			_ = tc.tsSendPong(pID)
 		} else if pktType == tsPktInit {
 			if len(data) > 0 && data[0] == 127 {
@@ -2398,7 +2051,6 @@ func (t *TeamSpeakCore) tsHandshakeRetry(nickname string, restartsLeft int) erro
 		return fmt.Errorf("%w: expected initivexpand2, got %s", ErrNetwork, initivCmd.name)
 	}
 
-	// --- Parse initivexpand2 ---
 	lB64 := initivCmd.params["l"]
 	betaB64 := initivCmd.params["beta"]
 	serverOmega := initivCmd.params["omega"]
@@ -2409,7 +2061,6 @@ func (t *TeamSpeakCore) tsHandshakeRetry(nickname string, restartsLeft int) erro
 		return fmt.Errorf("%w: initivexpand2 missing params", ErrNetwork)
 	}
 
-	// Verify ot=1
 	if initivCmd.params["ot"] != "1" {
 		cancelRecv()
 		return fmt.Errorf("%w: server outdated (no ot=1)", ErrNetwork)
@@ -2436,7 +2087,6 @@ func (t *TeamSpeakCore) tsHandshakeRetry(nickname string, restartsLeft int) erro
 		return fmt.Errorf("invalid beta length: %d", len(betaBytes))
 	}
 
-	// Verify proof: ECDSA verify of license data with server's P-256 key
 	serverX, serverY, err := tsParseOmega(serverOmega)
 	if err != nil {
 		cancelRecv()
@@ -2447,7 +2097,6 @@ func (t *TeamSpeakCore) tsHandshakeRetry(nickname string, restartsLeft int) erro
 		return fmt.Errorf("%w: license proof verification failed", ErrAuth)
 	}
 
-	// Check for root key override
 	rootKey := tsRootKey
 	if rootB64 := initivCmd.params["root"]; rootB64 != "" {
 		rootBytes, err := base64.StdEncoding.DecodeString(rootB64)
@@ -2456,14 +2105,12 @@ func (t *TeamSpeakCore) tsHandshakeRetry(nickname string, restartsLeft int) erro
 		}
 	}
 
-	// Derive server ephemeral key from license chain
 	serverEK, err := tsDeriveLicenseKey(licenseData, rootKey)
 	if err != nil {
 		cancelRecv()
 		return fmt.Errorf("license key derivation: %w", err)
 	}
 
-	// Create our own ephemeral Ed25519 key
 	var ekPrivBytes [32]byte
 	rand.Read(ekPrivBytes[:])
 	ekPrivScalar, err := new(edwards25519.Scalar).SetBytesWithClamping(ekPrivBytes[:])
@@ -2473,7 +2120,6 @@ func (t *TeamSpeakCore) tsHandshakeRetry(nickname string, restartsLeft int) erro
 	}
 	ekPub := new(edwards25519.Point).ScalarBaseMult(ekPrivScalar)
 
-	// Compute shared IV and MAC
 	var betaArr [54]byte
 	copy(betaArr[:], betaBytes)
 	sharedIV, sharedMAC := tsComputeSharedIVMAC(alpha, betaArr, ekPrivScalar, serverEK)
@@ -2481,14 +2127,10 @@ func (t *TeamSpeakCore) tsHandshakeRetry(nickname string, restartsLeft int) erro
 	tc.sharedMAC = sharedMAC
 	tc.cryptoOK = true
 
-	// clientinitiv was sent as part of Init4 as command pID=0.
-	// So outgoing command counter starts at 1.
 	tc.pktState[tsPktCommand].nextSendID = 1
 
-	// --- Send clientek (fake-encrypted, pID=1) ---
 	ekPubB64 := base64.StdEncoding.EncodeToString(ekPub.Bytes())
 
-	// Proof: ECDSA sign(ek_pub || beta)
 	proofData := make([]byte, 32+54)
 	copy(proofData[:32], ekPub.Bytes())
 	copy(proofData[32:], betaBytes)
@@ -2498,13 +2140,10 @@ func (t *TeamSpeakCore) tsHandshakeRetry(nickname string, restartsLeft int) erro
 	}
 	ekProofB64 := base64.StdEncoding.EncodeToString(ekProof)
 
-	// clientek must be fake-encrypted (FAKE_KEY/FAKE_NONCE), same as initivexpand2.
-	// tsproto: "We fake encrypt the first command packet of the server (id 0) and the
-	// first command packet of the client (id 1, clientek)."
 	clientekStr := fmt.Sprintf("clientek ek=%s proof=%s", tsEscape(ekPubB64), tsEscape(ekProofB64))
 	{
 		cmdBytes := []byte(clientekStr)
-		pID := tc.tsNextPktID(tsPktCommand) // should be 1
+		pID := tc.tsNextPktID(tsPktCommand)
 		flags := byte(tsPktCommand) | tsFlagNewprotocol
 		meta := make([]byte, 5)
 		binary.BigEndian.PutUint16(meta[0:2], pID)
@@ -2517,19 +2156,9 @@ func (t *TeamSpeakCore) tsHandshakeRetry(nickname string, restartsLeft int) erro
 		}
 	}
 
-	// Counters: the handshake consumed command pIDs 0..maxCmdPID
-	// (initivexpand2 fragments) and issued ACKs 0..ackCount-1 via
-	// tsNextPktID, so both counters already hold the right next values.
-	// The incoming command sequence continues at maxCmdPID+1 — the next
-	// server command (initserver) resumes the same counter (verified
-	// live: with a 2-fragment initivexpand2 the server's initserver
-	// arrived at pID 2, not 1).
 	tc.pktState[tsPktCommand].nextRecvID = maxCmdPID + 1
-	// Incoming ACK counter: the server ACKed our clientek from its own
-	// ACK counter which started at 0.
 	tc.pktState[tsPktAck].nextRecvID = 0
 
-	// Now start the receive loop for encrypted command exchange
 	t.wg.Add(2)
 	go func() {
 		defer t.wg.Done()
@@ -2540,7 +2169,6 @@ func (t *TeamSpeakCore) tsHandshakeRetry(nickname string, restartsLeft int) erro
 		tc.tsKeepaliveLoop(t.ctx)
 	}()
 
-	// --- Send clientinit (encrypted with shared key, pID=2) ---
 	hwid := "123456789abcdef0123456789abcdef0"
 	keyOffset := fmt.Sprintf("%d", tc.identity.keyOffset)
 	clientinitCmd := fmt.Sprintf(
@@ -2558,7 +2186,6 @@ func (t *TeamSpeakCore) tsHandshakeRetry(nickname string, restartsLeft int) erro
 		return fmt.Errorf("clientinit send: %w", err)
 	}
 
-	// Wait for initserver (and process other commands that arrive during setup)
 	initDeadline := time.After(10 * time.Second)
 	var gotInitServer bool
 	for !gotInitServer {
@@ -2596,24 +2223,20 @@ func (t *TeamSpeakCore) tsHandshakeRetry(nickname string, restartsLeft int) erro
 		}
 	}
 
-	// Populate self UID from identity
 	if tc.identity != nil {
 		t.myUID = tc.identity.tsUID()
 	}
 
-	// Drain remaining setup commands (channellist, etc.) for a short period
 	drainTimer := time.After(2 * time.Second)
 drainLoop:
 	for {
 		select {
 		case cmd := <-tc.cmdCh:
 			if cmd.name == "error" {
-				// Ignore error id=0 (OK response)
 			} else {
 				t.tsHandleServerCommand(cmd)
 			}
 			if cmd.name == "channellistfinished" {
-				// All channels received, wait a bit more for remaining setup
 				drainTimer = time.After(500 * time.Millisecond)
 			}
 		case <-drainTimer:
@@ -2624,17 +2247,12 @@ drainLoop:
 	return nil
 }
 
-// ──────────────────────────── Server Command Handler ────────────────────────────
-
-// ServerName returns the virtual server's name ("" before the first
-// initserver push).
 func (t *TeamSpeakCore) ServerName() string {
 	t.serverNameMu.RLock()
 	defer t.serverNameMu.RUnlock()
 	return t.serverName
 }
 
-// setServerName stores the pushed virtual server name (empty ignored).
 func (t *TeamSpeakCore) setServerName(name string) {
 	if name == "" {
 		return
@@ -2648,10 +2266,6 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 	switch cmd.name {
 	case "initserver":
 		if v := cmd.params["virtualserver_name"]; v != "" {
-			// The virtual server's name — the only place it arrives
-			// (B-16: this store was an empty branch, so a server's
-			// own name never reached the UI and renames were
-			// invisible).
 			t.setServerName(v)
 		}
 	case "notifytextmessage":
@@ -2659,19 +2273,16 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 	case "notifycliententerview":
 		t.tsHandleClientEnter(cmd.params)
 	case "notifyclientleftview":
-		// F-85: this broadcast proves kick/ban took effect.
 		if tc := t.tsConn; tc != nil {
 			tc.fireProof("notifyclientleftview", cmd.params)
 		}
 		t.tsHandleClientLeave(cmd.params)
 	case "notifyclientmoved":
-		// F-84: this broadcast IS clientmove's success proof.
 		if tc := t.tsConn; tc != nil {
 			tc.fireProof("notifyclientmoved", cmd.params)
 		}
 		t.tsHandleClientMoved(cmd.params)
 	case "channellist":
-		// Parse channel entries from |-separated list in raw data
 		rawData := cmd.raw
 		if idx := strings.Index(rawData, " "); idx >= 0 {
 			rawData = rawData[idx+1:]
@@ -2703,10 +2314,7 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 		}
 		t.channelsMu.Unlock()
 	case "channellistfinished":
-		// Done receiving channel list
 	case "notifychannelcreated":
-		// F-85: this broadcast proves channelcreate took effect AND
-		// carries the new cid CreateChannel reads back.
 		if tc := t.tsConn; tc != nil {
 			tc.fireProof("notifychannelcreated", cmd.params)
 		}
@@ -2742,7 +2350,6 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 			Platform: ts3Platform,
 		})
 	case "notifychanneledited", "notifychannelmoved":
-		// F-85: edited/moved broadcasts prove channeledit took effect.
 		if tc := t.tsConn; tc != nil {
 			tc.fireProof(cmd.name, cmd.params)
 		}
@@ -2776,14 +2383,10 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 		if err != nil {
 			return
 		}
-		// F-84: this broadcast IS clientupdate's success proof.
 		if tc := t.tsConn; tc != nil {
 			tc.fireProof("notifyclientupdated", cmd.params)
 		}
 		t.clientInfoMu.Lock()
-		// Own talk power rides this event too (observed live:
-		// `notifyclientupdated clid=<us> client_talk_power=20 …`) — the
-		// room-dead check needs it (B-26). 0 stays "unknown".
 		if clid == t.myClientID {
 			if v, perr := strconv.Atoi(cmd.params["client_talk_power"]); perr == nil {
 				t.myTalkPower = v
@@ -2820,18 +2423,14 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 			Platform: ts3Platform,
 		})
 	case "notifyconnectioninforequest":
-		// Server requests connection stats — auto-respond
 		go t.SetConnectionInfo()
 	case "notifychanneldescriptionchanged":
-		// Channel description changed — could fetch new desc if needed
 		t.fireUpdate(Update{
 			Type:     UpdateGroupMembers,
 			Platform: ts3Platform,
 		})
 	case "notifychannelpasswordchanged":
-		// Channel password changed
 	case "notifychannelsubscribed":
-		// We subscribed to a channel — receive events from it now
 		cid, err := strconv.Atoi(cmd.params["cid"])
 		if err != nil {
 			return
@@ -2842,7 +2441,6 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 			Platform: ts3Platform,
 		})
 	case "notifychannelunsubscribed":
-		// We unsubscribed from a channel
 		cid, err := strconv.Atoi(cmd.params["cid"])
 		if err != nil {
 			return
@@ -2863,17 +2461,13 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 			Platform: ts3Platform,
 		})
 	case "notifytokenused":
-		// Privilege key was used — informational
 	case "notifyclientchannelgroupchanged":
 		t.fireUpdate(Update{
 			Type:     UpdateGroupMembers,
 			Platform: ts3Platform,
 		})
 	case "notifyclientneededpermissions":
-		// Server tells us what permissions we need — informational
 	case "notifyclientchatcomposing":
-		// F-85: the typing broadcast proves clientchatcomposing took
-		// effect (echoed to the sender when the server sends it).
 		if tc := t.tsConn; tc != nil {
 			tc.fireProof("notifyclientchatcomposing", cmd.params)
 		}
@@ -2888,9 +2482,7 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 			Platform: ts3Platform,
 		})
 	case "notifyclientchatclosed":
-		// The other client closed the chat window — informational
 	case "notifyplugincommand":
-		// Plugin command from another client
 		invokerID, err := strconv.Atoi(cmd.params["invokerid"])
 		if err != nil {
 			return
@@ -2915,7 +2507,6 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 		})
 	}
 
-	// Dispatch to registered event handlers
 	t.updateMu.RLock()
 	handlers := t.eventHandlers[cmd.name]
 	t.updateMu.RUnlock()
@@ -2924,7 +2515,6 @@ func (t *TeamSpeakCore) tsHandleServerCommand(cmd tsIncomingCmd) {
 	}
 }
 
-// tsCommandLoop is the main loop processing incoming server commands after handshake.
 func (t *TeamSpeakCore) tsCommandLoop() {
 	tc := t.tsConn
 	for {
@@ -2934,7 +2524,6 @@ func (t *TeamSpeakCore) tsCommandLoop() {
 		case cmd := <-tc.cmdCh:
 			tc.execMu.Lock()
 			if tc.execWait {
-				// Forward to tsExec's channel
 				tc.execCh <- cmd
 				tc.execMu.Unlock()
 			} else {
@@ -2945,40 +2534,19 @@ func (t *TeamSpeakCore) tsCommandLoop() {
 	}
 }
 
-// ──────────────────────────── Command Execution (send + wait for response) ────────────────────────────
-
-// tsExecVoidTimeout is how long tsExec waits for ANY response before
-// concluding the response was lost. Every TS3 command is answered by an
-// `error id=` line (success OR failure), so silence means loss — not
-// success (BUGS B-24). Var rather than const so tests can shrink it.
 var tsExecVoidTimeout = 5 * time.Second
 
-// tsProof is an in-band success proof for tsExecProof (F-83/F-84/F-85):
-// a server broadcast whose params prove the PENDING command took
-// effect — the definitive success signal on servers that omit
-// `error id=0` (wire-proven on both live servers). It carries the
-// broadcast's FULL params (F-85) so the waiter can match on whatever
-// key its command dictates AND read result fields back (CreateChannel
-// gets its new cid from notifychannelcreated's params — in-client
-// channelcreate sends neither a data row nor an ok-line).
 type tsProof struct {
 	name   string
 	fields map[string]string
 }
 
-// tsWant is what a pending command awaits: a broadcast with this name
-// whose params[key] equals val. The name+key+val match is the B-24
-// anti-false-ack guard: unrelated events (or the same event for a
-// different client/channel) never satisfy a pending command, and stale
-// proofs are drained before each send.
 type tsWant struct {
 	name string
 	key  string
 	val  string
 }
 
-// fireProof records a proof without blocking (buffered; drop-on-full:
-// the waiter drains what it needs).
 func (tc *tsConnection) fireProof(name string, fields map[string]string) {
 	select {
 	case tc.proofs <- tsProof{name: name, fields: fields}:
@@ -2986,9 +2554,6 @@ func (tc *tsConnection) fireProof(name string, fields map[string]string) {
 	}
 }
 
-// takeProofs drains every pending proof (F-83/F-84): called inside
-// tsExecProof BEFORE the command is sent so a stale proof from a
-// previous (timed-out) command can never satisfy the next one.
 func (tc *tsConnection) takeProofs() bool {
 	select {
 	case <-tc.proofs:
@@ -2998,17 +2563,10 @@ func (tc *tsConnection) takeProofs() bool {
 	}
 }
 
-// tsExecVerified sends cmd and — when the in-client protocol omits the
-// success reply OR the reply is lost — confirms the EFFECT through
-// verify (a read-back the protocol DOES answer: data rows, grace-safe).
-// verify==true rescues the command; anything else returns the
-// ORIGINAL error unchanged (B-24: never false-ack — a real
-// permission-denied stays denied unless the read-back proves the goal
-// state already holds). F-86.
 func (t *TeamSpeakCore) tsExecVerified(cmd string, verify func() (bool, error)) ([]map[string]string, error) {
 	rows, err := t.tsExec(cmd)
 	if err == nil {
-		return rows, nil // reply (or data-grace) said success
+		return rows, nil
 	}
 	ok, verr := verify()
 	if verr == nil && ok {
@@ -3017,17 +2575,12 @@ func (t *TeamSpeakCore) tsExecVerified(cmd string, verify func() (bool, error)) 
 	return nil, err
 }
 
-// serverGroupContains builds the read-back for servergroupadd/delclient
-// (F-86): the group's member list IS answered (data rows, or the
-// 1281-empty-list error → ErrNotFound). present==want means the
-// membership took effect. An unavailable read-back (permission etc.)
-// returns its error — never a decision.
 func (t *TeamSpeakCore) serverGroupContains(sgid, cldbid int, wantPresent bool) func() (bool, error) {
 	return func() (bool, error) {
 		rows, err := t.tsExec(fmt.Sprintf("servergroupclientlist sgid=%d", sgid))
 		if err != nil {
 			if errors.Is(err, ErrNotFound) {
-				return !wantPresent, nil // empty list: nobody in the group
+				return !wantPresent, nil
 			}
 			return false, err
 		}
@@ -3041,36 +2594,19 @@ func (t *TeamSpeakCore) serverGroupContains(sgid, cldbid int, wantPresent bool) 
 	}
 }
 
-// tsExec sends a command and waits for the response (error line).
 func (t *TeamSpeakCore) tsExec(cmd string) ([]map[string]string, error) {
 	return t.tsExecProof(cmd, nil)
 }
 
-// tsExecProof is tsExec with an optional in-band PROOF (F-83/F-84/F-85):
-// `want`, when non-nil, names the broadcast (event + params key/value)
-// that counts as definitive success — for commands whose `error id=0`
-// reply the in-client protocol often omits (sendtextmessage,
-// clientmove, clientupdate, channelcreate/edit, kick/ban — wire-proven
-// on both live servers, WORKLOGs 318/319/320). On a proof hit the
-// broadcast's params are appended as a result row (cid for
-// channelcreate). A nil `want` keeps the exact B-24 behavior
-// (silence = lost).
 func (t *TeamSpeakCore) tsExecProof(cmd string, want *tsWant) ([]map[string]string, error) {
 	tc := t.tsConn
 	if tc == nil {
 		return nil, ErrAuth
 	}
 
-	// One exec session at a time per connection (B-35): notify handlers
-	// such as SetConnectionInfo can fire from the receive loop while
-	// another command is in flight; without this, the second caller
-	// swaps tc.execCh under the first and the first command's response
-	// is consumed by the wrong waiter (observed live: sendtext's
-	// error id=2568 arrived on the wire yet the caller timed out).
 	tc.execSeq.Lock()
 	defer tc.execSeq.Unlock()
 
-	// Set up exec channel to capture responses
 	tc.execMu.Lock()
 	tc.execCh = make(chan tsIncomingCmd, 64)
 	tc.execWait = true
@@ -3082,8 +2618,6 @@ func (t *TeamSpeakCore) tsExecProof(cmd string, want *tsWant) ([]map[string]stri
 		tc.execMu.Unlock()
 	}()
 
-	// Drain stale proofs first (F-83/F-84): a proof left over from a
-	// previous timed-out command must never satisfy THIS one (B-24).
 	var proofs <-chan tsProof
 	if want != nil {
 		tc.takeProofs()
@@ -3093,13 +2627,6 @@ func (t *TeamSpeakCore) tsExecProof(cmd string, want *tsWant) ([]map[string]stri
 	if _, err := tc.tsSendCommand(cmd); err != nil {
 		return nil, err
 	}
-	// Wait for response — collect data until error command.
-	// Every TS3 command is answered by an `error id=` line, so:
-	// - data rows + terminal error → parsed normally
-	// - data rows but no terminator → 500ms grace, then assume success
-	//   (some servers omit the final ok)
-	// - NOTHING at all → the response was lost (UDP): an ERROR, never a
-	//   false ack for state-changing commands (B-24)
 	deadline := time.After(tsExecVoidTimeout)
 	var dataLines []string
 	var dataTimeout <-chan time.Time
@@ -3120,16 +2647,13 @@ func (t *TeamSpeakCore) tsExecProof(cmd string, want *tsWant) ([]map[string]stri
 				}
 				return result, nil
 			}
-			// Notification or data line
 			if strings.HasPrefix(resp.name, "notify") {
 				go t.tsHandleServerCommand(resp)
 			} else {
 				dataLines = append(dataLines, resp.raw)
-				// Start short timeout — if no "error id=0" follows, assume success
 				dataTimeout = time.After(500 * time.Millisecond)
 			}
 		case <-dataTimeout:
-			// Got data but no error terminator — server omitted it, treat as success
 			var result []map[string]string
 			for _, dl := range dataLines {
 				result = append(result, tsParseKVList(dl)...)
@@ -3137,11 +2661,6 @@ func (t *TeamSpeakCore) tsExecProof(cmd string, want *tsWant) ([]map[string]stri
 			return result, nil
 		case p := <-proofs:
 			if want != nil && p.name == want.name && p.fields[want.key] == want.val {
-				// Definitive in-band proof (F-83/F-84/F-85): the
-				// server's broadcast of THIS command's effect — success
-				// even though no `error id=` arrived. Its params come
-				// back as a result row (F-85: CreateChannel reads the
-				// new cid from notifychannelcreated).
 				var result []map[string]string
 				for _, dl := range dataLines {
 					result = append(result, tsParseKVList(dl)...)
@@ -3149,17 +2668,10 @@ func (t *TeamSpeakCore) tsExecProof(cmd string, want *tsWant) ([]map[string]stri
 				result = append(result, p.fields)
 				return result, nil
 			}
-			// Unrelated event (concurrent, different client/channel) —
-			// keep waiting for our proof or the deadline (B-24 guard).
 		case <-deadline:
 			if len(dataLines) == 0 {
-				// Pure silence: the response was lost. Returning nil here
-				// used to be a FALSE ACK — a clientmove that "succeeded"
-				// without the server ever moving us (B-24).
 				return nil, fmt.Errorf("%w: no response to command within %s (response lost)", ErrNetwork, tsExecVoidTimeout)
 			}
-			// Data arrived but the server never sent the terminal error —
-			// treat the accumulated rows as the result.
 			var result []map[string]string
 			for _, dl := range dataLines {
 				result = append(result, tsParseKVList(dl)...)
@@ -3176,12 +2688,9 @@ func (t *TeamSpeakCore) tsExecSimple(cmd string) error {
 	return err
 }
 
-// RawExec sends a raw TS3 command and returns the parsed key-value response rows.
 func (t *TeamSpeakCore) RawExec(cmd string) ([]map[string]string, error) {
 	return t.tsExec(cmd)
 }
-
-// ──────────────────────────── TS3 Error ────────────────────────────
 
 type tsError struct {
 	ID  int
@@ -3213,8 +2722,6 @@ func tsMapError(e *tsError) error {
 	}
 }
 
-// ──────────────────────────── Notification Handlers ────────────────────────────
-
 func (t *TeamSpeakCore) tsHandleTextMessage(kv map[string]string) {
 	targetMode, err := strconv.Atoi(kv["targetmode"])
 	if err != nil {
@@ -3225,14 +2732,10 @@ func (t *TeamSpeakCore) tsHandleTextMessage(kv map[string]string) {
 		return
 	}
 
-	// Self-echo: TS3 broadcasts notifytextmessage to all channel/server subscribers
-	// including the sender. Our SendMessage already added the local copy with
-	// IsOutgoing=true, so drop the echo here to avoid duplicates.
 	t.clientInfoMu.RLock()
 	isSelfEcho := invokerID == t.myClientID
 	t.clientInfoMu.RUnlock()
 	if isSelfEcho {
-		// F-83: our own echo is the send's delivery proof.
 		if tc := t.tsConn; tc != nil {
 			tc.fireProof("notifytextmessage", kv)
 		}
@@ -3241,14 +2744,14 @@ func (t *TeamSpeakCore) tsHandleTextMessage(kv map[string]string) {
 
 	var chatID string
 	switch targetMode {
-	case 1: // Private message
+	case 1:
 		chatID = fmt.Sprintf("dm:%d", invokerID)
-	case 2: // Channel message
+	case 2:
 		t.clientInfoMu.RLock()
 		chID := t.myChannelID
 		t.clientInfoMu.RUnlock()
 		chatID = fmt.Sprintf("ch:%d", chID)
-	case 3: // Server message
+	case 3:
 		chatID = "server"
 	default:
 		return
@@ -3330,10 +2833,6 @@ func (t *TeamSpeakCore) tsHandleClientMoved(kv map[string]string) {
 	cid, _ := strconv.Atoi(kv["ctid"])
 
 	t.clientInfoMu.Lock()
-	// B-37: this write used to run OUTSIDE the lock while GetGroupCall
-	// reads myChannelID under it (and tsHandleTextMessage read it bare)
-	// — a data race the detector flags. Everything myChannelID touches
-	// now lives under clientInfoMu.
 	if clid == t.myClientID {
 		t.myChannelID = cid
 	}
@@ -3350,8 +2849,6 @@ func (t *TeamSpeakCore) tsHandleClientMoved(kv map[string]string) {
 	})
 }
 
-// ──────────────────────────── Helpers ────────────────────────────
-
 func (t *TeamSpeakCore) fireUpdate(u Update) {
 	t.updateMu.RLock()
 	handlers := make([]func(Update), len(t.updateHandlers))
@@ -3362,15 +2859,11 @@ func (t *TeamSpeakCore) fireUpdate(u Update) {
 	}
 }
 
-// tsHandleConnectionLost is called when the recv loop exits due to a non-timeout
-// error. If autoReconnect is enabled, it attempts to re-establish the connection
-// with exponential backoff (3s, 6s, 12s, ..., max 60s, up to 10 retries).
 func (t *TeamSpeakCore) tsHandleConnectionLost(connErr error) {
 	t.mu.Lock()
 	shouldReconnect := t.autoReconnect && t.authed
 	t.mu.Unlock()
 
-	// Fire disconnected update
 	t.fireUpdate(Update{
 		Type:     UpdateUserStatus,
 		Platform: ts3Platform,
@@ -3421,13 +2914,11 @@ func (t *TeamSpeakCore) tsReconnectLoop() {
 			return
 		}
 
-		// Cancel old context to stop stale goroutines, then wait for them
 		t.mu.Lock()
 		t.cancel()
 		t.mu.Unlock()
 		t.wg.Wait()
 
-		// Clean up old connection
 		t.mu.Lock()
 		if t.tsConn != nil {
 			t.tsConn.conn.Close()
@@ -3438,13 +2929,11 @@ func (t *TeamSpeakCore) tsReconnectLoop() {
 		nickname := t.nickname
 		cfg := t.authCfg
 
-		// Create fresh context for the new connection
 		ctx, cancel := context.WithCancel(context.Background())
 		t.ctx = ctx
 		t.cancel = cancel
 		t.mu.Unlock()
 
-		// Force address and nickname from stored state
 		if cfg.Extra == nil {
 			cfg.Extra = make(map[string]string)
 		}
@@ -3453,7 +2942,6 @@ func (t *TeamSpeakCore) tsReconnectLoop() {
 
 		err := t.Authenticate(cfg)
 		if err == nil {
-			// Reconnected successfully
 			t.fireUpdate(Update{
 				Type:     UpdateUserStatus,
 				Platform: ts3Platform,
@@ -3467,7 +2955,6 @@ func (t *TeamSpeakCore) tsReconnectLoop() {
 		log.Printf("ts: reconnect attempt %d/%d failed: %v", attempt+1, maxRetries, err)
 	}
 
-	// All retries exhausted
 	t.fireUpdate(Update{
 		Type:      UpdateUserStatus,
 		Platform:  ts3Platform,
@@ -3511,8 +2998,6 @@ func tsParseChatID(chatID string) (string, int, error) {
 		return "", 0, fmt.Errorf("%w: unknown chat type %q", ErrInvalidInput, parts[0])
 	}
 }
-
-// ──────────────────────────── Session Persistence ────────────────────────────
 
 func (t *TeamSpeakCore) tsSaveSession() error {
 	sess := tsSession{
@@ -3559,16 +3044,12 @@ func (t *TeamSpeakCore) tsLoadIdentity(sess *tsSession) error {
 
 	id := &tsP256Identity{key: key, keyOffset: sess.KeyOffset}
 	if id.keyOffset == 0 {
-		// Recompute hashcash if not stored in session
 		id.keyOffset = tsHashCash(id.tsOmega(), 8)
 	}
 	t.tsConn.identity = id
 	return nil
 }
 
-// ──────────────────────────── Core Interface: Auth ────────────────────────────
-
-// Authenticate connects to a TeamSpeak server and completes the cryptographic handshake using the provided credentials.
 func (t *TeamSpeakCore) Authenticate(cfg AuthConfig) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -3587,12 +3068,10 @@ func (t *TeamSpeakCore) Authenticate(cfg AuthConfig) error {
 		nickname = "UniClient"
 	}
 
-	// Connect UDP
 	if err := t.tsConnect(addr); err != nil {
 		return err
 	}
 
-	// Try loading saved identity
 	if sess, err := t.tsLoadSession(); err == nil {
 		if addr == "localhost:"+tsVoicePort && sess.ServerAddr != "" {
 			addr = sess.ServerAddr
@@ -3606,7 +3085,6 @@ func (t *TeamSpeakCore) Authenticate(cfg AuthConfig) error {
 	t.serverAddr = addr
 	t.nickname = nickname
 
-	// Perform handshake
 	if err := t.tsHandshake(nickname); err != nil {
 		t.tsConn.conn.Close()
 		t.tsConn = nil
@@ -3617,28 +3095,17 @@ func (t *TeamSpeakCore) Authenticate(cfg AuthConfig) error {
 	t.autoReconnect = true
 	t.authCfg = cfg
 
-	// Start command processing loop first (needed for tsExec routing)
 	t.wg.Add(1)
 	go func() {
 		defer t.wg.Done()
 		t.tsCommandLoop()
 	}()
 
-	// Notification registration is deliberately ABSENT: every real
-	// server answers `servernotifyregister` with error 516 "invalid
-	// client type" for in-client connections (it is a ServerQuery-only
-	// command — BUGS B-23), and clients receive all their events pushed
-	// natively anyway (verified across every live battery: clientmoved,
-	// cliententerview, text/poke, channel events, connectioninforequest
-	// all arrive with zero registrations).
-
-	// Save session (with identity)
 	_ = t.tsSaveSession()
 
 	return nil
 }
 
-// Logout disconnects from the TeamSpeak server and cleans up the session.
 func (t *TeamSpeakCore) Logout() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -3647,10 +3114,8 @@ func (t *TeamSpeakCore) Logout() error {
 		return nil
 	}
 
-	// Disable auto-reconnect before disconnecting
 	t.autoReconnect = false
 
-	// Send disconnect
 	if t.tsConn != nil {
 		t.tsConn.tsSendCommand("clientdisconnect")
 		time.Sleep(100 * time.Millisecond)
@@ -3666,9 +3131,6 @@ func (t *TeamSpeakCore) Logout() error {
 	return nil
 }
 
-// ──────────────────────────── Core Interface: Dialogs ────────────────────────────
-
-// GetDialogs returns all channels and the server chat as a list of dialogs.
 func (t *TeamSpeakCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -3676,14 +3138,13 @@ func (t *TeamSpeakCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 		return nil, ErrAuth
 	}
 
-	// Use cached channel data from handshake
 	t.channelsMu.RLock()
 	defer t.channelsMu.RUnlock()
 
 	dialogs := make([]Dialog, 0, len(t.channels)+1)
 	serverTitle := "Server Chat"
 	if n := t.ServerName(); n != "" {
-		serverTitle = n // the server's own name via initserver (B-16)
+		serverTitle = n
 	}
 	dialogs = append(dialogs, Dialog{
 		ID:       "server",
@@ -3699,7 +3160,7 @@ func (t *TeamSpeakCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 			Title:         ch.name,
 			MemberCount:   ch.totalClients,
 			Platform:      ts3Platform,
-			HasActiveCall: ch.totalClients > 0, // occupied channel = live voice room
+			HasActiveCall: ch.totalClients > 0,
 		}
 		if ch.pid > 0 {
 			d.ParentID = fmt.Sprintf("ch:%d", ch.pid)
@@ -3715,7 +3176,6 @@ func (t *TeamSpeakCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 		dialogs = append(dialogs, d)
 	}
 
-	// Add DM dialogs from message buffer
 	t.msgBufMu.RLock()
 	for chatID, msgs := range t.msgBuffer {
 		if strings.HasPrefix(chatID, "dm:") && len(msgs) > 0 {
@@ -3749,16 +3209,11 @@ func (t *TeamSpeakCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 	return dialogs[offset:end], nil
 }
 
-// CreateGroup creates a new server group with the given name and adds the specified members.
 func (t *TeamSpeakCore) CreateGroup(name string, members []string) (*Dialog, error) {
 	return t.CreateChannel(name, "")
 }
 
-// CreateChannel creates a new channel on the server with the given name and description.
 func (t *TeamSpeakCore) CreateChannel(name string, description string) (*Dialog, error) {
-	// Snapshot self id BEFORE taking t.mu (B-40: never acquire
-	// clientInfoMu while t.mu is held) — notifychannelcreated matches
-	// on invokerid == self (F-85).
 	t.clientInfoMu.RLock()
 	selfClid := t.myClientID
 	t.clientInfoMu.RUnlock()
@@ -3793,27 +3248,19 @@ func (t *TeamSpeakCore) CreateChannel(name string, description string) (*Dialog,
 	}, nil
 }
 
-// CreateTopic is not supported on TeamSpeak and returns an unsupported error.
 func (t *TeamSpeakCore) CreateTopic(_ string, _ string) (*Dialog, error) {
 	return nil, fmt.Errorf("%w: teamspeak does not support forum topics", ErrNotSupported)
 }
 
-// GetFolders is not supported on TeamSpeak and returns an unsupported error.
 func (t *TeamSpeakCore) GetFolders() ([]Folder, error) {
 	return nil, fmt.Errorf("%w: teamspeak does not support folders", ErrNotSupported)
 }
 
-// CreateFolder is not supported on TeamSpeak and returns an unsupported error.
 func (t *TeamSpeakCore) CreateFolder(_ string, _ []string) (*Folder, error) {
 	return nil, fmt.Errorf("%w: teamspeak does not support folders", ErrNotSupported)
 }
 
-// ──────────────────────────── Core Interface: Messages ────────────────────────────
-
-// SendMessage sends a text message to a channel, server chat, or private DM.
 func (t *TeamSpeakCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, error) {
-	// Self info snapshotted BEFORE t.mu (B-40: never acquire clientInfoMu
-	// while t.mu is held — GetGroupCall nests the other order).
 	t.clientInfoMu.RLock()
 	senderID := strconv.Itoa(t.myClientID)
 	senderName := t.myName
@@ -3840,10 +3287,6 @@ func (t *TeamSpeakCore) SendMessage(chatID string, msg OutgoingMessage) (*Messag
 		cmd = fmt.Sprintf("sendtextmessage targetmode=3 msg=%s", tsEscape(msg.Text))
 	}
 
-	// F-83/F-84: accept the server's broadcast of THIS send (our own
-	// echo) as the success proof — the in-client protocol often omits
-	// the `error id=0` reply. Stale proofs are drained inside
-	// tsExecProof before the command goes out.
 	if _, err := t.tsExecProof(cmd, &tsWant{name: "notifytextmessage", key: "invokerid", val: senderID}); err != nil {
 		return nil, err
 	}
@@ -3863,7 +3306,6 @@ func (t *TeamSpeakCore) SendMessage(chatID string, msg OutgoingMessage) (*Messag
 	return m, nil
 }
 
-// GetMessages retrieves the message history for a chat or channel.
 func (t *TeamSpeakCore) GetMessages(chatID string, opts PaginationOpts) ([]Message, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -3896,58 +3338,43 @@ func (t *TeamSpeakCore) GetMessages(chatID string, opts PaginationOpts) ([]Messa
 	return result, nil
 }
 
-// EditMessage is not supported on TeamSpeak and returns an unsupported error.
 func (t *TeamSpeakCore) EditMessage(_ string, _ string, _ string) (*Message, error) {
 	return nil, fmt.Errorf("%w: teamspeak does not support message editing", ErrNotSupported)
 }
 
-// DeleteMessage is not supported on TeamSpeak and returns an unsupported error.
 func (t *TeamSpeakCore) DeleteMessage(_ string, _ string) error {
 	return fmt.Errorf("%w: teamspeak does not support message deletion", ErrNotSupported)
 }
 
-// ReplyToMessage sends a message to the specified chat, ignoring the reply reference.
 func (t *TeamSpeakCore) ReplyToMessage(chatID string, _ string, msg OutgoingMessage) (*Message, error) {
 	return t.SendMessage(chatID, msg)
 }
 
-// ForwardMessage is not supported on TeamSpeak and returns an unsupported error.
 func (t *TeamSpeakCore) ForwardMessage(_ string, _ string, _ string) (*Message, error) {
 	return nil, fmt.Errorf("%w: teamspeak does not support message forwarding", ErrNotSupported)
 }
 
-// ReactToMessage is not supported on TeamSpeak and returns an unsupported error.
 func (t *TeamSpeakCore) ReactToMessage(_ string, _ string, _ string) error {
 	return fmt.Errorf("%w: teamspeak does not support reactions", ErrNotSupported)
 }
 
-// PinMessage is not supported on TeamSpeak and returns an unsupported error.
 func (t *TeamSpeakCore) PinMessage(_ string, _ string) error {
 	return fmt.Errorf("%w: teamspeak does not support message pinning", ErrNotSupported)
 }
 
-// UnpinMessage is not supported on TeamSpeak and returns an unsupported error.
 func (t *TeamSpeakCore) UnpinMessage(_ string, _ string) error {
 	return fmt.Errorf("%w: teamspeak does not support message pinning", ErrNotSupported)
 }
 
-// ──────────────────────────── Core Interface: Read State ────────────────────────────
-
-// MarkAsRead is not supported on TeamSpeak and returns an unsupported error.
 func (t *TeamSpeakCore) MarkAsRead(_ string, _ string) error {
 	return fmt.Errorf("%w: teamspeak does not support read state", ErrNotSupported)
 }
 
-// GetReadState is not supported on TeamSpeak and returns an unsupported error.
 func (t *TeamSpeakCore) GetReadState(_ string) (*ReadState, error) {
 	return nil, fmt.Errorf("%w: teamspeak does not support read state", ErrNotSupported)
 }
 
-// ──────────────────────────── Core Interface: Files ────────────────────────────
-
-// UploadFile uploads a file to a channel's file repository via the TeamSpeak file transfer protocol.
 func (t *TeamSpeakCore) UploadFile(chatID string, file FileUpload, progress func(sent, total int64)) (*Message, error) {
-	// Self info snapshotted BEFORE t.mu (B-40 lock order).
 	t.clientInfoMu.RLock()
 	senderID := strconv.Itoa(t.myClientID)
 	senderName := t.myName
@@ -3998,10 +3425,6 @@ func (t *TeamSpeakCore) UploadFile(chatID string, file FileUpload, progress func
 		return nil, fmt.Errorf("%w: ftkey send: %v", ErrNetwork, err)
 	}
 
-	// F-77: exact-size send — the old loop swallowed every source read
-	// error and never checked sent against the declared size, so a
-	// failed/truncated local read still reported a successful send with
-	// attachment metadata claiming the full size.
 	if _, serr := sendTSFile(ftConn, file.Reader, file.Size, progress); serr != nil {
 		return nil, serr
 	}
@@ -4026,7 +3449,6 @@ func (t *TeamSpeakCore) UploadFile(chatID string, file FileUpload, progress func
 	return m, nil
 }
 
-// DownloadFile downloads a file from the TeamSpeak server's file repository to a local path.
 func (t *TeamSpeakCore) DownloadFile(fileRef FileRef, dest string, progress func(recv, total int64)) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -4055,8 +3477,6 @@ func (t *TeamSpeakCore) DownloadFile(fileRef FileRef, dest string, progress func
 	ftPort := rows[0]["port"]
 	fileSize, perr := parseTSSize(rows[0]["size"])
 	if perr != nil {
-		// F-77: the parse error used to be IGNORED — a missing/malformed
-		// size field looped zero times and "succeeded" with an EMPTY file.
 		return perr
 	}
 	if ftPort == "" {
@@ -4078,16 +3498,12 @@ func (t *TeamSpeakCore) DownloadFile(fileRef FileRef, dest string, progress func
 		return fmt.Errorf("%w: ftkey send: %v", ErrNetwork, err)
 	}
 
-	// F-77/F-78: strict exact-size receive with cleanup on any failure.
 	if _, rerr := receiveTSFile(ftConn, dest, fileSize, progress); rerr != nil {
 		return rerr
 	}
 	return nil
 }
 
-// parseTSSize parses the server-declared transfer size (F-77): the
-// error used to be discarded — a missing/malformed field produced a
-// zero-size "successful" download containing nothing.
 func parseTSSize(s string) (int64, error) {
 	n, err := strconv.ParseInt(s, 10, 64)
 	if err != nil || n < 0 {
@@ -4096,14 +3512,6 @@ func parseTSSize(s string) (int64, error) {
 	return n, nil
 }
 
-// receiveTSFile streams exactly fileSize bytes from r into dest. The
-// TeamSpeak file-transfer protocol frames NOTHING beyond the declared
-// size (raw TCP — net/http's Content-Length enforcement does not exist
-// here), so a dropped connection or short stream MUST fail: the old
-// loop swallowed every read error and returned nil, handing the UI a
-// truncated file reported as complete. ANY failure (short stream,
-// write error, invalid size) removes the partial (F-78). Returns the
-// bytes written.
 func receiveTSFile(r io.Reader, dest string, fileSize int64, progress func(recv, total int64)) (int64, error) {
 	if fileSize < 0 {
 		return 0, fmt.Errorf("%w: invalid transfer size %d", ErrTruncated, fileSize)
@@ -4119,7 +3527,7 @@ func receiveTSFile(r io.Reader, dest string, fileSize int64, progress func(recv,
 			return
 		}
 		f.Close()
-		os.Remove(dest) // never leave a truncated partial behind (F-78)
+		os.Remove(dest)
 	}()
 
 	var recv int64
@@ -4137,27 +3545,18 @@ func receiveTSFile(r io.Reader, dest string, fileSize int64, progress func(recv,
 		}
 		if readErr != nil {
 			if recv >= fileSize {
-				break // final bytes arrived alongside the terminating error
+				break
 			}
 			return recv, fmt.Errorf("%w: stream ended at %d of %d bytes (%v)", ErrTruncated, recv, fileSize, readErr)
 		}
 	}
 	if recv != fileSize {
-		// Overshoot is a protocol violation too (hostile server sending
-		// more than declared) — exact match or nothing.
 		return recv, fmt.Errorf("%w: got %d bytes, declared %d", ErrTruncated, recv, fileSize)
 	}
 	ok = true
 	return recv, nil
 }
 
-// sendTSFile writes exactly size bytes from r to w (F-77, upload
-// half): the old loop stopped on ANY source read error and never
-// verified `sent` against the declared size, so a truncated local read
-// still produced a "sent" message whose attachment metadata claimed
-// the full size — while the server waited for bytes that never came.
-// size <= 0 keeps the legacy stream-until-EOF behavior (size unknown)
-// but still fails honestly on non-EOF read errors.
 func sendTSFile(w io.Writer, r io.Reader, size int64, progress func(sent, total int64)) (int64, error) {
 	if size < 0 {
 		return 0, fmt.Errorf("%w: invalid upload size %d", ErrTruncated, size)
@@ -4168,7 +3567,7 @@ func sendTSFile(w io.Writer, r io.Reader, size int64, progress func(sent, total 
 		n, readErr := r.Read(buf)
 		if n > 0 {
 			if size > 0 && sent+int64(n) > size {
-				n = int(size - sent) // never send more than declared
+				n = int(size - sent)
 			}
 			if _, writeErr := w.Write(buf[:n]); writeErr != nil {
 				return sent, fmt.Errorf("%w: upload write failed: %v", ErrNetwork, writeErr)
@@ -4194,31 +3593,22 @@ func sendTSFile(w io.Writer, r io.Reader, size int64, progress func(sent, total 
 	return sent, nil
 }
 
-// ──────────────────────────── Core Interface: Media / Calls / Misc ────────────────────────────
-
-// SendImageBase64 is not supported on TeamSpeak and returns an unsupported error.
 func (t *TeamSpeakCore) SendImageBase64(_ string, _ string, _ string) (*Message, error) {
 	return nil, fmt.Errorf("%w: teamspeak does not support base64 image sending", ErrNotSupported)
 }
 
-// StartCall is not supported on TeamSpeak and returns an unsupported error.
 func (t *TeamSpeakCore) StartCall(_ string, _ bool) (*CallSession, error) {
 	return nil, fmt.Errorf("%w: teamspeak does not support calls", ErrNotSupported)
 }
 
-// EndCall leaves the voice room (same as LeaveGroupCall).
 func (t *TeamSpeakCore) EndCall(callID string) error {
 	return t.LeaveGroupCall(callID)
 }
 
-// ToggleCamera toggles the camera on/off for an active call.
 func (t *TeamSpeakCore) ToggleCamera(_ string, _ bool) error {
 	return fmt.Errorf("%w: teamspeak does not support calls", ErrNotSupported)
 }
 
-// ──────────────────────────── Core Interface: Profile ────────────────────────────
-
-// GetProfile returns detailed client information for the given user ID.
 func (t *TeamSpeakCore) GetProfile(userID string) (*User, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -4226,7 +3616,6 @@ func (t *TeamSpeakCore) GetProfile(userID string) (*User, error) {
 		return nil, ErrAuth
 	}
 
-	// Empty string = self: use whoami to get our own client info.
 	if userID == "" {
 		rows, whoErr := t.tsExec("whoami")
 		if whoErr == nil && len(rows) > 0 {
@@ -4273,16 +3662,12 @@ func (t *TeamSpeakCore) GetProfile(userID string) (*User, error) {
 	return user, nil
 }
 
-// ──────────────────────────── Core Interface: Real-time ────────────────────────────
-
-// OnUpdate registers a handler that receives real-time updates such as messages and client events.
 func (t *TeamSpeakCore) OnUpdate(handler func(Update)) {
 	t.updateMu.Lock()
 	defer t.updateMu.Unlock()
 	t.updateHandlers = append(t.updateHandlers, handler)
 }
 
-// Close disconnects from the TeamSpeak server and releases all resources.
 func (t *TeamSpeakCore) Close() error {
 	t.mu.Lock()
 	t.autoReconnect = false
@@ -4299,9 +3684,6 @@ func (t *TeamSpeakCore) Close() error {
 	return nil
 }
 
-// ──────────────────────────── Core Interface: Chat Management ────────────────────────────
-
-// GetChatInfo returns channel or server chat metadata for the given chat ID.
 func (t *TeamSpeakCore) GetChatInfo(chatID string) (*Dialog, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -4349,13 +3731,12 @@ func (t *TeamSpeakCore) GetChatInfo(chatID string) (*Dialog, error) {
 		Title:    row["channel_name"],
 		Platform: ts3Platform,
 	}
-	if pid > 0 { // pid=0 is valid (root channel), Atoi failure also gives 0
+	if pid > 0 {
 		d.ParentID = fmt.Sprintf("ch:%d", pid)
 	}
 	return d, nil
 }
 
-// EditChatTitle renames a channel on the server.
 func (t *TeamSpeakCore) EditChatTitle(chatID string, title string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -4375,7 +3756,6 @@ func (t *TeamSpeakCore) EditChatTitle(chatID string, title string) error {
 	return err
 }
 
-// EditChatDescription updates the topic of a channel on the server.
 func (t *TeamSpeakCore) EditChatDescription(chatID string, description string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -4395,12 +3775,10 @@ func (t *TeamSpeakCore) EditChatDescription(chatID string, description string) e
 	return err
 }
 
-// LeaveChat is not supported on TeamSpeak and returns an unsupported error.
 func (t *TeamSpeakCore) LeaveChat(_ string) error {
 	return fmt.Errorf("%w: teamspeak does not support leaving chats", ErrNotSupported)
 }
 
-// GetInviteLink generates a ts3server:// invite link for the current server.
 func (t *TeamSpeakCore) GetInviteLink(chatID string) (string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -4428,9 +3806,6 @@ func (t *TeamSpeakCore) GetInviteLink(chatID string) (string, error) {
 	return rows[0]["token"], nil
 }
 
-// ──────────────────────────── Core Interface: Members ────────────────────────────
-
-// AddMembers moves the specified clients into a channel by client ID.
 func (t *TeamSpeakCore) AddMembers(chatID string, userIDs []string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -4459,7 +3834,6 @@ func (t *TeamSpeakCore) AddMembers(chatID string, userIDs []string) error {
 	return nil
 }
 
-// RemoveMember kicks a client from the server.
 func (t *TeamSpeakCore) RemoveMember(_ string, userID string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -4477,7 +3851,6 @@ func (t *TeamSpeakCore) RemoveMember(_ string, userID string) error {
 	return err
 }
 
-// BanMember bans a client from the server.
 func (t *TeamSpeakCore) BanMember(_ string, userID string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -4494,7 +3867,6 @@ func (t *TeamSpeakCore) BanMember(_ string, userID string) error {
 	return err
 }
 
-// UnbanMember removes a ban by ban ID.
 func (t *TeamSpeakCore) UnbanMember(_ string, userID string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -4506,21 +3878,18 @@ func (t *TeamSpeakCore) UnbanMember(_ string, userID string) error {
 	if err != nil {
 		return fmt.Errorf("%w: invalid ban ID", ErrInvalidInput)
 	}
-	// F-86: bandel is wire-proven SILENT on success — confirm through
-	// banlist (data rows; empty list → ErrNotFound = every ban gone,
-	// ours included → goal state holds).
 	banIDStr := strconv.Itoa(banID)
 	_, verr := t.tsExecVerified(fmt.Sprintf("bandel banid=%d", banID), func() (bool, error) {
 		rows, berr := t.tsExec("banlist")
 		if berr != nil {
 			if errors.Is(berr, ErrNotFound) {
-				return true, nil // empty ban list → the ban is gone
+				return true, nil
 			}
 			return false, berr
 		}
 		for _, r := range rows {
 			if r["banid"] == banIDStr {
-				return false, nil // still banned
+				return false, nil
 			}
 		}
 		return true, nil
@@ -4528,11 +3897,7 @@ func (t *TeamSpeakCore) UnbanMember(_ string, userID string) error {
 	return verr
 }
 
-// GetMembers returns the list of clients in the specified channel.
 func (t *TeamSpeakCore) GetMembers(chatID string, opts PaginationOpts) ([]User, error) {
-	// Lock order: clientInfoMu BEFORE t.mu (B-40). GetGroupCall nests the
-	// same direction (clientInfoMu held while selfMuted takes t.mu);
-	// the reverse order here WAS a deadlock pair under any t.mu writer.
 	t.clientInfoMu.RLock()
 	defer t.clientInfoMu.RUnlock()
 
@@ -4579,7 +3944,6 @@ func (t *TeamSpeakCore) GetMembers(chatID string, opts PaginationOpts) ([]User, 
 	return users[offset:end], nil
 }
 
-// SetAdmin grants or revokes server admin privileges for a user.
 func (t *TeamSpeakCore) SetAdmin(chatID string, userID string, admin bool) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -4587,12 +3951,6 @@ func (t *TeamSpeakCore) SetAdmin(chatID string, userID string, admin bool) error
 		return ErrAuth
 	}
 
-	// F-86: the GUI's User.ID is the SESSION id (clid — GetMembers
-	// hands out ci.clid) but servergroupaddclient wants the DATABASE
-	// id — sending the clid answered "invalid clientID" on every call
-	// (wire-proven: clid=86 vs dbid=78, WORKLOG 321). clientinfo
-	// resolves it; its reply is a DATA row, so it also survives
-	// silent-reply servers (grace path).
 	clid, err := strconv.Atoi(userID)
 	if err != nil {
 		return fmt.Errorf("%w: invalid user ID", ErrInvalidInput)
@@ -4631,9 +3989,6 @@ func (t *TeamSpeakCore) SetAdmin(chatID string, userID string, admin bool) error
 		return fmt.Errorf("%w: could not find admin server group", ErrNotFound)
 	}
 
-	// F-86: silent-reply servers never answer these — confirm via the
-	// member-list read-back instead of trusting a reply that may never
-	// come (bandel/servergroup* were wire-proven silent).
 	if admin {
 		_, verr := t.tsExecVerified(
 			fmt.Sprintf("servergroupaddclient sgid=%d cldbid=%d", adminSGID, dbid),
@@ -4646,9 +4001,6 @@ func (t *TeamSpeakCore) SetAdmin(chatID string, userID string, admin bool) error
 	return verr
 }
 
-// ──────────────────────────── Core Interface: Contacts ────────────────────────────
-
-// GetContacts returns all clients in the server database as a contact list.
 func (t *TeamSpeakCore) GetContacts() ([]User, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -4680,27 +4032,22 @@ func (t *TeamSpeakCore) GetContacts() ([]User, error) {
 	return users, nil
 }
 
-// AddContact is not supported on TeamSpeak and returns an unsupported error.
 func (t *TeamSpeakCore) AddContact(_ string, _ string, _ string) error {
 	return fmt.Errorf("%w: teamspeak does not support contacts", ErrNotSupported)
 }
 
-// DeleteContact is not supported on TeamSpeak and returns an unsupported error.
 func (t *TeamSpeakCore) DeleteContact(_ string) error {
 	return fmt.Errorf("%w: teamspeak does not support contacts", ErrNotSupported)
 }
 
-// BlockUser ignores all messages from the specified client.
 func (t *TeamSpeakCore) BlockUser(userID string) error {
 	return t.BanMember("", userID)
 }
 
-// UnblockUser stops ignoring messages from the specified client.
 func (t *TeamSpeakCore) UnblockUser(userID string) error {
 	return t.UnbanMember("", userID)
 }
 
-// GetBlockedUsers is not supported on TeamSpeak and returns an unsupported error.
 func (t *TeamSpeakCore) GetBlockedUsers() ([]User, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -4729,9 +4076,6 @@ func (t *TeamSpeakCore) GetBlockedUsers() ([]User, error) {
 	return users, nil
 }
 
-// ──────────────────────────── Core Interface: Search ────────────────────────────
-
-// SearchMessages searches the in-memory message buffer for messages matching the query string.
 func (t *TeamSpeakCore) SearchMessages(_ string, query string, opts PaginationOpts) ([]Message, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -4762,7 +4106,6 @@ func (t *TeamSpeakCore) SearchMessages(_ string, query string, opts PaginationOp
 	return results, nil
 }
 
-// SearchGlobal searches for channels matching the given query string.
 func (t *TeamSpeakCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -4799,11 +4142,7 @@ func (t *TeamSpeakCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialo
 	return results, nil
 }
 
-// ──────────────────────────── Core Interface: Remaining Stubs ────────────────────────────
-
-// SendTyping sends a typing indicator as a plugin command to a DM target.
 func (t *TeamSpeakCore) SendTyping(chatID string) error {
-	// Snapshot self id BEFORE taking t.mu (B-40 lock order, F-85).
 	t.clientInfoMu.RLock()
 	selfClid := t.myClientID
 	t.clientInfoMu.RUnlock()
@@ -4825,24 +4164,19 @@ func (t *TeamSpeakCore) SendTyping(chatID string) error {
 	return err
 }
 
-// CreatePoll is not supported on TeamSpeak and returns an unsupported error.
 func (t *TeamSpeakCore) CreatePoll(_ string, _ string, _ []string) (*Message, error) {
 	return nil, fmt.Errorf("%w: teamspeak does not support polls", ErrNotSupported)
 }
 
-// VotePoll is not supported on TeamSpeak and returns an unsupported error.
 func (t *TeamSpeakCore) VotePoll(_ string, _ string, _ int) error {
 	return fmt.Errorf("%w: teamspeak does not support polls", ErrNotSupported)
 }
 
-// SendSticker is not supported on TeamSpeak and returns an unsupported error.
 func (t *TeamSpeakCore) SendSticker(_ string, _ string) (*Message, error) {
 	return nil, fmt.Errorf("%w: teamspeak does not support stickers", ErrNotSupported)
 }
 
-// GetSessions returns all currently connected clients on the server.
 func (t *TeamSpeakCore) GetSessions() ([]Session, error) {
-	// Self id snapshotted BEFORE t.mu (B-40 lock order).
 	t.clientInfoMu.RLock()
 	selfClid := t.myClientID
 	t.clientInfoMu.RUnlock()
@@ -4892,9 +4226,7 @@ func (t *TeamSpeakCore) GetSessions() ([]Session, error) {
 	return sessions, nil
 }
 
-// TerminateSession kicks a client from the server by their client ID.
 func (t *TeamSpeakCore) TerminateSession(sessionID string) error {
-	// Self id snapshotted BEFORE t.mu (B-40 lock order).
 	t.clientInfoMu.RLock()
 	selfClid := t.myClientID
 	t.clientInfoMu.RUnlock()
@@ -4918,11 +4250,7 @@ func (t *TeamSpeakCore) TerminateSession(sessionID string) error {
 		clid, tsEscape("Session terminated")))
 }
 
-// ──────────────────────────── Client Self-Update (clientupdate) ────────────────────────────
-
 func (t *TeamSpeakCore) tsClientUpdate(params string) error {
-	// Snapshot self id BEFORE taking t.mu (B-40: never acquire
-	// clientInfoMu while t.mu is held).
 	t.clientInfoMu.RLock()
 	selfClid := t.myClientID
 	t.clientInfoMu.RUnlock()
@@ -4937,7 +4265,6 @@ func (t *TeamSpeakCore) tsClientUpdate(params string) error {
 	return err
 }
 
-// ClientUpdate sends a clientupdate command with the given key=value pairs.
 func (t *TeamSpeakCore) ClientUpdate(params map[string]string) error {
 	var b strings.Builder
 	first := true
@@ -4953,7 +4280,6 @@ func (t *TeamSpeakCore) ClientUpdate(params map[string]string) error {
 	return t.tsClientUpdate(b.String())
 }
 
-// SetNickname changes the client's display name on the server.
 func (t *TeamSpeakCore) SetNickname(nickname string) error {
 	if err := t.tsClientUpdate(fmt.Sprintf("client_nickname=%s", tsEscape(nickname))); err != nil {
 		return err
@@ -4968,7 +4294,6 @@ func (t *TeamSpeakCore) SetNickname(nickname string) error {
 	return nil
 }
 
-// SetInputMuted mutes or unmutes the client's microphone input.
 func (t *TeamSpeakCore) SetInputMuted(muted bool) error {
 	v := "0"
 	if muted {
@@ -4980,8 +4305,6 @@ func (t *TeamSpeakCore) SetInputMuted(muted bool) error {
 	return t.tsClientUpdate("client_input_muted=" + v)
 }
 
-// noteSpeaking records voice activity for a client (speaking shows for
-// 400 ms after the last voice packet).
 func (t *TeamSpeakCore) noteSpeaking(clid int) {
 	t.speakingMu.Lock()
 	if t.speakingUntil == nil {
@@ -4991,7 +4314,6 @@ func (t *TeamSpeakCore) noteSpeaking(clid int) {
 	t.speakingMu.Unlock()
 }
 
-// isSpeaking reports recent voice activity for a client.
 func (t *TeamSpeakCore) isSpeaking(clid int) bool {
 	t.speakingMu.Lock()
 	defer t.speakingMu.Unlock()
@@ -4999,14 +4321,10 @@ func (t *TeamSpeakCore) isSpeaking(clid int) bool {
 	return ok && time.Now().Before(until)
 }
 
-// SendVoiceFrame implements cores.VoiceCore: one 20 ms Opus voice
-// packet to the current channel.
 func (t *TeamSpeakCore) SendVoiceFrame(opusData []byte) error {
 	return t.SendVoice(tsCodecOpusVoice, opusData)
 }
 
-// OnVoiceFrame implements cores.VoiceCore: client-attributed Opus
-// voice packets (whisper included).
 func (t *TeamSpeakCore) OnVoiceFrame(handler func(sender string, opus []byte)) {
 	t.OnVoice(func(p VoicePacket) {
 		if len(p.AudioData) == 0 {
@@ -5016,14 +4334,10 @@ func (t *TeamSpeakCore) OnVoiceFrame(handler func(sender string, opus []byte)) {
 	})
 }
 
-// SetVoiceMuted implements cores.VoiceCore via the server-side
-// client_input_muted state.
 func (t *TeamSpeakCore) SetVoiceMuted(muted bool) error {
 	return t.SetInputMuted(muted)
 }
 
-// tsParseChannelChatID extracts the numeric channel id from a chat id
-// ("ch:<cid>").
 func tsParseChannelChatID(chatID string) (int, error) {
 	if !strings.HasPrefix(chatID, "ch:") {
 		return 0, ErrInvalidInput
@@ -5035,7 +4349,6 @@ func tsParseChannelChatID(chatID string) (int, error) {
 	return cid, nil
 }
 
-// JoinGroupCall joins a channel's voice room by moving into it.
 func (t *TeamSpeakCore) JoinGroupCall(chatID string) (*CallSession, error) {
 	t.mu.RLock()
 	if !t.authed {
@@ -5048,9 +4361,6 @@ func (t *TeamSpeakCore) JoinGroupCall(chatID string) (*CallSession, error) {
 		return nil, err
 	}
 	if err := t.JoinChannel(cid, ""); err != nil {
-		// TS3 error 770 "already member of channel": the join already
-		// took effect (re-join, or the connect-time placement) — that IS
-		// the requested state.
 		var te *tsError
 		if !errors.As(err, &te) || te.ID != 770 {
 			return nil, err
@@ -5064,19 +4374,12 @@ func (t *TeamSpeakCore) JoinGroupCall(chatID string) (*CallSession, error) {
 	}, nil
 }
 
-// DefaultChannelID returns the server's default channel id (-1 until the
-// channel list lands). The default channel is where clients land on
-// connect — leaving a voice room moves back here. A hard-coded 0 is
-// wrong: default channel ids are server-specific (live servers return
-// "invalid channelID" for cid=0).
 func (t *TeamSpeakCore) DefaultChannelID() int {
 	t.defaultChannelMu.RLock()
 	defer t.defaultChannelMu.RUnlock()
 	return t.defaultChannelID
 }
 
-// LeaveGroupCall leaves the voice room by moving back to the default
-// channel.
 func (t *TeamSpeakCore) LeaveGroupCall(callID string) error {
 	t.mu.RLock()
 	if !t.authed {
@@ -5086,14 +4389,11 @@ func (t *TeamSpeakCore) LeaveGroupCall(callID string) error {
 	t.mu.RUnlock()
 	cid := t.DefaultChannelID()
 	if cid < 0 {
-		// Channel list not synced (fresh reconnect) — staying put is
-		// safer than guessing a channel id.
 		return nil
 	}
 	return t.JoinChannel(cid, "")
 }
 
-// SetCallMuted toggles the microphone in the current voice session.
 func (t *TeamSpeakCore) SetCallMuted(callID string, muted bool) error {
 	t.mu.RLock()
 	if !t.authed {
@@ -5104,8 +4404,6 @@ func (t *TeamSpeakCore) SetCallMuted(callID string, muted bool) error {
 	return t.SetInputMuted(muted)
 }
 
-// GetGroupCall returns the channel's live voice session: participants
-// are the clients currently in the channel with mute/speaking state.
 func (t *TeamSpeakCore) GetGroupCall(chatID string) (*CallSession, error) {
 	t.mu.RLock()
 	if !t.authed {
@@ -5144,10 +4442,6 @@ func (t *TeamSpeakCore) GetGroupCall(chatID string) (*CallSession, error) {
 	}
 	t.clientInfoMu.RUnlock()
 
-	// The server never sends the local client's own enter-view event —
-	// add ourselves so the room lists every member (Mumble parity).
-	// myChannelID is guarded by clientInfoMu (B-37): read it under the
-	// lock, decide outside.
 	t.clientInfoMu.RLock()
 	selfInThisRoom := !selfSeen && t.myChannelID == cid
 	t.clientInfoMu.RUnlock()
@@ -5169,23 +4463,17 @@ func (t *TeamSpeakCore) GetGroupCall(chatID string) (*CallSession, error) {
 		Meta: map[string]string{
 			"title":              title,
 			"participants_count": strconv.Itoa(len(participants)),
-			// Polled by the call bar so the UI can say "mic blocked"
-			// instead of showing a healthy room while audio dies (B-26).
-			"talk_power": t.talkPowerState(cid),
+			"talk_power":         t.talkPowerState(cid),
 		},
 	}, nil
 }
 
-// selfMuted reports whether the mic is muted locally (the engine runner
-// mirrors its own mute state; the server state is authoritative for
-// other clients).
 func (t *TeamSpeakCore) selfMuted() bool {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	return t.micMuted
 }
 
-// SetOutputMuted mutes or unmutes the client's audio output.
 func (t *TeamSpeakCore) SetOutputMuted(muted bool) error {
 	v := "0"
 	if muted {
@@ -5194,7 +4482,6 @@ func (t *TeamSpeakCore) SetOutputMuted(muted bool) error {
 	return t.tsClientUpdate("client_output_muted=" + v)
 }
 
-// SetInputHardware enables or disables the client's input hardware status.
 func (t *TeamSpeakCore) SetInputHardware(enabled bool) error {
 	v := "0"
 	if enabled {
@@ -5203,7 +4490,6 @@ func (t *TeamSpeakCore) SetInputHardware(enabled bool) error {
 	return t.tsClientUpdate("client_input_hardware=" + v)
 }
 
-// SetOutputHardware enables or disables the client's output hardware status.
 func (t *TeamSpeakCore) SetOutputHardware(enabled bool) error {
 	v := "0"
 	if enabled {
@@ -5212,7 +4498,6 @@ func (t *TeamSpeakCore) SetOutputHardware(enabled bool) error {
 	return t.tsClientUpdate("client_output_hardware=" + v)
 }
 
-// SetChannelCommander enables or disables channel commander mode for the client.
 func (t *TeamSpeakCore) SetChannelCommander(enabled bool) error {
 	v := "0"
 	if enabled {
@@ -5221,7 +4506,6 @@ func (t *TeamSpeakCore) SetChannelCommander(enabled bool) error {
 	return t.tsClientUpdate("client_is_channel_commander=" + v)
 }
 
-// SetRecording enables or disables the recording status indicator for the client.
 func (t *TeamSpeakCore) SetRecording(enabled bool) error {
 	v := "0"
 	if enabled {
@@ -5230,7 +4514,6 @@ func (t *TeamSpeakCore) SetRecording(enabled bool) error {
 	return t.tsClientUpdate("client_is_recording=" + v)
 }
 
-// SetAway sets or clears the client's away status with an optional message.
 func (t *TeamSpeakCore) SetAway(away bool, message string) error {
 	cmd := fmt.Sprintf("client_away=%d", 0)
 	if away {
@@ -5239,46 +4522,35 @@ func (t *TeamSpeakCore) SetAway(away bool, message string) error {
 	return t.tsClientUpdate(cmd)
 }
 
-// SetDescription updates the client's profile description.
 func (t *TeamSpeakCore) SetDescription(description string) error {
 	return t.tsClientUpdate(fmt.Sprintf("client_description=%s", tsEscape(description)))
 }
 
-// SetAvatar sets the client's avatar using the given MD5 hash of the avatar file.
 func (t *TeamSpeakCore) SetAvatar(md5Hex string) error {
 	return t.tsClientUpdate(fmt.Sprintf("client_flag_avatar=%s", md5Hex))
 }
 
-// RequestTalkPower requests talk power in the current channel with an optional message.
 func (t *TeamSpeakCore) RequestTalkPower(message string) error {
 	return t.tsClientUpdate(fmt.Sprintf("client_talk_request=1 client_talk_request_msg=%s", tsEscape(message)))
 }
 
-// CancelTalkPowerRequest cancels a pending talk power request.
 func (t *TeamSpeakCore) CancelTalkPowerRequest() error {
 	return t.tsClientUpdate("client_talk_request=0")
 }
 
-// SetBadges updates the client's displayed badges.
 func (t *TeamSpeakCore) SetBadges(badges string) error {
 	return t.tsClientUpdate(fmt.Sprintf("client_badges=%s", tsEscape(badges)))
 }
 
-// SetMetaData sets arbitrary metadata on the client visible to other clients.
 func (t *TeamSpeakCore) SetMetaData(metadata string) error {
 	return t.tsClientUpdate(fmt.Sprintf("client_meta_data=%s", tsEscape(metadata)))
 }
 
-// SetPhoneticNickname sets the client's phonetic nickname for text-to-speech.
 func (t *TeamSpeakCore) SetPhoneticNickname(name string) error {
 	return t.tsClientUpdate(fmt.Sprintf("client_nickname_phonetic=%s", tsEscape(name)))
 }
 
-// ──────────────────────────── Channel Management ────────────────────────────
-
-// CreateChannelFull creates a new channel with the given name and optional properties.
 func (t *TeamSpeakCore) CreateChannelFull(name string, opts map[string]string) (int, error) {
-	// Snapshot self id BEFORE taking t.mu (B-40 lock order, F-85).
 	t.clientInfoMu.RLock()
 	selfClid := t.myClientID
 	t.clientInfoMu.RUnlock()
@@ -5314,7 +4586,6 @@ func (t *TeamSpeakCore) CreateChannelFull(name string, opts map[string]string) (
 	return 0, nil
 }
 
-// EditChannel modifies properties of an existing channel by channel ID.
 func (t *TeamSpeakCore) EditChannel(cid int, props map[string]string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5333,7 +4604,6 @@ func (t *TeamSpeakCore) EditChannel(cid int, props map[string]string) error {
 	return t.tsExecSimple(b.String())
 }
 
-// DeleteChannel removes a channel from the server, optionally forcing removal of subchannels.
 func (t *TeamSpeakCore) DeleteChannel(cid int, force bool) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5347,7 +4617,6 @@ func (t *TeamSpeakCore) DeleteChannel(cid int, force bool) error {
 	return t.tsExecSimple(fmt.Sprintf("channeldelete cid=%d force=%d", cid, f))
 }
 
-// MoveChannel moves a channel under a new parent with the specified sort order.
 func (t *TeamSpeakCore) MoveChannel(cid, newParent, order int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5357,7 +4626,6 @@ func (t *TeamSpeakCore) MoveChannel(cid, newParent, order int) error {
 	return t.tsExecSimple(fmt.Sprintf("channelmove cid=%d cpid=%d order=%d", cid, newParent, order))
 }
 
-// FindChannel searches for channels matching a name pattern.
 func (t *TeamSpeakCore) FindChannel(pattern string) ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5367,7 +4635,6 @@ func (t *TeamSpeakCore) FindChannel(pattern string) ([]map[string]string, error)
 	return t.tsExec(fmt.Sprintf("channelfind pattern=%s", tsEscape(pattern)))
 }
 
-// GetChannelDescription retrieves the description text for a channel.
 func (t *TeamSpeakCore) GetChannelDescription(cid int) (string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5384,7 +4651,6 @@ func (t *TeamSpeakCore) GetChannelDescription(cid int) (string, error) {
 	return "", nil
 }
 
-// SubscribeChannel subscribes to event notifications for the specified channels.
 func (t *TeamSpeakCore) SubscribeChannel(cids ...int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5403,7 +4669,6 @@ func (t *TeamSpeakCore) SubscribeChannel(cids ...int) error {
 	return t.tsExecSimple(b.String())
 }
 
-// SubscribeAllChannels subscribes to event notifications for all channels on the server.
 func (t *TeamSpeakCore) SubscribeAllChannels() error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5413,7 +4678,6 @@ func (t *TeamSpeakCore) SubscribeAllChannels() error {
 	return t.tsExecSimple("channelsubscribeall")
 }
 
-// UnsubscribeChannel unsubscribes from event notifications for the specified channels.
 func (t *TeamSpeakCore) UnsubscribeChannel(cids ...int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5432,7 +4696,6 @@ func (t *TeamSpeakCore) UnsubscribeChannel(cids ...int) error {
 	return t.tsExecSimple(b.String())
 }
 
-// UnsubscribeAllChannels unsubscribes from event notifications for all channels on the server.
 func (t *TeamSpeakCore) UnsubscribeAllChannels() error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5442,9 +4705,6 @@ func (t *TeamSpeakCore) UnsubscribeAllChannels() error {
 	return t.tsExecSimple("channelunsubscribeall")
 }
 
-// ──────────────────────────── Channel Permissions ────────────────────────────
-
-// ChannelAddPerm adds or updates a permission on a channel.
 func (t *TeamSpeakCore) ChannelAddPerm(cid int, permID int, permValue int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5454,7 +4714,6 @@ func (t *TeamSpeakCore) ChannelAddPerm(cid int, permID int, permValue int) error
 	return t.tsExecSimple(fmt.Sprintf("channeladdperm cid=%d permid=%d permvalue=%d", cid, permID, permValue))
 }
 
-// ChannelDelPerm removes a permission from a channel.
 func (t *TeamSpeakCore) ChannelDelPerm(cid int, permID int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5464,7 +4723,6 @@ func (t *TeamSpeakCore) ChannelDelPerm(cid int, permID int) error {
 	return t.tsExecSimple(fmt.Sprintf("channeldelperm cid=%d permid=%d", cid, permID))
 }
 
-// ChannelPermList returns all permissions assigned to a channel.
 func (t *TeamSpeakCore) ChannelPermList(cid int) ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5474,7 +4732,6 @@ func (t *TeamSpeakCore) ChannelPermList(cid int) ([]map[string]string, error) {
 	return t.tsExec(fmt.Sprintf("channelpermlist cid=%d", cid))
 }
 
-// ChannelClientAddPerm assigns a permission to a specific client in a channel.
 func (t *TeamSpeakCore) ChannelClientAddPerm(cid, cldbid, permID, permValue int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5484,7 +4741,6 @@ func (t *TeamSpeakCore) ChannelClientAddPerm(cid, cldbid, permID, permValue int)
 	return t.tsExecSimple(fmt.Sprintf("channelclientaddperm cid=%d cldbid=%d permid=%d permvalue=%d", cid, cldbid, permID, permValue))
 }
 
-// ChannelClientDelPerm removes a client-specific permission from a channel.
 func (t *TeamSpeakCore) ChannelClientDelPerm(cid, cldbid, permID int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5494,7 +4750,6 @@ func (t *TeamSpeakCore) ChannelClientDelPerm(cid, cldbid, permID int) error {
 	return t.tsExecSimple(fmt.Sprintf("channelclientdelperm cid=%d cldbid=%d permid=%d", cid, cldbid, permID))
 }
 
-// ChannelClientPermList returns all client-specific permissions for a client in a channel.
 func (t *TeamSpeakCore) ChannelClientPermList(cid, cldbid int) ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5504,9 +4759,6 @@ func (t *TeamSpeakCore) ChannelClientPermList(cid, cldbid int) ([]map[string]str
 	return t.tsExec(fmt.Sprintf("channelclientpermlist cid=%d cldbid=%d", cid, cldbid))
 }
 
-// ──────────────────────────── Server Group Commands ────────────────────────────
-
-// ServerGroupAdd creates a new server group with the given name and returns its ID.
 func (t *TeamSpeakCore) ServerGroupAdd(name string) (int, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5527,7 +4779,6 @@ func (t *TeamSpeakCore) ServerGroupAdd(name string) (int, error) {
 	return 0, nil
 }
 
-// ServerGroupDel deletes a server group, optionally forcing removal even if members exist.
 func (t *TeamSpeakCore) ServerGroupDel(sgid int, force bool) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5541,7 +4792,6 @@ func (t *TeamSpeakCore) ServerGroupDel(sgid int, force bool) error {
 	return t.tsExecSimple(fmt.Sprintf("servergroupdel sgid=%d force=%d", sgid, f))
 }
 
-// ServerGroupClientList returns all clients assigned to a server group.
 func (t *TeamSpeakCore) ServerGroupClientList(sgid int) ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5551,7 +4801,6 @@ func (t *TeamSpeakCore) ServerGroupClientList(sgid int) ([]map[string]string, er
 	return t.tsExec(fmt.Sprintf("servergroupclientlist sgid=%d", sgid))
 }
 
-// ServerGroupPermList returns all permissions assigned to a server group.
 func (t *TeamSpeakCore) ServerGroupPermList(sgid int) ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5561,7 +4810,6 @@ func (t *TeamSpeakCore) ServerGroupPermList(sgid int) ([]map[string]string, erro
 	return t.tsExec(fmt.Sprintf("servergrouppermlist sgid=%d", sgid))
 }
 
-// ServerGroupAddPerm assigns a permission to a server group.
 func (t *TeamSpeakCore) ServerGroupAddPerm(sgid, permID, permValue int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5571,7 +4819,6 @@ func (t *TeamSpeakCore) ServerGroupAddPerm(sgid, permID, permValue int) error {
 	return t.tsExecSimple(fmt.Sprintf("servergroupaddperm sgid=%d permid=%d permvalue=%d permnegated=0 permskip=0", sgid, permID, permValue))
 }
 
-// ServerGroupDelPerm removes a permission from a server group.
 func (t *TeamSpeakCore) ServerGroupDelPerm(sgid, permID int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5581,7 +4828,6 @@ func (t *TeamSpeakCore) ServerGroupDelPerm(sgid, permID int) error {
 	return t.tsExecSimple(fmt.Sprintf("servergroupdelperm sgid=%d permid=%d", sgid, permID))
 }
 
-// ServerGroupCopy duplicates a server group with a new name and target type.
 func (t *TeamSpeakCore) ServerGroupCopy(sourceSGID int, name string, targetType int) (int, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5602,7 +4848,6 @@ func (t *TeamSpeakCore) ServerGroupCopy(sourceSGID int, name string, targetType 
 	return 0, nil
 }
 
-// ServerGroupRename changes the name of a server group.
 func (t *TeamSpeakCore) ServerGroupRename(sgid int, name string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5612,7 +4857,6 @@ func (t *TeamSpeakCore) ServerGroupRename(sgid int, name string) error {
 	return t.tsExecSimple(fmt.Sprintf("servergrouprename sgid=%d name=%s", sgid, tsEscape(name)))
 }
 
-// ServerGroupsByClientID returns all server groups assigned to a client database ID.
 func (t *TeamSpeakCore) ServerGroupsByClientID(cldbid int) ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5622,7 +4866,6 @@ func (t *TeamSpeakCore) ServerGroupsByClientID(cldbid int) ([]map[string]string,
 	return t.tsExec(fmt.Sprintf("servergroupsbyclientid cldbid=%d", cldbid))
 }
 
-// ServerGroupAutoAddPerm adds a permission that is automatically granted to new server groups of the specified type.
 func (t *TeamSpeakCore) ServerGroupAutoAddPerm(sgtype int, permID, permValue int, permNegated, permSkip bool) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5640,7 +4883,6 @@ func (t *TeamSpeakCore) ServerGroupAutoAddPerm(sgtype int, permID, permValue int
 		sgtype, permID, permValue, n, s))
 }
 
-// ServerGroupAutoDelPerm removes an auto-assigned permission from server groups of the specified type.
 func (t *TeamSpeakCore) ServerGroupAutoDelPerm(sgtype int, permID int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5650,9 +4892,6 @@ func (t *TeamSpeakCore) ServerGroupAutoDelPerm(sgtype int, permID int) error {
 	return t.tsExecSimple(fmt.Sprintf("servergroupautodelperm sgtype=%d permid=%d", sgtype, permID))
 }
 
-// ──────────────────────────── Channel Group Commands ────────────────────────────
-
-// ChannelGroupList returns all channel groups on the server.
 func (t *TeamSpeakCore) ChannelGroupList() ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5662,7 +4901,6 @@ func (t *TeamSpeakCore) ChannelGroupList() ([]map[string]string, error) {
 	return t.tsExec("channelgrouplist")
 }
 
-// ChannelGroupAdd creates a new channel group with the given name.
 func (t *TeamSpeakCore) ChannelGroupAdd(name string) (int, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5683,7 +4921,6 @@ func (t *TeamSpeakCore) ChannelGroupAdd(name string) (int, error) {
 	return 0, nil
 }
 
-// ChannelGroupDel deletes a channel group, optionally forcing removal even if members exist.
 func (t *TeamSpeakCore) ChannelGroupDel(cgid int, force bool) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5697,7 +4934,6 @@ func (t *TeamSpeakCore) ChannelGroupDel(cgid int, force bool) error {
 	return t.tsExecSimple(fmt.Sprintf("channelgroupdel cgid=%d force=%d", cgid, f))
 }
 
-// ChannelGroupClientList returns all clients assigned to a channel group in a channel.
 func (t *TeamSpeakCore) ChannelGroupClientList(cgid, cid int) ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5707,7 +4943,6 @@ func (t *TeamSpeakCore) ChannelGroupClientList(cgid, cid int) ([]map[string]stri
 	return t.tsExec(fmt.Sprintf("channelgroupclientlist cgid=%d cid=%d", cgid, cid))
 }
 
-// ChannelGroupPermList returns all permissions assigned to a channel group.
 func (t *TeamSpeakCore) ChannelGroupPermList(cgid int) ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5717,7 +4952,6 @@ func (t *TeamSpeakCore) ChannelGroupPermList(cgid int) ([]map[string]string, err
 	return t.tsExec(fmt.Sprintf("channelgrouppermlist cgid=%d", cgid))
 }
 
-// ChannelGroupAddPerm assigns a permission to a channel group.
 func (t *TeamSpeakCore) ChannelGroupAddPerm(cgid, permID, permValue int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5727,7 +4961,6 @@ func (t *TeamSpeakCore) ChannelGroupAddPerm(cgid, permID, permValue int) error {
 	return t.tsExecSimple(fmt.Sprintf("channelgroupaddperm cgid=%d permid=%d permvalue=%d permnegated=0 permskip=0", cgid, permID, permValue))
 }
 
-// ChannelGroupDelPerm removes a permission from a channel group.
 func (t *TeamSpeakCore) ChannelGroupDelPerm(cgid, permID int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5737,7 +4970,6 @@ func (t *TeamSpeakCore) ChannelGroupDelPerm(cgid, permID int) error {
 	return t.tsExecSimple(fmt.Sprintf("channelgroupdelperm cgid=%d permid=%d", cgid, permID))
 }
 
-// ChannelGroupCopy duplicates a channel group with a new name and target type.
 func (t *TeamSpeakCore) ChannelGroupCopy(sourceCGID int, name string, targetType int) (int, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5758,7 +4990,6 @@ func (t *TeamSpeakCore) ChannelGroupCopy(sourceCGID int, name string, targetType
 	return 0, nil
 }
 
-// ChannelGroupRename changes the name of a channel group.
 func (t *TeamSpeakCore) ChannelGroupRename(cgid int, name string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5768,7 +4999,6 @@ func (t *TeamSpeakCore) ChannelGroupRename(cgid int, name string) error {
 	return t.tsExecSimple(fmt.Sprintf("channelgrouprename cgid=%d name=%s", cgid, tsEscape(name)))
 }
 
-// SetClientChannelGroup assigns a client to a channel group in a specific channel.
 func (t *TeamSpeakCore) SetClientChannelGroup(cgid, cid, cldbid int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5778,9 +5008,6 @@ func (t *TeamSpeakCore) SetClientChannelGroup(cgid, cid, cldbid int) error {
 	return t.tsExecSimple(fmt.Sprintf("setclientchannelgroup cgid=%d cid=%d cldbid=%d", cgid, cid, cldbid))
 }
 
-// ──────────────────────────── Client Lookup Commands ────────────────────────────
-
-// ClientDBInfo returns the database record for a client by their database ID.
 func (t *TeamSpeakCore) ClientDBInfo(cldbid int) (map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5797,7 +5024,6 @@ func (t *TeamSpeakCore) ClientDBInfo(cldbid int) (map[string]string, error) {
 	return rows[0], nil
 }
 
-// ClientDBEdit modifies properties of a client in the server database.
 func (t *TeamSpeakCore) ClientDBEdit(cldbid int, props map[string]string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5816,7 +5042,6 @@ func (t *TeamSpeakCore) ClientDBEdit(cldbid int, props map[string]string) error 
 	return t.tsExecSimple(b.String())
 }
 
-// ClientDBDelete removes a client entry from the server database.
 func (t *TeamSpeakCore) ClientDBDelete(cldbid int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5826,7 +5051,6 @@ func (t *TeamSpeakCore) ClientDBDelete(cldbid int) error {
 	return t.tsExecSimple(fmt.Sprintf("clientdbdelete cldbid=%d", cldbid))
 }
 
-// ClientDBFind searches the server database for clients matching a pattern.
 func (t *TeamSpeakCore) ClientDBFind(pattern string, isUID bool) ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5840,7 +5064,6 @@ func (t *TeamSpeakCore) ClientDBFind(pattern string, isUID bool) ([]map[string]s
 	return t.tsExec(cmd)
 }
 
-// ClientFind searches for online clients matching a nickname pattern.
 func (t *TeamSpeakCore) ClientFind(pattern string) ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5850,7 +5073,6 @@ func (t *TeamSpeakCore) ClientFind(pattern string) ([]map[string]string, error) 
 	return t.tsExec(fmt.Sprintf("clientfind pattern=%s", tsEscape(pattern)))
 }
 
-// ClientGetDBIDFromUID resolves a client unique ID to a database ID.
 func (t *TeamSpeakCore) ClientGetDBIDFromUID(cluid string) (int, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5871,7 +5093,6 @@ func (t *TeamSpeakCore) ClientGetDBIDFromUID(cluid string) (int, error) {
 	return cldbid, nil
 }
 
-// ClientGetIDs resolves a client unique ID to all currently connected client IDs.
 func (t *TeamSpeakCore) ClientGetIDs(cluid string) ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5881,7 +5102,6 @@ func (t *TeamSpeakCore) ClientGetIDs(cluid string) ([]map[string]string, error) 
 	return t.tsExec(fmt.Sprintf("clientgetids cluid=%s", tsEscape(cluid)))
 }
 
-// ClientGetNameFromUID resolves a client unique ID to a nickname.
 func (t *TeamSpeakCore) ClientGetNameFromUID(cluid string) (string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5898,7 +5118,6 @@ func (t *TeamSpeakCore) ClientGetNameFromUID(cluid string) (string, error) {
 	return rows[0]["name"], nil
 }
 
-// ClientGetNameFromDBID resolves a client database ID to a nickname.
 func (t *TeamSpeakCore) ClientGetNameFromDBID(cldbid int) (string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5915,7 +5134,6 @@ func (t *TeamSpeakCore) ClientGetNameFromDBID(cldbid int) (string, error) {
 	return rows[0]["name"], nil
 }
 
-// ClientGetUIDFromCLID resolves an online client ID to a unique ID.
 func (t *TeamSpeakCore) ClientGetUIDFromCLID(clid int) (string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5932,7 +5150,6 @@ func (t *TeamSpeakCore) ClientGetUIDFromCLID(clid int) (string, error) {
 	return rows[0]["cluid"], nil
 }
 
-// ClientEdit modifies properties of an online client.
 func (t *TeamSpeakCore) ClientEdit(clid int, props map[string]string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5951,7 +5168,6 @@ func (t *TeamSpeakCore) ClientEdit(clid int, props map[string]string) error {
 	return t.tsExecSimple(b.String())
 }
 
-// ClientAddPerm assigns a permission to a client by database ID.
 func (t *TeamSpeakCore) ClientAddPerm(cldbid, permID, permValue int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5961,7 +5177,6 @@ func (t *TeamSpeakCore) ClientAddPerm(cldbid, permID, permValue int) error {
 	return t.tsExecSimple(fmt.Sprintf("clientaddperm cldbid=%d permid=%d permvalue=%d permnegated=0 permskip=0", cldbid, permID, permValue))
 }
 
-// ClientDelPerm removes a permission from a client by database ID.
 func (t *TeamSpeakCore) ClientDelPerm(cldbid, permID int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5971,7 +5186,6 @@ func (t *TeamSpeakCore) ClientDelPerm(cldbid, permID int) error {
 	return t.tsExecSimple(fmt.Sprintf("clientdelperm cldbid=%d permid=%d", cldbid, permID))
 }
 
-// ClientPermList returns all permissions assigned to a client by database ID.
 func (t *TeamSpeakCore) ClientPermList(cldbid int) ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5981,7 +5195,6 @@ func (t *TeamSpeakCore) ClientPermList(cldbid int) ([]map[string]string, error) 
 	return t.tsExec(fmt.Sprintf("clientpermlist cldbid=%d", cldbid))
 }
 
-// ClientPoke sends a poke notification with a message to a client.
 func (t *TeamSpeakCore) ClientPoke(clid int, message string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -5991,7 +5204,6 @@ func (t *TeamSpeakCore) ClientPoke(clid int, message string) error {
 	return t.tsExecSimple(fmt.Sprintf("clientpoke clid=%d msg=%s", clid, tsEscape(message)))
 }
 
-// ClientChatClosed notifies the server that a private chat with a client was closed.
 func (t *TeamSpeakCore) ClientChatClosed(clid int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6001,12 +5213,7 @@ func (t *TeamSpeakCore) ClientChatClosed(clid int) error {
 	return t.tsExecSimple(fmt.Sprintf("clientchatclosed clid=%d", clid))
 }
 
-// JoinChannel moves the client into the specified channel with an optional password.
 func (t *TeamSpeakCore) JoinChannel(cid int, password string) error {
-	// Snapshot self id BEFORE taking t.mu: clientInfoMu must never be
-	// acquired while t.mu is held (GetGroupCall nests the other order
-	// via selfMuted — mixed orders deadlock under a pending writer,
-	// B-40).
 	t.clientInfoMu.RLock()
 	selfClid := t.myClientID
 	t.clientInfoMu.RUnlock()
@@ -6023,17 +5230,10 @@ func (t *TeamSpeakCore) JoinChannel(cid int, password string) error {
 	if _, err := t.tsExecProof(cmd, &tsWant{name: "notifyclientmoved", key: "clid", val: strconv.Itoa(selfClid)}); err != nil {
 		return err
 	}
-	// channellist does NOT carry channel_needed_talk_power — fetch it
-	// after every successful join so voice can be checked against it
-	// (B-26). Async: one channelinfo round-trip must not block the move
-	// itself; SendVoice fails open until the answer lands.
 	go t.tsRefreshChannelTalkPower(cid)
 	return nil
 }
 
-// tsParseNeededTalkPower extracts channel_needed_talk_power from a
-// channelinfo response; known=false when the field is absent or not a
-// number (then checks must fail open).
 func tsParseNeededTalkPower(rows []map[string]string) (power int, known bool) {
 	for _, r := range rows {
 		v, ok := r["channel_needed_talk_power"]
@@ -6049,12 +5249,10 @@ func tsParseNeededTalkPower(rows []map[string]string) (power int, known bool) {
 	return 0, false
 }
 
-// tsRefreshChannelTalkPower fetches channel_needed_talk_power for a
-// channel (channelinfo — the only carrier of the field).
 func (t *TeamSpeakCore) tsRefreshChannelTalkPower(cid int) {
 	rows, err := t.tsExec(fmt.Sprintf("channelinfo cid=%d", cid))
 	if err != nil {
-		return // stay in fail-open unknown state
+		return
 	}
 	power, known := tsParseNeededTalkPower(rows)
 	if !known {
@@ -6069,11 +5267,6 @@ func (t *TeamSpeakCore) tsRefreshChannelTalkPower(cid int) {
 	t.channelsMu.Unlock()
 }
 
-// talkPowerState classifies OUR ability to be heard in channel cid:
-// "blocked" = known requirement above our known power (the server
-// silently discards our voice — probe evidence in BUGS F-28), "ok" =
-// known-compatible, "unknown" = either side not fetched yet → callers
-// fail open.
 func (t *TeamSpeakCore) talkPowerState(cid int) string {
 	t.clientInfoMu.RLock()
 	power := t.myTalkPower
@@ -6093,9 +5286,6 @@ func (t *TeamSpeakCore) talkPowerState(cid int) string {
 	return "ok"
 }
 
-// ──────────────────────────── Ban Management (extended) ────────────────────────────
-
-// BanAdd creates a ban rule matching by IP, name, or unique ID with an optional duration and reason.
 func (t *TeamSpeakCore) BanAdd(ip, name, uid string, timeSeconds int, reason string) (int, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6138,7 +5328,6 @@ func (t *TeamSpeakCore) BanAdd(ip, name, uid string, timeSeconds int, reason str
 	return 0, nil
 }
 
-// BanDelAll removes all active bans from the server.
 func (t *TeamSpeakCore) BanDelAll() error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6148,9 +5337,6 @@ func (t *TeamSpeakCore) BanDelAll() error {
 	return t.tsExecSimple("bandelall")
 }
 
-// ──────────────────────────── Offline Messages ────────────────────────────
-
-// MessageAdd sends an offline message to a client identified by unique ID.
 func (t *TeamSpeakCore) MessageAdd(cluid, subject, message string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6161,7 +5347,6 @@ func (t *TeamSpeakCore) MessageAdd(cluid, subject, message string) error {
 		tsEscape(cluid), tsEscape(subject), tsEscape(message)))
 }
 
-// MessageDel deletes an offline message by ID.
 func (t *TeamSpeakCore) MessageDel(msgID int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6171,7 +5356,6 @@ func (t *TeamSpeakCore) MessageDel(msgID int) error {
 	return t.tsExecSimple(fmt.Sprintf("messagedel msgid=%d", msgID))
 }
 
-// MessageGet retrieves an offline message by ID.
 func (t *TeamSpeakCore) MessageGet(msgID int) (map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6188,7 +5372,6 @@ func (t *TeamSpeakCore) MessageGet(msgID int) (map[string]string, error) {
 	return rows[0], nil
 }
 
-// MessageList returns all offline messages for the current client.
 func (t *TeamSpeakCore) MessageList() ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6198,7 +5381,6 @@ func (t *TeamSpeakCore) MessageList() ([]map[string]string, error) {
 	return t.tsExec("messagelist")
 }
 
-// MessageUpdateFlag marks an offline message as read or unread.
 func (t *TeamSpeakCore) MessageUpdateFlag(msgID int, read bool) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6212,9 +5394,6 @@ func (t *TeamSpeakCore) MessageUpdateFlag(msgID int, read bool) error {
 	return t.tsExecSimple(fmt.Sprintf("messageupdateflag msgid=%d flag=%d", msgID, flag))
 }
 
-// ──────────────────────────── Complaints ────────────────────────────
-
-// ComplainAdd files a complaint against a client by their database ID.
 func (t *TeamSpeakCore) ComplainAdd(tcldbid int, message string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6224,7 +5403,6 @@ func (t *TeamSpeakCore) ComplainAdd(tcldbid int, message string) error {
 	return t.tsExecSimple(fmt.Sprintf("complainadd tcldbid=%d message=%s", tcldbid, tsEscape(message)))
 }
 
-// ComplainDel removes a specific complaint filed against a client.
 func (t *TeamSpeakCore) ComplainDel(tcldbid, fcldbid int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6234,7 +5412,6 @@ func (t *TeamSpeakCore) ComplainDel(tcldbid, fcldbid int) error {
 	return t.tsExecSimple(fmt.Sprintf("complaindel tcldbid=%d fcldbid=%d", tcldbid, fcldbid))
 }
 
-// ComplainDelAll removes all complaints filed against a client.
 func (t *TeamSpeakCore) ComplainDelAll(tcldbid int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6244,7 +5421,6 @@ func (t *TeamSpeakCore) ComplainDelAll(tcldbid int) error {
 	return t.tsExecSimple(fmt.Sprintf("complaindelall tcldbid=%d", tcldbid))
 }
 
-// ComplainList returns all complaints filed against a client.
 func (t *TeamSpeakCore) ComplainList(tcldbid int) ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6254,9 +5430,6 @@ func (t *TeamSpeakCore) ComplainList(tcldbid int) ([]map[string]string, error) {
 	return t.tsExec(fmt.Sprintf("complainlist tcldbid=%d", tcldbid))
 }
 
-// ──────────────────────────── Privilege Keys (Tokens) ────────────────────────────
-
-// PrivilegeKeyAdd creates a new privilege key (token) for a server or channel group.
 func (t *TeamSpeakCore) PrivilegeKeyAdd(tokenType, tokenID1, tokenID2 int) (string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6273,7 +5446,6 @@ func (t *TeamSpeakCore) PrivilegeKeyAdd(tokenType, tokenID1, tokenID2 int) (stri
 	return "", nil
 }
 
-// PrivilegeKeyDelete deletes an existing privilege key (token).
 func (t *TeamSpeakCore) PrivilegeKeyDelete(token string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6283,7 +5455,6 @@ func (t *TeamSpeakCore) PrivilegeKeyDelete(token string) error {
 	return t.tsExecSimple(fmt.Sprintf("privilegekeydelete token=%s", tsEscape(token)))
 }
 
-// PrivilegeKeyList returns all available privilege keys on the server.
 func (t *TeamSpeakCore) PrivilegeKeyList() ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6293,7 +5464,6 @@ func (t *TeamSpeakCore) PrivilegeKeyList() ([]map[string]string, error) {
 	return t.tsExec("privilegekeylist")
 }
 
-// PrivilegeKeyUse redeems a privilege key to gain the associated permissions.
 func (t *TeamSpeakCore) PrivilegeKeyUse(token string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6303,9 +5473,6 @@ func (t *TeamSpeakCore) PrivilegeKeyUse(token string) error {
 	return t.tsExecSimple(fmt.Sprintf("privilegekeyuse token=%s", tsEscape(token)))
 }
 
-// ──────────────────────────── Server Info ────────────────────────────
-
-// ServerInfo returns the current virtual server's configuration and status properties.
 func (t *TeamSpeakCore) ServerInfo() (map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6322,7 +5489,6 @@ func (t *TeamSpeakCore) ServerInfo() (map[string]string, error) {
 	return rows[0], nil
 }
 
-// ServerEdit modifies virtual server properties.
 func (t *TeamSpeakCore) ServerEdit(props map[string]string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6340,7 +5506,6 @@ func (t *TeamSpeakCore) ServerEdit(props map[string]string) error {
 	return t.tsExecSimple(b.String())
 }
 
-// ServerVersion returns the server's version information.
 func (t *TeamSpeakCore) ServerVersion() (map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6357,7 +5522,6 @@ func (t *TeamSpeakCore) ServerVersion() (map[string]string, error) {
 	return rows[0], nil
 }
 
-// WhoAmI returns information about the current client connection.
 func (t *TeamSpeakCore) WhoAmI() (map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6372,14 +5536,12 @@ func (t *TeamSpeakCore) WhoAmI() (map[string]string, error) {
 		return nil, ErrNotFound
 	}
 	info := rows[0]
-	// Supplement with locally-known identity data if server omitted it
 	if info["client_unique_identifier"] == "" && t.myUID != "" {
 		info["client_unique_identifier"] = t.myUID
 	}
 	return info, nil
 }
 
-// GetConnectionInfo returns detailed connection statistics for a client.
 func (t *TeamSpeakCore) GetConnectionInfo(clid int) (map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6396,9 +5558,6 @@ func (t *TeamSpeakCore) GetConnectionInfo(clid int) (map[string]string, error) {
 	return rows[0], nil
 }
 
-// ──────────────────────────── Permission System ────────────────────────────
-
-// PermissionList returns all permissions known to the server with their IDs and names.
 func (t *TeamSpeakCore) PermissionList() ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6408,7 +5567,6 @@ func (t *TeamSpeakCore) PermissionList() ([]map[string]string, error) {
 	return t.tsExec("permissionlist")
 }
 
-// PermFind searches for all assignments of a permission by ID.
 func (t *TeamSpeakCore) PermFind(permID int) ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6418,7 +5576,6 @@ func (t *TeamSpeakCore) PermFind(permID int) ([]map[string]string, error) {
 	return t.tsExec(fmt.Sprintf("permfind permid=%d", permID))
 }
 
-// PermGet retrieves details about a specific permission by ID.
 func (t *TeamSpeakCore) PermGet(permID int) (map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6435,7 +5592,6 @@ func (t *TeamSpeakCore) PermGet(permID int) (map[string]string, error) {
 	return rows[0], nil
 }
 
-// PermOverview returns the effective permissions for a client in a channel.
 func (t *TeamSpeakCore) PermOverview(cid, cldbid int) ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6445,7 +5601,6 @@ func (t *TeamSpeakCore) PermOverview(cid, cldbid int) ([]map[string]string, erro
 	return t.tsExec(fmt.Sprintf("permoverview cid=%d cldbid=%d", cid, cldbid))
 }
 
-// PermIDGetByName resolves a permission string name to its numeric ID.
 func (t *TeamSpeakCore) PermIDGetByName(permsid string) (int, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6466,7 +5621,6 @@ func (t *TeamSpeakCore) PermIDGetByName(permsid string) (int, error) {
 	return pid, nil
 }
 
-// PermReset restores the default permission settings on the server.
 func (t *TeamSpeakCore) PermReset() error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6476,9 +5630,6 @@ func (t *TeamSpeakCore) PermReset() error {
 	return t.tsExecSimple("permreset")
 }
 
-// ──────────────────────────── Custom Properties ────────────────────────────
-
-// CustomInfo returns the custom properties stored for a client by their database ID.
 func (t *TeamSpeakCore) CustomInfo(cldbid int) ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6488,7 +5639,6 @@ func (t *TeamSpeakCore) CustomInfo(cldbid int) ([]map[string]string, error) {
 	return t.tsExec(fmt.Sprintf("custominfo cldbid=%d", cldbid))
 }
 
-// CustomSearch searches for client custom properties matching a pattern.
 func (t *TeamSpeakCore) CustomSearch(ident, pattern string) ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6498,7 +5648,6 @@ func (t *TeamSpeakCore) CustomSearch(ident, pattern string) ([]map[string]string
 	return t.tsExec(fmt.Sprintf("customsearch ident=%s pattern=%s", tsEscape(ident), tsEscape(pattern)))
 }
 
-// CustomSet sets a custom property on a client in the server database.
 func (t *TeamSpeakCore) CustomSet(cldbid int, ident, value string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6508,7 +5657,6 @@ func (t *TeamSpeakCore) CustomSet(cldbid int, ident, value string) error {
 	return t.tsExecSimple(fmt.Sprintf("customset cldbid=%d ident=%s value=%s", cldbid, tsEscape(ident), tsEscape(value)))
 }
 
-// CustomDelete removes a custom property from a client in the server database.
 func (t *TeamSpeakCore) CustomDelete(cldbid int, ident string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6518,9 +5666,6 @@ func (t *TeamSpeakCore) CustomDelete(cldbid int, ident string) error {
 	return t.tsExecSimple(fmt.Sprintf("customdelete cldbid=%d ident=%s", cldbid, tsEscape(ident)))
 }
 
-// ──────────────────────────── Plugin Commands ────────────────────────────
-
-// SendPluginCommand sends a plugin command with the given name and data to clients.
 func (t *TeamSpeakCore) SendPluginCommand(name, data string, targetMode int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6531,9 +5676,6 @@ func (t *TeamSpeakCore) SendPluginCommand(name, data string, targetMode int) err
 		tsEscape(name), tsEscape(data), targetMode))
 }
 
-// ──────────────────────────── File Transfer Management ────────────────────────────
-
-// FTGetFileList lists files in a channel's file repository at the specified path.
 func (t *TeamSpeakCore) FTGetFileList(cid int, path, channelPassword string) ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6543,7 +5685,6 @@ func (t *TeamSpeakCore) FTGetFileList(cid int, path, channelPassword string) ([]
 	return t.tsExec(fmt.Sprintf("ftgetfilelist cid=%d cpw=%s path=%s", cid, tsEscape(channelPassword), tsEscape(path)))
 }
 
-// FTGetFileInfo returns metadata about a file in a channel's file repository.
 func (t *TeamSpeakCore) FTGetFileInfo(cid int, name, channelPassword string) (map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6560,7 +5701,6 @@ func (t *TeamSpeakCore) FTGetFileInfo(cid int, name, channelPassword string) (ma
 	return rows[0], nil
 }
 
-// FTDeleteFile removes files from a channel's file repository.
 func (t *TeamSpeakCore) FTDeleteFile(cid int, names []string, channelPassword string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6583,7 +5723,6 @@ func (t *TeamSpeakCore) FTDeleteFile(cid int, names []string, channelPassword st
 	return t.tsExecSimple(b.String())
 }
 
-// FTCreateDir creates a directory in a channel's file repository.
 func (t *TeamSpeakCore) FTCreateDir(cid int, dirname, channelPassword string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6593,7 +5732,6 @@ func (t *TeamSpeakCore) FTCreateDir(cid int, dirname, channelPassword string) er
 	return t.tsExecSimple(fmt.Sprintf("ftcreatedir cid=%d cpw=%s dirname=%s", cid, tsEscape(channelPassword), tsEscape(dirname)))
 }
 
-// FTRenameFile renames or moves a file within or between channel file repositories.
 func (t *TeamSpeakCore) FTRenameFile(cid int, oldName, newName, channelPassword string, targetCID int, targetPassword string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6608,7 +5746,6 @@ func (t *TeamSpeakCore) FTRenameFile(cid int, oldName, newName, channelPassword 
 	return t.tsExecSimple(cmd)
 }
 
-// FTStop cancels an active file transfer, optionally deleting the incomplete file.
 func (t *TeamSpeakCore) FTStop(serverFTFID int, del bool) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6622,7 +5759,6 @@ func (t *TeamSpeakCore) FTStop(serverFTFID int, del bool) error {
 	return t.tsExecSimple(fmt.Sprintf("ftstop serverftfid=%d delete=%d", serverFTFID, d))
 }
 
-// FTList returns all currently active file transfers on the server.
 func (t *TeamSpeakCore) FTList() ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6632,9 +5768,6 @@ func (t *TeamSpeakCore) FTList() ([]map[string]string, error) {
 	return t.tsExec("ftlist")
 }
 
-// ──────────────────────────── Connection Stats ────────────────────────────
-
-// ServerRequestConnectionInfo returns bandwidth and packet statistics for the current server connection.
 func (t *TeamSpeakCore) ServerRequestConnectionInfo() (map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6651,7 +5784,6 @@ func (t *TeamSpeakCore) ServerRequestConnectionInfo() (map[string]string, error)
 	return rows[0], nil
 }
 
-// SetConnectionInfo sends the client's connection statistics to the server.
 func (t *TeamSpeakCore) SetConnectionInfo() error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6684,19 +5816,15 @@ func (t *TeamSpeakCore) SetConnectionInfo() error {
 	return t.tsExecSimple(cmd)
 }
 
-// ──────────────────────────── Voice ────────────────────────────
-
-// Codec type constants
 const (
-	tsCodecSpeexNB   = 0 // Speex Narrowband 8kHz mono
-	tsCodecSpeexWB   = 1 // Speex Wideband 16kHz mono
-	tsCodecSpeexUWB  = 2 // Speex Ultra-wideband 32kHz mono
-	tsCodecCeltMono  = 3 // CELT Mono 48kHz
-	tsCodecOpusVoice = 4 // Opus Voice 48kHz mono (default)
-	tsCodecOpusMusic = 5 // Opus Music 48kHz stereo
+	tsCodecSpeexNB   = 0
+	tsCodecSpeexWB   = 1
+	tsCodecSpeexUWB  = 2
+	tsCodecCeltMono  = 3
+	tsCodecOpusVoice = 4
+	tsCodecOpusMusic = 5
 )
 
-// Group whisper types
 const (
 	tsGroupWhisperTypeServerGroup      = 0
 	tsGroupWhisperTypeChannelGroup     = 1
@@ -6704,7 +5832,6 @@ const (
 	tsGroupWhisperTypeAllClients       = 3
 )
 
-// Group whisper targets
 const (
 	tsGroupWhisperTargetAllChannels           = 0
 	tsGroupWhisperTargetCurrentChannel        = 1
@@ -6715,22 +5842,18 @@ const (
 	tsGroupWhisperTargetSubchannels           = 6
 )
 
-// OnVoice registers a callback for incoming voice packets.
 func (t *TeamSpeakCore) OnVoice(handler func(VoicePacket)) {
 	t.voiceHandlerMu.Lock()
 	defer t.voiceHandlerMu.Unlock()
 	t.voiceHandler = handler
 }
 
-// tsHandleVoicePacket parses and dispatches incoming voice data.
 func (t *TeamSpeakCore) tsHandleVoicePacket(packetType byte, flags byte, plaintext []byte) {
 	isWhisper := packetType == tsPktVoiceWhisper
 	hasServerFlag := flags&tsFlagCompressed != 0
 
-	// S2C voice body: VoicePacketCounter(2) + ClientID(2) + Codec(1) + AudioData(...)
-	// If COMPRESSED flag, last byte is serverFlag0
 	if len(plaintext) < 5 {
-		return // too short for S2C voice
+		return
 	}
 
 	voiceCounter := binary.BigEndian.Uint16(plaintext[0:2])
@@ -6747,7 +5870,7 @@ func (t *TeamSpeakCore) tsHandleVoicePacket(packetType byte, flags byte, plainte
 	}
 
 	if audioEnd <= audioStart {
-		return // no audio data
+		return
 	}
 
 	audioData := make([]byte, audioEnd-audioStart)
@@ -6759,7 +5882,7 @@ func (t *TeamSpeakCore) tsHandleVoicePacket(packetType byte, flags byte, plainte
 	handler := t.voiceHandler
 	t.voiceHandlerMu.RUnlock()
 	if handler == nil {
-		return // no voice handler registered
+		return
 	}
 
 	vp := VoicePacket{
@@ -6775,7 +5898,6 @@ func (t *TeamSpeakCore) tsHandleVoicePacket(packetType byte, flags byte, plainte
 	go handler(vp)
 }
 
-// tsSendVoicePacket sends an encrypted voice packet.
 func (t *TeamSpeakCore) tsSendVoicePacket(pktType byte, flags byte, body []byte) error {
 	tc := t.tsConn
 	if tc == nil {
@@ -6789,15 +5911,12 @@ func (t *TeamSpeakCore) tsSendVoicePacket(pktType byte, flags byte, body []byte)
 	defer tc.mu.Unlock()
 
 	pID := tc.tsNextPktID(pktType)
-	// Voice packets do NOT use Newprotocol flag (unlike commands)
 	pktFlags := pktType | flags
 
-	// Voice body counter = packet ID (per ts3j: voice counter is same as header pID)
 	if len(body) >= 2 {
 		binary.BigEndian.PutUint16(body[0:2], pID)
 	}
 
-	// Build meta for EAX: PId(2) + CId(2) + PT(1)
 	var meta [5]byte
 	binary.BigEndian.PutUint16(meta[0:2], pID)
 	binary.BigEndian.PutUint16(meta[2:4], uint16(tc.clientID.Load()))
@@ -6809,15 +5928,9 @@ func (t *TeamSpeakCore) tsSendVoicePacket(pktType byte, flags byte, body []byte)
 	pkt := tsBuildC2SPacket(mac, pID, uint16(tc.clientID.Load()), pktFlags, ciphertext)
 	t.bwStats.recordSent(pktType, len(pkt))
 	return tc.tsSendRaw(pkt)
-	// Voice packets are NOT acknowledged — fire and forget
 }
 
-// SendVoice sends a normal voice packet to the current channel.
-// audioData must be pre-encoded (Opus, CELT, etc.)
 func (t *TeamSpeakCore) SendVoice(codec byte, audioData []byte) error {
-	// Talk-power state FIRST (B-26): its reads take clientInfoMu and
-	// channelsMu, which must never be acquired while t.mu is held
-	// (B-40 lock order — GetGroupCall nests clientInfoMu→t.mu).
 	t.clientInfoMu.RLock()
 	curChannel := t.myChannelID
 	t.clientInfoMu.RUnlock()
@@ -6829,15 +5942,10 @@ func (t *TeamSpeakCore) SendVoice(codec byte, audioData []byte) error {
 		return ErrAuth
 	}
 
-	// Body: VoicePacketCounter(2) + Codec(1) + AudioData(...)
-	// Voice counter = packet ID (filled in by tsSendVoicePacket after getting pID)
 	body := make([]byte, 3+len(audioData))
-	// body[0:2] = placeholder for counter (set by tsSendVoicePacket)
 	body[2] = codec
 	copy(body[3:], audioData)
 
-	// Voice follows our current channel — refuse to fire into a room the
-	// server will silently discard (B-26); fail open while unknown.
 	if talkBlocked {
 		return fmt.Errorf("%w: insufficient talk power in this room — the server discards voice below the channel requirement", ErrPermission)
 	}
@@ -6845,7 +5953,6 @@ func (t *TeamSpeakCore) SendVoice(codec byte, audioData []byte) error {
 	return t.tsSendVoicePacket(tsPktVoice, 0, body)
 }
 
-// SendVoiceWhisper sends a whisper voice packet to specific channels and/or clients.
 func (t *TeamSpeakCore) SendVoiceWhisper(codec byte, audioData []byte, channelIDs []uint64, clientIDs []uint16) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6853,8 +5960,6 @@ func (t *TeamSpeakCore) SendVoiceWhisper(codec byte, audioData []byte, channelID
 		return ErrAuth
 	}
 
-	// Body: VoicePacketCounter(2) + Codec(1) + ChannelCount(1) + ClientCount(1) + ChannelIDs(8*N) + ClientIDs(2*M) + AudioData
-	// Voice counter filled in by tsSendVoicePacket (= packet ID)
 	headerLen := 5 + len(channelIDs)*8 + len(clientIDs)*2
 	body := make([]byte, headerLen+len(audioData))
 	body[2] = codec
@@ -6874,7 +5979,6 @@ func (t *TeamSpeakCore) SendVoiceWhisper(codec byte, audioData []byte, channelID
 	return t.tsSendVoicePacket(tsPktVoiceWhisper, 0, body)
 }
 
-// SendVoiceGroupWhisper sends a group whisper voice packet.
 func (t *TeamSpeakCore) SendVoiceGroupWhisper(codec byte, audioData []byte, whisperType, whisperTarget byte, targetID uint64) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -6882,8 +5986,6 @@ func (t *TeamSpeakCore) SendVoiceGroupWhisper(codec byte, audioData []byte, whis
 		return ErrAuth
 	}
 
-	// Body: VoicePacketCounter(2) + Codec(1) + GroupWhisperType(1) + GroupWhisperTarget(1) + TargetID(8) + AudioData
-	// Voice counter filled in by tsSendVoicePacket (= packet ID)
 	body := make([]byte, 13+len(audioData))
 	body[2] = codec
 	body[3] = whisperType
@@ -6891,15 +5993,11 @@ func (t *TeamSpeakCore) SendVoiceGroupWhisper(codec byte, audioData []byte, whis
 	binary.BigEndian.PutUint64(body[5:13], targetID)
 	copy(body[13:], audioData)
 
-	// Group whisper uses Newprotocol flag on the whisper packet type
 	return t.tsSendVoicePacket(tsPktVoiceWhisper, tsFlagNewprotocol, body)
 }
 
-// ──────────────────────────── Bandwidth Stats ────────────────────────────
+const tsBwWindowSize = 60
 
-const tsBwWindowSize = 60 // 60-second rolling window
-
-// tsBwCategory is a packet category for bandwidth tracking.
 type tsBwCategory int
 
 const (
@@ -6908,35 +6006,28 @@ const (
 	tsBwControl   tsBwCategory = 2
 )
 
-// tsBwSample is a single-second stats sample.
 type tsBwSample struct {
 	packets int64
 	bytes   int64
 }
 
-// tsBandwidthStats tracks per-category packet/byte counters with a 60-second rolling window.
 type tsBandwidthStats struct {
 	mu sync.Mutex
 
-	// Rolling window: ring buffers indexed by (unix_second % 60)
-	sentRing [3][tsBwWindowSize]tsBwSample // [category][second]
+	sentRing [3][tsBwWindowSize]tsBwSample
 	recvRing [3][tsBwWindowSize]tsBwSample
 
-	// Totals
 	totalSentPkts  [3]int64
 	totalSentBytes [3]int64
 	totalRecvPkts  [3]int64
 	totalRecvBytes [3]int64
 
-	// Current second tracker
 	lastSecond int64
 
-	// Packet loss: S2C voice
 	voiceExpected atomic.Int64
 	voiceLost     atomic.Int64
 }
 
-// tsBwCategoryForPacket maps a packet type to a bandwidth category.
 func tsBwCategoryForPacket(pktType byte) tsBwCategory {
 	switch pktType {
 	case tsPktVoice, tsPktVoiceWhisper:
@@ -6949,7 +6040,6 @@ func tsBwCategoryForPacket(pktType byte) tsBwCategory {
 }
 
 func (bw *tsBandwidthStats) advance(now int64) {
-	// Clear stale slots between lastSecond and now
 	if bw.lastSecond == 0 {
 		bw.lastSecond = now
 		return
@@ -6997,20 +6087,15 @@ func (bw *tsBandwidthStats) recordRecv(pktType byte, size int) {
 	bw.mu.Unlock()
 }
 
-// TsBandwidthSnapshot holds bandwidth statistics at a point in time.
 type TsBandwidthSnapshot struct {
-	// Per-category last-second bandwidth (bytes/sec)
-	SentLastSecond [3]int64 // [speech, keepalive, control]
-	RecvLastSecond [3]int64
-	// Per-category last-minute bandwidth (bytes/sec average)
-	SentLastMinute [3]int64
-	RecvLastMinute [3]int64
-	// Total packet/byte counts
-	TotalSentPkts  [3]int64
-	TotalSentBytes [3]int64
-	TotalRecvPkts  [3]int64
-	TotalRecvBytes [3]int64
-	// Voice packet loss ratio (0.0-1.0)
+	SentLastSecond  [3]int64
+	RecvLastSecond  [3]int64
+	SentLastMinute  [3]int64
+	RecvLastMinute  [3]int64
+	TotalSentPkts   [3]int64
+	TotalSentBytes  [3]int64
+	TotalRecvPkts   [3]int64
+	TotalRecvBytes  [3]int64
 	VoicePacketLoss float64
 }
 
@@ -7026,14 +6111,12 @@ func (bw *tsBandwidthStats) snapshot() TsBandwidthSnapshot {
 		TotalRecvBytes: bw.totalRecvBytes,
 	}
 
-	// Last second = the previous completed second
 	prevIdx := (now - 1) % tsBwWindowSize
 	for c := 0; c < 3; c++ {
 		snap.SentLastSecond[c] = bw.sentRing[c][prevIdx].bytes
 		snap.RecvLastSecond[c] = bw.recvRing[c][prevIdx].bytes
 	}
 
-	// Last minute = average over 60 seconds
 	for c := 0; c < 3; c++ {
 		var sentTotal, recvTotal int64
 		for i := int64(0); i < tsBwWindowSize; i++ {
@@ -7055,14 +6138,10 @@ func (bw *tsBandwidthStats) snapshot() TsBandwidthSnapshot {
 	return snap
 }
 
-// GetBandwidthStats returns current bandwidth statistics.
 func (t *TeamSpeakCore) GetBandwidthStats() TsBandwidthSnapshot {
 	return t.bwStats.snapshot()
 }
 
-// ──────────────────────────── Client Management (extended) ────────────────────────────
-
-// ClientKick kicks a client from channel (reasonid=4) or server (reasonid=5).
 func (t *TeamSpeakCore) ClientKick(clid, reasonID int, message string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7076,7 +6155,6 @@ func (t *TeamSpeakCore) ClientKick(clid, reasonID int, message string) error {
 	return t.tsExecSimple(cmd)
 }
 
-// ClientMute locally mutes a client (suppresses their voice packets).
 func (t *TeamSpeakCore) ClientMute(clid int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7086,7 +6164,6 @@ func (t *TeamSpeakCore) ClientMute(clid int) error {
 	return t.tsExecSimple(fmt.Sprintf("clientmute clid=%d", clid))
 }
 
-// ClientUnmute removes the local mute from a client.
 func (t *TeamSpeakCore) ClientUnmute(clid int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7096,7 +6173,6 @@ func (t *TeamSpeakCore) ClientUnmute(clid int) error {
 	return t.tsExecSimple(fmt.Sprintf("clientunmute clid=%d", clid))
 }
 
-// ClientChatComposing sends a typing indicator to a client.
 func (t *TeamSpeakCore) ClientChatComposing(clid int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7106,7 +6182,6 @@ func (t *TeamSpeakCore) ClientChatComposing(clid int) error {
 	return t.tsExecSimple(fmt.Sprintf("clientchatcomposing clid=%d", clid))
 }
 
-// ClientDBList lists all known client database entries.
 func (t *TeamSpeakCore) ClientDBList(start, duration int) ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7123,7 +6198,6 @@ func (t *TeamSpeakCore) ClientDBList(start, duration int) ([]map[string]string, 
 	return t.tsExec(cmd)
 }
 
-// ClientVariable gets a specific client variable by name.
 func (t *TeamSpeakCore) ClientVariable(clid int, varNames ...string) (map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7144,9 +6218,6 @@ func (t *TeamSpeakCore) ClientVariable(clid int, varNames ...string) (map[string
 	return map[string]string{}, nil
 }
 
-// ──────────────────────────── Ban Management (extended) ────────────────────────────
-
-// BanClient bans an online client directly by client ID.
 func (t *TeamSpeakCore) BanClient(clid, timeSeconds int, reason string) (int, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7174,7 +6245,6 @@ func (t *TeamSpeakCore) BanClient(clid, timeSeconds int, reason string) (int, er
 	return 0, nil
 }
 
-// BanDel deletes a specific ban rule by ban ID.
 func (t *TeamSpeakCore) BanDel(banID int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7184,9 +6254,6 @@ func (t *TeamSpeakCore) BanDel(banID int) error {
 	return t.tsExecSimple(fmt.Sprintf("bandel banid=%d", banID))
 }
 
-// ──────────────────────────── Server Management (SQ) ────────────────────────────
-
-// ServerList lists all virtual servers (ServerQuery only).
 func (t *TeamSpeakCore) ServerList() ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7196,7 +6263,6 @@ func (t *TeamSpeakCore) ServerList() ([]map[string]string, error) {
 	return t.tsExec("serverlist")
 }
 
-// ServerCreate creates a virtual server (ServerQuery only).
 func (t *TeamSpeakCore) ServerCreate(name string, props map[string]string) (map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7222,7 +6288,6 @@ func (t *TeamSpeakCore) ServerCreate(name string, props map[string]string) (map[
 	return map[string]string{}, nil
 }
 
-// ServerDelete deletes a virtual server (ServerQuery only).
 func (t *TeamSpeakCore) ServerDelete(sid int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7232,7 +6297,6 @@ func (t *TeamSpeakCore) ServerDelete(sid int) error {
 	return t.tsExecSimple(fmt.Sprintf("serverdelete sid=%d", sid))
 }
 
-// ServerStart starts a virtual server (ServerQuery only).
 func (t *TeamSpeakCore) ServerStart(sid int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7242,7 +6306,6 @@ func (t *TeamSpeakCore) ServerStart(sid int) error {
 	return t.tsExecSimple(fmt.Sprintf("serverstart sid=%d", sid))
 }
 
-// ServerStop stops a virtual server (ServerQuery only).
 func (t *TeamSpeakCore) ServerStop(sid int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7252,7 +6315,6 @@ func (t *TeamSpeakCore) ServerStop(sid int) error {
 	return t.tsExecSimple(fmt.Sprintf("serverstop sid=%d", sid))
 }
 
-// ServerSnapshotCreate creates a snapshot of the virtual server (ServerQuery only).
 func (t *TeamSpeakCore) ServerSnapshotCreate() (string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7274,7 +6336,6 @@ func (t *TeamSpeakCore) ServerSnapshotCreate() (string, error) {
 	return "", nil
 }
 
-// ServerSnapshotDeploy restores a server snapshot (ServerQuery only).
 func (t *TeamSpeakCore) ServerSnapshotDeploy(snapshot string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7284,7 +6345,6 @@ func (t *TeamSpeakCore) ServerSnapshotDeploy(snapshot string) error {
 	return t.tsExecSimple(fmt.Sprintf("serversnapshotdeploy %s", snapshot))
 }
 
-// ServerTempPasswordAdd creates a temporary server password.
 func (t *TeamSpeakCore) ServerTempPasswordAdd(password string, description string, duration int, targetCID int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7296,7 +6356,6 @@ func (t *TeamSpeakCore) ServerTempPasswordAdd(password string, description strin
 	return t.tsExecSimple(cmd)
 }
 
-// ServerTempPasswordDel deletes a temporary server password.
 func (t *TeamSpeakCore) ServerTempPasswordDel(password string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7306,7 +6365,6 @@ func (t *TeamSpeakCore) ServerTempPasswordDel(password string) error {
 	return t.tsExecSimple(fmt.Sprintf("servertemppassworddel pw=%s", tsEscape(password)))
 }
 
-// ServerTempPasswordList lists temporary server passwords.
 func (t *TeamSpeakCore) ServerTempPasswordList() ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7316,9 +6374,6 @@ func (t *TeamSpeakCore) ServerTempPasswordList() ([]map[string]string, error) {
 	return t.tsExec("servertemppasswordlist")
 }
 
-// ──────────────────────────── File Transfer Init ────────────────────────────
-
-// FTInitUpload initializes a file upload and returns transfer params (port, ftkey, seekpos, etc).
 func (t *TeamSpeakCore) FTInitUpload(clientftfid, cid int, name string, cpw string, size int64, overwrite, resume bool) (map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7345,7 +6400,6 @@ func (t *TeamSpeakCore) FTInitUpload(clientftfid, cid int, name string, cpw stri
 	return map[string]string{}, nil
 }
 
-// FTInitDownload initializes a file download and returns transfer params (port, ftkey, size, etc).
 func (t *TeamSpeakCore) FTInitDownload(clientftfid, cid int, name string, cpw string, seekpos int64) (map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7364,18 +6418,6 @@ func (t *TeamSpeakCore) FTInitDownload(clientftfid, cid int, name string, cpw st
 	return map[string]string{}, nil
 }
 
-// ──────────────────────────── Event Registration ────────────────────────────
-
-// servernotifyregister/unregister used to live here (ServerNotifyRegister/
-// ServerNotifyUnregister): every real server answers them with error 516
-// "invalid client type" for in-client connections — ServerQuery-only
-// command (BUGS B-23) — and clients get all events pushed natively
-// regardless. Zero callers existed anywhere in the repo; removed with
-// the handshake's five no-op registrations.
-
-// ──────────────────────────── Logging (SQ) ────────────────────────────
-
-// LogView retrieves server log entries (ServerQuery only).
 func (t *TeamSpeakCore) LogView(lines, reverse, instance int, beginPos uint64) ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7387,7 +6429,6 @@ func (t *TeamSpeakCore) LogView(lines, reverse, instance int, beginPos uint64) (
 	return t.tsExec(cmd)
 }
 
-// LogAdd adds a custom entry to the server log (ServerQuery only).
 func (t *TeamSpeakCore) LogAdd(logLevel int, logMsg string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7397,9 +6438,6 @@ func (t *TeamSpeakCore) LogAdd(logLevel int, logMsg string) error {
 	return t.tsExecSimple(fmt.Sprintf("logadd loglevel=%d logmsg=%s", logLevel, tsEscape(logMsg)))
 }
 
-// ──────────────────────────── Query Login Management ────────────────────────────
-
-// QueryLoginAdd creates a ServerQuery login (SQ 3.6.0+).
 func (t *TeamSpeakCore) QueryLoginAdd(name string, cldbid int) (map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7420,7 +6458,6 @@ func (t *TeamSpeakCore) QueryLoginAdd(name string, cldbid int) (map[string]strin
 	return map[string]string{}, nil
 }
 
-// QueryLoginDel deletes a ServerQuery login.
 func (t *TeamSpeakCore) QueryLoginDel(cldbid int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7430,7 +6467,6 @@ func (t *TeamSpeakCore) QueryLoginDel(cldbid int) error {
 	return t.tsExecSimple(fmt.Sprintf("querylogindel cldbid=%d", cldbid))
 }
 
-// QueryLoginList lists all ServerQuery logins.
 func (t *TeamSpeakCore) QueryLoginList() ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7440,9 +6476,6 @@ func (t *TeamSpeakCore) QueryLoginList() ([]map[string]string, error) {
 	return t.tsExec("queryloginlist")
 }
 
-// ──────────────────────────── API Key Management ────────────────────────────
-
-// ApiKeyAdd creates a new API key (SQ 3.12.0+).
 func (t *TeamSpeakCore) ApiKeyAdd(scope string, lifetime int, cldbid int) (map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7466,7 +6499,6 @@ func (t *TeamSpeakCore) ApiKeyAdd(scope string, lifetime int, cldbid int) (map[s
 	return map[string]string{}, nil
 }
 
-// ApiKeyDel deletes an API key.
 func (t *TeamSpeakCore) ApiKeyDel(id int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7476,7 +6508,6 @@ func (t *TeamSpeakCore) ApiKeyDel(id int) error {
 	return t.tsExecSimple(fmt.Sprintf("apikeydel id=%d", id))
 }
 
-// ApiKeyList lists all API keys.
 func (t *TeamSpeakCore) ApiKeyList(cldbid int, start, duration int) ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7496,9 +6527,6 @@ func (t *TeamSpeakCore) ApiKeyList(cldbid int, start, duration int) ([]map[strin
 	return t.tsExec(cmd)
 }
 
-// ──────────────────────────── Server Permissions ────────────────────────────
-
-// ServerAddPerm adds a server-level permission.
 func (t *TeamSpeakCore) ServerAddPerm(permID, permValue int, permNegated, permSkip bool) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7517,7 +6545,6 @@ func (t *TeamSpeakCore) ServerAddPerm(permID, permValue int, permNegated, permSk
 		permID, permValue, n, s))
 }
 
-// ServerDelPerm removes a server-level permission.
 func (t *TeamSpeakCore) ServerDelPerm(permID int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7527,7 +6554,6 @@ func (t *TeamSpeakCore) ServerDelPerm(permID int) error {
 	return t.tsExecSimple(fmt.Sprintf("serverdelperm permid=%d", permID))
 }
 
-// ServerPermList lists all server-level permissions.
 func (t *TeamSpeakCore) ServerPermList() ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7537,9 +6563,6 @@ func (t *TeamSpeakCore) ServerPermList() ([]map[string]string, error) {
 	return t.tsExec("serverpermlist")
 }
 
-// ──────────────────────────── Global Message (SQ) ────────────────────────────
-
-// GlobalMessage broadcasts a text message to all virtual servers (ServerQuery only).
 func (t *TeamSpeakCore) GlobalMessage(message string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7549,9 +6572,6 @@ func (t *TeamSpeakCore) GlobalMessage(message string) error {
 	return t.tsExecSimple(fmt.Sprintf("gm msg=%s", tsEscape(message)))
 }
 
-// ──────────────────────────── Exported Wrappers ────────────────────────────
-
-// ServerGroupList lists all server groups.
 func (t *TeamSpeakCore) ServerGroupList() ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7561,7 +6581,6 @@ func (t *TeamSpeakCore) ServerGroupList() ([]map[string]string, error) {
 	return t.tsExec("servergrouplist")
 }
 
-// ServerGroupAddClient adds a client to a server group.
 func (t *TeamSpeakCore) ServerGroupAddClient(sgid, cldbid int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7571,7 +6590,6 @@ func (t *TeamSpeakCore) ServerGroupAddClient(sgid, cldbid int) error {
 	return t.tsExecSimple(fmt.Sprintf("servergroupaddclient sgid=%d cldbid=%d", sgid, cldbid))
 }
 
-// ServerGroupDelClient removes a client from a server group.
 func (t *TeamSpeakCore) ServerGroupDelClient(sgid, cldbid int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7581,7 +6599,6 @@ func (t *TeamSpeakCore) ServerGroupDelClient(sgid, cldbid int) error {
 	return t.tsExecSimple(fmt.Sprintf("servergroupdelclient sgid=%d cldbid=%d", sgid, cldbid))
 }
 
-// ChannelGroupsByClientID lists channel groups for a specific client.
 func (t *TeamSpeakCore) ChannelGroupsByClientID(cldbid int) ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7591,11 +6608,6 @@ func (t *TeamSpeakCore) ChannelGroupsByClientID(cldbid int) ([]map[string]string
 	return t.tsExec(fmt.Sprintf("channelgroupclientlist cldbid=%d", cldbid))
 }
 
-// ──────────────────────────── Voice Activity Detection ────────────────────────────
-
-// DetectVoiceActivity checks if PCM audio samples contain voice (energy-based).
-// pcm: int16 samples (mono). threshold: RMS threshold (300-500 typical for speech).
-// Returns true if the RMS energy exceeds the threshold.
 func DetectVoiceActivity(pcm []int16, threshold float64) bool {
 	if len(pcm) == 0 {
 		return false
@@ -7609,11 +6621,6 @@ func DetectVoiceActivity(pcm []int16, threshold float64) bool {
 	return rms > threshold
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// Step 4 — Server Instance Management (6 commands)
-// ══════════════════════════════════════════════════════════════════════════════
-
-// HostInfo returns host information (uptime, timestamp, total virtual servers).
 func (t *TeamSpeakCore) HostInfo() (map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7630,7 +6637,6 @@ func (t *TeamSpeakCore) HostInfo() (map[string]string, error) {
 	return rows[0], nil
 }
 
-// InstanceInfo returns instance configuration (DB revision, FT port, etc.).
 func (t *TeamSpeakCore) InstanceInfo() (map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7647,7 +6653,6 @@ func (t *TeamSpeakCore) InstanceInfo() (map[string]string, error) {
 	return rows[0], nil
 }
 
-// InstanceEdit modifies instance configuration.
 func (t *TeamSpeakCore) InstanceEdit(props map[string]string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7665,7 +6670,6 @@ func (t *TeamSpeakCore) InstanceEdit(props map[string]string) error {
 	return t.tsExecSimple(b.String())
 }
 
-// BindingList lists bound IP addresses.
 func (t *TeamSpeakCore) BindingList() ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7675,7 +6679,6 @@ func (t *TeamSpeakCore) BindingList() ([]map[string]string, error) {
 	return t.tsExec("bindinglist")
 }
 
-// ServerProcessStop shuts down the entire TS3 server process.
 func (t *TeamSpeakCore) ServerProcessStop() error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7685,7 +6688,6 @@ func (t *TeamSpeakCore) ServerProcessStop() error {
 	return t.tsExecSimple("serverprocessstop")
 }
 
-// ServerIdGetByPort looks up virtual server DB ID by UDP port.
 func (t *TeamSpeakCore) ServerIdGetByPort(port int) (int, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7706,11 +6708,6 @@ func (t *TeamSpeakCore) ServerIdGetByPort(port int) (int, error) {
 	return sid, nil
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// Step 4 — Password Verification (2 commands)
-// ══════════════════════════════════════════════════════════════════════════════
-
-// VerifyServerPassword checks if password matches the virtual server.
 func (t *TeamSpeakCore) VerifyServerPassword(password string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7720,7 +6717,6 @@ func (t *TeamSpeakCore) VerifyServerPassword(password string) error {
 	return t.tsExecSimple(fmt.Sprintf("verifyserverpassword virtualserver_password=%s", tsEscape(password)))
 }
 
-// VerifyChannelPassword checks if password matches a channel.
 func (t *TeamSpeakCore) VerifyChannelPassword(cid int, password string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7730,11 +6726,6 @@ func (t *TeamSpeakCore) VerifyChannelPassword(cid int, password string) error {
 	return t.tsExecSimple(fmt.Sprintf("verifychannelpassword cid=%d cpw=%s", cid, tsEscape(password)))
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// Step 4 — Ban Enhancements (3 commands)
-// ══════════════════════════════════════════════════════════════════════════════
-
-// BanClientDBID bans a client by database ID.
 func (t *TeamSpeakCore) BanClientDBID(cldbid, timeSeconds int, reason string) (int, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7759,7 +6750,6 @@ func (t *TeamSpeakCore) BanClientDBID(cldbid, timeSeconds int, reason string) (i
 	return banID, nil
 }
 
-// BanAddMyTSID bans by myTeamSpeak ID (server 3.5.0+).
 func (t *TeamSpeakCore) BanAddMyTSID(mytsid string, timeSeconds int, reason string) (int, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7784,7 +6774,6 @@ func (t *TeamSpeakCore) BanAddMyTSID(mytsid string, timeSeconds int, reason stri
 	return banID, nil
 }
 
-// BanListPaginated returns ban list with pagination (3.8.0+).
 func (t *TeamSpeakCore) BanListPaginated(start, duration int) ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7794,11 +6783,6 @@ func (t *TeamSpeakCore) BanListPaginated(start, duration int) ([]map[string]stri
 	return t.tsExec(fmt.Sprintf("banlist -start=%d -duration=%d", start, duration))
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// Step 4 — Newer ServerQuery Commands (2, 3.9.0+)
-// ══════════════════════════════════════════════════════════════════════════════
-
-// ClientAddServerGroup adds server groups to a client (alternative to ServerGroupAddClient).
 func (t *TeamSpeakCore) ClientAddServerGroup(cldbid int, sgids []int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7818,7 +6802,6 @@ func (t *TeamSpeakCore) ClientAddServerGroup(cldbid int, sgids []int) error {
 	return t.tsExecSimple(b.String())
 }
 
-// ClientDelServerGroup removes server groups from a client.
 func (t *TeamSpeakCore) ClientDelServerGroup(cldbid int, sgids []int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7838,91 +6821,64 @@ func (t *TeamSpeakCore) ClientDelServerGroup(cldbid int, sgids []int) error {
 	return t.tsExecSimple(b.String())
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// Step 4 — Server Notification Handlers (13 event types)
-// These register per-event callbacks. The internal tsHandleServerCommand
-// already processes all events and dispatches via Update — these provide
-// fine-grained per-event access to raw parameters.
-// ══════════════════════════════════════════════════════════════════════════════
-
-// tsOnEvent registers a handler for a specific server notification event.
 func (t *TeamSpeakCore) tsOnEvent(event string, handler func(map[string]string)) {
 	t.updateMu.Lock()
 	t.eventHandlers[event] = append(t.eventHandlers[event], handler)
 	t.updateMu.Unlock()
 }
 
-// HandleServerEdited registers a callback for server property change events.
 func (t *TeamSpeakCore) HandleServerEdited(handler func(map[string]string)) {
 	t.tsOnEvent("notifyserveredited", handler)
 }
 
-// HandleServerUpdated registers a callback for server update events.
 func (t *TeamSpeakCore) HandleServerUpdated(handler func(map[string]string)) {
 	t.tsOnEvent("notifyserverupdated", handler)
 }
 
-// HandleChannelEdited registers a callback for channel property change events.
 func (t *TeamSpeakCore) HandleChannelEdited(handler func(map[string]string)) {
 	t.tsOnEvent("notifychanneledited", handler)
 }
 
-// HandleChannelCreated registers a callback for channel creation events.
 func (t *TeamSpeakCore) HandleChannelCreated(handler func(map[string]string)) {
 	t.tsOnEvent("notifychannelcreated", handler)
 }
 
-// HandleChannelDeleted registers a callback for channel deletion events.
 func (t *TeamSpeakCore) HandleChannelDeleted(handler func(map[string]string)) {
 	t.tsOnEvent("notifychanneldeleted", handler)
 }
 
-// HandleChannelMoved registers a callback for channel move events.
 func (t *TeamSpeakCore) HandleChannelMoved(handler func(map[string]string)) {
 	t.tsOnEvent("notifychannelmoved", handler)
 }
 
-// HandleChannelDescriptionChanged registers a callback for channel description change events.
 func (t *TeamSpeakCore) HandleChannelDescriptionChanged(handler func(map[string]string)) {
 	t.tsOnEvent("notifychanneldescriptionchanged", handler)
 }
 
-// HandleChannelPasswordChanged registers a callback for channel password change events.
 func (t *TeamSpeakCore) HandleChannelPasswordChanged(handler func(map[string]string)) {
 	t.tsOnEvent("notifychannelpasswordchanged", handler)
 }
 
-// HandleClientUpdated registers a callback for client property change events.
 func (t *TeamSpeakCore) HandleClientUpdated(handler func(map[string]string)) {
 	t.tsOnEvent("notifyclientupdated", handler)
 }
 
-// HandleTokenUsed registers a callback for privilege key usage events.
 func (t *TeamSpeakCore) HandleTokenUsed(handler func(map[string]string)) {
 	t.tsOnEvent("notifytokenused", handler)
 }
 
-// HandleTalkStatusChange registers a callback for talk status change events.
 func (t *TeamSpeakCore) HandleTalkStatusChange(handler func(map[string]string)) {
 	t.tsOnEvent("notifytalkstatuschange", handler)
 }
 
-// HandleConnectStatusChange registers a callback for connection status change events.
 func (t *TeamSpeakCore) HandleConnectStatusChange(handler func(map[string]string)) {
 	t.tsOnEvent("notifyconnectstatuschange", handler)
 }
 
-// HandleCurrentServerConnectionChanged registers a callback for server connection change events.
 func (t *TeamSpeakCore) HandleCurrentServerConnectionChanged(handler func(map[string]string)) {
 	t.tsOnEvent("notifycurrentserverconnectionchanged", handler)
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// Step 4 — Extended List Flags (3 enhancements)
-// ══════════════════════════════════════════════════════════════════════════════
-
-// ClientListExtended returns clientlist with extended flags.
-// Supported flags: -uid, -away, -voice, -times, -groups, -info, -icon, -country, -ip, -badges
 func (t *TeamSpeakCore) ClientListExtended(flags ...string) ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7936,8 +6892,6 @@ func (t *TeamSpeakCore) ClientListExtended(flags ...string) ([]map[string]string
 	return t.tsExec(cmd)
 }
 
-// ChannelListExtended returns channellist with extended flags.
-// Supported flags: -topic, -flags, -voice, -limits, -icon, -secondsempty, -banners
 func (t *TeamSpeakCore) ChannelListExtended(flags ...string) ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7951,8 +6905,6 @@ func (t *TeamSpeakCore) ChannelListExtended(flags ...string) ([]map[string]strin
 	return t.tsExec(cmd)
 }
 
-// ServerListExtended returns serverlist with extended flags.
-// Supported flags: -uid, -short, -all, -onlyoffline
 func (t *TeamSpeakCore) ServerListExtended(flags ...string) ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -7966,20 +6918,12 @@ func (t *TeamSpeakCore) ServerListExtended(flags ...string) ([]map[string]string
 	return t.tsExec(cmd)
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// Step 4 — 3D Audio Positioning (4 methods)
-// Pure Go implementations — store position data for spatial audio mixing.
-// ══════════════════════════════════════════════════════════════════════════════
-
-// Set3DListenerAttributes sets listener position/orientation in 3D space.
-// Used for spatial audio rendering on the client side.
 func (t *TeamSpeakCore) Set3DListenerAttributes(position, forward, up [3]float32) {
 	t.mu.Lock()
 	t.listener3D = ts3DListener{position: position, forward: forward, up: up}
 	t.mu.Unlock()
 }
 
-// SetChannel3DAttributes positions a client in 3D space relative to listener.
 func (t *TeamSpeakCore) SetChannel3DAttributes(clid int, position [3]float32) {
 	t.mu.Lock()
 	if t.client3DPos == nil {
@@ -7989,7 +6933,6 @@ func (t *TeamSpeakCore) SetChannel3DAttributes(clid int, position [3]float32) {
 	t.mu.Unlock()
 }
 
-// Set3DWaveAttributes positions a wave file sound in 3D space.
 func (t *TeamSpeakCore) Set3DWaveAttributes(waveHandle int, position [3]float32) {
 	t.mu.Lock()
 	if t.wave3DPos == nil {
@@ -7999,7 +6942,6 @@ func (t *TeamSpeakCore) Set3DWaveAttributes(waveHandle int, position [3]float32)
 	t.mu.Unlock()
 }
 
-// System3DSettings configures distance factor and rolloff scale for 3D audio.
 func (t *TeamSpeakCore) System3DSettings(distanceFactor, rolloffScale float32) {
 	t.mu.Lock()
 	t.distanceFactor3D = distanceFactor
@@ -8007,28 +6949,18 @@ func (t *TeamSpeakCore) System3DSettings(distanceFactor, rolloffScale float32) {
 	t.mu.Unlock()
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// Step 4 — Audio Device Management (8 methods)
-// Pure Go audio device abstraction — tracks device configuration.
-// ══════════════════════════════════════════════════════════════════════════════
-
-// GetPlaybackDeviceList returns available playback devices.
 func (t *TeamSpeakCore) GetPlaybackDeviceList() []map[string]string {
 	return []map[string]string{{"id": "default", "name": "Default Output", "isDefault": "1"}}
 }
 
-// GetCaptureDeviceList returns available capture devices.
 func (t *TeamSpeakCore) GetCaptureDeviceList() []map[string]string {
 	return []map[string]string{{"id": "default", "name": "Default Input", "isDefault": "1"}}
 }
 
-// GetPlaybackModeList returns available playback modes.
 func (t *TeamSpeakCore) GetPlaybackModeList() []string { return []string{"default"} }
 
-// GetCaptureModeList returns available capture modes.
 func (t *TeamSpeakCore) GetCaptureModeList() []string { return []string{"default"} }
 
-// OpenPlaybackDevice opens a specific playback device.
 func (t *TeamSpeakCore) OpenPlaybackDevice(mode, deviceID string) error {
 	t.mu.Lock()
 	t.playbackDevice = deviceID
@@ -8036,7 +6968,6 @@ func (t *TeamSpeakCore) OpenPlaybackDevice(mode, deviceID string) error {
 	return nil
 }
 
-// OpenCaptureDevice opens a specific capture device.
 func (t *TeamSpeakCore) OpenCaptureDevice(mode, deviceID string) error {
 	t.mu.Lock()
 	t.captureDevice = deviceID
@@ -8044,7 +6975,6 @@ func (t *TeamSpeakCore) OpenCaptureDevice(mode, deviceID string) error {
 	return nil
 }
 
-// ClosePlaybackDevice closes the playback device.
 func (t *TeamSpeakCore) ClosePlaybackDevice() error {
 	t.mu.Lock()
 	t.playbackDevice = ""
@@ -8052,7 +6982,6 @@ func (t *TeamSpeakCore) ClosePlaybackDevice() error {
 	return nil
 }
 
-// CloseCaptureDevice closes the capture device.
 func (t *TeamSpeakCore) CloseCaptureDevice() error {
 	t.mu.Lock()
 	t.captureDevice = ""
@@ -8060,7 +6989,6 @@ func (t *TeamSpeakCore) CloseCaptureDevice() error {
 	return nil
 }
 
-// ActivateCaptureDevice activates audio capture.
 func (t *TeamSpeakCore) ActivateCaptureDevice() error {
 	t.mu.Lock()
 	t.captureActive = true
@@ -8068,11 +6996,6 @@ func (t *TeamSpeakCore) ActivateCaptureDevice() error {
 	return nil
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// Step 4 — Audio Preprocessing (5 methods)
-// ══════════════════════════════════════════════════════════════════════════════
-
-// GetPreProcessorInfo queries voice activity level.
 func (t *TeamSpeakCore) GetPreProcessorInfo(key string) string {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -8082,12 +7005,10 @@ func (t *TeamSpeakCore) GetPreProcessorInfo(key string) string {
 	return ""
 }
 
-// GetPreProcessorConfig returns a preprocessor config value.
 func (t *TeamSpeakCore) GetPreProcessorConfig(key string) string {
 	return t.GetPreProcessorInfo(key)
 }
 
-// SetPreProcessorConfig sets a preprocessor config value (AGC, denoise, VAD settings).
 func (t *TeamSpeakCore) SetPreProcessorConfig(key, value string) {
 	t.mu.Lock()
 	if t.preprocessorConfig == nil {
@@ -8097,7 +7018,6 @@ func (t *TeamSpeakCore) SetPreProcessorConfig(key, value string) {
 	t.mu.Unlock()
 }
 
-// GetPlaybackConfig returns a playback config value.
 func (t *TeamSpeakCore) GetPlaybackConfig(key string) string {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -8107,7 +7027,6 @@ func (t *TeamSpeakCore) GetPlaybackConfig(key string) string {
 	return ""
 }
 
-// SetPlaybackConfig sets a playback config value.
 func (t *TeamSpeakCore) SetPlaybackConfig(key, value string) {
 	t.mu.Lock()
 	if t.playbackConfig == nil {
@@ -8117,7 +7036,6 @@ func (t *TeamSpeakCore) SetPlaybackConfig(key, value string) {
 	t.mu.Unlock()
 }
 
-// SetClientVolumeModifier adjusts per-client volume.
 func (t *TeamSpeakCore) SetClientVolumeModifier(clid int, modifier float32) {
 	t.mu.Lock()
 	if t.clientVolume == nil {
@@ -8127,11 +7045,6 @@ func (t *TeamSpeakCore) SetClientVolumeModifier(clid int, modifier float32) {
 	t.mu.Unlock()
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// Step 4 — Wave File Playback (4 methods)
-// ══════════════════════════════════════════════════════════════════════════════
-
-// PlayWaveFile plays a local wave file through the audio pipeline.
 func (t *TeamSpeakCore) PlayWaveFile(path string) error {
 	t.mu.Lock()
 	t.waveNextHandle++
@@ -8139,7 +7052,6 @@ func (t *TeamSpeakCore) PlayWaveFile(path string) error {
 	return nil
 }
 
-// PlayWaveFileHandle plays a wave file and returns a handle for control.
 func (t *TeamSpeakCore) PlayWaveFileHandle(path string, loop bool) (int, error) {
 	t.mu.Lock()
 	t.waveNextHandle++
@@ -8148,21 +7060,14 @@ func (t *TeamSpeakCore) PlayWaveFileHandle(path string, loop bool) (int, error) 
 	return handle, nil
 }
 
-// PauseWaveFileHandle pauses wave playback.
 func (t *TeamSpeakCore) PauseWaveFileHandle(handle int, pause bool) error {
 	return nil
 }
 
-// CloseWaveFileHandle stops and closes wave playback.
 func (t *TeamSpeakCore) CloseWaveFileHandle(handle int) error {
 	return nil
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// Step 4 — Custom Audio Devices (4 methods)
-// ══════════════════════════════════════════════════════════════════════════════
-
-// RegisterCustomDevice registers a custom audio I/O device.
 func (t *TeamSpeakCore) RegisterCustomDevice(deviceID, deviceDisplayName string, capFrequency, capChannels, playFrequency, playChannels int) error {
 	t.mu.Lock()
 	if t.customDevices == nil {
@@ -8179,7 +7084,6 @@ func (t *TeamSpeakCore) RegisterCustomDevice(deviceID, deviceDisplayName string,
 	return nil
 }
 
-// UnregisterCustomDevice unregisters a custom device.
 func (t *TeamSpeakCore) UnregisterCustomDevice(deviceID string) error {
 	t.mu.Lock()
 	delete(t.customDevices, deviceID)
@@ -8187,22 +7091,14 @@ func (t *TeamSpeakCore) UnregisterCustomDevice(deviceID string) error {
 	return nil
 }
 
-// ProcessCustomCaptureData feeds raw PCM data as capture input.
 func (t *TeamSpeakCore) ProcessCustomCaptureData(deviceID string, pcm []int16) error {
-	// Feed PCM into the voice encoder if voice chat is active
 	return nil
 }
 
-// AcquireCustomPlaybackData reads mixed playback output as PCM.
 func (t *TeamSpeakCore) AcquireCustomPlaybackData(deviceID string, samples int) ([]int16, error) {
 	return make([]int16, samples), nil
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// Step 4 — Voice Recording (2 methods)
-// ══════════════════════════════════════════════════════════════════════════════
-
-// StartVoiceRecording starts recording voice to file.
 func (t *TeamSpeakCore) StartVoiceRecording() error {
 	t.mu.Lock()
 	t.recording = true
@@ -8210,7 +7106,6 @@ func (t *TeamSpeakCore) StartVoiceRecording() error {
 	return nil
 }
 
-// StopVoiceRecording stops voice recording.
 func (t *TeamSpeakCore) StopVoiceRecording() error {
 	t.mu.Lock()
 	t.recording = false
@@ -8218,11 +7113,6 @@ func (t *TeamSpeakCore) StopVoiceRecording() error {
 	return nil
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// Step 4 — Whisper List Management (3 methods)
-// ══════════════════════════════════════════════════════════════════════════════
-
-// SetWhisperList sets the persistent whisper list (target channels + clients).
 func (t *TeamSpeakCore) SetWhisperList(targetChannelIDs []int, targetClientIDs []int) error {
 	t.mu.Lock()
 	t.whisperChannels = targetChannelIDs
@@ -8231,24 +7121,16 @@ func (t *TeamSpeakCore) SetWhisperList(targetChannelIDs []int, targetClientIDs [
 	return nil
 }
 
-// IsWhispering checks if the client is currently whispering.
 func (t *TeamSpeakCore) IsWhispering() bool {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	return len(t.whisperChannels) > 0 || len(t.whisperClients) > 0
 }
 
-// IsReceivingWhisper checks if receiving a whisper from a specific client.
 func (t *TeamSpeakCore) IsReceivingWhisper(clid int) bool {
-	// Check if the client has been sending whisper packets to us
 	return false
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// Step 4 — Talk Power (1 method)
-// ══════════════════════════════════════════════════════════════════════════════
-
-// SetIsTalker grants or revokes talker status to another client.
 func (t *TeamSpeakCore) SetIsTalker(clid int, isTalker bool) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -8262,11 +7144,6 @@ func (t *TeamSpeakCore) SetIsTalker(clid int, isTalker bool) error {
 	return t.tsExecSimple(fmt.Sprintf("clientedit clid=%d client_is_talker=%s", clid, val))
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// Step 4 — Client Operations (6 methods)
-// ══════════════════════════════════════════════════════════════════════════════
-
-// RequestClientsMove moves multiple clients at once.
 func (t *TeamSpeakCore) RequestClientsMove(clids []int, cid int, password string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -8285,7 +7162,6 @@ func (t *TeamSpeakCore) RequestClientsMove(clids []int, cid int, password string
 	return nil
 }
 
-// RequestClientsKickFromChannel kicks multiple clients from their channel.
 func (t *TeamSpeakCore) RequestClientsKickFromChannel(clids []int, message string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -8300,7 +7176,6 @@ func (t *TeamSpeakCore) RequestClientsKickFromChannel(clids []int, message strin
 	return nil
 }
 
-// RequestClientsKickFromServer kicks multiple clients from the server.
 func (t *TeamSpeakCore) RequestClientsKickFromServer(clids []int, message string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -8315,7 +7190,6 @@ func (t *TeamSpeakCore) RequestClientsKickFromServer(clids []int, message string
 	return nil
 }
 
-// RequestMuteClientsTemporary temporarily mutes multiple clients.
 func (t *TeamSpeakCore) RequestMuteClientsTemporary(clids []int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -8330,7 +7204,6 @@ func (t *TeamSpeakCore) RequestMuteClientsTemporary(clids []int) error {
 	return nil
 }
 
-// RequestUnmuteClientsTemporary unmutes multiple clients.
 func (t *TeamSpeakCore) RequestUnmuteClientsTemporary(clids []int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -8345,7 +7218,6 @@ func (t *TeamSpeakCore) RequestUnmuteClientsTemporary(clids []int) error {
 	return nil
 }
 
-// RequestClientEditDescription sets another client's description.
 func (t *TeamSpeakCore) RequestClientEditDescription(clid int, description string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -8355,25 +7227,17 @@ func (t *TeamSpeakCore) RequestClientEditDescription(clid int, description strin
 	return t.tsExecSimple(fmt.Sprintf("clientedit clid=%d client_description=%s", clid, tsEscape(description)))
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// Step 4 — Avatar Retrieval (1 method)
-// ══════════════════════════════════════════════════════════════════════════════
-
-// GetAvatar downloads another client's avatar via file transfer.
 func (t *TeamSpeakCore) GetAvatar(clid int) ([]byte, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	if !t.authed {
 		return nil, ErrAuth
 	}
-	// Get client UID first
 	uid, err := t.ClientGetUIDFromCLID(clid)
 	if err != nil {
 		return nil, err
 	}
-	// Avatar file path in TS3 is /avatar_{base64uid}
 	avatarPath := "/avatar_" + uid
-	// Use file transfer to download
 	rows, err := t.tsExec(fmt.Sprintf("ftinitdownload clientftfid=1 name=%s cid=0 cpw= seekpos=0", tsEscape(avatarPath)))
 	if err != nil {
 		return nil, err
@@ -8381,15 +7245,9 @@ func (t *TeamSpeakCore) GetAvatar(clid int) ([]byte, error) {
 	if len(rows) == 0 {
 		return nil, ErrNotFound
 	}
-	// Return the file transfer info — caller must complete the FT
 	return nil, fmt.Errorf("avatar file transfer info: port=%s, ftkey=%s, size=%s", rows[0]["port"], rows[0]["ftkey"], rows[0]["size"])
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// Step 4 — Channel Info Request (2 methods)
-// ══════════════════════════════════════════════════════════════════════════════
-
-// ChannelInfoRequest requests full channel info (vs cached).
 func (t *TeamSpeakCore) ChannelInfoRequest(cid int) (map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -8406,7 +7264,6 @@ func (t *TeamSpeakCore) ChannelInfoRequest(cid int) (map[string]string, error) {
 	return rows[0], nil
 }
 
-// RequestInfoUpdate forces a refresh of server/channel/client info.
 func (t *TeamSpeakCore) RequestInfoUpdate(infoType string, id int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -8427,11 +7284,6 @@ func (t *TeamSpeakCore) RequestInfoUpdate(infoType string, id int) error {
 	return fmt.Errorf("unknown info type: %s", infoType)
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// Step 4 — Snapshot Enhancements (2 methods)
-// ══════════════════════════════════════════════════════════════════════════════
-
-// ServerSnapshotDeployKeepFiles deploys a snapshot with -keepfiles flag (3.10.0+).
 func (t *TeamSpeakCore) ServerSnapshotDeployKeepFiles(snapshot string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -8441,7 +7293,6 @@ func (t *TeamSpeakCore) ServerSnapshotDeployKeepFiles(snapshot string) error {
 	return t.tsExecSimple(fmt.Sprintf("serversnapshotdeploy -keepfiles %s", tsEscape(snapshot)))
 }
 
-// ServerSnapshotPassword creates/deploys a snapshot with password (3.10.0+).
 func (t *TeamSpeakCore) ServerSnapshotPassword(password string) (string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -8458,12 +7309,6 @@ func (t *TeamSpeakCore) ServerSnapshotPassword(password string) (string, error) 
 	return rows[0]["data"], nil
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// Step 4 — Bookmarks & Profiles (3 methods)
-// Local client-side bookmark storage.
-// ══════════════════════════════════════════════════════════════════════════════
-
-// GetBookmarkList retrieves saved server bookmarks.
 func (t *TeamSpeakCore) GetBookmarkList() []map[string]string {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -8472,7 +7317,6 @@ func (t *TeamSpeakCore) GetBookmarkList() []map[string]string {
 	return result
 }
 
-// CreateBookmark creates a new server bookmark.
 func (t *TeamSpeakCore) CreateBookmark(name, address, nickname, password string, isDefault bool) {
 	t.mu.Lock()
 	t.bookmarks = append(t.bookmarks, map[string]string{
@@ -8485,16 +7329,10 @@ func (t *TeamSpeakCore) CreateBookmark(name, address, nickname, password string,
 	t.mu.Unlock()
 }
 
-// GetProfileList lists audio/identity profiles.
 func (t *TeamSpeakCore) GetProfileList() []map[string]string {
 	return []map[string]string{{"id": "default", "name": "Default Profile"}}
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// Step 4 — Permission Enhancements (2 methods)
-// ══════════════════════════════════════════════════════════════════════════════
-
-// PermissionListNew returns permission list in new format (3.0.7+).
 func (t *TeamSpeakCore) PermissionListNew() ([]map[string]string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -8504,7 +7342,6 @@ func (t *TeamSpeakCore) PermissionListNew() ([]map[string]string, error) {
 	return t.tsExec("permissionlist -new")
 }
 
-// PermCommandsPermSID executes permission commands using string-based permission references.
 func (t *TeamSpeakCore) PermCommandsPermSID(command string, permSID string, permValue int) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -8514,53 +7351,34 @@ func (t *TeamSpeakCore) PermCommandsPermSID(command string, permSID string, perm
 	return t.tsExecSimple(fmt.Sprintf("%s -permsid permsid=%s permvalue=%d", command, tsEscape(permSID), permValue))
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// Step 4 — Legacy Codec Support (1 method)
-// ══════════════════════════════════════════════════════════════════════════════
-
-// DecodeLegacyCodec handles receiving Speex/CELT audio from older clients.
-// Returns decoded PCM samples from legacy codec data.
 func (t *TeamSpeakCore) DecodeLegacyCodec(codecType int, data []byte) ([]int16, error) {
-	// Speex (0,1,2) and CELT (3,4,5) codecs are legacy and rarely used.
-	// Modern TS3 uses Opus (codec 4/5). This is a placeholder for completeness.
 	return nil, fmt.Errorf("legacy codec type %d not supported (Speex/CELT require native decoders)", codecType)
 }
 
-// ══════════════════════════════════════════════════════════════════════════════
-// Step 4 — Supporting types for new fields
-// ══════════════════════════════════════════════════════════════════════════════
-
-// MuteChat is not supported on TeamSpeak and returns an unsupported error.
 func (t *TeamSpeakCore) MuteChat(chatID string, muted bool) error {
 	return fmt.Errorf("%w: %s does not support mute chat", ErrNotSupported, ts3Platform)
 }
 
-// ArchiveChat is not supported on TeamSpeak and returns an unsupported error.
 func (t *TeamSpeakCore) ArchiveChat(chatID string, archived bool) error {
 	return fmt.Errorf("%w: %s does not support archive chat", ErrNotSupported, ts3Platform)
 }
 
-// MarkUnread is not supported on TeamSpeak and returns an unsupported error.
 func (t *TeamSpeakCore) MarkUnread(chatID string, unread bool) error {
 	return fmt.Errorf("%w: %s does not support mark unread", ErrNotSupported, ts3Platform)
 }
 
-// UnpinAllMessages is not supported on TeamSpeak and returns an unsupported error.
 func (t *TeamSpeakCore) UnpinAllMessages(chatID string) error {
 	return fmt.Errorf("%w: %s does not support unpin all messages", ErrNotSupported, ts3Platform)
 }
 
-// AcceptCall is not supported on TeamSpeak and returns an unsupported error.
 func (t *TeamSpeakCore) AcceptCall(callID string) (*CallSession, error) {
 	return nil, fmt.Errorf("%w: %s does not support accept call", ErrNotSupported, ts3Platform)
 }
 
-// DeclineCall is not supported on TeamSpeak and returns an unsupported error.
 func (t *TeamSpeakCore) DeclineCall(callID string) error {
 	return fmt.Errorf("%w: %s does not support decline call", ErrNotSupported, ts3Platform)
 }
 
-// SendLocation is not supported on TeamSpeak and returns an unsupported error.
 func (t *TeamSpeakCore) SendLocation(chatID string, lat float64, lon float64) (*Message, error) {
 	return nil, fmt.Errorf("%w: %s does not support send location", ErrNotSupported, ts3Platform)
 }

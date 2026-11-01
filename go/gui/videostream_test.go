@@ -1,12 +1,5 @@
 package gui
 
-// tests-first for slice 229 — row 281's GUI decisions and the streamed
-// parse→publish path. What must be pinned: the eligibility filters (a
-// wrong yes would open a stream we can never play; a wrong no silently
-// reverts the feature), the audio-join guards (sound must never start
-// behind a paused picture or on someone else's download), and a real
-// end-to-end publish over fixture bytes through the LAZY parser.
-
 import (
 	"bytes"
 	"os"
@@ -79,10 +72,6 @@ func TestStreamShouldJoinAudio(t *testing.T) {
 	}
 }
 
-// TestPublishStreamedClip drives the REAL row-281 path: fixture bytes
-// (a fully downloaded file standing in for a stream section) through
-// ParseSeek → cache publish, asserting the player is live and keyed by
-// the canonical path the completion event will later carry.
 func TestPublishStreamedClip(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join("..", "h264vid", "testdata", "round_video.mp4"))
 	if err != nil {
@@ -112,13 +101,9 @@ func TestPublishStreamedClip(t *testing.T) {
 	if st.video == nil || st.video.FrameCount <= 0 {
 		t.Fatalf("video = %+v, want a parsed clip", st.video)
 	}
-	// Cleanup must stop the producer so the -race run does not keep a
-	// goroutine writing the flags we just read.
 	h264Players.reset(msgID)
 }
 
-// TestPublishStreamedClipRejectsBadSource: unusable inputs fail loudly
-// (the caller's fallback runs) instead of publishing a broken player.
 func TestPublishStreamedClipRejectsBadSource(t *testing.T) {
 	data, _ := os.ReadFile(filepath.Join("..", "h264vid", "testdata", "round_video.mp4"))
 	if len(data) == 0 {

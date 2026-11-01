@@ -1,12 +1,5 @@
 package cores
 
-// Dice sticker packs (slice 125): Telegram dice/dart/basketball/football
-// messages render as .tgs animations from a special per-emoji sticker set
-// (messages.getStickerSet(inputStickerSetDice)). The set's packs map
-// emoticons to documents: "#" is the rolling intro, "1".."6" the outcome
-// animations (tdesktop chat_helpers/stickers_dice_pack.cpp semantics —
-// verified against the tdesktop source 2026-09-11). Pure mapping tests.
-
 import (
 	"encoding/base64"
 	"strconv"
@@ -36,7 +29,6 @@ func TestDiceValueFromEmoticon(t *testing.T) {
 	}
 }
 
-// diceDocs builds the raw document/pack structures of a dice set.
 func diceDocs(t *testing.T) ([]tg.DocumentClass, []tg.StickerPack) {
 	t.Helper()
 	doc := func(id int64) tg.DocumentClass {
@@ -75,7 +67,6 @@ func TestMapDiceStickerSet(t *testing.T) {
 	if byValue[6].FileID != strconv.FormatInt(103, 10) {
 		t.Errorf("value-6 sticker FileID = %q, want 103", byValue[6].FileID)
 	}
-	// FileRef Extra form: "accessHash:base64(fileReference)".
 	want := strconv.FormatInt(102*17, 10) + ":" + base64.StdEncoding.EncodeToString([]byte{102})
 	if byValue[1].Extra != want {
 		t.Errorf("extra = %q, want %q", byValue[1].Extra, want)
@@ -86,7 +77,6 @@ func TestMapDiceStickerSet(t *testing.T) {
 }
 
 func TestMapDiceStickerSetSlotMachine(t *testing.T) {
-	// Slot machine packs are positional (no emoticon packs list).
 	docs, _ := diceDocs(t)
 	res := mapDiceStickerSet("🎰", docs, nil)
 	if res == nil || len(res.Stickers) != 3 {
@@ -102,7 +92,7 @@ func TestMapDiceStickerSetSlotMachine(t *testing.T) {
 func TestMapDiceStickerSetIgnoresNonStickers(t *testing.T) {
 	docs := []tg.DocumentClass{
 		&tg.Document{ID: 201, MimeType: "application/x-tgsticker", Attributes: []tg.DocumentAttributeClass{&tg.DocumentAttributeSticker{}}},
-		&tg.Document{ID: 202, MimeType: "image/jpeg"}, // not a sticker
+		&tg.Document{ID: 202, MimeType: "image/jpeg"},
 	}
 	res := mapDiceStickerSet("🎲", docs, []tg.StickerPack{{Emoticon: "#", Documents: []int64{201, 202}}})
 	if res == nil || len(res.Stickers) != 1 {

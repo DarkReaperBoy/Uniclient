@@ -7,10 +7,6 @@ import (
 	"uniclient/cores"
 )
 
-// Channel-post comments (slice 195): cache round-trip (comments_count +
-// thread_root columns), the thread filter, and the discussion-thread
-// fetch path with a fake core.
-
 func seedCommentPost(t *testing.T, e *Engine, chatType int, msgID string, comments int) {
 	t.Helper()
 	_, err := e.db.Exec(
@@ -38,7 +34,6 @@ func TestCommentsCountRoundTrip(t *testing.T) {
 
 func TestThreadRootRoundTripAndFilter(t *testing.T) {
 	e := newTestEngine(t)
-	// Discussion chat d1; thread rooted at r1 with two comments + the root.
 	_, err := e.db.Exec(
 		`INSERT INTO chats (account_id, chat_id, type, title, updated_at) VALUES ('a1', 'd1', ?, 'disc', ?)`,
 		ChatTypeGroupVal, time.Now().UnixMilli())
@@ -58,7 +53,6 @@ func TestThreadRootRoundTripAndFilter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Newest-first contract (same as GetMessages): k2, k1, r1 — and NOT x1.
 	if len(msgs) != 3 {
 		t.Fatalf("thread rows = %d, want 3 (root + 2 comments, no unrelated)", len(msgs))
 	}
@@ -95,7 +89,6 @@ func TestGetDiscussionThreadCaches(t *testing.T) {
 	if len(rows) != 2 {
 		t.Fatalf("rows = %d, want 2", len(rows))
 	}
-	// Cached: a second read straight from the DB filter.
 	msgs, err := e.GetThreadMessages("a1", "d1", "r1", 0, 50)
 	if err != nil {
 		t.Fatal(err)
@@ -103,11 +96,9 @@ func TestGetDiscussionThreadCaches(t *testing.T) {
 	if len(msgs) != 2 {
 		t.Fatalf("cached thread rows = %d, want 2", len(msgs))
 	}
-	// Missing account → honest error.
 	if _, err := e.GetDiscussionThread("nope", "c1", "m1"); err == nil {
 		t.Error("missing account must error")
 	}
-	// Unsupported core → honest error.
 	e.accounts = map[string]*Account{"a1": {ID: "a1", Core: &cores.StubCore{}}}
 	if _, err := e.GetDiscussionThread("a1", "c1", "m1"); err == nil {
 		t.Error("unsupported core must error")

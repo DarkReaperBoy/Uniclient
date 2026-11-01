@@ -18,20 +18,10 @@ import (
 	"uniclient/cores"
 )
 
-// Attach flow (AyuGram parity §4 "Attach menu"): the 📎 button opens a small
-// menu (Photo or Video / File); picks go through the OS dialog
-// (gioui.org/x/explorer); uploads run through the engine media pipeline —
-// single file → UploadFileEx, multiple → SendMediaAlbumFromPaths (album).
-// The a.wid.composer text at attach time becomes the caption (AyuGram behavior).
-
-// photoExts are the image/video extensions the "Photo or Video" picker accepts.
 var photoExts = []string{".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".mp4", ".mov", ".webm", ".mkv"}
 
-// musicExts are the audio extensions the "Music" picker accepts (AyuGram's
-// attach-menu music flow — the core sends audio/* as audio messages).
 var musicExts = []string{".mp3", ".m4a", ".flac", ".ogg", ".oga", ".opus", ".wav", ".aac", ".wma"}
 
-// attachMenuItem describes one attach-menu entry.
 type attachMenuItem struct {
 	label string
 	icon  *widget.Icon
@@ -39,10 +29,6 @@ type attachMenuItem struct {
 }
 
 func (a *App) attachMenuItems() []attachMenuItem {
-	// R30: Music/Location/Contact open content-pane dialogs (main-only) —
-	// the attach menu renders in every window, so they are dropped in
-	// separate windows. Photo/File use system pickers and Poll renders as a
-	// chat-view overlay — those work everywhere and stay.
 	items := []attachMenuItem{
 		{label: "Photo or Video", icon: iconImagePhoto, run: func() { a.pickAndSendExts(photoExts) }},
 		{label: "File", icon: iconFileAttach, run: func() { a.pickAndSendExts(nil) }},
@@ -50,8 +36,6 @@ func (a *App) attachMenuItems() []attachMenuItem {
 	}
 	if mainOnlySurfaceShown(a) {
 		items = append(items,
-			// Slice 210: Music opens the in-app music attach box (saved-music
-			// source + "Choose from files"), tdesktop music_attach_box 1:1.
 			attachMenuItem{label: "Music", icon: iconAVNote, run: func() { a.openMusicAttach() }},
 			attachMenuItem{label: "Location", icon: iconMapsPlace, run: func() { a.openAttachDialog("location") }},
 			attachMenuItem{label: "Contact", icon: iconCommunicationContacts, run: func() { a.openAttachDialog("contact") }},
@@ -60,8 +44,6 @@ func (a *App) attachMenuItems() []attachMenuItem {
 	return items
 }
 
-// toggleAttachMenu shows or hides the attach popup (closing the emoji
-// panel — one helper surface at a time).
 func (a *App) toggleAttachMenu() {
 	a.mu.Lock()
 	a.emojiOpen = false
@@ -70,7 +52,6 @@ func (a *App) toggleAttachMenu() {
 	a.invalidate()
 }
 
-// closeAttachMenu hides the attach popup.
 func (a *App) closeAttachMenu() {
 	a.mu.Lock()
 	a.attachMenuOpen = false
@@ -78,8 +59,6 @@ func (a *App) closeAttachMenu() {
 	a.invalidate()
 }
 
-// layoutAttachMenu renders the popup anchored bottom-left of the chat column
-// (above the a.wid.composer). Records its rect for outside-press dismissal.
 func (a *App) layoutAttachMenu(gtx layout.Context, f frame) layout.Dimensions {
 	items := a.attachMenuItems()
 	growClickables(&a.wid.attachMenuBtns, len(items))
@@ -112,10 +91,9 @@ func (a *App) layoutAttachMenu(gtx layout.Context, f frame) layout.Dimensions {
 	})
 }
 
-// attachMenuRow renders one attach-menu row (icon + label, ripple on press).
 func attachMenuRow(gtx layout.Context, a *App, btn *widget.Clickable, item attachMenuItem, rowH int) layout.Dimensions {
 	bl := material.ButtonLayout(a.ui.Theme, btn)
-	bl.Background = a.ui.p.Surface // invisible against the menu card
+	bl.Background = a.ui.p.Surface
 	bl.CornerRadius = 8
 	gtx.Constraints.Min.Y = rowH
 	return bl.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -139,9 +117,6 @@ func attachMenuRow(gtx layout.Context, a *App, btn *widget.Clickable, item attac
 	})
 }
 
-// pickAndSendExts opens the OS file picker (optionally filtered to exts)
-// and uploads the selection (async). nil exts = any file.
-// The a.wid.composer text at attach time becomes the caption.
 func (a *App) pickAndSendExts(exts []string) {
 	a.mu.Lock()
 	k := a.selected
@@ -149,7 +124,7 @@ func (a *App) pickAndSendExts(exts []string) {
 	a.mu.Unlock()
 	caption := strings.TrimSpace(a.wid.composer.Text())
 	if caption != "" {
-		a.wid.composer.SetText("") // frame thread
+		a.wid.composer.SetText("")
 	}
 	a.invalidate()
 
@@ -192,9 +167,6 @@ func (a *App) pickAndSendExts(exts []string) {
 	}()
 }
 
-// resolveUploadPaths maps picked readers to local paths: desktop pickers
-// return *os.File (use the path directly); streamed content (Android SAF)
-// spools to a temp file, returned separately for cleanup.
 func resolveUploadPaths(rcs []io.ReadCloser) (paths, temps []string) {
 	paths = make([]string, 0, len(rcs))
 	for _, rc := range rcs {

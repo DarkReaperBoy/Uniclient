@@ -5,15 +5,6 @@ import (
 	"time"
 )
 
-// TestTSExecConcurrentCallsKeepTheirOwnResponses: BUGS B-35 — tsExec
-// stored its response channel in the SHARED tc.execCh field, so a
-// second concurrent caller (e.g. SetConnectionInfo spawned by a
-// notifyconnectioninforequest DURING an in-flight sendtext) replaced
-// the channel under the first caller: the first command's response was
-// delivered to the SECOND caller and the first starved until the void
-// timeout — a false "response lost" while the response was visibly on
-// the wire (RoundTrip debug trace, slice 251). RED before the fix:
-// the two callers get each other's rows.
 func TestTSExecConcurrentCallsKeepTheirOwnResponses(t *testing.T) {
 	old := tsExecVoidTimeout
 	tsExecVoidTimeout = 2 * time.Second
@@ -22,9 +13,6 @@ func TestTSExecConcurrentCallsKeepTheirOwnResponses(t *testing.T) {
 	core, tc, done := newExecHarness(t)
 	defer done()
 
-	// Scripted responses arrive in command order: cmd1's answer, then
-	// cmd2's — the server always answers in the order commands were
-	// received.
 	go func() {
 		time.Sleep(30 * time.Millisecond)
 		tc.cmdCh <- tsResp(t, "who=first")
@@ -44,8 +32,6 @@ func TestTSExecConcurrentCallsKeepTheirOwnResponses(t *testing.T) {
 		rows, err := core.tsExec("command-one")
 		c1 <- result{rows, err}
 	}()
-	// Fire the second caller while the first is still waiting — that is
-	// exactly the notify→SetConnectionInfo overlap.
 	time.Sleep(10 * time.Millisecond)
 	go func() {
 		rows, err := core.tsExec("command-two")

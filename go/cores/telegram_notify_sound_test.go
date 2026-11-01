@@ -6,7 +6,6 @@ import (
 	"github.com/gotd/td/tg"
 )
 
-// notifySoundForKind / kindForNotifySound round-trip (slice 121).
 func TestNotifySoundKindRoundTrip(t *testing.T) {
 	for _, kind := range []string{"default", "none", "gentle"} {
 		snd, err := notifySoundForKind(kind)

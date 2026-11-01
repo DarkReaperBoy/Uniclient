@@ -13,15 +13,6 @@ import (
 	"uniclient/engine"
 )
 
-// Folder-tab context menu (AyuGram parity, matrix "Folder tabs above
-// list"): right-click a server folder tab for Edit / Move left / Move
-// right / Invite links / Delete — the same actions Telegram Desktop's
-// folder tab menu exposes. Editing opens the folder dialog prefilled
-// (folders.go); moving reorders server filters (engine
-// ReorderDialogFilters); invite links open the chatlist-share dialog
-// (folderinvites.go); deleting calls the engine directly with a toast.
-
-// folderMenuTarget is an open folder-tab context menu.
 type folderMenuTarget struct {
 	folder    engine.FolderInfo
 	accountID string
@@ -30,8 +21,6 @@ type folderMenuTarget struct {
 
 var folderMenuBtns []widget.Clickable
 
-// folderMenuItems derives the menu rows (pure — boundary flags drop the
-// unavailable move rows).
 func folderMenuItems(canLeft, canRight bool) []chatMenuAction {
 	items := []chatMenuAction{{"Edit folder", "edit"}}
 	if canLeft {
@@ -49,7 +38,6 @@ func folderMenuItems(canLeft, canRight bool) []chatMenuAction {
 	return items
 }
 
-// openFolderMenu opens the tab menu at pos.
 func (a *App) openFolderMenu(folder engine.FolderInfo, accountID string, pos image.Point) {
 	a.mu.Lock()
 	a.folderMenu = &folderMenuTarget{folder: folder, accountID: accountID, pos: pos}
@@ -57,7 +45,6 @@ func (a *App) openFolderMenu(folder engine.FolderInfo, accountID string, pos ima
 	a.invalidate()
 }
 
-// closeFolderMenu dismisses it.
 func (a *App) closeFolderMenu() {
 	a.mu.Lock()
 	a.folderMenu = nil
@@ -65,8 +52,6 @@ func (a *App) closeFolderMenu() {
 	a.invalidate()
 }
 
-// moveServerFolder swaps the folder with its neighbour and persists the
-// new order through the engine (async, then refresh + toast).
 func (a *App) moveServerFolder(f frame, folder engine.FolderInfo, dir int) {
 	accountID := f.foldersFor
 	folders := foldersForAccount(f, accountID)
@@ -93,7 +78,6 @@ func (a *App) moveServerFolder(f frame, folder engine.FolderInfo, dir int) {
 	}()
 }
 
-// dispatchFolderMenuAction runs one menu row (all close the menu first).
 func (a *App) dispatchFolderMenuAction(f frame, m *folderMenuTarget, action string) {
 	switch action {
 	case "edit":
@@ -130,7 +114,6 @@ func (a *App) dispatchFolderMenuAction(f frame, m *folderMenuTarget, action stri
 	}
 }
 
-// layoutFolderMenu draws the open tab menu, clamped to the sidebar pane.
 func (a *App) layoutFolderMenu(gtx layout.Context, f frame) layout.Dimensions {
 	m := f.folderMenu
 	items := folderMenuItems(a.folderCanMove(f, m.folder, -1), a.folderCanMove(f, m.folder, 1))
@@ -186,8 +169,6 @@ func (a *App) layoutFolderMenu(gtx layout.Context, f frame) layout.Dimensions {
 	})
 }
 
-// folderCanMove reports whether the folder can move by dir within the
-// account's server folder order.
 func (a *App) folderCanMove(f frame, folder engine.FolderInfo, dir int) bool {
 	folders := foldersForAccount(f, f.foldersFor)
 	idx := -1

@@ -1,30 +1,5 @@
 //go:build live
 
-// Live integration test for the Bale core's pre-auth chain against the REAL
-// production servers (next-ws.bale.ai). Previous sessions saw the endpoints
-// geo-blocked; as of 2026-09-12 they are reachable from this VM.
-//
-// Independent research (primary source: the production web client bundle at
-// web.bale.ai, index.4402958e45.js, verified this session):
-//   - grpc base URL: https://next-ws.bale.ai ; ws: wss://next-ws.bale.ai/ws/
-//     (exactly the pair the core uses)
-//   - bale.auth.v1.Auth/StartPhoneAuth request layout on the wire:
-//     1=phoneNumber int64, 2=appId int32, 3=apiKey string, 4=deviceHash
-//     bytes, 5=deviceTitle string, 9=sendCodeType int32, 10=options packed
-//     int32 — matches the core's field map (ASCII deviceHash string and
-//     {"0":1} options encode to identical wire bytes)
-//   - bale.auth.v1.Auth/ValidateCode layout: 1=transactionHash, 2=code,
-//     3=isJwt BoolValue ({"1":1} ≡ {value:true} on the wire), 4=futureAuth-
-//     Tokens rep string, 5=language int32 — also matches
-//   - the production app credentials {id:4, apiKey:C28D46DC...} used by the
-//     core exist verbatim in the production bundle
-//
-// The test drives the core's own Authenticate path with a deliberately
-// INVALID phone number (1). The server must answer with a structured gRPC
-// error — proving protobuf encode → gRPC-Web framing → HTTP transport →
-// response decode → error mapping all work. A transport error is a FAILURE.
-//
-// Run: cd go && go test -tags goolm,live ./tests/ -run TestBaleLive -v -timeout 120s
 package tests
 
 import (
@@ -37,7 +12,6 @@ import (
 	"uniclient/utils"
 )
 
-// TestBaleLiveStartPhoneAuthInvalid pins the unary gRPC-Web pre-auth chain.
 func TestBaleLiveStartPhoneAuthInvalid(t *testing.T) {
 	dir := t.TempDir()
 	vault, err := utils.CreateVault(filepath.Join(dir, "test.vault"), "live-test")
@@ -51,8 +25,6 @@ func TestBaleLiveStartPhoneAuthInvalid(t *testing.T) {
 	defer core.Logout()
 
 	start := time.Now()
-	// Phone "1" is deliberately invalid: the server must reject it without
-	// dispatching any SMS.
 	err = core.Authenticate(cores.AuthConfig{Phone: "1"})
 	took := time.Since(start)
 
@@ -63,7 +35,6 @@ func TestBaleLiveStartPhoneAuthInvalid(t *testing.T) {
 	msg := err.Error()
 	t.Logf("Authenticate failed as expected after %s: %v", took.Round(time.Millisecond), err)
 
-	// Transport-layer failures mean the chain is broken.
 	for _, broken := range []string{
 		"timeout connecting to Bale",
 		"dial tcp",
@@ -77,7 +48,6 @@ func TestBaleLiveStartPhoneAuthInvalid(t *testing.T) {
 		}
 	}
 
-	// A structured gRPC answer proves the protobuf round-trip works.
 	structured := strings.Contains(msg, "gRPC error") ||
 		strings.Contains(msg, "grpc-message") ||
 		strings.Contains(msg, "StartPhoneAuth")

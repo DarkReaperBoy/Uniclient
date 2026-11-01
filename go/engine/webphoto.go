@@ -1,25 +1,11 @@
 package engine
 
-// webphoto.go — slice 130: full-resolution thumbs for link-preview cards.
-// The telegram core exports the webpage photo's download coordinates in
-// the message Extra (wp_photo_id / wp_photo_extra); this file turns them
-// into a standard media row on demand so the normal download pipeline
-// fetches the real image — the exact EnsureDiceSticker pattern (dice.go),
-// applied to messages whose media is a MessageMediaWebPage.
-//
-// Why a media row and not a bespoke fetch: the pipeline already gives us
-// priority scheduling, progress state, retry, the cache-dir layout and the
-// ClearCache-by-tag accounting. The GUI's link-preview card then reads
-// MediaLocalPath like any photo bubble.
-
 import (
 	"encoding/json"
 	"fmt"
 	"time"
 )
 
-// webPagePhoto is the parsed download coordinate set of a message's
-// webpage photo.
 type webPagePhoto struct {
 	PhotoID  string
 	Extra    string
@@ -28,9 +14,6 @@ type webPagePhoto struct {
 	Height   int
 }
 
-// parseWebPagePhoto extracts the webpage photo coordinates from a cached
-// message's raw JSON. ok=false when the message has no usable photo (no
-// webpage, no photo, or no download extra). Pure — unit-tested.
 func parseWebPagePhoto(raw []byte) (webPagePhoto, bool) {
 	if len(raw) == 0 {
 		return webPagePhoto{}, false
@@ -59,16 +42,10 @@ func parseWebPagePhoto(raw []byte) (webPagePhoto, bool) {
 	}, true
 }
 
-// webPagePhotoFileName is the stable download file name for a page photo.
 func webPagePhotoFileName(photoID string) string {
 	return "webpage_" + photoID + ".jpg"
 }
 
-// EnsureWebPagePhoto resolves a link-preview message's photo into a media
-// row and prefetches it (priority 2, the avatar/dice tier). Idempotent: a
-// row already pointing at the photo is left alone unless its download
-// failed (which re-arms). Messages without webpage photo coordinates
-// return an error the GUI treats as "nothing to do".
 func (e *Engine) EnsureWebPagePhoto(accountID, chatID, msgID string) error {
 	var raw []byte
 	if err := e.db.QueryRow(
@@ -81,7 +58,6 @@ func (e *Engine) EnsureWebPagePhoto(accountID, chatID, msgID string) error {
 		return fmt.Errorf("message %s has no webpage photo", msgID)
 	}
 
-	// Already resolved (in flight or complete)? A failed row re-arms.
 	var curRef string
 	var curState int
 	err := e.db.QueryRow(
@@ -104,8 +80,6 @@ func (e *Engine) EnsureWebPagePhoto(accountID, chatID, msgID string) error {
 		return fmt.Errorf("insert webpage photo row: %w", err)
 	}
 
-	// populateMediaMetadata gates on has_media — the card's local thumb
-	// only surfaces when the flag is set.
 	if _, err := e.db.Exec(
 		"UPDATE messages SET has_media = 1 WHERE account_id = ? AND chat_id = ? AND msg_id = ?",
 		accountID, chatID, msgID); err != nil {

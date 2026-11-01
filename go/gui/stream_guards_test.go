@@ -1,24 +1,5 @@
 package gui
 
-// tests-first for slice 230 — the streamed-player ownership and cleanup
-// rules found by auditing slice 229:
-//
-//   - ensureH264StreamPlayer must OWN the reader it is handed: every
-//     path that does not feed its own parse goroutine closes it (before
-//     the fix, every declined call — already playing, already failing,
-//     parse in flight elsewhere — leaked the fd),
-//   - a known-permanently-broken file must DECLINE (false) so the
-//     caller's download-then-play fallback runs instead of a dead tap,
-//   - a parse failure must close the reader BEFORE the fallback hands
-//     the file to the downloader,
-//   - the cache must close a streamed entry's reader when the entry is
-//     reset (source swap), replaced (re-publish) or evicted — before the
-//     fix the h264 cache's eviction lived in a get() nobody calls, so
-//     entries (and their open fds) grew without bound,
-//   - the audio-join offset: sound joins a streamed picture at its
-//     playhead, wraps with a looping note, and never starts behind a
-//     viewer clip that already played through.
-
 import (
 	"bytes"
 	"io"
@@ -31,8 +12,6 @@ import (
 	"uniclient/h264vid"
 )
 
-// countCloser wraps a ReaderAt and counts Close calls — the fd-lifetime
-// oracle for every ownership rule below.
 type countCloser struct {
 	data   []byte
 	closed atomic.Int32
@@ -45,7 +24,6 @@ func (c *countCloser) ReadAt(p []byte, off int64) (int, error) {
 	return copy(p, c.data[off:]), nil
 }
 
-// Close is what every ownership rule under test must invoke.
 func (c *countCloser) Close() error {
 	c.closed.Add(1)
 	return nil
@@ -62,9 +40,6 @@ func fixtureBytes(t *testing.T) []byte {
 	return data
 }
 
-// TestEnsureStreamPlayerClosesDeclinedReader: ensure() always consumes
-// the reader — declines close it, acceptance hands it to the parse
-// goroutine (covered by the failure test below).
 func TestEnsureStreamPlayerClosesDeclinedReader(t *testing.T) {
 	data := fixtureBytes(t)
 	const path = "/media/a1/full/decline_0.mp4"
@@ -124,19 +99,11 @@ func TestEnsureStreamPlayerClosesDeclinedReader(t *testing.T) {
 	})
 }
 
-// ensureH264StreamPlayerForTest is the App-free call under test (the
-// method itself only touches invalidate/repaint, both nil-safe here via
-// a bare App).
 func ensureH264StreamPlayerForTest(msgID, path string, ra io.ReaderAt, size int64) bool {
 	a := &App{}
 	return a.ensureH264StreamPlayer(msgID, path, ra, size, true)
 }
 
-// TestEnsureStreamPlayerClosesReaderOnParseFailure: garbage bytes → the
-// parse goroutine closes the reader BEFORE running the fallback, the
-// fallback runs exactly once, and the entry is NOT pinned permanent
-// (a decode-stage failure can be a transient short view of the stream —
-// the next tap retries instead of dead-ending).
 func TestEnsureStreamPlayerClosesReaderOnParseFailure(t *testing.T) {
 	const m = "fail-closes"
 	const path = "/media/a1/full/fail-closes_0.mp4"
@@ -171,8 +138,6 @@ func TestEnsureStreamPlayerClosesReaderOnParseFailure(t *testing.T) {
 	}
 }
 
-// TestStreamSourceClosesOnResetReplaceEviction: the entry owns the open
-// reader and every way the entry can go away must close it.
 func TestStreamSourceClosesOnResetReplaceEviction(t *testing.T) {
 	data := fixtureBytes(t)
 	size := int64(len(data))
@@ -208,14 +173,12 @@ func TestStreamSourceClosesOnResetReplaceEviction(t *testing.T) {
 	})
 
 	t.Run("eviction closes every streamed entry", func(t *testing.T) {
-		// The eviction path lived in get() — which nothing calls. Fill
-		// the cache through the real insert paths and force an overflow.
 		cc := &countCloser{data: data}
 		if _, err := publishStreamedClip("evict-victim", "/p/v.mp4", cc, size, true); err != nil {
 			t.Fatal(err)
 		}
 		var fillers []string
-		for i := 0; i < h264PlayerMax; i++ { // victim + fillers reach the cap
+		for i := 0; i < h264PlayerMax; i++ {
 			id := "evict-filler-" + string(rune('a'+i%26)) + string(rune('0'+i/26))
 			if !h264Players.markReading(id) {
 				t.Fatalf("markReading(%q) refused", id)
@@ -228,7 +191,6 @@ func TestStreamSourceClosesOnResetReplaceEviction(t *testing.T) {
 			}
 			h264Players.reset("evict-victim")
 		})
-		// One more insert must overflow → wholesale eviction.
 		if !h264Players.markReading("evict-trigger") {
 			t.Fatal("markReading(trigger) refused")
 		}
@@ -239,8 +201,6 @@ func TestStreamSourceClosesOnResetReplaceEviction(t *testing.T) {
 	})
 }
 
-// TestStreamJoinAt: where (and whether) sound joins when a streamed
-// clip's bytes land.
 func TestStreamJoinAt(t *testing.T) {
 	const path = "/media/a1/full/m1_0.mp4"
 	total := 2400 * time.Millisecond

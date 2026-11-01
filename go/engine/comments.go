@@ -6,13 +6,6 @@ import (
 	"uniclient/cores"
 )
 
-// Channel-post comment threads (slice 195): the discussion-thread fetch
-// (messages.getDiscussionMessage) with cache write-through, the thread
-// filter (chat + reply-to-top root), and read marking.
-
-// GetDiscussionThread fetches the comment thread of a channel post
-// through the core, caches every row under its own discussion chat, and
-// returns them newest-first (the GUI thread view contract).
 func (e *Engine) GetDiscussionThread(accountID, chatID, msgID string) ([]CachedMessage, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -42,8 +35,6 @@ func (e *Engine) GetDiscussionThread(accountID, chatID, msgID string) ([]CachedM
 	if discussionChat == "" {
 		return nil, nil
 	}
-	// The thread root: the first row that is its own root (the forwarded
-	// post), else the earliest row's ThreadRoot.
 	root := ""
 	for _, m := range msgs {
 		if m.ThreadRoot == m.ID {
@@ -65,9 +56,6 @@ func (e *Engine) GetDiscussionThread(accountID, chatID, msgID string) ([]CachedM
 	return e.GetThreadMessages(accountID, discussionChat, root, 0, 100)
 }
 
-// GetThreadMessages returns one discussion thread (root + comments),
-// newest-first, from the cache — the thread view's read path. beforeMs
-// > 0 pages strictly older rows (the scroll-up loader).
 func (e *Engine) GetThreadMessages(accountID, chatID, rootID string, beforeMs int64, limit int) ([]CachedMessage, error) {
 	if limit <= 0 {
 		limit = 50
@@ -99,8 +87,6 @@ func (e *Engine) GetThreadMessages(accountID, chatID, rootID string, beforeMs in
 	return msgs, nil
 }
 
-// ReadDiscussion marks the comment thread of a channel post read
-// (messages.readDiscussion — tdesktop marks on open).
 func (e *Engine) ReadDiscussion(accountID, chatID, msgID string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {

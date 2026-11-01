@@ -9,17 +9,11 @@ import (
 	"uniclient/utils"
 )
 
-// ── stripZalgo (AyuGram ayu_helpers.cpp filterZalgo, slice 173) ──────────
-//
-// Pattern: \p{Mn}{3,}|[ bidi controls ] — runs of 3+ combining marks lose
-// the tail (first two kept), bidi override/embedding controls vanish.
-
 func TestStripZalgoLeansTexts(t *testing.T) {
 	clean := "hello world"
 	if got := stripZalgo(clean); got != clean {
 		t.Errorf("clean text changed: %q", got)
 	}
-	// Normal accents are 1-2 combining marks — untouched.
 	accented := "café naïve"
 	if got := stripZalgo(accented); got != accented {
 		t.Errorf("accented text changed: %q", got)
@@ -30,13 +24,11 @@ func TestStripZalgoLeansTexts(t *testing.T) {
 }
 
 func TestStripZalgoTrimsLongCombiningRuns(t *testing.T) {
-	// e + 5 combining marks → e + 2 kept.
 	zalgo := "e\u0301\u0302\u0303\u0304\u0305"
 	got := stripZalgo(zalgo)
 	if want := "e\u0301\u0302"; got != want {
 		t.Errorf("zalgo run = %q, want %q", got, want)
 	}
-	// Mixed sentence: zalgo word collapses, rest survives.
 	in := "hi z\u0301\u0302\u0303\u0304 there"
 	if got := stripZalgo(in); got != "hi z\u0301\u0302 there" {
 		t.Errorf("mixed = %q", got)
@@ -53,7 +45,6 @@ func TestStripZalgoDropsBidiControls(t *testing.T) {
 }
 
 func TestStripZalgoFastPathIdentity(t *testing.T) {
-	// No changes → the original string must be returned as-is.
 	s := "plain ascii"
 	if got := stripZalgo(s); got != s {
 		t.Errorf("fast path changed the string")
@@ -63,15 +54,10 @@ func TestStripZalgoFastPathIdentity(t *testing.T) {
 	}
 }
 
-// ── message seconds (ayu showMessageSeconds, formatMessageTime) ─────────
-
 func TestMsgTimeLabel(t *testing.T) {
 	if got := msgTimeLabel(0); got != "" {
 		t.Errorf("zero ts = %q, want empty", got)
 	}
-	// Local, not UTC: msgTimeLabel formats through time.UnixMilli, which
-	// renders in the process' zone. Fixtures must be built in that same
-	// zone or the literals below only hold on a UTC machine.
 	ms := time.Date(2026, 9, 13, 15, 4, 23, 0, time.Local).UnixMilli()
 	setMsgShowSeconds(false)
 	if got := msgTimeLabel(ms); got != "15:04" {
@@ -81,15 +67,10 @@ func TestMsgTimeLabel(t *testing.T) {
 	if got := msgTimeLabel(ms); got != "15:04:23" {
 		t.Errorf("seconds on = %q, want 15:04:23", got)
 	}
-	setMsgShowSeconds(false) // restore default for other tests
+	setMsgShowSeconds(false)
 }
 
-// ── reaction-strip visibility (ayu show{Channel,Group,Private}Reactions) ─
-
 func TestReactionsVisible(t *testing.T) {
-	// AyuGram defaults: all three ON. The snapshot carries effective
-	// values, so zero-value cfgSnapshot{} means hidden and all-true means
-	// shown — the nil→true fold is pinned by cfgFromAppConfig tests.
 	allOn := cfgSnapshot{AyuReactChannels: true, AyuReactGroups: true, AyuReactPrivate: true}
 	chanRow := engine.ChatInfo{Type: engine.ChatTypeChanVal}
 	groupRow := engine.ChatInfo{Type: engine.ChatTypeGroupVal}
@@ -114,8 +95,6 @@ func TestReactionsVisible(t *testing.T) {
 	}
 }
 
-// ── send confirmations (ayu sticker/gif/voice Confirmation) ──────────────
-
 func TestConfirmKindTitle(t *testing.T) {
 	if got := confirmKindTitle("sticker"); got != "Send this sticker?" {
 		t.Errorf("sticker title = %q", got)
@@ -131,7 +110,6 @@ func TestConfirmKindTitle(t *testing.T) {
 	}
 }
 
-// Config dispatch: the eight new ayu keys reach the engine bridge.
 func TestConfigFieldChangesAyuExtras(t *testing.T) {
 	keys := []string{
 		"ayu_msg_seconds", "ayu_filter_zalgo",

@@ -1,14 +1,5 @@
 package engine
 
-// Ayu shadow ban (matrix row 240): a per-chat local ignore list. Messages
-// from a shadow-banned sender never render in that chat's local view —
-// nothing is deleted server-side and the sender is never told (unlike a
-// block, which cuts the connection). Bans live in the shadow_bans table
-// (v47); GetMessages excludes them in SQL so the fetch windowing (the
-// before/after cursor math) stays consistent — the same approach as the
-// locally-hidden rows, and stronger than a post-scan (a page is never
-// short-filled by hidden rows).
-
 import (
 	"database/sql"
 	"fmt"
@@ -16,25 +7,19 @@ import (
 	"time"
 )
 
-// ShadowBan is one local per-chat shadow ban.
 type ShadowBan struct {
 	AccountID  string `json:"account_id"`
 	ChatID     string `json:"chat_id"`
 	SenderID   string `json:"sender_id"`
 	SenderName string `json:"sender_name"`
-	CreatedAt  int64  `json:"created_at"` // ms
+	CreatedAt  int64  `json:"created_at"`
 }
 
-// shadowBanSQL is the NOT EXISTS clause appended to every GetMessages
-// branch. Keyed account+chat+sender: a ban in one chat does not affect
-// the same user elsewhere (AyuGram semantics).
 const shadowBanSQL = ` AND NOT EXISTS (SELECT 1 FROM shadow_bans s
                          WHERE s.account_id = messages.account_id
                            AND s.chat_id = messages.chat_id
                            AND s.sender_id = messages.sender_id)`
 
-// ShadowBanSender adds or removes a local shadow ban. Empty senderID is
-// rejected (own/service rows have none — callers gate on the message).
 func (e *Engine) ShadowBanSender(accountID, chatID, senderID, senderName string, ban bool) error {
 	if strings.TrimSpace(senderID) == "" {
 		return fmt.Errorf("empty sender")
@@ -55,7 +40,6 @@ func (e *Engine) ShadowBanSender(accountID, chatID, senderID, senderName string,
 	return err
 }
 
-// ListShadowBans returns the bans for one chat, newest first.
 func (e *Engine) ListShadowBans(accountID, chatID string) []ShadowBan {
 	rows, err := e.db.Query(
 		`SELECT account_id, chat_id, sender_id, sender_name, created_at
@@ -76,8 +60,6 @@ func (e *Engine) ListShadowBans(accountID, chatID string) []ShadowBan {
 	return out
 }
 
-// IsShadowBanned reports whether the sender is banned in this chat.
-// Best-effort: unreadable store = no ban (messages keep rendering).
 func (e *Engine) IsShadowBanned(accountID, chatID, senderID string) bool {
 	if senderID == "" {
 		return false
@@ -89,7 +71,6 @@ func (e *Engine) IsShadowBanned(accountID, chatID, senderID string) bool {
 	return err == nil
 }
 
-// CountShadowBans is the per-account total (for settings summaries).
 func (e *Engine) CountShadowBans(accountID string) int {
 	var n int
 	if err := e.db.QueryRow(
@@ -99,9 +80,6 @@ func (e *Engine) CountShadowBans(accountID string) int {
 	return n
 }
 
-// dropShadowBanned removes banned senders' rows from an in-memory page
-// (the live-fetch path returns freshly cached rows before any SQL
-// exclusion runs). One ban-set read, then set lookup.
 func (e *Engine) dropShadowBanned(accountID, chatID string, msgs []CachedMessage) []CachedMessage {
 	bans := e.ListShadowBans(accountID, chatID)
 	if len(bans) == 0 || len(msgs) == 0 {

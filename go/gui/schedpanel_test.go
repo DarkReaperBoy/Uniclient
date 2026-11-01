@@ -12,7 +12,7 @@ func TestSchedRowText(t *testing.T) {
 	if got := schedRowText(m); got != "hello there" {
 		t.Errorf("text = %q", got)
 	}
-	m = engine.CachedMessage{ContentText: "", MediaType: 3} // 3 = voice-ish; label from engine
+	m = engine.CachedMessage{ContentText: "", MediaType: 3}
 	if got := schedRowText(m); got == "(no text)" && engine.MediaPreviewLabel(3) != "" {
 		t.Errorf("media fallback should use MediaPreviewLabel")
 	}
@@ -39,7 +39,6 @@ func TestSchedRowWhen(t *testing.T) {
 }
 
 func TestSchedReschedRouting(t *testing.T) {
-	// The resched pointer is what routes the dialog to RescheduleMessage.
 	m := engine.CachedMessage{AccountID: "a", ChatID: "c", MsgID: "5", ScheduleDate: 1780000000}
 	d := &schedDlgState{resched: &m}
 	if d.resched == nil || d.resched.MsgID != "5" {

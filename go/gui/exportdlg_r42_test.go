@@ -1,21 +1,5 @@
 package gui
 
-// R42/R43 pins (chunk 3 iteration 27, the R34 sibling sweep #6 —
-// exportdlg.go read in full):
-//
-//   - R42: exportDlgState was R34's pre-fix shape — the engine event
-//     goroutine (onExportProgress/onExportError/onExportComplete) and
-//     startExport's failure tail mutated running/progress/err/done IN
-//     PLACE under a.mu while layoutExportDialog read the same fields
-//     through the frame pointer under frameMu only. Now every writer
-//     goes through updateExportDlg (copy-on-write, the R34/R40 shape)
-//     with accountID staleness guards on the tails.
-//   - R43: exportOptsSynced was never reset — the checkbox pool seeded
-//     once per PROCESS, so the second open showed the previous session's
-//     toggles while the fresh checked map held the defaults (Start would
-//     export the map, not the display). Reset at open+close, R41's
-//     profileEdSynced shape minus the atomic (no background writer here).
-
 import (
 	"sync"
 	"testing"
@@ -24,23 +8,17 @@ import (
 	"uniclient/engine"
 )
 
-// TestExportDlgStateIsCopyOnWrite pins R42's core: the engine-goroutine
-// handlers must swap the head, never mutate the frame-visible struct in
-// place. A reader holds the ORIGINAL head pointer (what a captured frame
-// holds) while three writers hammer through the real handlers — under the
-// pre-fix in-place writes this is a -race report on running/progress/err/
-// done; under the fix the frozen head is never touched.
 func TestExportDlgStateIsCopyOnWrite(t *testing.T) {
 	a := &App{}
 	a.mu.Lock()
 	a.exportDlg = &exportDlgState{accountID: "acc", checked: map[string]bool{"personal_info": true}}
 	a.mu.Unlock()
-	head := a.exportDlg // the frame-captured pointer
+	head := a.exportDlg
 
 	var wg sync.WaitGroup
 	stop := make(chan struct{})
 	wg.Add(1)
-	go func() { // the GUI-loop reader stand-in: no a.mu, frameMu only
+	go func() {
 		defer wg.Done()
 		for {
 			select {
@@ -55,7 +33,7 @@ func TestExportDlgStateIsCopyOnWrite(t *testing.T) {
 			_ = head.checked["personal_info"]
 		}
 	}()
-	for i := 0; i < 3; i++ { // the engine-goroutine writers
+	for i := 0; i < 3; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -66,7 +44,6 @@ func TestExportDlgStateIsCopyOnWrite(t *testing.T) {
 			}
 		}()
 	}
-	// Let the writers finish, then release the reader.
 	go func() {
 		time.Sleep(50 * time.Millisecond)
 		close(stop)
@@ -77,10 +54,6 @@ func TestExportDlgStateIsCopyOnWrite(t *testing.T) {
 	}
 }
 
-// TestUpdateExportDlgContract pins the installer semantics: nil head is a
-// no-op (fn never runs), a false return leaves the head alone (same
-// pointer), a true return installs a FRESH struct and the replaced head
-// stays frozen. (Compile seam: updateExportDlg does not exist pre-fix.)
 func TestUpdateExportDlgContract(t *testing.T) {
 	a := &App{}
 	ran := false
@@ -122,9 +95,6 @@ func TestUpdateExportDlgContract(t *testing.T) {
 	}
 }
 
-// TestExportDlgForeignAccountGuarded pins the staleness discipline the
-// rewrite must not lose: events for another account never touch the open
-// dialog; the matching account's events land through the installer.
 func TestExportDlgForeignAccountGuarded(t *testing.T) {
 	a := &App{}
 	a.mu.Lock()
@@ -149,12 +119,6 @@ func TestExportDlgForeignAccountGuarded(t *testing.T) {
 	}
 }
 
-// TestStartExportReplacesStateAndTailLands pins startExport's two halves:
-// the head installs a FRESH running struct (clearing the result fields)
-// instead of mutating in place, and the failure tail — StartExport on the
-// bare harness misses the account and errors immediately — lands through
-// the installer, flipping running back to false without ever touching the
-// frozen heads.
 func TestStartExportReplacesStateAndTailLands(t *testing.T) {
 	a := &App{eng: &engine.Engine{}}
 	a.mu.Lock()
@@ -211,13 +175,9 @@ func TestStartExportReplacesStateAndTailLands(t *testing.T) {
 	}
 }
 
-// TestExportOptsSyncedResetsOnOpenClose pins R43: the checkbox-pool seed
-// flag must reset on BOTH open and close, and every open installs a fresh
-// checked map with the wizard defaults — the pool and the map can never
-// desync across opens again.
 func TestExportOptsSyncedResetsOnOpenClose(t *testing.T) {
 	a := &App{}
-	a.exportOptsSynced = true // a previous open already seeded the pool
+	a.exportOptsSynced = true
 	a.openExportDialog("acc")
 	if a.exportOptsSynced {
 		t.Fatal("open must reset the seed flag — the pool re-seeds from the fresh checked map")
@@ -235,7 +195,7 @@ func TestExportOptsSyncedResetsOnOpenClose(t *testing.T) {
 		t.Fatal("non-default options must start unchecked")
 	}
 
-	a.exportOptsSynced = true // the layout seeded the pool again
+	a.exportOptsSynced = true
 	a.closeExportDialog()
 	if a.exportOptsSynced {
 		t.Fatal("close must reset the seed flag too")

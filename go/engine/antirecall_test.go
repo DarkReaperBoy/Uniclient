@@ -6,8 +6,6 @@ import (
 	"uniclient/utils"
 )
 
-// newAntiRecallEngine: in-memory DB + temp-dir vault (config bridge path
-// needs both).
 func newAntiRecallEngine(t *testing.T) *Engine {
 	e := newTestEngine(t)
 	dir := t.TempDir()
@@ -20,10 +18,6 @@ func newAntiRecallEngine(t *testing.T) *Engine {
 	e.config = &cfg
 	return e
 }
-
-// Anti-recall (AyuGram §52, slice 80): settings round-trip + persistence
-// through the config bridge, and per-chat clearing of saved deleted
-// messages.
 
 func TestAntiRecallSettingsRoundTrip(t *testing.T) {
 	e := newAntiRecallEngine(t)
@@ -42,7 +36,6 @@ func TestAntiRecallSettingsRoundTrip(t *testing.T) {
 	if d || !h || !b {
 		t.Fatalf("after bridge = %v/%v/%v, want false/true/true", d, h, b)
 	}
-	// The change persisted into the config snapshot.
 	if e.GetConfig().AyuSaveDeleted == nil || *e.GetConfig().AyuSaveDeleted {
 		t.Error("config AyuSaveDeleted not persisted as false")
 	}
@@ -53,7 +46,6 @@ func TestAntiRecallSettingsRoundTrip(t *testing.T) {
 
 func TestClearDeletedMessages(t *testing.T) {
 	e := newTestEngine(t)
-	// Two deleted, one live in c1; one deleted in c2.
 	for i, msg := range []struct {
 		id, chat string
 		deleted  bool
@@ -94,7 +86,6 @@ func TestClearDeletedMessages(t *testing.T) {
 	if len(msgs) != 1 || msgs[0].MsgID != "m3" {
 		t.Fatalf("c1 after clear = %+v, want only m3", msgs)
 	}
-	// The other chat keeps its deleted copy.
 	msgs, err = e.GetMessages("a1", "c2", 0, 0, 50)
 	if err != nil {
 		t.Fatal(err)
@@ -102,7 +93,6 @@ func TestClearDeletedMessages(t *testing.T) {
 	if len(msgs) != 1 || msgs[0].MsgID != "m4" || !msgs[0].IsDeleted {
 		t.Fatalf("c2 = %+v, want deleted m4", msgs)
 	}
-	// Media rows for c1's deleted messages went too.
 	var mediaCount int
 	if err := e.db.QueryRow(
 		`SELECT COUNT(*) FROM media WHERE account_id = 'a1' AND chat_id = 'c1'`).Scan(&mediaCount); err != nil {
@@ -112,7 +102,6 @@ func TestClearDeletedMessages(t *testing.T) {
 		t.Fatalf("c1 media rows = %d, want 0", mediaCount)
 	}
 
-	// Idempotent: second clear reports zero.
 	if n, err = e.ClearDeletedMessages("a1", "c1"); err != nil || n != 0 {
 		t.Fatalf("second clear = %d/%v, want 0/nil", n, err)
 	}

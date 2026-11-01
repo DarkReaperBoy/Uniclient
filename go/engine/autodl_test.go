@@ -4,8 +4,6 @@ import (
 	"testing"
 )
 
-// effectiveAutoDownloadSettings fills the AyuGram-faithful defaults when
-// nothing is stored (slice 63).
 func TestEffectiveAutoDownloadSettingsDefaults(t *testing.T) {
 	got := effectiveAutoDownloadSettings(nil)
 	want := map[string]interface{}{
@@ -24,8 +22,6 @@ func TestEffectiveAutoDownloadSettingsDefaults(t *testing.T) {
 	}
 }
 
-// Stored maps override defaults, tolerating the JSON-decoded (float64) and
-// host-supplied (int/int64) number encodings (slice 63).
 func TestEffectiveAutoDownloadSettingsMerge(t *testing.T) {
 	got := effectiveAutoDownloadSettings(map[string]interface{}{
 		"photos":        false,
@@ -59,11 +55,9 @@ func TestEffectiveAutoDownloadSettingsMerge(t *testing.T) {
 	}
 }
 
-// int64-encoded limits (as stored by SetAutoDownloadSettings after a host
-// round-trip) survive the merge untouched (slice 63).
 func TestEffectiveAutoDownloadSettingsInt64(t *testing.T) {
 	got := effectiveAutoDownloadSettings(map[string]interface{}{
-		"downloadLimit": int64(0), // unlimited
+		"downloadLimit": int64(0),
 		"autoPlayLimit": int64(500 * 1024 * 1024),
 	})
 	if v, _ := got["downloadLimit"].(int64); v != 0 {
@@ -74,8 +68,6 @@ func TestEffectiveAutoDownloadSettingsInt64(t *testing.T) {
 	}
 }
 
-// GetAutoDownloadSettings returns effective settings for all three sources
-// even with nothing stored (slice 63).
 func TestGetAutoDownloadSettingsSources(t *testing.T) {
 	e := &Engine{}
 	got := e.GetAutoDownloadSettings()

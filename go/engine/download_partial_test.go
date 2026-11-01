@@ -7,13 +7,6 @@ import (
 	"testing"
 )
 
-// TestExecuteDownloadRemovesPartialOnFailure (F-78): a core that wrote
-// bytes to dest and THEN failed must not leave the truncated file —
-// executeDownload's error branch marked the row DownloadFailed but
-// kept the partial on disk, where any existence check (or the next
-// reader that trusts the path) treats it as present content.
-//
-// Seam-RED (WORKLOG 314): undefined: guardCore.dlErr.
 func TestExecuteDownloadRemovesPartialOnFailure(t *testing.T) {
 	e, core, _ := newGuardEngine(t)
 

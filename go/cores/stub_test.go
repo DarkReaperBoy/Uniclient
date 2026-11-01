@@ -2,9 +2,6 @@ package cores
 
 import "testing"
 
-// TestStubCoreIsHonest: the stub never pretends to work — unsupported
-// operations must surface ErrNotSupported, never fake success
-// (AGENTS.md §1.10).
 func TestStubCoreIsHonest(t *testing.T) {
 	var c Core = StubCore{}
 

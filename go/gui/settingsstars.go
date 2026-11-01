@@ -1,11 +1,5 @@
 package gui
 
-// settingsstars.go — slice 144: the Telegram Stars page (tdesktop's
-// Stars box). The account's own balance, the full transaction history
-// with filter tabs and load-more paging, refund/pending/failed chips.
-// Everything is engine-backed (payments.getStarsTransactions with
-// Peer=self); cores without stars hide the section honestly (§1.10).
-
 import (
 	"time"
 
@@ -18,11 +12,6 @@ import (
 	"uniclient/cores"
 )
 
-// ── pure helpers (unit-tested) ─────────────────────────────────────────────
-
-// formatStars renders a signed nanostar amount as a trimmed decimal —
-// whole stars without a separator, fractional parts with trailing zeros
-// trimmed. Pure.
 func formatStars(nano int64) string {
 	neg := nano < 0
 	if neg {
@@ -54,8 +43,6 @@ func formatStars(nano int64) string {
 	return out
 }
 
-// starsTxnAmountLabel: the row's amount — incoming with +, spending
-// with -. Pure.
 func starsTxnAmountLabel(txn cores.StarsTxn) string {
 	s := formatStars(txn.NanoStars)
 	if txn.NanoStars > 0 {
@@ -64,8 +51,6 @@ func starsTxnAmountLabel(txn cores.StarsTxn) string {
 	return s
 }
 
-// starsTxnTitle: the row's title — the bought product's title first,
-// then the counterparty's name, then the honest fallback. Pure.
 func starsTxnTitle(txn cores.StarsTxn) string {
 	if txn.Title != "" {
 		return txn.Title
@@ -76,8 +61,6 @@ func starsTxnTitle(txn cores.StarsTxn) string {
 	return "Stars"
 }
 
-// starsTxnStatusChip: the state chip — Failed beats Pending beats
-// Refunded; plain transactions have none. Pure.
 func starsTxnStatusChip(txn cores.StarsTxn) string {
 	switch {
 	case txn.Failed:
@@ -90,13 +73,11 @@ func starsTxnStatusChip(txn cores.StarsTxn) string {
 	return ""
 }
 
-// starsFilterTab is one history filter tab.
 type starsFilterTab struct {
 	label  string
-	filter string // wire filter: "" | "in" | "out"
+	filter string
 }
 
-// starsFilterTabs: All / Incoming / Outgoing (tdesktop's tabs). Pure.
 func starsFilterTabs() []starsFilterTab {
 	return []starsFilterTab{
 		{"All", ""},
@@ -105,9 +86,6 @@ func starsFilterTabs() []starsFilterTab {
 	}
 }
 
-// ── state ──────────────────────────────────────────────────────────────────
-
-// starsPageState is the open Stars sub-page.
 type starsPageState struct {
 	accountID string
 	filter    string
@@ -116,12 +94,12 @@ type starsPageState struct {
 	err       string
 
 	status    *cores.StarsStatus
-	nextPage  string // next_offset of the loaded page
-	appending bool   // a load-more is in flight
+	nextPage  string
+	appending bool
 }
 
 var (
-	starsOpenBtn   widget.Clickable // Settings → Main entry card
+	starsOpenBtn   widget.Clickable
 	starsBackBtn   widget.Clickable
 	starsReloadBtn widget.Clickable
 	starsMoreBtn   widget.Clickable
@@ -129,16 +107,6 @@ var (
 	starsAcctBtns  []widget.Clickable
 )
 
-// updateStarsPage applies fn to a COPY of the live Stars page state and
-// installs the copy under a.mu — R34's copy-on-write contract (R38, the
-// second sibling swept): the struct a frame holds stays immutable for
-// that frame's life, so the load/filter/reload tails cannot write-race
-// the layout's field reads. The append path additionally builds a FRESH
-// StarsStatus with a fresh Txns slice (the pre-fix code appended into the
-// frame-visible slice in place — the slice-header write raced the range
-// loop in layoutStarsPage). fn re-validates staleness itself (accountID
-// match); false aborts the install. Returns the installed copy, or nil
-// when the page is closed / fn aborted.
 func (a *App) updateStarsPage(fn func(st *starsPageState) bool) *starsPageState {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -153,11 +121,10 @@ func (a *App) updateStarsPage(fn func(st *starsPageState) bool) *starsPageState 
 	return &next
 }
 
-// openStarsPage starts the page for an account and loads its data.
 func (a *App) openStarsPage(accountID string) {
 	a.mu.Lock()
 	a.starsPage = &starsPageState{accountID: accountID, loading: true}
-	a.profileEdit = nil // one sub-page at a time (settings shell)
+	a.profileEdit = nil
 	a.stickerMgr = nil
 	a.folderMgr = nil
 	a.businessPage = nil
@@ -167,7 +134,6 @@ func (a *App) openStarsPage(accountID string) {
 	a.invalidate()
 }
 
-// closeStarsPage dismisses the page.
 func (a *App) closeStarsPage() {
 	a.mu.Lock()
 	a.starsPage = nil
@@ -175,13 +141,11 @@ func (a *App) closeStarsPage() {
 	a.invalidate()
 }
 
-// loadStarsPage fetches one page of history (append keeps the loaded
-// rows and adds the next page).
 func (a *App) loadStarsPage(accountID, offset string, appendMode bool) {
 	filter := ""
 	if a.updateStarsPage(func(n *starsPageState) bool {
 		if n.accountID != accountID {
-			return false // closed or switched — skip the fetch entirely
+			return false
 		}
 		filter = n.filter
 		if appendMode {
@@ -194,7 +158,7 @@ func (a *App) loadStarsPage(accountID, offset string, appendMode bool) {
 	status, err := a.eng.GetMyStars(accountID, offset, filter)
 	a.updateStarsPage(func(n *starsPageState) bool {
 		if n.accountID != accountID {
-			return false // closed or switched mid-fetch
+			return false
 		}
 		if appendMode {
 			n.appending = false
@@ -211,9 +175,6 @@ func (a *App) loadStarsPage(accountID, offset string, appendMode bool) {
 		n.loaded = true
 		if status != nil {
 			if appendMode && n.status != nil {
-				// Fresh status + fresh Txns slice: a frame holding the
-				// previous page must keep iterating its own (immutable)
-				// slice — never append into the frame-visible backing.
 				merged := &cores.StarsStatus{
 					BalanceNano: n.status.BalanceNano,
 					NextOffset:  status.NextOffset,
@@ -237,7 +198,6 @@ func (a *App) loadStarsPage(accountID, offset string, appendMode bool) {
 	a.invalidate()
 }
 
-// setStarsFilter switches the history filter and reloads the first page.
 func (a *App) setStarsFilter(filter string) {
 	acc := ""
 	if a.updateStarsPage(func(n *starsPageState) bool {
@@ -257,7 +217,6 @@ func (a *App) setStarsFilter(filter string) {
 	a.invalidate()
 }
 
-// reloadStarsPage re-pulls the first page.
 func (a *App) reloadStarsPage() {
 	acc := ""
 	a.updateStarsPage(func(n *starsPageState) bool {
@@ -270,7 +229,6 @@ func (a *App) reloadStarsPage() {
 	}
 }
 
-// loadMoreStars fetches the next page when one exists.
 func (a *App) loadMoreStars() {
 	acc, off := "", ""
 	if a.updateStarsPage(func(n *starsPageState) bool {
@@ -285,9 +243,6 @@ func (a *App) loadMoreStars() {
 	go a.loadStarsPage(acc, off, true)
 }
 
-// ── layout ─────────────────────────────────────────────────────────────────
-
-// layoutStarsPage renders the Stars sub-page inside the settings shell.
 func (a *App) layoutStarsPage(gtx layout.Context, f frame) layout.Dimensions {
 	st := f.starsPage
 	if st == nil {
@@ -305,7 +260,6 @@ func (a *App) layoutStarsPage(gtx layout.Context, f frame) layout.Dimensions {
 
 	var children []layout.FlexChild
 
-	// header: back + title + reload
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Bottom: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
@@ -326,7 +280,6 @@ func (a *App) layoutStarsPage(gtx layout.Context, f frame) layout.Dimensions {
 		})
 	}))
 
-	// account switcher chips (multiple accounts only)
 	if len(f.accounts) > 1 {
 		growClickables(&starsAcctBtns, len(f.accounts))
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -336,7 +289,6 @@ func (a *App) layoutStarsPage(gtx layout.Context, f frame) layout.Dimensions {
 		}))
 	}
 
-	// body
 	if st.loading && !st.loaded {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.loadingNote(gtx)
@@ -351,12 +303,10 @@ func (a *App) layoutStarsPage(gtx layout.Context, f frame) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 	}
 
-	// balance card
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.starsBalanceCard(gtx, st)
 	}))
 
-	// filter tabs (ButtonLayout renders the click area — no dead tabs)
 	tabs := starsFilterTabs()
 	growClickables(&starsTabBtns, len(tabs))
 	for i, tab := range tabs {
@@ -396,7 +346,6 @@ func (a *App) layoutStarsPage(gtx layout.Context, f frame) layout.Dimensions {
 		})
 	}))
 
-	// transaction rows
 	if st.status != nil {
 		for _, txn := range st.status.Txns {
 			txn := txn
@@ -410,7 +359,6 @@ func (a *App) layoutStarsPage(gtx layout.Context, f frame) layout.Dimensions {
 				return lbl.Layout(gtx)
 			}))
 		}
-		// load more
 		if st.nextPage != "" {
 			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return layout.Inset{Top: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -424,7 +372,6 @@ func (a *App) layoutStarsPage(gtx layout.Context, f frame) layout.Dimensions {
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-// starsBalanceCard: the big balance number.
 func (a *App) starsBalanceCard(gtx layout.Context, st *starsPageState) layout.Dimensions {
 	balance := "0"
 	if st.status != nil {
@@ -456,8 +403,6 @@ func (a *App) starsBalanceCard(gtx layout.Context, st *starsPageState) layout.Di
 	})
 }
 
-// starsTxnRow: one transaction — title/description, status chip, date,
-// signed amount.
 func (a *App) starsTxnRow(gtx layout.Context, txn cores.StarsTxn) layout.Dimensions {
 	return layout.Inset{Top: unit.Dp(3), Bottom: unit.Dp(3)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return roundedFill(gtx, a.ui.p.Surface, 10, func(gtx layout.Context) layout.Dimensions {
@@ -509,7 +454,6 @@ func (a *App) starsTxnRow(gtx layout.Context, txn cores.StarsTxn) layout.Dimensi
 	})
 }
 
-// starsAcctChips builds the account chip row for the page.
 func (a *App) starsAcctChips(gtx layout.Context, f frame, st *starsPageState) []layout.FlexChild {
 	var children []layout.FlexChild
 	for i, acc := range f.accounts {
@@ -542,7 +486,6 @@ func (a *App) starsAcctChips(gtx layout.Context, f frame, st *starsPageState) []
 	return children
 }
 
-// starsEntryRow renders the Settings → Main entry card.
 func (a *App) starsEntryRow(gtx layout.Context, f frame) layout.Dimensions {
 	if starsOpenBtn.Clicked(gtx) {
 		a.openStarsPage(mgrAccountID(f))

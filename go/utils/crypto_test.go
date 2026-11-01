@@ -15,7 +15,7 @@ func TestEncryptDecryptRoundTrip(t *testing.T) {
 		{},
 		[]byte("a"),
 		[]byte("hello, uniclient"),
-		bytes.Repeat([]byte("x"), 64*1024), // 64 KiB
+		bytes.Repeat([]byte("x"), 64*1024),
 	}
 	for _, pt := range plaintexts {
 		ct, err := Encrypt(key, pt)
@@ -77,7 +77,7 @@ func TestDecryptTampered(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ct[len(ct)-1] ^= 0xFF // flip last tag byte
+	ct[len(ct)-1] ^= 0xFF
 	if _, err := Decrypt(key, ct); err != ErrDecryptFailed {
 		t.Fatalf("tampered tag: got %v, want ErrDecryptFailed", err)
 	}

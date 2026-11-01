@@ -1,16 +1,11 @@
 package aacaud
 
-// Hostile-input fuzzing for the MP4/AAC audio parser (slice 255):
-// Parse must never panic on crafted bytes and must never return
-// (nil, nil) — fail one clip, never kill the client (§1.10).
-
 import (
 	"bytes"
 	"testing"
 )
 
 func FuzzParse(f *testing.F) {
-	// Minimal ftyp box + a truncated moov attempt + plain garbage.
 	f.Add([]byte{})
 	f.Add([]byte{0, 0, 0, 16, 'f', 't', 'y', 'p', 'i', 's', 'o', 'm', 0, 0, 2, 0})
 	f.Add([]byte{0, 0, 0, 8, 'm', 'o', 'o', 'v'})

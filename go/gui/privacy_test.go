@@ -6,7 +6,6 @@ import (
 	"uniclient/engine"
 )
 
-// privacyScopeLabel renders the four scopes (slice 62); unknown = dash.
 func TestPrivacyScopeLabel(t *testing.T) {
 	cases := map[string]string{
 		"everybody":     "Everybody",
@@ -23,8 +22,6 @@ func TestPrivacyScopeLabel(t *testing.T) {
 	}
 }
 
-// Every displayed row key must be a real engine key, and the row order must
-// match the engine's key list order (slice 62).
 func TestPrivacyKeyLabelsCoverEngineKeys(t *testing.T) {
 	if len(privacyKeyLabels) != len(engine.PrivacyScopeKeys) {
 		t.Fatalf("labels = %d, engine keys = %d", len(privacyKeyLabels), len(engine.PrivacyScopeKeys))
@@ -39,8 +36,6 @@ func TestPrivacyKeyLabelsCoverEngineKeys(t *testing.T) {
 	}
 }
 
-// The picker's choices: three options without close friends, four with,
-// nobody always last (slice 62).
 func TestPrivacyScopeChoices(t *testing.T) {
 	basic := privacyScopeChoices("phone_number")
 	if len(basic) != 3 {
@@ -61,7 +56,6 @@ func TestPrivacyScopeChoices(t *testing.T) {
 	}
 }
 
-// privacyKeyTitle resolves row labels for toasts (slice 62).
 func TestPrivacyKeyTitle(t *testing.T) {
 	if got := privacyKeyTitle("last_seen"); got != "Last seen & online" {
 		t.Errorf("title = %q", got)
@@ -71,7 +65,6 @@ func TestPrivacyKeyTitle(t *testing.T) {
 	}
 }
 
-// The dialog state carries the account + key it edits (slice 62).
 func TestPrivacyDlgStateFields(t *testing.T) {
 	st := &privacyDlgState{accountID: "a1", key: "calls"}
 	if st.accountID != "a1" || st.key != "calls" {

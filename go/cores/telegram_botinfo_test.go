@@ -1,10 +1,5 @@
 package cores
 
-// telegram_botinfo_test.go — slice 133 tests-first: the bot-info fields of
-// users.getFullUser's bot_info (description, privacy-policy URL, menu
-// button) fold into the User profile through a pure helper so the panel
-// can render "What can this bot do?" + commands + privacy link.
-
 import (
 	"testing"
 
@@ -12,7 +7,6 @@ import (
 )
 
 func TestApplyBotInfoFields(t *testing.T) {
-	// Full bot_info: description + privacy + menu button.
 	bi := &tg.BotInfo{}
 	bi.SetDescription("I translate messages. Just send me text!")
 	bi.SetPrivacyPolicyURL("https://example.com/privacy")
@@ -29,7 +23,6 @@ func TestApplyBotInfoFields(t *testing.T) {
 		t.Errorf("BotMenuText = %q", u.BotMenuText)
 	}
 
-	// Empty bot_info leaves everything untouched.
 	u2 := &User{BotDescription: "kept"}
 	applyBotInfoFields(u2, &tg.BotInfo{})
 	if u2.BotDescription != "kept" {
@@ -39,14 +32,12 @@ func TestApplyBotInfoFields(t *testing.T) {
 		t.Errorf("empty info invented fields: %+v", u2)
 	}
 
-	// Nil-safe.
 	u3 := &User{}
 	applyBotInfoFields(u3, nil)
 	if u3.BotDescription != "" || u3.BotPrivacyURL != "" || u3.BotMenuText != "" {
 		t.Errorf("nil info invented fields: %+v", u3)
 	}
 
-	// Non-URL menu button kinds do not leak text.
 	u4 := &User{}
 	bi4 := &tg.BotInfo{}
 	bi4.SetMenuButton(&tg.BotMenuButtonDefault{})

@@ -6,8 +6,6 @@ import (
 	"uniclient/cores"
 )
 
-// Rich-text parsing (AyuGram parity slice 32).
-
 func segText(segs []richSegment) string {
 	out := ""
 	for _, s := range segs {
@@ -26,7 +24,7 @@ func segAt(segs []richSegment, text string) map[string]richStyle {
 
 func TestParseRichSegmentsRoundTrip(t *testing.T) {
 	text := "bold and normal"
-	ents := []cores.TextEntity{{Type: "bold", Offset: 0, Length: 4}} // "bold"
+	ents := []cores.TextEntity{{Type: "bold", Offset: 0, Length: 4}}
 	segs := parseRichSegments(text, ents)
 	if got := segText(segs); got != text {
 		t.Fatalf("round-trip text = %q, want %q", got, text)
@@ -41,7 +39,6 @@ func TestParseRichSegmentsRoundTrip(t *testing.T) {
 }
 
 func TestParseRichSegmentsUTF16(t *testing.T) {
-	// "👍bold" — emoji is 2 UTF-16 units; entity covers "bold" at offset 2.
 	text := "👍bold"
 	ents := []cores.TextEntity{{Type: "italic", Offset: 2, Length: 4}}
 	segs := parseRichSegments(text, ents)
@@ -57,8 +54,8 @@ func TestParseRichSegmentsUTF16(t *testing.T) {
 func TestParseRichSegmentsOverlap(t *testing.T) {
 	text := "abcdef"
 	ents := []cores.TextEntity{
-		{Type: "bold", Offset: 0, Length: 4},   // abcd
-		{Type: "italic", Offset: 2, Length: 4}, // cdef
+		{Type: "bold", Offset: 0, Length: 4},
+		{Type: "italic", Offset: 2, Length: 4},
 	}
 	segs := parseRichSegments(text, ents)
 	by := segAt(segs, text)
@@ -74,7 +71,6 @@ func TestParseRichSegmentsOverlap(t *testing.T) {
 }
 
 func TestParseRichSegmentsBounds(t *testing.T) {
-	// Out-of-range entities clamp instead of slicing panics.
 	text := "hi"
 	ents := []cores.TextEntity{
 		{Type: "spoiler", Offset: -5, Length: 100},
@@ -125,7 +121,7 @@ func TestSpoilerHas(t *testing.T) {
 }
 
 func TestUtf16Conversion(t *testing.T) {
-	s := "a👍b" // 1 + 2 + 1 units
+	s := "a👍b"
 	if utf16Len(s) != 4 {
 		t.Errorf("utf16Len = %d, want 4", utf16Len(s))
 	}
@@ -135,8 +131,6 @@ func TestUtf16Conversion(t *testing.T) {
 }
 
 func TestApplyEntityLinkKind(t *testing.T) {
-	// slice 92: hashtags carry their entity kind so taps can dispatch
-	// to the tag search instead of the browser.
 	var st richStyle
 	applyEntity(&st, cores.TextEntity{Type: "hashtag", Offset: 0, Length: 5})
 	if st.link != "auto" || st.linkKind != "hashtag" {
@@ -164,7 +158,7 @@ func TestIsHashtagQuery(t *testing.T) {
 		{"#n", true},
 		{"#news", true},
 		{"news", false},
-		{"a #news", false}, // tag mode is a leading-# query only
+		{"a #news", false},
 	}
 	for _, tc := range cases {
 		if got := isHashtagQuery(tc.q); got != tc.want {

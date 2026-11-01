@@ -1,19 +1,5 @@
 package engine
 
-// suggestionstate.go — slice 171: the engine-side aggregate for the
-// chat-list top-bar suggestion card (tdesktop dialogs/suggestions).
-//
-// Data sources, per the tdesktop promo_suggestions component:
-//   - help.getPromoData → pending suggestion KEYS + the optional custom
-//     card (server-provided title/description/url);
-//   - contacts.getBirthdays → contacts whose birthday is today (the
-//     BIRTHDAY_CONTACTS_TODAY card is fully local data);
-//   - the self user's photo/birthday state gates BIRTHDAY_SETUP and
-//     USERPIC_SETUP.
-//
-// Dismissal: help.dismissSuggestion is async server-side; the engine
-// keeps the local dismissal immediately so the card hides at once.
-
 import (
 	"fmt"
 	"sync"
@@ -21,7 +7,6 @@ import (
 	"uniclient/cores"
 )
 
-// PromoSuggestionInfo is one renderable suggestion card.
 type PromoSuggestionInfo struct {
 	Key         string `json:"key"`
 	Title       string `json:"title"`
@@ -29,21 +14,17 @@ type PromoSuggestionInfo struct {
 	URL         string `json:"url,omitempty"`
 }
 
-// BirthdayContactInfo is a contact with a birthday today.
 type BirthdayContactInfo struct {
 	UserID int64  `json:"user_id"`
 	Name   string `json:"name"`
 }
 
-// SelfSuggestionStateInfo gates the setup suggestions.
 type SelfSuggestionStateInfo struct {
 	PhotoSet        bool `json:"photo_set"`
 	BirthdaySet     bool `json:"birthday_set"`
 	BirthdayIsToday bool `json:"birthday_is_today"`
 }
 
-// SuggestionState is the whole renderable suggestion surface for one
-// account (what the GUI bar picks from).
 type SuggestionState struct {
 	Pending          []string                `json:"pending"`
 	Custom           *PromoSuggestionInfo    `json:"custom,omitempty"`
@@ -52,11 +33,9 @@ type SuggestionState struct {
 	Dismissed        map[string]bool         `json:"-"`
 }
 
-// suggestionDismiss tracks locally-dismissed keys per account (they stay
-// hidden even while the server still lists them).
 type suggestionDismiss struct {
 	mu   sync.Mutex
-	keys map[string]map[string]bool // accountID → key → dismissed
+	keys map[string]map[string]bool
 }
 
 var suggestionDismissed = &suggestionDismiss{keys: map[string]map[string]bool{}}
@@ -76,8 +55,6 @@ func (d *suggestionDismiss) set(accountID, key string) {
 	d.keys[accountID][key] = true
 }
 
-// GetSuggestionState assembles the suggestion surface for an account.
-// Non-Telegram cores return an empty state (no suggestions to render).
 func (e *Engine) GetSuggestionState(accountID string) (*SuggestionState, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -130,8 +107,6 @@ func (e *Engine) GetSuggestionState(accountID string) (*SuggestionState, error) 
 	return st, nil
 }
 
-// DismissSuggestion hides a suggestion: local immediately, server-side
-// via help.dismissSuggestion (async, best-effort).
 func (e *Engine) DismissSuggestion(accountID, key string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -143,12 +118,11 @@ func (e *Engine) DismissSuggestion(accountID, key string) error {
 		DismissSuggestion(key string) error
 	}
 	if d, ok := acc.Core.(dismisser); ok {
-		_ = d.DismissSuggestion(key) // best-effort; the local hide stands
+		_ = d.DismissSuggestion(key)
 	}
 	return nil
 }
 
-// SuggestionDismissed reports a locally-dismissed key.
 func (e *Engine) SuggestionDismissed(accountID, key string) bool {
 	return suggestionDismissed.has(accountID, key)
 }

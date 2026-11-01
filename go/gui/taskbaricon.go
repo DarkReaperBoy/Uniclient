@@ -1,17 +1,10 @@
 package gui
 
-// taskbaricon.go — slice 153: the Windows taskbar overlay tile,
-// composed with the tray glyph font. Shared (platform-independent) so
-// the composition is unit-testable everywhere; only the HICON
-// conversion + COM call live behind the windows build tag.
-
 import (
 	"image"
 	"image/color"
 )
 
-// renderTaskbarOverlayRGBA composes the small overlay tile: rounded
-// accent square + the white count digits (the tray glyph font).
 func renderTaskbarOverlayRGBA(px int, accent color.NRGBA, count int) *image.NRGBA {
 	img := image.NewNRGBA(image.Rect(0, 0, px, px))
 	tile := roundedTileMask(px, px/4)

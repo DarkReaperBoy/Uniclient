@@ -1,9 +1,5 @@
 package gui
 
-// statsearn_test.go — slice 213 tests: pure helpers for the stats
-// panel's Earn tab — the graph-map conversion onto StatsGraphData, the
-// balance/USD labels, and the withdraw gate.
-
 import (
 	"testing"
 
@@ -33,7 +29,7 @@ func TestEarnChartsFromMaps(t *testing.T) {
 
 func TestEarnBalanceLabels(t *testing.T) {
 	st := &cores.StarsRevenueResult{
-		AvailableBalance: 2_500_000_000, // 2.5 stars
+		AvailableBalance: 2_500_000_000,
 		OverallRevenue:   10_000_000_000,
 		UsdRate:          0.013,
 	}
@@ -47,7 +43,6 @@ func TestEarnBalanceLabels(t *testing.T) {
 	if got := earnUsdLabel(st.AvailableBalance, st.UsdRate); got != "≈ $0.03" {
 		t.Errorf("usd label = %q", got)
 	}
-	// Zero rate → no USD line (honest absence).
 	if got := earnUsdLabel(100, 0); got != "" {
 		t.Errorf("zero-rate usd label = %q", got)
 	}
@@ -56,7 +51,7 @@ func TestEarnBalanceLabels(t *testing.T) {
 func TestEarnWithdrawReady(t *testing.T) {
 	base := cores.StarsRevenueResult{
 		WithdrawalEnabled: true,
-		AvailableBalance:  5_000_000_000, // 5 stars
+		AvailableBalance:  5_000_000_000,
 		WithdrawalMin:     1_000_000_000,
 	}
 	if !earnWithdrawReady(&base, false) {

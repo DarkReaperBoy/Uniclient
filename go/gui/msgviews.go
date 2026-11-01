@@ -1,11 +1,5 @@
 package gui
 
-// Channel-post views ticker (slice 187): an open channel chat refreshes
-// its view/forward counters once on open, then every
-// engine.ViewsRefreshInterval seconds while it stays open (tdesktop's
-// refreshChannelViews cadence). Counters merge into the open window in
-// place — no wholesale reload that could race concurrent message events.
-
 import (
 	"log"
 	"time"
@@ -13,8 +7,6 @@ import (
 	"uniclient/engine"
 )
 
-// syncViewsRefresh starts/retargets/stops the views ticker for the
-// currently selected chat (channels only).
 func (a *App) syncViewsRefresh() {
 	a.mu.Lock()
 	selected := a.selected
@@ -36,7 +28,7 @@ func (a *App) syncViewsRefresh() {
 		return
 	}
 	if already != nil && *already == *target {
-		return // loop is already watching this chat
+		return
 	}
 	go func(k chatKey) {
 		a.pollViewsOnce(k)
@@ -55,12 +47,9 @@ func (a *App) syncViewsRefresh() {
 	}(*target)
 }
 
-// pollViewsOnce runs one refresh pass and merges the counters into the
-// open window's rows by message id.
 func (a *App) pollViewsOnce(k chatKey) {
 	changed, err := a.eng.RefreshMessageViews(k.AccountID, k.ChatID)
 	if err != nil {
-		// Quiet: offline channels keep their last cached counters.
 		log.Printf("gui: views refresh (%s/%s): %v", k.AccountID, k.ChatID, err)
 		return
 	}

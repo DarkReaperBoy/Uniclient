@@ -7,20 +7,10 @@ import (
 	"testing"
 )
 
-// F-71 (slice 308): server-origin path components — media message IDs
-// (matrix event IDs are opaque; a hostile homeserver controls them),
-// profile-music DocIDs, and the login-issued accountID itself — were
-// joined into filesystem paths RAW. `filepath.Join(dir, "../../x")`
-// escapes the media dir; the download then writes attacker-chosen bytes
-// to an attacker-chosen relative path (§1.10: hostile-server input must
-// never reach the disk unsanitized).
-//
-// Seam-RED (WORKLOG 308): undefined: safePathSegment.
-
 func TestSafePathSegmentKeepsLegitIDs(t *testing.T) {
 	for _, in := range []string{
-		"$RkmbQfKaQnHqj:matrix.org", // matrix event id
-		"-1001234567890",            // telegram chat id
+		"$RkmbQfKaQnHqj:matrix.org",
+		"-1001234567890",
 		"event_0.bin",
 		"profilemusic_12345.mp3",
 		"uc-live-48291",
@@ -54,8 +44,6 @@ func TestSafePathSegmentNeutralizesTraversal(t *testing.T) {
 	}
 }
 
-// TestSafePathSegmentNeverEscapesDir: the property that matters — a
-// joined hostile segment stays under the base dir.
 func TestSafePathSegmentNeverEscapesDir(t *testing.T) {
 	dir := t.TempDir()
 	for _, evil := range []string{"../../../tmp/pwned", "..\\..\\pwned", "..", "/etc/shadow"} {
@@ -67,9 +55,6 @@ func TestSafePathSegmentNeverEscapesDir(t *testing.T) {
 	}
 }
 
-// TestRawServerIDJoinsGone: source-scan pin — every join that once
-// interpolated a server-origin ID must go through safePathSegment
-// (headless path builders, B-51 precedent).
 func TestRawServerIDJoinsGone(t *testing.T) {
 	sites := map[string]string{
 		"media.go":       "filepath.Join(dir, job.MsgID+",
@@ -90,7 +75,6 @@ func TestRawServerIDJoinsGone(t *testing.T) {
 			}
 		}
 	}
-	// pending.go uses two spellings of the same ID.
 	src, err := os.ReadFile("pending.go")
 	if err != nil {
 		t.Fatalf("read pending.go: %v", err)

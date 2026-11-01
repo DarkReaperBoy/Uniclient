@@ -8,17 +8,6 @@ import (
 	"time"
 )
 
-// Tests-first for the BUGS.md B-1 SEND path: tsSendCommand must (1) compress
-// commands > tsMaxPayloadC2S with tsQuickLZCompress, (2) ship a compressed
-// payload that still fits as ONE packet with tsFlagCompressed, (3) fragment
-// the compressed stream when even that is too big (0x40 on the first
-// fragment), and (4) leave small or incompressible commands byte-for-byte
-// unchanged. The oracle mirrors the server: capture UDP, EAX-decrypt with
-// the fake-key path, reassemble fragments, QuickLZ-decompress, compare.
-
-// tsTestSender builds a tsConnection whose packets land on a local capture
-// socket (cryptoOK=false → the same fake-key EAX path the tests below can
-// decrypt).
 func tsTestSender(t *testing.T) (*tsConnection, *net.UDPConn) {
 	t.Helper()
 	target, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0})
@@ -36,11 +25,10 @@ func tsTestSender(t *testing.T) (*tsConnection, *net.UDPConn) {
 		addr:        target.LocalAddr().(*net.UDPAddr),
 		pendingCmds: make(map[uint16]*tsPendingCmd),
 	}
-	tc.clientID.Store(42) // atomic field (B-40) — cannot be set in the literal
+	tc.clientID.Store(42)
 	return tc, target
 }
 
-// tsTestReadPackets collects exactly n packets or fails on timeout.
 func tsTestReadPackets(t *testing.T, target *net.UDPConn, n int) [][]byte {
 	t.Helper()
 	buf := make([]byte, 65535)
@@ -58,9 +46,6 @@ func tsTestReadPackets(t *testing.T, target *net.UDPConn, n int) [][]byte {
 	return pkts
 }
 
-// tsTestDecode reassembles captured C2S packets exactly like the peer does:
-// EAX-decrypt each payload, concatenate (arrival order = send order on
-// loopback), QuickLZ-decompress when the FIRST packet carried 0x40.
 func tsTestDecode(t *testing.T, pkts [][]byte) (payload []byte, firstFlags byte) {
 	t.Helper()
 	firstFlags = pkts[0][12]
@@ -94,7 +79,7 @@ func TestTS3SendCommandCompressesLargeCommand(t *testing.T) {
 	t.Run("compressible 580-byte command fits one packet", func(t *testing.T) {
 		tc, target := tsTestSender(t)
 		cmd := "sendtextmessage targetmode=3 msg=" +
-			strings.Repeat("hello teamspeak world this is a test. ", 15) // 573 chars
+			strings.Repeat("hello teamspeak world this is a test. ", 15)
 		if len(cmd) <= tsMaxPayloadC2S {
 			t.Fatalf("test command too small: %d", len(cmd))
 		}
@@ -115,14 +100,13 @@ func TestTS3SendCommandCompressesLargeCommand(t *testing.T) {
 	t.Run("compressible 2600-byte command still fits one packet", func(t *testing.T) {
 		tc, target := tsTestSender(t)
 		cmd := "clientupdate client_description=" +
-			strings.Repeat("the quick brown fox jumps over the lazy dog. ", 58) // ~2675
+			strings.Repeat("the quick brown fox jumps over the lazy dog. ", 58)
 		if len(cmd) <= tsMaxPayloadC2S {
 			t.Fatalf("test command too small: %d", len(cmd))
 		}
 		if _, err := tc.tsSendCommand(cmd); err != nil {
 			t.Fatalf("tsSendCommand: %v", err)
 		}
-		// The whole win: 2600+ bytes used to be 6 raw fragments.
 		pkts := tsTestReadPackets(t, target, 1)
 		if f := pkts[0][12]; f&tsFlagFragmented != 0 || f&tsFlagCompressed == 0 {
 			t.Fatalf("flags = %#02x, want a single compressed (0x40) packet", f)
@@ -135,9 +119,6 @@ func TestTS3SendCommandCompressesLargeCommand(t *testing.T) {
 
 	t.Run("incompressible 1500-byte command keeps raw fragmentation", func(t *testing.T) {
 		tc, target := tsTestSender(t)
-		// Deterministic pseudo-random bytes: QuickLZ ratio give-up → the
-		// stored-raw stream is LARGER than the input, so tsSendCommand
-		// must fall back to raw fragmentation with NO 0x40 anywhere.
 		rnd := uint32(12345)
 		var b strings.Builder
 		for b.Len() < 1500 {
@@ -187,8 +168,6 @@ func TestTS3SendCommandCompressesLargeCommand(t *testing.T) {
 	})
 }
 
-// TestTS3SendCommandPacketIDsSequential guards the pID bookkeeping across
-// the new compress→fragment decision (each packet still consumes one ID).
 func TestTS3SendCommandPacketIDsSequential(t *testing.T) {
 	tc, target := tsTestSender(t)
 	rnd := uint32(999)
@@ -201,7 +180,7 @@ func TestTS3SendCommandPacketIDsSequential(t *testing.T) {
 	if err != nil {
 		t.Fatalf("tsSendCommand: %v", err)
 	}
-	pkts := tsTestReadPackets(t, target, 3) // 1200 > 487 → 3 fragments
+	pkts := tsTestReadPackets(t, target, 3)
 	ids := make([]uint16, len(pkts))
 	for i, p := range pkts {
 		ids[i] = binary.BigEndian.Uint16(p[8:10])

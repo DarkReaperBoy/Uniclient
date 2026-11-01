@@ -1,10 +1,5 @@
 package gui
 
-// Groups in common (AyuGram parity slice 107): the DM profile panel's
-// shared-groups section — engine.GetCommonChats rows with member counts,
-// tap opens the chat when it is in the loaded list (honest toast when
-// not). The section hides entirely for chats without common groups.
-
 import (
 	"gioui.org/layout"
 	"gioui.org/unit"
@@ -15,19 +10,16 @@ import (
 	"uniclient/engine"
 )
 
-// commonGroupRow is one rendered shared-group row.
 type commonGroupRow struct {
 	id    string
 	title string
 	sub   string
 }
 
-// commonGroupsGate: the section shows on DM profiles only.
 func commonGroupsGate(chat engine.ChatInfo) bool {
 	return chat.Type == engine.ChatTypeDMVal
 }
 
-// commonMemberLabel renders the member count line ("" for unknown).
 func commonMemberLabel(n int) string {
 	switch {
 	case n <= 0:
@@ -39,7 +31,6 @@ func commonMemberLabel(n int) string {
 	}
 }
 
-// commonGroupRows maps engine dialogs to rows (pure).
 func commonGroupRows(ds []cores.Dialog) []commonGroupRow {
 	rows := make([]commonGroupRow, 0, len(ds))
 	for _, d := range ds {
@@ -56,8 +47,6 @@ func commonGroupRows(ds []cores.Dialog) []commonGroupRow {
 	return rows
 }
 
-// a.wid.commonGroupBtns pools the row clickables by dialog ID.
-
 func (a *App) commonGroupBtn(id string) *widget.Clickable {
 	if btn, ok := a.wid.commonGroupBtns[id]; ok {
 		return btn
@@ -70,7 +59,6 @@ func (a *App) commonGroupBtn(id string) *widget.Clickable {
 	return btn
 }
 
-// loadCommonChats fetches the shared groups for a DM peer (slice 107).
 func (a *App) loadCommonChats(k chatKey) {
 	go func() {
 		ds, err := a.eng.GetCommonChats(k.AccountID, k.ChatID, 30)
@@ -88,7 +76,6 @@ func (a *App) loadCommonChats(k chatKey) {
 	}()
 }
 
-// layoutCommonGroups renders the section (hidden when empty/unloaded).
 func (a *App) layoutCommonGroups(gtx layout.Context, f frame, k chatKey) layout.Dimensions {
 	if !f.commonLoaded || len(f.commonChats) == 0 {
 		return layout.Dimensions{}
@@ -143,8 +130,6 @@ func (a *App) layoutCommonGroups(gtx layout.Context, f frame, k chatKey) layout.
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-// openCommonGroup opens a shared group chat (or toasts honestly when the
-// chat is not in the loaded list).
 func (a *App) openCommonGroup(f frame, accountID, chatID string) {
 	for _, c := range f.chats {
 		if c.AccountID == accountID && c.ChatID == chatID {

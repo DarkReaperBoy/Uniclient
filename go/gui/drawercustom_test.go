@@ -4,8 +4,6 @@ import (
 	"testing"
 )
 
-// Drawer customization (AyuGram parity slice 38).
-
 func TestDrawerRowHidden(t *testing.T) {
 	hidden := []string{drawerItemSaved, drawerItemCalls}
 	if !drawerRowHidden(hidden, drawerItemSaved) {

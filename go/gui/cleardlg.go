@@ -8,26 +8,16 @@ import (
 	"uniclient/engine"
 )
 
-// Clear-history confirm dialog (slice 190, tdesktop's "Clear history?" box
-// reached from the chat-row context menu): destructive action behind a
-// centered confirm card, with the "Also delete for everyone" revoke
-// checkbox offered where Telegram's deleteHistory semantics allow it
-// (private chats always; groups/channels for admins). The chat stays in
-// the list — that is the difference from Delete chat.
-
-// clearDlgState: open dialog (nil when closed).
 type clearDlgState struct {
 	chat engine.ChatInfo
 	busy bool
 }
 
-// clearDialogTitle (pure, testable). tdesktop: "Clear history?".
 func clearDialogTitle(title string) string {
-	_ = title // the box is generic in tdesktop; chat context is the pane behind it
+	_ = title
 	return "Clear history?"
 }
 
-// clearDialogHint (pure, testable).
 func clearDialogHint(revokeAvailable bool) string {
 	if revokeAvailable {
 		return "This can't be undone."
@@ -35,8 +25,6 @@ func clearDialogHint(revokeAvailable bool) string {
 	return "This can't be undone. Messages stay on the other side."
 }
 
-// canRevokeClearHistory (pure, testable): DMs (incl. Saved Messages)
-// always offer the both-sides wipe; groups/channels only for admins.
 func canRevokeClearHistory(c engine.ChatInfo) bool {
 	switch c.Type {
 	case engine.ChatTypeDMVal:
@@ -48,7 +36,6 @@ func canRevokeClearHistory(c engine.ChatInfo) bool {
 	}
 }
 
-// openClearDialog shows the confirm for a chat-row Clear history.
 func (a *App) openClearDialog(chat engine.ChatInfo) {
 	a.mu.Lock()
 	a.clearDlg = &clearDlgState{chat: chat}
@@ -58,7 +45,6 @@ func (a *App) openClearDialog(chat engine.ChatInfo) {
 	a.invalidate()
 }
 
-// closeClearDialog dismisses (blocked while clearing).
 func (a *App) closeClearDialog() {
 	a.mu.Lock()
 	if a.clearDlg == nil {
@@ -74,9 +60,6 @@ func (a *App) closeClearDialog() {
 	a.invalidate()
 }
 
-// submitClearDialog performs the clear (async): server-side + local wipe
-// through engine.ClearHistory, then reloads the open view and chat list so
-// the empty state is honest immediately (§1.10 — no stale rows).
 func (a *App) submitClearDialog() {
 	a.mu.Lock()
 	if a.clearDlg == nil || a.clearDlg.busy {
@@ -100,8 +83,6 @@ func (a *App) submitClearDialog() {
 			return
 		}
 		a.setToast("History cleared")
-		// Reload whatever surface shows this chat so the wipe is visible
-		// (the message window reloads only when the cleared chat is open).
 		a.mu.Lock()
 		sel := a.selected
 		a.mu.Unlock()
@@ -112,7 +93,6 @@ func (a *App) submitClearDialog() {
 	}()
 }
 
-// layoutClearDialog renders the centered confirm card over the chat pane.
 func (a *App) layoutClearDialog(gtx layout.Context, f frame) layout.Dimensions {
 	d := f.clearDlg
 	if a.wid.clearDlgCancel.Clicked(gtx) {
@@ -122,7 +102,6 @@ func (a *App) layoutClearDialog(gtx layout.Context, f frame) layout.Dimensions {
 		a.submitClearDialog()
 	}
 
-	// Scrim.
 	paintScrimRect(gtx)
 
 	title := clearDialogTitle(d.chat.Title)

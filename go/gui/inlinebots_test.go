@@ -1,9 +1,5 @@
 package gui
 
-// Inline bot results tests (slice 128): a.wid.composer query parsing (@bot at
-// message start, terminated by a space), fetch-key guarding, and the
-// thumb/model shaping the panel renders from.
-
 import (
 	"testing"
 
@@ -18,14 +14,14 @@ func TestInlineBotQuery(t *testing.T) {
 		ok    bool
 	}{
 		{"@gif cats", "gif", "cats", true},
-		{"@gif ", "gif", "", true}, // terminated, empty query: tdesktop shows default results
+		{"@gif ", "gif", "", true},
 		{"@pic_search nature", "pic_search", "nature", true},
-		{"@gif", "", "", false},            // @token still being typed (not terminated)
-		{"@gi cats", "", "", false},        // too short (Telegram usernames are 5+)
-		{"hello @gif cats", "", "", false}, // @bot must start the message
+		{"@gif", "", "", false},
+		{"@gi cats", "", "", false},
+		{"hello @gif cats", "", "", false},
 		{"@", "", "", false},
 		{"", "", "", false},
-		{"@gif!cats", "", "", false}, // '!' is not a username char and not a separator
+		{"@gif!cats", "", "", false},
 		{"@gif  two spaces", "gif", " two spaces", true},
 	}
 	for _, c := range cases {
@@ -52,9 +48,6 @@ func TestInlineFetchKey(t *testing.T) {
 }
 
 func TestInlineResultThumb(t *testing.T) {
-	// Slice 130: the thumb route is b64 bytes first, the engine's HTTP
-	// fetcher for URL-only results, none last (urlthumb_test.go covers
-	// inlineThumbSource in depth; this pins the panel-level contract).
 	if src, _ := inlineThumbSource(cores.InlineBotResult{}); src != thumbSrcNone {
 		t.Errorf("result without thumb yielded a route: %v", src)
 	}
@@ -79,7 +72,6 @@ func TestInlineResultSubtitle(t *testing.T) {
 }
 
 func TestInlinePanelModel(t *testing.T) {
-	// No results → no panel.
 	if m := newInlinePanelModel(nil); m != nil {
 		t.Error("nil results produced a panel")
 	}

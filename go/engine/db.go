@@ -1,6 +1,3 @@
-// Package engine is the orchestration layer between the 10 platform cores and the host UI.
-// It manages SQLite caching, account lifecycle, auth flows, offline-first pending queue,
-// media pipeline, and event dispatch. The UI is a dumb renderer; the engine is the brain.
 package engine
 
 import (
@@ -12,9 +9,6 @@ import (
 	"strings"
 )
 
-// OpenDB opens (or creates) the SQLite cache database at dir/cache.db.
-// WAL mode is enabled for concurrent read/write from multiple goroutines.
-// If the database is corrupt, it is renamed to cache.db.corrupt and recreated.
 func OpenDB(dir string) (*sql.DB, error) {
 	if err := ensureDir(dir); err != nil {
 		return nil, fmt.Errorf("create db dir: %w", err)
@@ -24,14 +18,12 @@ func OpenDB(dir string) (*sql.DB, error) {
 
 	db, err := openAndPragma(path)
 	if err != nil {
-		// File might be corrupt / not a database. Try recovery.
 		db, err = recoverCorrupt(path)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	// Integrity check — detect subtle corruption.
 	if err := checkIntegrity(db); err != nil {
 		db.Close()
 		db, err = recoverCorrupt(path)
@@ -40,7 +32,6 @@ func OpenDB(dir string) (*sql.DB, error) {
 		}
 	}
 
-	// Run migrations.
 	if err := migrateDB(db); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("migrate: %w", err)
@@ -54,16 +45,10 @@ var pragmas = []string{
 	"PRAGMA busy_timeout = 5000",
 	"PRAGMA foreign_keys = ON",
 	"PRAGMA synchronous = NORMAL",
-	"PRAGMA cache_size = -8000", // 8MB cache
+	"PRAGMA cache_size = -8000",
 }
 
-// openAndPragma opens the SQLite database and sets performance pragmas.
 func openAndPragma(path string) (*sql.DB, error) {
-	// Per-connection pragmas MUST ride along in the DSN: sql.DB pools
-	// multiple connections and `db.Exec("PRAGMA ...")` only configures ONE
-	// of them — the rest would hit SQLITE_BUSY immediately under any
-	// concurrency (seen in CI: "insert pending: database is locked").
-	// journal_mode(WAL) is persistent in the file, the rest are per-connection.
 	dsn := "file:" + url.QueryEscape(path) +
 		"?_pragma=busy_timeout(5000)" +
 		"&_pragma=journal_mode(WAL)" +
@@ -82,7 +67,6 @@ func openAndPragma(path string) (*sql.DB, error) {
 	return db, nil
 }
 
-// recoverCorrupt renames the corrupt DB file and creates a fresh one.
 func recoverCorrupt(path string) (*sql.DB, error) {
 	corruptPath := path + ".corrupt"
 	os.Rename(path, corruptPath)
@@ -96,7 +80,6 @@ func recoverCorrupt(path string) (*sql.DB, error) {
 	return db, nil
 }
 
-// checkIntegrity runs PRAGMA integrity_check and returns an error if the DB is corrupt.
 func checkIntegrity(db *sql.DB) error {
 	var result string
 	if err := db.QueryRow("PRAGMA integrity_check").Scan(&result); err != nil {
@@ -108,10 +91,6 @@ func checkIntegrity(db *sql.DB) error {
 	return nil
 }
 
-// --- Migrations ---
-
-// Each migration function takes the DB from version N-1 to version N.
-// Migrations run inside a transaction for atomicity.
 var migrations = []func(*sql.Tx) error{
 	migrateV1,
 	migrateV2,
@@ -172,8 +151,6 @@ var migrations = []func(*sql.Tx) error{
 	migrateV57,
 }
 
-// migrateV45 creates the locally-hidden-messages table (AyuGram "hide
-// message": local-only removal without server deletion).
 func migrateV45(tx *sql.Tx) error {
 	_, err := tx.Exec(`CREATE TABLE IF NOT EXISTS locally_hidden_messages (
                 account_id TEXT NOT NULL,
@@ -185,8 +162,6 @@ func migrateV45(tx *sql.Tx) error {
 	return err
 }
 
-// migrateV46 creates the Ayu regex-filter table (AyuGram "message
-// filters": local hide-by-regex rules).
 func migrateV46(tx *sql.Tx) error {
 	_, err := tx.Exec(`CREATE TABLE IF NOT EXISTS ayu_filters (
                 id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -197,9 +172,6 @@ func migrateV46(tx *sql.Tx) error {
 	return err
 }
 
-// migrateV47 creates the shadow-ban table (AyuGram "shadow ban":
-// per-chat local ignore list; banned senders' messages are hidden
-// locally only).
 func migrateV47(tx *sql.Tx) error {
 	_, err := tx.Exec(`CREATE TABLE IF NOT EXISTS shadow_bans (
                 account_id  TEXT NOT NULL,
@@ -212,12 +184,6 @@ func migrateV47(tx *sql.Tx) error {
 	return err
 }
 
-// migrateV48 creates the voice-message transcriptions table (Telegram
-// messages.transcribeAudio + updateTranscribedAudio, AyuGram voice bubbles).
-// One row per message; the latest write wins (the server may refine the
-// text across several pushes while pending).
-// migrateV49 adds the bot-info columns to users (slice 133: bot
-// description + privacy-policy URL for the profile panel).
 func migrateV49(tx *sql.Tx) error {
 	if _, err := tx.Exec(`ALTER TABLE users ADD COLUMN bot_description TEXT`); err != nil {
 		if !strings.Contains(err.Error(), "duplicate column") {
@@ -232,10 +198,6 @@ func migrateV49(tx *sql.Tx) error {
 	return nil
 }
 
-// migrateV50 adds the chats.mute_until column (slice 136: timed mutes —
-// Unix seconds of expiry, 0 = muted forever / no deadline). The chat list
-// sweep auto-unmutes rows whose deadline has passed (the server does the
-// same at mute_until).
 func migrateV50(tx *sql.Tx) error {
 	if _, err := tx.Exec(`ALTER TABLE chats ADD COLUMN mute_until INTEGER NOT NULL DEFAULT 0`); err != nil {
 		if !strings.Contains(err.Error(), "duplicate column") {
@@ -245,9 +207,6 @@ func migrateV50(tx *sql.Tx) error {
 	return nil
 }
 
-// migrateV51 adds messages.views + messages.forwards (slice 187:
-// channel-post view/forward counters — tdesktop's eye glyph meta row,
-// refreshed through messages.getMessagesViews while a channel is open).
 func migrateV51(tx *sql.Tx) error {
 	if _, err := tx.Exec(`ALTER TABLE messages ADD COLUMN views INTEGER NOT NULL DEFAULT 0`); err != nil {
 		if !strings.Contains(err.Error(), "duplicate column") {
@@ -262,9 +221,6 @@ func migrateV51(tx *sql.Tx) error {
 	return nil
 }
 
-// migrateV54 adds messages.saved_peer (slice 197: Saved Messages
-// sublists — message.saved_peer_id + the fwd-from backfill; scopes the
-// self-chat cache into per-peer sublist views).
 func migrateV54(tx *sql.Tx) error {
 	if _, err := tx.Exec(`ALTER TABLE messages ADD COLUMN saved_peer TEXT`); err != nil {
 		if !strings.Contains(err.Error(), "duplicate column") {
@@ -274,10 +230,6 @@ func migrateV54(tx *sql.Tx) error {
 	return nil
 }
 
-// migrateV55 creates the profile-music table (slice 206: tdesktop "saved
-// music" — songs pinned on user profiles): one ordered playlist row per
-// (account, peer, document), including the download reference fields so
-// playback works straight from the cache.
 func migrateV55(tx *sql.Tx) error {
 	if _, err := tx.Exec(`CREATE TABLE IF NOT EXISTS profile_music (
                 account_id  TEXT NOT NULL,
@@ -301,9 +253,6 @@ func migrateV55(tx *sql.Tx) error {
 	return err
 }
 
-// migrateV56 adds media.dc_id (slice 207: AyuGram message-details
-// "Datacenter" row — the DC hosting the media file, exported by the core
-// from Document.DCID / Photo.DCID).
 func migrateV56(tx *sql.Tx) error {
 	if _, err := tx.Exec(`ALTER TABLE media ADD COLUMN dc_id INTEGER NOT NULL DEFAULT 0`); err != nil {
 		if !strings.Contains(err.Error(), "duplicate column") {
@@ -313,9 +262,6 @@ func migrateV56(tx *sql.Tx) error {
 	return nil
 }
 
-// migrateV57 adds chats.wallpaper_json (slice 218: per-chat custom
-// wallpaper — the marshaled cores.WallpaperInfo mirrored from the latest
-// messageActionSetChatWallPaper service row / own set).
 func migrateV57(tx *sql.Tx) error {
 	if _, err := tx.Exec(`ALTER TABLE chats ADD COLUMN wallpaper_json TEXT NOT NULL DEFAULT ''`); err != nil {
 		if !strings.Contains(err.Error(), "duplicate column") {
@@ -325,9 +271,6 @@ func migrateV57(tx *sql.Tx) error {
 	return nil
 }
 
-// migrateV53 adds messages.comments_count + messages.thread_root (slice
-// 195: channel-post comment threads — the post's comment count and the
-// reply-to-top root that filters discussion rows into threads).
 func migrateV53(tx *sql.Tx) error {
 	if _, err := tx.Exec(`ALTER TABLE messages ADD COLUMN comments_count INTEGER NOT NULL DEFAULT 0`); err != nil {
 		if !strings.Contains(err.Error(), "duplicate column") {
@@ -342,9 +285,6 @@ func migrateV53(tx *sql.Tx) error {
 	return nil
 }
 
-// migrateV52 adds chats.theme_emoticon (slice 188: the chat's active
-// server chat-theme emoticon, mirrored from the latest
-// messageActionSetChatTheme service row — "" = no theme).
 func migrateV52(tx *sql.Tx) error {
 	if _, err := tx.Exec(`ALTER TABLE chats ADD COLUMN theme_emoticon TEXT NOT NULL DEFAULT ''`); err != nil {
 		if !strings.Contains(err.Error(), "duplicate column") {
@@ -390,16 +330,13 @@ func migrateDB(db *sql.DB) error {
 		}
 	}
 
-	// Cleanup: remove any chats with non-integer type values (bug fix).
 	db.Exec("DELETE FROM chats WHERE typeof(type) != 'integer'")
 
 	return nil
 }
 
-// migrateV1 creates the initial schema.
 func migrateV1(tx *sql.Tx) error {
 	stmts := []string{
-		// Account registry
 		`CREATE TABLE IF NOT EXISTS accounts (
                         id           TEXT PRIMARY KEY,
                         platform     TEXT NOT NULL,
@@ -410,7 +347,6 @@ func migrateV1(tx *sql.Tx) error {
                         created_at   INTEGER NOT NULL
                 )`,
 
-		// Chat list
 		`CREATE TABLE IF NOT EXISTS chats (
                         account_id    TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
                         chat_id       TEXT NOT NULL,
@@ -439,7 +375,6 @@ func migrateV1(tx *sql.Tx) error {
 		`CREATE INDEX IF NOT EXISTS idx_chats_sort ON chats(is_archived, is_pinned DESC, last_msg_time DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_chats_account ON chats(account_id)`,
 
-		// Messages
 		`CREATE TABLE IF NOT EXISTS messages (
                         account_id    TEXT NOT NULL,
                         chat_id       TEXT NOT NULL,
@@ -465,7 +400,6 @@ func migrateV1(tx *sql.Tx) error {
 		`CREATE INDEX IF NOT EXISTS idx_msgs_chat_time ON messages(account_id, chat_id, timestamp DESC)`,
 		`CREATE INDEX IF NOT EXISTS idx_msgs_local ON messages(local_id) WHERE local_id IS NOT NULL`,
 
-		// FTS5 full-text search
 		`CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
                         content_text,
                         content='messages',
@@ -473,7 +407,6 @@ func migrateV1(tx *sql.Tx) error {
                         tokenize='unicode61'
                 )`,
 
-		// FTS5 sync triggers
 		`CREATE TRIGGER IF NOT EXISTS messages_ai AFTER INSERT ON messages BEGIN
                         INSERT INTO messages_fts(rowid, content_text) VALUES (new.rowid, new.content_text);
                 END`,
@@ -485,7 +418,6 @@ func migrateV1(tx *sql.Tx) error {
                         INSERT INTO messages_fts(rowid, content_text) VALUES (new.rowid, new.content_text);
                 END`,
 
-		// Pending outbox
 		`CREATE TABLE IF NOT EXISTS pending (
                         id           INTEGER PRIMARY KEY AUTOINCREMENT,
                         account_id   TEXT NOT NULL,
@@ -501,7 +433,6 @@ func migrateV1(tx *sql.Tx) error {
                 )`,
 		`CREATE INDEX IF NOT EXISTS idx_pending_status ON pending(status, created_at)`,
 
-		// User profiles
 		`CREATE TABLE IF NOT EXISTS users (
                         account_id    TEXT NOT NULL,
                         user_id       TEXT NOT NULL,
@@ -519,7 +450,6 @@ func migrateV1(tx *sql.Tx) error {
                         PRIMARY KEY (account_id, user_id)
                 )`,
 
-		// Media references
 		`CREATE TABLE IF NOT EXISTS media (
                         account_id     TEXT NOT NULL,
                         chat_id        TEXT NOT NULL,
@@ -552,8 +482,6 @@ func migrateV1(tx *sql.Tx) error {
 	return nil
 }
 
-// --- Chat type constants (stored as integers in DB) ---
-
 const (
 	ChatTypeUnspec   = 0
 	ChatTypeDMVal    = 1
@@ -561,8 +489,6 @@ const (
 	ChatTypeChanVal  = 3
 	ChatTypeTopicVal = 4
 )
-
-// --- Message status constants ---
 
 const (
 	MsgStatusSending   = 1
@@ -572,15 +498,11 @@ const (
 	MsgStatusFailed    = 5
 )
 
-// --- Pending status constants ---
-
 const (
 	PendingQueued  = 0
 	PendingSending = 1
 	PendingFailed  = 2
 )
-
-// --- Download state constants ---
 
 const (
 	DownloadNone       = 0
@@ -588,8 +510,6 @@ const (
 	DownloadComplete   = 2
 	DownloadFailed     = 3
 )
-
-// --- Media type constants ---
 
 const (
 	MediaImage     = 1
@@ -613,7 +533,6 @@ func columnExists(tx *sql.Tx, table, column string) bool {
 	return count > 0
 }
 
-// migrateV2 adds is_outgoing column to messages table.
 func migrateV2(tx *sql.Tx) error {
 	if columnExists(tx, "messages", "is_outgoing") {
 		return nil
@@ -622,7 +541,6 @@ func migrateV2(tx *sql.Tx) error {
 	return err
 }
 
-// migrateV3 adds last_msg_is_outgoing column to chats table.
 func migrateV3(tx *sql.Tx) error {
 	if columnExists(tx, "chats", "last_msg_is_outgoing") {
 		return nil
@@ -631,7 +549,6 @@ func migrateV3(tx *sql.Tx) error {
 	return err
 }
 
-// migrateV4 adds extra column to media table (stores access hash + file reference for downloads).
 func migrateV4(tx *sql.Tx) error {
 	if columnExists(tx, "media", "extra") {
 		return nil
@@ -640,7 +557,6 @@ func migrateV4(tx *sql.Tx) error {
 	return err
 }
 
-// migrateV5 adds verified/scam/fake columns to chats table.
 func migrateV5(tx *sql.Tx) error {
 	for _, col := range []string{"is_verified", "is_scam", "is_fake"} {
 		if columnExists(tx, "chats", col) {
@@ -653,7 +569,6 @@ func migrateV5(tx *sql.Tx) error {
 	return nil
 }
 
-// migrateV6 adds last_msg_media_type and last_msg_thumb_b64 columns to chats table.
 func migrateV6(tx *sql.Tx) error {
 	if !columnExists(tx, "chats", "last_msg_media_type") {
 		if _, err := tx.Exec(`ALTER TABLE chats ADD COLUMN last_msg_media_type INTEGER NOT NULL DEFAULT 0`); err != nil {
@@ -668,7 +583,6 @@ func migrateV6(tx *sql.Tx) error {
 	return nil
 }
 
-// migrateV7 adds unread_mark column to chats table.
 func migrateV7(tx *sql.Tx) error {
 	if columnExists(tx, "chats", "unread_mark") {
 		return nil
@@ -677,7 +591,6 @@ func migrateV7(tx *sql.Tx) error {
 	return err
 }
 
-// migrateV8 adds unread_mention_count and unread_reaction_count columns to chats table.
 func migrateV8(tx *sql.Tx) error {
 	if !columnExists(tx, "chats", "unread_mention_count") {
 		if _, err := tx.Exec(`ALTER TABLE chats ADD COLUMN unread_mention_count INTEGER NOT NULL DEFAULT 0`); err != nil {
@@ -692,7 +605,6 @@ func migrateV8(tx *sql.Tx) error {
 	return nil
 }
 
-// migrateV9 adds last_msg_status column to chats table (send state: 0=none, 1=pending, 2=sent, 3=read).
 func migrateV9(tx *sql.Tx) error {
 	if columnExists(tx, "chats", "last_msg_status") {
 		return nil
@@ -701,7 +613,6 @@ func migrateV9(tx *sql.Tx) error {
 	return err
 }
 
-// migrateV10 adds is_contact and is_blocked columns to users table.
 func migrateV10(tx *sql.Tx) error {
 	for _, col := range []string{"is_contact", "is_blocked"} {
 		if !columnExists(tx, "users", col) {
@@ -713,7 +624,6 @@ func migrateV10(tx *sql.Tx) error {
 	return nil
 }
 
-// migrateV11 adds sender_rank column to messages table for admin/creator badges.
 func migrateV11(tx *sql.Tx) error {
 	if columnExists(tx, "messages", "sender_rank") {
 		return nil
@@ -722,8 +632,6 @@ func migrateV11(tx *sql.Tx) error {
 	return err
 }
 
-// migrateV12 adds sender_color_id column to messages table for extended peer name colors.
-// Default -1 means "use senderId % 7 fallback" (distinguishes from actual color_id=0).
 func migrateV12(tx *sql.Tx) error {
 	if columnExists(tx, "messages", "sender_color_id") {
 		return nil
@@ -1048,8 +956,6 @@ func migrateV40(tx *sql.Tx) error {
 	return err
 }
 
-// migrateV41 adds paid_post_type column to messages table (suggested-post payment:
-// 0=none, 1=stars, 2=ton) for the paid-post delete warning.
 func migrateV41(tx *sql.Tx) error {
 	if columnExists(tx, "messages", "paid_post_type") {
 		return nil
@@ -1058,9 +964,6 @@ func migrateV41(tx *sql.Tx) error {
 	return err
 }
 
-// migrateV42 adds has_active_call column to chats table (MTProto channel/chat
-// call_not_empty flag) so the calls box can surface active group calls from the
-// cached chat list without per-chat getGroupCall round-trips.
 func migrateV42(tx *sql.Tx) error {
 	if columnExists(tx, "chats", "has_active_call") {
 		return nil
@@ -1069,9 +972,6 @@ func migrateV42(tx *sql.Tx) error {
 	return err
 }
 
-// migrateV43 adds is_creator column to chats table (MTProto channel/chat
-// creator flag, amCreator) so the "My Groups"/"My Channels" drawer popups can
-// filter to only chats the current user created, matching AyuGram AddMyChannelsBox.
 func migrateV43(tx *sql.Tx) error {
 	if columnExists(tx, "chats", "is_creator") {
 		return nil
@@ -1080,9 +980,6 @@ func migrateV43(tx *sql.Tx) error {
 	return err
 }
 
-// migrateV44 adds reactions_json to the messages table so per-message reaction
-// strips (AyuGram/Telegram parity) persist across restarts and render from the
-// cache instead of live server queries.
 func migrateV44(tx *sql.Tx) error {
 	if columnExists(tx, "messages", "reactions_json") {
 		return nil

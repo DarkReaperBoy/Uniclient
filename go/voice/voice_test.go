@@ -8,8 +8,6 @@ import (
 	"testing"
 )
 
-// goertzel returns the magnitude of `freq` in the s16 mono sample stream,
-// normalized to the stream's peak amplitude.
 func goertzel(samples []int16, sampleRate, freq int) float64 {
 	if len(samples) == 0 {
 		return 0
@@ -31,7 +29,6 @@ func goertzel(samples []int16, sampleRate, freq int) float64 {
 	return power / float64(len(samples)) / peak
 }
 
-// sine generates n frames of `freq` sine as s16le mono bytes.
 func sine(freq float64, frames int, amp float64) [][]byte {
 	out := make([][]byte, frames)
 	for f := range out {
@@ -48,7 +45,6 @@ func sine(freq float64, frames int, amp float64) [][]byte {
 	return out
 }
 
-// encodeAll encodes every PCM frame through the encoder.
 func encodeAll(t *testing.T, e *Encoder, frames [][]byte) [][]byte {
 	t.Helper()
 	pkts := make([][]byte, len(frames))
@@ -62,8 +58,6 @@ func encodeAll(t *testing.T, e *Encoder, frames [][]byte) [][]byte {
 	return pkts
 }
 
-// decodeAll decodes every packet through the decoder, returning the
-// concatenated sample stream.
 func decodeAll(t *testing.T, d *Decoder, pkts [][]byte) []int16 {
 	t.Helper()
 	var out []int16
@@ -84,13 +78,12 @@ func TestEncoderDecoderRoundTrip(t *testing.T) {
 	}
 	d := NewDecoder()
 
-	// 2 seconds of 440 Hz.
 	pkts := encodeAll(t, e, sine(440, 100, 0.5))
 	if len(pkts) != 100 {
 		t.Fatalf("packets = %d", len(pkts))
 	}
 	got := decodeAll(t, d, pkts)
-	if len(got) < SampleRate/2 { // at least ~0.5s decoded
+	if len(got) < SampleRate/2 {
 		t.Fatalf("decoded only %d samples", len(got))
 	}
 
@@ -168,7 +161,6 @@ func TestMixerTwoSources(t *testing.T) {
 	e2, _ := NewEncoder(24000)
 	m := NewMixer()
 
-	// A: 440Hz, B: 660Hz.
 	pA := encodeAll(t, e1, sine(440, 30, 0.5))
 	pB := encodeAll(t, e2, sine(660, 30, 0.5))
 	dA, dB := NewDecoder(), NewDecoder()
@@ -252,7 +244,6 @@ func TestMixerRemoveAndUnderrun(t *testing.T) {
 	m := NewMixer()
 	out := make([]int16, FrameSamples)
 
-	// Empty mixer: silence, no panic.
 	m.Mix(out)
 	for i, s := range out {
 		if s != 0 {
@@ -260,7 +251,6 @@ func TestMixerRemoveAndUnderrun(t *testing.T) {
 		}
 	}
 
-	// Push then remove: back to silence.
 	e, _ := NewEncoder(24000)
 	pkts := encodeAll(t, e, sine(440, 5, 0.5))
 	d := NewDecoder()
@@ -306,8 +296,7 @@ func TestMixerConcurrent(t *testing.T) {
 	m := NewMixer()
 	e, _ := NewEncoder(24000)
 	pkts := encodeAll(t, e, sine(440, 40, 0.5))
-	var sawAudio atomic.Bool // slice-280: pin that decoded PCM is real,
-	// so this can't go vacuously green if the decode path goes silent
+	var sawAudio atomic.Bool
 	var wg sync.WaitGroup
 	for w := 0; w < 4; w++ {
 		wg.Add(1)

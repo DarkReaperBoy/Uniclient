@@ -5,8 +5,6 @@ import (
 	"testing"
 )
 
-// maskColor keeps the row background's hue while making the overlay card
-// nearly opaque (AyuGram's blur approximation).
 func TestMaskColor(t *testing.T) {
 	bg := color.NRGBA{R: 0x1C, G: 0x27, B: 0x33, A: 0xFF}
 	got := maskColor(bg)

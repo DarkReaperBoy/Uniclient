@@ -1,9 +1,5 @@
 package engine
 
-// Chat-theme mirror (slice 188): the latest messageActionSetChatTheme
-// service row flips chats.theme_emoticon; the key's presence (even an
-// empty emoticon) is the reset. ChatInfo round-trips it.
-
 import (
 	"testing"
 	"time"
@@ -24,13 +20,11 @@ func TestChatThemeMirror(t *testing.T) {
 		return em
 	}
 
-	// Ordinary messages never touch the theme.
 	e.cacheMessage("a1", "c1", &cores.Message{ID: "m1", ChatID: "c1", Text: "hi", Timestamp: time.Now()})
 	if got := getEmoticon(); got != "" {
 		t.Fatalf("plain message set theme %q", got)
 	}
 
-	// A theme-change service row mirrors its emoticon.
 	svc := &cores.Message{
 		ID: "m2", ChatID: "c1", IsService: true, Text: "changed the chat theme",
 		Timestamp: time.Now().Add(time.Second),
@@ -41,7 +35,6 @@ func TestChatThemeMirror(t *testing.T) {
 		t.Fatalf("emoticon = %q, want 🎨", got)
 	}
 
-	// A later reset (empty emoticon, key present) clears it.
 	svc2 := &cores.Message{
 		ID: "m3", ChatID: "c1", IsService: true, Text: "changed the chat theme",
 		Timestamp: time.Now().Add(2 * time.Second),
@@ -52,7 +45,6 @@ func TestChatThemeMirror(t *testing.T) {
 		t.Fatalf("reset emoticon = %q, want empty", got)
 	}
 
-	// ChatInfo round-trips the emoticon.
 	svc3 := &cores.Message{
 		ID: "m4", ChatID: "c1", IsService: true, Text: "theme",
 		Timestamp: time.Now().Add(3 * time.Second),
@@ -67,7 +59,6 @@ func TestChatThemeMirror(t *testing.T) {
 		t.Fatalf("ChatInfo.ThemeEmoticon = %q, want 🎉", chats[0].ThemeEmoticon)
 	}
 
-	// Non-string extra values are skipped, not fatal.
 	e.cacheMessage("a1", "c1", &cores.Message{
 		ID: "m5", ChatID: "c1", IsService: true, Text: "theme", Timestamp: time.Now().Add(4 * time.Second),
 		Extra: map[string]interface{}{"chat_theme_emoticon": 42},
@@ -79,10 +70,6 @@ func TestChatThemeMirror(t *testing.T) {
 
 func TestEnsureChatExistsSeedsTheme(t *testing.T) {
 	e := newTestEngine(t)
-	// The chat's FIRST message is the theme change (new chat path — the
-	// INSERT runs before cacheMessage's mirror, so the seed must apply).
-	// Same message object through both calls — the events.go ingest order
-	// (cacheMessage runs first, no chat row exists yet for its mirror).
 	svc := &cores.Message{
 		ID: "m1", ChatID: "c9", IsService: true, Text: "theme", SenderName: "X",
 		Timestamp: time.Now(),

@@ -2,8 +2,6 @@ package gui
 
 import "testing"
 
-// TestParseCustomMuteDuration: lenient duration parsing — "90m", "2h",
-// "1h30m", "2d", plain seconds, whitespace-insensitive.
 func TestParseCustomMuteDuration(t *testing.T) {
 	cases := []struct {
 		in   string
@@ -17,9 +15,9 @@ func TestParseCustomMuteDuration(t *testing.T) {
 		{"45s", 45, true},
 		{"1h30m", 3600 + 30*60, true},
 		{"2d 3h 5m", 2*86400 + 3*3600 + 5*60, true},
-		{"1H30M", 3600 + 30*60, true}, // case-insensitive
+		{"1H30M", 3600 + 30*60, true},
 		{" 2h ", 2 * 3600, true},
-		{"3600", 3600, true}, // plain number = seconds
+		{"3600", 3600, true},
 		{"60", 60, true},
 		{"0", 0, false},
 		{"", 0, false},
@@ -36,9 +34,6 @@ func TestParseCustomMuteDuration(t *testing.T) {
 	}
 }
 
-// TestCustomMuteCap: absurd durations clamp to Telegram's forever value
-// (the mute_until field is an int32 unix time; anything past 2038 is
-// normalized to forever server-side — mirror that honesty).
 func TestCustomMuteCap(t *testing.T) {
 	if got, ok := parseCustomMuteDuration("5000d"); !ok || got != 0 {
 		t.Fatalf("5000d should cap to forever (0), got %d ok=%v", got, ok)

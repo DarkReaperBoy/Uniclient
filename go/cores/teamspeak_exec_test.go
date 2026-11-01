@@ -8,11 +8,6 @@ import (
 	"time"
 )
 
-// tsExec harness: a real UDP socket (the concrete *net.UDPConn type
-// can't be faked) pointed at a throwaway local address, plus a
-// goroutine that plays the dispatcher's role (cmdCh → execCh while
-// execWait) so tests control exactly which responses arrive — or that
-// none ever do.
 func newExecHarness(t *testing.T) (*TeamSpeakCore, *tsConnection, func()) {
 	t.Helper()
 	ua, err := net.ResolveUDPAddr("udp", "127.0.0.1:9")
@@ -27,7 +22,7 @@ func newExecHarness(t *testing.T) (*TeamSpeakCore, *tsConnection, func()) {
 		conn:        conn,
 		addr:        ua,
 		cmdCh:       make(chan tsIncomingCmd, 16),
-		proofs:      make(chan tsProof, 8), // F-83/F-84 proof channel
+		proofs:      make(chan tsProof, 8),
 		pendingCmds: map[uint16]*tsPendingCmd{},
 	}
 	core := &TeamSpeakCore{tsConn: tc, ctx: context.Background()}
@@ -58,13 +53,6 @@ func tsResp(t *testing.T, line string) tsIncomingCmd {
 	return tsIncomingCmd{name: name, params: params, raw: line}
 }
 
-// TestTSExecSilentServerIsAnErrorNotFalseAck: BUGS B-24 — the void
-// deadline returned `result, nil` when NOTHING ever arrived. Every TS3
-// command is answered by an `error id=` line, so silence = the UDP
-// response was lost — and a nil there is a FALSE ACK for
-// state-changing commands (clientmove "joined" a channel the server
-// never moved us into). RED before the fix: this test passes a silent
-// server and demands an ErrNetwork-family error.
 func TestTSExecSilentServerIsAnErrorNotFalseAck(t *testing.T) {
 	old := tsExecVoidTimeout
 	tsExecVoidTimeout = 150 * time.Millisecond
@@ -82,9 +70,6 @@ func TestTSExecSilentServerIsAnErrorNotFalseAck(t *testing.T) {
 	}
 }
 
-// TestTSExecConsumesDataThenOk: the success path (data line + error
-// id=0 terminator) must keep returning rows — the fix may only change
-// PURE silence.
 func TestTSExecConsumesDataThenOk(t *testing.T) {
 	old := tsExecVoidTimeout
 	tsExecVoidTimeout = 2 * time.Second
@@ -108,9 +93,6 @@ func TestTSExecConsumesDataThenOk(t *testing.T) {
 	}
 }
 
-// TestTSExecMapsErrorResponse: a structured error must still map
-// (permission denied → ErrPermission), not be swallowed by the timeout
-// machinery.
 func TestTSExecMapsErrorResponse(t *testing.T) {
 	old := tsExecVoidTimeout
 	tsExecVoidTimeout = 2 * time.Second

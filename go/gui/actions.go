@@ -6,14 +6,6 @@ import (
 	"uniclient/engine"
 )
 
-// Message-action layer — mirrors AyuGramDesktop's context menu + reply/edit
-// a.wid.composer header (research/ayugram_parity.md §3/§4, top gaps 1/7/8).
-//
-// Everything here gates on real state: menu actions are derived from the
-// message flags and the account's backend capabilities, so the GUI never
-// offers an action that cannot really be dispatched (§1.10 — no dead UI).
-
-// msgActions is the set of context-menu actions available for one message.
 type msgActions struct {
 	Reply     bool
 	Edit      bool
@@ -23,18 +15,10 @@ type msgActions struct {
 	Pin       bool
 	React     bool
 	Translate bool
-	Filter    bool // Ayu quick filter-add (matrix row 168)
-	Retry     bool // R20: resend a permanently failed send (engine RetryPending)
+	Filter    bool
+	Retry     bool
 }
 
-// actionsFor derives the AyuGram message context-menu action set.
-//   - Reply: any real message (not service, not still-pending).
-//   - Edit: own outgoing, non-service, confirmed (server echo'd it).
-//   - Forward: hidden when the chat/sender forbids it (NoForwards).
-//   - React: only when the backend has the REACTIONS capability.
-//   - Translate: any message with text (Ayu translator; free-text path).
-//   - Delete: always available for real messages (revoke = own message).
-//   - Pin: available; the engine surfaces a per-chat error honestly.
 func actionsFor(m *engine.CachedMessage, caps []string) msgActions {
 	if m == nil || m.IsService {
 		return msgActions{}
@@ -58,15 +42,10 @@ func actionsFor(m *engine.CachedMessage, caps []string) msgActions {
 		React:     hasCap("REACTIONS") && !pending,
 		Translate: strings.TrimSpace(m.ContentText) != "",
 		Filter:    strings.TrimSpace(m.ContentText) != "",
-		// R20: the failed bubble still holds the text (engine pending
-		// queue) — Resend is the way back from MsgStatusFailed.
-		Retry: m.IsOutgoing && m.Status == engine.MsgStatusFailed,
+		Retry:     m.IsOutgoing && m.Status == engine.MsgStatusFailed,
 	}
 }
 
-// composerMode is the reply/edit context above the input field. Exactly one
-// of reply/edit is set at a time — AyuGram shows a header chip with the
-// quoted message (reply) or the original text (edit) and a close button.
 type composerMode struct {
 	reply *engine.CachedMessage
 	edit  *engine.CachedMessage
@@ -92,7 +71,6 @@ func (c *composerMode) cancel() {
 
 func (c *composerMode) active() bool { return c.reply != nil || c.edit != nil }
 
-// header returns the chip title and quoted preview for the active mode.
 func (c *composerMode) header() (title, preview string) {
 	if c.edit != nil {
 		return "Edit message", quotePreview(c.edit.ContentText, 64)
@@ -116,8 +94,6 @@ func (c *composerMode) replyTarget() string {
 
 func (c *composerMode) editTarget() *engine.CachedMessage { return c.edit }
 
-// quotePreview truncates s to max runes, appending an ellipsis when cut.
-// Reply previews keep at most one newline (AyuGram quotes are one-liners).
 func quotePreview(s string, max int) string {
 	s = strings.TrimSpace(s)
 	if i := strings.IndexByte(s, '\n'); i >= 0 {

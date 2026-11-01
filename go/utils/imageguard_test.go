@@ -13,18 +13,6 @@ import (
 	"testing"
 )
 
-// F-74 (slice 311): image decoders allocate w×h×4 from the FILE
-// HEADER before reading a single pixel — a hostile 800-byte PNG/JPEG
-// declaring 65535×65535 asks for ~17 GB and OOMs the client. Byte
-// caps (downloadCeiling, inlineThumbCap) do not help: the bomb is in
-// the DIMENSIONS. Guard = DecodeConfig first (header only, no alloc),
-// budget check, then Decode.
-//
-// Seam-RED (WORKLOG 311): undefined: DecodeImageGuarded.
-
-// bombPNG returns a valid small PNG with patched IHDR dimensions
-// (width=height=20000 = 400 MP) and a CORRECT CRC — the header is
-// what the guard must reject before any decode/alloc happens.
 func bombPNG(t *testing.T, dim uint32) []byte {
 	t.Helper()
 	var buf bytes.Buffer
@@ -34,18 +22,15 @@ func bombPNG(t *testing.T, dim uint32) []byte {
 		t.Fatalf("encode: %v", err)
 	}
 	b := buf.Bytes()
-	// IHDR: sig(8) + len(4) + "IHDR"(4) + w(4) + h(4) + 5 bytes + crc(4)
 	binary.BigEndian.PutUint32(b[16:20], dim)
 	binary.BigEndian.PutUint32(b[20:24], dim)
-	// PNG chunk CRC covers chunk TYPE + DATA (b[12:29]) — data alone
-	// was rejected as "invalid checksum" (self-caught in slice 311).
 	crc := crc32.ChecksumIEEE(b[12:29])
 	binary.BigEndian.PutUint32(b[29:33], crc)
 	return b
 }
 
 func TestDecodeImageGuardedRejectsDimensionBomb(t *testing.T) {
-	data := bombPNG(t, 20000) // 400 MP > budget
+	data := bombPNG(t, 20000)
 	_, _, err := DecodeImageGuarded(bytes.NewReader(data), 40_000_000)
 	if err == nil {
 		t.Fatal("dimension bomb accepted — a real decoder would allocate 1.6 GB")
@@ -84,10 +69,6 @@ func TestImageWithinBudget(t *testing.T) {
 	}
 }
 
-// TestDimensionBombWiringGone: source-scan pin — every GUI/QR decode
-// site must go through DecodeImageGuarded; a bare image.Decode on
-// wire/cache bytes re-opens the allocation bomb (comments skipped,
-// slice-284 lesson).
 func TestDimensionBombWiringGone(t *testing.T) {
 	for _, dir := range []string{"../gui", "../qrscan"} {
 		entries, err := os.ReadDir(dir)

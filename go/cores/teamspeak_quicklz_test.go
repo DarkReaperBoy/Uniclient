@@ -5,24 +5,10 @@ import (
 	"testing"
 )
 
-// tests-first for slice 231 (BUGS.md B-1) — QuickLZ Level 1 COMPRESSION.
-//
-// The vectors below are GOLDEN OUTPUT from the official QuickLZ 1.5.0
-// reference implementation (quicklz.c, level 1, streaming off — generated
-// by a C harness on 2026-09-23 and C-roundtrip-verified there): our Go
-// compressor must be BYTE-IDENTICAL to what TS3's own compressor emits,
-// because the server decompresses with that same reference code. The hex
-// is machine-generated from the harness output — never re-typed.
-//
-// Vectors cover: tiny/tail-only sizes (the core's min-9 rule), the
-// 215/216 short/long header switch, the 487/488 single-packet boundary,
-// stored-raw output for incompressible data, extreme matches (zeros,
-// runs), and realistic escaped TS3 commands.
-
 var tsQuickLZVectors = []struct {
 	name string
 	in   []byte
-	out  []byte // official qlz_compress output (incl. header)
+	out  []byte
 }{
 	{
 		name: "tiny1",
@@ -121,7 +107,6 @@ var tsQuickLZVectors = []struct {
 	},
 }
 
-// mustUnhex panics on bad test data (vectors are compile-time constants).
 func mustUnhex(s string) []byte {
 	if len(s)%2 != 0 {
 		panic("odd hex in vector")
@@ -144,10 +129,6 @@ func unhexByte(c byte) byte {
 	}
 }
 
-// TestTS3QuickLZCompressByteIdenticalToOfficial: our output must equal the
-// reference implementation byte-for-byte — the server decompresses with
-// that reference code, so any divergence is a compat bug waiting to
-// happen.
 func TestTS3QuickLZCompressByteIdenticalToOfficial(t *testing.T) {
 	for _, v := range tsQuickLZVectors {
 		got, ok := tsQuickLZCompress(v.in)
@@ -162,10 +143,6 @@ func TestTS3QuickLZCompressByteIdenticalToOfficial(t *testing.T) {
 	}
 }
 
-// TestTS3QuickLZRoundTripOfficialStreams: the EXISTING decompressor must
-// read the official compressor's output (the C harness already round-trips
-// there — this pins OUR reader against the same streams), and our own
-// compressor's output must round-trip through it too.
 func TestTS3QuickLZRoundTripOfficialStreams(t *testing.T) {
 	for _, v := range tsQuickLZVectors {
 		plain, err := tsQuickLZDecompress(v.out)
@@ -192,9 +169,6 @@ func TestTS3QuickLZRoundTripOfficialStreams(t *testing.T) {
 	}
 }
 
-// TestTS3QuickLZCompressRejectsEmpty: qlz_compress(0) returns 0 in the
-// reference; our wrapper reports "nothing produced" instead of a header
-// nobody can parse.
 func TestTS3QuickLZCompressRejectsEmpty(t *testing.T) {
 	if _, ok := tsQuickLZCompress(nil); ok {
 		t.Error("empty input produced output")

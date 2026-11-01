@@ -6,9 +6,6 @@ import (
 	"uniclient/bootstrap"
 )
 
-// TestPlatformsAreRealBackends: every backend the picker offers must be a
-// real, factory-supported platform. No fake/demo entries — AGENTS.md §1.10
-// bans placeholders from the GUI.
 func TestPlatformsAreRealBackends(t *testing.T) {
 	supported := make(map[string]bool)
 	for _, p := range bootstrap.SupportedPlatforms() {

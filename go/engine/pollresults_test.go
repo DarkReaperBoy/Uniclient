@@ -5,8 +5,6 @@ import (
 	"testing"
 )
 
-// seedPollMessage caches a poll message (raw cores.Message JSON w/ Extra
-// poll_* fields, as the telegram core's MessageMediaPoll conversion writes).
 func seedPollMessage(t *testing.T, e *Engine, msgID string) {
 	t.Helper()
 	raw, err := json.Marshal(map[string]interface{}{
@@ -54,8 +52,6 @@ func TestMergePollResults(t *testing.T) {
 	e := newTestEngine(t)
 	seedPollMessage(t, e, "55")
 
-	// Fresh counts: sushi won, pizza chosen flag dropped, quiz correct set,
-	// total voters bumped, poll closed.
 	e.mergePollResults("a1", "c1", "55", map[string]interface{}{
 		"poll_total_voters": 7,
 		"poll_closed":       true,
@@ -84,7 +80,6 @@ func TestMergePollResults(t *testing.T) {
 	if int(sushi["voters"].(float64)) != 4 || sushi["correct"] != true {
 		t.Errorf("sushi = %v", sushi)
 	}
-	// Untouched fields survive.
 	if q, _ := extra["poll_question"].(string); q != "Lunch?" {
 		t.Errorf("question = %q", q)
 	}
@@ -94,7 +89,6 @@ func TestMergePollResultsResolvesChatFromCache(t *testing.T) {
 	e := newTestEngine(t)
 	seedPollMessage(t, e, "56")
 
-	// Empty chatID (older layer): the merge resolves the chat by message id.
 	e.mergePollResults("a1", "", "56", map[string]interface{}{
 		"poll_total_voters": 9,
 	})
@@ -114,7 +108,6 @@ func TestMergePollResultsUnknownMessageNoop(t *testing.T) {
 	if tv, ok := extra["poll_total_voters"].(float64); !ok || int(tv) != 2 {
 		t.Errorf("unrelated message must be untouched, got %v", extra["poll_total_voters"])
 	}
-	// Non-poll messages never match (chat resolve requires poll_question).
 	seedMessage(t, e, "58", 2000)
 	e.mergePollResults("a1", "", "58", map[string]interface{}{"poll_total_voters": 99})
 }

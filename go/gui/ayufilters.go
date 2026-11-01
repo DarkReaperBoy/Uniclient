@@ -1,11 +1,5 @@
 package gui
 
-// Ayu message filters editor (slice 90, matrix row 238): the Ayu settings
-// page gains "Message filters" — a dialog listing the local regex
-// hide-rules with per-filter enable/delete, plus an add field with live
-// regex validation errors. Changes apply to the open chat immediately
-// (refreshMessages re-runs the engine filter).
-
 import (
 	"image"
 	"regexp"
@@ -22,12 +16,11 @@ import (
 	"uniclient/engine"
 )
 
-// ayuFilterDlgState is the open filters editor.
 type ayuFilterDlgState struct {
 	filters    []engine.AyuFilter
 	loaded     bool
-	err        string // last add error, shown inline
-	clearInput bool   // set by a successful add; layout clears the editor
+	err        string
+	clearInput bool
 }
 
 var (
@@ -35,12 +28,11 @@ var (
 	ayuFilterEd        widget.Editor
 	ayuFilterAddBtn    widget.Clickable
 	ayuFilterCloseBtn  widget.Clickable
-	ayuFilterManageBtn widget.Clickable   // settings-page row button
-	ayuFilterRowBtns   []widget.Clickable // enable chips
-	ayuFilterDelBtns   []widget.Clickable // delete buttons
+	ayuFilterManageBtn widget.Clickable
+	ayuFilterRowBtns   []widget.Clickable
+	ayuFilterDelBtns   []widget.Clickable
 )
 
-// openAyuFilterDialog opens the editor and loads the filter list.
 func (a *App) openAyuFilterDialog() {
 	a.mu.Lock()
 	a.ayuFilterDlg = &ayuFilterDlgState{}
@@ -58,17 +50,11 @@ func (a *App) openAyuFilterDialog() {
 	a.invalidate()
 }
 
-// openAyuFilterDialogPrefilled is the quick-add path (matrix row 168):
-// the menu hands a suggested pattern; the editor opens seeded with it so
-// one press of Add applies. GUI-loop only (SetText).
 func (a *App) openAyuFilterDialogPrefilled(pattern string) {
 	a.openAyuFilterDialog()
 	ayuFilterEd.SetText(pattern)
 }
 
-// quickFilterPattern derives the suggested filter regex from a message's
-// text: first line, spaces collapsed, capped at 64 runes, regex-quoted so
-// the suggestion matches the literal text. Pure.
 func quickFilterPattern(text string) string {
 	first := text
 	if i := strings.IndexAny(first, "\n\r"); i >= 0 {
@@ -85,8 +71,6 @@ func quickFilterPattern(text string) string {
 	return regexp.QuoteMeta(string(r))
 }
 
-// closeAyuFilterDialog dismisses the editor and re-arms the settings
-// row count (it changed).
 func (a *App) closeAyuFilterDialog() {
 	a.mu.Lock()
 	a.ayuFilterDlg = nil
@@ -95,8 +79,6 @@ func (a *App) closeAyuFilterDialog() {
 	a.invalidate()
 }
 
-// ensureAyuFilterCount (GUI loop) lazily loads the count for the
-// settings row when the Ayu page renders without a cached value.
 func (a *App) ensureAyuFilterCount(f frame) {
 	a.mu.Lock()
 	stale := !a.ayuFilterCountOn
@@ -116,7 +98,6 @@ func (a *App) ensureAyuFilterCount(f frame) {
 	}()
 }
 
-// reloadAyuFilters re-reads the list (after a mutation).
 func (a *App) reloadAyuFilters() {
 	go func() {
 		fs := a.eng.ListAyuFilters()
@@ -130,10 +111,6 @@ func (a *App) reloadAyuFilters() {
 	}()
 }
 
-// addAyuFilter validates + stores the editor's pattern, then refreshes.
-// Text is read on the GUI loop (layout calls this); the DB write runs off
-// the loop. Clearing the editor is deferred to the layout pass via the
-// dialog's clearInput flag — Editor methods are not goroutine-safe.
 func (a *App) addAyuFilter() {
 	pattern := strings.TrimSpace(ayuFilterEd.Text())
 	go func() {
@@ -153,8 +130,6 @@ func (a *App) addAyuFilter() {
 	}()
 }
 
-// refreshOpenChat re-runs the message load for the open chat so filter
-// changes show immediately.
 func (a *App) refreshOpenChat() {
 	a.mu.Lock()
 	k := a.msgFor
@@ -165,7 +140,6 @@ func (a *App) refreshOpenChat() {
 	go a.refreshMessages()
 }
 
-// filterCountLabel summarizes the filter list for the settings row. Pure.
 func filterCountLabel(fs []engine.AyuFilter) string {
 	if len(fs) == 0 {
 		return "Off"
@@ -182,7 +156,6 @@ func filterCountLabel(fs []engine.AyuFilter) string {
 	return itoa(on) + "/" + itoa(len(fs)) + " active"
 }
 
-// filterCountText maps the cached count to the row value. Pure.
 func filterCountText(loaded bool, n int) string {
 	if !loaded {
 		return "…"
@@ -193,7 +166,6 @@ func filterCountText(loaded bool, n int) string {
 	return itoa(n)
 }
 
-// layoutAyuFilterRow renders the settings-page entry: count + Manage.
 func (a *App) layoutAyuFilterRow(gtx layout.Context, f frame) layout.Dimensions {
 	a.ensureAyuFilterCount(f)
 	if ayuFilterManageBtn.Clicked(gtx) {
@@ -230,16 +202,11 @@ func (a *App) layoutAyuFilterRow(gtx layout.Context, f frame) layout.Dimensions 
 	)
 }
 
-// layoutAyuFilterDialog renders the filters editor (content-pane
-// replacement, like the other settings dialogs).
 func (a *App) layoutAyuFilterDialog(gtx layout.Context, f frame) layout.Dimensions {
 	d := f.ayuFilterDlg
 	growClickables(&ayuFilterRowBtns, len(d.filters))
 	growClickables(&ayuFilterDelBtns, len(d.filters))
 
-	// Esc closes (window-wide key listener for this dialog's tag —
-	// the dialog replaces the whole content pane, so the opaque
-	// registration is fine and blocks input behind it).
 	{
 		stack := clip.Rect{Max: image.Pt(gtx.Constraints.Max.X, gtx.Constraints.Max.Y)}.Push(gtx.Ops)
 		event.Op(gtx.Ops, ayuFilterTag)
@@ -254,8 +221,6 @@ func (a *App) layoutAyuFilterDialog(gtx layout.Context, f frame) layout.Dimensio
 			a.closeAyuFilterDialog()
 		}
 	}
-	// Drain editor events: Enter submits (sidebar-search pattern —
-	// editor events come from Editor.Update, not key.Filters).
 	for {
 		ev, ok := ayuFilterEd.Update(gtx)
 		if !ok {
@@ -265,7 +230,6 @@ func (a *App) layoutAyuFilterDialog(gtx layout.Context, f frame) layout.Dimensio
 			a.addAyuFilter()
 		}
 	}
-	// Deferred editor clear (set by the add goroutine on success).
 	if d.clearInput {
 		a.mu.Lock()
 		d.clearInput = false
@@ -319,7 +283,6 @@ func (a *App) layoutAyuFilterDialog(gtx layout.Context, f frame) layout.Dimensio
 							return lbl.Layout(gtx)
 						})
 					}),
-					// add row
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 							layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
@@ -381,7 +344,6 @@ func (a *App) layoutAyuFilterDialog(gtx layout.Context, f frame) layout.Dimensio
 	})
 }
 
-// ayuFilterRow: one filter — pattern (mono hint), enable chip, delete.
 func (a *App) ayuFilterRow(gtx layout.Context, flt engine.AyuFilter, toggle, del *widget.Clickable) layout.Dimensions {
 	return roundedFill(gtx, a.ui.p.SurfaceHi, 10, func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {

@@ -10,18 +10,6 @@ import (
 	"uniclient/engine"
 )
 
-// TestShotRenderPipelineIsSerialized pins R27: renderMessageShot runs on
-// the save goroutine (menu.go's only shot entry point spawns one), and
-// its whole pipeline touches package state with no other guard —
-// shotFaceCache/shotSmallFaceCache are lazily WRITTEN on first use
-// (concurrent map write = fatal panic), and the cached opentype.Face
-// values carry per-glyph scratch state (buf sfnt.Buffer / rast / mask —
-// x/image documents Font calls as concurrent-safe only with separate
-// buffers; a Face owns exactly one), so two simultaneous shots — two
-// windows, or a double-trigger before the first init completes — raced
-// both the maps and the shared faces. shotMu serializes the pipeline;
-// the reset forces the lazy-write path so the hammer exercises it even
-// warm. The CI race leg is the proof (js has no race detector).
 func TestShotRenderPipelineIsSerialized(t *testing.T) {
 	shotMu.Lock()
 	shotFaceCache = map[[3]bool]font.Face{}

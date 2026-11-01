@@ -1,20 +1,5 @@
 package gui
 
-// emojifile.go — slice 132: inline custom-emoji artwork in message text.
-// MessageEntityCustomEmoji ranges currently render as their base emoji
-// glyph; this file swaps in the real document artwork once fetched:
-//
-//   - .tgs (application/x-tgsticker) parses through the lottie player and
-//     animates inline on a per-document clock (shared across messages);
-//   - webp/png decode to RGBA and render statically at the same box;
-//   - video/webm emoji play through the pure-Go VP9 pipeline (slice 216:
-//     vp9anim + govpx) on a per-document player shared across messages.
-//
-// Fetches ride engine.GetCustomEmojiFiles (batched, full document bytes)
-// with one in-flight guard per message; failures pin per document (no
-// retry churn). The richtext flow treats a ready emoji as a square token
-// ~1.35x the font box (tdesktop proportions).
-
 import (
 	"image"
 	"sync"
@@ -29,17 +14,14 @@ import (
 	"uniclient/vp9anim"
 )
 
-// emojiArt kinds.
 const (
-	emojiArtUnknown     = iota // not fetched yet
-	emojiArtRaster             // webp/png decoded image
-	emojiArtLottie             // tgs animation
-	emojiArtVideo              // webm video emoji (vp9anim player, slice 216)
-	emojiArtUnsupported        // undecodable: base glyph fallback
+	emojiArtUnknown = iota
+	emojiArtRaster
+	emojiArtLottie
+	emojiArtVideo
+	emojiArtUnsupported
 )
 
-// classifyEmojiArt maps a custom-emoji document mime to its render kind.
-// Pure — unit-tested.
 func classifyEmojiArt(mime string) int {
 	switch mime {
 	case "application/x-tgsticker":
@@ -47,14 +29,12 @@ func classifyEmojiArt(mime string) int {
 	case "image/webp", "image/png", "image/jpeg":
 		return emojiArtRaster
 	case "video/webm":
-		return emojiArtVideo // pure-Go VP9 pipeline (slice 216)
+		return emojiArtVideo
 	default:
-		return emojiArtUnsupported // honest fallback
+		return emojiArtUnsupported
 	}
 }
 
-// customEmojiDocIDs collects the distinct custom-emoji document IDs of a
-// message's entities (0 and duplicates dropped). Pure — unit-tested.
 func customEmojiDocIDs(entities []cores.TextEntity) []int64 {
 	var ids []int64
 	seen := map[int64]bool{}
@@ -71,8 +51,6 @@ func customEmojiDocIDs(entities []cores.TextEntity) []int64 {
 	return ids
 }
 
-// emojiArtSide is the inline artwork box for a font pixel height
-// (~1.35x, rounded; degenerate input → 0). Pure — unit-tested.
 func emojiArtSide(fontPx int) int {
 	if fontPx <= 0 {
 		return 0
@@ -80,20 +58,17 @@ func emojiArtSide(fontPx int) int {
 	return (fontPx*135 + 50) / 100
 }
 
-// emojiArt is one document's resolved artwork.
 type emojiArt struct {
 	kind    int
-	img     *image.RGBA       // raster kind
-	anim    *lottie.Animation // lottie kind
-	player  *vp9anim.Player   // video kind (webm/VP9)
+	img     *image.RGBA
+	anim    *lottie.Animation
+	player  *vp9anim.Player
 	vanim   *vp9anim.Animation
-	start   time.Time // animation clock origin
-	failed  bool      // fetch/parse failed (pinned)
-	reading bool      // fetch in flight
+	start   time.Time
+	failed  bool
+	reading bool
 }
 
-// emojiArtCache memoizes artwork per document ID (shared across messages
-// and chats — premium emoji are per-document, not per-message).
 type emojiArtCache struct {
 	mu      sync.Mutex
 	entries map[int64]*emojiArt
@@ -110,8 +85,6 @@ func (c *emojiArtCache) get(docID int64) *emojiArt {
 		return e
 	}
 	if len(c.entries) >= emojiArtMax {
-		// Video entries own producer goroutines — stop them (async; a
-		// mid-decode Stop could stall the frame thread).
 		for _, e := range c.entries {
 			if e.player != nil {
 				go e.player.Stop()
@@ -124,9 +97,6 @@ func (c *emojiArtCache) get(docID int64) *emojiArt {
 	return e
 }
 
-// startReading atomically claims the fetch slot for a document; false
-// while a fetch is already in flight (per-document dedup across the
-// inline-emoji and panel-sticker surfaces).
 func (c *emojiArtCache) startReading(docID int64, e *emojiArt) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -137,10 +107,6 @@ func (c *emojiArtCache) startReading(docID int64, e *emojiArt) bool {
 	return true
 }
 
-// resolveEmojiArtBytes parses fetched document bytes into an artwork
-// entry (lottie / raster / video). Returns false when the document is
-// undecodable (the caller pins the failure). Pure-side-effect helper
-// shared by the inline-emoji and panel-sticker fetch paths.
 func resolveEmojiArtBytes(e *emojiArt, mime string, data []byte) bool {
 	switch classifyEmojiArt(mime) {
 	case emojiArtLottie:
@@ -170,8 +136,6 @@ func resolveEmojiArtBytes(e *emojiArt, mime string, data []byte) bool {
 	return false
 }
 
-// ensureEmojiArt fetches the missing artwork for a message's custom-emoji
-// entities in one batched engine call (per-message in-flight guard).
 func (a *App) ensureEmojiArt(m *engine.CachedMessage, entities []cores.TextEntity) {
 	if m == nil {
 		return
@@ -180,8 +144,6 @@ func (a *App) ensureEmojiArt(m *engine.CachedMessage, entities []cores.TextEntit
 	if len(ids) == 0 {
 		return
 	}
-	// Only the missing ones (the cache-level reading flag dedups
-	// against concurrent fetches from other surfaces).
 	var missing []int64
 	for _, id := range ids {
 		e := emojiArts.get(id)
@@ -204,7 +166,7 @@ func (a *App) ensureEmojiArt(m *engine.CachedMessage, entities []cores.TextEntit
 	accountID := m.AccountID
 	go func() {
 		files, ferr := a.eng.GetCustomEmojiFiles(accountID, missing)
-		_ = ferr // per-document failures below cover the whole-batch miss
+		_ = ferr
 		byID := make(map[int64]cores.CustomEmojiFile, len(files))
 		for _, f := range files {
 			byID[f.DocumentID] = f
@@ -226,9 +188,6 @@ func (a *App) ensureEmojiArt(m *engine.CachedMessage, entities []cores.TextEntit
 	}()
 }
 
-// drawEmojiArt paints one inline artwork into a side×side box (lottie:
-// current frame + re-arm; raster: aspect-fit). Returns false when the
-// entry is not renderable (caller falls back to the base glyph).
 func drawEmojiArt(gtx layout.Context, e *emojiArt, side int) bool {
 	if e == nil || side <= 0 {
 		return false
@@ -238,7 +197,6 @@ func drawEmojiArt(gtx layout.Context, e *emojiArt, side int) bool {
 		if e.anim == nil {
 			return false
 		}
-		// Power saving (slice 135): first frame, no re-arm.
 		if powerSavingBlocks(powerSaving.flags, powerSaving.forceAll, psClassEmoji) {
 			lottie.Draw(e.anim, 0, gtx.Ops, image.Rect(0, 0, side, side))
 			return true

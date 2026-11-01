@@ -18,28 +18,24 @@ import (
 	"uniclient/cores"
 )
 
-// ChatInfo is the cached chat data returned to the UI.
 type ChatInfo struct {
-	AccountID         string `json:"account_id"`
-	ChatID            string `json:"chat_id"`
-	Type              int    `json:"type"`
-	Title             string `json:"title"`
-	AvatarPath        string `json:"avatar_path,omitempty"`
-	LastMsgID         string `json:"last_msg_id,omitempty"`
-	LastMsgText       string `json:"last_msg_text,omitempty"`
-	LastMsgTime       int64  `json:"last_msg_time,omitempty"`
-	LastMsgSender     string `json:"last_msg_sender,omitempty"`
-	LastMsgIsOutgoing bool   `json:"last_msg_is_outgoing,omitempty"`
-	LastMsgStatus     int    `json:"last_msg_status,omitempty"`
-	LastMsgMediaType  int    `json:"last_msg_media_type,omitempty"`
-	LastMsgThumbB64   string `json:"last_msg_thumb_b64,omitempty"`
-	UnreadCount       int    `json:"unread_count"`
-	IsMuted           bool   `json:"is_muted"`
-	IsPinned          bool   `json:"is_pinned"`
-	IsArchived        bool   `json:"is_archived"`
-	// MuteUntil is the Unix-seconds expiry of a timed mute (0 = muted
-	// forever or not muted). The server unmutes automatically at this
-	// instant; the engine's list sweep mirrors that locally.
+	AccountID            string `json:"account_id"`
+	ChatID               string `json:"chat_id"`
+	Type                 int    `json:"type"`
+	Title                string `json:"title"`
+	AvatarPath           string `json:"avatar_path,omitempty"`
+	LastMsgID            string `json:"last_msg_id,omitempty"`
+	LastMsgText          string `json:"last_msg_text,omitempty"`
+	LastMsgTime          int64  `json:"last_msg_time,omitempty"`
+	LastMsgSender        string `json:"last_msg_sender,omitempty"`
+	LastMsgIsOutgoing    bool   `json:"last_msg_is_outgoing,omitempty"`
+	LastMsgStatus        int    `json:"last_msg_status,omitempty"`
+	LastMsgMediaType     int    `json:"last_msg_media_type,omitempty"`
+	LastMsgThumbB64      string `json:"last_msg_thumb_b64,omitempty"`
+	UnreadCount          int    `json:"unread_count"`
+	IsMuted              bool   `json:"is_muted"`
+	IsPinned             bool   `json:"is_pinned"`
+	IsArchived           bool   `json:"is_archived"`
 	MuteUntil            int64  `json:"mute_until,omitempty"`
 	DraftText            string `json:"draft_text,omitempty"`
 	MemberCount          int    `json:"member_count,omitempty"`
@@ -58,14 +54,7 @@ type ChatInfo struct {
 	StarsToSend          int    `json:"stars_to_send,omitempty"`
 	TtlPeriod            int    `json:"ttl_period,omitempty"`
 	EmojiStatusID        string `json:"emoji_status_id,omitempty"`
-	// ThemeEmoticon is the chat's active server chat-theme emoticon
-	// (slice 188, tdesktop peerTheme): mirrored from the latest
-	// messageActionSetChatTheme service row; "" = no theme.
-	ThemeEmoticon string `json:"theme_emoticon,omitempty"`
-	// WallpaperJSON is the chat's active custom wallpaper as marshaled
-	// cores.WallpaperInfo (slice 218): mirrored from the latest
-	// messageActionSetChatWallPaper service row (or our own
-	// SetChatWallpaper); "" = none (the theme gradient renders).
+	ThemeEmoticon        string `json:"theme_emoticon,omitempty"`
 	WallpaperJSON        string `json:"wallpaper_json,omitempty"`
 	StoryCount           int    `json:"story_count,omitempty"`
 	HasUnreadStory       bool   `json:"has_unread_story,omitempty"`
@@ -84,7 +73,6 @@ type ChatInfo struct {
 	HasActiveCall        bool   `json:"has_active_call,omitempty"`
 }
 
-// chatTypeToInt converts cores.ChatType to DB integer.
 func chatTypeToInt(ct cores.ChatType) int {
 	switch ct {
 	case cores.ChatTypeDM:
@@ -100,9 +88,6 @@ func chatTypeToInt(ct cores.ChatType) int {
 	}
 }
 
-// sweepExpiredTimedMutes clears timed mutes whose deadline has passed
-// (the server unmutes automatically at mute_until; mirror that locally).
-// Throttled to one sweep per 15s so the list hot path stays cheap.
 func (e *Engine) sweepExpiredTimedMutes() {
 	now := time.Now().Unix()
 	last := e.muteSweepLast.Load()
@@ -117,7 +102,6 @@ func (e *Engine) sweepExpiredTimedMutes() {
 		now)
 }
 
-// GetUnifiedChatList returns chats from all accounts, sorted by pinned then time.
 func (e *Engine) GetUnifiedChatList(limit, offset int) ([]ChatInfo, error) {
 	e.sweepExpiredTimedMutes()
 	if limit <= 0 {
@@ -154,7 +138,6 @@ func (e *Engine) GetUnifiedChatList(limit, offset int) ([]ChatInfo, error) {
 	return chats, nil
 }
 
-// GetChatList returns chats for a single account.
 func (e *Engine) GetChatList(accountID string, archived bool, limit, offset int) ([]ChatInfo, error) {
 	e.sweepExpiredTimedMutes()
 	if limit <= 0 {
@@ -196,10 +179,7 @@ func (e *Engine) GetChatList(accountID string, archived bool, limit, offset int)
 	return chats, nil
 }
 
-// markSelfChats sets IsSelf=true for DM chats where the chatID matches
-// the account's own user ID (i.e. "Saved Messages").
 func (e *Engine) markSelfChats(chats []ChatInfo) {
-	// Build map of accountID → selfUserID.
 	selfIDs := make(map[string]string)
 	e.accountsMu.RLock()
 	for id, acc := range e.accounts {
@@ -304,7 +284,6 @@ func scanChats(rows *sql.Rows) ([]ChatInfo, error) {
 	return chats, rows.Err()
 }
 
-// UpsertChat inserts or updates a chat in the cache.
 func (e *Engine) UpsertChat(accountID string, d cores.Dialog) error {
 	now := time.Now().UnixMilli()
 	chatType := chatTypeToInt(d.Type)
@@ -403,7 +382,6 @@ func (e *Engine) UpsertChat(accountID string, d cores.Dialog) error {
 		return err
 	}
 
-	// Mark that this chat has a photo available for download.
 	if d.AvatarURL != "" {
 		e.markAvatarAvailable(accountID, d.ID)
 	}
@@ -411,9 +389,6 @@ func (e *Engine) UpsertChat(accountID string, d cores.Dialog) error {
 	return nil
 }
 
-// loadPeerHashes reads access hashes from the chats table and returns them
-// split by peer type (channel vs user). Used to pre-populate the core's
-// in-memory peer cache at connect time so API calls succeed before GetDialogs.
 func (e *Engine) loadPeerHashes(accountID string) (channelHashes map[int64]int64, userHashes map[int64]int64) {
 	channelHashes = make(map[int64]int64)
 	userHashes = make(map[int64]int64)
@@ -444,28 +419,23 @@ func (e *Engine) loadPeerHashes(accountID string) (channelHashes map[int64]int64
 	return
 }
 
-// SyncChats diffs network dialogs against cache and emits appropriate events.
 func (e *Engine) SyncChats(accountID string, dialogs []cores.Dialog) error {
 	for _, d := range dialogs {
 		if err := e.UpsertChat(accountID, d); err != nil {
 			return err
 		}
 	}
-	// Emit snapshot for this account.
 	chats, err := e.GetChatList(accountID, false, 200, 0)
 	if err != nil {
 		return err
 	}
 	e.emitEvent(EventChatSnapshot, accountID, ChatSnapshotEvent{Chats: chats})
 
-	// Download avatars in background.
 	go e.DownloadPendingAvatars(accountID)
 
 	return nil
 }
 
-// ensureChatExists creates a minimal chat entry if it doesn't exist yet.
-// Called when a message arrives for a chat not in the initial sync.
 func (e *Engine) ensureChatExists(accountID, chatID string, msg *cores.Message) {
 	var exists int
 	e.db.QueryRow("SELECT 1 FROM chats WHERE account_id = ? AND chat_id = ?", accountID, chatID).Scan(&exists)
@@ -473,7 +443,6 @@ func (e *Engine) ensureChatExists(accountID, chatID string, msg *cores.Message) 
 		return
 	}
 
-	// Create minimal chat entry — title will be the sender name for DMs.
 	chatType := ChatTypeDMVal
 	title := msg.SenderName
 	if title == "" {
@@ -499,9 +468,6 @@ func (e *Engine) ensureChatExists(accountID, chatID string, msg *cores.Message) 
 		msg.ID, msgPreviewText(msg), msg.SenderName, msg.Timestamp.UnixMilli(), boolToInt(msg.IsOutgoing),
 		msgStatusFromCore(msg.Status), msgMediaType, msgThumbB64, now)
 
-	// Chat-theme mirror (slice 188): the creating message may itself be
-	// the SetChatTheme service row — the INSERT above runs before this
-	// in cacheMessage's call order, so seed the emoticon here too.
 	if msg.Extra != nil {
 		if emoticon, ok := msg.Extra["chat_theme_emoticon"]; ok {
 			if em, is := emoticon.(string); is {
@@ -510,8 +476,6 @@ func (e *Engine) ensureChatExists(accountID, chatID string, msg *cores.Message) 
 					em, accountID, chatID)
 			}
 		}
-		// Wallpaper mirror (slice 218): same peer-mirror mechanism — the
-		// latest messageActionSetChatWallPaper service row wins.
 		if raw, ok := msg.Extra["chat_wallpaper"]; ok {
 			if js, is := raw.(string); is {
 				e.db.Exec(
@@ -521,7 +485,6 @@ func (e *Engine) ensureChatExists(accountID, chatID string, msg *cores.Message) 
 		}
 	}
 
-	// Try to get proper chat info from core in background.
 	go func() {
 		acc, ok := e.getAccount(accountID)
 		if !ok || acc.Core == nil {
@@ -541,7 +504,6 @@ func (e *Engine) ensureChatExists(accountID, chatID string, msg *cores.Message) 
 	log.Printf("[engine] ensureChatExists(%s, %s): created new chat entry for %q", accountID, chatID, title)
 }
 
-// updateChatLastMessage updates the preview fields for a chat.
 func (e *Engine) updateChatLastMessage(accountID, chatID, msgID, text, sender string, timeMs int64, isOutgoing bool, status int, mediaType int, thumbB64 string) {
 	outgoing := 0
 	if isOutgoing {
@@ -559,16 +521,12 @@ func (e *Engine) updateChatLastMessage(accountID, chatID, msgID, text, sender st
 	e.emitChatUpdate(accountID, chatID)
 }
 
-// incrementUnread bumps the unread count for a chat.
 func (e *Engine) incrementUnread(accountID, chatID string) {
 	e.db.Exec(
 		"UPDATE chats SET unread_count = unread_count + 1 WHERE account_id = ? AND chat_id = ?",
 		accountID, chatID)
 }
 
-// MarkChatRead resets unread count to 0 and optionally calls core.MarkAsRead.
-// Ghost mode: when SendReadReceipts is false, only the local unread count
-// is cleared — the server-side read receipt (messages.readHistory) is suppressed.
 func (e *Engine) MarkChatRead(accountID, chatID, upToMsgID string) error {
 	e.db.Exec(
 		"UPDATE chats SET unread_count = 0 WHERE account_id = ? AND chat_id = ?",
@@ -584,8 +542,6 @@ func (e *Engine) MarkChatRead(accountID, chatID, upToMsgID string) error {
 	return nil
 }
 
-// MarkAllChatsRead marks every chat with unread messages as read for the account.
-// Also clears unread story flags and triggers server-side story read sync.
 func (e *Engine) MarkAllChatsRead(accountID string) error {
 	rows, err := e.db.Query(
 		"SELECT chat_id, last_msg_id FROM chats WHERE account_id = ? AND (unread_count > 0 OR unread_mark = 1)",
@@ -612,7 +568,6 @@ func (e *Engine) MarkAllChatsRead(accountID string) error {
 		e.MarkChatRead(accountID, cm.chatID, cm.lastMsgID)
 	}
 
-	// Clear unread story flags locally and trigger server-side story read sync.
 	e.db.Exec(
 		"UPDATE chats SET has_unread_story = 0 WHERE account_id = ? AND has_unread_story = 1",
 		accountID)
@@ -627,8 +582,6 @@ func (e *Engine) MarkAllChatsRead(accountID string) error {
 	return nil
 }
 
-// OpenSavedMessages ensures the "Saved Messages" chat exists in the local
-// cache and emits a chat update so the host side can navigate to it.
 func (e *Engine) OpenSavedMessages(accountID string) (string, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -647,9 +600,6 @@ func (e *Engine) OpenSavedMessages(accountID string) (string, error) {
 	e.db.QueryRow("SELECT COUNT(*) FROM chats WHERE account_id = ? AND chat_id = ?",
 		accountID, selfID).Scan(&exists)
 	if exists == 0 {
-		// updated_at is NOT NULL without a default: omitting it made the old
-		// INSERT OR IGNORE a silent no-op (real bug, caught by the unit test —
-		// the Saved Messages chat row never actually landed).
 		if _, err := e.db.Exec(
 			`INSERT OR IGNORE INTO chats (account_id, chat_id, type, title, unread_count, is_pinned, is_archived, last_msg_time, updated_at)
                          VALUES (?, ?, 1, 'Saved Messages', 0, 0, 0, ?, ?)`,
@@ -661,12 +611,8 @@ func (e *Engine) OpenSavedMessages(accountID string) (string, error) {
 	return selfID, nil
 }
 
-// selfIDer is the core capability behind Saved Messages: the account's own
-// user id (the Saved Messages chat is the self-DM).
 type selfIDer interface{ SelfUserID() string }
 
-// SavedMessagesSupported reports whether the account's core exposes its own
-// user id — the prerequisite for the Saved Messages surface.
 func (e *Engine) SavedMessagesSupported(accountID string) bool {
 	e.accountsMu.RLock()
 	acc := e.accounts[accountID]
@@ -678,8 +624,6 @@ func (e *Engine) SavedMessagesSupported(accountID string) bool {
 	return ok && s.SelfUserID() != ""
 }
 
-// SavedMessagesChatID returns the account's Saved Messages chat id (the
-// self-DM peer), "" when unsupported — the GUI's bookmark-avatar predicate.
 func (e *Engine) SavedMessagesChatID(accountID string) string {
 	e.accountsMu.RLock()
 	acc := e.accounts[accountID]
@@ -694,7 +638,6 @@ func (e *Engine) SavedMessagesChatID(accountID string) string {
 	return s.SelfUserID()
 }
 
-// RemoveBotFromMenu removes a bot from the side/attach menu.
 func (e *Engine) RemoveBotFromMenu(accountID string, botID int64) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -726,7 +669,6 @@ func (e *Engine) MarkChatUnread(accountID, chatID string) error {
 	return nil
 }
 
-// SaveDraft persists draft text for a chat.
 func (e *Engine) SaveDraft(accountID, chatID, text string) error {
 	_, err := e.db.Exec(
 		"UPDATE chats SET draft_text = ? WHERE account_id = ? AND chat_id = ?",
@@ -734,11 +676,6 @@ func (e *Engine) SaveDraft(accountID, chatID, text string) error {
 	return err
 }
 
-// MuteChat sets the muted state for a chat.
-// If durationSeconds > 0, mutes for that duration (only supported on some platforms)
-// and records the expiry so the UI can show the remaining time.
-// If durationSeconds == 0 and muted == true, mutes forever.
-// If muted == false, unmutes regardless of durationSeconds.
 func (e *Engine) MuteChat(accountID, chatID string, muted bool, durationSeconds int32) error {
 	muteUntil := int64(0)
 	if muted && durationSeconds > 0 {
@@ -770,7 +707,6 @@ func (e *Engine) MuteChat(accountID, chatID string, muted bool, durationSeconds 
 	return nil
 }
 
-// SetHistoryTTL sets the auto-delete timer for a chat and updates the cache.
 func (e *Engine) SetHistoryTTL(accountID, chatID string, period int) error {
 	if acc, ok := e.getAccount(accountID); ok && acc.Core != nil {
 		type ttlSetter interface {
@@ -792,7 +728,6 @@ func (e *Engine) SetHistoryTTL(accountID, chatID string, period int) error {
 	return nil
 }
 
-// GetDefaultHistoryTTL returns the global auto-delete timer for new chats.
 func (e *Engine) GetDefaultHistoryTTL(accountID string) (int, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -808,7 +743,6 @@ func (e *Engine) GetDefaultHistoryTTL(accountID string) (int, error) {
 	return g.GetDefaultHistoryTTL()
 }
 
-// SetDefaultHistoryTTL sets the global auto-delete timer for new chats.
 func (e *Engine) SetDefaultHistoryTTL(accountID string, period int) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -905,7 +839,6 @@ func (e *Engine) RemoveTopPeer(accountID, peerID string) error {
 	return r.RemoveFromTopPeers(peerID)
 }
 
-// ToggleSavedDialogPin pins or unpins a saved dialog sublist.
 func (e *Engine) ToggleSavedDialogPin(accountID, peerID string, pinned bool) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -921,7 +854,6 @@ func (e *Engine) ToggleSavedDialogPin(accountID, peerID string, pinned bool) err
 	return p.ToggleSavedDialogPin(peerID, pinned)
 }
 
-// MarkSavedSublistRead marks a saved messages sublist as read.
 func (e *Engine) MarkSavedSublistRead(accountID, peerID string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -930,11 +862,6 @@ func (e *Engine) MarkSavedSublistRead(accountID, peerID string) error {
 	return acc.Core.MarkAsRead(peerID, "")
 }
 
-// DeleteSavedSublistHistory deletes saved message history for a peer
-// (messages.deleteSavedHistory). Slice 204: the scoped rows are purged
-// from the self-chat cache too — the server drops the dialog from the
-// list, so the next lists fetch no longer shows it and stale bubbles
-// never linger in the open view.
 func (e *Engine) DeleteSavedSublistHistory(accountID, peerID string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -960,7 +887,6 @@ func (e *Engine) DeleteSavedSublistHistory(accountID, peerID string) error {
 	return nil
 }
 
-// ReorderPinnedDialogs changes the display order of pinned chats.
 func (e *Engine) ReorderPinnedDialogs(accountID string, chatIDs []string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -976,7 +902,6 @@ func (e *Engine) ReorderPinnedDialogs(accountID string, chatIDs []string) error 
 	return r.ReorderPinnedDialogs(chatIDs)
 }
 
-// ReorderDialogFilters changes the display order of chat folders.
 func (e *Engine) ReorderDialogFilters(accountID string, filterIDs []int) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -992,7 +917,6 @@ func (e *Engine) ReorderDialogFilters(accountID string, filterIDs []int) error {
 	return r.ReorderDialogFilters(filterIDs)
 }
 
-// ToggleDialogFilterTags enables or disables folder tags display (premium).
 func (e *Engine) ToggleDialogFilterTags(accountID string, enabled bool) (bool, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -1008,7 +932,6 @@ func (e *Engine) ToggleDialogFilterTags(accountID string, enabled bool) (bool, e
 	return t.MessagesToggleDialogFilterTags(enabled)
 }
 
-// PinChat sets the pinned state for a chat.
 func (e *Engine) PinChat(accountID, chatID string, pinned bool) error {
 	_, err := e.db.Exec(
 		"UPDATE chats SET is_pinned = ? WHERE account_id = ? AND chat_id = ?",
@@ -1020,7 +943,6 @@ func (e *Engine) PinChat(accountID, chatID string, pinned bool) error {
 	return nil
 }
 
-// ArchiveChat sets the archived state for a chat.
 func (e *Engine) ArchiveChat(accountID, chatID string, archived bool) error {
 	_, err := e.db.Exec(
 		"UPDATE chats SET is_archived = ? WHERE account_id = ? AND chat_id = ?",
@@ -1029,7 +951,6 @@ func (e *Engine) ArchiveChat(accountID, chatID string, archived bool) error {
 		return err
 	}
 
-	// Also call core.
 	if acc, ok := e.getAccount(accountID); ok && acc.Core != nil {
 		acc.Core.ArchiveChat(chatID, archived)
 	}
@@ -1038,8 +959,6 @@ func (e *Engine) ArchiveChat(accountID, chatID string, archived bool) error {
 	return nil
 }
 
-// GetForumTopics fetches forum topics for a chat from the core.
-// Returns the full ForumTopic data model with capability flags.
 func (e *Engine) GetForumTopics(accountID, chatID string) ([]cores.ForumTopic, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -1074,7 +993,6 @@ func (e *Engine) GetForumTopics(accountID, chatID string) ([]cores.ForumTopic, e
 	return topics, nil
 }
 
-// GetForumTopicsWithOffset fetches forum topics with pagination offset parameters.
 func (e *Engine) GetForumTopicsWithOffset(accountID, chatID string, offsetDate, offsetID, offsetTopic int) ([]cores.ForumTopic, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -1203,7 +1121,6 @@ func (e *Engine) DeleteForumTopicHistory(accountID, chatID string, topicID int) 
 	return d.DeleteTopicHistory(chatID, topicID)
 }
 
-// FolderInfo represents a synced folder from the platform (e.g. Telegram folders).
 type FolderInfo struct {
 	ID              string
 	Name            string
@@ -1222,11 +1139,6 @@ type FolderInfo struct {
 	Emoticon        string
 }
 
-// GetFolders returns synced folders from the core, if the core supports them.
-// Returns an empty list for cores that don't support folders.
-// FoldersSupported reports whether the account's core implements dialog
-// folders (so the GUI can decide between real folder tabs and the smart
-// fallback tabs).
 func (e *Engine) FoldersSupported(accountID string) bool {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -1245,13 +1157,11 @@ func (e *Engine) GetFolders(accountID string) ([]FolderInfo, error) {
 		return nil, fmt.Errorf("account not found: %s", accountID)
 	}
 
-	// Check if the core supports folders via type assertion.
 	type folderLister interface {
 		GetFolders() ([]cores.Folder, error)
 	}
 	fl, ok := acc.Core.(folderLister)
 	if !ok {
-		// Core doesn't support folders — return empty list gracefully.
 		return nil, nil
 	}
 
@@ -1327,14 +1237,12 @@ func (e *Engine) GetSuggestedFolders(accountID string) ([]SuggestedFolderInfo, e
 	return result, nil
 }
 
-// DeleteFolder deletes a chat folder via the underlying core.
 func (e *Engine) DeleteFolder(accountID, folderID string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
 		return fmt.Errorf("account not found: %s", accountID)
 	}
 
-	// Try int-ID deleter (Telegram).
 	type folderDeleterInt interface {
 		DeleteFolder(filterID int) error
 	}
@@ -1346,7 +1254,6 @@ func (e *Engine) DeleteFolder(accountID, folderID string) error {
 		return fd.DeleteFolder(id)
 	}
 
-	// Try int64-ID deleter (Bale).
 	type folderDeleterInt64 interface {
 		DeleteFolder(folderID int64) (map[string]interface{}, error)
 	}
@@ -1362,10 +1269,6 @@ func (e *Engine) DeleteFolder(accountID, folderID string) error {
 	return fmt.Errorf("core does not support folder deletion")
 }
 
-// CreateFolderOpts contains the COMPLETE filter definition for folder
-// creation/edit, mirroring AyuGram's Data::ChatFilter collect() result: type
-// flags + exclude flags + exclude/pinned peers + tag color + emoticon + static
-// title. ColorIndex < 0 means "no tag color".
 type CreateFolderOpts struct {
 	Contacts        bool
 	NonContacts     bool
@@ -1383,9 +1286,6 @@ type CreateFolderOpts struct {
 	StaticTitle     bool
 }
 
-// folderSaverFull is implemented by cores that can persist the full filter
-// definition (include/exclude peers + every flag + color + emoticon) via a
-// single updateDialogFilter call. filterID <= 0 creates a new folder.
 type folderSaverFull interface {
 	UpdateDialogFilterFull(filterID int, isChatList bool, name string,
 		includeIDs, excludeIDs, pinnedIDs []string,
@@ -1414,15 +1314,12 @@ func folderInfoFromCore(f *cores.Folder) *FolderInfo {
 	}
 }
 
-// CreateFolder creates a new folder via the underlying core.
 func (e *Engine) CreateFolder(accountID, name string, chatIDs []string, opts *CreateFolderOpts) (*FolderInfo, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
 		return nil, fmt.Errorf("account not found: %s", accountID)
 	}
 
-	// Preferred: full saver — persists exclude flags/peers, color and emoticon
-	// in one shot (matches AyuGram saving the whole collect() result verbatim).
 	if opts != nil {
 		if fs, ok := acc.Core.(folderSaverFull); ok {
 			f, err := fs.UpdateDialogFilterFull(0, false, name,
@@ -1437,7 +1334,6 @@ func (e *Engine) CreateFolder(accountID, name string, chatIDs []string, opts *Cr
 		}
 	}
 
-	// Fallback: extended creator (type flags only).
 	type folderCreatorEx interface {
 		CreateFolderWithFlags(name string, chatIDs []string, contacts, nonContacts, groups, channels, bots bool) (*cores.Folder, error)
 	}
@@ -1451,7 +1347,6 @@ func (e *Engine) CreateFolder(accountID, name string, chatIDs []string, opts *Cr
 		}
 	}
 
-	// Fallback to basic creator.
 	type folderCreator interface {
 		CreateFolder(name string, chatIDs []string) (*cores.Folder, error)
 	}
@@ -1472,10 +1367,6 @@ func (e *Engine) CreateFolder(accountID, name string, chatIDs []string, opts *Cr
 	}, nil
 }
 
-// EditFolder overwrites an existing folder with the COMPLETE filter definition,
-// mirroring AyuGram EditExistingFilter sending result.tl() via
-// messages.updateDialogFilter (edit_filter_box.cpp:991-1003). Uses the same full
-// saver as CreateFolder, preserving the existing filter id.
 func (e *Engine) EditFolder(accountID, folderID, name string, chatIDs []string, opts *CreateFolderOpts) (*FolderInfo, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -1503,7 +1394,6 @@ func (e *Engine) EditFolder(accountID, folderID, name string, chatIDs []string, 
 	return folderInfoFromCore(f), nil
 }
 
-// GetFolderInviteLinks returns invite links for a chat folder.
 func (e *Engine) GetFolderInviteLinks(accountID string, folderID int) ([]cores.ChatlistInviteLink, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -1518,7 +1408,6 @@ func (e *Engine) GetFolderInviteLinks(accountID string, folderID int) ([]cores.C
 	return nil, fmt.Errorf("core does not support folder invite links")
 }
 
-// CreateFolderInviteLink creates a shareable invite link for a folder.
 func (e *Engine) CreateFolderInviteLink(accountID string, folderID int, title string, peerIDs []string) (string, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -1602,8 +1491,6 @@ func (e *Engine) GetTopPeers(accountID string, limit int) ([]ChatInfo, error) {
 	return result, nil
 }
 
-// EditFolderInviteLink modifies the peers and/or custom title of a folder invite
-// link. A non-empty title renames the link ("Name Link" action).
 func (e *Engine) EditFolderInviteLink(accountID string, folderID int, slug string, peerIDs []string, title string) (cores.ChatlistInviteLink, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -1618,7 +1505,6 @@ func (e *Engine) EditFolderInviteLink(accountID string, folderID int, slug strin
 	return cores.ChatlistInviteLink{}, fmt.Errorf("core does not support folder invite link editing")
 }
 
-// DeleteFolderInviteLink deletes a shareable invite link for a folder.
 func (e *Engine) DeleteFolderInviteLink(accountID string, folderID int, slug string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -1633,7 +1519,6 @@ func (e *Engine) DeleteFolderInviteLink(accountID string, folderID int, slug str
 	return fmt.Errorf("core does not support folder invite links")
 }
 
-// GetLeaveChatlistSuggestions returns peer IDs the server suggests leaving when removing a chatlist folder.
 func (e *Engine) GetLeaveChatlistSuggestions(accountID string, folderID int) ([]string, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -1648,7 +1533,6 @@ func (e *Engine) GetLeaveChatlistSuggestions(accountID string, folderID int) ([]
 	return nil, fmt.Errorf("core does not support chatlist leave suggestions")
 }
 
-// LeaveChatlistFolder leaves a chatlist folder, optionally leaving selected peers.
 func (e *Engine) LeaveChatlistFolder(accountID string, folderID int, peerIDs []string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -1663,9 +1547,6 @@ func (e *Engine) LeaveChatlistFolder(accountID string, folderID int, peerIDs []s
 	return fmt.Errorf("core does not support chatlist leave")
 }
 
-// emitChatUpdate reads the current chat state from DB and emits an update event.
-// SetChatTTL sets the chat's message auto-delete period (0 = off),
-// updates the cached chat row, and notifies the GUI.
 func (e *Engine) SetChatTTL(accountID, chatID string, ttlSeconds int) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -1754,7 +1635,6 @@ func (e *Engine) emitChatUpdate(accountID, chatID string) {
 	c.IsAdmin = isAdminInt == 1
 	c.IsCreator = isCreatorInt == 1
 
-	// Apply isSelf detection (not stored in DB, computed in-memory).
 	if c.Type == ChatTypeDMVal {
 		e.accountsMu.RLock()
 		if acc, ok := e.accounts[accountID]; ok && acc.Core != nil {
@@ -1771,7 +1651,6 @@ func (e *Engine) emitChatUpdate(accountID, chatID string) {
 	e.emitEvent(EventChatUpdated, accountID, ChatUpdatedEvent{Chat: c})
 }
 
-// GroupCallInfo is the group call data returned to the UI.
 type GroupCallInfo struct {
 	CallID            string                 `json:"call_id"`
 	ChatID            string                 `json:"chat_id"`
@@ -1782,13 +1661,9 @@ type GroupCallInfo struct {
 	IsRtmp            bool                   `json:"is_rtmp,omitempty"`
 	ScheduleDate      int64                  `json:"schedule_date,omitempty"`
 	Origin            string                 `json:"origin,omitempty"`
-	// TalkPowerBlocked: the server silently discards our voice in this
-	// room (client talk power below channel_needed_talk_power — BUGS
-	// B-26); the UI must say so instead of letting audio die silently.
-	TalkPowerBlocked bool `json:"talk_power_blocked,omitempty"`
+	TalkPowerBlocked  bool                   `json:"talk_power_blocked,omitempty"`
 }
 
-// GroupCallParticipant is a single participant in a group call.
 type GroupCallParticipant struct {
 	UserID             string  `json:"user_id"`
 	DisplayName        string  `json:"display_name"`
@@ -1807,11 +1682,9 @@ type GroupCallParticipant struct {
 	SSRC               int32   `json:"ssrc,omitempty"`
 	LastActive         int64   `json:"last_active,omitempty"`
 	Date               int64   `json:"date,omitempty"`
-	State              string  `json:"state,omitempty"` // "", "invited" or "calling" (conference rows)
+	State              string  `json:"state,omitempty"`
 }
 
-// GetGroupCall checks whether a chat has an active group call and returns its info.
-// Returns nil with no error if no group call is active.
 func (e *Engine) GetGroupCall(accountID, chatID string) (*GroupCallInfo, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -1825,11 +1698,11 @@ func (e *Engine) GetGroupCall(accountID, chatID string) (*GroupCallInfo, error) 
 	}
 	gc, ok := acc.Core.(groupCaller)
 	if !ok {
-		return nil, nil // platform doesn't support group calls
+		return nil, nil
 	}
 	cs, err := gc.GetGroupCall(chatID)
 	if err != nil {
-		return nil, nil // no active group call or error — treat as no call
+		return nil, nil
 	}
 	if cs == nil || cs.State == cores.CallStateEnded {
 		return nil, nil
@@ -1913,7 +1786,6 @@ func (e *Engine) StartCall(accountID, chatID string, video bool) (string, error)
 	return cs.ID, nil
 }
 
-// JoinGroupCall joins the active group call in a chat, or creates one if none exists.
 func (e *Engine) JoinGroupCall(accountID, chatID string) (string, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -1937,8 +1809,6 @@ func (e *Engine) JoinGroupCall(accountID, chatID string) (string, error) {
 		}
 	}
 
-	// Voice-capable backends (Mumble, TeamSpeak): start the shared
-	// mic → Opus → core / core → decode → mix → speaker pipeline.
 	if vc, ok := acc.Core.(cores.VoiceCore); ok {
 		e.startVoiceRunner(accountID, vc)
 	}
@@ -1964,10 +1834,6 @@ func (e *Engine) CreateConferenceCall(accountID string) (string, string, error) 
 	return cc.CreateConferenceCall()
 }
 
-// InviteToConferenceCall invites users to a conference call. videoUserIDs is
-// the subset of userIDs the host chose to invite with video on; AyuGram carries
-// the same per-user flag via ConfInviteController::requests() →
-// InviteRequest{ user, _withVideo.contains(user) }.
 func (e *Engine) InviteToConferenceCall(accountID, callID string, userIDs, videoUserIDs []string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -1986,8 +1852,6 @@ func (e *Engine) InviteToConferenceCall(accountID, callID string, userIDs, video
 	return ci.InviteToConferenceCall(callID, userIDs, videoUserIDs)
 }
 
-// DeclineOutgoingConferenceInvite cancels an outgoing conference-call invite:
-// discard=false stops the ring (keeps the invite), discard=true revokes it.
 func (e *Engine) DeclineOutgoingConferenceInvite(accountID, callID, userID string, discard bool) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -2150,14 +2014,10 @@ func (e *Engine) LeaveGroupCall(accountID, callID string) error {
 	} else {
 		leaveErr = fmt.Errorf("core does not support LeaveGroupCall")
 	}
-	// Stop the live voice pipeline regardless (the room may have been
-	// left server-side by other means).
 	e.stopVoiceRunner()
 	return leaveErr
 }
 
-// GetGroupCallJoinAsPeers returns the identities the user can join a chat's
-// group call as (yourself / your channels), via phone.getGroupCallJoinAs.
 func (e *Engine) GetGroupCallJoinAsPeers(accountID, chatID string) ([]cores.JoinAsPeerInfo, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -2175,7 +2035,6 @@ func (e *Engine) GetGroupCallJoinAsPeers(accountID, chatID string) ([]cores.Join
 	return nil, fmt.Errorf("core does not support GetGroupCallJoinAsPeers")
 }
 
-// JoinGroupCallAs rejoins a chat's group call as the given identity (joinAsChatID).
 func (e *Engine) JoinGroupCallAs(accountID, chatID, joinAsChatID string) (string, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -2200,8 +2059,6 @@ func (e *Engine) JoinGroupCallAs(accountID, chatID, joinAsChatID string) (string
 	return "", fmt.Errorf("core does not support JoinGroupCallAs")
 }
 
-// SendGroupCallMessage sends an ephemeral message into a group call's message
-// stream (NOT the permanent chat history), via phone.sendGroupCallMessage.
 func (e *Engine) SendGroupCallMessage(accountID, chatID, text string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -2219,8 +2076,6 @@ func (e *Engine) SendGroupCallMessage(accountID, chatID, text string) error {
 	return fmt.Errorf("core does not support SendGroupCallMessage")
 }
 
-// GetGroupCallScheduleSubscribed reports whether the user is subscribed to a
-// scheduled group call's start reminder (real->scheduleStartSubscribed()).
 func (e *Engine) GetGroupCallScheduleSubscribed(accountID, chatID string) (bool, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -2255,7 +2110,6 @@ func (e *Engine) RaiseHand(accountID, callID string, raised bool) error {
 	return fmt.Errorf("core does not support RaiseHand")
 }
 
-// EditGroupCallTitle renames a voice chat / livestream (manager-only).
 func (e *Engine) EditGroupCallTitle(accountID, callID, title string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -2273,7 +2127,6 @@ func (e *Engine) EditGroupCallTitle(accountID, callID, title string) error {
 	return fmt.Errorf("core does not support EditGroupCallTitle")
 }
 
-// ToggleGroupCallRecord starts/stops server-side group-call recording.
 func (e *Engine) ToggleGroupCallRecord(accountID, callID string, start bool, title string, video, videoPortrait bool) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -2291,7 +2144,6 @@ func (e *Engine) ToggleGroupCallRecord(accountID, callID string, start bool, tit
 	return fmt.Errorf("core does not support ToggleGroupCallRecord")
 }
 
-// SetGroupCallMuteNewParticipants toggles default-mute-on-join (manager-only).
 func (e *Engine) SetGroupCallMuteNewParticipants(accountID, callID string, muted bool) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -2309,7 +2161,6 @@ func (e *Engine) SetGroupCallMuteNewParticipants(accountID, callID string, muted
 	return fmt.Errorf("core does not support SetGroupCallMuteNewParticipants")
 }
 
-// SetGroupCallMessagesEnabled toggles in-call text messages (manager-only).
 func (e *Engine) SetGroupCallMessagesEnabled(accountID, callID string, enabled bool) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -2327,8 +2178,6 @@ func (e *Engine) SetGroupCallMessagesEnabled(accountID, callID string, enabled b
 	return fmt.Errorf("core does not support SetGroupCallMessagesEnabled")
 }
 
-// GetGroupCallVideoFrame returns the latest decoded incoming video frame for a
-// stream kind ("camera"/"screen") as RGBA8888 + dimensions, or empty if none.
 func (e *Engine) GetGroupCallVideoFrame(accountID, callID, endpoint string) ([]byte, int, int, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -2385,8 +2234,6 @@ func (e *Engine) SetNoiseSuppression(accountID, callID string, enabled bool) err
 	e.config.NoiseSuppression = enabled
 	cfgErr := e.vault.SetConfig(e.config)
 	e.mu.Unlock()
-	// Apply live to the running call too (AyuGram call->setNoiseSuppression), so
-	// toggling mid-call takes effect immediately instead of only on the next call.
 	if callID != "" {
 		if acc, ok := e.getAccount(accountID); ok && acc.Core != nil {
 			type nsApplier interface {
@@ -2415,19 +2262,6 @@ func (e *Engine) GetAudioDevices(accountID, deviceType string) ([]string, error)
 	return devices, nil
 }
 
-// enumerateAudioDevices returns the real OS audio/video devices for the given
-// type ("output", "input", or "camera"). The returned names deliberately do NOT
-// include a "Default" entry — every host caller (settings_screen, call_panel,
-// call_screen) prepends its own "Default" sentinel meaning "use the system
-// default device", so adding one here would duplicate it.
-//
-// Pure Go, zero CGo. On Linux it prefers PulseAudio/PipeWire device names via
-// `pactl` when that tool is present (friendly names matching the in-call picker
-// and AyuGram), and always falls back to the ALSA proc filesystem
-// (/proc/asound/*), which exists on every Linux machine even without pactl.
-// Cameras come from /sys/class/video4linux. On platforms whose audio APIs need
-// CGo (Windows WASAPI, macOS CoreAudio) the list is empty and callers fall back
-// to "Default".
 func (e *Engine) enumerateAudioDevices(deviceType string) []string {
 	if runtime.GOOS != "linux" {
 		return nil
@@ -2444,10 +2278,6 @@ func (e *Engine) enumerateAudioDevices(deviceType string) []string {
 	return enumerateAlsaDevices(deviceType)
 }
 
-// enumeratePulseDevices lists PulseAudio/PipeWire sinks (output) or sources
-// (input) via `pactl list short`. Returns nil if pactl is unavailable so the
-// caller can fall back to ALSA. Mirrors the name cleanup used by the in-call
-// Linux picker (call_screen.dart) so both surfaces show identical labels.
 func enumeratePulseDevices(deviceType string) []string {
 	kind := "sinks"
 	if deviceType == "input" {
@@ -2465,8 +2295,6 @@ func enumeratePulseDevices(deviceType string) []string {
 			continue
 		}
 		raw := fields[1]
-		// A PulseAudio ".monitor" source is the loopback of an output, not a
-		// real microphone — skip it for the input list.
 		if deviceType == "input" && strings.HasSuffix(raw, ".monitor") {
 			continue
 		}
@@ -2480,9 +2308,6 @@ func enumeratePulseDevices(deviceType string) []string {
 	return devices
 }
 
-// prettifyPulseName turns a raw PulseAudio device id into a human-readable name,
-// matching the substitutions in call_screen.dart so the settings tab and the
-// in-call picker display identical labels for the same device.
 func prettifyPulseName(raw string) string {
 	s := raw
 	s = strings.ReplaceAll(s, "alsa_output.", "")
@@ -2493,10 +2318,6 @@ func prettifyPulseName(raw string) string {
 	return strings.TrimSpace(s)
 }
 
-// enumerateAlsaDevices parses /proc/asound/pcm (always present on Linux) for PCM
-// devices supporting the requested direction: "output" matches PCMs exposing a
-// "playback" stream, "input" matches a "capture" stream. Each name is prefixed
-// with the friendly card name from /proc/asound/cards.
 func enumerateAlsaDevices(deviceType string) []string {
 	data, err := os.ReadFile("/proc/asound/pcm")
 	if err != nil {
@@ -2510,12 +2331,10 @@ func enumerateAlsaDevices(deviceType string) []string {
 	var devices []string
 	seen := make(map[string]bool)
 	for _, line := range strings.Split(string(data), "\n") {
-		// Format: "CC-DD: <id> : <name> : playback N : capture N"
 		fields := strings.Split(line, ":")
 		if len(fields) < 2 {
 			continue
 		}
-		// Direction lives only in the trailing "playback N"/"capture N" fields.
 		hasDir := false
 		for _, f := range fields[2:] {
 			if strings.Contains(f, want) {
@@ -2526,7 +2345,7 @@ func enumerateAlsaDevices(deviceType string) []string {
 		if !hasDir {
 			continue
 		}
-		cardDev := strings.TrimSpace(fields[0]) // "01-00"
+		cardDev := strings.TrimSpace(fields[0])
 		cardIdx := cardDev
 		if dash := strings.IndexByte(cardDev, '-'); dash > 0 {
 			cardIdx = cardDev[:dash]
@@ -2547,8 +2366,6 @@ func enumerateAlsaDevices(deviceType string) []string {
 	return devices
 }
 
-// readAlsaCardNames maps each ALSA card index to its human-readable long name
-// from /proc/asound/cards (e.g. 1 -> "HDA Intel PCH").
 func readAlsaCardNames() map[int]string {
 	cards := make(map[int]string)
 	data, err := os.ReadFile("/proc/asound/cards")
@@ -2556,7 +2373,6 @@ func readAlsaCardNames() map[int]string {
 		return cards
 	}
 	for _, line := range strings.Split(string(data), "\n") {
-		// Header lines: " 1 [PCH            ]: HDA-Intel - HDA Intel PCH"
 		open := strings.IndexByte(line, '[')
 		closeColon := strings.Index(line, "]:")
 		if open < 0 || closeColon < open {
@@ -2567,7 +2383,7 @@ func readAlsaCardNames() map[int]string {
 			continue
 		}
 		bracketID := strings.TrimSpace(line[open+1 : closeColon])
-		rest := strings.TrimSpace(line[closeColon+2:]) // "HDA-Intel - HDA Intel PCH"
+		rest := strings.TrimSpace(line[closeColon+2:])
 		name := bracketID
 		if i := strings.LastIndex(rest, " - "); i >= 0 {
 			name = strings.TrimSpace(rest[i+3:])
@@ -2579,9 +2395,6 @@ func readAlsaCardNames() map[int]string {
 	return cards
 }
 
-// enumerateV4L2Cameras lists capture cameras from /sys/class/video4linux,
-// reading each node's friendly name. A single physical camera can expose
-// several /dev/videoN nodes that share a name; deduping by name collapses them.
 func enumerateV4L2Cameras() []string {
 	entries, err := os.ReadDir("/sys/class/video4linux")
 	if err != nil {
@@ -2626,10 +2439,6 @@ func (e *Engine) GetCallSoundPeak(accountID, callID string) (float64, error) {
 	return peak, nil
 }
 
-// GetGroupCallParticipantLevels returns the REAL per-participant audio levels for
-// the chat's active group call, keyed by userID, sourced from the media layer
-// (the RTP ssrc-audio-level extension parsed by the core) — not a synthetic
-// generator. Empty when nobody is audibly speaking, exactly like AyuGram's blobs.
 func (e *Engine) GetGroupCallParticipantLevels(accountID, chatID string) (map[string]float64, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -2644,9 +2453,6 @@ func (e *Engine) GetGroupCallParticipantLevels(accountID, chatID string) (map[st
 	return map[string]float64{}, nil
 }
 
-// GetGroupCallSettings returns the live (joinMuted, messagesEnabled) state of the
-// chat's active group call so the settings sheet can seed its manager toggles
-// from the real server value (AyuGram real->joinMuted()/messagesEnabled()).
 func (e *Engine) GetGroupCallSettings(accountID, callID string) (bool, bool, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -2664,9 +2470,6 @@ func (e *Engine) GetGroupCallSettings(accountID, callID string) (bool, bool, err
 	return false, false, nil
 }
 
-// InviteToGroupCall invites users to a NORMAL group voice chat
-// (phone.inviteToGroupCall) — the common case, distinct from
-// InviteToConferenceCall which only works for E2E conference calls.
 func (e *Engine) InviteToGroupCall(accountID, callID string, userIDs []string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -2692,8 +2495,6 @@ func (e *Engine) SetCallMuted(accountID, callID string, muted bool) error {
 	if acc.Core == nil {
 		return fmt.Errorf("account not connected: %s", accountID)
 	}
-	// Mirror the mic gate into the live voice runner (skips frames
-	// locally) alongside the core's server-side state.
 	e.setVoiceMuted(muted)
 	return acc.Core.SetCallMuted(callID, muted)
 }
@@ -2777,11 +2578,8 @@ func (e *Engine) SetCallAudioDevice(accountID, deviceType, device string) error 
 	case "camera":
 		e.config.CallCameraDevice = device
 	case "call_output":
-		// Separate call-only output device (AyuGram callPlaybackDeviceId).
-		// Empty value means "use the same device as the rest of the app".
 		e.config.CallSeparateOutputDevice = device
 	case "call_input":
-		// Separate call-only input device (AyuGram callCaptureDeviceId).
 		e.config.CallSeparateInputDevice = device
 	default:
 		return fmt.Errorf("unknown device type: %s", deviceType)
@@ -2794,8 +2592,6 @@ type GroupCallScreenSharer interface {
 	StopGroupCallScreenShare(callID string) error
 }
 
-// ScreenSharingToggler is the unified entry point: the core routes by call type
-// (1:1 vs group) internally, so a 1:1 personal call can share its screen too.
 type ScreenSharingToggler interface {
 	SetScreenSharing(callID string, enabled bool) error
 }
@@ -2808,8 +2604,6 @@ func (e *Engine) ToggleScreenSharing(accountID, callID string, enabled bool) err
 	if acc.Core == nil {
 		return fmt.Errorf("account not connected: %s", accountID)
 	}
-	// Prefer the unified router (handles both 1:1 and group calls); fall back to
-	// the group-only path for cores that predate it.
 	if st, ok := acc.Core.(ScreenSharingToggler); ok {
 		return st.SetScreenSharing(callID, enabled)
 	}
@@ -2918,9 +2712,7 @@ func (e *Engine) LoadStatsGraph(accountID, token string, x int64) (map[string]in
 type EmojiKeywordEntry struct {
 	Keyword   string   `json:"keyword"`
 	Emoticons []string `json:"emoticons"`
-	// Deleted marks a server-diff row that removes a keyword→emoji mapping
-	// (MTP emojiKeywordDeleted). Always false for the full (non-diff) fetch.
-	Deleted bool `json:"deleted,omitempty"`
+	Deleted   bool     `json:"deleted,omitempty"`
 }
 
 type EmojiKeywordsResult struct {

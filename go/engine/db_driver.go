@@ -2,4 +2,4 @@
 
 package engine
 
-import _ "modernc.org/sqlite" // registers the "sqlite" driver for database/sql
+import _ "modernc.org/sqlite"

@@ -6,8 +6,6 @@ import (
 	"uniclient/engine"
 )
 
-// Floating next-unread button (AyuGram parity slice 30).
-
 func unreadChat(id string, n int) engine.ChatInfo {
 	return engine.ChatInfo{ChatID: id, UnreadCount: n}
 }
@@ -25,13 +23,13 @@ func TestNextUnreadIndex(t *testing.T) {
 	if got := nextUnreadIndex(chats, 2); got != 3 {
 		t.Errorf("from 2 = %d, want 3", got)
 	}
-	if got := nextUnreadIndex(chats, 3); got != 3 { // starts at from
+	if got := nextUnreadIndex(chats, 3); got != 3 {
 		t.Errorf("from 3 = %d, want 3", got)
 	}
-	if got := nextUnreadIndex(chats, 4); got != 1 { // wraps to first unread
+	if got := nextUnreadIndex(chats, 4); got != 1 {
 		t.Errorf("from 4 = %d, want 1 (wrap)", got)
 	}
-	if got := nextUnreadIndex(chats, 100); got != 1 { // clamps + wraps
+	if got := nextUnreadIndex(chats, 100); got != 1 {
 		t.Errorf("from 100 = %d, want 1", got)
 	}
 	if got := nextUnreadIndex(nil, 0); got != -1 {

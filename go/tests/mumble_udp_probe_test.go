@@ -1,19 +1,5 @@
 //go:build live
 
-// Focused live probe: does a public Murmur answer our encrypted UDP
-// ping? Connects, then pings repeatedly and watches udpReady.
-//
-// When the answer is "no", the probe diagnoses WHY before skipping:
-//  1. TCP vs UDP egress divergence (STUN vs HTTPS echo): on NAT pools
-//     that egress the two protocols from different source IPs, murmur's
-//     unknown-peer deep-match (qhHostUsers keyed by the UDP source host,
-//     Server.cpp) cannot associate our encrypted ping with our TCP
-//     session and silently drops it. Nothing client-side can fix that;
-//     the TCP tunnel is the correct fallback (upstream behaves the same).
-//  2. pathSeen=false: even the stateless raw ping reply never arrived —
-//     egress UDP is blocked outright.
-//  3. pathSeen=true + matching egress IPs: the crypto bootstrap itself
-//     failed against this server — worth investigating as a client bug.
 package tests
 
 import (
@@ -29,7 +15,6 @@ import (
 	"time"
 )
 
-// tcpEgressIP returns our source IP as seen by a public HTTPS service.
 func tcpEgressIP(t *testing.T) string {
 	t.Helper()
 	c := &http.Client{Timeout: 5 * time.Second}
@@ -42,9 +27,6 @@ func tcpEgressIP(t *testing.T) string {
 	return string(b)
 }
 
-// udpEgressIP returns our reflexive UDP address via STUN (RFC 5389
-// binding request, XOR-MAPPED-ADDRESS parse). Tries several public
-// STUN servers; returns "unknown: ..." when none answer.
 func udpEgressIP(t *testing.T) string {
 	t.Helper()
 	for _, srv := range []string{"stun.l.google.com:19302", "stun1.l.google.com:19302", "stun.cloudflare.com:3478"} {
@@ -81,7 +63,7 @@ func stunQuery(server string) string {
 			break
 		}
 		val := buf[off+4 : off+4+l]
-		if (typ == 0x0020 || typ == 0x0001) && l >= 8 { // (XOR-)MAPPED-ADDRESS
+		if (typ == 0x0020 || typ == 0x0001) && l >= 8 {
 			port := binary.BigEndian.Uint16(val[2:4])
 			ip := append(net.IP(nil), val[4:8]...)
 			if typ == 0x0020 {
@@ -117,11 +99,6 @@ func TestMumbleLiveUDPCryptProbe(t *testing.T) {
 	}
 	s, r, path, ready := core.MumbleUDPStats()
 
-	// Not a correctness failure by default: the crypt bootstrap is proven
-	// by the official OCB2 vectors, the client/server direction test, the
-	// per-packet server-side self-check, and (network permitting) live
-	// udpReady flips + UDP voice. Diagnose the environment before blaming
-	// the client.
 	tcpIP := tcpEgressIP(t)
 	udpIP := udpEgressIP(t)
 	t.Logf("egress: TCP=%s UDP=%s", tcpIP, udpIP)

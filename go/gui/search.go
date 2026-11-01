@@ -13,14 +13,6 @@ import (
 	"uniclient/engine"
 )
 
-// Global search (AyuGram parity §1 "Global search", top-gap #12): while the
-// sidebar search field has a query, the list shows local chat matches plus
-// cross-account message hits (engine SearchMessages, FTS5) and per-account
-// server chat results (engine SearchGlobalChats). Tapping a message result
-// opens its chat and jumps to it; global results open through the engine's
-// cache-then-core fallback. Everything is engine-backed (§1.10).
-
-// sidebar search row kinds.
 const (
 	sbRowChat = iota
 	sbRowHeader
@@ -29,20 +21,15 @@ const (
 	sbRowInvite
 )
 
-// sbRow is one row of the search-augmented sidebar list.
 type sbRow struct {
 	kind    int
-	chatIdx int                  // sbRowChat: index into visible chats
-	listIdx int                  // sbRowMsg/sbRowGlobal: index into that list
-	msg     *engine.SearchResult // sbRowMsg
-	gchat   *engine.ChatInfo     // sbRowGlobal
-	title   string               // sbRowHeader / sbRowInvite (hash)
+	chatIdx int
+	listIdx int
+	msg     *engine.SearchResult
+	gchat   *engine.ChatInfo
+	title   string
 }
 
-// buildSearchRows builds the sidebar list rows for an active search:
-// [Chats header + local matches] [Messages header + message hits]
-// [Posts header + public-post hits] [Global header + server chat hits].
-// Pure — unit-tested.
 func buildSearchRows(visible []engine.ChatInfo, msgs []engine.SearchResult, posts []engine.SearchResult, global []engine.ChatInfo, acctFilter string) []sbRow {
 	var rows []sbRow
 	if len(visible) > 0 {
@@ -58,8 +45,6 @@ func buildSearchRows(visible []engine.ChatInfo, msgs []engine.SearchResult, post
 			rows = append(rows, sbRow{kind: sbRowMsg, msg: &m, listIdx: i})
 		}
 	}
-	// Public-post hits (slice 138): hashtag queries also search public
-	// channel posts server-side; rows reuse the message renderer.
 	if len(posts) > 0 {
 		rows = append(rows, sbRow{kind: sbRowHeader, title: "Posts"})
 		for i := range posts {
@@ -77,10 +62,6 @@ func buildSearchRows(visible []engine.ChatInfo, msgs []engine.SearchResult, post
 	return rows
 }
 
-// postsSearchQuery gates the public-post search: channels.searchPosts is
-// hashtag-scoped on the wire (tdesktop queries it for '#' queries only).
-// The term after '#' must begin with a non-space rune.
-// Pure — unit-tested.
 func postsSearchQuery(q string) bool {
 	if len(q) < 2 || q[0] != '#' {
 		return false
@@ -89,8 +70,6 @@ func postsSearchQuery(q string) bool {
 	return size > 0 && r != ' ' && r != '\t' && r != '\n'
 }
 
-// searchGlobalScope filters global results to the scoped account (results
-// arrive per-account; the unified list shows all).
 func searchGlobalScope(global []engine.ChatInfo, acctFilter string) []engine.ChatInfo {
 	if acctFilter == "" {
 		return global
@@ -104,11 +83,6 @@ func searchGlobalScope(global []engine.ChatInfo, acctFilter string) []engine.Cha
 	return out
 }
 
-// ── results tabs (AyuGram search-results screen, slice 57) ─────────────────
-
-// Search-result tabs: All (unified sections, previous behavior), Chats
-// (local + server chat hits), Messages (text hits), Links / Files (message
-// hits filtered engine-side by URL / media presence).
 const (
 	searchTabAll = iota
 	searchTabChats
@@ -119,7 +93,6 @@ const (
 
 var searchTabLabels = [...]string{"All", "Chats", "Messages", "Links", "Files"}
 
-// searchTabKind maps a tab to the engine message-kind filter ("" = none).
 func searchTabKind(tab int) string {
 	switch tab {
 	case searchTabLinks:
@@ -130,17 +103,15 @@ func searchTabKind(tab int) string {
 	return ""
 }
 
-// filterSearchRows narrows built rows to one tab's sections (the invite
-// row survives everywhere). Pure — unit-tested.
 func filterSearchRows(rows []sbRow, tab int) []sbRow {
 	if tab == searchTabAll {
 		return rows
 	}
 	keepChat := tab == searchTabChats
 	keepMsg := tab == searchTabMsgs || tab == searchTabLinks || tab == searchTabFiles
-	keepPosts := tab == searchTabMsgs // post hits have no link/file kinds
+	keepPosts := tab == searchTabMsgs
 	out := make([]sbRow, 0, len(rows))
-	headerFor := -1 // -1: none pending, -2: emitted
+	headerFor := -1
 	for _, r := range rows {
 		switch r.kind {
 		case sbRowInvite:
@@ -166,11 +137,6 @@ func filterSearchRows(rows []sbRow, tab int) []sbRow {
 	return out
 }
 
-// ── state transitions ─────────────────────────────────────────────────────
-
-// onSearchChanged (GUI goroutine, from the search field's ChangeEvents)
-// kicks the async engine search; results land only if the query still
-// matches (stale runs are dropped).
 func (a *App) onSearchChanged(q string) {
 	q = strings.TrimSpace(q)
 	if len([]rune(q)) < 2 {
@@ -215,7 +181,7 @@ func (a *App) onSearchChanged(q string) {
 			}
 			found, err := a.eng.SearchGlobalChats(accID, q, 8)
 			if err != nil {
-				continue // per-account: server search is best-effort
+				continue
 			}
 			global = append(global, found...)
 		}
@@ -226,8 +192,6 @@ func (a *App) onSearchChanged(q string) {
 		a.mu.Unlock()
 		a.invalidate()
 
-		// Public-post search (slice 138): hashtag queries hit
-		// channels.searchPosts server-side per account.
 		if postsSearchQuery(q) {
 			var posts []engine.SearchResult
 			for _, accID := range accounts {
@@ -236,7 +200,7 @@ func (a *App) onSearchChanged(q string) {
 				}
 				hits, err := a.eng.SearchGlobalPostMessages(accID, q, 20)
 				if err != nil {
-					continue // best-effort, same as chat search
+					continue
 				}
 				posts = append(posts, hits...)
 			}
@@ -250,8 +214,6 @@ func (a *App) onSearchChanged(q string) {
 	}()
 }
 
-// setSearchTab switches the results tab and re-runs the message search
-// (links/files hits come from the engine kind filter).
 func (a *App) setSearchTab(tab int) {
 	a.mu.Lock()
 	if a.searchTab == tab {
@@ -267,7 +229,6 @@ func (a *App) setSearchTab(tab int) {
 	}
 }
 
-// openSearchResult opens the chat for a message hit and jumps to it.
 func (a *App) openSearchResult(r engine.SearchResult) {
 	k := chatKey{AccountID: r.AccountID, ChatID: r.ChatID}
 	title := r.ChatTitle
@@ -278,15 +239,11 @@ func (a *App) openSearchResult(r engine.SearchResult) {
 	a.jumpToMessageAt(r.MsgID, r.Timestamp)
 }
 
-// openGlobalResult opens a server-side chat hit.
 func (a *App) openGlobalResult(c engine.ChatInfo) {
 	k := chatKey{AccountID: c.AccountID, ChatID: c.ChatID}
 	a.openChat(k, c.Title)
 }
 
-// ── layouts ────────────────────────────────────────────────────────────────
-
-// searchSectionHeader renders a "Chats / Messages / Global" label row.
 func (a *App) searchSectionHeader(gtx layout.Context, title string) layout.Dimensions {
 	return layout.Inset{Top: unit.Dp(10), Bottom: unit.Dp(4), Left: unit.Dp(12), Right: unit.Dp(12)}.Layout(gtx,
 		func(gtx layout.Context) layout.Dimensions {
@@ -296,7 +253,6 @@ func (a *App) searchSectionHeader(gtx layout.Context, title string) layout.Dimen
 		})
 }
 
-// searchMsgRow renders one message hit: chat/sender + snippet + time.
 func (a *App) searchMsgRow(gtx layout.Context, btn *widget.Clickable, r engine.SearchResult) layout.Dimensions {
 	title := r.ChatTitle
 	if title == "" {
@@ -344,7 +300,6 @@ func (a *App) searchMsgRow(gtx layout.Context, btn *widget.Clickable, r engine.S
 	})
 }
 
-// searchGlobalRow renders one server-side chat hit (with a "server" tag).
 func (a *App) searchGlobalRow(gtx layout.Context, btn *widget.Clickable, c engine.ChatInfo, platform string) layout.Dimensions {
 	return material.ButtonLayout(a.ui.Theme, btn).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Top: unit.Dp(6), Bottom: unit.Dp(6), Left: unit.Dp(12), Right: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -375,11 +330,8 @@ func (a *App) searchGlobalRow(gtx layout.Context, btn *widget.Clickable, c engin
 	})
 }
 
-// searchTabBtns pools the result-tab pills.
 var searchTabBtns []widget.Clickable
 
-// layoutSearchTabs renders the result filter bar (All/Chats/Messages/
-// Links/Files) — shown while a query is active.
 func (a *App) layoutSearchTabs(gtx layout.Context, f frame) layout.Dimensions {
 	if f.search == "" {
 		return layout.Dimensions{}

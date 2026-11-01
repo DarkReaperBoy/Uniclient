@@ -14,14 +14,6 @@ import (
 	"uniclient/engine"
 )
 
-// Saved Messages surface (slice 116, AyuGram sidebar parity): a pinned
-// "Saved Messages" shortcut row above the chat list for every account whose
-// core exposes its self user id (engine selfIDer — Telegram today), the
-// bookmark avatar on the saved chat wherever it renders, and the saved chat
-// pinned first in the forward picker. Sublists/tags remain engine-gated.
-
-// savedRowAccounts returns the account ids that get a shortcut row, in
-// account-list order. Pure — unit-tested.
 func savedRowAccounts(accs []engine.AccountInfo, caps map[string]bool) []string {
 	var out []string
 	for _, acc := range accs {
@@ -32,15 +24,10 @@ func savedRowAccounts(accs []engine.AccountInfo, caps map[string]bool) []string 
 	return out
 }
 
-// isSavedMessagesChat reports whether (account, chat) is that account's
-// Saved Messages chat. Pure — unit-tested.
 func isSavedMessagesChat(accountID, chatID string, saved map[string]string) bool {
 	return saved[accountID] != "" && saved[accountID] == chatID
 }
 
-// savedRowSubtitle: with multiple capable accounts each row disambiguates
-// with the account name; a single row needs none (Telegram shows none).
-// Pure — unit-tested.
 func savedRowSubtitle(id string, accs []engine.AccountInfo, capable int) string {
 	if capable <= 1 {
 		return ""
@@ -56,9 +43,6 @@ func savedRowSubtitle(id string, accs []engine.AccountInfo, capable int) string 
 	return id
 }
 
-// buildForwardCandidates: same-account chats except the source, with the
-// account's Saved Messages chat pinned first (AyuGram/Telegram behavior).
-// Pure — unit-tested.
 func buildForwardCandidates(chats []engine.ChatInfo, src engine.CachedMessage, savedChatID string) []engine.ChatInfo {
 	var out []engine.ChatInfo
 	if savedChatID != "" {
@@ -73,15 +57,13 @@ func buildForwardCandidates(chats []engine.ChatInfo, src engine.CachedMessage, s
 			continue
 		}
 		if savedChatID != "" && c.ChatID == savedChatID {
-			continue // already pinned first
+			continue
 		}
 		out = append(out, c)
 	}
 	return out
 }
 
-// savedTargetAccount picks the drawer's Saved Messages target: the scoped
-// account when capable, else the first capable account ("" when none).
 func savedTargetAccount(f frame) string {
 	scope := f.acctFilter
 	for _, id := range f.savedMsgAccts {
@@ -92,11 +74,8 @@ func savedTargetAccount(f frame) string {
 	return ""
 }
 
-// savedMsgBtns pools the shortcut-row clickables.
 var savedMsgBtns []widget.Clickable
 
-// layoutSavedRow renders the pinned "Saved Messages" shortcut row(s) above
-// the folder tabs (hidden while searching or in the archive view).
 func (a *App) layoutSavedRow(gtx layout.Context, f frame) layout.Dimensions {
 	if f.search != "" || f.archiveView || len(f.savedMsgAccts) == 0 {
 		return layout.Dimensions{}
@@ -153,7 +132,6 @@ func (a *App) layoutSavedRow(gtx layout.Context, f frame) layout.Dimensions {
 	})
 }
 
-// openSavedMessages ensures the saved chat exists and navigates to it.
 func (a *App) openSavedMessages(accountID string) {
 	go func() {
 		chatID, err := a.eng.OpenSavedMessages(accountID)
@@ -167,34 +145,23 @@ func (a *App) openSavedMessages(accountID string) {
 	}()
 }
 
-// ensureForwardSavedChat makes sure the source account's saved chat exists
-// before the picker renders, so it appears as a candidate (AyuGram always
-// offers Save to Saved Messages).
 func (a *App) ensureForwardSavedChat(src engine.CachedMessage) {
 	if !a.savedCap[src.AccountID] {
 		return
 	}
 	go func() {
 		if _, err := a.eng.OpenSavedMessages(src.AccountID); err != nil {
-			return // the dialog simply lists the other chats
+			return
 		}
 		a.refreshChats()
 	}()
 }
 
-// drawBookmarkAvatar paints the Saved Messages avatar: accent shape with
-// the Material bookmark glyph (Telegram's saved-chat look, drawn from
-// shapes — never copied assets). The corner shape follows the Avatar
-// Corners setting (slice 215).
 func drawBookmarkAvatar(gtx layout.Context, u *UI, sizeDp unit.Dp) layout.Dimensions {
 	size := gtx.Dp(sizeDp)
 	paint.FillShape(gtx.Ops, u.p.Accent, avatarShapeClip(gtx.Ops, size, u.avatarRadiusPx(size)))
 	if iconActionBookmark != nil {
-		ic := size * 52 / 100 // icon ~52% of the shape
-		// Contain the centering to the avatar box: layout.Center offsets
-		// by max(child, caller-Min), so leaked Min constraints (or a zero
-		// Min) would pin the glyph to the top-left instead of the middle
-		// (same class of bug as the AvatarShaped initials, slice 215).
+		ic := size * 52 / 100
 		gtx.Constraints = layout.Exact(image.Pt(size, size))
 		layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints = layout.Exact(image.Pt(ic, ic))

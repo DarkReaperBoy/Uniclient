@@ -1,12 +1,5 @@
 package cores
 
-// telegram_webpage_test.go — slice 130 tests-first: MessageMediaWebPage
-// conversion must export the page photo's download coordinates so the
-// engine can pull the full-resolution thumb through the standard media
-// pipeline (tdesktop renders the webpage's own Telegram-hosted photo, not
-// the site's original image). Before this slice the conversion kept only
-// the stripped inline thumb (wp_thumb_b64) — full photos were unreachable.
-
 import (
 	"strconv"
 	"testing"
@@ -14,8 +7,6 @@ import (
 	"github.com/gotd/td/tg"
 )
 
-// webPagePhotoMessage builds a convertMessage input carrying a webpage
-// with a real photo (stripped thumb + full PhotoSize).
 func webPagePhotoMessage(photoID int64) *tg.Message {
 	photo := &tg.Photo{
 		ID:            photoID,
@@ -26,9 +17,6 @@ func webPagePhotoMessage(photoID int64) *tg.Message {
 			&tg.PhotoSize{Type: "x", W: 640, H: 480, Size: 123456},
 		},
 	}
-	// Optional fields ride flag bits — the generated setters keep
-	// them consistent (plain struct literals leave Has* unset and the
-	// Get* accessors return !ok).
 	wp := &tg.WebPage{
 		ID:  555,
 		URL: "https://example.com/article",
@@ -53,7 +41,6 @@ func TestConvertMessageWebPagePhoto(t *testing.T) {
 		t.Fatal("no Extra map built")
 	}
 
-	// Pre-existing fields stay intact.
 	if msg.Extra["wp_url"] != "https://example.com/article" {
 		t.Errorf("wp_url = %v", msg.Extra["wp_url"])
 	}
@@ -67,7 +54,6 @@ func TestConvertMessageWebPagePhoto(t *testing.T) {
 		t.Errorf("wp_photo_h = %v, want 480", msg.Extra["wp_photo_h"])
 	}
 
-	// New export: the photo's download coordinates.
 	id, ok := msg.Extra["wp_photo_id"].(string)
 	if !ok || id != strconv.FormatInt(9001, 10) {
 		t.Errorf("wp_photo_id = %v (%T), want \"9001\"", msg.Extra["wp_photo_id"], msg.Extra["wp_photo_id"])
@@ -76,8 +62,6 @@ func TestConvertMessageWebPagePhoto(t *testing.T) {
 	if !ok || extra == "" {
 		t.Fatalf("wp_photo_extra = %v (%T), want non-empty file extra", msg.Extra["wp_photo_extra"], msg.Extra["wp_photo_extra"])
 	}
-	// The exported extra must decode back to the photo's access hash +
-	// file reference (the standard encodeFileExtra pair).
 	hash, ref := decodeFileExtra(extra)
 	if hash != 9001*31 {
 		t.Errorf("decoded access hash = %d, want %d", hash, 9001*31)
@@ -86,9 +70,6 @@ func TestConvertMessageWebPagePhoto(t *testing.T) {
 		t.Errorf("decoded file reference = %v, want [9 9]", ref)
 	}
 
-	// The conversion must not attach the webpage photo as a message
-	// attachment (the card owns the render; the engine's ensure path
-	// builds the media row on demand).
 	if len(msg.Attachments) != 0 {
 		t.Errorf("webpage message gained %d attachments, want 0", len(msg.Attachments))
 	}

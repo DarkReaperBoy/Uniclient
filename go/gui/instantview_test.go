@@ -6,11 +6,6 @@ import (
 	"testing"
 )
 
-// Instant View reader (slice 176): pure-logic tests — core JSON → ivPage
-// model, rich-text tree flattening, entry-point gating (known IV hosts,
-// webpage-preview wp_has_iv flag), and the reader's history stack
-// (related-article navigation). Layout is verified by compile + review.
-
 func ivDoc(blocks ...map[string]interface{}) []byte {
 	raw, _ := json.Marshal(map[string]interface{}{
 		"url":       "https://telegra.ph/example-09-13",
@@ -52,7 +47,6 @@ func TestParseIVPageBasics(t *testing.T) {
 		t.Fatalf("block types = %s, %s", p.Blocks[0].Type, p.Blocks[1].Type)
 	}
 
-	// Garbage JSON → nil, never panic.
 	if parseIVPage([]byte("not json")) != nil {
 		t.Fatal("garbage must not parse")
 	}
@@ -135,7 +129,6 @@ func TestParseIVPageBlockVariety(t *testing.T) {
 }
 
 func TestIVRichSpans(t *testing.T) {
-	// Build a rich-text tree: concat(plain("a "), bold(concat(italic("b"), url("c")))) + underline(" d")
 	root := ivRich{Kind: "concat", Children: []ivRich{
 		{Kind: "plain", Text: "a "},
 		{Kind: "bold", Children: []ivRich{
@@ -152,7 +145,6 @@ func TestIVRichSpans(t *testing.T) {
 	if got := sb.String(); got != "a bc d" {
 		t.Fatalf("flattened text = %q", got)
 	}
-	// "b" = bold+italic, no href; "c" = bold + href; " d" = underline.
 	var bFound, cFound, dFound bool
 	for _, s := range spans {
 		switch s.Text {
@@ -168,7 +160,6 @@ func TestIVRichSpans(t *testing.T) {
 		t.Fatalf("span styles = %+v", spans)
 	}
 
-	// Email + fixed + strike propagation.
 	root2 := ivRich{Kind: "email", Email: "a@b.c", Children: []ivRich{
 		{Kind: "fixed", Children: []ivRich{{Kind: "strike", Children: []ivRich{{Kind: "plain", Text: "x"}}}}},
 	}}
@@ -177,7 +168,6 @@ func TestIVRichSpans(t *testing.T) {
 		t.Fatalf("email/fixed/strike = %+v", spans2)
 	}
 
-	// Plain node alone.
 	spans3 := ivRichSpans(ivRich{Kind: "plain", Text: "solo"})
 	if len(spans3) != 1 || spans3[0].Text != "solo" {
 		t.Fatalf("solo = %+v", spans3)
@@ -196,9 +186,9 @@ func TestIVKnownHost(t *testing.T) {
 		}
 	}
 	for _, u := range []string{
-		"https://telegra.ph.evil.com/x", // suffix trick
-		"https://evil.com/telegra.ph",   // path segment
-		"https://telegram.org",          // not an IV host
+		"https://telegra.ph.evil.com/x",
+		"https://evil.com/telegra.ph",
+		"https://telegram.org",
 		"not a url",
 		"",
 	} {
@@ -234,15 +224,12 @@ func TestIVHistoryPushBack(t *testing.T) {
 	if st.page != page2 || len(st.hist) != 1 || st.hist[0] != page1 {
 		t.Fatalf("push: page=%v hist=%v", st.page, st.hist)
 	}
-	// Back pops: returns to page1, history empties.
 	if st.back() != true || st.page != page1 || len(st.hist) != 0 {
 		t.Fatalf("back: page=%v hist=%v", st.page, st.hist)
 	}
-	// Back on empty history returns false (overlay closes instead).
 	if st.back() {
 		t.Fatal("back on empty history must report false")
 	}
-	// Deep stack cap: pushes beyond ivHistMax drop the oldest.
 	for i := 0; i < ivHistMax+5; i++ {
 		st.pushHistory(&ivPage{URL: "u", Title: "t"})
 	}

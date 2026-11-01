@@ -1,21 +1,5 @@
 package gui
 
-// Sponsored messages (Telegram channels + bots, slice 163): the GUI over
-// the engine's sponsored surface — the ad block below the last post of
-// broadcast channels, the top bar above bot-chat messages (tdesktop
-// history_view_top_controls FillSponsoredMessageBar), view/click
-// reporting, the iterative ad-report flow, and the about-ads box.
-//
-// tdesktop behavior mirrored here:
-//   - the whole ad is a click target → URL opens in the browser
-//     (deep-linkable t.me URLs route in-app) + messages.clickSponsoredMessage
-//   - messages.viewSponsoredMessage fires once per 5-minute cache window
-//     when the ad actually lays out
-//   - "Report ad" walks the choose-option chain; "About ads" opens the
-//     promote.telegram.org box
-//   - Recommended ads carry a badge; the sponsor photo renders as the
-//     avatar bubble; media ads render the poster (video with a play glyph)
-
 import (
 	"image"
 	"log"
@@ -32,8 +16,6 @@ import (
 	"uniclient/engine"
 )
 
-// sponsoredDlgState: the open sponsored dialog — either the iterative
-// ad-report chain (randomID set) or the about-ads box (about=true).
 type sponsoredDlgState struct {
 	about    bool
 	randomID string
@@ -47,10 +29,6 @@ var (
 	sponsoredDlgKeyTag = new(struct{})
 )
 
-// appendSponsoredRows appends the sponsored block rows (caption + one row
-// per ad) after the message rows of a broadcast channel — the wire
-// contract's "below all other posts" placement. Bots don't get rows (the
-// top bar renders their ad instead); forums/topic views don't either.
 func appendSponsoredRows(rows []chatRow, chat *engine.ChatInfo, forumTopic string, sponsored []cores.SponsoredMessageInfo) []chatRow {
 	if chat == nil || chat.Type != engine.ChatTypeChanVal || forumTopic != "" || len(sponsored) == 0 {
 		return rows
@@ -62,10 +40,6 @@ func appendSponsoredRows(rows []chatRow, chat *engine.ChatInfo, forumTopic strin
 	return rows
 }
 
-// appendSimilarRow appends the similar-channels block row after the
-// sponsored block — the broadcast-channel footer surface. hide (AyuGram
-// hideSimilarChannels) drops it; collapsed (AyuGram collapseSimilarChannels)
-// renders the compact bar (slice 169).
 func appendSimilarRow(rows []chatRow, chat *engine.ChatInfo, forumTopic string, similar int, hide, collapsed bool) []chatRow {
 	if chat == nil || chat.Type != engine.ChatTypeChanVal || forumTopic != "" || similar <= 0 || hide {
 		return rows
@@ -73,9 +47,6 @@ func appendSimilarRow(rows []chatRow, chat *engine.ChatInfo, forumTopic string, 
 	return append(rows, chatRow{msgIdx: -1, simBlock: !collapsed, simCollapsed: collapsed})
 }
 
-// sponsoredEligible: sponsored messages surface in broadcast channels
-// (below the last post) and bot chats (top bar) — the wire contract's
-// two placements.
 func sponsoredEligible(chat *engine.ChatInfo) bool {
 	if chat == nil {
 		return false
@@ -83,8 +54,6 @@ func sponsoredEligible(chat *engine.ChatInfo) bool {
 	return chat.Type == engine.ChatTypeChanVal || chat.IsBot
 }
 
-// loadSponsored fetches the open chat's sponsored block (engine caches
-// 5 minutes per chat) and resets the view-report ledger for the visit.
 func (a *App) loadSponsored(k chatKey) {
 	go func() {
 		var chat *engine.ChatInfo
@@ -118,8 +87,6 @@ func (a *App) loadSponsored(k chatKey) {
 	}()
 }
 
-// sponsoredViewOnce reports the ad as viewed at most once per loaded
-// window (the engine dedups per cache window too).
 func (a *App) sponsoredViewOnce(randomID string) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -133,9 +100,6 @@ func (a *App) sponsoredViewOnce(randomID string) bool {
 	return true
 }
 
-// sponsoredClick opens the ad's URL (in-app for deep links, browser
-// otherwise) and reports the click server-side. media=true when the
-// media block was the click target.
 func (a *App) sponsoredClick(ad cores.SponsoredMessageInfo, acc, chat string, media bool) {
 	a.openLinkExternal(ad.URL)
 	go func() {
@@ -145,8 +109,6 @@ func (a *App) sponsoredClick(ad cores.SponsoredMessageInfo, acc, chat string, me
 	}()
 }
 
-// openSponsoredReport starts the iterative ad-report chain (option ""
-// requests the reason list).
 func (a *App) openSponsoredReport(ad cores.SponsoredMessageInfo, acc, chat string) {
 	a.mu.Lock()
 	a.sponsoredDlg = &sponsoredDlgState{randomID: ad.RandomID, account: acc}
@@ -155,7 +117,6 @@ func (a *App) openSponsoredReport(ad cores.SponsoredMessageInfo, acc, chat strin
 	go a.sponsoredReportStep("")
 }
 
-// openSponsoredAbout opens the about-ads box (promote.telegram.org).
 func (a *App) openSponsoredAbout() {
 	a.mu.Lock()
 	a.sponsoredDlg = &sponsoredDlgState{about: true}
@@ -163,8 +124,6 @@ func (a *App) openSponsoredAbout() {
 	a.invalidate()
 }
 
-// closeSponsoredDialog dismisses the report/about dialog (blocked while
-// a report request is in flight).
 func (a *App) closeSponsoredDialog() {
 	a.mu.Lock()
 	if a.sponsoredDlg == nil || a.sponsoredDlg.busy {
@@ -176,7 +135,6 @@ func (a *App) closeSponsoredDialog() {
 	a.invalidate()
 }
 
-// sponsoredReportStep walks one step of the report chain.
 func (a *App) sponsoredReportStep(option string) {
 	a.mu.Lock()
 	d := a.sponsoredDlg
@@ -216,10 +174,6 @@ func (a *App) sponsoredReportStep(option string) {
 	}()
 }
 
-// ── channel placement: rows below the last post ───────────────────────────
-
-// sponsoredHeaderRow: the "Sponsored" caption + the About link that
-// opens the about-ads box (tdesktop's section caption).
 func (a *App) sponsoredHeaderRow(gtx layout.Context, f frame) layout.Dimensions {
 	if a.wid.sponsoredAboutBtn.Clicked(gtx) {
 		a.openSponsoredAbout()
@@ -240,10 +194,6 @@ func (a *App) sponsoredHeaderRow(gtx layout.Context, f frame) layout.Dimensions 
 	})
 }
 
-// sponsoredAdRow renders one sponsored message as a message-like card:
-// avatar (sponsor photo or title letter), title + Recommended badge,
-// body text, media poster with a play glyph for video ads, and the
-// action button — the whole card is the click target.
 func (a *App) sponsoredAdRow(gtx layout.Context, f frame, idx1 int) layout.Dimensions {
 	if idx1 < 1 || idx1 > len(f.sponsored) {
 		return layout.Dimensions{}
@@ -259,7 +209,6 @@ func (a *App) sponsoredAdRow(gtx layout.Context, f frame, idx1 int) layout.Dimen
 	if btn.Clicked(gtx) {
 		a.sponsoredClick(*ad, acc, chat, false)
 	}
-	// View report: once per loaded window, when the row lays out.
 	if a.sponsoredViewOnce(ad.RandomID) && acc != "" {
 		go func() {
 			if err := a.eng.MarkSponsoredViewed(acc, chat, ad.RandomID); err != nil {
@@ -302,8 +251,6 @@ func (a *App) sponsoredAdRow(gtx layout.Context, f frame, idx1 int) layout.Dimen
 	})
 }
 
-// sponsoredAvatar: the sponsor's custom photo (stripped thumb) or the
-// title letter bubble.
 func (a *App) sponsoredAvatar(gtx layout.Context, ad *cores.SponsoredMessageInfo) layout.Dimensions {
 	if ad.ThumbB64 != "" {
 		key := "thumb:" + ad.ThumbB64
@@ -315,8 +262,6 @@ func (a *App) sponsoredAvatar(gtx layout.Context, ad *cores.SponsoredMessageInfo
 	return a.ui.Avatar(gtx, ad.Title, unit.Dp(38), dotNone)
 }
 
-// sponsoredBody: title row (+Recommended badge + sponsor info), the
-// message text, and the action button.
 func (a *App) sponsoredBody(gtx layout.Context, f frame, ad *cores.SponsoredMessageInfo) layout.Dimensions {
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -399,9 +344,6 @@ func (a *App) sponsoredBody(gtx layout.Context, f frame, ad *cores.SponsoredMess
 	)
 }
 
-// sponsoredPoster: the media attachment poster (photo, or video with a
-// play glyph — in-app decode of video is constitution-blocked, so video
-// renders as poster + play, like every other video surface).
 func (a *App) sponsoredPoster(gtx layout.Context, ad *cores.SponsoredMessageInfo) layout.Dimensions {
 	key := "thumb:" + ad.MediaThumbB64
 	img := mediaImgs.get(key)
@@ -438,11 +380,6 @@ func (a *App) sponsoredPoster(gtx layout.Context, ad *cores.SponsoredMessageInfo
 	)
 }
 
-// ── bot placement: the top bar ────────────────────────────────────────────
-
-// layoutSponsoredBar: the bot-chat sponsored bar (tdesktop
-// FillSponsoredMessageBar): "Sponsored" badge + title + one-line message
-// + the action button; the whole bar is the click target.
 func (a *App) layoutSponsoredBar(gtx layout.Context, f frame) layout.Dimensions {
 	if len(f.sponsored) == 0 {
 		return layout.Dimensions{}
@@ -517,9 +454,6 @@ func (a *App) layoutSponsoredBar(gtx layout.Context, f frame) layout.Dimensions 
 	})
 }
 
-// ── dialogs ───────────────────────────────────────────────────────────────
-
-// layoutSponsoredDialog renders the report chain or the about-ads card.
 func (a *App) layoutSponsoredDialog(gtx layout.Context, f frame) layout.Dimensions {
 	d := f.sponsoredDlg
 	{

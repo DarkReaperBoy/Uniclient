@@ -1,25 +1,10 @@
 package engine
 
-// msgdetail.go — slice 207: message-details completion (AyuGram parity
-// gap 15). The media document/photo DC rides the media row (migrateV56)
-// into CachedMessage.MediaDC for the "Datacenter" details row, and the
-// sticker-set author derives from the cached pack ID with the
-// TDesktop-x64 bit formula AyuGram's getUserIdFromPackId uses.
-
 import (
 	"encoding/json"
 	"strconv"
 )
 
-// StickerPackAuthorID derives the sticker-pack owner's user ID from the
-// pack ID — the TDesktop-x64 formula (AyuGram getUserIdFromPackId,
-// telegram_helpers.cpp):
-//
-//	ownerId = id >> 32
-//	if (id >> 16 & 0xff) == 0x3f → ownerId |= 0x80000000
-//	if  id >> 24 & 0xff          → ownerId += 0x100000000
-//
-// Pure — unit-tested.
 func StickerPackAuthorID(packID int64) int64 {
 	ownerID := packID >> 32
 	if (packID>>16)&0xff == 0x3f {
@@ -31,9 +16,6 @@ func StickerPackAuthorID(packID int64) int64 {
 	return ownerID
 }
 
-// StickerSetID returns the message's sticker pack ID from the cached
-// content (the core exports sticker_set_id on sticker documents); 0 when
-// the message carries none. Pure — unit-tested.
 func (m *CachedMessage) StickerSetID() int64 {
 	if m == nil || len(m.ContentRaw) == 0 {
 		return 0

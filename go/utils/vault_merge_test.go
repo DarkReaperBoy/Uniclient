@@ -7,10 +7,6 @@ import (
 
 func raw(s string) json.RawMessage { return json.RawMessage(s) }
 
-// TestMergeVaultDataAdoptsForeignKeys pins the two-tab merge used by the js
-// vault flush (risk R1): bucket/keys another instance wrote are adopted, this
-// instance's own entries win key-level conflicts, and foreign maps with
-// foreign buckets the local image never saw survive intact.
 func TestMergeVaultDataAdoptsForeignKeys(t *testing.T) {
 	ours := map[string]map[string]json.RawMessage{
 		"__accounts": {"tele_1": raw(`{"platform":"telegram"}`)},
@@ -18,10 +14,10 @@ func TestMergeVaultDataAdoptsForeignKeys(t *testing.T) {
 	}
 	foreign := map[string]map[string]json.RawMessage{
 		"__accounts": {
-			"tele_1": raw(`{"platform":"FOREIGN-TELEGRAM"}`), // conflict: ours must win
-			"tele_2": raw(`{"platform":"telegram"}`),         // theirs only: must adopt
+			"tele_1": raw(`{"platform":"FOREIGN-TELEGRAM"}`),
+			"tele_2": raw(`{"platform":"telegram"}`),
 		},
-		"sessions": {"acc9": raw(`{"key":"x"}`)}, // bucket ours never had: must adopt
+		"sessions": {"acc9": raw(`{"key":"x"}`)},
 	}
 	mergeVaultData(ours, foreign)
 
@@ -39,8 +35,6 @@ func TestMergeVaultDataAdoptsForeignKeys(t *testing.T) {
 	}
 }
 
-// TestMergeVaultDataEmptyAndNil: nil/empty foreign is a no-op, and ours is
-// usable even when it is fresh/empty (CreateVault path merges too).
 func TestMergeVaultDataEmptyAndNil(t *testing.T) {
 	ours := map[string]map[string]json.RawMessage{"config": {"theme": raw(`1`)}}
 	mergeVaultData(ours, nil)

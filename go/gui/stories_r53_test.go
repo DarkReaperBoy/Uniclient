@@ -8,10 +8,6 @@ import (
 	"uniclient/engine"
 )
 
-// R53 + R54 + R55 pins (chunk 3, iteration 34 — stories.go read in full).
-
-// storyTestHead installs a viewer head directly (the GUI-loop stand-in for
-// openStoryViewer's install) and returns the new session key.
 func storyTestHead(a *App, sv *storyViewerState) int {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -49,7 +45,6 @@ func TestUpdateStoryViewContract(t *testing.T) {
 		t.Fatalf("install: cur=%d frozen.cur=%d fresh=%v", live.cur, frozen.cur, live == frozen)
 	}
 
-	// The gen is the session key — the installer never touches it.
 	a.mu.Lock()
 	g := a.storyViewGen
 	a.mu.Unlock()
@@ -57,8 +52,6 @@ func TestUpdateStoryViewContract(t *testing.T) {
 		t.Fatalf("installer bumped the gen: %d != %d", g, gen)
 	}
 
-	// Concurrent installer hammer: every install is a fresh struct; the
-	// frozen head never changes under any of them.
 	var wg sync.WaitGroup
 	for w := 0; w < 4; w++ {
 		wg.Add(1)
@@ -82,13 +75,6 @@ func TestUpdateStoryViewContract(t *testing.T) {
 	}
 }
 
-// R53 pin: a frame's storyView snapshot must stay immutable while fetch
-// tails land. The reader loop plays the GUI loop — lock-free field reads,
-// exactly what layoutStoryViewer does through f.storyView; the hammer
-// plays the background fetch tails (storyFetchDone is the extracted open
-// goroutine tail). Pre-fix (in-place tail writes under a.mu) the race
-// detector fires on this pin AND the frozen-snapshot assert fails;
-// copy-on-write installs leave the captured snapshot untouched.
 func TestStoryViewerSnapshotImmutableUnderTails(t *testing.T) {
 	a := &App{eng: &engine.Engine{}}
 	a.mu.Lock()
@@ -133,8 +119,6 @@ func TestStoryViewerSnapshotImmutableUnderTails(t *testing.T) {
 func TestStoryFetchTailSessionGuarded(t *testing.T) {
 	a := &App{eng: &engine.Engine{}}
 
-	// The real entry point bumps the session key per open (the bare
-	// harness's engine calls error out async — identity fields only).
 	a.openStoryViewer(engine.ChatInfo{AccountID: "acc", ChatID: "chat", Title: "T", StoryCount: 1})
 	a.mu.Lock()
 	g1, h1 := a.storyViewGen, a.storyView
@@ -150,11 +134,9 @@ func TestStoryFetchTailSessionGuarded(t *testing.T) {
 		t.Fatalf("reopen did not bump/replace: g2=%d g1=%d same=%v", g2, g1, h2 == h1)
 	}
 
-	// Retire the real opens' in-flight tails so the rest is deterministic.
 	g3 := storyTestHead(a, &storyViewerState{accountID: "acc", chatID: "chat", loading: true})
 	h3 := storyCurrentHead(a)
 
-	// Stale sessions and foreign identities never touch the live head.
 	a.storyFetchDone(g1, "acc", "chat", `[{"id":1}]`, nil)
 	a.storyFetchDone(g2, "acc", "chat", `[{"id":1}]`, nil)
 	a.storyFetchDone(g3, "acc", "other", `[{"id":1}]`, nil)
@@ -163,16 +145,12 @@ func TestStoryFetchTailSessionGuarded(t *testing.T) {
 		t.Fatalf("stale/foreign tail touched the head: %+v", *storyCurrentHead(a))
 	}
 
-	// The live session installs: fresh head, parsed items.
 	a.storyFetchDone(g3, "acc", "chat", `[{"id":1,"caption":"c"},{"id":2}]`, nil)
 	live := storyCurrentHead(a)
 	if live == h3 || live.loading || len(live.items) != 2 || live.items[1].ID != 2 || live.err != "" {
 		t.Fatalf("live tail did not install: %+v", *live)
 	}
 
-	// Bad JSON is an honest error card, not a silent empty viewer; the
-	// previously parsed items stay in the head (unreachable behind the
-	// card — same as the pre-fix tail).
 	a.storyFetchDone(g3, "acc", "chat", "{not json", nil)
 	if live = storyCurrentHead(a); live.err == "" || len(live.items) != 2 {
 		t.Fatalf("bad JSON: err=%q items=%d", live.err, len(live.items))
@@ -182,7 +160,6 @@ func TestStoryFetchTailSessionGuarded(t *testing.T) {
 		t.Fatalf("engine error not surfaced: %q", live.err)
 	}
 
-	// A closed viewer is nil and stays nil.
 	a.closeStoryViewer()
 	if storyCurrentHead(a) != nil {
 		t.Fatalf("close left a head")
@@ -212,7 +189,6 @@ func TestStoryReactFlipContract(t *testing.T) {
 		t.Fatalf("deep copy violated: frozen items mutated")
 	}
 
-	// from-mismatch: a newer reaction must not be stomped.
 	if a.flipStoryReaction("acc", "chat", 1, "❤️", "") {
 		t.Fatalf("mismatched flip applied")
 	}
@@ -220,7 +196,6 @@ func TestStoryReactFlipContract(t *testing.T) {
 		t.Fatalf("mismatched flip stomped the newer reaction")
 	}
 
-	// Unknown story / foreign identity / closed viewer.
 	if a.flipStoryReaction("acc", "chat", 99, "", "x") {
 		t.Fatalf("unknown story flipped")
 	}
@@ -240,7 +215,6 @@ func TestStoryReactRevertTailGuarded(t *testing.T) {
 	a := &App{}
 	storyTestHead(a, &storyViewerState{accountID: "acc", chatID: "chat", items: []storyItem{{ID: 1, SentReaction: "👍"}}})
 
-	// Engine failure reverts OUR emoji and toasts honestly.
 	a.storyReactDone("acc", "chat", 1, "👍", errors.New("boom"))
 	if live := storyCurrentHead(a); live.items[0].SentReaction != "" {
 		t.Fatalf("failed react not reverted: %q", live.items[0].SentReaction)
@@ -252,14 +226,12 @@ func TestStoryReactRevertTailGuarded(t *testing.T) {
 		t.Fatalf("no honest toast: %q", toast)
 	}
 
-	// A newer reaction is never stomped by an older tail's failure.
 	storyTestHead(a, &storyViewerState{accountID: "acc", chatID: "chat", items: []storyItem{{ID: 1, SentReaction: "❤️"}}})
 	a.storyReactDone("acc", "chat", 1, "👍", errors.New("boom2"))
 	if live := storyCurrentHead(a); live.items[0].SentReaction != "❤️" {
 		t.Fatalf("newer reaction stomped: %q", live.items[0].SentReaction)
 	}
 
-	// Success path: no revert, no toast.
 	a.mu.Lock()
 	a.toast = ""
 	a.mu.Unlock()
@@ -275,7 +247,6 @@ func TestStoryReactRevertTailGuarded(t *testing.T) {
 		t.Fatalf("success path toasted: %q", toast)
 	}
 
-	// Closed viewer: no panic, no resurrect.
 	a.closeStoryViewer()
 	a.storyReactDone("acc", "chat", 1, "🎉", errors.New("boom3"))
 	if storyCurrentHead(a) != nil {
@@ -299,13 +270,11 @@ func TestStoryAdvanceInstallsFreshHead(t *testing.T) {
 		t.Fatalf("clamp-left: cur=%d", live.cur)
 	}
 
-	// Stepping past the last story closes (AyuGram).
 	a.storyAdvance(5)
 	if storyCurrentHead(a) != nil {
 		t.Fatalf("past-end did not close")
 	}
 
-	// Advance on a closed viewer: no-op, no panic.
 	a.storyAdvance(1)
 	if storyCurrentHead(a) != nil {
 		t.Fatalf("closed viewer resurrected")
@@ -323,7 +292,6 @@ func TestStoryReplyDraftLifecycle(t *testing.T) {
 		t.Fatalf("editor setup failed")
 	}
 
-	// Stepping past the last story closes and clears the draft.
 	a.storyAdvance(9)
 	if storyCurrentHead(a) != nil {
 		t.Fatalf("viewer not closed")
@@ -332,7 +300,6 @@ func TestStoryReplyDraftLifecycle(t *testing.T) {
 		t.Fatalf("draft leaked across close: %q", txt)
 	}
 
-	// The direct close path clears it too, and a fresh open starts clean.
 	storyTestHead(a, &storyViewerState{accountID: "acc", chatID: "chat", items: []storyItem{{ID: 1}}})
 	a.wid.storyReplyEd.SetText("again")
 	a.closeStoryViewer()

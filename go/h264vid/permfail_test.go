@@ -1,13 +1,5 @@
 package h264vid
 
-// tests-first for slice 230 — transient vs permanent parse failures.
-// Found by auditing slice 229: the GUI pinned EVERY ParseSeek failure
-// as failParse (permanent, no re-parse ever). On a fetch-on-read stream
-// a decode-stage failure is usually a TRANSIENT I/O problem (a chunk
-// fetch failed, the view was short) — pinning it dead-ended a perfectly
-// good clip forever. IsPermanent is the classifier: only verdicts about
-// the BYTES themselves are permanent; failures to READ them are not.
-
 import (
 	"bytes"
 	"crypto/sha256"
@@ -20,12 +12,8 @@ import (
 	"testing"
 )
 
-// bytesSource is a complete, always-succeeding view over bytes — the
-// byte-path Parse() shape handed to ParseSeek.
 func bytesSource(data []byte) *bytes.Reader { return bytes.NewReader(data) }
 
-// flakySource serves fixture bytes but starts failing reads after a
-// budget — a stand-in for a dying stream mid-parse.
 type flakySource struct {
 	data  []byte
 	pos   int64
@@ -77,8 +65,6 @@ func (f *flakySource) ReadAt(p []byte, off int64) (int, error) {
 	return copy(p, f.data[off:]), nil
 }
 
-// TestParseSeekClassifiesDecodeStageFailure: reads dying mid-parse come
-// back marked ErrDecodeFailed and NOT permanent.
 func TestParseSeekClassifiesDecodeStageFailure(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join("testdata", "round_video.mp4"))
 	if err != nil {
@@ -96,9 +82,6 @@ func TestParseSeekClassifiesDecodeStageFailure(t *testing.T) {
 	}
 }
 
-// TestParseSeekGarbageNotPermanent: unreadable-container failures from
-// the stream path stay retryable (the bytes may simply not have fully
-// arrived; the byte-path caller pins them permanent itself).
 func TestParseSeekGarbageNotPermanent(t *testing.T) {
 	_, err := ParseSeek(bytesSource([]byte("definitely not an mp4")))
 	if err == nil {
@@ -109,12 +92,7 @@ func TestParseSeekGarbageNotPermanent(t *testing.T) {
 	}
 }
 
-// TestIsPermanentClassifiesVerdicts: byte-level verdicts — decoded fine
-// but not our format — are permanent; I/O failures are not.
 func TestIsPermanentClassifiesVerdicts(t *testing.T) {
-	// Audio-only MP4 (ffmpeg-generated, sha-pinned like every other
-	// fixture in this repo): decodes fine, no video track → a permanent
-	// verdict about the BYTES (re-parsing can never help).
 	const audioOnlySHA = "ade3487ed6edd15dcbd6ed3964086da999a8d574683dcb3989d1eeeb980b6bb7"
 	data, err := os.ReadFile(filepath.Join("testdata", "audio_only.mp4"))
 	if err != nil {

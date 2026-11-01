@@ -1,8 +1,5 @@
 package engine
 
-// Ayu regex message filters (slice 90, matrix row 238): CRUD round-trips,
-// invalid-regex rejection, and the load-path filtering.
-
 import (
 	"regexp"
 	"testing"
@@ -34,12 +31,10 @@ func TestAyuFilterCRUD(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("listed %d filters, want 2", len(got))
 	}
-	// Newest first.
 	if got[0].ID != f2.ID || got[1].ID != f1.ID {
 		t.Fatalf("order = %+v %+v, want newest first", got[0], got[1])
 	}
 
-	// Toggle → reflected in the list.
 	if err := e.SetAyuFilterEnabled(f1.ID, false); err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +45,6 @@ func TestAyuFilterCRUD(t *testing.T) {
 		}
 	}
 
-	// Remove → gone.
 	if err := e.RemoveAyuFilter(f2.ID); err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +94,6 @@ func TestFilterMessagesByRegexes(t *testing.T) {
 		}
 	}
 
-	// Empty text never matches (media bubbles survive text filters).
 	out = filterMessagesByRegexes([]CachedMessage{{MsgID: "m4"}}, []*regexp.Regexp{regexp.MustCompile(`.*`)})
 	if len(out) != 1 {
 		t.Fatal("empty-content message must survive")
@@ -112,7 +105,6 @@ func TestGetMessagesAppliesAyuFilters(t *testing.T) {
 	seedMessage(t, e, "m1", 1000)
 	seedMessage(t, e, "m2", 2000)
 	seedMessage(t, e, "m3", 3000)
-	// seedMessage writes content_text = msgID, so "m2" matches ^m2$.
 
 	if _, err := e.AddAyuFilter(`^m2$`); err != nil {
 		t.Fatal(err)
@@ -130,7 +122,6 @@ func TestGetMessagesAppliesAyuFilters(t *testing.T) {
 		}
 	}
 
-	// Disabling the filter restores the full window.
 	fs := e.ListAyuFilters()
 	if len(fs) != 1 {
 		t.Fatalf("filters = %+v", fs)

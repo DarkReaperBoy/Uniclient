@@ -7,15 +7,6 @@ import (
 	"maunium.net/go/mautrix/event"
 )
 
-// B-6 → F-62 hardening: MSC3401 says a member event's state_key is the
-// sender's OWN matrix ID ("thus ensuring other users cannot edit it") —
-// but Matrix auth rules only special-case m.room.member. Once the event
-// type is granted at PL 0 (slice 300's room-creation fix), any room
-// member could publish a member event with SOMEONE ELSE's state_key and
-// spoof their call membership. Receivers MUST check sender == state_key.
-//
-// RED (behavioral, WORKLOG 300): the spoofed event below is currently
-// stored into groupMembers — `spoofed member event stored`.
 func TestGroupMemberEventRequiresMatchingSender(t *testing.T) {
 	core := &MatrixCore{}
 
@@ -36,7 +27,6 @@ func TestGroupMemberEventRequiresMatchingSender(t *testing.T) {
 		t.Fatalf("spoofed member event stored (sender != state_key): %d entries", n)
 	}
 
-	// The honest event (sender == state_key) must still be accepted.
 	honest := &event.Event{
 		Type:     matrixCallMemberStateType,
 		StateKey: &sk,

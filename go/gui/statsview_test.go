@@ -7,11 +7,6 @@ import (
 	"uniclient/engine"
 )
 
-// Channel statistics page (slice 184, GUI half): pure logic — Telegram
-// chart JSON parsing ({"columns":[["x",...],["y",...]]}), axis value
-// formatting, delta labels, header-menu gating. Layout verified by
-// compile + review.
-
 func TestParseChartJSON(t *testing.T) {
 	pts := parseChartJSON(`{"columns":[["x",1561910400,1561996800,1562083200],["y",100,150,200]]}`)
 	if len(pts) != 3 {
@@ -24,13 +19,11 @@ func TestParseChartJSON(t *testing.T) {
 		t.Fatalf("last = %+v", pts[2])
 	}
 
-	// Multi-series charts take the first non-x series.
 	pts2 := parseChartJSON(`{"columns":[["x",1,2],["y0",3,4],["y1",5,6]]}`)
 	if len(pts2) != 2 || pts2[1].V != 4 {
 		t.Fatalf("multi-series = %+v", pts2)
 	}
 
-	// Degenerate inputs → nil, never panic.
 	if parseChartJSON("") != nil {
 		t.Fatal("empty json parsed")
 	}
@@ -50,7 +43,6 @@ func TestChartRange(t *testing.T) {
 	if min != 1 || max != 5 {
 		t.Fatalf("range = %v..%v", min, max)
 	}
-	// Flat series widens (avoids divide-by-zero in the plot).
 	min2, max2 := chartRange([]chartPoint{{V: 7}, {V: 7}})
 	if min2 >= max2 {
 		t.Fatalf("flat range = %v..%v", min2, max2)
@@ -91,7 +83,6 @@ func TestStatsDeltaLabel(t *testing.T) {
 }
 
 func TestHeaderMenuStatsEntry(t *testing.T) {
-	// Admin channels get Statistics.
 	c := engine.ChatInfo{Type: engine.ChatTypeChanVal, IsAdmin: true}
 	found := false
 	for _, it := range headerMenuItems(c, false, false, false, false, false) {
@@ -102,15 +93,12 @@ func TestHeaderMenuStatsEntry(t *testing.T) {
 	if !found {
 		t.Fatal("admin channel menu lacks Statistics")
 	}
-	// Non-admin channels never see it.
 	c2 := engine.ChatInfo{Type: engine.ChatTypeChanVal, IsAdmin: false}
 	for _, it := range headerMenuItems(c2, false, false, false, false, false) {
 		if it.id == "stats" {
 			t.Fatal("non-admin sees Statistics")
 		}
 	}
-	// Groups never see it (megagroup stats is a different RPC; out of
-	// this slice's scope — the row is the channel page).
 	c3 := engine.ChatInfo{Type: engine.ChatTypeGroupVal, IsAdmin: true}
 	for _, it := range headerMenuItems(c3, false, false, false, false, false) {
 		if it.id == "stats" {

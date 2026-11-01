@@ -35,10 +35,6 @@ import (
 	"uniclient/utils"
 )
 
-// ════════════════════════════════════════════════════════════════════════════════
-// Constants
-// ════════════════════════════════════════════════════════════════════════════════
-
 const (
 	mumbleDefaultPort    = 64738
 	mumbleMaxMsgBuffer   = 500
@@ -46,11 +42,10 @@ const (
 	mumbleReadTimeout    = 5 * time.Second
 	mumbleDialTimeout    = 10 * time.Second
 	mumbleMaxUDPSize     = 1024
-	mumbleMaxPayload     = 1020 // 1024 - 4 byte crypto header
-	mumbleCryptoOverhead = 4    // 1 byte IV + 3 byte tag
-	mumbleLateWindow     = 30   // packets we consider "late" vs "lost"
+	mumbleMaxPayload     = 1020
+	mumbleCryptoOverhead = 4
+	mumbleLateWindow     = 30
 
-	// Version: 1.5.517 in v2 format
 	mumbleVersionMajor = 1
 	mumbleVersionMinor = 5
 	mumbleVersionPatch = 517
@@ -61,7 +56,6 @@ const (
 	mumblePlatform     = "mumble"
 )
 
-// TCP message type IDs (Mumble.proto)
 const (
 	mumbleMsgVersion                = 0
 	mumbleMsgUDPTunnel              = 1
@@ -92,8 +86,6 @@ const (
 	mumbleMsgPluginDataTransmission = 26
 )
 
-// mumbleMsgName returns a human-readable name for a TCP message type ID
-// (debug logging only).
 func mumbleMsgName(t uint16) string {
 	switch t {
 	case mumbleMsgVersion:
@@ -155,7 +147,6 @@ func mumbleMsgName(t uint16) string {
 	}
 }
 
-// Permission bits
 const (
 	mumblePermWrite            = 0x00001
 	mumblePermTraverse         = 0x00002
@@ -176,7 +167,6 @@ const (
 	mumblePermResetUserContent = 0x100000
 )
 
-// Reject types
 const (
 	mumbleRejectNone              = 0
 	mumbleRejectWrongVersion      = 1
@@ -190,7 +180,6 @@ const (
 	mumbleRejectNoNewConnections  = 9
 )
 
-// UDP audio types (legacy format)
 const (
 	mumbleUDPCELTAlpha = 0
 	mumbleUDPPing      = 1
@@ -199,26 +188,17 @@ const (
 	mumbleUDPOpus      = 4
 )
 
-// Voice target constants
 const (
 	mumbleTargetNormal   = 0
 	mumbleTargetLoopback = 31
 )
 
-// Audio context (server→client, protobuf only)
 const (
 	mumbleContextNormal   = 0
 	mumbleContextShout    = 1
 	mumbleContextWhisper  = 2
 	mumbleContextListener = 3
 )
-
-// ════════════════════════════════════════════════════════════════════════════════
-// Protobuf Wire Format Helpers
-// ════════════════════════════════════════════════════════════════════════════════
-//
-// Mumble uses proto2 syntax. We hand-encode/decode to stay in one file.
-// Protobuf wire types: 0=varint, 1=64-bit, 2=length-delimited, 5=32-bit
 
 type pbEncoder struct {
 	buf bytes.Buffer
@@ -400,7 +380,6 @@ func (e *pbEncoder) bytes() []byte {
 	return e.buf.Bytes()
 }
 
-// Protobuf decoder
 type pbDecoder struct {
 	data []byte
 	pos  int
@@ -477,19 +456,19 @@ func (d *pbDecoder) readString() (string, error) {
 
 func (d *pbDecoder) skipField(wireType int) error {
 	switch wireType {
-	case 0: // varint
+	case 0:
 		_, err := d.readVarint()
 		return err
-	case 1: // 64-bit
+	case 1:
 		if d.pos+8 > len(d.data) {
 			return io.ErrUnexpectedEOF
 		}
 		d.pos += 8
 		return nil
-	case 2: // length-delimited
+	case 2:
 		_, err := d.readBytes()
 		return err
-	case 5: // 32-bit
+	case 5:
 		if d.pos+4 > len(d.data) {
 			return io.ErrUnexpectedEOF
 		}
@@ -499,10 +478,6 @@ func (d *pbDecoder) skipField(wireType int) error {
 		return fmt.Errorf("pbDecoder: unknown wire type %d", wireType)
 	}
 }
-
-// ════════════════════════════════════════════════════════════════════════════════
-// Mumble Varint (PacketDataStream format — NOT standard protobuf varint)
-// ════════════════════════════════════════════════════════════════════════════════
 
 func mumbleVarintEncode(v int64) []byte {
 	var buf [10]byte
@@ -569,53 +544,45 @@ func mumbleVarintDecode(data []byte, pos int) (int64, int, error) {
 	}
 	b := data[pos]
 	switch {
-	case b&0x80 == 0: // 0xxxxxxx — 7-bit positive
+	case b&0x80 == 0:
 		return int64(b & 0x7F), pos + 1, nil
-	case b&0xC0 == 0x80: // 10xxxxxx — 14-bit
+	case b&0xC0 == 0x80:
 		if pos+1 >= len(data) {
 			return 0, pos, io.ErrUnexpectedEOF
 		}
 		return int64(uint16(b&0x3F)<<8 | uint16(data[pos+1])), pos + 2, nil
-	case b&0xE0 == 0xC0: // 110xxxxx — 21-bit
+	case b&0xE0 == 0xC0:
 		if pos+2 >= len(data) {
 			return 0, pos, io.ErrUnexpectedEOF
 		}
 		return int64(uint32(b&0x1F)<<16 | uint32(data[pos+1])<<8 | uint32(data[pos+2])), pos + 3, nil
-	case b&0xF0 == 0xE0: // 1110xxxx — 28-bit
+	case b&0xF0 == 0xE0:
 		if pos+3 >= len(data) {
 			return 0, pos, io.ErrUnexpectedEOF
 		}
 		return int64(uint32(b&0x0F)<<24 | uint32(data[pos+1])<<16 | uint32(data[pos+2])<<8 | uint32(data[pos+3])), pos + 4, nil
-	case b&0xFC == 0xF0: // 111100xx — 32-bit
+	case b&0xFC == 0xF0:
 		if pos+4 >= len(data) {
 			return 0, pos, io.ErrUnexpectedEOF
 		}
 		return int64(uint32(data[pos+1])<<24 | uint32(data[pos+2])<<16 | uint32(data[pos+3])<<8 | uint32(data[pos+4])), pos + 5, nil
-	case b&0xFC == 0xF4: // 111101xx — 64-bit
+	case b&0xFC == 0xF4:
 		if pos+8 >= len(data) {
 			return 0, pos, io.ErrUnexpectedEOF
 		}
 		return int64(binary.BigEndian.Uint64(data[pos+1:])), pos + 9, nil
-	case b&0xFC == 0xF8: // 111110xx — negative varint
+	case b&0xFC == 0xF8:
 		v, newPos, err := mumbleVarintDecode(data, pos+1)
 		if err != nil {
 			return 0, pos, err
 		}
 		return -v, newPos, nil
-	case b&0xFC == 0xFC: // 111111xx — -1 to -4
-		// NB: the unary NOT must run in int64 — ^byte(0) is 0xFF (255),
-		// whereas the C++ reference (~(v & 0x03) on a 64-bit int) yields
-		// the negative values. int64(^byte(0)) would be +255, wrong.
+	case b&0xFC == 0xFC:
 		return ^int64(b & 0x03), pos + 1, nil
 	default:
 		return 0, pos, fmt.Errorf("mumbleVarintDecode: invalid prefix 0x%02x", b)
 	}
 }
-
-// ════════════════════════════════════════════════════════════════════════════════
-// OCB2-AES128 Encryption
-// ════════════════════════════════════════════════════════════════════════════════
-// Reference: grumble/pkg/cryptstate/ocb2/ocb2.go
 
 const (
 	ocb2BlockSize = 16
@@ -719,12 +686,10 @@ func ocb2Decrypt(ciph cipher.Block, plain, encrypted, nonce, tag []byte) bool {
 	return subtle.ConstantTimeCompare(calcTag[:len(tag)], tag) == 1
 }
 
-// CryptState manages OCB2-AES128 encryption state for the UDP channel
 type mumbleCryptState struct {
-	key       [16]byte
-	encryptIV [16]byte
-	decryptIV [16]byte
-	// initial nonces from CryptSetup (diagnostics + self-checks)
+	key         [16]byte
+	encryptIV   [16]byte
+	decryptIV   [16]byte
 	initEncrypt [16]byte
 	initDecrypt [16]byte
 	cipher      cipher.Block
@@ -741,8 +706,8 @@ func (cs *mumbleCryptState) init(key, clientNonce, serverNonce []byte) error {
 		return errors.New("mumbleCryptState: invalid key/nonce length")
 	}
 	copy(cs.key[:], key)
-	copy(cs.encryptIV[:], clientNonce) // we encrypt with client nonce
-	copy(cs.decryptIV[:], serverNonce) // we decrypt with server nonce
+	copy(cs.encryptIV[:], clientNonce)
+	copy(cs.decryptIV[:], serverNonce)
 	copy(cs.initEncrypt[:], clientNonce)
 	copy(cs.initDecrypt[:], serverNonce)
 	var err error
@@ -786,17 +751,12 @@ func (cs *mumbleCryptState) decrypt(dst, src []byte) (int, error) {
 	plainLen := len(src) - 4
 	ivByte := src[0]
 
-	// 1:1 port of CryptStateOCB2::decrypt (mumble-voip/mumble
-	// src/crypto/CryptStateOCB2.cpp): save/restore IV semantics, the ±30
-	// late-packet window, and the decrypt_history replay guard keyed on
-	// (iv[0], iv[1]).
 	var saveIV [16]byte
 	copy(saveIV[:], cs.decryptIV[:])
 	restore := false
 	lost, late := 0, 0
 
 	if (cs.decryptIV[0]+1)&0xFF == ivByte {
-		// In order as expected.
 		if ivByte > cs.decryptIV[0] {
 			cs.decryptIV[0] = ivByte
 		} else if ivByte < cs.decryptIV[0] {
@@ -811,7 +771,6 @@ func (cs *mumbleCryptState) decrypt(dst, src []byte) (int, error) {
 			return 0, errors.New("mumbleCryptState: duplicate packet")
 		}
 	} else {
-		// Out of order or a repeat.
 		diff := int(ivByte) - int(cs.decryptIV[0])
 		if diff > 128 {
 			diff -= 256
@@ -821,13 +780,11 @@ func (cs *mumbleCryptState) decrypt(dst, src []byte) (int, error) {
 
 		switch {
 		case ivByte < cs.decryptIV[0] && diff > -30 && diff < 0:
-			// Late packet, but no wraparound.
 			late = 1
 			lost = -1
 			cs.decryptIV[0] = ivByte
 			restore = true
 		case ivByte > cs.decryptIV[0] && diff > -30 && diff < 0:
-			// Last was 0x02, here comes 0xff from last round.
 			late = 1
 			lost = -1
 			cs.decryptIV[0] = ivByte
@@ -838,11 +795,9 @@ func (cs *mumbleCryptState) decrypt(dst, src []byte) (int, error) {
 			}
 			restore = true
 		case ivByte > cs.decryptIV[0] && diff > 0:
-			// Lost a few packets, but beyond that we're good.
 			lost = int(ivByte) - int(cs.decryptIV[0]) - 1
 			cs.decryptIV[0] = ivByte
 		case ivByte < cs.decryptIV[0] && diff > 0:
-			// Lost a few packets, and wrapped around.
 			lost = 256 - int(cs.decryptIV[0]) + int(ivByte) - 1
 			cs.decryptIV[0] = ivByte
 			for i := 1; i < 16; i++ {
@@ -882,10 +837,6 @@ func (cs *mumbleCryptState) decrypt(dst, src []byte) (int, error) {
 	cs.good++
 	return plainLen, nil
 }
-
-// ════════════════════════════════════════════════════════════════════════════════
-// Protobuf Message Structs
-// ════════════════════════════════════════════════════════════════════════════════
 
 type mumbleVersion struct {
 	VersionV1 uint32
@@ -1185,7 +1136,7 @@ type mumbleChannelStateMsg struct {
 	IsEnterRestricted bool
 	CanEnter          bool
 
-	HasParent    bool // track if parent was set (0 is valid — root)
+	HasParent    bool
 	HasChannelID bool
 }
 
@@ -1329,8 +1280,7 @@ type mumbleUserStateMsg struct {
 	TemporaryAccessTokens  []string
 	ListeningChannelAdd    []uint32
 	ListeningChannelRemove []uint32
-	// VolumeAdjustments stored as submessages
-	ListeningVolumeAdj []mumbleVolumeAdj
+	ListeningVolumeAdj     []mumbleVolumeAdj
 
 	HasSession         bool
 	HasActor           bool
@@ -1672,9 +1622,9 @@ func (m *mumbleUserRemoveMsg) unmarshal(data []byte) error {
 
 type mumbleTextMsg struct {
 	Actor     uint32
-	Session   []uint32 // target user sessions
-	ChannelID []uint32 // target channels
-	TreeID    []uint32 // target trees
+	Session   []uint32
+	ChannelID []uint32
+	TreeID    []uint32
 	Message   string
 }
 
@@ -2093,7 +2043,6 @@ func (m *mumblePermissionQueryMsg) unmarshal(data []byte) error {
 	return nil
 }
 
-// BanList message
 type mumbleBanListMsg struct {
 	Bans  []MumbleBanEntry
 	Query bool
@@ -2218,7 +2167,6 @@ type mumbleUserListEntry struct {
 	LastChannel uint32
 }
 
-// VoiceTarget message
 type mumbleVoiceTargetMsg struct {
 	ID      uint32
 	Targets []MumbleVoiceTargetEntry
@@ -2364,7 +2312,7 @@ func (m *mumblePluginDataMsg) unmarshal(data []byte) error {
 			}
 			m.SenderSession = uint32(v)
 		case 2:
-			if wt == 2 { // packed
+			if wt == 2 {
 				b, err := d.readBytes()
 				if err != nil {
 					return err
@@ -2405,10 +2353,6 @@ func (m *mumblePluginDataMsg) unmarshal(data []byte) error {
 	return nil
 }
 
-// ════════════════════════════════════════════════════════════════════════════════
-// Internal data types
-// ════════════════════════════════════════════════════════════════════════════════
-
 type mumbleChannel struct {
 	ID                uint32
 	ParentID          uint32
@@ -2435,7 +2379,7 @@ type mumbleUser struct {
 	SelfDeaf        bool
 	Comment         string
 	CommentHash     []byte
-	Hash            string // certificate hash
+	Hash            string
 	Texture         []byte
 	TextureHash     []byte
 	PrioritySpeaker bool
@@ -2446,7 +2390,7 @@ type mumbleTextEntry struct {
 	ID         string
 	Sender     uint32
 	SenderName string
-	ChannelID  uint32 // 0 for private messages
+	ChannelID  uint32
 	IsPrivate  bool
 	Message    string
 	Timestamp  time.Time
@@ -2455,29 +2399,26 @@ type mumbleTextEntry struct {
 type mumbleContextActionEntry struct {
 	Action  string
 	Text    string
-	Context uint32 // bitmask: Server=1, Channel=2, User=4
+	Context uint32
 }
 
-// VoicePacket for the OnVoice callback
 type MumbleVoicePacket struct {
 	SenderSession uint32
-	Codec         int // mumbleUDPOpus etc
+	Codec         int
 	AudioData     []byte
 	SequenceNum   int64
-	Target        int // 0=normal, 1-30=whisper, 31=loopback
+	Target        int
 	IsTerminator  bool
 	PositionX     float32
 	PositionY     float32
 	PositionZ     float32
 }
 
-// MumbleRejectEvent is fired when the server rejects the connection.
 type MumbleRejectEvent struct {
 	Type   uint32
 	Reason string
 }
 
-// MumblePermissionDeniedEvent is fired when a permission is denied.
 type MumblePermissionDeniedEvent struct {
 	Permission uint32
 	ChannelID  uint32
@@ -2487,7 +2428,6 @@ type MumblePermissionDeniedEvent struct {
 	Name       string
 }
 
-// MumbleSuggestConfigEvent is fired when the server suggests configuration.
 type MumbleSuggestConfigEvent struct {
 	VersionV1  uint32
 	VersionV2  uint64
@@ -2495,15 +2435,13 @@ type MumbleSuggestConfigEvent struct {
 	PushToTalk bool
 }
 
-// MumbleContextActionEvent is fired when a context action is added/removed.
 type MumbleContextActionEvent struct {
 	Action    string
 	Text      string
-	Context   uint32 // bitmask: Server=1, Channel=2, User=4
-	Operation uint32 // 0=Add, 1=Remove
+	Context   uint32
+	Operation uint32
 }
 
-// MumbleCodecVersionEvent is fired when the server negotiates codec versions.
 type MumbleCodecVersionEvent struct {
 	Alpha       int32
 	Beta        int32
@@ -2511,36 +2449,28 @@ type MumbleCodecVersionEvent struct {
 	Opus        bool
 }
 
-// Session data for persistence
 type mumbleSessionData struct {
 	CertPEM    string            `json:"cert_pem"`
 	KeyPEM     string            `json:"key_pem"`
-	ServerPins map[string]string `json:"server_pins,omitempty"` // TOFU: hostPort → SHA1 of the server cert (B-57)
+	ServerPins map[string]string `json:"server_pins,omitempty"`
 }
-
-// ════════════════════════════════════════════════════════════════════════════════
-// MumbleCore — main struct
-// ════════════════════════════════════════════════════════════════════════════════
 
 type MumbleCore struct {
 	mu sync.RWMutex
 
-	// connection
 	tlsConn    *tls.Conn
 	udpConn    net.Conn
 	serverAddr string
 	authed     bool
 	isBot      bool
 
-	// identity
 	mySession   uint32
 	myChannelID uint32
 	certHash    string
 	tlsCert     tls.Certificate
 	Session     *utils.SessionStore
-	serverPins  map[string]string // in-memory TOFU pins when Session is nil (guarded by mu)
+	serverPins  map[string]string
 
-	// server info
 	serverVersion   mumbleVersion
 	serverConfig    MumbleServerConfig
 	maxBandwidth    uint32
@@ -2549,57 +2479,43 @@ type MumbleCore struct {
 	codecVersion    mumbleCodecVersionMsg
 	useOpus         bool
 
-	// crypto
 	crypt      mumbleCryptState
 	cryptReady bool
 	udpReady   bool
 
-	// udpPathSeen: a plaintext packet (raw ping reply) arrived on the
-	// core UDP socket. The socket path works even when the crypto
-	// bootstrap cannot (e.g. NAT pools that egress TCP and UDP from
-	// different source IPs — murmur's unknown-peer match then can't
-	// associate the two). Distinct from udpReady (crypto confirmed).
 	udpPathSeen bool
 
-	// caches
 	channels       map[uint32]*mumbleChannel
 	users          map[uint32]*mumbleUser
-	permissions    map[uint32]uint32 // channelID → permission bits
+	permissions    map[uint32]uint32
 	contextActions map[string]mumbleContextActionEntry
 	localMutes     map[uint32]bool
 	banList        []MumbleBanEntry
 
-	// text message buffer
 	messages   []mumbleTextEntry
 	msgCounter atomic.Int64
 
-	// voice
 	voiceHandler func(MumbleVoicePacket)
 	voiceSeqNum  atomic.Int64
 
-	// speaking activity: session → last voice-packet arrival
 	speakingMu    sync.Mutex
 	speakingUntil map[uint32]time.Time
 
-	// lastResyncReq throttles client-initiated crypt resync requests.
-	lastResyncReq   atomic.Value // time.Time
+	lastResyncReq   atomic.Value
 	udpPktsSent     atomic.Uint32
 	udpPktsRecv     atomic.Uint32
 	tcpPktsSent     atomic.Uint32
 	tcpPktsRecv     atomic.Uint32
 	voiceTunnelRecv atomic.Uint32
 
-	// update handler
 	updateHandlers []func(Update)
 
-	// protocol event handlers
 	rejectHandler        func(MumbleRejectEvent)
 	permDeniedHandler    func(MumblePermissionDeniedEvent)
 	suggestConfigHandler func(MumbleSuggestConfigEvent)
 	contextActionHandler func(MumbleContextActionEvent)
 	codecVersionHandler  func(MumbleCodecVersionEvent)
 
-	// ping stats
 	tcpPingAvg float32
 	tcpPingVar float32
 	udpPingAvg float32
@@ -2607,19 +2523,15 @@ type MumbleCore struct {
 	lastPingTS time.Time
 	pingCount  int
 
-	// lifecycle
 	ctx    context.Context
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
 
-	// sync
-	syncDone chan struct{} // closed when ServerSync received
+	syncDone chan struct{}
 
-	// Ice RPC admin connection (out-of-band, for server administration)
 	ice               *mumbleIceClient
 	iceContextHandler func(action string, session uint32, channelID int32)
 
-	// Ice callbacks (Step 4)
 	metaCallbackHandler      func(serverID int, started bool)
 	iceCBUserConnected       func(state map[string]string)
 	iceCBUserDisconnected    func(state map[string]string)
@@ -2631,25 +2543,17 @@ type MumbleCore struct {
 	iceCBMetaStarted         func(serverID int)
 	iceCBMetaStopped         func(serverID int)
 
-	// Custom authenticator (Step 4)
 	authenticator *MumbleAuthenticator
 
-	// UserStats callback (Step 4)
 	userStatsHandler func(session uint32, stats map[string]interface{})
 
-	// Auto-reconnect (Step 4)
 	autoReconnect  bool
 	reconnectDelay time.Duration
 
-	// Audio config (Step 4)
 	audioBitrate       int
 	audioFrameSize     int
 	audioStreamHandler func(session uint32, pcm []int16, codec string)
 }
-
-// ════════════════════════════════════════════════════════════════════════════════
-// Certificate management
-// ════════════════════════════════════════════════════════════════════════════════
 
 func mumbleGenerateCert() (tls.Certificate, error) {
 	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -2689,21 +2593,11 @@ func mumbleCertHash(cert tls.Certificate) string {
 	return hex.EncodeToString(h[:])
 }
 
-// mumblePeerCertHash fingerprints a server certificate (SHA-1 of the
-// DER — same scheme as mumbleCertHash uses for the client cert).
 func mumblePeerCertHash(cert *x509.Certificate) string {
 	h := sha1.Sum(cert.Raw)
 	return hex.EncodeToString(h[:])
 }
 
-// mumbleServerTOFU decides whether to accept the server certificate
-// and whether its fingerprint must be stored. verifyErr is the PKI
-// verification result (nil = publicly verifiable); storedPin/hasPin
-// come from the TOFU store; reset forces a re-pin (server rotation or
-// deliberate trust change). Message is "" on silent accepts. B-57 →
-// F-57: keeps self-signed servers working (the dial layer stays
-// InsecureSkipVerify — even the default live server fails x509) while
-// a network MITM is refused on pin mismatch.
 func mumbleServerTOFU(verifyErr error, fp, storedPin string, hasPin, reset bool) (accept bool, store bool, msg string) {
 	if verifyErr == nil {
 		return true, false, ""
@@ -2723,9 +2617,6 @@ func mumbleServerTOFU(verifyErr error, fp, storedPin string, hasPin, reset bool)
 	}
 }
 
-// loadServerPin returns the pinned fingerprint for hostPort, preferring
-// the account Session (persistent) with the in-memory fallback when no
-// store is configured.
 func (c *MumbleCore) loadServerPin(hostPort string) (string, bool) {
 	if c.Session != nil {
 		var sess mumbleSessionData
@@ -2741,9 +2632,6 @@ func (c *MumbleCore) loadServerPin(hostPort string) (string, bool) {
 	return p, ok
 }
 
-// storeServerPin records fp for hostPort in both stores (memory always;
-// Session persistently), merging into whatever is already saved so the
-// client cert and the pins never clobber each other.
 func (c *MumbleCore) storeServerPin(hostPort, fp string) error {
 	c.mu.Lock()
 	if c.serverPins == nil {
@@ -2806,9 +2694,6 @@ func (c *MumbleCore) saveSession() error {
 	if c.Session == nil {
 		return nil
 	}
-	// Merge, don't clobber: this save used to rebuild the struct from
-	// scratch, which wiped any TOFU server pins written earlier
-	// (behavioral RED: `pin wiped by cert save`, slice-286).
 	var prev mumbleSessionData
 	if err := c.Session.Load(&prev); err == nil {
 		sess.ServerPins = prev.ServerPins
@@ -2816,11 +2701,6 @@ func (c *MumbleCore) saveSession() error {
 	return c.Session.Save(sess)
 }
 
-// ════════════════════════════════════════════════════════════════════════════════
-// TCP Transport
-// ════════════════════════════════════════════════════════════════════════════════
-
-// mumbleDebug enables verbose TCP message logging when UNICLIENT_MUMBLE_DEBUG is set.
 var mumbleDebug = os.Getenv("UNICLIENT_MUMBLE_DEBUG") != ""
 
 func mumbleLogf(format string, args ...interface{}) {
@@ -2874,13 +2754,8 @@ func (c *MumbleCore) tcpRecv() (uint16, []byte, error) {
 	return msgType, payload, nil
 }
 
-// ════════════════════════════════════════════════════════════════════════════════
-// UDP Transport
-// ════════════════════════════════════════════════════════════════════════════════
-
 func (c *MumbleCore) udpSend(data []byte) error {
 	if !c.cryptReady {
-		// Fall back to TCP tunnel
 		return c.tcpSend(mumbleMsgUDPTunnel, data)
 	}
 
@@ -2890,7 +2765,6 @@ func (c *MumbleCore) udpSend(data []byte) error {
 	c.mu.RUnlock()
 
 	if conn == nil || !ready {
-		// UDP not confirmed working (NAT/firewall) — fall back to TCP tunnel
 		return c.tcpSend(mumbleMsgUDPTunnel, data)
 	}
 
@@ -2948,12 +2822,6 @@ func (c *MumbleCore) udpRecvLoop() {
 			continue
 		}
 
-		// Plaintext passthrough detection: a 24-byte datagram starting
-		// with a murmur 1.x/0.x version word (0x0001xxxx / 0x0000xxxx)
-		// is a RAW ping reply — murmur's stateless extended-info answer
-		// (or the diagnostic probe's). It is not OCB2-encrypted: trying
-		// to decrypt it would fail and wrongly trigger a crypt resync.
-		// False-positive odds for real encrypted traffic are 2^-16.
 		if n == 24 && buf[0] == 0 && buf[1] <= 1 {
 			c.mu.Lock()
 			if !c.udpPathSeen {
@@ -2971,10 +2839,6 @@ func (c *MumbleCore) udpRecvLoop() {
 			if mumbleDebug {
 				mumbleLogf("UDP RX decrypt FAIL: %v", err)
 			}
-			// Out of the ±30 late window or a replay: our decrypt state
-			// is behind the server. Ask for a resync (empty CryptSetup
-			// over TCP, the upstream client's move) — throttled to at
-			// most one request per second so a broken link can't spam.
 			var last time.Time
 			if v := c.lastResyncReq.Load(); v != nil {
 				last, _ = v.(time.Time)
@@ -2996,30 +2860,21 @@ func (c *MumbleCore) handleUDPPacket(data []byte) {
 		return
 	}
 
-	// Mumble 1.5+ protobuf format: first byte is UDPMessageType
-	// 0 = Audio, 1 = Ping
-	// Legacy format: first byte has type in bits[7:5] (range 0x00-0x9F)
-	//
-	// We declared version 1.5.517, so the server sends protobuf format.
-	// TCP UDPTunnel also uses the same format.
 	msgType := data[0]
 	switch msgType {
-	case 0: // Audio
+	case 0:
 		c.handleProtobufUDPPacket(data[1:])
-	case 1: // Ping
+	case 1:
 		c.handleProtobufUDPPing(data[1:])
 	default:
-		// Might be legacy format (from old servers or TCP tunnel)
 		audioType := int(msgType >> 5)
 		if audioType >= 0 && audioType <= 4 {
 			c.handleLegacyUDPPacket(data)
 		}
-		// else unknown, silently drop
 	}
 }
 
 func (c *MumbleCore) handleProtobufUDPPing(data []byte) {
-	// Parse MumbleUDP.Ping protobuf
 	d := newPBDecoder(data)
 	for d.remaining() > 0 {
 		field, wt, err := d.readTag()
@@ -3027,7 +2882,7 @@ func (c *MumbleCore) handleProtobufUDPPing(data []byte) {
 			return
 		}
 		switch field {
-		case 1: // timestamp
+		case 1:
 			_, err := d.readVarint()
 			if err != nil {
 				return
@@ -3053,10 +2908,9 @@ func (c *MumbleCore) handleLegacyUDPPacket(data []byte) {
 	target := int(header & 0x1F)
 
 	if audioType == mumbleUDPPing {
-		// UDP Ping response
 		if len(data) > 1 {
 			ts, _, _ := mumbleVarintDecode(data, 1)
-			_ = ts // Could track for ping stats
+			_ = ts
 		}
 		if !c.udpReady {
 			c.mu.Lock()
@@ -3066,7 +2920,6 @@ func (c *MumbleCore) handleLegacyUDPPacket(data []byte) {
 		return
 	}
 
-	// Audio packet — from server has session ID
 	pos := 1
 	session, newPos, err := mumbleVarintDecode(data, pos)
 	if err != nil {
@@ -3106,7 +2959,6 @@ func (c *MumbleCore) handleLegacyUDPPacket(data []byte) {
 			pos += opusLen
 		}
 	} else {
-		// CELT/Speex: multiple frames with continuation bit
 		var audioData []byte
 		for pos < len(data) {
 			if pos >= len(data) {
@@ -3121,7 +2973,7 @@ func (c *MumbleCore) handleLegacyUDPPacket(data []byte) {
 			audioData = append(audioData, data[pos:pos+frameLen]...)
 			pos += frameLen
 			if frameHeader&0x80 == 0 {
-				break // last frame
+				break
 			}
 		}
 		pkt.AudioData = audioData
@@ -3130,7 +2982,6 @@ func (c *MumbleCore) handleLegacyUDPPacket(data []byte) {
 		}
 	}
 
-	// Optional positional data (3x float32 LE)
 	if pos+12 <= len(data) {
 		pkt.PositionX = math.Float32frombits(binary.LittleEndian.Uint32(data[pos:]))
 		pkt.PositionY = math.Float32frombits(binary.LittleEndian.Uint32(data[pos+4:]))
@@ -3144,10 +2995,9 @@ func (c *MumbleCore) handleLegacyUDPPacket(data []byte) {
 }
 
 func (c *MumbleCore) handleProtobufUDPPacket(data []byte) {
-	// Protobuf UDP: decode as MumbleUDP.Audio
 	d := newPBDecoder(data)
 	var pkt MumbleVoicePacket
-	pkt.Codec = mumbleUDPOpus // protobuf format is always Opus
+	pkt.Codec = mumbleUDPOpus
 
 	for d.remaining() > 0 {
 		field, wt, err := d.readTag()
@@ -3155,38 +3005,38 @@ func (c *MumbleCore) handleProtobufUDPPacket(data []byte) {
 			return
 		}
 		switch field {
-		case 1: // target (client→server)
+		case 1:
 			v, err := d.readVarint()
 			if err != nil {
 				return
 			}
 			pkt.Target = int(v)
-		case 2: // context (server→client)
+		case 2:
 			v, err := d.readVarint()
 			if err != nil {
 				return
 			}
-			pkt.Target = int(v) // reuse Target field for context
-		case 3: // sender_session
+			pkt.Target = int(v)
+		case 3:
 			v, err := d.readVarint()
 			if err != nil {
 				return
 			}
 			pkt.SenderSession = uint32(v)
-		case 4: // frame_number
+		case 4:
 			v, err := d.readVarint()
 			if err != nil {
 				return
 			}
 			pkt.SequenceNum = int64(v)
-		case 5: // opus_data
+		case 5:
 			b, err := d.readBytes()
 			if err != nil {
 				return
 			}
 			pkt.AudioData = b
-		case 6: // positional_data (repeated float)
-			if wt == 5 { // single float32
+		case 6:
+			if wt == 5 {
 				v, err := d.readFixed32()
 				if err != nil {
 					return
@@ -3199,7 +3049,7 @@ func (c *MumbleCore) handleProtobufUDPPacket(data []byte) {
 				} else {
 					pkt.PositionZ = f
 				}
-			} else if wt == 2 { // packed floats
+			} else if wt == 2 {
 				b, err := d.readBytes()
 				if err != nil {
 					return
@@ -3216,13 +3066,12 @@ func (c *MumbleCore) handleProtobufUDPPacket(data []byte) {
 			} else {
 				d.skipField(wt)
 			}
-		case 7: // volume_adjustment (float)
+		case 7:
 			_, err := d.readFixed32()
 			if err != nil {
 				return
 			}
-			// We don't use volume_adjustment in the voice packet struct currently
-		case 16: // is_terminator
+		case 16:
 			v, err := d.readVarint()
 			if err != nil {
 				return
@@ -3239,10 +3088,6 @@ func (c *MumbleCore) handleProtobufUDPPacket(data []byte) {
 	}
 }
 
-// ════════════════════════════════════════════════════════════════════════════════
-// Connection & Handshake
-// ════════════════════════════════════════════════════════════════════════════════
-
 func (c *MumbleCore) connect(addr string, username, password string, tokens []string, isBot bool) error {
 	c.mu.Lock()
 	c.serverAddr = addr
@@ -3257,7 +3102,6 @@ func (c *MumbleCore) connect(addr string, username, password string, tokens []st
 	c.ctx, c.cancel = context.WithCancel(context.Background())
 	c.mu.Unlock()
 
-	// Parse host:port
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
 		host = addr
@@ -3265,9 +3109,8 @@ func (c *MumbleCore) connect(addr string, username, password string, tokens []st
 	}
 	hostPort := net.JoinHostPort(host, port)
 
-	// TLS connect
 	tlsCfg := &tls.Config{
-		InsecureSkipVerify: true, // Mumble servers often use self-signed certs
+		InsecureSkipVerify: true,
 		Certificates:       []tls.Certificate{c.tlsCert},
 		NextProtos:         []string{"mumble"},
 	}
@@ -3278,13 +3121,6 @@ func (c *MumbleCore) connect(addr string, username, password string, tokens []st
 		return fmt.Errorf("mumble: TLS connect failed: %w", err)
 	}
 
-	// B-57 → F-57: the dial layer keeps InsecureSkipVerify (mumble
-	// servers are overwhelmingly self-signed — even the default live
-	// server fails x509, slice-285 probe), so verification happens
-	// HERE: PKI first, then trust-on-first-use pins from the account
-	// Session (in-memory fallback). A mismatched pin refuses the
-	// connection BEFORE a single mumble byte is sent (server rotation:
-	// reconnect with UNICLIENT_MUMBLE_RESET_PIN=1).
 	state := conn.ConnectionState()
 	if len(state.PeerCertificates) == 0 {
 		conn.Close()
@@ -3311,7 +3147,6 @@ func (c *MumbleCore) connect(addr string, username, password string, tokens []st
 	c.tlsConn = conn
 	c.mu.Unlock()
 
-	// Send Version
 	ver := &mumbleVersion{
 		VersionV1: mumbleVersionV1,
 		VersionV2: mumbleVersionV2,
@@ -3324,7 +3159,6 @@ func (c *MumbleCore) connect(addr string, username, password string, tokens []st
 		return err
 	}
 
-	// Send Authenticate
 	clientType := int32(0)
 	if isBot {
 		clientType = 1
@@ -3341,14 +3175,11 @@ func (c *MumbleCore) connect(addr string, username, password string, tokens []st
 		return err
 	}
 
-	// Start TCP receive loop
 	c.wg.Add(1)
 	go c.tcpRecvLoop()
 
-	// Wait for ServerSync (with timeout)
 	select {
 	case <-c.syncDone:
-		// Connected!
 	case <-time.After(30 * time.Second):
 		c.Close()
 		return fmt.Errorf("%w: mumble: connection timed out waiting for ServerSync", ErrTimeout)
@@ -3356,7 +3187,6 @@ func (c *MumbleCore) connect(addr string, username, password string, tokens []st
 		return fmt.Errorf("mumble: connection cancelled")
 	}
 
-	// Setup UDP
 	udpAddr := net.JoinHostPort(host, port)
 	udpConn, err := net.Dial("udp", udpAddr)
 	if err == nil {
@@ -3366,18 +3196,12 @@ func (c *MumbleCore) connect(addr string, username, password string, tokens []st
 		c.wg.Add(1)
 		go c.udpRecvLoop()
 	}
-	// If UDP fails, we'll use TCP tunnel — no error
 
-	// Start ping loop
 	c.wg.Add(1)
 	go c.pingLoop()
 
-	// Send initial UDP ping to check connectivity
 	c.sendUDPPing()
 
-	// One stateless raw ping on the same socket: its reply (if any)
-	// flips udpPathSeen — the honest "path works, crypto unconfirmed"
-	// signal that separates NAT/egress divergence from a dead path.
 	c.sendRawUDPPathProbe()
 
 	c.mu.Lock()
@@ -3403,11 +3227,8 @@ func (c *MumbleCore) tcpRecvLoop() {
 			case <-c.ctx.Done():
 				return
 			default:
-				// Connection lost — notify listeners
 				c.fireUpdate(Update{Type: UpdateCallState, Platform: mumblePlatform, ChatID: "disconnected"})
 
-				// Attempt auto-reconnect if enabled (in separate goroutine
-				// because Reconnect calls Close which waits on wg)
 				c.mu.RLock()
 				shouldReconnect := c.autoReconnect
 				c.mu.RUnlock()
@@ -3423,10 +3244,6 @@ func (c *MumbleCore) tcpRecvLoop() {
 	}
 }
 
-// attemptAutoReconnect tries to reconnect with exponential backoff.
-// Backoff: 3s, 6s, 12s, 24s, 48s, 60s (capped), up to 10 retries.
-// Must be called in its own goroutine (not from tcpRecvLoop) because
-// Reconnect -> Close -> wg.Wait would deadlock otherwise.
 func (c *MumbleCore) attemptAutoReconnect() {
 	const maxRetries = 10
 	attempt := 0
@@ -3449,7 +3266,6 @@ func (c *MumbleCore) attemptAutoReconnect() {
 		return
 	}
 
-	// All retries exhausted
 	c.fireUpdate(Update{
 		Type:     UpdateCallState,
 		Platform: mumblePlatform,
@@ -3478,7 +3294,6 @@ func (c *MumbleCore) handleTCPMessage(msgType uint16, payload []byte) {
 		}
 
 	case mumbleMsgUDPTunnel:
-		// Voice packet tunneled over TCP
 		c.voiceTunnelRecv.Add(1)
 		c.handleUDPPacket(payload)
 
@@ -3486,7 +3301,6 @@ func (c *MumbleCore) handleTCPMessage(msgType uint16, payload []byte) {
 		var msg mumblePingMsg
 		if err := msg.unmarshal(payload); err == nil {
 			c.mu.Lock()
-			// Update server-side ping stats if present
 			if msg.TCPPingAvg > 0 {
 				c.tcpPingAvg = msg.TCPPingAvg
 			}
@@ -3569,20 +3383,11 @@ func (c *MumbleCore) handleTCPMessage(msgType uint16, payload []byte) {
 					c.mu.Unlock()
 				}
 			} else if len(msg.ServerNonce) == 16 {
-				// Nonce resync — update server nonce
 				c.crypt.mu.Lock()
 				copy(c.crypt.decryptIV[:], msg.ServerNonce)
 				c.crypt.resync++
 				c.crypt.mu.Unlock()
 			} else {
-				// Empty CryptSetup (or client_nonce-only, which the server
-				// does not send) = the server lost our UDP crypto state
-				// (heavy loss moved our encrypt IV out of its ±30 window)
-				// and requests a resync. Replying with our current encrypt
-				// IV lets it resync decryption of our stream — without
-				// this the server would silently drop our voice forever
-				// (Mumble.proto: "Either side may request a resync by
-				// sending the message without any values filled.").
 				c.crypt.mu.Lock()
 				reply := &mumbleCryptSetupMsg{ClientNonce: append([]byte(nil), c.crypt.encryptIV[:]...)}
 				c.crypt.resync++
@@ -3683,7 +3488,7 @@ func (c *MumbleCore) handleTCPMessage(msgType uint16, payload []byte) {
 	case mumbleMsgPluginDataTransmission:
 		var msg mumblePluginDataMsg
 		if err := msg.unmarshal(payload); err == nil {
-			_ = msg // Could expose via callback
+			_ = msg
 		}
 
 	case mumbleMsgBanList:
@@ -3764,7 +3569,6 @@ func (c *MumbleCore) handleUserState(msg *mumbleUserStateMsg) {
 	if msg.HasChannelID {
 		oldChannel := u.ChannelID
 		u.ChannelID = msg.ChannelID
-		// Track our own channel
 		if msg.Session == c.mySession {
 			c.myChannelID = msg.ChannelID
 		}
@@ -3813,7 +3617,6 @@ func (c *MumbleCore) handleUserState(msg *mumbleUserStateMsg) {
 		u.Recording = msg.Recording
 	}
 
-	// Fire user status update
 	if exists {
 		isOnline := true
 		c.fireUpdateLocked(Update{
@@ -3879,7 +3682,6 @@ func (c *MumbleCore) handleTextMessage(msg *mumbleTextMsg) {
 	}
 	c.mu.Unlock()
 
-	// Determine chat ID
 	chatID := strconv.FormatUint(uint64(channelID), 10)
 	if isPrivate {
 		chatID = "user:" + strconv.FormatUint(uint64(msg.Actor), 10)
@@ -3945,10 +3747,6 @@ func (c *MumbleCore) fireUpdateLocked(u Update) {
 	}()
 }
 
-// ════════════════════════════════════════════════════════════════════════════════
-// Ping
-// ════════════════════════════════════════════════════════════════════════════════
-
 func (c *MumbleCore) pingLoop() {
 	defer c.wg.Done()
 	ticker := time.NewTicker(mumblePingInterval)
@@ -3985,32 +3783,18 @@ func (c *MumbleCore) sendUDPPing() {
 	cryptReady := c.cryptReady
 	c.mu.RUnlock()
 	if conn == nil || !cryptReady {
-		// No UDP socket / no crypto yet — the TCP Ping keepalive covers
-		// liveness until the next attempt.
 		return
 	}
 
 	ts := uint64(time.Now().UnixMilli())
 	e := getPBEncoder()
 	e.writeUint64(1, ts)
-	// NOTE: request_extended_information (field 2) must stay FALSE for
-	// the authenticated UDP ping — murmur answers authenticated pings
-	// only when they are pure connectivity probes (Server.cpp: the
-	// Ping case is gated on !requestAdditionalInformation). Setting it
-	// makes the server decrypt our packet and then silently drop it,
-	// so udpReady never flips and ALL voice tunnels over TCP. The
-	// extended-info ping is a different (unauthenticated) message.
 	pb := e.bytes()
 	data := make([]byte, 1+len(pb))
 	data[0] = 1
 	copy(data[1:], pb)
 	putPBEncoder(e)
 
-	// The connectivity probe MUST ride the real UDP socket: this is how
-	// the server learns our UDP address:port. Routing it through
-	// udpSend's TCP-tunnel fallback (the old behavior) deadlocks the
-	// bootstrap — udpReady could never flip, so every voice packet
-	// tunneled over TCP forever.
 	encrypted := make([]byte, mumbleCryptoOverhead+len(data))
 	c.crypt.encrypt(encrypted, data)
 	if mumbleDebug {
@@ -4019,10 +3803,6 @@ func (c *MumbleCore) sendUDPPing() {
 			preview = preview[:16]
 		}
 		mumbleLogf("UDP TX ping: len=%d head=%x plain=%x", len(encrypted), preview, data)
-		// Self-check: simulate murmur decrypting this exact packet.
-		// Murmur's decrypt IV for our stream is the client_nonce it
-		// generated — our INITIAL encrypt IV (before any increment), so
-		// the first packet (+1) lands exactly in its in-order window.
 		c.crypt.mu.Lock()
 		simKey := c.crypt.key
 		simCliNonce := c.crypt.initEncrypt
@@ -4042,21 +3822,10 @@ func (c *MumbleCore) sendUDPPing() {
 		c.udpPktsSent.Add(1)
 	}
 	if mumbleDebug && os.Getenv("UNICLIENT_MUMBLE_UDP_PROBE") != "" {
-		// Diagnostic: a raw unauthenticated ping on the same socket —
-		// if the server answers this but not the encrypted one, the
-		// socket path is fine and the drop is crypto-side.
 		c.sendRawUDPPathProbe()
 	}
 }
 
-// sendRawUDPPathProbe sends one stateless extended-info ping (the same
-// 12-byte datagram MumbleServerPing uses) on the CORE UDP socket. Any
-// reply flips udpPathSeen: the socket path works even when the OCB2
-// bootstrap cannot complete (NAT pools egressing TCP and UDP from
-// different source IPs — murmur's unknown-peer match then cannot
-// associate the two). Zero protocol impact: murmur handles raw pings
-// statelessly (allowping) and ignores them otherwise; the official
-// client sends the identical datagram from its server-info dialog.
 func (c *MumbleCore) sendRawUDPPathProbe() {
 	c.mu.RLock()
 	conn := c.udpConn
@@ -4064,39 +3833,30 @@ func (c *MumbleCore) sendRawUDPPathProbe() {
 	if conn == nil {
 		return
 	}
-	req := make([]byte, 12) // 4 zero bytes + 8 random ident
+	req := make([]byte, 12)
 	rand.Read(req[4:])
 	if _, err := conn.Write(req); err == nil && mumbleDebug {
 		mumbleLogf("UDP TX raw path-probe ping sent on core socket")
 	}
 }
 
-// ════════════════════════════════════════════════════════════════════════════════
-// Voice Send
-// ════════════════════════════════════════════════════════════════════════════════
-
-// serverSupportsProtobufUDP returns true if server version >= 1.5.0 (protobuf UDP format).
 func (c *MumbleCore) serverSupportsProtobufUDP() bool {
 	c.mu.RLock()
 	v := c.serverVersion
 	c.mu.RUnlock()
-	// Check v2 format first (field 5)
 	if v.VersionV2 > 0 {
 		major := (v.VersionV2 >> 48) & 0xFFFF
 		minor := (v.VersionV2 >> 32) & 0xFFFF
 		return major > 1 || (major == 1 && minor >= 5)
 	}
-	// Fall back to v1 format (field 1): major.minor.patch packed as (major<<16)|(minor<<8)|patch
 	if v.VersionV1 > 0 {
 		major := (v.VersionV1 >> 16) & 0xFF
 		minor := (v.VersionV1 >> 8) & 0xFF
 		return major > 1 || (major == 1 && minor >= 5)
 	}
-	// Unknown — assume legacy for safety
 	return false
 }
 
-// buildVoiceAuto builds a voice packet in the format the server expects.
 func (c *MumbleCore) buildVoiceAuto(opusData []byte, target int, seq int64, terminator bool) []byte {
 	if c.serverSupportsProtobufUDP() {
 		return c.buildVoicePacket(opusData, target, seq, terminator)
@@ -4104,14 +3864,11 @@ func (c *MumbleCore) buildVoiceAuto(opusData []byte, target int, seq int64, term
 	return c.buildLegacyVoicePacket(opusData, target, seq, terminator)
 }
 
-// SendVoice sends an Opus audio frame. target: 0=normal, 1-30=whisper, 31=loopback.
-// Auto-detects server version and uses protobuf (1.5+) or legacy format.
 func (c *MumbleCore) SendVoice(opusData []byte, target int) error {
 	seq := c.voiceSeqNum.Add(1) - 1
 	return c.udpSend(c.buildVoiceAuto(opusData, target, seq, false))
 }
 
-// SendVoiceTCP sends voice via TCP tunnel (UDPTunnel message), bypassing UDP crypto.
 func (c *MumbleCore) SendVoiceTCP(opusData []byte, target int) error {
 	seq := c.voiceSeqNum.Add(1) - 1
 	return c.tcpSend(mumbleMsgUDPTunnel, c.buildVoiceAuto(opusData, target, seq, false))
@@ -4149,21 +3906,17 @@ func (c *MumbleCore) buildLegacyVoicePacket(opusData []byte, target int, seq int
 	return out
 }
 
-// SendVoiceTerminator sends an end-of-transmission marker.
 func (c *MumbleCore) SendVoiceTerminator() error {
 	seq := c.voiceSeqNum.Add(1) - 1
 	return c.udpSend(c.buildVoiceAuto(nil, 0, seq, true))
 }
 
-// OnVoice registers a callback for incoming voice packets.
 func (c *MumbleCore) OnVoice(handler func(MumbleVoicePacket)) {
 	c.mu.Lock()
 	c.voiceHandler = handler
 	c.mu.Unlock()
 }
 
-// noteSpeaking records voice activity for a session (speaking shows for
-// 400 ms after the last audio packet — one 20 ms frame of slack).
 func (c *MumbleCore) noteSpeaking(session uint32, hasAudio bool) {
 	if !hasAudio {
 		return
@@ -4176,7 +3929,6 @@ func (c *MumbleCore) noteSpeaking(session uint32, hasAudio bool) {
 	c.speakingMu.Unlock()
 }
 
-// isSpeaking reports recent voice activity for a session.
 func (c *MumbleCore) isSpeaking(session uint32) bool {
 	c.speakingMu.Lock()
 	defer c.speakingMu.Unlock()
@@ -4184,14 +3936,10 @@ func (c *MumbleCore) isSpeaking(session uint32) bool {
 	return ok && time.Now().Before(until)
 }
 
-// SendVoiceFrame implements cores.VoiceCore: one 20 ms Opus packet to
-// the current channel (normal target).
 func (c *MumbleCore) SendVoiceFrame(opusData []byte) error {
 	return c.SendVoice(opusData, 0)
 }
 
-// OnVoiceFrame implements cores.VoiceCore: session-attributed Opus
-// packets. Terminators and empty audio are not forwarded.
 func (c *MumbleCore) OnVoiceFrame(handler func(sender string, opus []byte)) {
 	c.OnVoice(func(p MumbleVoicePacket) {
 		if p.IsTerminator || len(p.AudioData) == 0 {
@@ -4201,20 +3949,14 @@ func (c *MumbleCore) OnVoiceFrame(handler func(sender string, opus []byte)) {
 	})
 }
 
-// SetVoiceMuted implements cores.VoiceCore via the server-side
-// self-mute state.
 func (c *MumbleCore) SetVoiceMuted(muted bool) error {
 	return c.SelfMute(muted)
 }
 
-// LeaveGroupCall leaves the voice channel by moving to root.
 func (c *MumbleCore) LeaveGroupCall(callID string) error {
 	return c.EndCall(callID)
 }
 
-// GetGroupCall returns the channel's live voice session: every channel
-// is a standing voice room; participants are the users currently in
-// the channel with their mute/speaking state.
 func (c *MumbleCore) GetGroupCall(chatID string) (*CallSession, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -4259,27 +4001,14 @@ func (c *MumbleCore) GetGroupCall(chatID string) (*CallSession, error) {
 	}, nil
 }
 
-// ════════════════════════════════════════════════════════════════════════════════
-// Server Query (Unauthenticated UDP Ping)
-// ════════════════════════════════════════════════════════════════════════════════
-
-// ════════════════════════════════════════════════════════════════════════════════
-// Core Interface Implementation
-// ════════════════════════════════════════════════════════════════════════════════
-
-// Name returns the platform name for Mumble.
 func (c *MumbleCore) Name() string { return mumblePlatform }
 
-// Capabilities returns the list of supported features for Mumble.
 func (c *MumbleCore) Capabilities() []string {
 	return []string{CapText, CapChannels, CapVoice, CapGroupCalls, CapVoiceRooms, CapAdmin, CapBlocking, CapSearch}
 }
 
-// Authenticate connects to a Mumble server using the provided configuration.
 func (c *MumbleCore) Authenticate(cfg AuthConfig) error {
-	// Load or generate certificate
 	if err := c.loadSession(); err != nil {
-		// Generate new cert
 		cert, err := mumbleGenerateCert()
 		if err != nil {
 			return fmt.Errorf("mumble: failed to generate certificate: %w", err)
@@ -4303,7 +4032,7 @@ func (c *MumbleCore) Authenticate(cfg AuthConfig) error {
 
 	password := cfg.Extra["password"]
 	if password == "" {
-		password = cfg.Password2F // reuse 2FA field for server password
+		password = cfg.Password2F
 	}
 
 	var tokens []string
@@ -4317,12 +4046,10 @@ func (c *MumbleCore) Authenticate(cfg AuthConfig) error {
 		return err
 	}
 
-	// Save session
 	c.saveSession()
 	return nil
 }
 
-// Logout disconnects from the Mumble server.
 func (c *MumbleCore) Logout() error {
 	c.mu.RLock()
 	if !c.authed {
@@ -4333,7 +4060,6 @@ func (c *MumbleCore) Logout() error {
 	return c.Close()
 }
 
-// Close shuts down the connection and releases all resources.
 func (c *MumbleCore) Close() error {
 	c.mu.Lock()
 	if c.Session != nil {
@@ -4359,16 +4085,12 @@ func (c *MumbleCore) Close() error {
 	return nil
 }
 
-// OnUpdate registers a callback for server state change events.
 func (c *MumbleCore) OnUpdate(handler func(Update)) {
 	c.mu.Lock()
 	c.updateHandlers = append(c.updateHandlers, handler)
 	c.mu.Unlock()
 }
 
-// ── Dialogs ──
-
-// GetDialogs returns the list of channels as dialogs.
 func (c *MumbleCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -4378,7 +4100,6 @@ func (c *MumbleCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 	defer c.mu.RUnlock()
 
 	dialogs := []Dialog{}
-	// Sort channels by position then ID
 	type chSort struct {
 		pos int32
 		id  uint32
@@ -4397,7 +4118,6 @@ func (c *MumbleCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 
 	for _, s := range sorted {
 		ch := s.ch
-		// Count members in this channel
 		memberCount := 0
 		for _, u := range c.users {
 			if u.ChannelID == ch.ID {
@@ -4411,7 +4131,7 @@ func (c *MumbleCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 			Title:         ch.Name,
 			MemberCount:   memberCount,
 			Platform:      mumblePlatform,
-			HasActiveCall: memberCount > 0, // occupied channel = live voice room
+			HasActiveCall: memberCount > 0,
 		}
 		if ch.ParentID != ch.ID {
 			dlg.ParentID = strconv.FormatUint(uint64(ch.ParentID), 10)
@@ -4420,7 +4140,6 @@ func (c *MumbleCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 			dlg.Type = ChatTypeTopic
 		}
 
-		// Find last message for this channel
 		for i := len(c.messages) - 1; i >= 0; i-- {
 			if c.messages[i].ChannelID == ch.ID && !c.messages[i].IsPrivate {
 				dlg.LastMessage = &Message{
@@ -4440,7 +4159,6 @@ func (c *MumbleCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 		dialogs = append(dialogs, dlg)
 	}
 
-	// Apply pagination
 	offset := 0
 	if opts.Offset != "" {
 		offset, _ = strconv.Atoi(opts.Offset)
@@ -4459,7 +4177,6 @@ func (c *MumbleCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 	return dialogs[offset:end], nil
 }
 
-// CreateGroup creates a new permanent channel under root.
 func (c *MumbleCore) CreateGroup(name string, members []string) (*Dialog, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -4470,7 +4187,6 @@ func (c *MumbleCore) CreateGroup(name string, members []string) (*Dialog, error)
 	return c.createChannel(name, 0, false)
 }
 
-// CreateChannel creates a new permanent channel with an optional description.
 func (c *MumbleCore) CreateChannel(name string, description string) (*Dialog, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -4488,7 +4204,6 @@ func (c *MumbleCore) CreateChannel(name string, description string) (*Dialog, er
 	return dlg, nil
 }
 
-// CreateTopic creates a temporary sub-channel under the given parent channel.
 func (c *MumbleCore) CreateTopic(chatID string, name string) (*Dialog, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -4501,7 +4216,6 @@ func (c *MumbleCore) CreateTopic(chatID string, name string) (*Dialog, error) {
 }
 
 func (c *MumbleCore) createChannel(name string, parentID uint32, temporary bool) (*Dialog, error) {
-	// Snapshot current channel IDs before sending
 	c.mu.RLock()
 	before := make(map[uint32]bool, len(c.channels))
 	for id := range c.channels {
@@ -4519,14 +4233,12 @@ func (c *MumbleCore) createChannel(name string, parentID uint32, temporary bool)
 		return nil, err
 	}
 
-	// Wait for server to send back ChannelState with the new channel ID
 	deadline := time.After(5 * time.Second)
 	ticker := time.NewTicker(50 * time.Millisecond)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-deadline:
-			// Timeout — return without ID (best effort)
 			return &Dialog{
 				Type:     ChatTypeGroup,
 				Title:    name,
@@ -4550,19 +4262,14 @@ func (c *MumbleCore) createChannel(name string, parentID uint32, temporary bool)
 	}
 }
 
-// GetFolders returns an error because Mumble does not support folders.
 func (c *MumbleCore) GetFolders() ([]Folder, error) {
 	return nil, fmt.Errorf("%w: mumble does not support folders", ErrNotSupported)
 }
 
-// CreateFolder returns an error because Mumble does not support folders.
 func (c *MumbleCore) CreateFolder(name string, chatIDs []string) (*Folder, error) {
 	return nil, fmt.Errorf("%w: mumble does not support folders", ErrNotSupported)
 }
 
-// ── Messages ──
-
-// SendMessage sends a text message to a channel or user.
 func (c *MumbleCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -4573,7 +4280,6 @@ func (c *MumbleCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, 
 	textMsg := &mumbleTextMsg{Message: msg.Text}
 
 	if strings.HasPrefix(chatID, "user:") {
-		// Private message
 		sessionStr := strings.TrimPrefix(chatID, "user:")
 		session, err := strconv.ParseUint(sessionStr, 10, 32)
 		if err != nil {
@@ -4621,7 +4327,6 @@ func (c *MumbleCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, 
 	}, nil
 }
 
-// GetMessages returns cached messages for a channel or private conversation.
 func (c *MumbleCore) GetMessages(chatID string, opts PaginationOpts) ([]Message, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -4663,7 +4368,6 @@ func (c *MumbleCore) GetMessages(chatID string, opts PaginationOpts) ([]Message,
 		}
 	}
 
-	// Apply pagination
 	limit := opts.Limit
 	if limit <= 0 {
 		limit = 50
@@ -4674,45 +4378,34 @@ func (c *MumbleCore) GetMessages(chatID string, opts PaginationOpts) ([]Message,
 	return msgs, nil
 }
 
-// EditMessage returns an error because Mumble does not support message editing.
 func (c *MumbleCore) EditMessage(chatID, msgID, text string) (*Message, error) {
 	return nil, fmt.Errorf("%w: mumble does not support message editing", ErrNotSupported)
 }
 
-// DeleteMessage returns an error because Mumble does not support message deletion.
 func (c *MumbleCore) DeleteMessage(chatID, msgID string) error {
 	return fmt.Errorf("%w: mumble does not support message deletion", ErrNotSupported)
 }
 
-// ReplyToMessage sends a message since Mumble has no native reply concept.
 func (c *MumbleCore) ReplyToMessage(chatID, replyToMsgID string, msg OutgoingMessage) (*Message, error) {
-	// Auth check is in SendMessage
-	return c.SendMessage(chatID, msg) // Mumble has no reply concept
+	return c.SendMessage(chatID, msg)
 }
 
-// ForwardMessage returns an error because Mumble does not support message forwarding.
 func (c *MumbleCore) ForwardMessage(fromChatID, msgID, toChatID string) (*Message, error) {
 	return nil, fmt.Errorf("%w: mumble does not support message forwarding", ErrNotSupported)
 }
 
-// ReactToMessage returns an error because Mumble does not support reactions.
 func (c *MumbleCore) ReactToMessage(chatID, msgID, emoji string) error {
 	return fmt.Errorf("%w: mumble does not support reactions", ErrNotSupported)
 }
 
-// PinMessage returns an error because Mumble does not support message pinning.
 func (c *MumbleCore) PinMessage(chatID, msgID string) error {
 	return fmt.Errorf("%w: mumble does not support message pinning", ErrNotSupported)
 }
 
-// UnpinMessage returns an error because Mumble does not support message pinning.
 func (c *MumbleCore) UnpinMessage(chatID, msgID string) error {
 	return fmt.Errorf("%w: mumble does not support message pinning", ErrNotSupported)
 }
 
-// ── Read State ──
-
-// MarkAsRead is a no-op since Mumble has no read receipts.
 func (c *MumbleCore) MarkAsRead(chatID, upToMsgID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -4723,7 +4416,6 @@ func (c *MumbleCore) MarkAsRead(chatID, upToMsgID string) error {
 	return nil
 }
 
-// GetReadState returns an empty read state since Mumble has no read receipts.
 func (c *MumbleCore) GetReadState(chatID string) (*ReadState, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -4734,19 +4426,14 @@ func (c *MumbleCore) GetReadState(chatID string) (*ReadState, error) {
 	return &ReadState{}, nil
 }
 
-// ── Files ──
-
-// UploadFile returns an error because Mumble does not support file uploads.
 func (c *MumbleCore) UploadFile(chatID string, file FileUpload, progress func(sent, total int64)) (*Message, error) {
 	return nil, fmt.Errorf("%w: mumble does not support file uploads", ErrNotSupported)
 }
 
-// DownloadFile returns an error because Mumble does not support file downloads.
 func (c *MumbleCore) DownloadFile(fileRef FileRef, dest string, progress func(recv, total int64)) error {
 	return fmt.Errorf("%w: mumble does not support file downloads", ErrNotSupported)
 }
 
-// SendImageBase64 sends a base64-encoded image as an inline HTML message.
 func (c *MumbleCore) SendImageBase64(chatID, b64, caption string) (*Message, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -4767,9 +4454,6 @@ func (c *MumbleCore) SendImageBase64(chatID, b64, caption string) (*Message, err
 	return c.SendMessage(chatID, OutgoingMessage{Text: html})
 }
 
-// ── Calls ──
-
-// StartCall joins a voice channel, which is the Mumble equivalent of starting a call.
 func (c *MumbleCore) StartCall(chatID string, video bool) (*CallSession, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -4777,7 +4461,6 @@ func (c *MumbleCore) StartCall(chatID string, video bool) (*CallSession, error) 
 		return nil, ErrAuth
 	}
 	c.mu.RUnlock()
-	// In Mumble, "calling" = moving to a voice channel
 	channelID, err := strconv.ParseUint(chatID, 10, 32)
 	if err != nil {
 		return nil, ErrInvalidInput
@@ -4794,12 +4477,10 @@ func (c *MumbleCore) StartCall(chatID string, video bool) (*CallSession, error) 
 	}, nil
 }
 
-// JoinGroupCall joins a voice channel by moving to it.
 func (c *MumbleCore) JoinGroupCall(chatID string) (*CallSession, error) {
 	return c.StartCall(chatID, false)
 }
 
-// EndCall leaves the current voice channel by moving to root.
 func (c *MumbleCore) EndCall(callID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -4807,11 +4488,9 @@ func (c *MumbleCore) EndCall(callID string) error {
 		return ErrAuth
 	}
 	c.mu.RUnlock()
-	// Move to root channel
 	return c.MoveToChannel(0)
 }
 
-// SetCallMuted toggles self-mute for the current voice session.
 func (c *MumbleCore) SetCallMuted(callID string, muted bool) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -4822,14 +4501,10 @@ func (c *MumbleCore) SetCallMuted(callID string, muted bool) error {
 	return c.SelfMute(muted)
 }
 
-// ToggleCamera toggles the camera on/off for an active call.
 func (c *MumbleCore) ToggleCamera(_ string, _ bool) error {
 	return fmt.Errorf("%w: mumble does not support camera toggle", ErrNotSupported)
 }
 
-// ── Profile ──
-
-// GetProfile returns user information for the given session ID.
 func (c *MumbleCore) GetProfile(userID string) (*User, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -4837,7 +4512,6 @@ func (c *MumbleCore) GetProfile(userID string) (*User, error) {
 		return nil, ErrAuth
 	}
 
-	// Empty string = self.
 	var session uint64
 	if userID == "" {
 		session = uint64(c.mySession)
@@ -4867,9 +4541,6 @@ func (c *MumbleCore) GetProfile(userID string) (*User, error) {
 	return user, nil
 }
 
-// ── Chat Management ──
-
-// GetChatInfo returns channel details including member count.
 func (c *MumbleCore) GetChatInfo(chatID string) (*Dialog, error) {
 	channelID, err := strconv.ParseUint(chatID, 10, 32)
 	if err != nil {
@@ -4904,7 +4575,6 @@ func (c *MumbleCore) GetChatInfo(chatID string) (*Dialog, error) {
 	}, nil
 }
 
-// EditChatTitle renames a channel.
 func (c *MumbleCore) EditChatTitle(chatID, title string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -4924,7 +4594,6 @@ func (c *MumbleCore) EditChatTitle(chatID, title string) error {
 	return c.tcpSend(mumbleMsgChannelState, msg.marshal())
 }
 
-// EditChatDescription updates the description of a channel.
 func (c *MumbleCore) EditChatDescription(chatID, description string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -4944,7 +4613,6 @@ func (c *MumbleCore) EditChatDescription(chatID, description string) error {
 	return c.tcpSend(mumbleMsgChannelState, msg.marshal())
 }
 
-// LeaveChat moves the user to the root channel.
 func (c *MumbleCore) LeaveChat(chatID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -4952,17 +4620,13 @@ func (c *MumbleCore) LeaveChat(chatID string) error {
 		return ErrAuth
 	}
 	c.mu.RUnlock()
-	return c.MoveToChannel(0) // Move to root
+	return c.MoveToChannel(0)
 }
 
-// GetInviteLink returns an error because Mumble does not support invite links.
 func (c *MumbleCore) GetInviteLink(chatID string) (string, error) {
 	return "", fmt.Errorf("%w: mumble does not support invite links", ErrNotSupported)
 }
 
-// ── Members ──
-
-// AddMembers moves users into the specified channel.
 func (c *MumbleCore) AddMembers(chatID string, userIDs []string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -4986,7 +4650,6 @@ func (c *MumbleCore) AddMembers(chatID string, userIDs []string) error {
 	return nil
 }
 
-// RemoveMember kicks a user from the server.
 func (c *MumbleCore) RemoveMember(chatID, userID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -5002,7 +4665,6 @@ func (c *MumbleCore) RemoveMember(chatID, userID string) error {
 	return c.tcpSend(mumbleMsgUserRemove, msg.marshal())
 }
 
-// BanMember bans a user by certificate and IP.
 func (c *MumbleCore) BanMember(chatID, userID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -5023,7 +4685,6 @@ func (c *MumbleCore) BanMember(chatID, userID string) error {
 	return c.tcpSend(mumbleMsgUserRemove, msg.marshal())
 }
 
-// UnbanMember removes all ban entries matching the user's certificate hash.
 func (c *MumbleCore) UnbanMember(chatID, userID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -5031,13 +4692,10 @@ func (c *MumbleCore) UnbanMember(chatID, userID string) error {
 		return ErrAuth
 	}
 	c.mu.RUnlock()
-	// Need to manipulate ban list
-	// First query ban list
 	query := &mumbleBanListMsg{Query: true}
 	if err := c.tcpSend(mumbleMsgBanList, query.marshal()); err != nil {
 		return err
 	}
-	// Wait briefly for response
 	time.Sleep(500 * time.Millisecond)
 
 	c.mu.RLock()
@@ -5045,7 +4703,6 @@ func (c *MumbleCore) UnbanMember(chatID, userID string) error {
 	copy(bans, c.banList)
 	c.mu.RUnlock()
 
-	// Filter out the user's bans (by hash)
 	c.mu.RLock()
 	targetHash := ""
 	for _, u := range c.users {
@@ -5071,7 +4728,6 @@ func (c *MumbleCore) UnbanMember(chatID, userID string) error {
 	return c.tcpSend(mumbleMsgBanList, set.marshal())
 }
 
-// GetMembers returns the users currently in a channel.
 func (c *MumbleCore) GetMembers(chatID string, opts PaginationOpts) ([]User, error) {
 	channelID, err := strconv.ParseUint(chatID, 10, 32)
 	if err != nil {
@@ -5101,14 +4757,10 @@ func (c *MumbleCore) GetMembers(chatID string, opts PaginationOpts) ([]User, err
 	return users, nil
 }
 
-// SetAdmin returns an error because Mumble uses ACLs instead of admin roles.
 func (c *MumbleCore) SetAdmin(chatID, userID string, admin bool) error {
 	return fmt.Errorf("%w: mumble uses ACL system instead of admin roles", ErrNotSupported)
 }
 
-// ── Contacts ──
-
-// GetContacts returns all users currently connected to the server.
 func (c *MumbleCore) GetContacts() ([]User, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -5130,17 +4782,14 @@ func (c *MumbleCore) GetContacts() ([]User, error) {
 	return users, nil
 }
 
-// AddContact returns an error because Mumble does not support contacts.
 func (c *MumbleCore) AddContact(phone, firstName, lastName string) error {
 	return fmt.Errorf("%w: mumble does not support contacts", ErrNotSupported)
 }
 
-// DeleteContact returns an error because Mumble does not support contacts.
 func (c *MumbleCore) DeleteContact(userID string) error {
 	return fmt.Errorf("%w: mumble does not support contacts", ErrNotSupported)
 }
 
-// BlockUser locally mutes a user so their voice packets are ignored.
 func (c *MumbleCore) BlockUser(userID string) error {
 	session, err := strconv.ParseUint(userID, 10, 32)
 	if err != nil {
@@ -5156,7 +4805,6 @@ func (c *MumbleCore) BlockUser(userID string) error {
 	return nil
 }
 
-// UnblockUser removes the local mute for a user.
 func (c *MumbleCore) UnblockUser(userID string) error {
 	session, err := strconv.ParseUint(userID, 10, 32)
 	if err != nil {
@@ -5172,7 +4820,6 @@ func (c *MumbleCore) UnblockUser(userID string) error {
 	return nil
 }
 
-// GetBlockedUsers returns the list of locally muted users.
 func (c *MumbleCore) GetBlockedUsers() ([]User, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -5196,9 +4843,6 @@ func (c *MumbleCore) GetBlockedUsers() ([]User, error) {
 	return users, nil
 }
 
-// ── Search ──
-
-// SearchMessages searches cached messages for text matching the query.
 func (c *MumbleCore) SearchMessages(chatID, query string, opts PaginationOpts) ([]Message, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -5226,7 +4870,6 @@ func (c *MumbleCore) SearchMessages(chatID, query string, opts PaginationOpts) (
 	return msgs, nil
 }
 
-// SearchGlobal searches channel names matching the query.
 func (c *MumbleCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -5250,9 +4893,6 @@ func (c *MumbleCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog, 
 	return results, nil
 }
 
-// ── Typing / Polls / Stickers ──
-
-// SendTyping is a no-op since Mumble does not support typing indicators.
 func (c *MumbleCore) SendTyping(chatID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -5260,27 +4900,21 @@ func (c *MumbleCore) SendTyping(chatID string) error {
 		return ErrAuth
 	}
 	c.mu.RUnlock()
-	return nil // no-op
+	return nil
 }
 
-// CreatePoll returns an error because Mumble does not support polls.
 func (c *MumbleCore) CreatePoll(chatID, question string, options []string) (*Message, error) {
 	return nil, fmt.Errorf("%w: mumble does not support polls", ErrNotSupported)
 }
 
-// VotePoll returns an error because Mumble does not support polls.
 func (c *MumbleCore) VotePoll(chatID, msgID string, optionIndex int) error {
 	return fmt.Errorf("%w: mumble does not support polls", ErrNotSupported)
 }
 
-// SendSticker returns an error because Mumble does not support stickers.
 func (c *MumbleCore) SendSticker(chatID, stickerID string) (*Message, error) {
 	return nil, fmt.Errorf("%w: mumble does not support stickers", ErrNotSupported)
 }
 
-// ── Sessions ──
-
-// GetSessions returns all connected user sessions on the server.
 func (c *MumbleCore) GetSessions() ([]Session, error) {
 	c.mu.RLock()
 	if !c.authed {
@@ -5301,7 +4935,6 @@ func (c *MumbleCore) GetSessions() ([]Session, error) {
 	return sessions, nil
 }
 
-// TerminateSession kicks a user from the server by session ID.
 func (c *MumbleCore) TerminateSession(sessionID string) error {
 	c.mu.RLock()
 	if !c.authed {
@@ -5320,10 +4953,6 @@ func (c *MumbleCore) TerminateSession(sessionID string) error {
 	return c.tcpSend(mumbleMsgUserRemove, msg.marshal())
 }
 
-// ════════════════════════════════════════════════════════════════════════════════
-// Mumble-Specific Methods (beyond Core interface)
-// ════════════════════════════════════════════════════════════════════════════════
-
 func (c *MumbleCore) getUserNameLocked(session uint32) string {
 	if u, ok := c.users[session]; ok {
 		return u.Name
@@ -5331,7 +4960,6 @@ func (c *MumbleCore) getUserNameLocked(session uint32) string {
 	return ""
 }
 
-// MoveToChannel moves self to the specified channel.
 func (c *MumbleCore) MoveToChannel(channelID uint32) error {
 	c.mu.RLock()
 	session := c.mySession
@@ -5339,7 +4967,6 @@ func (c *MumbleCore) MoveToChannel(channelID uint32) error {
 	return c.MoveUser(session, channelID)
 }
 
-// MoveUser moves another user to a channel.
 func (c *MumbleCore) MoveUser(session, channelID uint32) error {
 	msg := &mumbleUserStateMsg{
 		Session:      session,
@@ -5350,7 +4977,6 @@ func (c *MumbleCore) MoveUser(session, channelID uint32) error {
 	return c.tcpSend(mumbleMsgUserState, msg.marshal())
 }
 
-// ServerMute admin-mutes a user.
 func (c *MumbleCore) ServerMute(session uint32, muted bool) error {
 	msg := &mumbleUserStateMsg{
 		Session:    session,
@@ -5361,7 +4987,6 @@ func (c *MumbleCore) ServerMute(session uint32, muted bool) error {
 	return c.tcpSend(mumbleMsgUserState, msg.marshal())
 }
 
-// ServerDeaf admin-deafens a user.
 func (c *MumbleCore) ServerDeaf(session uint32, deafed bool) error {
 	msg := &mumbleUserStateMsg{
 		Session:    session,
@@ -5372,7 +4997,6 @@ func (c *MumbleCore) ServerDeaf(session uint32, deafed bool) error {
 	return c.tcpSend(mumbleMsgUserState, msg.marshal())
 }
 
-// SelfMute toggles self-mute.
 func (c *MumbleCore) SelfMute(muted bool) error {
 	c.mu.RLock()
 	session := c.mySession
@@ -5387,7 +5011,6 @@ func (c *MumbleCore) SelfMute(muted bool) error {
 	return c.tcpSend(mumbleMsgUserState, msg.marshal())
 }
 
-// SelfDeaf toggles self-deafen.
 func (c *MumbleCore) SelfDeaf(deafed bool) error {
 	c.mu.RLock()
 	session := c.mySession
@@ -5402,7 +5025,6 @@ func (c *MumbleCore) SelfDeaf(deafed bool) error {
 	return c.tcpSend(mumbleMsgUserState, msg.marshal())
 }
 
-// Suppress prevents a user from talking (different from mute).
 func (c *MumbleCore) Suppress(session uint32, suppressed bool) error {
 	msg := &mumbleUserStateMsg{
 		Session:     session,
@@ -5413,7 +5035,6 @@ func (c *MumbleCore) Suppress(session uint32, suppressed bool) error {
 	return c.tcpSend(mumbleMsgUserState, msg.marshal())
 }
 
-// SetComment sets own comment (HTML allowed).
 func (c *MumbleCore) SetComment(comment string) error {
 	c.mu.RLock()
 	session := c.mySession
@@ -5427,7 +5048,6 @@ func (c *MumbleCore) SetComment(comment string) error {
 	return c.tcpSend(mumbleMsgUserState, msg.marshal())
 }
 
-// SetTexture sets own avatar/texture.
 func (c *MumbleCore) SetTexture(imageData []byte) error {
 	c.mu.RLock()
 	session := c.mySession
@@ -5441,7 +5061,6 @@ func (c *MumbleCore) SetTexture(imageData []byte) error {
 	return c.tcpSend(mumbleMsgUserState, msg.marshal())
 }
 
-// SetPrioritySpeaker sets priority speaker status for a user.
 func (c *MumbleCore) SetPrioritySpeaker(session uint32, enabled bool) error {
 	msg := &mumbleUserStateMsg{
 		Session:            session,
@@ -5452,7 +5071,6 @@ func (c *MumbleCore) SetPrioritySpeaker(session uint32, enabled bool) error {
 	return c.tcpSend(mumbleMsgUserState, msg.marshal())
 }
 
-// SetRecording announces recording state.
 func (c *MumbleCore) SetRecording(recording bool) error {
 	c.mu.RLock()
 	session := c.mySession
@@ -5467,7 +5085,6 @@ func (c *MumbleCore) SetRecording(recording bool) error {
 	return c.tcpSend(mumbleMsgUserState, msg.marshal())
 }
 
-// RegisterSelf registers own certificate with the server.
 func (c *MumbleCore) RegisterSelf() error {
 	c.mu.RLock()
 	session := c.mySession
@@ -5482,7 +5099,6 @@ func (c *MumbleCore) RegisterSelf() error {
 	return c.tcpSend(mumbleMsgUserState, msg.marshal())
 }
 
-// RegisterUser registers another user by session.
 func (c *MumbleCore) RegisterUser(session uint32) error {
 	msg := &mumbleUserStateMsg{
 		Session:    session,
@@ -5493,7 +5109,6 @@ func (c *MumbleCore) RegisterUser(session uint32) error {
 	return c.tcpSend(mumbleMsgUserState, msg.marshal())
 }
 
-// GetBanList queries the server's ban list.
 func (c *MumbleCore) GetBanList() ([]MumbleBanEntry, error) {
 	query := &mumbleBanListMsg{Query: true}
 	if err := c.tcpSend(mumbleMsgBanList, query.marshal()); err != nil {
@@ -5507,20 +5122,16 @@ func (c *MumbleCore) GetBanList() ([]MumbleBanEntry, error) {
 	return bans, nil
 }
 
-// SetBanList replaces the server's ban list.
 func (c *MumbleCore) SetBanList(bans []MumbleBanEntry) error {
 	msg := &mumbleBanListMsg{Bans: bans, Query: false}
 	return c.tcpSend(mumbleMsgBanList, msg.marshal())
 }
 
-// AddBan adds a ban entry.
 func (c *MumbleCore) AddBan(address []byte, mask uint32, name, hash, reason string, duration uint32) error {
-	// Query current, add, set
 	current, err := c.GetBanList()
 	if err != nil {
 		return err
 	}
-	// Normalize address to 16-byte IPv4-mapped IPv6 — Mumble expects this format
 	addr := net.IP(address).To16()
 	if addr == nil {
 		addr = address
@@ -5537,8 +5148,6 @@ func (c *MumbleCore) AddBan(address []byte, mask uint32, name, hash, reason stri
 	return c.SetBanList(current)
 }
 
-// SetAccessTokens updates the access tokens for this connection.
-// RequestBlob requests large blobs (textures, comments, descriptions).
 func (c *MumbleCore) RequestBlob(textures, comments, descriptions []uint32) error {
 	msg := &mumbleRequestBlobMsg{
 		SessionTexture:     textures,
@@ -5552,7 +5161,6 @@ func (c *MumbleCore) SetAccessTokens(tokens []string) error {
 	return c.tcpSend(mumbleMsgAuthenticate, auth.marshal())
 }
 
-// LinkChannels adds links between channels.
 func (c *MumbleCore) LinkChannels(channelID uint32, linkIDs []uint32) error {
 	msg := &mumbleChannelStateMsg{
 		ChannelID:    channelID,
@@ -5562,7 +5170,6 @@ func (c *MumbleCore) LinkChannels(channelID uint32, linkIDs []uint32) error {
 	return c.tcpSend(mumbleMsgChannelState, msg.marshal())
 }
 
-// UnlinkChannels removes links between channels.
 func (c *MumbleCore) UnlinkChannels(channelID uint32, unlinkIDs []uint32) error {
 	msg := &mumbleChannelStateMsg{
 		ChannelID:    channelID,
@@ -5572,7 +5179,6 @@ func (c *MumbleCore) UnlinkChannels(channelID uint32, unlinkIDs []uint32) error 
 	return c.tcpSend(mumbleMsgChannelState, msg.marshal())
 }
 
-// AddChannelListener starts listening to channels without being in them.
 func (c *MumbleCore) AddChannelListener(channelIDs []uint32) error {
 	c.mu.RLock()
 	session := c.mySession
@@ -5586,7 +5192,6 @@ func (c *MumbleCore) AddChannelListener(channelIDs []uint32) error {
 	return c.tcpSend(mumbleMsgUserState, msg.marshal())
 }
 
-// RemoveChannelListener stops listening to channels.
 func (c *MumbleCore) RemoveChannelListener(channelIDs []uint32) error {
 	c.mu.RLock()
 	session := c.mySession
@@ -5600,7 +5205,6 @@ func (c *MumbleCore) RemoveChannelListener(channelIDs []uint32) error {
 	return c.tcpSend(mumbleMsgUserState, msg.marshal())
 }
 
-// SetListenerVolume adjusts volume for a listened channel.
 func (c *MumbleCore) SetListenerVolume(channelID uint32, volume float32) error {
 	c.mu.RLock()
 	session := c.mySession
@@ -5616,7 +5220,6 @@ func (c *MumbleCore) SetListenerVolume(channelID uint32, volume float32) error {
 	return c.tcpSend(mumbleMsgUserState, msg.marshal())
 }
 
-// SendPluginData sends plugin data to specific receivers.
 func (c *MumbleCore) SendPluginData(receivers []uint32, dataID string, data []byte) error {
 	msg := &mumblePluginDataMsg{
 		ReceiverSessions: receivers,
@@ -5626,7 +5229,6 @@ func (c *MumbleCore) SendPluginData(receivers []uint32, dataID string, data []by
 	return c.tcpSend(mumbleMsgPluginDataTransmission, msg.marshal())
 }
 
-// TriggerContextAction triggers a registered context action.
 func (c *MumbleCore) TriggerContextAction(action string, session, channelID uint32) error {
 	msg := &mumbleContextActionMsg{
 		Session:   session,
@@ -5636,7 +5238,6 @@ func (c *MumbleCore) TriggerContextAction(action string, session, channelID uint
 	return c.tcpSend(mumbleMsgContextAction, msg.marshal())
 }
 
-// SetVoiceTarget registers a whisper target.
 func (c *MumbleCore) SetVoiceTarget(id uint32, targets []MumbleVoiceTargetEntry) error {
 	msg := &mumbleVoiceTargetMsg{
 		ID:      id,
@@ -5645,14 +5246,12 @@ func (c *MumbleCore) SetVoiceTarget(id uint32, targets []MumbleVoiceTargetEntry)
 	return c.tcpSend(mumbleMsgVoiceTarget, msg.marshal())
 }
 
-// GetServerConfig returns the cached server config.
 func (c *MumbleCore) GetServerConfig() MumbleServerConfig {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.serverConfig
 }
 
-// CreateTemporaryChannel creates a temporary channel (auto-removed when empty).
 func (c *MumbleCore) CreateTemporaryChannel(name string, parent uint32) error {
 	msg := &mumbleChannelStateMsg{
 		Parent:    parent,
@@ -5663,13 +5262,11 @@ func (c *MumbleCore) CreateTemporaryChannel(name string, parent uint32) error {
 	return c.tcpSend(mumbleMsgChannelState, msg.marshal())
 }
 
-// DeleteChannel removes a channel.
 func (c *MumbleCore) DeleteChannel(channelID uint32) error {
 	msg := &mumbleChannelRemoveMsg{ChannelID: channelID}
 	return c.tcpSend(mumbleMsgChannelRemove, msg.marshal())
 }
 
-// SetChannelMaxUsers sets the max users for a channel.
 func (c *MumbleCore) SetChannelMaxUsers(channelID, maxUsers uint32) error {
 	msg := &mumbleChannelStateMsg{
 		ChannelID:    channelID,
@@ -5679,7 +5276,6 @@ func (c *MumbleCore) SetChannelMaxUsers(channelID, maxUsers uint32) error {
 	return c.tcpSend(mumbleMsgChannelState, msg.marshal())
 }
 
-// SetChannelPosition sets the sort position for a channel.
 func (c *MumbleCore) SetChannelPosition(channelID uint32, position int32) error {
 	msg := &mumbleChannelStateMsg{
 		ChannelID:    channelID,
@@ -5689,7 +5285,6 @@ func (c *MumbleCore) SetChannelPosition(channelID uint32, position int32) error 
 	return c.tcpSend(mumbleMsgChannelState, msg.marshal())
 }
 
-// MoveChannel moves a channel to a new parent.
 func (c *MumbleCore) MoveChannel(channelID, newParent uint32) error {
 	msg := &mumbleChannelStateMsg{
 		ChannelID:    channelID,
@@ -5700,7 +5295,6 @@ func (c *MumbleCore) MoveChannel(channelID, newParent uint32) error {
 	return c.tcpSend(mumbleMsgChannelState, msg.marshal())
 }
 
-// SendTreeMessage sends a text message to a channel tree (recursively).
 func (c *MumbleCore) SendTreeMessage(channelID uint32, message string) error {
 	msg := &mumbleTextMsg{
 		TreeID:  []uint32{channelID},
@@ -5709,15 +5303,11 @@ func (c *MumbleCore) SendTreeMessage(channelID uint32, message string) error {
 	return c.tcpSend(mumbleMsgTextMessage, msg.marshal())
 }
 
-// RequestNonceResync requests a nonce resynchronization.
 func (c *MumbleCore) RequestNonceResync() error {
-	msg := &mumbleCryptSetupMsg{} // empty = request resync
+	msg := &mumbleCryptSetupMsg{}
 	return c.tcpSend(mumbleMsgCryptSetup, msg.marshal())
 }
 
-// ── Exported wrappers for testing ──
-
-// MumbleCryptState is an exported wrapper for testing.
 type MumbleCryptState struct{ mumbleCryptState }
 
 func (s *MumbleCryptState) Init(key, clientNonce, serverNonce []byte) error {
@@ -5730,24 +5320,14 @@ func (s *MumbleCryptState) Decrypt(dst, src []byte) (int, error) {
 	return s.mumbleCryptState.decrypt(dst, src)
 }
 
-// OCB2Encrypt is an exported wrapper for testing.
 func OCB2Encrypt(ciph cipher.Block, dst, src, nonce, tag []byte) {
 	ocb2Encrypt(ciph, dst, src, nonce, tag)
 }
 
-// OCB2Decrypt is an exported wrapper for testing.
 func OCB2Decrypt(ciph cipher.Block, plain, encrypted, nonce, tag []byte) bool {
 	return ocb2Decrypt(ciph, plain, encrypted, nonce, tag)
 }
 
-// MumbleUDPStats reports the live UDP transport counters (packets
-// sent/received over real encrypted UDP), whether the socket path
-// itself is confirmed (any plaintext/raw reply seen — the path works
-// even when the crypto bootstrap cannot, e.g. NAT pools that egress
-// TCP and UDP from different source IPs), and whether the encrypted
-// UDP path is confirmed working. Voice falls back to the TCP tunnel
-// unless the last one is true; diagnostics and live tests use these
-// to tell which transport served the audio and WHY.
 func (c *MumbleCore) MumbleUDPStats() (sent, recv int64, pathSeen, udpReady bool) {
 	c.mu.RLock()
 	ready := c.udpReady
@@ -5756,29 +5336,24 @@ func (c *MumbleCore) MumbleUDPStats() (sent, recv int64, pathSeen, udpReady bool
 	return int64(c.udpPktsSent.Load()), int64(c.udpPktsRecv.Load()), path, ready
 }
 
-// DebugBuildVoicePacket returns the raw bytes of a voice packet for debugging.
 func (c *MumbleCore) DebugBuildVoicePacket(opusData []byte, target int, seq int64) []byte {
 	return c.buildVoicePacket(opusData, target, seq, false)
 }
 
-// DebugBuildLegacyVoicePacket returns legacy-format voice packet bytes.
 func (c *MumbleCore) DebugBuildLegacyVoicePacket(opusData []byte, target int, seq int64) []byte {
 	return c.buildLegacyVoicePacket(opusData, target, seq, false)
 }
 
-// DebugVoiceTunnelCount returns count of TCP UDPTunnel messages received.
 func (c *MumbleCore) DebugVoiceTunnelCount() uint32 {
 	return c.voiceTunnelRecv.Load()
 }
 
-// DebugCodecVersion returns the negotiated codec version.
 func (c *MumbleCore) DebugCodecVersion() (alpha, beta int32, preferAlpha, opus bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.codecVersion.Alpha, c.codecVersion.Beta, c.codecVersion.PreferAlpha, c.codecVersion.Opus
 }
 
-// DebugUserFlags returns mute/deaf/suppress flags for a user session.
 func (c *MumbleCore) DebugUserFlags(session uint32) string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -5790,7 +5365,6 @@ func (c *MumbleCore) DebugUserFlags(session uint32) string {
 		u.Name, u.ChannelID, u.Mute, u.Deaf, u.Suppress, u.SelfMute, u.SelfDeaf)
 }
 
-// DebugServerVersion returns server version info for debugging.
 func (c *MumbleCore) DebugServerVersion() (v1 uint32, v2 uint64, release string, protobuf bool) {
 	c.mu.RLock()
 	v := c.serverVersion
@@ -5798,14 +5372,12 @@ func (c *MumbleCore) DebugServerVersion() (v1 uint32, v2 uint64, release string,
 	return v.VersionV1, v.VersionV2, v.Release, c.serverSupportsProtobufUDP()
 }
 
-// DebugMySession returns this client's session ID.
 func (c *MumbleCore) DebugMySession() uint32 {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.mySession
 }
 
-// DebugState returns internal state for debugging tests.
 func (c *MumbleCore) DebugState() (cryptReady, udpReady bool, udpSent, udpRecv, tcpSent, tcpRecv uint32) {
 	c.mu.RLock()
 	cryptReady = c.cryptReady
@@ -5818,13 +5390,8 @@ func (c *MumbleCore) DebugState() (cryptReady, udpReady bool, udpSent, udpRecv, 
 	return
 }
 
-// ════════════════════════════════════════════════════════════════════════════════
-// Public Server List
-// ════════════════════════════════════════════════════════════════════════════════
-
 const mumblePublicListURL = "https://publist.mumble.info/v1/list"
 
-// MumblePublicServer represents a server from the Mumble public server list.
 type MumblePublicServer struct {
 	Name          string `json:"name" xml:"name,attr"`
 	IP            string `json:"ip" xml:"ip,attr"`
@@ -5841,8 +5408,6 @@ type mumbleServerList struct {
 	Servers []MumblePublicServer `xml:"server"`
 }
 
-// GetPublicServers fetches the Mumble public server list from publist.mumble.info.
-// Does not require an active connection.
 func (c *MumbleCore) GetPublicServers() ([]MumblePublicServer, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
@@ -5876,13 +5441,6 @@ func (c *MumbleCore) GetPublicServers() ([]MumblePublicServer, error) {
 	return list.Servers, nil
 }
 
-// ════════════════════════════════════════════════════════════════════════════════
-// Additional Protocol Methods
-// ════════════════════════════════════════════════════════════════════════════════
-
-// ── User State ──
-
-// SetPluginContext sets the plugin context for positional audio coordination.
 func (c *MumbleCore) SetPluginContext(ctx []byte) error {
 	c.mu.RLock()
 	session := c.mySession
@@ -5895,7 +5453,6 @@ func (c *MumbleCore) SetPluginContext(ctx []byte) error {
 	return c.tcpSend(mumbleMsgUserState, msg.marshal())
 }
 
-// SetPluginIdentity sets the plugin identity string for positional audio.
 func (c *MumbleCore) SetPluginIdentity(identity string) error {
 	c.mu.RLock()
 	session := c.mySession
@@ -5908,7 +5465,6 @@ func (c *MumbleCore) SetPluginIdentity(identity string) error {
 	return c.tcpSend(mumbleMsgUserState, msg.marshal())
 }
 
-// SetTemporaryAccessTokens sets temporary access tokens for the current session.
 func (c *MumbleCore) SetTemporaryAccessTokens(tokens []string) error {
 	c.mu.RLock()
 	session := c.mySession
@@ -5921,9 +5477,6 @@ func (c *MumbleCore) SetTemporaryAccessTokens(tokens []string) error {
 	return c.tcpSend(mumbleMsgUserState, msg.marshal())
 }
 
-// ── Voice ──
-
-// SendPositionalAudio sends an Opus audio frame with X,Y,Z positional coordinates.
 func (c *MumbleCore) SendPositionalAudio(opusData []byte, target int, x, y, z float32) error {
 	seq := c.voiceSeqNum.Add(1) - 1
 	var pkt []byte
@@ -5972,30 +5525,21 @@ func (c *MumbleCore) buildLegacyPositionalVoicePacket(opusData []byte, target in
 	return out
 }
 
-// ServerLoopback sends voice with target=31 for server echo test.
 func (c *MumbleCore) ServerLoopback(opusData []byte) error {
 	return c.SendVoice(opusData, 31)
 }
 
-// ── Context Actions ──
-
-// HandleContextActionModify registers a callback for context action add/remove notifications.
 func (c *MumbleCore) HandleContextActionModify(handler func(MumbleContextActionEvent)) {
 	c.mu.Lock()
 	c.contextActionHandler = handler
 	c.mu.Unlock()
 }
 
-// ── Ban Management ──
-
-// RemoveBan removes a single ban entry by matching address and mask.
 func (c *MumbleCore) RemoveBan(address []byte, mask uint32) error {
 	bans, err := c.GetBanList()
 	if err != nil {
 		return err
 	}
-	// Normalize the target address to net.IP for consistent comparison
-	// Mumble may store IPv4 as 4 bytes or as 16-byte IPv4-mapped IPv6
 	targetIP := net.IP(address)
 	filtered := bans[:0]
 	for _, b := range bans {
@@ -6011,9 +5555,6 @@ func (c *MumbleCore) RemoveBan(address []byte, mask uint32) error {
 	return c.SetBanList(filtered)
 }
 
-// ── Connection ──
-
-// SendVersion sends an explicit version announcement to the server.
 func (c *MumbleCore) SendVersion() error {
 	msg := &mumbleVersion{
 		VersionV1: mumbleVersionV1,
@@ -6025,50 +5566,35 @@ func (c *MumbleCore) SendVersion() error {
 	return c.tcpSend(mumbleMsgVersion, msg.marshal())
 }
 
-// HandleReject registers a callback for connection rejection events.
 func (c *MumbleCore) HandleReject(handler func(MumbleRejectEvent)) {
 	c.mu.Lock()
 	c.rejectHandler = handler
 	c.mu.Unlock()
 }
 
-// HandlePermissionDenied registers a callback for permission denied events.
 func (c *MumbleCore) HandlePermissionDenied(handler func(MumblePermissionDeniedEvent)) {
 	c.mu.Lock()
 	c.permDeniedHandler = handler
 	c.mu.Unlock()
 }
 
-// HandleSuggestConfig registers a callback for server configuration suggestions.
 func (c *MumbleCore) HandleSuggestConfig(handler func(MumbleSuggestConfigEvent)) {
 	c.mu.Lock()
 	c.suggestConfigHandler = handler
 	c.mu.Unlock()
 }
 
-// ── Codec ──
-
-// HandleCodecVersion registers a callback for codec version negotiation events.
 func (c *MumbleCore) HandleCodecVersion(handler func(MumbleCodecVersionEvent)) {
 	c.mu.Lock()
 	c.codecVersionHandler = handler
 	c.mu.Unlock()
 }
 
-// SetPreferredCodec sets the preferred codec (Opus vs CELT) for the next connection.
-// Must be called before Authenticate; mid-session codec changes are not supported.
 func (c *MumbleCore) SetPreferredCodec(opus bool) {
 	c.mu.Lock()
 	c.useOpus = opus
 	c.mu.Unlock()
 }
-
-// ── Admin Ice RPC — ZeroC Ice Wire Protocol Client ──
-//
-// Minimal pure-Go ZeroC Ice binary protocol implementation (v1.0, encoding 1.1).
-// Used for Murmur server administration via the Ice RPC interface.
-// Murmur servant identities: Meta → {name:"Meta", category:""},
-// Server N → {name:"N", category:"s"} (via ServerLocator).
 
 const (
 	iceHeaderLen    = 14
@@ -6173,7 +5699,7 @@ func iceDecEncap(r io.Reader) ([]byte, error) {
 	if size < 6 {
 		return nil, fmt.Errorf("ice: bad encapsulation size %d", size)
 	}
-	var ver [2]byte // encoding version (skip)
+	var ver [2]byte
 	if _, err := io.ReadFull(r, ver[:]); err != nil {
 		return nil, err
 	}
@@ -6241,29 +5767,28 @@ func iceEncProxy(buf *bytes.Buffer, name, category, host string, port int) {
 	})
 }
 
-// iceSkipUser skips a Murmur User struct (25 fields) in an Ice byte stream.
 func iceSkipUser(r io.Reader) {
-	iceDecInt(r)                                      // session
-	iceDecInt(r)                                      // userid
-	io.ReadFull(r, make([]byte, 7))                   // mute,deaf,suppress,prioritySpeaker,selfMute,selfDeaf,recording
-	iceDecInt(r)                                      // channel
-	iceDecStr(r)                                      // name
-	iceDecInt(r)                                      // onlinesecs
-	iceDecInt(r)                                      // bytespersec
-	iceDecInt(r)                                      // version (legacy)
-	io.ReadFull(r, make([]byte, 8))                   // version2 (long)
-	iceDecStr(r)                                      // release
-	iceDecStr(r)                                      // os
-	iceDecStr(r)                                      // osversion
-	iceDecStr(r)                                      // identity
-	iceDecStr(r)                                      // context
-	iceDecStr(r)                                      // comment
-	if n, err := iceDecSize(r); err == nil && n > 0 { // address (NetAddress = seq<byte>)
+	iceDecInt(r)
+	iceDecInt(r)
+	io.ReadFull(r, make([]byte, 7))
+	iceDecInt(r)
+	iceDecStr(r)
+	iceDecInt(r)
+	iceDecInt(r)
+	iceDecInt(r)
+	io.ReadFull(r, make([]byte, 8))
+	iceDecStr(r)
+	iceDecStr(r)
+	iceDecStr(r)
+	iceDecStr(r)
+	iceDecStr(r)
+	iceDecStr(r)
+	if n, err := iceDecSize(r); err == nil && n > 0 {
 		io.ReadFull(r, make([]byte, n))
 	}
-	io.ReadFull(r, make([]byte, 1)) // tcponly
-	iceDecInt(r)                    // idlesecs
-	io.ReadFull(r, make([]byte, 8)) // udpPing + tcpPing (2 floats)
+	io.ReadFull(r, make([]byte, 1))
+	iceDecInt(r)
+	io.ReadFull(r, make([]byte, 8))
 }
 
 func (ic *mumbleIceClient) call(identName, identCat, op string, mode byte, encParams func(*bytes.Buffer)) ([]byte, error) {
@@ -6279,7 +5804,7 @@ func (ic *mumbleIceClient) call(identName, identCat, op string, mode byte, encPa
 	body.Write(ridBuf[:])
 	iceEncStr(&body, identName)
 	iceEncStr(&body, identCat)
-	iceEncSize(&body, 0) // facet
+	iceEncSize(&body, 0)
 	iceEncStr(&body, op)
 	body.WriteByte(mode)
 	if ic.secret != "" {
@@ -6352,9 +5877,6 @@ func (ic *mumbleIceClient) callServer(op string, mode byte, enc func(*bytes.Buff
 	return ic.call(ic.serverID, "s", op, mode, enc)
 }
 
-// ConnectAdmin opens an Ice RPC connection to the Murmur admin interface.
-// addr is "host:port" (default Murmur Ice port: 6502), secret is icesecretwrite from murmur.ini,
-// serverID is the virtual server ID (usually 1).
 func (c *MumbleCore) ConnectAdmin(addr, secret string, serverID int) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -6365,7 +5887,6 @@ func (c *MumbleCore) ConnectAdmin(addr, secret string, serverID int) error {
 	if err != nil {
 		return fmt.Errorf("mumble: Ice connect %s: %w", addr, err)
 	}
-	// Protocol validation handshake
 	var vmsg bytes.Buffer
 	iceEncHeader(&vmsg, iceMsgValidate, 0)
 	conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
@@ -6389,7 +5910,6 @@ func (c *MumbleCore) ConnectAdmin(addr, secret string, serverID int) error {
 	return nil
 }
 
-// DisconnectAdmin closes the Ice RPC admin connection and callback adapter.
 func (c *MumbleCore) DisconnectAdmin() {
 	c.mu.Lock()
 	ice := c.ice
@@ -6410,7 +5930,6 @@ func (c *MumbleCore) DisconnectAdmin() {
 	ice.cbMu.Unlock()
 }
 
-// OnIceContextAction sets the handler for Ice context action trigger callbacks.
 func (c *MumbleCore) OnIceContextAction(handler func(action string, session uint32, channelID int32)) {
 	c.mu.Lock()
 	c.iceContextHandler = handler
@@ -6421,8 +5940,6 @@ func (c *MumbleCore) OnIceContextAction(handler func(action string, session uint
 	}
 	c.mu.Unlock()
 }
-
-// — Ice callback adapter (mini Ice server for receiving Murmur callbacks) —
 
 func (ic *mumbleIceClient) startCBAdapter() error {
 	localIP := "127.0.0.1"
@@ -6470,19 +5987,19 @@ func (ic *mumbleIceClient) handleCBReq(conn net.Conn, body []byte) {
 	}
 	rid := binary.LittleEndian.Uint32(body[:4])
 	r := bytes.NewReader(body[4:])
-	iceDecStr(r) // identity name
-	iceDecStr(r) // identity category
-	if n, _ := iceDecSize(r); n > 0 {
-		for i := 0; i < n; i++ {
-			iceDecStr(r) // facet entries
-		}
-	}
-	op, _ := iceDecStr(r)
-	r.ReadByte() // mode
+	iceDecStr(r)
+	iceDecStr(r)
 	if n, _ := iceDecSize(r); n > 0 {
 		for i := 0; i < n; i++ {
 			iceDecStr(r)
-			iceDecStr(r) // context entries
+		}
+	}
+	op, _ := iceDecStr(r)
+	r.ReadByte()
+	if n, _ := iceDecSize(r); n > 0 {
+		for i := 0; i < n; i++ {
+			iceDecStr(r)
+			iceDecStr(r)
 		}
 	}
 	params, _ := iceDecEncap(r)
@@ -6513,10 +6030,6 @@ func (ic *mumbleIceClient) handleCBReq(conn net.Conn, body []byte) {
 	conn.Write(msg.Bytes())
 }
 
-// — Admin Ice RPC method implementations —
-
-// GetServerLog retrieves server log entries via Murmur Ice RPC.
-// Returns up to 100 most recent log entries. Requires ConnectAdmin() first.
 func (c *MumbleCore) GetServerLog() ([]string, error) {
 	c.mu.RLock()
 	ice := c.ice
@@ -6525,8 +6038,8 @@ func (c *MumbleCore) GetServerLog() ([]string, error) {
 		return nil, fmt.Errorf("mumble: GetServerLog requires Ice admin (call ConnectAdmin)")
 	}
 	data, err := ice.callServer("getLog", iceOpIdempotent, func(buf *bytes.Buffer) {
-		iceEncInt(buf, 0)   // first (0 = most recent)
-		iceEncInt(buf, 100) // last
+		iceEncInt(buf, 0)
+		iceEncInt(buf, 100)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("mumble: GetServerLog: %w", err)
@@ -6552,7 +6065,6 @@ func (c *MumbleCore) GetServerLog() ([]string, error) {
 	return logs, nil
 }
 
-// GetServerUptime returns the virtual server uptime via Murmur Ice RPC.
 func (c *MumbleCore) GetServerUptime() (time.Duration, error) {
 	c.mu.RLock()
 	ice := c.ice
@@ -6570,7 +6082,6 @@ func (c *MumbleCore) GetServerUptime() (time.Duration, error) {
 	return time.Duration(int32(binary.LittleEndian.Uint32(data[:4]))) * time.Second, nil
 }
 
-// UpdateCertificate updates the server's TLS certificate via Murmur Ice RPC.
 func (c *MumbleCore) UpdateCertificate(certPEM, keyPEM string) error {
 	c.mu.RLock()
 	ice := c.ice
@@ -6581,7 +6092,7 @@ func (c *MumbleCore) UpdateCertificate(certPEM, keyPEM string) error {
 	_, err := ice.callServer("updateCertificate", iceOpIdempotent, func(buf *bytes.Buffer) {
 		iceEncStr(buf, certPEM)
 		iceEncStr(buf, keyPEM)
-		iceEncStr(buf, "") // passphrase
+		iceEncStr(buf, "")
 	})
 	if err != nil {
 		return fmt.Errorf("mumble: UpdateCertificate: %w", err)
@@ -6589,7 +6100,6 @@ func (c *MumbleCore) UpdateCertificate(certPEM, keyPEM string) error {
 	return nil
 }
 
-// SendWelcomeMessage sets the server's welcome text via Murmur Ice RPC (setConf).
 func (c *MumbleCore) SendWelcomeMessage(text string) error {
 	c.mu.RLock()
 	ice := c.ice
@@ -6607,7 +6117,6 @@ func (c *MumbleCore) SendWelcomeMessage(text string) error {
 	return nil
 }
 
-// RedirectWhisperGroup redirects whispers from source to target group for the current session.
 func (c *MumbleCore) RedirectWhisperGroup(source, target string) error {
 	c.mu.RLock()
 	ice := c.ice
@@ -6627,9 +6136,6 @@ func (c *MumbleCore) RedirectWhisperGroup(source, target string) error {
 	return nil
 }
 
-// AddContextCallback registers a context action for the current user session via Murmur Ice RPC.
-// ctx is a bitmask: ContextServer=1, ContextChannel=2, ContextUser=4.
-// Use OnIceContextAction to receive trigger notifications.
 func (c *MumbleCore) AddContextCallback(action, text string, ctx uint32) error {
 	c.mu.RLock()
 	ice := c.ice
@@ -6663,8 +6169,6 @@ func (c *MumbleCore) AddContextCallback(action, text string, ctx uint32) error {
 	return nil
 }
 
-// RemoveContextCallback removes all context actions registered via this client's callback adapter.
-// The action parameter is unused — Murmur's Ice API removes all callbacks for a given proxy.
 func (c *MumbleCore) RemoveContextCallback(action string) error {
 	c.mu.RLock()
 	ice := c.ice
@@ -6691,16 +6195,10 @@ func (c *MumbleCore) RemoveContextCallback(action string) error {
 	return nil
 }
 
-// ════════════════════════════════════════════════════════════════════════════════
-// Step 4 — New Methods (111 methods)
-// ════════════════════════════════════════════════════════════════════════════════
-
-// callMeta calls a Meta servant method via Ice RPC.
 func (ic *mumbleIceClient) callMeta(op string, mode byte, enc func(*bytes.Buffer)) ([]byte, error) {
 	return ic.call("Meta", "", op, mode, enc)
 }
 
-// iceHelper fetches ice and validates it exists
 func (c *MumbleCore) iceRequired(op string) (*mumbleIceClient, error) {
 	c.mu.RLock()
 	ice := c.ice
@@ -6711,9 +6209,6 @@ func (c *MumbleCore) iceRequired(op string) (*mumbleIceClient, error) {
 	return ice, nil
 }
 
-// ── Ice RPC — Meta Interface (11 methods) ──
-
-// MetaGetServer returns the identity name for a virtual server by ID.
 func (c *MumbleCore) MetaGetServer(serverID int) (string, error) {
 	ice, err := c.iceRequired("MetaGetServer")
 	if err != nil {
@@ -6733,7 +6228,6 @@ func (c *MumbleCore) MetaGetServer(serverID int) (string, error) {
 	return name, nil
 }
 
-// MetaNewServer creates a new virtual server, returns its ID.
 func (c *MumbleCore) MetaNewServer() (int, error) {
 	ice, err := c.iceRequired("MetaNewServer")
 	if err != nil {
@@ -6747,13 +6241,11 @@ func (c *MumbleCore) MetaNewServer() (int, error) {
 		return 0, nil
 	}
 	r := bytes.NewReader(data)
-	// Server proxy returned — extract the identity name (the server ID string)
 	name, _ := iceDecStr(r)
 	id, _ := strconv.Atoi(name)
 	return id, nil
 }
 
-// MetaGetBootedServers lists all running virtual servers.
 func (c *MumbleCore) MetaGetBootedServers() ([]int, error) {
 	ice, err := c.iceRequired("MetaGetBootedServers")
 	if err != nil {
@@ -6766,7 +6258,6 @@ func (c *MumbleCore) MetaGetBootedServers() ([]int, error) {
 	return iceDecServerList(data)
 }
 
-// MetaGetAllServers lists all defined virtual servers (running or stopped).
 func (c *MumbleCore) MetaGetAllServers() ([]int, error) {
 	ice, err := c.iceRequired("MetaGetAllServers")
 	if err != nil {
@@ -6779,7 +6270,6 @@ func (c *MumbleCore) MetaGetAllServers() ([]int, error) {
 	return iceDecServerList(data)
 }
 
-// iceDecServerList decodes a sequence of Server proxy references as int IDs.
 func iceDecServerList(data []byte) ([]int, error) {
 	if data == nil {
 		return []int{}, nil
@@ -6795,15 +6285,14 @@ func iceDecServerList(data []byte) ([]int, error) {
 		if e != nil {
 			break
 		}
-		iceDecStr(r)  // category
-		iceDecSize(r) // facet (empty)
+		iceDecStr(r)
+		iceDecSize(r)
 		id, _ := strconv.Atoi(name)
 		ids = append(ids, id)
 	}
 	return ids, nil
 }
 
-// MetaGetDefaultConf returns default config map.
 func (c *MumbleCore) MetaGetDefaultConf() (map[string]string, error) {
 	ice, err := c.iceRequired("MetaGetDefaultConf")
 	if err != nil {
@@ -6816,7 +6305,6 @@ func (c *MumbleCore) MetaGetDefaultConf() (map[string]string, error) {
 	return iceDecStringMap(data)
 }
 
-// iceDecStringMap decodes a map<string,string> from Ice encoding.
 func iceDecStringMap(data []byte) (map[string]string, error) {
 	if data == nil {
 		return map[string]string{}, nil
@@ -6838,7 +6326,6 @@ func iceDecStringMap(data []byte) (map[string]string, error) {
 	return m, nil
 }
 
-// MetaGetVersion returns the Murmur daemon version (major, minor, patch, text).
 func (c *MumbleCore) MetaGetVersion() (string, error) {
 	ice, err := c.iceRequired("MetaGetVersion")
 	if err != nil {
@@ -6862,25 +6349,19 @@ func (c *MumbleCore) MetaGetVersion() (string, error) {
 	return fmt.Sprintf("%d.%d.%d", major, minor, patch), nil
 }
 
-// MetaAddCallback registers a MetaCallback — called when virtual servers start/stop.
-// The handler receives (serverID int, started bool).
 func (c *MumbleCore) MetaAddCallback(handler func(serverID int, started bool)) error {
-	// MetaCallbacks require setting up an Ice callback object which requires
-	// an adapter. We store the handler and invoke it from callback dispatch.
 	c.mu.Lock()
 	c.metaCallbackHandler = handler
 	c.mu.Unlock()
 	return nil
 }
 
-// MetaRemoveCallback unregisters the MetaCallback.
 func (c *MumbleCore) MetaRemoveCallback() {
 	c.mu.Lock()
 	c.metaCallbackHandler = nil
 	c.mu.Unlock()
 }
 
-// MetaGetUptime returns the daemon uptime.
 func (c *MumbleCore) MetaGetUptime() (time.Duration, error) {
 	ice, err := c.iceRequired("MetaGetUptime")
 	if err != nil {
@@ -6898,7 +6379,6 @@ func (c *MumbleCore) MetaGetUptime() (time.Duration, error) {
 	return time.Duration(secs) * time.Second, nil
 }
 
-// MetaGetSlice returns the Slice definition string.
 func (c *MumbleCore) MetaGetSlice() (string, error) {
 	ice, err := c.iceRequired("MetaGetSlice")
 	if err != nil {
@@ -6916,7 +6396,6 @@ func (c *MumbleCore) MetaGetSlice() (string, error) {
 	return s, nil
 }
 
-// MetaGetSliceChecksums returns Slice checksums.
 func (c *MumbleCore) MetaGetSliceChecksums() (map[string]string, error) {
 	ice, err := c.iceRequired("MetaGetSliceChecksums")
 	if err != nil {
@@ -6929,9 +6408,6 @@ func (c *MumbleCore) MetaGetSliceChecksums() (map[string]string, error) {
 	return iceDecStringMap(data)
 }
 
-// ── Ice RPC — Server Interface (37 methods) ──
-
-// IceServerIsRunning checks if the virtual server is running.
 func (c *MumbleCore) IceServerIsRunning() (bool, error) {
 	ice, err := c.iceRequired("IceServerIsRunning")
 	if err != nil {
@@ -6947,7 +6423,6 @@ func (c *MumbleCore) IceServerIsRunning() (bool, error) {
 	return data[0] != 0, nil
 }
 
-// IceServerStart boots the virtual server.
 func (c *MumbleCore) IceServerStart() error {
 	ice, err := c.iceRequired("IceServerStart")
 	if err != nil {
@@ -6960,7 +6435,6 @@ func (c *MumbleCore) IceServerStart() error {
 	return nil
 }
 
-// IceServerStop stops the virtual server.
 func (c *MumbleCore) IceServerStop() error {
 	ice, err := c.iceRequired("IceServerStop")
 	if err != nil {
@@ -6973,7 +6447,6 @@ func (c *MumbleCore) IceServerStop() error {
 	return nil
 }
 
-// IceServerDelete deletes the virtual server entirely.
 func (c *MumbleCore) IceServerDelete() error {
 	ice, err := c.iceRequired("IceServerDelete")
 	if err != nil {
@@ -6986,7 +6459,6 @@ func (c *MumbleCore) IceServerDelete() error {
 	return nil
 }
 
-// IceServerID returns the numeric ID of the virtual server.
 func (c *MumbleCore) IceServerID() (int, error) {
 	ice, err := c.iceRequired("IceServerID")
 	if err != nil {
@@ -7004,7 +6476,6 @@ func (c *MumbleCore) IceServerID() (int, error) {
 	return int(v), nil
 }
 
-// IceGetConf gets a single config value.
 func (c *MumbleCore) IceGetConf(key string) (string, error) {
 	ice, err := c.iceRequired("IceGetConf")
 	if err != nil {
@@ -7024,7 +6495,6 @@ func (c *MumbleCore) IceGetConf(key string) (string, error) {
 	return v, nil
 }
 
-// IceGetAllConf returns the entire config map.
 func (c *MumbleCore) IceGetAllConf() (map[string]string, error) {
 	ice, err := c.iceRequired("IceGetAllConf")
 	if err != nil {
@@ -7037,7 +6507,6 @@ func (c *MumbleCore) IceGetAllConf() (map[string]string, error) {
 	return iceDecStringMap(data)
 }
 
-// IceSetSuperuserPassword sets the SuperUser password.
 func (c *MumbleCore) IceSetSuperuserPassword(pw string) error {
 	ice, err := c.iceRequired("IceSetSuperuserPassword")
 	if err != nil {
@@ -7052,7 +6521,6 @@ func (c *MumbleCore) IceSetSuperuserPassword(pw string) error {
 	return nil
 }
 
-// IceGetLogLen returns total log entry count.
 func (c *MumbleCore) IceGetLogLen() (int, error) {
 	ice, err := c.iceRequired("IceGetLogLen")
 	if err != nil {
@@ -7070,7 +6538,6 @@ func (c *MumbleCore) IceGetLogLen() (int, error) {
 	return int(v), nil
 }
 
-// IceGetUsers returns a map of all connected users (session -> user info).
 func (c *MumbleCore) IceGetUsers() (map[int]map[string]string, error) {
 	ice, err := c.iceRequired("IceGetUsers")
 	if err != nil {
@@ -7094,7 +6561,6 @@ func (c *MumbleCore) IceGetUsers() (map[int]map[string]string, error) {
 	return result, nil
 }
 
-// iceDecUser decodes a Murmur::User struct from Ice encoding.
 func iceDecUser(r io.Reader) map[string]string {
 	m := make(map[string]string)
 	if session, err := iceDecInt(r); err == nil {
@@ -7127,21 +6593,18 @@ func iceDecUser(r io.Reader) map[string]string {
 	if onlinesecs, err := iceDecInt(r); err == nil {
 		m["onlinesecs"] = strconv.Itoa(int(onlinesecs))
 	}
-	// idlesecs
 	if idlesecs, err := iceDecInt(r); err == nil {
 		m["idlesecs"] = strconv.Itoa(int(idlesecs))
 	}
 	return m
 }
 
-// iceDecBool decodes a boolean from Ice encoding.
 func iceDecBool(r io.Reader) (bool, error) {
 	var b [1]byte
 	_, err := io.ReadFull(r, b[:])
 	return b[0] != 0, err
 }
 
-// iceEncBool encodes a boolean for Ice encoding.
 func iceEncBool(buf *bytes.Buffer, v bool) {
 	if v {
 		buf.WriteByte(1)
@@ -7150,7 +6613,6 @@ func iceEncBool(buf *bytes.Buffer, v bool) {
 	}
 }
 
-// IceGetChannels returns a map of all channels (id -> channel info).
 func (c *MumbleCore) IceGetChannels() (map[int]map[string]string, error) {
 	ice, err := c.iceRequired("IceGetChannels")
 	if err != nil {
@@ -7174,7 +6636,6 @@ func (c *MumbleCore) IceGetChannels() (map[int]map[string]string, error) {
 	return result, nil
 }
 
-// iceDecChannel decodes a Murmur::Channel struct from Ice encoding.
 func iceDecChannel(r io.Reader) map[string]string {
 	m := make(map[string]string)
 	if id, err := iceDecInt(r); err == nil {
@@ -7186,7 +6647,6 @@ func iceDecChannel(r io.Reader) map[string]string {
 	if parent, err := iceDecInt(r); err == nil {
 		m["parent"] = strconv.Itoa(int(parent))
 	}
-	// links (sequence of int)
 	if n, err := iceDecSize(r); err == nil {
 		links := make([]string, 0, n)
 		for j := 0; j < n; j++ {
@@ -7208,7 +6668,6 @@ func iceDecChannel(r io.Reader) map[string]string {
 	return m
 }
 
-// IceGetCertificateList returns TLS cert chain for a connected user.
 func (c *MumbleCore) IceGetCertificateList(session int) ([][]byte, error) {
 	ice, err := c.iceRequired("IceGetCertificateList")
 	if err != nil {
@@ -7238,7 +6697,6 @@ func (c *MumbleCore) IceGetCertificateList(session int) ([][]byte, error) {
 	return certs, nil
 }
 
-// IceGetTree returns the full channel tree with users.
 func (c *MumbleCore) IceGetTree() (map[string]interface{}, error) {
 	ice, err := c.iceRequired("IceGetTree")
 	if err != nil {
@@ -7248,15 +6706,12 @@ func (c *MumbleCore) IceGetTree() (map[string]interface{}, error) {
 	if err != nil {
 		return nil, fmt.Errorf("mumble: IceGetTree: %w", err)
 	}
-	// Tree is complex recursive structure — return raw data as hex for now
-	// and the caller can parse it further if needed
 	if data == nil {
 		return map[string]interface{}{"raw": ""}, nil
 	}
 	return map[string]interface{}{"raw": hex.EncodeToString(data), "size": len(data)}, nil
 }
 
-// IceGetBans returns the ban list via Ice (structured Ban objects).
 func (c *MumbleCore) IceGetBans() ([]map[string]string, error) {
 	ice, err := c.iceRequired("IceGetBans")
 	if err != nil {
@@ -7274,8 +6729,6 @@ func (c *MumbleCore) IceGetBans() ([]map[string]string, error) {
 	bans := make([]map[string]string, 0, count)
 	for i := 0; i < count; i++ {
 		ban := make(map[string]string)
-		// Ban struct: address (NetAddress=seq<byte>), bits (int), name (string),
-		// hash (string), reason (string), start (long), duration (int)
 		if n, e := iceDecSize(r); e == nil {
 			addr := make([]byte, n)
 			io.ReadFull(r, addr)
@@ -7306,7 +6759,6 @@ func (c *MumbleCore) IceGetBans() ([]map[string]string, error) {
 	return bans, nil
 }
 
-// IceSetBans replaces the ban list via Ice.
 func (c *MumbleCore) IceSetBans(bans []map[string]string) error {
 	ice, err := c.iceRequired("IceSetBans")
 	if err != nil {
@@ -7347,7 +6799,6 @@ func (c *MumbleCore) IceSetBans(bans []map[string]string) error {
 	return nil
 }
 
-// IceKickUser kicks a user via Ice.
 func (c *MumbleCore) IceKickUser(session int, reason string) error {
 	ice, err := c.iceRequired("IceKickUser")
 	if err != nil {
@@ -7363,7 +6814,6 @@ func (c *MumbleCore) IceKickUser(session int, reason string) error {
 	return nil
 }
 
-// IceGetState returns the full User state struct via Ice.
 func (c *MumbleCore) IceGetState(session int) (map[string]string, error) {
 	ice, err := c.iceRequired("IceGetState")
 	if err != nil {
@@ -7381,7 +6831,6 @@ func (c *MumbleCore) IceGetState(session int) (map[string]string, error) {
 	return iceDecUser(bytes.NewReader(data)), nil
 }
 
-// IceSetState modifies user state via Ice.
 func (c *MumbleCore) IceSetState(session int, fields map[string]string) error {
 	ice, err := c.iceRequired("IceSetState")
 	if err != nil {
@@ -7389,7 +6838,7 @@ func (c *MumbleCore) IceSetState(session int, fields map[string]string) error {
 	}
 	_, err = ice.callServer("setState", iceOpIdempotent, func(buf *bytes.Buffer) {
 		s := int32(session)
-		iceEncInt(buf, s) // session
+		iceEncInt(buf, s)
 		uid, _ := strconv.Atoi(fields["userid"])
 		iceEncInt(buf, int32(uid))
 		iceEncBool(buf, fields["mute"] == "true")
@@ -7411,7 +6860,6 @@ func (c *MumbleCore) IceSetState(session int, fields map[string]string) error {
 	return nil
 }
 
-// IceSendMessage sends text to a specific user via Ice.
 func (c *MumbleCore) IceSendMessage(session int, text string) error {
 	ice, err := c.iceRequired("IceSendMessage")
 	if err != nil {
@@ -7427,7 +6875,6 @@ func (c *MumbleCore) IceSendMessage(session int, text string) error {
 	return nil
 }
 
-// IceHasPermission checks if a user has a specific permission in a channel.
 func (c *MumbleCore) IceHasPermission(session, channelID int, perm int) (bool, error) {
 	ice, err := c.iceRequired("IceHasPermission")
 	if err != nil {
@@ -7447,7 +6894,6 @@ func (c *MumbleCore) IceHasPermission(session, channelID int, perm int) (bool, e
 	return data[0] != 0, nil
 }
 
-// IceEffectivePermissions returns the effective permission bitmask.
 func (c *MumbleCore) IceEffectivePermissions(session, channelID int) (int, error) {
 	ice, err := c.iceRequired("IceEffectivePermissions")
 	if err != nil {
@@ -7468,7 +6914,6 @@ func (c *MumbleCore) IceEffectivePermissions(session, channelID int) (int, error
 	return int(v), nil
 }
 
-// IceGetChannelState returns a Channel struct via Ice.
 func (c *MumbleCore) IceGetChannelState(channelID int) (map[string]string, error) {
 	ice, err := c.iceRequired("IceGetChannelState")
 	if err != nil {
@@ -7486,7 +6931,6 @@ func (c *MumbleCore) IceGetChannelState(channelID int) (map[string]string, error
 	return iceDecChannel(bytes.NewReader(data)), nil
 }
 
-// IceSetChannelState modifies channel properties via Ice.
 func (c *MumbleCore) IceSetChannelState(channelID int, fields map[string]string) error {
 	ice, err := c.iceRequired("IceSetChannelState")
 	if err != nil {
@@ -7497,7 +6941,7 @@ func (c *MumbleCore) IceSetChannelState(channelID int, fields map[string]string)
 		iceEncStr(buf, fields["name"])
 		parent, _ := strconv.Atoi(fields["parent"])
 		iceEncInt(buf, int32(parent))
-		iceEncSize(buf, 0) // links (empty)
+		iceEncSize(buf, 0)
 		iceEncStr(buf, fields["description"])
 		iceEncBool(buf, fields["temporary"] == "true")
 		pos, _ := strconv.Atoi(fields["position"])
@@ -7509,7 +6953,6 @@ func (c *MumbleCore) IceSetChannelState(channelID int, fields map[string]string)
 	return nil
 }
 
-// IceRemoveChannel removes a channel via Ice.
 func (c *MumbleCore) IceRemoveChannel(channelID int) error {
 	ice, err := c.iceRequired("IceRemoveChannel")
 	if err != nil {
@@ -7524,7 +6967,6 @@ func (c *MumbleCore) IceRemoveChannel(channelID int) error {
 	return nil
 }
 
-// IceAddChannel creates a channel via Ice, returns new channel ID.
 func (c *MumbleCore) IceAddChannel(name string, parent int) (int, error) {
 	ice, err := c.iceRequired("IceAddChannel")
 	if err != nil {
@@ -7545,7 +6987,6 @@ func (c *MumbleCore) IceAddChannel(name string, parent int) (int, error) {
 	return int(v), nil
 }
 
-// IceSendMessageChannel sends text to a channel via Ice.
 func (c *MumbleCore) IceSendMessageChannel(channelID int, tree bool, text string) error {
 	ice, err := c.iceRequired("IceSendMessageChannel")
 	if err != nil {
@@ -7562,7 +7003,6 @@ func (c *MumbleCore) IceSendMessageChannel(channelID int, tree bool, text string
 	return nil
 }
 
-// IceGetACL returns ACL/groups for a channel via Ice.
 func (c *MumbleCore) IceGetACL(channelID int) (map[string]interface{}, error) {
 	ice, err := c.iceRequired("IceGetACL")
 	if err != nil {
@@ -7580,7 +7020,6 @@ func (c *MumbleCore) IceGetACL(channelID int) (map[string]interface{}, error) {
 	return map[string]interface{}{"raw": hex.EncodeToString(data), "size": len(data)}, nil
 }
 
-// IceSetACL sets ACL/groups for a channel via Ice.
 func (c *MumbleCore) IceSetACL(channelID int, aclData []byte, inherit bool) error {
 	ice, err := c.iceRequired("IceSetACL")
 	if err != nil {
@@ -7588,7 +7027,6 @@ func (c *MumbleCore) IceSetACL(channelID int, aclData []byte, inherit bool) erro
 	}
 	_, err = ice.callServer("setACL", iceOpIdempotent, func(buf *bytes.Buffer) {
 		iceEncInt(buf, int32(channelID))
-		// ACL data is complex — pass raw encoded bytes
 		buf.Write(aclData)
 		iceEncBool(buf, inherit)
 	})
@@ -7598,7 +7036,6 @@ func (c *MumbleCore) IceSetACL(channelID int, aclData []byte, inherit bool) erro
 	return nil
 }
 
-// IceAddUserToGroup adds a user to an ACL group.
 func (c *MumbleCore) IceAddUserToGroup(channelID, session int, group string) error {
 	ice, err := c.iceRequired("IceAddUserToGroup")
 	if err != nil {
@@ -7615,7 +7052,6 @@ func (c *MumbleCore) IceAddUserToGroup(channelID, session int, group string) err
 	return nil
 }
 
-// IceRemoveUserFromGroup removes a user from an ACL group.
 func (c *MumbleCore) IceRemoveUserFromGroup(channelID, session int, group string) error {
 	ice, err := c.iceRequired("IceRemoveUserFromGroup")
 	if err != nil {
@@ -7632,7 +7068,6 @@ func (c *MumbleCore) IceRemoveUserFromGroup(channelID, session int, group string
 	return nil
 }
 
-// IceGetUserNames resolves user IDs to names.
 func (c *MumbleCore) IceGetUserNames(ids []int) (map[int]string, error) {
 	ice, err := c.iceRequired("IceGetUserNames")
 	if err != nil {
@@ -7661,7 +7096,6 @@ func (c *MumbleCore) IceGetUserNames(ids []int) (map[int]string, error) {
 	return result, nil
 }
 
-// IceGetUserIds resolves usernames to IDs.
 func (c *MumbleCore) IceGetUserIds(names []string) (map[string]int, error) {
 	ice, err := c.iceRequired("IceGetUserIds")
 	if err != nil {
@@ -7690,7 +7124,6 @@ func (c *MumbleCore) IceGetUserIds(names []string) (map[string]int, error) {
 	return result, nil
 }
 
-// IceRegisterUser registers a new user via Ice.
 func (c *MumbleCore) IceRegisterUser(info map[int]string) (int, error) {
 	ice, err := c.iceRequired("IceRegisterUser")
 	if err != nil {
@@ -7714,7 +7147,6 @@ func (c *MumbleCore) IceRegisterUser(info map[int]string) (int, error) {
 	return int(v), nil
 }
 
-// IceUnregisterUser unregisters a user via Ice.
 func (c *MumbleCore) IceUnregisterUser(userID int) error {
 	ice, err := c.iceRequired("IceUnregisterUser")
 	if err != nil {
@@ -7729,7 +7161,6 @@ func (c *MumbleCore) IceUnregisterUser(userID int) error {
 	return nil
 }
 
-// IceUpdateRegistration updates registered user info.
 func (c *MumbleCore) IceUpdateRegistration(userID int, info map[int]string) error {
 	ice, err := c.iceRequired("IceUpdateRegistration")
 	if err != nil {
@@ -7749,7 +7180,6 @@ func (c *MumbleCore) IceUpdateRegistration(userID int, info map[int]string) erro
 	return nil
 }
 
-// IceGetRegistration gets registered user info.
 func (c *MumbleCore) IceGetRegistration(userID int) (map[int]string, error) {
 	ice, err := c.iceRequired("IceGetRegistration")
 	if err != nil {
@@ -7775,7 +7205,6 @@ func (c *MumbleCore) IceGetRegistration(userID int) (map[int]string, error) {
 	return result, nil
 }
 
-// IceVerifyPassword verifies a user's password.
 func (c *MumbleCore) IceVerifyPassword(name, pw string) (int, error) {
 	ice, err := c.iceRequired("IceVerifyPassword")
 	if err != nil {
@@ -7793,10 +7222,9 @@ func (c *MumbleCore) IceVerifyPassword(name, pw string) (int, error) {
 	}
 	r := bytes.NewReader(data)
 	v, _ := iceDecInt(r)
-	return int(v), nil // -1 = failed, >=0 = user ID
+	return int(v), nil
 }
 
-// IceGetTexture gets user avatar/texture via Ice.
 func (c *MumbleCore) IceGetTexture(userID int) ([]byte, error) {
 	ice, err := c.iceRequired("IceGetTexture")
 	if err != nil {
@@ -7818,7 +7246,6 @@ func (c *MumbleCore) IceGetTexture(userID int) ([]byte, error) {
 	return tex, nil
 }
 
-// IceSetTexture sets user avatar/texture via Ice.
 func (c *MumbleCore) IceSetTexture(userID int, texture []byte) error {
 	ice, err := c.iceRequired("IceSetTexture")
 	if err != nil {
@@ -7835,7 +7262,6 @@ func (c *MumbleCore) IceSetTexture(userID int, texture []byte) error {
 	return nil
 }
 
-// IceStartListening makes a user listen to a channel via Ice.
 func (c *MumbleCore) IceStartListening(session, channelID int) error {
 	ice, err := c.iceRequired("IceStartListening")
 	if err != nil {
@@ -7851,7 +7277,6 @@ func (c *MumbleCore) IceStartListening(session, channelID int) error {
 	return nil
 }
 
-// IceStopListening stops a user from listening to a channel via Ice.
 func (c *MumbleCore) IceStopListening(session, channelID int) error {
 	ice, err := c.iceRequired("IceStopListening")
 	if err != nil {
@@ -7867,7 +7292,6 @@ func (c *MumbleCore) IceStopListening(session, channelID int) error {
 	return nil
 }
 
-// IceIsListening checks if a user is listening to a channel via Ice.
 func (c *MumbleCore) IceIsListening(session, channelID int) (bool, error) {
 	ice, err := c.iceRequired("IceIsListening")
 	if err != nil {
@@ -7886,7 +7310,6 @@ func (c *MumbleCore) IceIsListening(session, channelID int) (bool, error) {
 	return data[0] != 0, nil
 }
 
-// IceGetListeningChannels returns channels a user listens to via Ice.
 func (c *MumbleCore) IceGetListeningChannels(session int) ([]int, error) {
 	ice, err := c.iceRequired("IceGetListeningChannels")
 	if err != nil {
@@ -7911,7 +7334,6 @@ func (c *MumbleCore) IceGetListeningChannels(session int) ([]int, error) {
 	return ids, nil
 }
 
-// IceGetListeningUsers returns users listening to a channel via Ice.
 func (c *MumbleCore) IceGetListeningUsers(channelID int) ([]int, error) {
 	ice, err := c.iceRequired("IceGetListeningUsers")
 	if err != nil {
@@ -7936,7 +7358,6 @@ func (c *MumbleCore) IceGetListeningUsers(channelID int) ([]int, error) {
 	return ids, nil
 }
 
-// IceSendWelcomeMessage sends welcome message to specific user IDs via Ice.
 func (c *MumbleCore) IceSendWelcomeMessage(userIDs []int) error {
 	ice, err := c.iceRequired("IceSendWelcomeMessage")
 	if err != nil {
@@ -7954,74 +7375,60 @@ func (c *MumbleCore) IceSendWelcomeMessage(userIDs []int) error {
 	return nil
 }
 
-// ── Ice RPC — Callbacks (9 methods) ──
-
-// IceServerCallbackUserConnected registers handler for user connect events.
 func (c *MumbleCore) IceServerCallbackUserConnected(handler func(state map[string]string)) {
 	c.mu.Lock()
 	c.iceCBUserConnected = handler
 	c.mu.Unlock()
 }
 
-// IceServerCallbackUserDisconnected registers handler for user disconnect events.
 func (c *MumbleCore) IceServerCallbackUserDisconnected(handler func(state map[string]string)) {
 	c.mu.Lock()
 	c.iceCBUserDisconnected = handler
 	c.mu.Unlock()
 }
 
-// IceServerCallbackUserStateChanged registers handler for user state change events.
 func (c *MumbleCore) IceServerCallbackUserStateChanged(handler func(state map[string]string)) {
 	c.mu.Lock()
 	c.iceCBUserStateChanged = handler
 	c.mu.Unlock()
 }
 
-// IceServerCallbackUserTextMessage registers handler for user text message events.
 func (c *MumbleCore) IceServerCallbackUserTextMessage(handler func(state map[string]string)) {
 	c.mu.Lock()
 	c.iceCBUserTextMessage = handler
 	c.mu.Unlock()
 }
 
-// IceServerCallbackChannelCreated registers handler for channel created events.
 func (c *MumbleCore) IceServerCallbackChannelCreated(handler func(state map[string]string)) {
 	c.mu.Lock()
 	c.iceCBChannelCreated = handler
 	c.mu.Unlock()
 }
 
-// IceServerCallbackChannelRemoved registers handler for channel removed events.
 func (c *MumbleCore) IceServerCallbackChannelRemoved(handler func(state map[string]string)) {
 	c.mu.Lock()
 	c.iceCBChannelRemoved = handler
 	c.mu.Unlock()
 }
 
-// IceServerCallbackChannelStateChanged registers handler for channel state change events.
 func (c *MumbleCore) IceServerCallbackChannelStateChanged(handler func(state map[string]string)) {
 	c.mu.Lock()
 	c.iceCBChannelStateChanged = handler
 	c.mu.Unlock()
 }
 
-// IceMetaCallbackStarted registers handler for virtual server started events.
 func (c *MumbleCore) IceMetaCallbackStarted(handler func(serverID int)) {
 	c.mu.Lock()
 	c.iceCBMetaStarted = handler
 	c.mu.Unlock()
 }
 
-// IceMetaCallbackStopped registers handler for virtual server stopped events.
 func (c *MumbleCore) IceMetaCallbackStopped(handler func(serverID int)) {
 	c.mu.Lock()
 	c.iceCBMetaStopped = handler
 	c.mu.Unlock()
 }
 
-// ── Ice RPC — Authenticator (10 methods) ──
-
-// MumbleAuthenticator stores external authenticator callbacks.
 type MumbleAuthenticator struct {
 	Authenticate   func(name, pw, certHash string, certStrong bool) (userID int, groups []string, err error)
 	GetInfo        func(userID int) (map[int]string, error)
@@ -8034,14 +7441,12 @@ type MumbleAuthenticator struct {
 	SetTexture     func(userID int, texture []byte) error
 }
 
-// IceSetAuthenticator registers a custom authenticator for the server.
 func (c *MumbleCore) IceSetAuthenticator(auth *MumbleAuthenticator) {
 	c.mu.Lock()
 	c.authenticator = auth
 	c.mu.Unlock()
 }
 
-// AuthenticatorAuthenticate dispatches to the registered authenticator.
 func (c *MumbleCore) AuthenticatorAuthenticate(name, pw, certHash string, certStrong bool) (int, []string, error) {
 	c.mu.RLock()
 	auth := c.authenticator
@@ -8052,7 +7457,6 @@ func (c *MumbleCore) AuthenticatorAuthenticate(name, pw, certHash string, certSt
 	return auth.Authenticate(name, pw, certHash, certStrong)
 }
 
-// AuthenticatorGetInfo gets user info through the authenticator.
 func (c *MumbleCore) AuthenticatorGetInfo(userID int) (map[int]string, error) {
 	c.mu.RLock()
 	auth := c.authenticator
@@ -8063,7 +7467,6 @@ func (c *MumbleCore) AuthenticatorGetInfo(userID int) (map[int]string, error) {
 	return auth.GetInfo(userID)
 }
 
-// AuthenticatorNameToId resolves username to user ID.
 func (c *MumbleCore) AuthenticatorNameToId(name string) (int, error) {
 	c.mu.RLock()
 	auth := c.authenticator
@@ -8074,7 +7477,6 @@ func (c *MumbleCore) AuthenticatorNameToId(name string) (int, error) {
 	return auth.NameToId(name)
 }
 
-// AuthenticatorIdToName resolves user ID to username.
 func (c *MumbleCore) AuthenticatorIdToName(userID int) (string, error) {
 	c.mu.RLock()
 	auth := c.authenticator
@@ -8085,7 +7487,6 @@ func (c *MumbleCore) AuthenticatorIdToName(userID int) (string, error) {
 	return auth.IdToName(userID)
 }
 
-// AuthenticatorIdToTexture gets user texture by ID.
 func (c *MumbleCore) AuthenticatorIdToTexture(userID int) ([]byte, error) {
 	c.mu.RLock()
 	auth := c.authenticator
@@ -8096,7 +7497,6 @@ func (c *MumbleCore) AuthenticatorIdToTexture(userID int) ([]byte, error) {
 	return auth.IdToTexture(userID)
 }
 
-// UpdatingAuthRegisterUser registers user via authenticator.
 func (c *MumbleCore) UpdatingAuthRegisterUser(info map[int]string) (int, error) {
 	c.mu.RLock()
 	auth := c.authenticator
@@ -8107,7 +7507,6 @@ func (c *MumbleCore) UpdatingAuthRegisterUser(info map[int]string) (int, error) 
 	return auth.RegisterUser(info)
 }
 
-// UpdatingAuthUnregisterUser unregisters user via authenticator.
 func (c *MumbleCore) UpdatingAuthUnregisterUser(userID int) error {
 	c.mu.RLock()
 	auth := c.authenticator
@@ -8118,7 +7517,6 @@ func (c *MumbleCore) UpdatingAuthUnregisterUser(userID int) error {
 	return auth.UnregisterUser(userID)
 }
 
-// UpdatingAuthSetInfo updates user info via authenticator.
 func (c *MumbleCore) UpdatingAuthSetInfo(userID int, info map[int]string) error {
 	c.mu.RLock()
 	auth := c.authenticator
@@ -8129,7 +7527,6 @@ func (c *MumbleCore) UpdatingAuthSetInfo(userID int, info map[int]string) error 
 	return auth.SetInfo(userID, info)
 }
 
-// UpdatingAuthSetTexture updates user texture via authenticator.
 func (c *MumbleCore) UpdatingAuthSetTexture(userID int, texture []byte) error {
 	c.mu.RLock()
 	auth := c.authenticator
@@ -8140,9 +7537,6 @@ func (c *MumbleCore) UpdatingAuthSetTexture(userID int, texture []byte) error {
 	return auth.SetTexture(userID, texture)
 }
 
-// ── Client Protocol — Missing Features (15 methods) ──
-
-// RenameChannel sends ChannelState with a new name.
 func (c *MumbleCore) RenameChannel(channelID uint32, newName string) error {
 	c.mu.RLock()
 	conn := c.tlsConn
@@ -8154,7 +7548,6 @@ func (c *MumbleCore) RenameChannel(channelID uint32, newName string) error {
 	return c.tcpSend(mumbleMsgChannelState, msg.marshal())
 }
 
-// GetChannelDescription requests and returns a channel's description (auto-resolves blob hash).
 func (c *MumbleCore) GetChannelDescription(channelID uint32) (string, error) {
 	c.mu.RLock()
 	ch, ok := c.channels[channelID]
@@ -8165,12 +7558,10 @@ func (c *MumbleCore) GetChannelDescription(channelID uint32) (string, error) {
 	if ch.Description != "" {
 		return ch.Description, nil
 	}
-	// If we have a descriptionHash, request the blob
 	if len(ch.DescriptionHash) > 0 {
 		if err := c.RequestBlob(nil, nil, []uint32{channelID}); err != nil {
 			return "", err
 		}
-		// Wait briefly for the response
 		time.Sleep(500 * time.Millisecond)
 		c.mu.RLock()
 		desc := c.channels[channelID].Description
@@ -8180,7 +7571,6 @@ func (c *MumbleCore) GetChannelDescription(channelID uint32) (string, error) {
 	return "", nil
 }
 
-// GetUserComment requests and returns a user's comment (auto-resolves blob hash).
 func (c *MumbleCore) GetUserComment(session uint32) (string, error) {
 	c.mu.RLock()
 	user, ok := c.users[session]
@@ -8204,7 +7594,6 @@ func (c *MumbleCore) GetUserComment(session uint32) (string, error) {
 	return "", nil
 }
 
-// GetUserTexture requests and returns a user's texture (auto-resolves blob hash).
 func (c *MumbleCore) GetUserTexture(session uint32) ([]byte, error) {
 	c.mu.RLock()
 	user, ok := c.users[session]
@@ -8228,13 +7617,10 @@ func (c *MumbleCore) GetUserTexture(session uint32) ([]byte, error) {
 	return nil, nil
 }
 
-// ParseMumbleURL parses a mumble:// URL into components.
 func ParseMumbleURL(rawURL string) (host string, port int, channel string, username string, password string, err error) {
 	rawURL = strings.TrimPrefix(rawURL, "mumble://")
-	// Format: [user[:password]@]host[:port][/channel[/subchannel]]
-	port = 64738 // default
+	port = 64738
 
-	// Extract channel path
 	slashIdx := strings.Index(rawURL, "/")
 	hostPart := rawURL
 	if slashIdx >= 0 {
@@ -8243,7 +7629,6 @@ func ParseMumbleURL(rawURL string) (host string, port int, channel string, usern
 		hostPart = rawURL[:slashIdx]
 	}
 
-	// Extract user@
 	atIdx := strings.LastIndex(hostPart, "@")
 	if atIdx >= 0 {
 		userPart := hostPart[:atIdx]
@@ -8256,7 +7641,6 @@ func ParseMumbleURL(rawURL string) (host string, port int, channel string, usern
 		}
 	}
 
-	// Parse host:port
 	h, p, e := net.SplitHostPort(hostPart)
 	if e != nil {
 		host = hostPart
@@ -8267,7 +7651,6 @@ func ParseMumbleURL(rawURL string) (host string, port int, channel string, usern
 	return
 }
 
-// ConnectFromURL connects using a mumble:// URL.
 func (c *MumbleCore) ConnectFromURL(mumbleURL string) error {
 	host, port, _, username, password, err := ParseMumbleURL(mumbleURL)
 	if err != nil {
@@ -8288,14 +7671,12 @@ func (c *MumbleCore) ConnectFromURL(mumbleURL string) error {
 	return c.Authenticate(cfg)
 }
 
-// HandleUserStats registers a callback for UserStats responses.
 func (c *MumbleCore) HandleUserStats(handler func(session uint32, stats map[string]interface{})) {
 	c.mu.Lock()
 	c.userStatsHandler = handler
 	c.mu.Unlock()
 }
 
-// LoadCertificate loads a TLS client certificate from PEM files.
 func (c *MumbleCore) LoadCertificate(certFile, keyFile string) error {
 	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
@@ -8307,14 +7688,12 @@ func (c *MumbleCore) LoadCertificate(certFile, keyFile string) error {
 	return nil
 }
 
-// GetCertificateHash returns the SHA1 hash of the client certificate.
 func (c *MumbleCore) GetCertificateHash() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.certHash
 }
 
-// GetServerCertificate returns the server's TLS certificate.
 func (c *MumbleCore) GetServerCertificate() (*x509.Certificate, error) {
 	c.mu.RLock()
 	conn := c.tlsConn
@@ -8329,7 +7708,6 @@ func (c *MumbleCore) GetServerCertificate() (*x509.Certificate, error) {
 	return state.PeerCertificates[0], nil
 }
 
-// FlushPermissions sends PermissionQuery with flush=true.
 func (c *MumbleCore) FlushPermissions(channelID uint32) error {
 	c.mu.RLock()
 	conn := c.tlsConn
@@ -8341,14 +7719,12 @@ func (c *MumbleCore) FlushPermissions(channelID uint32) error {
 	return c.tcpSend(mumbleMsgPermissionQuery, msg.marshal())
 }
 
-// GetCachedPermissions returns locally cached permissions without a round-trip.
 func (c *MumbleCore) GetCachedPermissions(channelID uint32) uint32 {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.permissions[channelID]
 }
 
-// GetChannelTree builds a full channel tree as a structured object.
 func (c *MumbleCore) GetChannelTree() map[string]interface{} {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -8401,7 +7777,6 @@ func (c *MumbleCore) GetChannelTree() map[string]interface{} {
 	}
 }
 
-// Reconnect reconnects with the same credentials.
 func (c *MumbleCore) Reconnect() error {
 	c.mu.RLock()
 	addr := c.serverAddr
@@ -8410,14 +7785,12 @@ func (c *MumbleCore) Reconnect() error {
 		return fmt.Errorf("mumble: no previous connection")
 	}
 	c.Close()
-	// Re-authenticate with stored config
 	return c.Authenticate(AuthConfig{
 		Mode:  AuthModeUser,
 		Extra: map[string]string{"server": addr},
 	})
 }
 
-// SetAutoReconnect enables auto-reconnect on disconnection.
 func (c *MumbleCore) SetAutoReconnect(enabled bool, delay time.Duration) {
 	c.mu.Lock()
 	c.autoReconnect = enabled
@@ -8425,23 +7798,18 @@ func (c *MumbleCore) SetAutoReconnect(enabled bool, delay time.Duration) {
 	c.mu.Unlock()
 }
 
-// ── Audio — Missing Features (4 methods) ──
-
-// SetAudioBitrate configures the Opus encoder bitrate.
 func (c *MumbleCore) SetAudioBitrate(bitrate int) {
 	c.mu.Lock()
 	c.audioBitrate = bitrate
 	c.mu.Unlock()
 }
 
-// SetAudioFrameSize configures audio frame duration in ms (10, 20, 40, 60).
 func (c *MumbleCore) SetAudioFrameSize(ms int) {
 	c.mu.Lock()
 	c.audioFrameSize = ms
 	c.mu.Unlock()
 }
 
-// GetAudioStats returns local audio statistics.
 func (c *MumbleCore) GetAudioStats() map[string]interface{} {
 	return map[string]interface{}{
 		"udp_packets_sent":     c.udpPktsSent.Load(),
@@ -8455,18 +7823,12 @@ func (c *MumbleCore) GetAudioStats() map[string]interface{} {
 	}
 }
 
-// OnAudioStream registers a per-user audio stream callback.
-// The handler receives (session uint32, pcm []int16, codec string).
 func (c *MumbleCore) OnAudioStream(handler func(session uint32, pcm []int16, codec string)) {
 	c.mu.Lock()
 	c.audioStreamHandler = handler
 	c.mu.Unlock()
 }
 
-// ── DNS / Discovery ──
-
-// MuteChat returns an error because Mumble does not support muting chats.
-// ServerPing sends an unauthenticated UDP ping and returns server info.
 func MumbleServerPing(addr string) (version [4]byte, users, maxUsers, bandwidth uint32, err error) {
 	host, port, splitErr := net.SplitHostPort(addr)
 	if splitErr != nil {
@@ -8480,15 +7842,13 @@ func MumbleServerPing(addr string) (version [4]byte, users, maxUsers, bandwidth 
 	}
 	defer conn.Close()
 
-	// Send 12-byte request: 4 zero bytes + 8 ident bytes
 	var req [12]byte
-	rand.Read(req[4:]) // random ident
+	rand.Read(req[4:])
 	conn.SetWriteDeadline(time.Now().Add(2 * time.Second))
 	if _, err = conn.Write(req[:]); err != nil {
 		return
 	}
 
-	// Read 24-byte response
 	var resp [24]byte
 	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 	n, readErr := conn.Read(resp[:])
@@ -8511,38 +7871,28 @@ func (c *MumbleCore) MuteChat(chatID string, muted bool) error {
 	return fmt.Errorf("%w: %s does not support mute chat", ErrNotSupported, mumblePlatform)
 }
 
-// ArchiveChat returns an error because Mumble does not support archiving chats.
 func (c *MumbleCore) ArchiveChat(chatID string, archived bool) error {
 	return fmt.Errorf("%w: %s does not support archive chat", ErrNotSupported, mumblePlatform)
 }
 
-// MarkUnread returns an error because Mumble does not support marking chats as unread.
 func (c *MumbleCore) MarkUnread(chatID string, unread bool) error {
 	return fmt.Errorf("%w: %s does not support mark unread", ErrNotSupported, mumblePlatform)
 }
 
-// UnpinAllMessages returns an error because Mumble does not support message pinning.
 func (c *MumbleCore) UnpinAllMessages(chatID string) error {
 	return fmt.Errorf("%w: %s does not support unpin all messages", ErrNotSupported, mumblePlatform)
 }
 
-// AcceptCall returns an error because Mumble uses always-on voice channels instead of call invitations.
 func (c *MumbleCore) AcceptCall(callID string) (*CallSession, error) {
 	return nil, fmt.Errorf("%w: %s does not support accept call", ErrNotSupported, mumblePlatform)
 }
 
-// DeclineCall returns an error because Mumble uses always-on voice channels instead of call invitations.
 func (c *MumbleCore) DeclineCall(callID string) error {
 	return fmt.Errorf("%w: %s does not support decline call", ErrNotSupported, mumblePlatform)
 }
 
-// SendLocation returns an error because Mumble does not support location sharing.
 func (c *MumbleCore) SendLocation(chatID string, lat float64, lon float64) (*Message, error) {
 	return nil, fmt.Errorf("%w: %s does not support send location", ErrNotSupported, mumblePlatform)
 }
-
-// ════════════════════════════════════════════════════════════════════════════════
-// Ensure MumbleCore implements Core interface
-// ════════════════════════════════════════════════════════════════════════════════
 
 var _ Core = (*MumbleCore)(nil)

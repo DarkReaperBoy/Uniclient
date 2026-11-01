@@ -1,8 +1,5 @@
 package engine
 
-// earn_test.go — slice 213 tests: the revenue-withdraw passthrough and
-// its honest gates.
-
 import (
 	"errors"
 	"testing"
@@ -53,18 +50,15 @@ func TestWithdrawStarsRevenue(t *testing.T) {
 		t.Fatalf("call = ton:%v pw:%q", st.lastTon, st.lastPw)
 	}
 
-	// Error passthrough.
 	st.err = errors.New("boom")
 	if _, err := e.WithdrawStarsRevenue("tg", "-1001234", true, 0, ""); err == nil {
 		t.Error("core error must surface")
 	}
 
-	// Plain cores → honest unsupported error.
 	e2 := newEarnEngine(t, &plainStub{})
 	if _, err := e2.WithdrawStarsRevenue("tg", "c", false, 1, ""); err == nil {
 		t.Error("plain stub must not withdraw")
 	}
-	// Unknown account → honest error.
 	if _, err := e.WithdrawStarsRevenue("ghost", "c", false, 1, ""); err == nil {
 		t.Error("unknown account must error")
 	}

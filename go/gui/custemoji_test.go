@@ -8,9 +8,6 @@ import (
 	"uniclient/vp9anim"
 )
 
-// Custom-emoji reaction pills (slice 53): the pure helpers that decide
-// which reactions get document-thumbnail pills and what wire key the
-// engine receives for toggling them.
 func TestCustomWantDocs(t *testing.T) {
 	list := []cores.Reaction{
 		{Emoji: "👍", Count: 2},
@@ -43,8 +40,6 @@ func TestCustomReactionKey(t *testing.T) {
 }
 
 func TestReactionGlyphPath(t *testing.T) {
-	// Slice 183: reaction glyphs resolve through the shared emojiArts
-	// cache so lottie (TGS) custom emoji animate like in message text.
 	anim := &emojiArt{kind: emojiArtLottie, anim: &lottie.Animation{}}
 	if got := reactionGlyphPath(anim); got != reactionPathAnim {
 		t.Fatalf("lottie art = %q", got)
@@ -53,7 +48,6 @@ func TestReactionGlyphPath(t *testing.T) {
 	if got := reactionGlyphPath(raster); got != reactionPathRaster {
 		t.Fatalf("raster art = %q", got)
 	}
-	// Slice 216: video (webm/VP9) emoji animate through the same path.
 	video := &emojiArt{kind: emojiArtVideo, player: &vp9anim.Player{}}
 	if got := reactionGlyphPath(video); got != reactionPathAnim {
 		t.Fatalf("video art = %q", got)
@@ -61,8 +55,6 @@ func TestReactionGlyphPath(t *testing.T) {
 	if got := reactionGlyphPath(&emojiArt{kind: emojiArtVideo, player: nil}); got != reactionPathThumb {
 		t.Fatalf("unresolved video art = %q", got)
 	}
-	// Not-yet-resolved or failed/unsupported → the static-thumb
-	// fallback (current behavior, never a blank pill).
 	if got := reactionGlyphPath(&emojiArt{kind: emojiArtUnknown}); got != reactionPathThumb {
 		t.Fatalf("unknown art = %q", got)
 	}
@@ -81,8 +73,6 @@ func TestReactionGlyphPath(t *testing.T) {
 }
 
 func TestReactionAnimSide(t *testing.T) {
-	// Animated reaction glyphs render slightly larger than the old
-	// 16dp static thumbs (tdesktop's pill padding), never degenerate.
 	if got := reactionAnimSide(0); got <= 0 {
 		t.Fatalf("side(0) = %d", got)
 	}

@@ -1,9 +1,5 @@
 package engine
 
-// Hashtag/tag search (matrix row 259, slice 92): the tagged-token
-// matcher (pure) and the engine-level tag search (FTS body + exact
-// '#tag' token post-filter).
-
 import (
 	"testing"
 )
@@ -15,17 +11,17 @@ func TestMatchHashtagToken(t *testing.T) {
 	}{
 		{"check #news now", "news", true},
 		{"#news", "news", true},
-		{"#News today", "news", true},          // case-insensitive
-		{"newsletter only", "news", false},     // bare word, no '#'
-		{"#newsletter", "news", false},         // token continues
-		{"#news2 is different", "news", false}, // tag char continues
+		{"#News today", "news", true},
+		{"newsletter only", "news", false},
+		{"#newsletter", "news", false},
+		{"#news2 is different", "news", false},
 		{"#news_2 is different", "news", false},
-		{"a #news, b", "news", true},     // punctuation boundary
-		{"tag #news. end", "news", true}, // dot boundary
+		{"a #news, b", "news", true},
+		{"tag #news. end", "news", true},
 		{"", "news", false},
 		{"#news", "", false},
 		{"no tags here", "news", false},
-		{"##news", "news", true}, // second '#' starts the token
+		{"##news", "news", true},
 	}
 	for _, tc := range cases {
 		if got := matchHashtagToken(tc.text, tc.body); got != tc.want {
@@ -45,9 +41,9 @@ func TestSearchMessagesByTag(t *testing.T) {
 		}
 	}
 	seed("m1", "check #news now")
-	seed("m2", "newsletter about cats") // bare word: FTS hits, filter drops
-	seed("m3", "#newsflash again")      // longer tag: filter drops
-	seed("m4", "see #NEWS here")        // case-insensitive match
+	seed("m2", "newsletter about cats")
+	seed("m3", "#newsflash again")
+	seed("m4", "see #NEWS here")
 	seed("m5", "nothing relevant")
 
 	hits, err := e.SearchMessagesByTag("a1", "c1", "#news", 50)
@@ -63,7 +59,6 @@ func TestSearchMessagesByTag(t *testing.T) {
 		}
 	}
 
-	// Degenerate queries: no body / no token chars → no results, no error.
 	for _, q := range []string{"", "#", "##", "# "} {
 		hits, err := e.SearchMessagesByTag("a1", "c1", q, 50)
 		if err != nil || len(hits) != 0 {

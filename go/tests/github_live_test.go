@@ -1,10 +1,5 @@
 //go:build live
 
-// Live integration test for the GitHub core against the REAL GitHub API.
-// Not run in CI and gitignored (go/tests/): needs a real PAT.
-//
-// Run: cd go && go test -tags goolm,live ./tests/ -run TestGitHubLive -v
-// Env: GITHUB_LIVE_TOKEN (required)
 package tests
 
 import (
@@ -39,8 +34,6 @@ func TestGitHubLiveAuthenticateAndFetch(t *testing.T) {
 		t.Fatalf("Authenticate against real GitHub API: %v", err)
 	}
 
-	// Auth already verified the token via the /user endpoint; fetch self
-	// through the public Core surface too.
 	self, err := core.GetProfile("")
 	if err != nil {
 		t.Fatalf("GetUser(self): %v", err)
@@ -49,10 +42,6 @@ func TestGitHubLiveAuthenticateAndFetch(t *testing.T) {
 
 	dialogs, err := core.GetDialogs(cores.PaginationOpts{Limit: 10})
 	if err != nil {
-		// 403 = token scope (environment) → honest Skip; anything else
-		// (rate limit, API failure, decode) is a real defect → FAIL. The
-		// old code only logged here and passed vacuously (slice-279
-		// notice-but-never-fail audit).
 		if errors.Is(err, cores.ErrPermission) {
 			t.Skipf("GetDialogs not permitted for this token (notifications scope): %v", err)
 		}
@@ -67,10 +56,8 @@ func TestGitHubLiveAuthenticateAndFetch(t *testing.T) {
 	}
 }
 
-// envToken reads the live-test token from the environment.
 func envToken() string { return os.Getenv("GITHUB_LIVE_TOKEN") }
 
-// osGetenvDefault reads a variable or falls back to a default.
 func osGetenvDefault(key, def string) string {
 	if v := os.Getenv(key); v != "" {
 		return v

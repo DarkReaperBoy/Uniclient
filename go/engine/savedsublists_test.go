@@ -7,24 +7,14 @@ import (
 	"uniclient/cores"
 )
 
-// timeOf builds a Timestamp for constructed core messages (cache stores
-// UnixMilli).
 func timeOf(sec int64) time.Time { return time.Unix(sec, 0).UTC() }
 
-// Saved Messages sublists (slice 197): the engine surface — the
-// saved_peer scoped message page, the cold-start server feed, and the
-// capability probe. Stubs mirror the core interfaces (the LIST flows
-// through the pre-existing SavedSublistsFetcher shape).
-
-// savedDialogsStub: a core exposing the slice-197 surface.
 type savedDialogsStub struct {
 	cores.StubCore
 	selfID  string
 	dialogs []cores.SavedSublistInfo
-	history map[string][]cores.Message // peerID → messages
+	history map[string][]cores.Message
 
-	// slice-204 call logs (pointer fields — the account holds the core
-	// by value, so the stub's method receivers record through them).
 	reorderLog *[][]string
 	delLog     *[]string
 }
@@ -42,7 +32,6 @@ func (s savedDialogsStub) GetSavedSublists(limit, offsetDate, offsetID int, excl
 func (s savedDialogsStub) GetSavedHistory(peerID string, offsetID, limit int) ([]cores.Message, error) {
 	msgs := s.history[peerID]
 	if offsetID > 0 {
-		// Emulate the server's offsetID paging: strictly older ids.
 		var filtered []cores.Message
 		for _, m := range msgs {
 			if id := parseInt64(m.ID); id < int64(offsetID) {
@@ -134,10 +123,6 @@ func TestGetSavedSublistsUnsupported(t *testing.T) {
 	}
 }
 
-// TestGetSavedSublistMessages: the scoped page — the core fetch lands in
-// the messages cache under the SAVED chat id with saved_peer recorded,
-// and the saved_peer filter returns exactly that sublist's rows,
-// newest-first, with beforeMs paging.
 func TestGetSavedSublistMessages(t *testing.T) {
 	e := newSavedSublistEngine(t)
 	stub := savedDialogsStub{
@@ -172,7 +157,6 @@ func TestGetSavedSublistMessages(t *testing.T) {
 		t.Errorf("SavedPeerID = %q, want the sublist peer", msgs[0].SavedPeerID)
 	}
 
-	// The own-notes sublist feeds its own rows on ITS first open…
 	own, err := e.GetSavedSublistMessages("tg", "42", "42", 0, 50)
 	if err != nil {
 		t.Fatalf("own sublist: %v", err)
@@ -180,8 +164,6 @@ func TestGetSavedSublistMessages(t *testing.T) {
 	if len(own) != 1 || own[0].MsgID != "50" {
 		t.Fatalf("own sublist = %+v, want only msg 50", own)
 	}
-	// …and the plain saved-chat page (no sublist scope) then returns
-	// everything cached (both sublists' rows).
 	all, err := e.GetSavedSublistMessages("tg", "42", "", 0, 50)
 	if err != nil {
 		t.Fatalf("unscoped: %v", err)
@@ -190,7 +172,6 @@ func TestGetSavedSublistMessages(t *testing.T) {
 		t.Fatalf("unscoped len = %d, want 4 (all saved rows)", len(all))
 	}
 
-	// beforeMs paging: strictly older than the 2000-mark → one row.
 	older, err := e.GetSavedSublistMessages("tg", "42", "-1000000001234", timeOf(2000).UnixMilli(), 50)
 	if err != nil {
 		t.Fatalf("paged: %v", err)
@@ -200,9 +181,6 @@ func TestGetSavedSublistMessages(t *testing.T) {
 	}
 }
 
-// TestSavedPeerColumnRoundTrip: messages cached through the normal chat
-// path record saved_peer, so sublist views stay fed without a scoped
-// fetch.
 func TestSavedPeerColumnRoundTrip(t *testing.T) {
 	e := newSavedSublistEngine(t)
 	e.accounts = map[string]*Account{"tg": {ID: "tg", Core: plainStub{}}}
@@ -215,11 +193,6 @@ func TestSavedPeerColumnRoundTrip(t *testing.T) {
 		t.Fatalf("round-trip = %+v, want msg 9 under sublist 77", msgs)
 	}
 }
-
-// Slice 204: pin reorder + delete flow — the engine surface. The stub
-// records the calls (through pointer fields — the account stores the
-// core by value) so the tests pin the peer order / delete target the
-// engine forwards; the delete must also purge the scoped cache rows.
 
 func (s savedDialogsStub) ReorderPinnedSavedDialogs(peerIDs []string) error {
 	if s.reorderLog != nil {
@@ -235,9 +208,6 @@ func (s savedDialogsStub) DeleteSavedHistory(peerID string) error {
 	return nil
 }
 
-// TestSavedSublistReorder: the engine forwards the full pinned order to
-// messages.reorderPinnedSavedDialogs; a core without the surface (or a
-// missing account) is an honest error, not a silent pass.
 func TestSavedSublistReorder(t *testing.T) {
 	e := newSavedSublistEngine(t)
 	var log [][]string
@@ -259,9 +229,6 @@ func TestSavedSublistReorder(t *testing.T) {
 	}
 }
 
-// TestSavedSublistDeletePurgesCache: delete forwards the peer to the
-// core AND wipes the scoped rows from the self-chat cache (other
-// sublists' rows survive; the whole-chat rows for other peers stay).
 func TestSavedSublistDeletePurgesCache(t *testing.T) {
 	e := newSavedSublistEngine(t)
 	var del []string

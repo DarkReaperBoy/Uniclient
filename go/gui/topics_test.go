@@ -7,44 +7,32 @@ import (
 	"uniclient/cores"
 )
 
-// Forum topics (slice 118) — pure decision logic: ordering, color mapping,
-// subtitles, General handling. The engine-side topic scoping is pinned in
-// engine/topics_test.go.
-
 func mkTopic(id, topMsg string, pinned bool) cores.ForumTopic {
 	return cores.ForumTopic{ID: id, Title: "T" + id, TopMessageID: topMsg, IsPinned: pinned}
 }
 
 func TestSortForumTopics(t *testing.T) {
-	// Slice 205: the pinned block preserves the SERVER pin order
-	// (messages.getForumTopics returns it; reorders must be visible);
-	// only the unpinned tail falls back to activity.
 	topics := []cores.ForumTopic{
 		mkTopic("5", "50", false),
 		mkTopic("2", "200", true),
-		mkTopic("7", "90", true), // pinned later in the server order
+		mkTopic("7", "90", true),
 		mkTopic("3", "300", false),
-		mkTopic("1", "10", false), // General
+		mkTopic("1", "10", false),
 	}
 	got := sortForumTopics(topics)
 	if got[0].ID != "2" || got[1].ID != "7" {
 		t.Fatalf("pinned server order = %s %s, want 2 7", got[0].ID, got[1].ID)
 	}
-	// Unpinned by descending activity.
 	if got[2].ID != "3" || got[3].ID != "5" {
 		t.Fatalf("activity order = %s %s", got[2].ID, got[3].ID)
 	}
-	// General (id 1, lowest activity) last among equals.
 	if got[4].ID != "1" {
 		t.Fatalf("General order = %s", got[4].ID)
 	}
-	// Input untouched.
 	if topics[0].ID != "5" {
 		t.Fatal("input slice mutated")
 	}
 
-	// All pinned → the server order is preserved (slice 205: activity
-	// re-sorting would hide reorders).
 	all := sortForumTopics([]cores.ForumTopic{mkTopic("9", "5", true), mkTopic("8", "90", true)})
 	if all[0].ID != "9" || all[1].ID != "8" {
 		t.Fatalf("all-pinned order = %s %s, want server order 9 8", all[0].ID, all[1].ID)
@@ -83,9 +71,6 @@ func TestTopicSubtitle(t *testing.T) {
 	}
 }
 
-// TestForumTopicMoveIDs (slice 205): moving a pinned topic within the
-// pinned block swaps exactly the two neighbors; edge moves and unpinned
-// topics are no-ops.
 func TestForumTopicMoveIDs(t *testing.T) {
 	topics := []cores.ForumTopic{
 		mkTopic("10", "1", true),
@@ -112,8 +97,6 @@ func TestForumTopicMoveIDs(t *testing.T) {
 	}
 }
 
-// TestForumTopicMenuCanMove (slice 205): the move entries appear only
-// for pinned topics with room to move inside the pinned block.
 func TestForumTopicMenuCanMove(t *testing.T) {
 	topics := []cores.ForumTopic{
 		mkTopic("10", "1", true),

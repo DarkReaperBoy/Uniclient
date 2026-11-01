@@ -1,12 +1,5 @@
 package gui
 
-// fontpick.go — slice 146: custom fonts (tdesktop's font box, honest
-// scope): pick a .ttf/.otf for the UI and optionally a mono variant —
-// parsed at runtime (pure Go opentype), applied by swapping the face
-// objects inside the default collection (descriptors untouched, so
-// matching behaves exactly as before), persisted in AppConfig, restored
-// at boot. Parse failures fall back to the defaults with a toast.
-
 import (
 	"os"
 	"path/filepath"
@@ -23,7 +16,6 @@ import (
 	"uniclient/engine"
 )
 
-// isFontPath: accepted font file extensions. Pure.
 func isFontPath(path string) bool {
 	switch strings.ToLower(filepath.Ext(path)) {
 	case ".ttf", ".otf":
@@ -32,8 +24,6 @@ func isFontPath(path string) bool {
 	return false
 }
 
-// fontFileName: display name for a picked path ("Default" when unset).
-// Pure.
 func fontFileName(path string) string {
 	if path == "" {
 		return "Default"
@@ -41,10 +31,6 @@ func fontFileName(path string) string {
 	return filepath.Base(path)
 }
 
-// swapCollectionFaces returns a copy of the base collection with the
-// default family's (and optionally the Go Mono family's) face objects
-// replaced. Descriptors stay untouched — font matching then behaves
-// exactly as with the stock collection, only the glyphs differ. Pure.
 func swapCollectionFaces(base []font.FontFace, userFace, monoFace font.Face) []font.FontFace {
 	if userFace == nil && monoFace == nil {
 		return base
@@ -70,7 +56,6 @@ func swapCollectionFaces(base []font.FontFace, userFace, monoFace font.Face) []f
 	return out
 }
 
-// parseFontFace loads one font file (nil when the path is empty).
 func parseFontFace(path string) (font.Face, error) {
 	if path == "" {
 		return nil, nil
@@ -82,8 +67,6 @@ func parseFontFace(path string) (font.Face, error) {
 	return opentype.Parse(data)
 }
 
-// applyUserFonts rebuilds the theme's shaper with the picked fonts.
-// Empty paths restore the stock collection. The caller invalidates.
 func (u *UI) applyUserFonts(userPath, monoPath string) error {
 	userFace, err := parseFontFace(userPath)
 	if err != nil {
@@ -102,8 +85,6 @@ func (u *UI) applyUserFonts(userPath, monoPath string) error {
 	return nil
 }
 
-// baseFontCollection is the stock collection (Go fonts + NotoEmoji) —
-// the same set NewUI installs.
 func baseFontCollection() []font.FontFace {
 	collection := gofont.Collection()
 	if face, err := opentype.Parse(notoEmoji); err == nil {
@@ -115,8 +96,6 @@ func baseFontCollection() []font.FontFace {
 	return collection
 }
 
-// ── picking + persistence ──────────────────────────────────────────────────
-
 var (
 	fontPickBtn  widget.Clickable
 	fontResetBtn widget.Clickable
@@ -124,8 +103,6 @@ var (
 	monoResetBtn widget.Clickable
 )
 
-// pickUserFont opens the OS file picker for the main UI font (async;
-// applies + persists on success).
 func (a *App) pickUserFont(mono bool) {
 	go func() {
 		if a.expl == nil {
@@ -153,7 +130,6 @@ func (a *App) pickUserFont(mono bool) {
 	}()
 }
 
-// applyUserFontPath parses, applies and persists one picked font.
 func (a *App) applyUserFontPath(path string, mono bool) {
 	if !isFontPath(path) {
 		a.setToast("Font: pick a .ttf or .otf file")
@@ -169,7 +145,7 @@ func (a *App) applyUserFontPath(path string, mono bool) {
 		userPath = path
 	}
 	if err := a.ui.applyUserFonts(userPath, monoPath); err != nil {
-		a.setToast("Font: " + err.Error()) // honest fallback: defaults stay
+		a.setToast("Font: " + err.Error())
 		return
 	}
 	k, m := userPath, monoPath
@@ -185,7 +161,6 @@ func (a *App) applyUserFontPath(path string, mono bool) {
 	a.invalidate()
 }
 
-// resetUserFont clears one font pick (mono or main) back to default.
 func (a *App) resetUserFont(mono bool) {
 	var userPath, monoPath string
 	a.mu.Lock()
@@ -213,9 +188,6 @@ func (a *App) resetUserFont(mono bool) {
 	a.invalidate()
 }
 
-// ── settings row ───────────────────────────────────────────────────────────
-
-// fontSettingsRows renders the Appearance font rows (main + mono).
 func (a *App) fontSettingsRows(gtx layout.Context, f frame) []layout.FlexChild {
 	if fontPickBtn.Clicked(gtx) {
 		a.pickUserFont(false)

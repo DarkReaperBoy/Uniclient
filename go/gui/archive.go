@@ -13,14 +13,6 @@ import (
 	"uniclient/engine"
 )
 
-// Archived chats (AyuGram parity slice 67): archived chats collapse behind
-// one row at the top of the chat list — box avatar, "Archived Chats" title,
-// aggregate unread badge (unmuted chats only, like Telegram). Tapping it
-// swaps the list to the archived chats; the folder tabs are replaced by a
-// back row. The context menu's Archive/Unarchive actions (slice 27) toggle
-// chats in and out of this view; search still sees archived chats.
-
-// splitArchived partitions a chat list into main and archived rows.
 func splitArchived(chats []engine.ChatInfo) (main, archived []engine.ChatInfo) {
 	for _, c := range chats {
 		if c.IsArchived {
@@ -32,7 +24,6 @@ func splitArchived(chats []engine.ChatInfo) (main, archived []engine.ChatInfo) {
 	return main, archived
 }
 
-// archiveAggregateUnread sums the unread counts of unmuted archived chats.
 func archiveAggregateUnread(archived []engine.ChatInfo) int {
 	n := 0
 	for _, c := range archived {
@@ -43,8 +34,6 @@ func archiveAggregateUnread(archived []engine.ChatInfo) int {
 	return n
 }
 
-// archivedChatsFor collects the archived chats a frame can show (honoring
-// the account filter) — feeds the collapsed row's badge and the archive view.
 func archivedChatsFor(f frame) []engine.ChatInfo {
 	var out []engine.ChatInfo
 	for _, c := range f.chats {
@@ -62,18 +51,14 @@ func archivedChatsFor(f frame) []engine.ChatInfo {
 var archiveRowBtn widget.Clickable
 var archiveBackBtn widget.Clickable
 
-// archiveBoxAvatar draws the boxed-archive glyph Telegram uses for the
-// archived row: a rounded box with a downward "into the box" arrow.
 func archiveBoxAvatar(gtx layout.Context, u *UI, size unit.Dp, unread int) layout.Dimensions {
 	sz := gtx.Dp(size)
 	col := u.p.TextDim
 	if unread > 0 {
 		col = u.p.Accent
 	}
-	// Box.
 	r := gtx.Dp(unit.Dp(10))
 	paint.FillShape(gtx.Ops, col, clip.UniformRRect(image.Rect(0, 0, sz, sz), r).Op(gtx.Ops))
-	// Arrow cut: a background-colored chevron pointing down into the box.
 	bg := u.p.Background
 	ax := sz * 3 / 10
 	ay := sz * 3 / 10
@@ -84,8 +69,6 @@ func archiveBoxAvatar(gtx layout.Context, u *UI, size unit.Dp, unread int) layou
 	return layout.Dimensions{Size: image.Pt(sz, sz)}
 }
 
-// archiveRow: the collapsed row at the top of the chat list. Sits above
-// every chat row (Telegram: always first, above pinned chats).
 func (a *App) archiveRow(gtx layout.Context, f frame, archived []engine.ChatInfo) layout.Dimensions {
 	if archiveRowBtn.Clicked(gtx) {
 		a.mu.Lock()
@@ -127,8 +110,6 @@ func (a *App) archiveRow(gtx layout.Context, f frame, archived []engine.ChatInfo
 	})
 }
 
-// archiveHeader: the back row that replaces the folder tabs while the
-// archived list is open. Back arrow + title; folder tabs return on exit.
 func (a *App) archiveHeader(gtx layout.Context, f frame) layout.Dimensions {
 	if archiveBackBtn.Clicked(gtx) {
 		a.exitArchive()
@@ -148,7 +129,6 @@ func (a *App) archiveHeader(gtx layout.Context, f frame) layout.Dimensions {
 	})
 }
 
-// exitArchive leaves the archived-chats view.
 func (a *App) exitArchive() {
 	a.mu.Lock()
 	a.archiveView = false

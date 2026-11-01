@@ -8,12 +8,6 @@ import (
 	"uniclient/utils"
 )
 
-// The XMPP login flow's optional XEP-0077 register step: after a failed
-// normal sign-in the flow offers "create this account on the server?",
-// maps the answer to the register flag, and forwards it into the auth
-// config. Uses a real (unconnected) XMPPCore: its Authenticate fails on
-// dial, which is exactly the failure path the register step follows.
-
 func newXMPPFlowForTest(t *testing.T) *authFlow {
 	t.Helper()
 	dir := t.TempDir()
@@ -65,7 +59,6 @@ func TestAdvanceXMPPRegisterStep(t *testing.T) {
 	flow := newXMPPFlowForTest(t)
 	base := &AuthState{Platform: "xmpp"}
 
-	// Step 1: JID → password prompt.
 	st, err := advanceXMPP(flow, "uc-test@invalid.example", base)
 	if err != nil {
 		t.Fatalf("step1: %v", err)
@@ -77,8 +70,6 @@ func TestAdvanceXMPPRegisterStep(t *testing.T) {
 		t.Fatalf("step1 state: %+v", st)
 	}
 
-	// Step 2: password → login attempt (fails: invalid host) → the
-	// register offer must appear, not a terminal error.
 	st, err = advanceXMPP(flow, "s3cret", base)
 	if err != nil {
 		t.Fatalf("step2 must not surface the dial error as terminal: %v", err)
@@ -93,9 +84,6 @@ func TestAdvanceXMPPRegisterStep(t *testing.T) {
 		t.Fatalf("register offer label: %q", st.Label)
 	}
 
-	// Step 3: "y" → register=true, tryAuth runs with the flag (and
-	// fails on the invalid host again — the state machine already did
-	// its job).
 	_, err = advanceXMPP(flow, "y", base)
 	if err == nil {
 		t.Fatal("expected the (dial) auth error to surface for an invalid host")
@@ -117,8 +105,6 @@ func TestAdvanceXMPPStraightLogin(t *testing.T) {
 	if st.Label != "Create this account on the server? (y = register, empty = retry)" {
 		t.Fatalf("expected register offer: %+v", st)
 	}
-	// Retry without registering: empty answer → register=false, plain
-	// login retried.
 	_, err = advanceXMPP(flow, "", base)
 	if err == nil {
 		t.Fatal("expected dial error for invalid host on retry")

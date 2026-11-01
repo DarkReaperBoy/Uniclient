@@ -1,15 +1,5 @@
 package gui
 
-// Local passcode lock (AyuGram "Privacy & security → Local passcode",
-// slice 87). When a passcode is configured in the vault, the app boots
-// LOCKED and renders only the PIN screen — the chat content is never
-// drawn while locked, so nothing leaks to screenshots or previews.
-// Wrong attempts freeze the pad for 30s after 5 tries (AyuGram's
-// escalating cooldown, simplified). Autolock re-arms after N minutes
-// without INPUT (key/pointer — a pass-through activity listener feeds
-// the timer; background network refreshes do not). The state machine and
-// vault mapping are pure/pure-ish and locked by lock_test.go.
-
 import (
 	"crypto/rand"
 	"crypto/sha256"
@@ -28,20 +18,18 @@ import (
 	"gioui.org/widget/material"
 )
 
-// lockState is the live passcode state; a nil lock means no passcode.
-// Mutations happen on the GUI loop only (the frame carries the pointer).
 type lockState struct {
-	digits      int    // 4..6
-	autolockMin int    // minutes, 0 = never
-	hash        string // hex(sha256(salt + pin))
-	salt        string // hex
+	digits      int
+	autolockMin int
+	hash        string
+	salt        string
 
 	locked      bool
-	input       string    // typed digits, len ≤ digits
-	wrong       bool      // last attempt failed → red dots + caption
-	wrongCount  int       // consecutive failures
-	frozenUntil time.Time // set after maxLockWrong attempts
-	lastActive  time.Time // last user input (autolock reference)
+	input       string
+	wrong       bool
+	wrongCount  int
+	frozenUntil time.Time
+	lastActive  time.Time
 }
 
 const (
@@ -49,24 +37,19 @@ const (
 	lockFreezeSecond = 30 * time.Second
 )
 
-// pinHashOf derives the stored PIN hash. Pure.
 func pinHashOf(salt, pin string) string {
 	sum := sha256.Sum256([]byte(salt + pin))
 	return hex.EncodeToString(sum[:])
 }
 
-// newLockSalt returns 8 random bytes hex-encoded.
 func newLockSalt() string {
 	b := make([]byte, 8)
 	if _, err := rand.Read(b); err != nil {
-		// rand virtually never fails; fall back to time entropy.
 		return strconv.FormatInt(time.Now().UnixNano(), 16)
 	}
 	return hex.EncodeToString(b)
 }
 
-// lockFromConfig maps the vault's passcode record to live state; nil when
-// absent or disabled. Pure.
 func lockFromConfig(data map[string]interface{}) *lockState {
 	if data == nil {
 		return nil
@@ -101,7 +84,6 @@ func lockFromConfig(data map[string]interface{}) *lockState {
 	return st
 }
 
-// toConfig serializes the state back into the vault record. Pure.
 func (st *lockState) toConfig() map[string]interface{} {
 	return map[string]interface{}{
 		"enabled":  true,
@@ -112,7 +94,6 @@ func (st *lockState) toConfig() map[string]interface{} {
 	}
 }
 
-// lockClampDigits keeps the PIN length in AyuGram's 4..6 range. Pure.
 func lockClampDigits(n int) int {
 	if n < 4 {
 		return 4
@@ -123,22 +104,16 @@ func lockClampDigits(n int) int {
 	return n
 }
 
-// lockFrozen reports whether the pad is in its wrong-attempts cooldown.
 func lockFrozen(st *lockState, now time.Time) bool {
 	return st != nil && !st.frozenUntil.IsZero() && now.Before(st.frozenUntil)
 }
 
-// lockShouldAutolock is the autolock decision. Pure.
 func lockShouldAutolock(st *lockState, now time.Time) bool {
 	return st != nil && !st.locked && st.autolockMin > 0 &&
 		!st.lastActive.IsZero() &&
 		now.Sub(st.lastActive) > time.Duration(st.autolockMin)*time.Minute
 }
 
-// lockFeedDigit appends one digit ('0'..'9'; anything else is ignored) —
-// the attempt auto-submits when the input fills (AyuGram behavior: no
-// Enter key). Frozen pads reject input. Returns true when the input
-// changed.
 func lockFeedDigit(st *lockState, d byte) bool {
 	if st == nil || len(st.input) >= st.digits {
 		return false
@@ -153,9 +128,6 @@ func lockFeedDigit(st *lockState, d byte) bool {
 	return true
 }
 
-// lockTryAttempt checks a full input against the hash and applies the
-// outcome (unlock, or failure bookkeeping + cooldown). Returns true when
-// the attempt succeeded. GUI-loop only.
 func lockTryAttempt(st *lockState, now time.Time) bool {
 	if st == nil || len(st.input) != st.digits {
 		return false
@@ -179,7 +151,6 @@ func lockTryAttempt(st *lockState, now time.Time) bool {
 	return false
 }
 
-// lockBackspace drops the last typed digit.
 func lockBackspace(st *lockState) {
 	if st == nil || st.input == "" {
 		return
@@ -187,20 +158,15 @@ func lockBackspace(st *lockState) {
 	st.input = st.input[:len(st.input)-1]
 }
 
-// ── lock screen ──────────────────────────────────────────────────────────
-
 var (
 	lockKeyTag      = new(struct{})
 	lockActivityTag = new(struct{})
 )
 
-// lockDots renders the PIN progress dots: filled per typed digit, red
-// after a wrong attempt.
 func (a *App) lockDots(gtx layout.Context, st *lockState) layout.Dimensions {
 	return a.pinDots(gtx, st.digits, len(st.input), st.wrong)
 }
 
-// pinDots renders n dots, filling the first `filled` (red when wrong).
 func (a *App) pinDots(gtx layout.Context, n, filled int, wrong bool) layout.Dimensions {
 	const dotDp = 14
 	gap := gtx.Dp(unit.Dp(10))
@@ -224,10 +190,6 @@ func (a *App) pinDots(gtx layout.Context, n, filled int, wrong bool) layout.Dime
 	return layout.Dimensions{Size: image.Pt(w, h)}
 }
 
-// pinGrid renders the shared 3×4 keypad (1..9, blank, 0, ⌫); feed is
-// called for every pressed key ("0".."9" or "back") — keys render inert
-// when disabled. The clickable pool is shared: only one pad surface is
-// visible per frame.
 func (a *App) pinGrid(gtx layout.Context, disabled bool, feed func(k string)) layout.Dimensions {
 	growClickables(&a.wid.lockPadBtns, 11)
 
@@ -272,7 +234,6 @@ func (a *App) pinGrid(gtx layout.Context, disabled bool, feed func(k string)) la
 	return layout.Flex{Axis: layout.Vertical, Spacing: layout.Spacing(gapDp)}.Layout(gtx, rows...)
 }
 
-// lockKeyOf maps a display key to the feed token. Pure.
 func lockKeyOf(k string) string {
 	if k == "⌫" {
 		return "back"
@@ -280,8 +241,6 @@ func lockKeyOf(k string) string {
 	return k
 }
 
-// lockFeedKey applies a pinGrid feed token to a lock state (auto-submit
-// when full is handled by the surface). Returns true when input changed.
 func lockFeedKey(st *lockState, k string) bool {
 	if k == "back" {
 		lockBackspace(st)
@@ -293,11 +252,7 @@ func lockFeedKey(st *lockState, k string) bool {
 	return false
 }
 
-// lockPad: the lock screen's pad — key events + grid + auto-submit.
 func (a *App) lockPad(gtx layout.Context, st *lockState, disabled bool, now time.Time) layout.Dimensions {
-	// Key events feed the same input path. Empty key.Filter{} is the
-	// catch-all (every key not matched by another filter) — the pad is
-	// the only interactive surface while the lock shows.
 	for {
 		ev, ok := gtx.Source.Event(key.Filter{})
 		if !ok {
@@ -314,7 +269,6 @@ func (a *App) lockPad(gtx layout.Context, st *lockState, disabled bool, now time
 	})
 }
 
-// lockPadIndex maps a display key to the clickable pool index. Pure.
 func lockPadIndex(k string) int {
 	if k == "⌫" {
 		return 10
@@ -325,7 +279,6 @@ func lockPadIndex(k string) int {
 	return int(k[0] - '0')
 }
 
-// lockKeyInput applies a key event to the pad state.
 func lockKeyInput(a *App, st *lockState, ke key.Event, now time.Time) {
 	if st == nil {
 		return
@@ -337,7 +290,7 @@ func lockKeyInput(a *App, st *lockState, ke key.Event, now time.Time) {
 	case key.NameEnter, key.NameReturn:
 		if lockTryAttempt(st, now) {
 			a.setToast("Unlocked")
-			a.broadcastLockState(false) // unlock everywhere (slice 168)
+			a.broadcastLockState(false)
 		}
 		a.invalidate()
 	default:
@@ -349,12 +302,10 @@ func lockKeyInput(a *App, st *lockState, ke key.Event, now time.Time) {
 	}
 }
 
-// layoutLockScreen: the ONLY surface rendered while locked.
 func (a *App) layoutLockScreen(gtx layout.Context, f frame) layout.Dimensions {
 	st := f.lock
 	now := f.now
 
-	// The lock screen owns all input: opaque, window-wide key listener.
 	{
 		stack := clip.Rect{Max: image.Pt(gtx.Constraints.Max.X, gtx.Constraints.Max.Y)}.Push(gtx.Ops)
 		event.Op(gtx.Ops, lockKeyTag)
@@ -365,15 +316,14 @@ func (a *App) layoutLockScreen(gtx layout.Context, f frame) layout.Dimensions {
 		if !ok {
 			break
 		}
-		_ = ev // press eaten: nothing behind the lock responds
+		_ = ev
 	}
 
 	frozen := lockFrozen(st, now)
-	// Auto-submit when the input fills.
 	if !frozen && len(st.input) == st.digits {
 		if lockTryAttempt(st, now) {
 			a.setToast("Unlocked")
-			a.broadcastLockState(false) // unlock everywhere (slice 168)
+			a.broadcastLockState(false)
 			a.invalidate()
 			return layout.Dimensions{Size: gtx.Constraints.Max}
 		}
@@ -427,9 +377,6 @@ func (a *App) layoutLockScreen(gtx layout.Context, f frame) layout.Dimensions {
 	})
 }
 
-// lockActivityLayer registers the pass-through input listener that feeds
-// the autolock timer (unlocked only). Key and pointer events both count;
-// background network refreshes do not.
 func (a *App) lockActivityLayer(gtx layout.Context, f frame) {
 	if f.lock == nil || f.lock.locked {
 		return
@@ -464,26 +411,20 @@ func (a *App) lockActivityLayer(gtx layout.Context, f frame) {
 	}
 	if active {
 		f.lock.lastActive = time.Now()
-		// Cross-window keepalive (slice 168): activity in ANY window
-		// resets every window's autolock idle timer.
 		lockBroadcastAll(false, true)
 	}
 }
 
-// lockTick runs the autolock decision each frame (unlocked only).
 func (a *App) lockTick(f frame) {
 	if lockShouldAutolock(f.lock, f.now) {
 		f.lock.locked = true
 		f.lock.input = ""
 		f.lock.wrong = false
-		// Process-wide lock (slice 168): every window locks.
 		a.broadcastLockState(true)
 		a.invalidate()
 	}
 }
 
-// broadcastLockState pushes this window's lock flip to every other window
-// (hop-based: the receiving loops apply pendingLock on their next frame).
 func (a *App) broadcastLockState(locked bool) {
 	if a.lock == nil {
 		return
@@ -491,9 +432,6 @@ func (a *App) broadcastLockState(locked bool) {
 	lockBroadcastAll(locked, false)
 }
 
-// onLockBroadcast applies bus notifications on the broadcaster's loop —
-// it must ONLY queue hops on this App, never mutate it directly (its own
-// GUI loop may be mid-frame under frameMu on another goroutine).
 func (a *App) onLockBroadcast(locked, activity bool) {
 	if activity {
 		a.mu.Lock()

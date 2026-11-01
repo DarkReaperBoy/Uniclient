@@ -12,15 +12,11 @@ import (
 	"uniclient/voice"
 )
 
-// Ogg demuxer: round-trips pages built by buildOggPage, reassembles
-// packets that span page boundaries (255-byte segments), and rejects
-// corrupted pages via the CRC check.
-
 func TestOggRoundTrip(t *testing.T) {
 	var buf bytes.Buffer
-	pkt0 := append([]byte("OpusHead"), make([]byte, 11)...) // 19 bytes: header packet shape
+	pkt0 := append([]byte("OpusHead"), make([]byte, 11)...)
 	pkt1 := []byte("OpusTags")
-	pkt2 := bytes.Repeat([]byte{0xAB}, 300) // > 255: two lacing segments
+	pkt2 := bytes.Repeat([]byte{0xAB}, 300)
 	serial := uint32(0x1EA7BEEF)
 	buf.Write(buildOggPage([][]byte{pkt0, pkt1}, 960, serial, 0, false))
 	buf.Write(buildOggPage([][]byte{pkt2}, 1920, serial, 1, true))
@@ -49,13 +45,9 @@ func TestOggRoundTrip(t *testing.T) {
 }
 
 func TestOggPacketSpansPages(t *testing.T) {
-	// A 600-byte packet forced across two pages: page 1 carries a single
-	// 255-byte segment with NO terminator (hand-crafted — buildOggPage
-	// always terminates its packets), page 2 continues with 255+90.
 	big := bytes.Repeat([]byte{0x5A}, 600)
 	serial := uint32(7)
 
-	// Hand-craft page 1: header + lacing [255] + 255 payload bytes.
 	var head [oggHeaderLen]byte
 	copy(head[:4], oggMagic)
 	binary.LittleEndian.PutUint32(head[14:18], serial)
@@ -67,7 +59,6 @@ func TestOggPacketSpansPages(t *testing.T) {
 	page1 = append(page1, big[:255]...)
 	binary.LittleEndian.PutUint32(page1[22:26], oggCRC(page1))
 
-	// Page 2: the remaining 345 bytes as a normal (terminated) packet.
 	var buf bytes.Buffer
 	buf.Write(page1)
 	buf.Write(buildOggPage([][]byte{big[255:]}, 960, serial, 1, true))
@@ -87,7 +78,7 @@ func TestOggPacketSpansPages(t *testing.T) {
 
 func TestOggCRCRejectsCorruption(t *testing.T) {
 	page := buildOggPage([][]byte{[]byte("hello")}, 960, 1, 0, true)
-	page[len(page)-1] ^= 0xFF // corrupt payload
+	page[len(page)-1] ^= 0xFF
 	rd := newOggPacketReader(bytes.NewReader(page))
 	if _, err := rd.Next(); err == nil || err == io.EOF {
 		t.Fatal("corrupted page must be rejected by CRC")
@@ -95,22 +86,12 @@ func TestOggCRCRejectsCorruption(t *testing.T) {
 }
 
 func TestOggCRCVector(t *testing.T) {
-	// Self-consistency of the Ogg CRC variant against the bitwise spec
-	// implementation (poly 0x04c11db7, init 0, MSB-first, no reflection,
-	// no final xor) — verified against an independent Python computation
-	// of the same algorithm. The real-file round-trip below additionally
-	// proves the CRC matches actual Ogg/Opus encoders (ffmpeg).
 	if got := oggCRC([]byte("123456789")); got != 0x89a1897f {
 		t.Fatalf("oggCRC vector: got %08x want 89a1897f", got)
 	}
 	_ = binary.LittleEndian
 }
 
-// TestOggRealOpusFile demuxes a REAL Ogg/Opus stream produced by
-// ffmpeg's opus encoder: every page CRC must verify (any mismatch
-// would mean our CRC or page parser deviates from real encoders), the
-// first two packets must be the OpusHead/OpusTags headers, and every
-// audio packet must decode through the pure-Go opus decoder.
 func TestOggRealOpusFile(t *testing.T) {
 	if _, err := exec.LookPath("ffmpeg"); err != nil {
 		t.Skip("ffmpeg not available")

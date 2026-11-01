@@ -1,16 +1,5 @@
 package gui
 
-// Slice 220 — round video notes play INSIDE the chat bubble through the
-// pure-Go h264vid pipeline (slice 219), which is what AyuGram/tdesktop do
-// with video messages: the note is a circular, looping player in the
-// conversation, not a link to a viewer.
-//
-// Tests lock the pure logic BEFORE the widgets: the tap state machine,
-// the per-msg player cache (lifecycle, single-claim read guard, eviction
-// stopping the decode goroutines), the one-shot "play inline when the
-// download lands" marker that keeps round notes out of the system player,
-// and the power-saving gate for the loop.
-
 import (
 	"os"
 	"path/filepath"
@@ -23,8 +12,6 @@ import (
 	"uniclient/h264vid"
 )
 
-// parseRoundFixture parses a committed H.264 fixture into a real Video —
-// index-only, so it is cheap enough to do inside tests.
 func parseRoundFixture(t *testing.T) *h264vid.Video {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join("..", "h264vid", "testdata", "round_video.mp4"))
@@ -38,8 +25,6 @@ func parseRoundFixture(t *testing.T) *h264vid.Video {
 	return v
 }
 
-// roundNoteFixture copies a committed H.264 fixture into a temp dir so the
-// download-complete path sees a real, playable file.
 func roundNoteFixture(t *testing.T) string {
 	t.Helper()
 	src := filepath.Join("..", "h264vid", "testdata", "round_video.mp4")
@@ -59,7 +44,6 @@ func TestNoteTapAction(t *testing.T) {
 	playing := &h264PlayerState{parsed: true, playing: true}
 	reading := &h264PlayerState{reading: true}
 	failed := &h264PlayerState{failed: true}
-	// parsed=false, reading=false: no parse started yet → kick one off.
 	idle := &h264PlayerState{}
 
 	cases := []struct {
@@ -74,8 +58,6 @@ func TestNoteTapAction(t *testing.T) {
 		{"idle entry waits (caller ensures the parse)", idle, true, noteActionWait},
 		{"parsed and stopped plays", parsed, true, noteActionPlay},
 		{"playing pauses", playing, true, noteActionPause},
-		// §1.10: an undecodable note must fall through to the honest
-		// viewer/system path rather than sit dead in the bubble.
 		{"undecodable falls back to the viewer", failed, true, noteActionViewer},
 		{"undecodable but not downloaded still downloads", failed, false, noteActionDownload},
 	}
@@ -109,7 +91,6 @@ func TestH264PlayerCache(t *testing.T) {
 		t.Error("peek created an entry (peek must be read-only)")
 	}
 
-	// publish marks the video parsed and starts it playing.
 	video := parseRoundFixture(t)
 	c.publish("m1", "/tmp/a.mp4", video, true)
 	t.Cleanup(func() { c.reset("m1") })
@@ -118,7 +99,6 @@ func TestH264PlayerCache(t *testing.T) {
 			p.parsed, p.playing, p.path, p.video)
 	}
 
-	// play/pause round trip preserves the playhead.
 	c.pause("m1")
 	if p, ok := c.get("m1"); !ok || p.playing {
 		t.Error("pause left playing=true")
@@ -136,14 +116,12 @@ func TestH264PlayerCache(t *testing.T) {
 		t.Errorf("elapsed went backwards across resume: %v < %v", c.elapsed("m1"), frozen)
 	}
 
-	// failParse pins the failed flag (viewer fallback, no re-parse churn).
 	c.failParse("m2")
 	if p, ok := c.get("m2"); !ok || !p.failed || p.parsed || p.reading {
 		t.Errorf("failParse left failed=%v parsed=%v reading=%v",
 			p.failed, p.parsed, p.reading)
 	}
 
-	// markReading guards concurrent reads: claim once, release once.
 	if !c.markReading("m3") {
 		t.Error("first markReading claim rejected")
 	}
@@ -155,14 +133,12 @@ func TestH264PlayerCache(t *testing.T) {
 		t.Error("markReading after endReading rejected")
 	}
 
-	// reset clears every flag and drops the video.
 	c.reset("m1")
 	if p, ok := c.get("m1"); !ok || p.parsed || p.playing || p.video != nil || p.path != "" {
 		t.Errorf("reset left parsed=%v playing=%v video=%v path=%q",
 			p.parsed, p.playing, p.video, p.path)
 	}
 
-	// Prune: an oversized cache drops the old entries without panic.
 	for i := 0; i < h264PlayerMax+8; i++ {
 		if _, ok := c.get("bulk" + itoa(i)); !ok {
 			t.Fatal("get after prune returned no entry")
@@ -173,9 +149,6 @@ func TestH264PlayerCache(t *testing.T) {
 	}
 }
 
-// TestPlayInlineOnDone: marking a round-note download makes completion
-// play the file IN-CHAT instead of handing it to the system player
-// (the slice-86 handoff must stay reserved for everything else).
 func TestPlayInlineOnDone(t *testing.T) {
 	path := roundNoteFixture(t)
 
@@ -199,7 +172,6 @@ func TestPlayInlineOnDone(t *testing.T) {
 	if len(opened) != 0 {
 		t.Fatalf("round note handed to the system player: %v", opened)
 	}
-	// One-shot: a redelivery must not restart playback.
 	a.onDownloadComplete(engine.DownloadCompleteEvent{
 		AccountID: "acct", ChatID: "chat", MsgID: "42", Seq: 0, LocalPath: path,
 	})
@@ -207,7 +179,6 @@ func TestPlayInlineOnDone(t *testing.T) {
 		t.Error("playOnDone mark survived a completion (not one-shot)")
 	}
 
-	// The async parse publishes a playing player; wait for it.
 	deadline := time.Now().Add(10 * time.Second)
 	for {
 		p, have := h264Players.peek("42")
@@ -223,8 +194,6 @@ func TestPlayInlineOnDone(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	// A second tap on a playing note pauses it, and the tap action now
-	// says Pause rather than Play.
 	p, _ := h264Players.peek("42")
 	if act := noteTapAction(&p, true); act != noteActionPause {
 		t.Fatalf("tap while playing = %v, want %v", act, noteActionPause)
@@ -236,8 +205,6 @@ func TestPlayInlineOnDone(t *testing.T) {
 	}
 }
 
-// TestVideoNotePowerGate: the inline loop obeys the power-saving gate the
-// stickers/emoji animations already use — force-all holds the frame.
 func TestVideoNotePowerGate(t *testing.T) {
 	if powerSavingBlocks(0, false, psClassVideo) {
 		t.Error("video blocked with no flags and no force-all")
@@ -253,10 +220,6 @@ func TestVideoNotePowerGate(t *testing.T) {
 	}
 }
 
-// TestCloseViewerReleasesStreamSource: BUGS.md B-4 — closing the media
-// viewer must release the viewed clip's open stream reader NOW; the
-// entry otherwise holds that fd until the 48-entry eviction. Pre-patch
-// closeViewer only nils a.viewer, so this test is RED before the patch.
 func TestCloseViewerReleasesStreamSource(t *testing.T) {
 	h264Players = &h264PlayerCache{players: make(map[string]*h264Player)}
 	t.Cleanup(func() {
@@ -290,9 +253,6 @@ func TestCloseViewerReleasesStreamSource(t *testing.T) {
 	}
 }
 
-// TestH264CacheResetAllReleasesEverything: leaving a chat must drop
-// every entry AND close its stream reader (not merely clear fields) —
-// the seam openChat calls on a real chat change (BUGS.md B-4).
 func TestH264CacheResetAllReleasesEverything(t *testing.T) {
 	h264Players = &h264PlayerCache{players: make(map[string]*h264Player)}
 	t.Cleanup(func() {
@@ -319,9 +279,6 @@ func TestH264CacheResetAllReleasesEverything(t *testing.T) {
 	}
 }
 
-// TestLeaveChatReleasesStreamSources: the openChat seam end-to-end on
-// a zero-value App (pause is a no-op without an engine; the fd half is
-// the contract under test).
 func TestLeaveChatReleasesStreamSources(t *testing.T) {
 	h264Players = &h264PlayerCache{players: make(map[string]*h264Player)}
 	t.Cleanup(func() {
@@ -342,11 +299,6 @@ func TestLeaveChatReleasesStreamSources(t *testing.T) {
 	}
 }
 
-// TestInlinePlayFailureHandsOffToSystemPlayer: BUGS.md B-5 — a
-// permanently-unplayable note completing via the play-on-done marker
-// must hand off to the system player (toast + openMedia), exactly like
-// the viewer path — not consume the marker and show nothing until the
-// next tap. RED before the fix.
 func TestInlinePlayFailureHandsOffToSystemPlayer(t *testing.T) {
 	if runtime.GOOS == "js" {
 		t.Skip("no filesystem on js/wasm — downloaded-file paths cannot exist there")
@@ -404,9 +356,6 @@ func TestInlinePlayFailureHandsOffToSystemPlayer(t *testing.T) {
 		t.Fatalf("inline play failure did not hand off (B-5): n=%d first=%q, want [%s]", n, first, path)
 	}
 
-	// Second part: an ALREADY-failed entry must still run the fallback
-	// when a caller arrives with onFail (the p.path==path && p.failed
-	// early-return used to swallow it silently).
 	before, _ := openedInfo()
 	firedFn := func() bool {
 		stubMu.Lock()

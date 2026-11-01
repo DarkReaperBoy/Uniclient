@@ -6,8 +6,6 @@ import (
 	"uniclient/engine"
 )
 
-// Global search pure helpers (gui/search.go, slice 16).
-
 func TestBuildSearchRows(t *testing.T) {
 	visible := []engine.ChatInfo{{ChatID: "c1", Title: "Local"}}
 	msgs := []engine.SearchResult{
@@ -18,7 +16,7 @@ func TestBuildSearchRows(t *testing.T) {
 
 	t.Run("full model", func(t *testing.T) {
 		rows := buildSearchRows(visible, msgs, nil, global, "")
-		if len(rows) != 8 { // 3 headers + 1 chat + 2 msgs + 2 globals
+		if len(rows) != 8 {
 			t.Fatalf("rows = %d, want 8", len(rows))
 		}
 		if rows[0].kind != sbRowHeader || rows[0].title != "Chats" {
@@ -69,7 +67,7 @@ func TestOnSearchChangedShortQueryClears(t *testing.T) {
 	a := &App{}
 	a.searchMsgs = []engine.SearchResult{{MsgID: "m1"}}
 	a.searchGlobal = []engine.ChatInfo{{ChatID: "g1"}}
-	a.onSearchChanged("x") // below the 2-rune threshold — synchronous clear
+	a.onSearchChanged("x")
 	if a.searchMsgs != nil || a.searchGlobal != nil {
 		t.Fatalf("short query should clear results, got msgs=%v global=%v", a.searchMsgs, a.searchGlobal)
 	}

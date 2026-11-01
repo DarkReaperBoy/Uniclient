@@ -7,21 +7,13 @@ import (
 	"uniclient/cores"
 )
 
-// Sponsored messages (Telegram channels + bots, slice 163): the engine
-// layer over the core's sponsored surface — a 5-minute per-chat cache
-// (tdesktop's SponsoredMessages::RequestCanAsk interval), one-shot
-// view-reporting per cache window, and pass-through routing for the
-// click / report / toggle RPCs.
-
-// sponsoredTTL is how long a fetched sponsored block stays fresh
-// (Telegram's documented 5-minute sponsored request interval).
 const sponsoredTTL = 5 * time.Minute
 
 type sponsoredCacheEntry struct {
 	items        []cores.SponsoredMessageInfo
 	postsBetween int
 	fetchedAt    time.Time
-	viewed       map[string]bool // random IDs already view-reported in this window
+	viewed       map[string]bool
 }
 
 type SponsoredMessagesGetter interface {
@@ -32,9 +24,6 @@ type SponsoredMessagesGetter interface {
 	ToggleSponsoredMessages(enabled bool) error
 }
 
-// GetSponsoredMessages returns the sponsored messages for a channel or
-// bot chat, served from the 5-minute cache when fresh. The cache key is
-// account+chat; entries refresh lazily on the next call after expiry.
 func (e *Engine) GetSponsoredMessages(accountID, chatID string) ([]cores.SponsoredMessageInfo, int, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -61,8 +50,6 @@ func (e *Engine) GetSponsoredMessages(accountID, chatID string) ([]cores.Sponsor
 
 	items, posts, err := getter.GetSponsoredMessages(chatID)
 	if err != nil {
-		// Serve nothing on error — the GUI shows no block (honest empty),
-		// never a stale one past its window.
 		return nil, 0, err
 	}
 
@@ -80,10 +67,6 @@ func (e *Engine) GetSponsoredMessages(accountID, chatID string) ([]cores.Sponsor
 	return items, posts, nil
 }
 
-// MarkSponsoredViewed reports that the ad's full text became visible
-// (messages.viewSponsoredMessage), once per cache window per message —
-// the wire contract only wants the report when the block is actually
-// (re)shown to the user.
 func (e *Engine) MarkSponsoredViewed(accountID, chatID, randomID string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -106,15 +89,13 @@ func (e *Engine) MarkSponsoredViewed(accountID, chatID, randomID string) error {
 	}
 	if ent.viewed[randomID] {
 		e.sponsoredMu.Unlock()
-		return nil // already reported this window
+		return nil
 	}
 	ent.viewed[randomID] = true
 	e.sponsoredMu.Unlock()
 	return getter.ViewSponsoredMessage(randomID)
 }
 
-// ClickSponsoredMessage reports a click on a sponsored message (the
-// button vs the media block vs a fullscreen video ad).
 func (e *Engine) ClickSponsoredMessage(accountID, randomID string, media, fullscreen bool) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -130,9 +111,6 @@ func (e *Engine) ClickSponsoredMessage(accountID, randomID string, media, fullsc
 	return getter.ClickSponsoredMessage(randomID, media, fullscreen)
 }
 
-// ReportSponsoredMessage walks one step of the iterative ad-report flow:
-// an empty option requests the option list; a chosen option submits it.
-// The result is the next choose-option chain ("" title = done).
 func (e *Engine) ReportSponsoredMessage(accountID, randomID, option string) (string, []cores.SponsoredReportOption, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -148,9 +126,6 @@ func (e *Engine) ReportSponsoredMessage(accountID, randomID, option string) (str
 	return getter.ReportSponsoredMessage(randomID, option)
 }
 
-// ToggleSponsoredMessages turns account-wide sponsored messages off/on
-// (account.toggleSponsoredMessages — the Premium "No ads" lever; it is
-// a setter, not a flip, so calls are idempotent).
 func (e *Engine) ToggleSponsoredMessages(accountID string, enabled bool) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {

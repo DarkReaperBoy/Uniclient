@@ -6,9 +6,6 @@ import (
 	"uniclient/engine"
 )
 
-// Chat-row context menu (AyuGram parity §2): action rows derive from the
-// chat's flags — locked here.
-
 func chatForMenu() engine.ChatInfo {
 	return engine.ChatInfo{AccountID: "a", ChatID: "1", Type: engine.ChatTypeDMVal, Title: "Test"}
 }
@@ -55,11 +52,6 @@ func TestChatMenuItemsInverted(t *testing.T) {
 	}
 }
 
-// Add-to-folder picker (slice 27): the frame's server folders are scoped to
-// one account; the menu only offers folders loaded for the chat's account.
-
-// Clear history (slice 190, tdesktop dialog-row menu): offered for every
-// chat type, id clearhist, positioned right before Delete chat.
 func TestChatMenuItemsClearHistory(t *testing.T) {
 	for _, typ := range []int{engine.ChatTypeDMVal, engine.ChatTypeGroupVal, engine.ChatTypeChanVal} {
 		c := chatForMenu()

@@ -1,14 +1,5 @@
 package gui
 
-// profilemusic.go — slice 206: profile music ("saved music", tdesktop Aug
-// 2026). Songs pinned on user profiles: the profile panel gains a Music
-// section (first track + count, tap → the full playlist view); the
-// playlist view plays tracks through the shared in-app player, manages the
-// OWN playlist (move up/down, remove — account.saveMusic after_id/unsave)
-// and offers add-to-my-profile on other users' tracks; audio bubbles gain
-// the Add/Remove-from-profile-music context item gated on the real
-// own-ID state.
-
 import (
 	"fmt"
 	"image"
@@ -23,12 +14,11 @@ import (
 )
 
 var (
-	musicRows    []widget.Clickable // playlist row taps (play/pause)
-	musicActBtns []widget.Clickable // per-row action: own ⋮ menu, other ＋ add
+	musicRows    []widget.Clickable
+	musicActBtns []widget.Clickable
 	musicBackBtn widget.Clickable
 	musicList    widget.List
 
-	// row-menu action rows (Move up / Move down / Remove)
 	musicRowMenuBtns []widget.Clickable
 )
 
@@ -36,23 +26,20 @@ func init() {
 	musicList.Axis = layout.Vertical
 }
 
-// musicDlgState is the open playlist view (nil when closed).
 type musicDlgState struct {
 	accountID string
 	peerID    string
-	title     string // peer display name for the header sub-line
-	own       bool   // peerID == the account's self user → manage mode
+	title     string
+	own       bool
 	tracks    []engine.MusicTrack
 	loaded    bool
 }
 
-// musicRowMenuState is the open per-row action menu (own playlists).
 type musicRowMenuState struct {
 	docID string
 	pos   image.Point
 }
 
-// musicDurationLabel (pure, testable): 257 → "4:17", 61 → "1:01".
 func musicDurationLabel(secs int) string {
 	if secs <= 0 {
 		return ""
@@ -60,15 +47,10 @@ func musicDurationLabel(secs int) string {
 	return fmt.Sprintf("%d:%02d", secs/60, secs%60)
 }
 
-// profileMusicMenuGate (pure, testable): which messages offer the
-// Add-to-profile-music item — audio documents (songs, never voice notes)
-// on platforms that expose the surface.
 func profileMusicMenuGate(m engine.CachedMessage) bool {
 	return m.HasMedia && m.MediaType == engine.MediaAudio
 }
 
-// openProfileMusic opens the playlist view for a user peer and kicks the
-// engine load (cold cache fetches from the server first).
 func (a *App) openProfileMusic(k chatKey, title, selfID string) {
 	st := &musicDlgState{
 		accountID: k.AccountID,
@@ -96,7 +78,6 @@ func (a *App) openProfileMusic(k chatKey, title, selfID string) {
 	}()
 }
 
-// closeProfileMusic dismisses the playlist view.
 func (a *App) closeProfileMusic() {
 	a.mu.Lock()
 	a.musicDlg = nil
@@ -104,8 +85,6 @@ func (a *App) closeProfileMusic() {
 	a.invalidate()
 }
 
-// toggleProfileMusicTrack plays/pauses one track through the shared
-// in-app player (download-once on first play).
 func (a *App) toggleProfileMusicTrack(accountID, docID string) {
 	st := a.eng.MediaState()
 	mine := (st.Playing || st.Paused) && st.AccountID == accountID && st.ChatID == "profilemusic" && st.MsgID == docID
@@ -124,8 +103,6 @@ func (a *App) toggleProfileMusicTrack(accountID, docID string) {
 	a.invalidate()
 }
 
-// saveProfileMusicTrack adds a track from another user's profile to the
-// OWN playlist (account.saveMusic) with the tdesktop toast.
 func (a *App) saveProfileMusicTrack(accountID string, track engine.MusicTrack) {
 	go func() {
 		if err := a.eng.SaveToProfileMusic(accountID, track); err != nil {
@@ -136,7 +113,6 @@ func (a *App) saveProfileMusicTrack(accountID string, track engine.MusicTrack) {
 	}()
 }
 
-// applyProfileMusicRowMenu dispatches one own-playlist row action.
 func (a *App) applyProfileMusicRowMenu(st *musicDlgState, docID, action string) {
 	switch action {
 	case "up":
@@ -173,8 +149,6 @@ func (a *App) applyProfileMusicRowMenu(st *musicDlgState, docID, action string) 
 	}
 }
 
-// reorderProfileMusic moves one track to the top (Move up on the first
-// row is a genuine move-to-top per tdesktop's plain-save semantics).
 func (a *App) reorderProfileMusic(st *musicDlgState, docID, after string) {
 	if err := a.eng.ReorderProfileMusic(st.accountID, docID, after); err != nil {
 		a.setToast("Move failed: " + err.Error())
@@ -183,7 +157,6 @@ func (a *App) reorderProfileMusic(st *musicDlgState, docID, after string) {
 	a.reloadProfileMusic(st)
 }
 
-// reloadProfileMusic re-reads the playlist after a mutation.
 func (a *App) reloadProfileMusic(st *musicDlgState) {
 	tracks, err := a.eng.GetProfileMusic(st.accountID, st.peerID)
 	if err != nil {
@@ -194,7 +167,6 @@ func (a *App) reloadProfileMusic(st *musicDlgState) {
 		a.musicDlg.tracks = tracks
 		a.musicDlg.loaded = true
 	}
-	// The panel's Music section follows (same peer).
 	if a.panelChat.AccountID == st.accountID && a.panelChat.ChatID == st.peerID {
 		a.panelMusic = tracks
 	}
@@ -202,7 +174,6 @@ func (a *App) reloadProfileMusic(st *musicDlgState) {
 	a.invalidate()
 }
 
-// layoutProfileMusic renders the playlist view (content-pane surface).
 func (a *App) layoutProfileMusic(gtx layout.Context, f frame) layout.Dimensions {
 	st := f.musicDlg
 	if st == nil {
@@ -215,8 +186,6 @@ func (a *App) layoutProfileMusic(gtx layout.Context, f frame) layout.Dimensions 
 	growClickables(&musicRows, len(tracks))
 	growClickables(&musicActBtns, len(tracks))
 
-	// Row taps toggle playback; action buttons open the row menu (own) or
-	// save-to-my-profile (other).
 	for i, tr := range tracks {
 		i, tr := i, tr
 		if musicRows[i].Clicked(gtx) {
@@ -238,7 +207,6 @@ func (a *App) layoutProfileMusic(gtx layout.Context, f frame) layout.Dimensions 
 	return layout.Stack{}.Layout(gtx,
 		layout.Stacked(func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-				// header: back + title + sub.
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layout.Inset{Top: unit.Dp(8), Bottom: unit.Dp(8), Left: unit.Dp(8), Right: unit.Dp(12)}.Layout(gtx,
 						func(gtx layout.Context) layout.Dimensions {
@@ -272,7 +240,6 @@ func (a *App) layoutProfileMusic(gtx layout.Context, f frame) layout.Dimensions 
 						return a.centerLoader(gtx)
 					}
 					if len(tracks) == 0 {
-						// Honest empty state (§1.10): a user with no pinned songs.
 						return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							return layout.Inset{Top: unit.Dp(24), Bottom: unit.Dp(24)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 								return a.ui.Dim(unit.Sp(13), "No music on this profile").Layout(gtx)
@@ -283,7 +250,6 @@ func (a *App) layoutProfileMusic(gtx layout.Context, f frame) layout.Dimensions 
 				}),
 			)
 		}),
-		// Own-playlist row action menu (positioned popup).
 		layout.Expanded(func(gtx layout.Context) layout.Dimensions {
 			if f.musicRowMenu == nil {
 				return layout.Dimensions{}
@@ -294,9 +260,6 @@ func (a *App) layoutProfileMusic(gtx layout.Context, f frame) layout.Dimensions 
 
 }
 
-// musicRow renders one playlist row: play/pause glyph, title (file-name
-// fallback, §1.10), performer, duration; the trailing action button (⋮ own
-// / ＋ other). The active track tints.
 func (a *App) musicRow(gtx layout.Context, f frame, tr engine.MusicTrack, idx int, own bool) layout.Dimensions {
 	st := a.eng.MediaState()
 	active := (st.Playing || st.Paused) && st.AccountID == f.musicDlg.accountID && st.ChatID == "profilemusic" && st.MsgID == tr.DocID
@@ -370,9 +333,6 @@ func (a *App) musicRow(gtx layout.Context, f frame, tr engine.MusicTrack, idx in
 		})
 }
 
-// openMusicRowMenu opens the own-playlist row menu anchored at the row's
-// action button (right edge, row Y estimate minus the list scroll — the
-// popup clamps to the pane either way).
 func (a *App) openMusicRowMenu(docID string, idx int, gtx layout.Context) {
 	rowY := gtx.Dp(unit.Dp(64)) + idx*gtx.Dp(unit.Dp(58)) - musicList.Position.Offset
 	pos := image.Pt(gtx.Constraints.Max.X-gtx.Dp(unit.Dp(210)), rowY)
@@ -382,7 +342,6 @@ func (a *App) openMusicRowMenu(docID string, idx int, gtx layout.Context) {
 	a.invalidate()
 }
 
-// layoutMusicRowMenu draws the own-playlist row action popup.
 func (a *App) layoutMusicRowMenu(gtx layout.Context, f frame) layout.Dimensions {
 	m := f.musicRowMenu
 	if m == nil || f.musicDlg == nil {
@@ -446,7 +405,6 @@ func (a *App) layoutMusicRowMenu(gtx layout.Context, f frame) layout.Dimensions 
 	return dims
 }
 
-// musicRowMenuRow renders one menu row (destructive rows tinted).
 func musicRowMenuRow(gtx layout.Context, a *App, btn *widget.Clickable, item chatMenuAction, rowH int) layout.Dimensions {
 	bl := material.ButtonLayout(a.ui.Theme, btn)
 	bl.Background = a.ui.p.Surface
@@ -480,7 +438,6 @@ func musicRowMenuRow(gtx layout.Context, a *App, btn *widget.Clickable, item cha
 	})
 }
 
-// closeMusicRowMenu dismisses the row menu.
 func (a *App) closeMusicRowMenu() {
 	a.mu.Lock()
 	a.musicRowMenu = nil
@@ -488,10 +445,6 @@ func (a *App) closeMusicRowMenu() {
 	a.invalidate()
 }
 
-// onProfileMusicChanged reloads the affected surfaces after an
-// own-playlist mutation (engine event): the open playlist view (if it
-// targets the peer), the panel's Music section, and re-reads nothing else
-// — the engine already refreshed its caches before emitting.
 func (a *App) onProfileMusicChanged(accountID, peerID string) {
 	go func() {
 		a.mu.Lock()
@@ -513,7 +466,6 @@ func (a *App) onProfileMusicChanged(accountID, peerID string) {
 	}()
 }
 
-// centerLoader is the shared centered spinner (loading pane body).
 func (a *App) centerLoader(gtx layout.Context) layout.Dimensions {
 	return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		ld := material.Loader(a.ui.Theme)
@@ -522,19 +474,10 @@ func (a *App) centerLoader(gtx layout.Context) layout.Dimensions {
 	})
 }
 
-// profileMusicSectionShown gates the Music section to windows that can
-// actually open the playlist: the tap-through is a content-pane dialog
-// (layoutContentPaneDialog), which only the MAIN window renders — the
-// separate branch returns before any dialog surface. A shown-but-dead
-// button there would violate §1.10 (R29).
 func profileMusicSectionShown(a *App) bool {
 	return !a.isSeparate()
 }
 
-// panelMusicSection renders the profile panel's Music section (tdesktop's
-// MusicButton: the first song + a tap-through to the playlist). Hidden
-// when the peer has no music (§1.10 — no dead UI), and in separate
-// windows (R29 — the playlist is a main-window surface).
 func (a *App) panelMusicSection(gtx layout.Context, f frame) []layout.FlexChild {
 	if !profileMusicSectionShown(a) {
 		return nil
@@ -599,7 +542,6 @@ func (a *App) panelMusicSection(gtx layout.Context, f frame) []layout.FlexChild 
 	return children
 }
 
-// panelTitleOf resolves the open panel peer's display name.
 func panelTitleOf(f frame) string {
 	if chat, ok := panelChatOf(f); ok && chat.Title != "" {
 		return chat.Title

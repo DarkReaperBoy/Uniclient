@@ -9,21 +9,19 @@ import (
 	"uniclient/engine"
 )
 
-// Media viewer pure helpers (gui/mediaview.go, §12 parity).
-
 func TestStepViewerIndex(t *testing.T) {
 	cases := []struct {
 		i, n, delta, want int
 	}{
-		{0, 5, 1, 1},   // step in
-		{3, 5, 1, 4},   // to last
-		{4, 5, 1, 4},   // clamp at newest
-		{1, 5, -1, 0},  // to oldest
-		{0, 5, -1, 0},  // clamp at oldest
-		{0, 5, 99, 4},  // overshoot clamps
-		{4, 5, -99, 0}, // undershoot clamps
-		{0, 0, 1, 0},   // empty list
-		{0, 1, 1, 0},   // single item stays
+		{0, 5, 1, 1},
+		{3, 5, 1, 4},
+		{4, 5, 1, 4},
+		{1, 5, -1, 0},
+		{0, 5, -1, 0},
+		{0, 5, 99, 4},
+		{4, 5, -99, 0},
+		{0, 0, 1, 0},
+		{0, 1, 1, 0},
 	}
 	for _, c := range cases {
 		if got := stepViewerIndex(c.i, c.n, c.delta); got != c.want {
@@ -45,11 +43,9 @@ func TestViewerZoomAfter(t *testing.T) {
 }
 
 func TestClampPanAxis(t *testing.T) {
-	// Image smaller than the box → snap to center.
 	if p := clampPanAxis(30, 100, 200); p != 0 {
 		t.Errorf("smaller side: %v, want 0", p)
 	}
-	// Zoomed larger: limited to (scaled-box)/2.
 	if p := clampPanAxis(0, 400, 200); p != 0 {
 		t.Errorf("center: %v, want 0", p)
 	}
@@ -62,12 +58,9 @@ func TestClampPanAxis(t *testing.T) {
 }
 
 func TestPanAfterZoom(t *testing.T) {
-	// k=2, pan=0, click 10 right of center: pan' = 0*2 + (10-0)*(1-2) = -10
-	// (the image grows right where the cursor sits, so its origin moves left).
 	if p := panAfterZoom(0, 10, 0, 2); p != -10 {
 		t.Errorf("panAfterZoom(0,10,0,2) = %v, want -10", p)
 	}
-	// Zoom back k=0.4 from pan=-10 with cursor at same spot: back to ~0.
 	if p := panAfterZoom(-10, 10, 0, 0.4); p != -10*0.4+10*0.6 {
 		t.Errorf("panAfterZoom(-10,10,0,0.4) = %v, want %v", p, -10*0.4+10*0.6)
 	}
@@ -172,11 +165,6 @@ func TestViewerIsVideo(t *testing.T) {
 	}
 }
 
-// R18: the viewer's Share button used to deadlock the whole window —
-// viewerShare held a.mu across openForward, which locks a.mu again (Go
-// mutexes are non-reentrant; the same shape CI run 41174703134 caught in
-// the R14 test). A watchdog, not a parked call: the failing shape must
-// FAIL fast instead of hanging the runner.
 func TestViewerShareCompletes(t *testing.T) {
 	a := &App{}
 	v := &viewerState{accountID: "acct", chatID: "chat", chatTitle: "t", kind: "image", anchor: "m1"}
@@ -203,10 +191,6 @@ func TestViewerShareCompletes(t *testing.T) {
 	}
 }
 
-// R19: the viewer's box/scaled bookkeeping used to be package-level vars —
-// but layoutMediaView renders in BOTH window branches (app.go Root), so two
-// windows' GUI loops raced on them and one window's clamp math read the
-// other window's box (B-47 class). The fields must live on App, per window.
 func TestViewerBoxBookkeepingIsPerWindow(t *testing.T) {
 	a, b := &App{}, &App{}
 	a.mvBoxW, a.mvBoxH = 100, 50
@@ -214,8 +198,6 @@ func TestViewerBoxBookkeepingIsPerWindow(t *testing.T) {
 	if b.mvBoxW != 0 || b.mvBoxH != 0 || b.mvScaledW != 0 || b.mvScaledH != 0 {
 		t.Fatal("viewer box bookkeeping leaked across App instances: package-level state (R19)")
 	}
-	// The drag clamp must use THIS window's last painted size, not another
-	// window's (the pre-fix clampViewerPanNow read package globals).
 	if p := a.clampPanNow(f32.Pt(9999, 0)); p.X > 100 {
 		t.Fatalf("clamp against a 300-wide image in a 100-wide box: got pan.X=%v, want <=100", p.X)
 	}

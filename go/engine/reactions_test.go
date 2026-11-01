@@ -6,9 +6,6 @@ import (
 	"uniclient/cores"
 )
 
-// toggleReaction mirrors the optimistic own-reaction toggle used by
-// ReactToMessage's post-success cache update. Lock the contract: add,
-// increment, remove, drop-at-zero, and preserve unknown entries.
 func TestToggleReaction(t *testing.T) {
 	t.Run("add first reaction", func(t *testing.T) {
 		got := toggleReaction(nil, "👍")
@@ -53,9 +50,6 @@ func TestToggleReaction(t *testing.T) {
 	})
 }
 
-// Custom-emoji reactions (slice 53): the "custom_<docID>" wire key must
-// match cached DocumentID entries and append DocumentID-only reactions,
-// while malformed keys fall back to plain-emoji semantics.
 func TestToggleReactionCustom(t *testing.T) {
 	t.Run("add first custom reaction", func(t *testing.T) {
 		got := toggleReaction(nil, "custom_7")
@@ -92,8 +86,6 @@ func TestToggleReactionCustom(t *testing.T) {
 	})
 
 	t.Run("plain emoji named like a custom key toggles as that emoji", func(t *testing.T) {
-		// Theoretical only (server emoticons are unicode), but the key
-		// match must stay deterministic: it toggles the plain-emoji entry.
 		base := []cores.Reaction{{Emoji: "custom_7", Count: 9}}
 		got := toggleReaction(base, "custom_7")
 		if len(got) != 1 || got[0].Emoji != "custom_7" || got[0].Count != 10 || !got[0].ByMe || got[0].DocumentID != 0 {

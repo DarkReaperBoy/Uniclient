@@ -16,13 +16,10 @@ import (
 	"uniclient/cores"
 )
 
-// AdminRankProvider is optionally implemented by cores that can provide
-// admin/creator rank info for chat members (e.g. "admin", "owner", custom titles).
 type AdminRankProvider interface {
-	GetAdminRanks(chatID string) (map[string]string, error) // senderID → rank
+	GetAdminRanks(chatID string) (map[string]string, error)
 }
 
-// CachedMessage is the message data returned to the UI from cache.
 type CachedMessage struct {
 	AccountID     string `json:"account_id"`
 	ChatID        string `json:"chat_id"`
@@ -48,23 +45,18 @@ type CachedMessage struct {
 	HasMedia      bool   `json:"has_media"`
 	GroupedID     string `json:"grouped_id,omitempty"`
 	NoForwards    bool   `json:"no_forwards"`
-	PaidPostType  int    `json:"paid_post_type,omitempty"` // suggested-post payment: 0=none, 1=stars, 2=ton
+	PaidPostType  int    `json:"paid_post_type,omitempty"`
 
-	// Anti-recall metadata.
 	IsDeleted bool  `json:"is_deleted"`
 	DeletedAt int64 `json:"deleted_at,omitempty"`
 
-	// Scheduled message metadata.
 	ScheduleDate         int64 `json:"schedule_date,omitempty"`
 	IsSilent             bool  `json:"is_silent,omitempty"`
 	ScheduleRepeatPeriod int   `json:"schedule_repeat_period,omitempty"`
 
-	// Voice-message transcription (slice 115): the stored text ("" when
-	// none was requested) and whether the server is still working on it.
 	TranscriptionText    string `json:"transcription_text,omitempty"`
 	TranscriptionPending bool   `json:"transcription_pending,omitempty"`
 
-	// Media metadata (populated from media table join).
 	MediaType          int    `json:"media_type,omitempty"`
 	MediaFileName      string `json:"media_file_name,omitempty"`
 	MediaMimeType      string `json:"media_mime_type,omitempty"`
@@ -77,51 +69,21 @@ type CachedMessage struct {
 	MediaDownloadState int    `json:"media_download_state,omitempty"`
 	MediaRemoteRef     string `json:"media_remote_ref,omitempty"`
 	MediaExtra         string `json:"media_extra,omitempty"`
-	// MediaDC (slice 207): the Telegram datacenter hosting the media
-	// file (AyuGram message-details "Datacenter" row).
-	MediaDC int `json:"media_dc,omitempty"`
+	MediaDC            int    `json:"media_dc,omitempty"`
 
-	// Channel-post counters (slice 187): views + forwards, cached at
-	// message ingest and refreshed while a channel chat is open
-	// (messages.getMessagesViews). Zero = not a channel post / not yet
-	// counted — callers hide the glyphs then.
 	Views    int `json:"views,omitempty"`
 	Forwards int `json:"forwards,omitempty"`
 
-	// Channel-post comment thread (slice 195): the post's comment count
-	// (MessageReplies) and, on discussion rows, the reply-to-top root that
-	// filters them into threads ("" = not in a thread).
 	CommentsCount int    `json:"comments_count,omitempty"`
 	ThreadRoot    string `json:"thread_root,omitempty"`
 
-	// Saved Messages sublist (slice 197): the peer the message was saved
-	// from (message.saved_peer_id + the fwd-from backfill) — scopes the
-	// self-chat cache into sublist views. "" = not a saved row.
 	SavedPeerID string `json:"saved_peer_id,omitempty"`
 
-	// Derived at read time (not persisted in DB).
 	SenderNoForwards bool `json:"sender_no_forwards,omitempty"`
 
-	// Reactions is the message's current reaction state, persisted as JSON in
-	// the messages.reactions_json column and updated by reaction updates
-	// (cores.UpdateReactions) and own-reaction toggles (ReactToMessage).
-	// Mirrors AyuGram's reaction strip under each bubble.
 	Reactions []cores.Reaction `json:"reactions,omitempty"`
 }
 
-// GetMessages returns cached messages for a chat, paginated by timestamp,
-// always newest-first.
-//   - afterMs > 0: load messages NEWER than afterMs (the nearest ones), for
-//     scrolling back toward the present after a jumpToMessage. Mirrors AyuGram
-//     HistoryWidget::loadMessagesDown (history_widget.cpp:4522).
-//   - else beforeMs > 0: load messages OLDER than beforeMs (loadMessages).
-//   - else: the most recent messages (initial load).
-//
-// Falls back to fetching from the core if cache is empty on initial load.
-// GetMessageTimestamp resolves a message's timestamp for permalink
-// jumps (t.me/user/123, t.me/c/...): the local cache first; on miss the
-// core fetches the message by id and it lands in the cache (future
-// window loads include it). Returns 0 when unresolvable.
 func (e *Engine) GetMessageTimestamp(accountID, chatID, msgID string) (int64, error) {
 	var ts int64
 	err := e.db.QueryRow(
@@ -167,9 +129,6 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs, afterMs int64, 
 	var err error
 	reversed := false
 	if afterMs > 0 {
-		// Nearest messages strictly newer than afterMs: select ASC so we get the
-		// ones adjacent to the shown window (not the latest), then reverse to the
-		// newest-first contract below.
 		q := `SELECT ` + cols + `
                          FROM messages
                          WHERE account_id = ? AND chat_id = ? AND timestamp > ?
@@ -207,7 +166,6 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs, afterMs int64, 
 		return msgs, err
 	}
 	if reversed {
-		// ASC → newest-first to match the rest of the API.
 		for i, j := 0, len(msgs)-1; i < j; i, j = i+1, j-1 {
 			msgs[i], msgs[j] = msgs[j], msgs[i]
 		}
@@ -218,13 +176,6 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs, afterMs int64, 
 	e.populateSenderNoForwards(accountID, msgs)
 	e.populateTranscriptions(accountID, chatID, msgs)
 
-	// If cache has fewer messages than requested on initial load, fetch from
-	// core and cache. A few messages may have trickled in via the event stream
-	// but that doesn't mean we have the full history page.
-	//
-	// Locally-hidden and shadow-banned rows already shrink the SQL page
-	// without shrinking the cache, so the decision counts the cache rows
-	// (a trimmed page in a full cache must NOT re-fetch live forever).
 	cacheShort := len(msgs) < limit
 	if cacheShort {
 		var total int
@@ -247,11 +198,8 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs, afterMs int64, 
 					cached := e.cacheMessage(accountID, chatID, &m)
 					result = append(result, cached)
 				}
-				// Shadow bans (slice 91) apply to the fresh
-				// page too; later SQL reads exclude them.
 				result = e.dropShadowBanned(accountID, chatID, result)
 				e.populateTranscriptions(accountID, chatID, result)
-				// Ayu regex filters (slice 90) apply to every exit.
 				return e.applyAyuFilters(result), nil
 			} else {
 				log.Printf("[engine] GetMessages(%s, %s): core returned 0 messages", accountID, chatID)
@@ -261,16 +209,9 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs, afterMs int64, 
 		}
 	}
 
-	// Ayu regex filters (slice 90): local hide-by-pattern, applied at
-	// the final exit (the fetch decision above counts raw cache rows).
 	return e.applyAyuFilters(msgs), nil
 }
 
-// SearchSavedMessagesByReaction performs a server-side reaction-tag search of the
-// account's Saved Messages (optionally scoped to a sublist peer) and returns the
-// matching messages, caching them under chatID (the Saved Messages chat) so they
-// render with full media/reply metadata. Mirrors AyuGram converting the selected
-// tag into a messages.search query instead of filtering loaded messages client-side.
 func (e *Engine) SearchSavedMessagesByReaction(accountID, chatID, savedPeerID string, reactions []string, offsetID, limit int) ([]CachedMessage, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -293,8 +234,6 @@ func (e *Engine) SearchSavedMessagesByReaction(accountID, chatID, savedPeerID st
 	return result, nil
 }
 
-// GetPinnedMessages returns all pinned messages for a chat, ordered by timestamp descending.
-// Falls back to fetching from the core if the cache has none.
 func (e *Engine) GetPinnedMessages(accountID, chatID string) ([]CachedMessage, error) {
 	rows, err := e.db.Query(
 		`SELECT account_id, chat_id, msg_id, local_id, sender_id, sender_name, sender_rank, sender_color_id,
@@ -315,7 +254,6 @@ func (e *Engine) GetPinnedMessages(accountID, chatID string) ([]CachedMessage, e
 		return cached, nil
 	}
 
-	// Cache empty — try fetching pinned messages from the core.
 	type pinnedFetcher interface {
 		GetPinnedMessages(chatID string) ([]cores.Message, error)
 	}
@@ -396,10 +334,6 @@ func scanMessages(rows *sql.Rows) ([]CachedMessage, error) {
 	return msgs, rows.Err()
 }
 
-// updateMessageReactions persists a full reaction state for one message
-// (from cores.UpdateReactions) and notifies the GUI via EventMsgEdited so
-// the open chat re-renders the reaction strip. A no-op when the message
-// is not cached.
 func (e *Engine) updateMessageReactions(accountID, chatID, msgID string, reactions []cores.Reaction) {
 	var payload string
 	if len(reactions) > 0 {
@@ -423,18 +357,11 @@ func (e *Engine) updateMessageReactions(accountID, chatID, msgID string, reactio
 	})
 }
 
-// mergePollResults folds a poll-results update (cores.UpdatePollResults,
-// from tg.UpdateMessagePoll) into the cached message's raw JSON: per-option
-// voters/chosen/correct matched by option bytes, total voters, closed flag.
-// Emits EventMsgEdited so the GUI re-renders the poll bubble with live
-// counts. ChatID may be empty on older layers — resolved via a cache lookup
-// on the message id (poll ids equal message ids for message polls).
 func (e *Engine) mergePollResults(accountID, chatID, msgID string, extra map[string]interface{}) {
 	if msgID == "" || len(extra) == 0 {
 		return
 	}
 	if chatID == "" {
-		// Resolve the chat that caches this poll message.
 		row := e.db.QueryRow(
 			`SELECT chat_id FROM messages
                          WHERE account_id = ? AND msg_id = ? AND content_raw LIKE '%poll_question%'
@@ -503,7 +430,6 @@ func (e *Engine) mergePollResults(accountID, chatID, msgID string, extra map[str
 		msg.Extra["poll_options"] = cur
 	}
 
-	// content_raw is a full cores.Message JSON; rewrite the extra object.
 	patched, err := patchRawExtra(raw, msg.Extra)
 	if err != nil {
 		return
@@ -520,10 +446,6 @@ func (e *Engine) mergePollResults(accountID, chatID, msgID string, extra map[str
 	})
 }
 
-// patchRawExtra rewrites the "extra" object of a marshaled cores.Message
-// JSON, preserving every other field byte-for-byte is not required — a
-// decode/re-encode round-trip of the raw map is acceptable (fields the
-// engine does not model survive as raw JSON).
 func patchRawExtra(raw []byte, extra map[string]interface{}) ([]byte, error) {
 	var doc map[string]interface{}
 	if err := json.Unmarshal(raw, &doc); err != nil {
@@ -533,9 +455,6 @@ func patchRawExtra(raw []byte, extra map[string]interface{}) ([]byte, error) {
 	return json.Marshal(doc)
 }
 
-// extraNumEngine coerces a number carried in an interface{} to float64.
-// JSON-decoded values arrive as float64; cores-side constructors use
-// native ints — both must merge.
 func extraNumEngine(v interface{}) (float64, bool) {
 	switch n := v.(type) {
 	case float64:
@@ -556,9 +475,6 @@ func extraNumEngine(v interface{}) (float64, bool) {
 	return 0, false
 }
 
-// reactionKey returns the toggle identity of a reaction: the plain emoji,
-// or "custom_<documentID>" for premium custom-emoji reactions — the same
-// wire convention ReactToMessage uses for tg.ReactionCustomEmoji.
 func reactionKey(r cores.Reaction) string {
 	if r.Emoji == "" && r.DocumentID != 0 {
 		return "custom_" + strconv.FormatInt(r.DocumentID, 10)
@@ -566,12 +482,6 @@ func reactionKey(r cores.Reaction) string {
 	return r.Emoji
 }
 
-// toggleReaction applies the user's own reaction toggle to a cached reaction
-// list (optimistic UI): adding a new or existing emoji, or removing the own
-// reaction when the emoji already has one. Mirrors Telegram Desktop
-// SendReaction with a single (default) reaction. Custom-emoji reactions are
-// matched by document id through the "custom_<id>" key and, when added
-// fresh, keep their document id so the GUI renders the custom pill.
 func toggleReaction(list []cores.Reaction, emoji string) []cores.Reaction {
 	for i := range list {
 		if reactionKey(list[i]) != emoji {
@@ -600,7 +510,6 @@ func toggleReaction(list []cores.Reaction, emoji string) []cores.Reaction {
 	return append(list, cores.Reaction{Emoji: emoji, Count: 1, ByMe: true})
 }
 
-// cachedReactions loads the current reaction state of one cached message.
 func (e *Engine) cachedReactions(accountID, chatID, msgID string) []cores.Reaction {
 	var reactionsJSON sql.NullString
 	err := e.db.QueryRow(
@@ -617,14 +526,11 @@ func (e *Engine) cachedReactions(accountID, chatID, msgID string) []cores.Reacti
 	return reactions
 }
 
-// applyOwnReaction toggles the user's own reaction in the cached message and
-// notifies the GUI (called after the pending react action succeeds).
 func (e *Engine) applyOwnReaction(accountID, chatID, msgID, emoji string) {
 	next := toggleReaction(e.cachedReactions(accountID, chatID, msgID), emoji)
 	e.updateMessageReactions(accountID, chatID, msgID, next)
 }
 
-// populateMediaMetadata fetches media info from the media table for messages that have media.
 func (e *Engine) populateMediaMetadata(msgs []CachedMessage) {
 	for i := range msgs {
 		if !msgs[i].HasMedia {
@@ -660,7 +566,7 @@ func (e *Engine) populateMediaMetadata(msgs []CachedMessage) {
 			msgs[i].MediaHeight = int(height.Int64)
 		}
 		if durationMs.Valid {
-			msgs[i].MediaDuration = int(durationMs.Int64 / 1000) // DB stores ms, struct uses seconds
+			msgs[i].MediaDuration = int(durationMs.Int64 / 1000)
 		}
 		msgs[i].MediaDownloadState = downloadState
 		msgs[i].MediaRemoteRef = remoteRef.String
@@ -669,17 +575,13 @@ func (e *Engine) populateMediaMetadata(msgs []CachedMessage) {
 	}
 }
 
-// populateAdminRanks fills in SenderRank for cached messages by querying the core.
-// Only runs once per chat, and only if the core implements AdminRankProvider.
 func (e *Engine) populateAdminRanks(accountID, chatID string, msgs []CachedMessage) {
 	if len(msgs) == 0 {
 		return
 	}
-	// Only populate for group/channel chats (negative IDs).
 	if len(chatID) == 0 || chatID[0] != '-' {
 		return
 	}
-	// Check if any message already has a rank — if so, we've already populated.
 	for _, m := range msgs {
 		if m.SenderRank != "" {
 			return
@@ -703,20 +605,16 @@ func (e *Engine) populateAdminRanks(accountID, chatID string, msgs []CachedMessa
 	for i := range msgs {
 		if rank, ok := ranks[msgs[i].SenderID]; ok {
 			msgs[i].SenderRank = rank
-			// Also update the DB so future loads have the rank.
 			e.db.Exec(`UPDATE messages SET sender_rank = ? WHERE account_id = ? AND chat_id = ? AND msg_id = ?`,
 				rank, msgs[i].AccountID, msgs[i].ChatID, msgs[i].MsgID)
 		}
 	}
 }
 
-// populateSenderNoForwards sets SenderNoForwards on messages whose sender
-// has the no_forwards_peer flag enabled in the users table.
 func (e *Engine) populateSenderNoForwards(accountID string, msgs []CachedMessage) {
 	if len(msgs) == 0 {
 		return
 	}
-	// Collect unique sender IDs.
 	senderSet := make(map[string]struct{})
 	for _, m := range msgs {
 		if m.SenderID != "" {
@@ -726,7 +624,6 @@ func (e *Engine) populateSenderNoForwards(accountID string, msgs []CachedMessage
 	if len(senderSet) == 0 {
 		return
 	}
-	// Query the users table for no_forwards_peer.
 	noFwdPeers := make(map[string]bool)
 	for sid := range senderSet {
 		var nfp int
@@ -748,7 +645,6 @@ func (e *Engine) populateSenderNoForwards(accountID string, msgs []CachedMessage
 	}
 }
 
-// cacheMessage inserts a cores.Message into the cache and returns the cached form.
 func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) CachedMessage {
 	now := time.Now().UnixMilli()
 	var ts int64
@@ -766,17 +662,13 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 	status := msgStatusFromCore(msg.Status)
 	hasMedia := len(msg.Attachments) > 0
 
-	// Store raw as JSON for round-trip editing.
 	rawBytes, _ := json.Marshal(msg)
 
-	// Serialize rich-text entities to JSON for the content_rich column.
 	var richBytes []byte
 	if len(msg.Entities) > 0 {
 		richBytes, _ = json.Marshal(msg.Entities)
 	}
 
-	// Auto-populate reply preview from cache if the core didn't provide one.
-	// Media-only targets quote as "Photo" / "Voice message" (AyuGram).
 	if msg.ReplyToID != "" && msg.ReplyPreview == "" {
 		var sn, ct sql.NullString
 		var hasMedia int
@@ -811,9 +703,6 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 			topicID = tid
 		}
 	}
-	// Saved-peer (slice 197): first-class field wins (slice-197 cores);
-	// the Extra copy covers older cores that only set the notification
-	// Extra.
 	savedPeer := msg.SavedPeerID
 	if savedPeer == "" && msg.Extra != nil {
 		if sp, ok := msg.Extra["sublist_peer_id"].(string); ok {
@@ -850,9 +739,6 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 		status, nullStr(msg.ReplyToID), nullStr(msg.ReplyPreview),
 		nullStr(msg.ForwardFrom), nullStr(msg.ForwardFromID), boolToInt(msg.IsPinned), boolToInt(msg.IsOutgoing), boolToInt(msg.IsService), boolToInt(hasMedia), nullStr(msg.GroupedID), boolToInt(msg.NoForwards), nullStr(topicID), msg.PaidPostType, nullStr(reactionsJSON), msg.Views, msg.Forwards, msg.CommentsCount, nullStr(msg.ThreadRoot), nullStr(savedPeer))
 
-	// Chat-theme mirror (slice 188): the latest SetChatTheme service row
-	// wins — flip chats.theme_emoticon so the GUI tints the chat (the
-	// key's PRESENCE matters: an empty emoticon is the honest reset).
 	if msg.Extra != nil {
 		if emoticon, ok := msg.Extra["chat_theme_emoticon"]; ok {
 			if em, is := emoticon.(string); is {
@@ -861,9 +747,6 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 					em, accountID, chatID)
 			}
 		}
-		// Wallpaper mirror (slice 218): same mechanism — the latest
-		// SetChatWallPaper service row wins; the key's presence with an
-		// empty payload is the reset (RevertChatWallpaper / revert flow).
 		if raw, ok := msg.Extra["chat_wallpaper"]; ok {
 			if js, is := raw.(string); is {
 				e.db.Exec(
@@ -873,7 +756,6 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 		}
 	}
 
-	// Cache media references.
 	for i, att := range msg.Attachments {
 		e.cacheMediaRef(accountID, chatID, msg.ID, i, att)
 	}
@@ -911,8 +793,6 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 		SavedPeerID:   savedPeer,
 	}
 
-	// Populate media metadata from what we just cached so the returned
-	// struct has all media fields filled (not just HasMedia=true).
 	if hasMedia {
 		single := []CachedMessage{cached}
 		e.populateMediaMetadata(single)
@@ -922,7 +802,6 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 	return cached
 }
 
-// InsertPendingMessage inserts a locally-created message (before server confirms).
 func (e *Engine) InsertPendingMessage(accountID, chatID, localID, text, senderID, senderName, replyToID string) CachedMessage {
 	now := time.Now().UnixMilli()
 
@@ -949,7 +828,6 @@ func (e *Engine) InsertPendingMessage(accountID, chatID, localID, text, senderID
 	}
 }
 
-// ConfirmMessage replaces a local_id message with the server-confirmed version.
 func (e *Engine) ConfirmMessage(accountID, chatID, localID, serverMsgID string) {
 	e.db.Exec(
 		`UPDATE messages SET msg_id = ?, local_id = NULL, status = ?
@@ -965,7 +843,6 @@ func (e *Engine) ConfirmMessage(accountID, chatID, localID, serverMsgID string) 
 	})
 }
 
-// FailMessage marks a pending message as failed.
 func (e *Engine) FailMessage(accountID, chatID, localID string) {
 	e.db.Exec(
 		"UPDATE messages SET status = ? WHERE account_id = ? AND chat_id = ? AND msg_id = ?",
@@ -980,7 +857,6 @@ func (e *Engine) FailMessage(accountID, chatID, localID string) {
 	})
 }
 
-// GetMessageRaw retrieves the raw content of a message for editing.
 func (e *Engine) GetMessageRaw(accountID, chatID, msgID string) ([]byte, error) {
 	var raw []byte
 	err := e.db.QueryRow(
@@ -989,7 +865,6 @@ func (e *Engine) GetMessageRaw(accountID, chatID, msgID string) ([]byte, error) 
 	return raw, err
 }
 
-// cacheMediaRef stores a media attachment reference.
 func (e *Engine) cacheMediaRef(accountID, chatID, msgID string, seq int, att cores.FileRef) {
 	mediaType := guessMediaType(att.MimeType, att.Name)
 
@@ -1016,8 +891,6 @@ func (e *Engine) cacheMediaRef(accountID, chatID, msgID string, seq int, att cor
 		DownloadNone, time.Now().UnixMilli(), att.Extra, att.DC)
 }
 
-// PruneOldMessages removes messages older than the hot tier limit.
-// Keeps the most recent `keep` messages per chat.
 func (e *Engine) PruneOldMessages(keep int) error {
 	if keep <= 0 {
 		keep = 200
@@ -1035,8 +908,6 @@ func (e *Engine) PruneOldMessages(keep int) error {
 	return err
 }
 
-// SharedMediaItem is a media entry returned for the right-panel gallery
-// and the fullscreen media viewer.
 type SharedMediaItem struct {
 	MsgID      string `json:"msg_id"`
 	Timestamp  int64  `json:"timestamp"`
@@ -1048,16 +919,13 @@ type SharedMediaItem struct {
 	LocalPath  string `json:"local_path"`
 	Width      int    `json:"width"`
 	Height     int    `json:"height"`
-	Duration   int    `json:"duration"` // seconds
+	Duration   int    `json:"duration"`
 	Waveform   []byte `json:"waveform,omitempty"`
-	SenderName string `json:"sender_name,omitempty"` // joined message row
-	Text       string `json:"text,omitempty"`        // message caption
-	IsOutgoing bool   `json:"is_outgoing,omitempty"` // delete-revoke decision
+	SenderName string `json:"sender_name,omitempty"`
+	Text       string `json:"text,omitempty"`
+	IsOutgoing bool   `json:"is_outgoing,omitempty"`
 }
 
-// GetSharedMedia queries the media table for all media in a chat, optionally
-// filtered by type ("image", "video", "audio", "file", "" for all).
-// Joins messages table to get timestamps. Returns newest first.
 func (e *Engine) GetSharedMedia(accountID, chatID, mediaType string, limit, offset int, searchQuery string) ([]SharedMediaItem, error) {
 	if limit <= 0 {
 		limit = 50
@@ -1066,7 +934,6 @@ func (e *Engine) GetSharedMedia(accountID, chatID, mediaType string, limit, offs
 		offset = 0
 	}
 
-	// Map string filter to media_type integers.
 	typeFilter := sharedMediaTypeFilter(mediaType)
 
 	var queryFilter string
@@ -1164,10 +1031,6 @@ func extractWaveform(contentRaw []byte) []byte {
 	return data
 }
 
-// VoiceWaveform returns the voice-note amplitude strip (raw bytes,
-// 0..31 per sample as Telegram sends them) parsed from the cached
-// message content. nil when the message carries no waveform — callers
-// must render a plain progress track then (§1.10: no fake data).
 func (m *CachedMessage) VoiceWaveform() []byte {
 	if m == nil || len(m.ContentRaw) == 0 {
 		return nil
@@ -1175,11 +1038,6 @@ func (m *CachedMessage) VoiceWaveform() []byte {
 	return extractWaveform(m.ContentRaw)
 }
 
-// AudioMeta returns the audio document's embedded title and performer
-// (Telegram's music tags, exported by the core from
-// DocumentAttributeAudio) parsed from the cached message content.
-// Empty strings when the message carries none — callers fall back to
-// the file name (§1.10: no invented metadata). Pure — unit-tested.
 func (m *CachedMessage) AudioMeta() (title, performer string) {
 	if m == nil || len(m.ContentRaw) == 0 {
 		return "", ""
@@ -1245,8 +1103,6 @@ func (e *Engine) GetSharedMediaCounts(accountID, chatID string) ([]SharedMediaCo
 	return result, rows.Err()
 }
 
-// --- Helpers ---
-
 func msgStatusFromCore(s cores.MessageStatus) int {
 	switch s {
 	case cores.MessageStatusSending:
@@ -1260,7 +1116,7 @@ func msgStatusFromCore(s cores.MessageStatus) int {
 	case cores.MessageStatusFailed:
 		return MsgStatusFailed
 	default:
-		return 0 // unknown/received — only outgoing messages have explicit status
+		return 0
 	}
 }
 
@@ -1271,12 +1127,6 @@ func nullStr(s string) sql.NullString {
 	return sql.NullString{String: s, Valid: true}
 }
 
-// msgPreviewText returns the chat-list preview for a message.
-//   - Non-empty text → truncated to 100 chars (optionally prefixed with a media emoji
-//     for media-with-caption messages, e.g. "📷 look at this").
-//   - Media-only (text empty, attachments present) → emoji + media-type label
-//     (e.g. "📷 Photo", "🎙 Voice message", "📎 filename.pdf").
-//   - No text, no attachments → "".
 func msgPreviewText(msg *cores.Message) string {
 	text := msg.Text
 	if len(msg.Attachments) == 0 {
@@ -1289,21 +1139,17 @@ func msgPreviewText(msg *cores.Message) string {
 	emoji, label := mediaPreviewLabel(att)
 	if text != "" {
 		prefix := emoji + " "
-		// Budget: 100 chars total including prefix.
 		if len(prefix)+len(text) > 100 {
 			text = text[:100-len(prefix)]
 		}
 		return prefix + text
 	}
-	// Media-only.
 	if label == "" {
 		return emoji + " Attachment"
 	}
 	return emoji + " " + label
 }
 
-// mediaPreviewLabel returns (emoji, label) for a FileRef.
-// For generic files, label is the filename (truncated) so "📎 report.pdf" renders.
 func mediaPreviewLabel(att cores.FileRef) (emoji, label string) {
 	switch guessMediaType(att.MimeType, att.Name) {
 	case MediaImage:
@@ -1379,8 +1225,6 @@ func guessMediaType(mime, name string) int {
 	}
 }
 
-// FetchLiveMessages calls the core's GetMessages directly (not cache).
-// Used for reading OTP codes and other live data from connected accounts.
 func (e *Engine) FetchLiveMessages(accountID, chatID string, limit int) ([]CachedMessage, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -1409,7 +1253,6 @@ func (e *Engine) FetchLiveMessages(accountID, chatID string, limit int) ([]Cache
 			Timestamp:   m.Timestamp.UnixMilli(),
 			HasMedia:    hasMedia,
 		}
-		// Populate media metadata from first attachment.
 		if hasMedia {
 			att := m.Attachments[0]
 			result[i].MediaType = guessMediaType(att.MimeType, att.Name)
@@ -1425,12 +1268,6 @@ func (e *Engine) FetchLiveMessages(accountID, chatID string, limit int) ([]Cache
 	return result, nil
 }
 
-// populateReplyPreviews fills in empty ReplyPreview fields by looking up
-// replied-to messages — first in the same batch, then in the DB cache.
-// Format: "SenderName\nPreviewText" (newline separates sender from content).
-// MediaPreviewLabel returns the human label AyuGram shows when a message's
-// text is empty but it carries media — used in reply quotes and chat-list
-// previews ("Photo", "Voice message", ...).
 func MediaPreviewLabel(mediaType int) string {
 	switch mediaType {
 	case MediaImage:
@@ -1460,7 +1297,6 @@ func MediaPreviewLabel(mediaType int) string {
 	}
 }
 
-// replyMediaLabel fills an empty preview with the media kind label.
 func replyMediaLabel(hasMedia bool, mediaType int) string {
 	if !hasMedia {
 		return ""
@@ -1475,7 +1311,6 @@ func (e *Engine) populateReplyPreviews(msgs []CachedMessage) {
 		mediaType  int
 		hasMedia   bool
 	}
-	// Index messages in this batch by (chat_id, msg_id) for fast lookup.
 	batchIndex := make(map[string]replyInfo, len(msgs))
 	for i := range msgs {
 		batchIndex[msgs[i].ChatID+"\x00"+msgs[i].MsgID] = replyInfo{
@@ -1493,18 +1328,15 @@ func (e *Engine) populateReplyPreviews(msgs []CachedMessage) {
 
 		var senderName, previewText string
 
-		// Try in-batch lookup first (replies often point to nearby messages).
 		key := msgs[i].ChatID + "\x00" + msgs[i].ReplyToID
 		if info, ok := batchIndex[key]; ok {
 			senderName = info.senderName
 			if info.text != "" {
 				previewText = info.text
 			} else {
-				// Media-only target: quote shows "Photo" / "Voice message" etc.
 				previewText = replyMediaLabel(info.hasMedia, info.mediaType)
 			}
 		} else {
-			// Fall back to DB lookup (also resolves the target's media kind).
 			var sn, ct sql.NullString
 			var hasMedia int
 			var mediaType sql.NullInt64
@@ -1535,7 +1367,6 @@ func (e *Engine) populateReplyPreviews(msgs []CachedMessage) {
 			}
 		}
 
-		// Persist back to DB so future queries don't need the lookup.
 		if msgs[i].ReplyPreview != "" {
 			e.db.Exec(
 				`UPDATE messages SET reply_preview = ? WHERE account_id = ? AND chat_id = ? AND msg_id = ?`,
@@ -1545,12 +1376,10 @@ func (e *Engine) populateReplyPreviews(msgs []CachedMessage) {
 	}
 }
 
-// StickerSetFetcher is implemented by cores that can retrieve sticker set info.
 type StickerSetFetcher interface {
 	GetStickerSetInfo(shortName string, setID int64, accessHash int64) (*cores.StickerSetResult, error)
 }
 
-// GetStickerSetInfo retrieves sticker set info from the appropriate core.
 func (e *Engine) GetStickerSetInfo(accountID, shortName string, setID, accessHash int64) (*cores.StickerSetResult, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -1722,9 +1551,6 @@ type InstalledStickerPacksFetcher interface {
 	GetInstalledStickerPacks() ([]cores.StickerPackSummary, error)
 }
 
-// StickerSetSummariesFetcher is the manager's lightweight listing:
-// installed + archived set rows in one call, no per-set sticker fetch
-// (slice 139).
 type StickerSetSummariesFetcher interface {
 	GetStickerSetSummaries() ([]cores.StickerPackSummary, error)
 }
@@ -1744,8 +1570,6 @@ func (e *Engine) GetStickerSetSummaries(accountID string) ([]cores.StickerPackSu
 	return fetcher.GetStickerSetSummaries()
 }
 
-// StickerSetArchiver hides/restores an installed set without deleting it
-// (messages.installStickerSet Archived flag, tdesktop semantics).
 type StickerSetArchiver interface {
 	ArchiveStickerSet(setID, accessHash int64, archived bool) error
 }
@@ -1932,8 +1756,6 @@ type FavedStickersFetcher interface {
 	GetFavedStickersList() ([]cores.StickerInfo, error)
 }
 
-// GetFavedStickers returns the account's favorited (starred) stickers, shown as
-// the first sticker-panel section in AyuGram.
 func (e *Engine) GetFavedStickers(accountID string) ([]cores.StickerInfo, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -1953,8 +1775,6 @@ type GifSearchEmojiesFetcher interface {
 	GetGifSearchEmojies() ([]string, error)
 }
 
-// GetGifSearchEmojies returns the server-driven GIF-search category emoji
-// (app-config gif_search_emojies) with AyuGram's fixed fallback.
 func (e *Engine) GetGifSearchEmojies(accountID string) ([]string, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -2212,8 +2032,6 @@ type MessageContentsReader interface {
 	MessagesReadMessageContents(id []int) (interface{}, error)
 }
 
-// HideMessage locally hides a message without deleting it server-side
-// (AyuGram "hide message"). Purely local DB state.
 func (e *Engine) HideMessage(accountID, chatID, msgID string, hide bool) error {
 	if hide {
 		_, err := e.db.Exec(
@@ -2228,8 +2046,6 @@ func (e *Engine) HideMessage(accountID, chatID, msgID string, hide bool) error {
 	return err
 }
 
-// RepeatMessage resends a cached message's text as a fresh outgoing message
-// (AyuGram "repeat": no forward header). Returns the new pending local ID.
 func (e *Engine) RepeatMessage(accountID, chatID, msgID string) (string, error) {
 	var text string
 	var rich []byte
@@ -2249,8 +2065,6 @@ func (e *Engine) RepeatMessage(accountID, chatID, msgID string) (string, error) 
 	return e.SendMessage(accountID, chatID, text, "", entities, false, 0, "", "", false, false, false, false, false)
 }
 
-// MessageLink returns a shareable link to one message (Telegram t.me
-// message links; channels/groups). The GUI copies it to the clipboard.
 func (e *Engine) MessageLink(accountID, chatID, msgID string) (string, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -2468,10 +2282,6 @@ type StarGiftsFetcher interface {
 	GetStarGifts() (*cores.StarGiftsResult, error)
 }
 
-// UnlockPaidMedia pays a message's paid-media price with Telegram Stars
-// (slice 181): payments.getPaymentForm on the message invoice →
-// payments.sendStarsForm. On success the server pushes the updated
-// message; the GUI refreshes the chat.
 func (e *Engine) UnlockPaidMedia(accountID, chatID, msgID string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -2566,8 +2376,6 @@ type MainMenuBotsFetcher interface {
 	GetMainMenuBots() ([]cores.AttachMenuBotInfo, error)
 }
 
-// GetMainMenuBots returns the side-menu (drawer) bots for the account — the
-// gate AyuGram uses to decide whether the "Bots" drawer toggle is shown.
 func (e *Engine) GetMainMenuBots(accountID string) ([]cores.AttachMenuBotInfo, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -2765,8 +2573,6 @@ func (e *Engine) GetStarsRevenueWithdrawalUrl(accountID, chatID, password string
 	return g.GetStarsRevenueWithdrawalUrl(chatID, password, amount)
 }
 
-// GetSponsoredInfo / SetRestrictSponsored back the "Restrict sponsored messages"
-// toggle in the channel earn screen (info_channel_earn_list.cpp:1391).
 func (e *Engine) GetSponsoredInfo(accountID, chatID string) (map[string]interface{}, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -2797,8 +2603,6 @@ func (e *Engine) SetRestrictSponsored(accountID, chatID string, restricted bool)
 	return g.SetRestrictSponsored(chatID, restricted)
 }
 
-// GetBroadcastRevenueStats returns the channel's TON (currency) ad-revenue stats
-// (separate from the Stars/credits revenue above). info_channel_earn_list.cpp:611.
 func (e *Engine) GetBroadcastRevenueStats(accountID, chatID string) (cores.StarsRevenueResult, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -2890,8 +2694,6 @@ func (e *Engine) SendStickerWithOpts(accountID, chatID, stickerID string, silent
 	return err
 }
 
-// SendStickerWithCaption sends a sticker/GIF document with a text caption,
-// backing the GIF panel's "Send GIF with caption" action.
 func (e *Engine) SendStickerWithCaption(accountID, chatID, stickerID, caption string, silent bool, scheduleDate int) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -2907,7 +2709,6 @@ func (e *Engine) SendStickerWithCaption(accountID, chatID, stickerID, caption st
 		_, err := c.SendStickerWithCaption(chatID, stickerID, caption, silent, scheduleDate)
 		return err
 	}
-	// Fallback for platforms without caption support: send without the caption.
 	return e.SendStickerWithOpts(accountID, chatID, stickerID, silent, scheduleDate)
 }
 
@@ -3000,20 +2801,14 @@ type DefaultReactionSetter interface {
 	SetDefaultReaction(emoji string) error
 }
 
-// ReactionListSender sets a message's own reactions to a full list
-// (toggle semantics — the corner reaction button, slice 159).
 type ReactionListSender interface {
 	ReactToMessageList(chatID string, msgID string, emojis []string) error
 }
 
-// DefaultReactionGetter reads the account's default (favorite) reaction
-// emoji from help.getConfig reactions_default.
 type DefaultReactionGetter interface {
 	GetDefaultReaction() (string, error)
 }
 
-// GetDefaultReaction reads the account's default (favorite) reaction
-// emoji (help.getConfig reactions_default; "" = server default unset).
 func (e *Engine) GetDefaultReaction(accountID string) (string, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -3021,11 +2816,8 @@ func (e *Engine) GetDefaultReaction(accountID string) (string, error) {
 	}
 	g, ok := acc.Core.(DefaultReactionGetter)
 	if !ok {
-		return "", nil // platform without server-side favorite reactions
+		return "", nil
 	}
-	// Session cache (slice 172): the pill reads this in the layout path,
-	// so an uncached "" (server has no default) must not re-RPC per frame.
-	// Errors stay uncached so transient failures recover on the next read.
 	e.favReactMu.Lock()
 	if e.favReact == nil {
 		e.favReact = map[string]string{}
@@ -3060,8 +2852,6 @@ func (e *Engine) SetDefaultReaction(accountID, emoji string) error {
 	if err := setter.SetDefaultReaction(emoji); err != nil {
 		return err
 	}
-	// Write-through (slice 172): the pill must read the new favorite
-	// without a re-fetch.
 	e.favReactMu.Lock()
 	if e.favReact == nil {
 		e.favReact = map[string]string{}
@@ -3090,13 +2880,10 @@ func (e *Engine) ReportMessage(accountID, chatID string, msgIDs []int, option []
 	return reporter.ReportMessage(chatID, msgIDs, option, message)
 }
 
-// PeerReporter reports a whole peer (no specific messages) with a fixed reason.
 type PeerReporter interface {
 	ReportPeer(chatID, reason, message string) (bool, error)
 }
 
-// ReportPeer routes a whole-peer report (chat-info "Report") to the platform's
-// dedicated peer-report endpoint, used when there are no specific message ids.
 func (e *Engine) ReportPeer(accountID, chatID, reason, message string) (bool, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -3152,7 +2939,6 @@ func (e *Engine) FetchPeerStories(accountID, peerID string) (string, error) {
 		return "", err
 	}
 
-	// Download each story's media to local path.
 	type storyEntry struct {
 		ID      int           `json:"id"`
 		FileRef cores.FileRef `json:"file_ref"`
@@ -3331,8 +3117,6 @@ type StoryLinkExporter interface {
 	ExportStoryLink(peerID string, storyID int) (string, error)
 }
 
-// ExportStoryLink returns the public deep link of a story
-// (stories.exportStoryLink) — the share surface for the story viewer.
 func (e *Engine) ExportStoryLink(accountID, peerID string, storyID int) (string, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -3455,9 +3239,6 @@ func (e *Engine) GetDeletedMessages(accountID, chatID string, search string, off
 	return msgs, nil
 }
 
-// sharedMediaTypeFilter maps a shared-media tab name to its SQL filter.
-// Mirrors AyuGram's profile media tabs; distinct tabs (Photos vs GIFs,
-// Voice vs audio files) get distinct queries.
 func sharedMediaTypeFilter(mediaType string) string {
 	switch mediaType {
 	case "image":
@@ -3476,7 +3257,6 @@ func sharedMediaTypeFilter(mediaType string) string {
 	return ""
 }
 
-// SharedLinkItem is one link shared in a chat (profile Links tab).
 type SharedLinkItem struct {
 	MsgID      string `json:"msg_id"`
 	Timestamp  int64  `json:"timestamp"`
@@ -3485,9 +3265,6 @@ type SharedLinkItem struct {
 	Text       string `json:"text,omitempty"`
 }
 
-// GetSharedLinks returns messages containing URLs, newest first
-// (AyuGram profile "Links" tab). The URL itself is extracted from the
-// message text by ExtractFirstURL.
 func (e *Engine) GetSharedLinks(accountID, chatID string, limit, offset int) ([]SharedLinkItem, error) {
 	if limit <= 0 {
 		limit = 50
@@ -3519,7 +3296,7 @@ func (e *Engine) GetSharedLinks(accountID, chatID string, limit, offset int) ([]
 		}
 		it.URL = ExtractFirstURL(text)
 		if it.URL == "" {
-			continue // LIKE matched inside longer text without a clean URL
+			continue
 		}
 		it.SenderName = sender
 		it.Text = text
@@ -3528,9 +3305,6 @@ func (e *Engine) GetSharedLinks(accountID, chatID string, limit, offset int) ([]
 	return items, rows.Err()
 }
 
-// ExtractFirstURL pulls the first http/https/tg URL out of a message
-// text. The URL runs to the first whitespace or bracketing rune; trailing
-// punctuation is trimmed. Pure — unit-tested.
 func ExtractFirstURL(text string) string {
 	foundAt, found := -1, ""
 	for _, prefix := range []string{"https://", "http://", "tg://"} {

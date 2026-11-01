@@ -12,15 +12,9 @@ import (
 	"gioui.org/widget"
 )
 
-// Invite-link join (AyuGram parity, matrix #278): pasting a t.me invite
-// link (or +hash) into the search field surfaces a join row; the confirm
-// card shows the preview title from engine.CheckChatInvite, then joins
-// via engine.ImportChatInvite.
-
-// inviteDlgState: open confirm card (nil when closed).
 type inviteDlgState struct {
 	hash    string
-	title   string // "" while checking
+	title   string
 	checked bool
 	busy    bool
 }
@@ -31,16 +25,12 @@ var (
 	inviteKeyTag    = new(struct{})
 )
 
-// extractInviteHash (pure, testable): pulls the invite hash out of a
-// query; ok=false when it isn't an invite link. Accepts full URLs
-// (https://t.me/+hash, t.me/joinchat/hash), +hash, and joinchat/hash.
 func extractInviteHash(q string) (string, bool) {
 	q = strings.TrimSpace(q)
 	if q == "" {
 		return "", false
 	}
 	low := strings.ToLower(q)
-	// Strip URL prefixes (same byte length in q and low).
 	for _, pre := range []string{"https://", "http://", "www."} {
 		if strings.HasPrefix(low, pre) {
 			low = low[len(pre):]
@@ -51,7 +41,6 @@ func extractInviteHash(q string) (string, bool) {
 		low = low[n:]
 		q = q[n:]
 	}
-	// Bare "+hash".
 	if strings.HasPrefix(low, "+") {
 		strip(1)
 		if h := q; h != "" && !strings.Contains(h, "/") && len(h) >= 5 {
@@ -66,7 +55,6 @@ func extractInviteHash(q string) (string, bool) {
 		}
 		return "", false
 	}
-	// Domain form: t.me-style hosts with +hash or joinchat/hash paths.
 	domains := []string{"t.me/", "telegram.me/", "telegram.dog/"}
 	matched := false
 	for _, d := range domains {
@@ -84,8 +72,6 @@ func extractInviteHash(q string) (string, bool) {
 	} else if strings.HasPrefix(low, "joinchat/") {
 		strip(len("joinchat/"))
 	} else {
-		// Plain t.me/username — a public link, not an invite (the global
-		// server search resolves those instead).
 		return "", false
 	}
 	h := strings.TrimSpace(q)
@@ -95,8 +81,6 @@ func extractInviteHash(q string) (string, bool) {
 	return h, true
 }
 
-// inviteScopeAccount picks the account to join with: the scoped one, else
-// the first connected.
 func inviteScopeAccount(f frame) string {
 	if f.acctFilter != "" {
 		return f.acctFilter
@@ -110,7 +94,6 @@ func inviteScopeAccount(f frame) string {
 	return ""
 }
 
-// openInviteJoin starts the check + confirm flow for a hash.
 func (a *App) openInviteJoin(hash string) {
 	acc := inviteScopeAccount(a.snapshotForInvite())
 	a.mu.Lock()
@@ -145,12 +128,10 @@ func (a *App) openInviteJoin(hash string) {
 	}()
 }
 
-// snapshotForInvite: a lightweight frame for scope resolution.
 func (a *App) snapshotForInvite() frame {
 	return a.snapshot()
 }
 
-// closeInviteDialog dismisses the confirm card.
 func (a *App) closeInviteDialog() {
 	a.mu.Lock()
 	if a.inviteDlg == nil || a.inviteDlg.busy {
@@ -162,7 +143,6 @@ func (a *App) closeInviteDialog() {
 	a.invalidate()
 }
 
-// submitInviteJoin joins via ImportChatInvite (async) and refreshes.
 func (a *App) submitInviteJoin() {
 	a.mu.Lock()
 	if a.inviteDlg == nil || a.inviteDlg.busy {
@@ -192,7 +172,6 @@ func (a *App) submitInviteJoin() {
 	}()
 }
 
-// layoutInviteDialog renders the centered confirm card over the sidebar.
 func (a *App) layoutInviteDialog(gtx layout.Context, f frame) layout.Dimensions {
 	d := f.inviteDlg
 	{

@@ -1,9 +1,5 @@
 package engine
 
-// Channel-post views (slice 187): the cache round-trip (ingest → read)
-// and the refresh pass (channel gate, batch RPC, cache update,
-// non-channel / provider-less no-ops).
-
 import (
 	"testing"
 	"time"
@@ -60,7 +56,6 @@ func TestRefreshMessageViews(t *testing.T) {
 	e := newTestEngine(t)
 	seedChannelChat(t, e, "c1", ChatTypeChanVal)
 
-	// Seed cached posts (no views yet).
 	for i, id := range []string{"m1", "m2", "m3"} {
 		m := &cores.Message{ID: id, ChatID: "c1", Text: "post " + id, Timestamp: time.Now().Add(-time.Duration(i) * time.Second)}
 		e.cacheMessage("a1", "c1", m)
@@ -76,7 +71,6 @@ func TestRefreshMessageViews(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// m1 + m2 changed (m3: 0→0 stays).
 	if changed != 2 {
 		t.Fatalf("changed = %d, want 2", changed)
 	}
@@ -92,7 +86,6 @@ func TestRefreshMessageViews(t *testing.T) {
 		t.Fatalf("m2 views = %d", byID["m2"].Views)
 	}
 
-	// Second pass with unchanged data: 0 changed, still one RPC.
 	changed, err = e.RefreshMessageViews("a1", "c1")
 	if err != nil {
 		t.Fatal(err)
@@ -101,7 +94,6 @@ func TestRefreshMessageViews(t *testing.T) {
 		t.Fatalf("second pass changed = %d, want 0", changed)
 	}
 
-	// Non-channel chat: no-op, no RPC.
 	seedChannelChat(t, e, "c2", ChatTypeDMVal)
 	if _, err := e.RefreshMessageViews("a1", "c2"); err != nil {
 		t.Fatal(err)
@@ -110,7 +102,6 @@ func TestRefreshMessageViews(t *testing.T) {
 		t.Fatalf("RPC calls = %d, want 2 (non-channel must not call)", fc.calls)
 	}
 
-	// No account: quiet no-op.
 	if n, err := e.RefreshMessageViews("nope", "c1"); err != nil || n != 0 {
 		t.Fatalf("missing account = %d, %v", n, err)
 	}

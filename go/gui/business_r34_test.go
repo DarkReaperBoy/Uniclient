@@ -6,25 +6,9 @@ import (
 	"testing"
 )
 
-// TestBusinessPageStateIsCopyOnWrite pins R34: businessPageState used to be
-// mutated IN PLACE by the RPC tails (loadBusinessPage's completion, the
-// apply/remove/create/rename/delete tails, reloadBusinessPage) under a.mu
-// while the GUI loop read the same fields through the frame pointer under
-// frameMu only — a write-races-layout data race (R32's class, struct-
-// flavored; the dependency-free scratch repro of the pre-fix shape flags
-// DATA RACE at loadTail vs layoutReads under -race). Every post-install
-// mutation now goes through updateBusinessPage, which installs a COPY
-// under a.mu: the struct a frame holds is never written afterwards.
-//
-// This test hammers the real install path from four background goroutines
-// (every field the old tails wrote) while a reader goroutine reads a HELD
-// pointer — the exact shape of snapshot() handing layout a pointer that
-// outlives the lock. Deterministic-safe on the js leg; the CI race leg
-// runs it under -race.
 func TestBusinessPageStateIsCopyOnWrite(t *testing.T) {
 	a := &App{}
 	a.businessPage = &businessPageState{accountID: "acc", loading: true, editor: "hours"}
-	// The frame's pointer, taken the way snapshot() takes it.
 	a.mu.Lock()
 	frameSt := a.businessPage
 	a.mu.Unlock()
@@ -35,7 +19,6 @@ func TestBusinessPageStateIsCopyOnWrite(t *testing.T) {
 		go func(i int) {
 			defer wg.Done()
 			for j := 0; j < 1500; j++ {
-				// The load tail's fields.
 				a.updateBusinessPage(func(n *businessPageState) bool {
 					if n.accountID != "acc" {
 						return false
@@ -49,7 +32,6 @@ func TestBusinessPageStateIsCopyOnWrite(t *testing.T) {
 					n.replies = nil
 					return true
 				})
-				// The apply tail's fields.
 				a.updateBusinessPage(func(n *businessPageState) bool {
 					if n.accountID != "acc" {
 						return false
@@ -61,7 +43,6 @@ func TestBusinessPageStateIsCopyOnWrite(t *testing.T) {
 					}
 					return true
 				})
-				// The quick-reply tails' fields.
 				a.updateBusinessPage(func(n *businessPageState) bool {
 					n.qrNewOpen = j%2 == 0
 					n.qrRenameID = j
@@ -71,9 +52,6 @@ func TestBusinessPageStateIsCopyOnWrite(t *testing.T) {
 		}(i)
 	}
 
-	// The layout reader: reads the HELD pointer with no lock at all —
-	// exactly what layoutBusinessPage/bizEditorBody/bizRepliesEditor do
-	// under frameMu (which no writer takes).
 	readDone := make(chan struct{})
 	go func() {
 		defer close(readDone)
@@ -95,9 +73,6 @@ func TestBusinessPageStateIsCopyOnWrite(t *testing.T) {
 	wg.Wait()
 	<-readDone
 
-	// Install semantics survived the hammering: the head is a DIFFERENT
-	// struct than the frame's (the frame-held one was never written —
-	// that is the fix), and the last install's values are live.
 	a.mu.Lock()
 	head := a.businessPage
 	a.mu.Unlock()
@@ -113,18 +88,12 @@ func TestBusinessPageStateIsCopyOnWrite(t *testing.T) {
 	if !head.loaded || head.loading {
 		t.Fatalf("load-tail fields must survive: loaded=%v loading=%v", head.loaded, head.loading)
 	}
-	// The frame-held struct keeps its install-time values (immutable
-	// after install — the whole point of R34).
 	if frameSt.editor != "hours" || !frameSt.loading || frameSt.loaded {
 		t.Fatalf("frame-held struct must stay frozen at install time: editor=%q loading=%v loaded=%v",
 			frameSt.editor, frameSt.loading, frameSt.loaded)
 	}
 }
 
-// TestUpdateBusinessPageContract pins the installer's own contract:
-// closed page → nil without panic; fn returning false → nil and the head
-// untouched; fn returning true → a NEW struct installed (copy semantics:
-// untouched fields carried over, mutations visible).
 func TestUpdateBusinessPageContract(t *testing.T) {
 	a := &App{}
 	if got := a.updateBusinessPage(func(n *businessPageState) bool { return true }); got != nil {
@@ -144,7 +113,7 @@ func TestUpdateBusinessPageContract(t *testing.T) {
 
 	got = a.updateBusinessPage(func(n *businessPageState) bool {
 		if n.accountID != "acc" || n.busy {
-			return false // the staleness guards the tails rely on
+			return false
 		}
 		n.busy = true
 		n.editorErr = "boom"

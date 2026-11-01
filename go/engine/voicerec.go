@@ -12,22 +12,13 @@ import (
 	"uniclient/voice"
 )
 
-// Hold-to-record voice notes (slice 114): the mic layer (slice 110)
-// captures 20 ms frames, the pure-Go Opus encoder packs them, and the
-// Ogg writer (the page builder from engine/ogg.go — the same container
-// the player demuxes) produces a Telegram-shaped voice-note file. The
-// GUI sends it through UploadFileEx with IsVoice + duration.
-
-// VoiceRecording is the recorder's public snapshot.
 type VoiceRecording struct {
 	Active  bool    `json:"active"`
 	Seconds float64 `json:"seconds"`
-	Level   float64 `json:"level"` // smoothed RMS, 0..1 (UI bars)
+	Level   float64 `json:"level"`
 	HasMic  bool    `json:"has_mic"`
 }
 
-// minVoiceNote is the shortest sendable recording (Telegram's own
-// floor); shorter holds are discarded as accidental taps.
 const minVoiceNote = 900 * time.Millisecond
 
 type voiceRecorder struct {
@@ -36,10 +27,10 @@ type voiceRecorder struct {
 	sess *audio.Session
 
 	enc     *voice.Encoder
-	samples int      // encoded samples so far (960/frame)
-	packets [][]byte // opus packets
-	granule []int64  // cumulative sample count at each packet's end
-	level   float64  // smoothed RMS for the UI
+	samples int
+	packets [][]byte
+	granule []int64
+	level   float64
 	started time.Time
 
 	micCh <-chan []byte
@@ -60,8 +51,6 @@ func (e *Engine) recorder() *voiceRecorder {
 	return r
 }
 
-// VoiceRecordingSupported reports whether the account's core can send
-// voice notes (UploadFileWithOptions with IsVoice — Telegram and Bale).
 func (e *Engine) VoiceRecordingSupported(accountID string) bool {
 	e.accountsMu.RLock()
 	acc := e.accounts[accountID]
@@ -73,9 +62,6 @@ func (e *Engine) VoiceRecordingSupported(accountID string) bool {
 	return ok
 }
 
-// StartVoiceRecording begins capturing. Fails honestly when no
-// microphone exists on this platform (§1.10 — the GUI hides the
-// affordance, and this is the second gate).
 func (e *Engine) StartVoiceRecording() error {
 	r := e.recorder()
 	r.mu.Lock()
@@ -92,7 +78,7 @@ func (e *Engine) StartVoiceRecording() error {
 		sess.Close()
 		return fmt.Errorf("voice: mic: %w", err)
 	}
-	enc, err := voice.NewEncoder(24000) // Telegram-ish voice bitrate
+	enc, err := voice.NewEncoder(24000)
 	if err != nil {
 		sess.StopMic()
 		sess.Close()
@@ -111,8 +97,6 @@ func (e *Engine) StartVoiceRecording() error {
 	return nil
 }
 
-// micLoop drains the device's frame channel until Stop/Cancel closes
-// the mic (channel close ends the loop).
 func (r *voiceRecorder) micLoop(frames <-chan []byte) {
 	defer close(r.done)
 	for frame := range frames {
@@ -126,8 +110,6 @@ func (r *voiceRecorder) micLoop(frames <-chan []byte) {
 	}
 }
 
-// feedFrame encodes one 20 ms s16le mono frame and tracks the UI level.
-// Package-internal: tests drive it directly, no device needed.
 func (r *voiceRecorder) feedFrame(frame []byte) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -147,8 +129,6 @@ func (r *voiceRecorder) feedFrame(frame []byte) error {
 	return nil
 }
 
-// voiceLevel computes the smoothed RMS of an s16le mono frame, mixed
-// toward the previous value (UI smoothing).
 func voiceLevel(frame []byte, prev float64) float64 {
 	if len(frame) < 2 {
 		return prev
@@ -167,7 +147,6 @@ func voiceLevel(frame []byte, prev float64) float64 {
 	return 0.7*prev + 0.3*rms
 }
 
-// VoiceRecording snapshots the recorder state for the UI.
 func (e *Engine) VoiceRecording() VoiceRecording {
 	r := e.recorder()
 	r.mu.Lock()
@@ -182,10 +161,6 @@ func (e *Engine) VoiceRecording() VoiceRecording {
 	return st
 }
 
-// StopVoiceRecording finishes the capture and writes the Ogg/Opus file
-// (media dir). Returns the path + duration; the GUI uploads it with
-// UploadFileEx(IsVoice). Recordings shorter than minVoiceNote return
-// os.ErrNotExist-style empty path (the caller shows a hint instead).
 func (e *Engine) StopVoiceRecording() (path string, seconds float64, err error) {
 	r := e.recorder()
 	r.mu.Lock()
@@ -196,7 +171,7 @@ func (e *Engine) StopVoiceRecording() (path string, seconds float64, err error) 
 	}
 
 	r.stopDevice()
-	<-r.done // wait for the mic loop to drain
+	<-r.done
 
 	r.mu.Lock()
 	r.enc = nil
@@ -209,13 +184,12 @@ func (e *Engine) StopVoiceRecording() (path string, seconds float64, err error) 
 
 	seconds = float64(samples) / float64(voice.SampleRate)
 	if time.Duration(seconds*float64(time.Second)) < minVoiceNote {
-		return "", seconds, nil // too short: caller hints, nothing sent
+		return "", seconds, nil
 	}
 	path, err = writeVoiceOgg(frames, granules, e.mediaDir)
 	return path, seconds, err
 }
 
-// CancelVoiceRecording discards the capture.
 func (e *Engine) CancelVoiceRecording() {
 	r := e.recorder()
 	r.mu.Lock()
@@ -233,46 +207,33 @@ func (e *Engine) CancelVoiceRecording() {
 	r.mu.Unlock()
 }
 
-// stopDevice closes the mic and audio session (ends the mic loop).
 func (r *voiceRecorder) stopDevice() {
 	r.mu.Lock()
 	sess := r.sess
 	r.sess = nil
 	r.mu.Unlock()
 	if sess != nil {
-		sess.StopMic() // closes the frame channel
+		sess.StopMic()
 		sess.Close()
 	}
 }
 
-// ── Ogg/Opus writer ─────────────────────────────────────────────────────
-
-// opusHead builds the mandatory 19-byte OpusHead packet: mono, 48 kHz,
-// no preskip, no gain, no channel mapping.
 func opusHead() []byte {
 	p := make([]byte, 19)
 	copy(p, "OpusHead")
-	p[8] = 1 // version
-	p[9] = 1 // channels
-	// p[10:12] preskip = 0
-	// p[12:16] input sample rate (informational)
-	p[12] = 0x80 // 48000 LE → 0xBB80
+	p[8] = 1
+	p[9] = 1
+	p[12] = 0x80
 	p[13] = 0xBB
-	// p[16:18] gain = 0; p[18] mapping family = 0
 	return p
 }
 
-// opusTags builds the minimal OpusTags packet (empty vendor/comments).
 func opusTags() []byte {
 	p := make([]byte, 16)
 	copy(p, "OpusTags")
 	return p
 }
 
-// writeVoiceOgg assembles the recorded packets into an Ogg page stream.
-// Pages: header (OpusHead), tags (OpusTags), then audio packets in
-// batches of 25 (500 ms) with running granule positions — the layout
-// ffmpeg/libopus produce and every player (ours included) demuxes.
 func writeVoiceOgg(packets [][]byte, granules []int64, dir string) (string, error) {
 	if len(packets) == 0 || len(granules) != len(packets) {
 		return "", fmt.Errorf("voice: no audio captured")
@@ -289,7 +250,7 @@ func writeVoiceOgg(packets [][]byte, granules []int64, dir string) (string, erro
 	}
 	defer f.Close()
 
-	const serial = 0x55434C59 // "UCLY"
+	const serial = 0x55434C59
 	var seq uint32
 	pages := [][]byte{
 		buildOggPage([][]byte{opusHead()}, 0, serial, seq, false),
@@ -316,7 +277,6 @@ func writeVoiceOgg(packets [][]byte, granules []int64, dir string) (string, erro
 	return f.Name(), nil
 }
 
-// SendVoiceNote uploads a finished recording as a voice message.
 func (e *Engine) SendVoiceNote(accountID, chatID, path string, seconds int) (string, error) {
 	if !e.VoiceRecordingSupported(accountID) {
 		return "", fmt.Errorf("voice: account does not support voice notes")
@@ -327,15 +287,10 @@ func (e *Engine) SendVoiceNote(accountID, chatID, path string, seconds int) (str
 	})
 }
 
-// VoiceNoteTempDir returns the directory recordings are written to.
 func (e *Engine) VoiceNoteTempDir() string {
 	if e.mediaDir != "" {
 		return e.mediaDir
 	}
-	// F-73: was a FIXED name in the shared temp dir (pre-plantable).
-	// Private and deterministic; the last-resort fallback is the temp
-	// ROOT — files there come from os.CreateTemp (random, O_EXCL), so
-	// even that fallback is unguessable.
 	dir, err := utils.PrivateCacheDir("voice-notes")
 	if err != nil {
 		return os.TempDir()

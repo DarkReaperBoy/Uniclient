@@ -12,7 +12,6 @@ func mkCornerMsg(id string, out bool) engine.CachedMessage {
 }
 
 func TestEffectiveCornerReply(t *testing.T) {
-	// tdesktop default: the corner reply button is ON.
 	if !effectiveCornerReply(nil) {
 		t.Error("nil config: corner reply should default ON (tdesktop)")
 	}

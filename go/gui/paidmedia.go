@@ -17,16 +17,6 @@ import (
 	"uniclient/engine"
 )
 
-// Paid-media star wall (slice 181, parity row "Paid messages / paid
-// posts" — tdesktop's blurred paid-media wall): locked paid media
-// renders a darkened preview wall with the star price and an Unlock
-// button; unlocking walks the engine's UnlockPaidMedia
-// (payments.getPaymentForm → payments.sendStarsForm), and the server's
-// message update turns the wall into the real media bubble
-// (paid_unlocked). Never shown for plain bot invoices or unlocked media
-// (§1.10).
-
-// paidData is the parsed paid-media Extra of one message.
 type paidData struct {
 	Stars      int64
 	ThumbB64   string
@@ -36,8 +26,6 @@ type paidData struct {
 	Unlocked   bool
 }
 
-// parsePaidMedia extracts the paid-media fields from a cached message's
-// raw Extra. Nil when the message is not paid media. Pure — tested.
 func parsePaidMedia(m *engine.CachedMessage) *paidData {
 	if m == nil || len(m.ContentRaw) == 0 {
 		return nil
@@ -74,15 +62,10 @@ func parsePaidMedia(m *engine.CachedMessage) *paidData {
 	return p
 }
 
-// paidWallVisible: locked paid media renders the wall.
 func paidWallVisible(p *paidData) bool {
 	return p != nil && !p.Unlocked
 }
 
-// paidBubbleWall: the bubble dispatch's decision — render the star
-// wall for LOCKED paid media only; never for unlocked or non-paid
-// messages (§1.10). Pure — tested (paidmedia_wire_test.go drives the
-// real dispatch through it).
 func paidBubbleWall(m *engine.CachedMessage) (*paidData, bool) {
 	p := parsePaidMedia(m)
 	if !paidWallVisible(p) {
@@ -91,7 +74,6 @@ func paidBubbleWall(m *engine.CachedMessage) (*paidData, bool) {
 	return p, true
 }
 
-// paidStarsText: "1 Star" / "25 Stars" ("" when free). Pure.
 func paidStarsText(stars int64) string {
 	if stars <= 0 {
 		return ""
@@ -102,9 +84,6 @@ func paidStarsText(stars int64) string {
 	return itoa64(stars) + " Stars"
 }
 
-// layoutPaidMediaWall renders the star wall inside the bubble: the
-// darkened preview (stripped thumb, aspect-true box), the star glyph +
-// price label overlay, and the Unlock button below.
 func (a *App) layoutPaidMediaWall(gtx layout.Context, m *engine.CachedMessage, p *paidData) layout.Dimensions {
 	key := m.AccountID + "|" + m.ChatID + "|" + m.MsgID
 	btn := a.paidUnlockClickable(key)
@@ -124,9 +103,6 @@ func (a *App) layoutPaidMediaWall(gtx layout.Context, m *engine.CachedMessage, p
 	var rows []layout.FlexChild
 	rows = append(rows, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return roundedFill(gtx, a.ui.p.SurfaceHi, unit.Dp(10), func(gtx layout.Context) layout.Dimensions {
-			// The preview: dark scrim over the low-res thumb (tdesktop
-			// blurs; a uniform scrim is the honest pure-Go equivalent —
-			// the preview is already "extremely low resolution").
 			d := layout.Dimensions{}
 			if p.ThumbB64 != "" {
 				if img := mediaImgs.get("thumb:" + p.ThumbB64); img != nil {
@@ -141,7 +117,6 @@ func (a *App) layoutPaidMediaWall(gtx layout.Context, m *engine.CachedMessage, p
 			stack := clip.Rect{Max: d.Size}.Push(gtx.Ops)
 			paint.FillShape(gtx.Ops, color.NRGBA{R: 0, G: 0, B: 0, A: 0x8C}, clip.Rect{Max: d.Size}.Op())
 			stack.Pop()
-			// Star glyph + price centered over the scrim.
 			return layout.Stack{}.Layout(gtx,
 				layout.Expanded(func(gtx layout.Context) layout.Dimensions { return d }),
 				layout.Stacked(func(gtx layout.Context) layout.Dimensions {
@@ -190,7 +165,6 @@ func (a *App) layoutPaidMediaWall(gtx layout.Context, m *engine.CachedMessage, p
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, rows...)
 }
 
-// paidUnlockClickable pools the unlock buttons per message.
 func (a *App) paidUnlockClickable(key string) *widget.Clickable {
 	if c, ok := a.wid.paidUnlockBtns[key]; ok {
 		return c
@@ -203,8 +177,6 @@ func (a *App) paidUnlockClickable(key string) *widget.Clickable {
 	return c
 }
 
-// confirmUnlockPaidMedia arms the paid-media confirm dialog (real stars
-// leave the balance — always ask).
 func (a *App) confirmUnlockPaidMedia(m *engine.CachedMessage, p *paidData) {
 	a.mu.Lock()
 	a.paidDlg = &paidConfirmState{
@@ -217,7 +189,6 @@ func (a *App) confirmUnlockPaidMedia(m *engine.CachedMessage, p *paidData) {
 	a.invalidate()
 }
 
-// paidConfirmState is the unlock confirm card.
 type paidConfirmState struct {
 	accountID string
 	chatID    string
@@ -225,7 +196,6 @@ type paidConfirmState struct {
 	stars     int64
 }
 
-// layoutPaidConfirm renders the confirm card over a scrim.
 func (a *App) layoutPaidConfirm(gtx layout.Context, f frame) layout.Dimensions {
 	st := f.paidDlg
 	if a.wid.paidConfirmBtn.Clicked(gtx) {
@@ -311,7 +281,6 @@ func (a *App) layoutPaidConfirm(gtx layout.Context, f frame) layout.Dimensions {
 	})
 }
 
-// closePaidConfirm dismisses the card.
 func (a *App) closePaidConfirm() {
 	a.mu.Lock()
 	a.paidDlg = nil

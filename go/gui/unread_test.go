@@ -6,8 +6,6 @@ import (
 	"uniclient/engine"
 )
 
-// Per-account unread dots (AyuGram parity slice 36).
-
 func TestAccountUnread(t *testing.T) {
 	chats := []engine.ChatInfo{
 		{AccountID: "a1", UnreadCount: 3},

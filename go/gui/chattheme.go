@@ -16,15 +16,6 @@ import (
 	"uniclient/engine"
 )
 
-// Per-chat themes (AyuGram parity, matrix "Chat background"): the DM
-// header ⋮ menu gains "Change colors…" which opens this picker. It lists
-// the account's server-side chat themes (engine.GetChatThemes — emoticon
-// + gradient colors) as large emoticon chips plus a "Reset" option;
-// picking one calls engine.SetChatTheme so both parties see the theme in
-// the real clients, and a toast confirms. The in-app bubble re-tint that
-// follows is a later slice (the server state changes immediately).
-
-// chatThemeDlgState is the open per-chat theme picker.
 type chatThemeDlgState struct {
 	accountID string
 	chatID    string
@@ -35,7 +26,6 @@ var (
 	chatThemeDlgKeyTag = new(struct{})
 )
 
-// openChatThemeDialog opens the picker and loads the account's themes.
 func (a *App) openChatThemeDialog(c engine.ChatInfo) {
 	a.mu.Lock()
 	a.themeDlg = &chatThemeDlgState{accountID: c.AccountID, chatID: c.ChatID, title: c.Title}
@@ -45,20 +35,12 @@ func (a *App) openChatThemeDialog(c engine.ChatInfo) {
 	a.invalidate()
 }
 
-// loadChatThemes fetches the account's chat themes (async) and caches
-// them per account — the picker's chips AND the per-chat tint resolver
-// (slice 188) read this cache. A latent slice-65 bug hid here: the list
-// was stored without setting chatThemesFor, so the dialog's gate
-// (f.chatThemesFor != account) always discarded it and the chips never
-// rendered. Errors keep the previous cache untouched.
 func (a *App) loadChatThemes(accountID string) {
 	themes, err := a.eng.GetChatThemes(accountID)
 	if err != nil {
 		themes = nil
 	}
 	a.mu.Lock()
-	// Cache even the empty result of a failure — an offline account shows
-	// the honest "no themes" state, never an infinite "Loading…" (§1.10).
 	a.chatThemes = themes
 	a.chatThemesFor = accountID
 	a.chatThemesOn = true
@@ -66,7 +48,6 @@ func (a *App) loadChatThemes(accountID string) {
 	a.invalidate()
 }
 
-// closeChatThemeDialog dismisses it.
 func (a *App) closeChatThemeDialog() {
 	a.mu.Lock()
 	a.themeDlg = nil
@@ -74,10 +55,6 @@ func (a *App) closeChatThemeDialog() {
 	a.invalidate()
 }
 
-// applyChatTheme sets the chat's theme emoticon ("" resets, slice 65).
-// The local tint applies optimistically (slice 188) — the server's
-// SetChatTheme echo (a messageActionSetChatTheme service row) confirms
-// it in the cache moments later.
 func (a *App) applyChatTheme(accountID, chatID, emoticon, title string) {
 	go func() {
 		if err := a.eng.SetChatTheme(accountID, chatID, emoticon); err != nil {
@@ -89,7 +66,6 @@ func (a *App) applyChatTheme(accountID, chatID, emoticon, title string) {
 		} else {
 			a.setToast("Chat colors " + emoticon + " in " + title)
 		}
-		// Optimistic local mirror: tint now, the echo confirms later.
 		a.mu.Lock()
 		for i := range a.chats {
 			if a.chats[i].AccountID == accountID && a.chats[i].ChatID == chatID {
@@ -105,9 +81,6 @@ func (a *App) applyChatTheme(accountID, chatID, emoticon, title string) {
 	}()
 }
 
-// chatThemeSwatch picks a surface color for a theme chip: the theme's
-// first message color (Telegram 0xAARRGGBB ints) when present, else the
-// fallback surface.
 func chatThemeSwatch(th cores.ChatThemeInfo, fallback color.NRGBA) color.NRGBA {
 	if len(th.MessageColors) == 0 {
 		return fallback
@@ -121,8 +94,6 @@ func chatThemeSwatch(th cores.ChatThemeInfo, fallback color.NRGBA) color.NRGBA {
 	}
 }
 
-// layoutChatThemeDialog renders the per-chat theme picker (content-pane
-// replacement, like the other header dialogs).
 func (a *App) layoutChatThemeDialog(gtx layout.Context, f frame) layout.Dimensions {
 	st := f.themeDlg
 	themes := f.chatThemes
@@ -131,7 +102,6 @@ func (a *App) layoutChatThemeDialog(gtx layout.Context, f frame) layout.Dimensio
 	}
 	growClickables(&a.wid.chatThemeChipBtns, len(themes))
 
-	// Esc closes (self-handled).
 	{
 		stack := clip.Rect{Max: image.Pt(gtx.Constraints.Max.X, gtx.Constraints.Max.Y)}.Push(gtx.Ops)
 		event.Op(gtx.Ops, chatThemeDlgKeyTag)
@@ -185,7 +155,6 @@ func (a *App) layoutChatThemeDialog(gtx layout.Context, f frame) layout.Dimensio
 								return lbl.Layout(gtx)
 							})
 						}
-						// Wrap chips into rows of four.
 						perRow := 4
 						rows := (len(themes) + perRow - 1) / perRow
 						var rowChildren []layout.FlexChild
@@ -240,8 +209,6 @@ func (a *App) layoutChatThemeDialog(gtx layout.Context, f frame) layout.Dimensio
 	})
 }
 
-// layoutChatThemeChip renders one theme: a large emoticon over a
-// gradient-ish surface built from the theme's message colors.
 func (a *App) layoutChatThemeChip(gtx layout.Context, btn *widget.Clickable, th cores.ChatThemeInfo) layout.Dimensions {
 	sz := gtx.Dp(unit.Dp(56))
 	gtx.Constraints.Max = image.Pt(sz, sz)

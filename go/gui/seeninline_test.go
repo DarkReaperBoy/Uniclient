@@ -7,8 +7,6 @@ import (
 	"uniclient/engine"
 )
 
-// TestSeenInlineGate: only the last own outgoing DM message carries the
-// inline receipt.
 func TestSeenInlineGate(t *testing.T) {
 	own := engine.CachedMessage{IsOutgoing: true, MsgID: "m1"}
 	other := engine.CachedMessage{IsOutgoing: false, MsgID: "m2"}
@@ -34,7 +32,6 @@ func TestSeenInlineGate(t *testing.T) {
 	}
 }
 
-// TestSeenInlineLabel: the "Seen" caption.
 func TestSeenInlineLabel(t *testing.T) {
 	if got := seenInlineLabel(0, false); got != "Seen" {
 		t.Fatalf("no date = %q", got)
@@ -47,7 +44,6 @@ func TestSeenInlineLabel(t *testing.T) {
 	}
 }
 
-// TestLastOwnMsgID: the last own non-service message in the slice.
 func TestLastOwnMsgID(t *testing.T) {
 	msgs := []engine.CachedMessage{
 		{MsgID: "a", IsOutgoing: true},

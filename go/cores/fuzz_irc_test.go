@@ -1,9 +1,5 @@
 package cores
 
-// Hostile-input fuzzing for the IRC wire parsers (slice 255): server
-// lines are attacker-supplied bytes from the network — parsing must
-// never panic (§1.10: drop the line, never kill the connection).
-
 import "testing"
 
 func FuzzParseIRCMsg(f *testing.F) {
@@ -15,7 +11,7 @@ func FuzzParseIRCMsg(f *testing.F) {
 	f.Add(":" + string(make([]byte, 0)))
 	f.Add("@batch=x :a!b@c PRIVMSG #d :e")
 	f.Fuzz(func(t *testing.T, line string) {
-		_ = parseIRCMsg(line) // nil/empty results are fine; a panic is not
+		_ = parseIRCMsg(line)
 	})
 }
 

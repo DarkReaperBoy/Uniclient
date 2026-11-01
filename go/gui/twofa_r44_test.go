@@ -1,23 +1,5 @@
 package gui
 
-// R44/R45 pins (chunk 3 iteration 28, the R34 sibling sweep #7 — twofa.go
-// read in full):
-//
-//   - R44: twofaDlgState was R34's pre-fix shape — FOUR background tails
-//     (openTwoFADialog's load, twofaFinish's mutation+refresh,
-//     twofaFinishSendEmail's submit, the cancel-email tail) and every
-//     GUI-loop writer (Back, action rows, form validations, emailSent)
-//     mutated the frame-carried struct in place; the pointer-identity
-//     guards (cur == d) did not stop the frameMu-side reads. Now every
-//     writer goes through updateTwoFADlg (copy-on-write, R34/R40 shape)
-//     with accountID staleness guards (identity guards break under
-//     copy-on-write — every install swaps the pointer).
-//   - R45: the settings-row map (twofaStates) was never refreshed after a
-//     mutation — the row behind the dialog kept the pre-mutation On/Off
-//     until settings was reopened, while twofaFinish's own comment
-//     promised "server truth wins". The refresh now installs a FRESH map
-//     (the R38 fresh-map rule — the frame carries the map).
-
 import (
 	"errors"
 	"sync"
@@ -28,24 +10,17 @@ import (
 	"uniclient/engine"
 )
 
-// TestTwoFADlgStateIsCopyOnWrite pins R44's core: the mutation tails must
-// swap the head, never mutate the frame-visible struct in place. A reader
-// holds the ORIGINAL head pointer (what a captured frame holds) while
-// three writers hammer twofaFinish/twofaFinishSendEmail through the real
-// entry points — under the pre-fix in-place writes this is a -race report
-// on busy/errMsg/step/state; under the fix the frozen head is never
-// touched.
 func TestTwoFADlgStateIsCopyOnWrite(t *testing.T) {
 	a := &App{eng: &engine.Engine{}}
 	a.mu.Lock()
 	a.twofaDlg = &twofaDlgState{accountID: "acc", step: twofaStepNew}
 	a.mu.Unlock()
-	head := a.twofaDlg // the frame-captured pointer
+	head := a.twofaDlg
 
 	var wg sync.WaitGroup
 	stop := make(chan struct{})
 	wg.Add(1)
-	go func() { // the GUI-loop reader stand-in: no a.mu, frameMu only
+	go func() {
 		defer wg.Done()
 		for {
 			select {
@@ -61,7 +36,7 @@ func TestTwoFADlgStateIsCopyOnWrite(t *testing.T) {
 			_ = head.emailSent
 		}
 	}()
-	for i := 0; i < 3; i++ { // the background writers
+	for i := 0; i < 3; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -77,7 +52,6 @@ func TestTwoFADlgStateIsCopyOnWrite(t *testing.T) {
 		close(stop)
 	}()
 	wg.Wait()
-	// Let every spawned tail land before the frozen-head assertion.
 	deadline := time.Now().Add(5 * time.Second)
 	for {
 		a.mu.Lock()
@@ -96,11 +70,6 @@ func TestTwoFADlgStateIsCopyOnWrite(t *testing.T) {
 	}
 }
 
-// TestUpdateTwoFADlgContract pins the installer semantics: nil head is a
-// no-op (fn never runs), a false return leaves the head alone (same
-// pointer), a true return installs a FRESH struct, and the accountID guard
-// aborts a foreign dialog's update. (Compile seam: updateTwoFADlg does not
-// exist pre-fix.)
 func TestUpdateTwoFADlgContract(t *testing.T) {
 	a := &App{}
 	ran := false
@@ -121,7 +90,6 @@ func TestUpdateTwoFADlgContract(t *testing.T) {
 		t.Fatal("an aborted update must leave the head pointer untouched")
 	}
 
-	// A foreign account's update must not touch the open dialog.
 	a.updateTwoFADlg(func(cur *twofaDlgState) bool {
 		if cur.accountID != "other" {
 			return false
@@ -157,10 +125,6 @@ func TestUpdateTwoFADlgContract(t *testing.T) {
 	}
 }
 
-// TestTwoFALoadTailLandsCopyOnWrite pins openTwoFADialog's load: the open
-// installs the editor, the tail (GetCloudPasswordState errors immediately
-// on the bare engine harness) lands through the installer with loading
-// cleared and the error shown, and the OPEN-TIME struct stays frozen.
 func TestTwoFALoadTailLandsCopyOnWrite(t *testing.T) {
 	a := &App{eng: &engine.Engine{}}
 	a.openTwoFADialog("ghost")
@@ -188,10 +152,6 @@ func TestTwoFALoadTailLandsCopyOnWrite(t *testing.T) {
 	}
 }
 
-// TestTwoFAFinishTailLandsCopyOnWrite pins twofaFinish's two halves: the
-// head installs a FRESH busy struct (synchronously, on the GUI loop) and
-// the tail lands busy=false + step=main + errMsg cleared on success —
-// every install through the installer, the original head frozen.
 func TestTwoFAFinishTailLandsCopyOnWrite(t *testing.T) {
 	a := &App{eng: &engine.Engine{}}
 	d := &twofaDlgState{accountID: "acc", step: twofaStepNew, errMsg: "old"}
@@ -227,10 +187,6 @@ func TestTwoFAFinishTailLandsCopyOnWrite(t *testing.T) {
 	}
 }
 
-// TestTwoFARowMapRefreshIsCopyOnWrite pins R45: refreshTwoFARowState
-// replaces the settings-row map with a FRESH map (the R38 fresh-map rule —
-// frames hold the old map), preserves unrelated accounts, and leaves a
-// nil map (privacy not loaded yet) alone.
 func TestTwoFARowMapRefreshIsCopyOnWrite(t *testing.T) {
 	a := &App{}
 	old := map[string]cores.CloudPasswordState{

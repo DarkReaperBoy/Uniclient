@@ -5,8 +5,6 @@ import (
 	"testing"
 )
 
-// TestSplitNotifyKey (slice 202): the throttle key round-trips into the
-// account/chat pair the launch URI needs.
 func TestSplitNotifyKey(t *testing.T) {
 	acc, chat, ok := splitNotifyKey("tg_a1b2c3d4/777000")
 	if !ok || acc != "tg_a1b2c3d4" || chat != "777000" {
@@ -19,9 +17,6 @@ func TestSplitNotifyKey(t *testing.T) {
 	}
 }
 
-// TestOpenURIRoundTrip (slice 202): build → parse returns exactly the
-// account/chat pair, including ids that carry reserved characters
-// (Matrix room ids, IRC channel names, anything with spaces or &).
 func TestOpenURIRoundTrip(t *testing.T) {
 	cases := [][2]string{
 		{"tg_a1b2c3d4", "777000"},
@@ -45,8 +40,6 @@ func TestOpenURIRoundTrip(t *testing.T) {
 	}
 }
 
-// TestOpenURIParseRejects (slice 202): anything that is not our open
-// command is rejected — other schemes, other paths, missing params.
 func TestOpenURIParseRejects(t *testing.T) {
 	for _, bad := range []string{
 		"", "http://x", "tg://resolve?domain=a", "uniclient://",

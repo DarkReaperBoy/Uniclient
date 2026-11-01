@@ -8,12 +8,6 @@ import (
 	"time"
 )
 
-// TeamSpeak talk-power tests (BUGS B-26): the server silently discards
-// voice when client_talk_power < channel_needed_talk_power (probe
-// evidence in the F-28 row) — the core must track both, refuse to send
-// into a known-dead room (fail-open while unknown), and report the
-// blocked state through GetGroupCall so the UI can say so.
-
 func TestNotifyClientUpdatedCapturesOwnTalkPower(t *testing.T) {
 	m := &TeamSpeakCore{myClientID: 7}
 	m.tsHandleServerCommand(tsResp(t, "notifyclientupdated clid=7 client_talk_power=20 client_servergroups=10"))
@@ -35,10 +29,8 @@ func TestJoinChannelRefreshesTalkPower(t *testing.T) {
 	defer done()
 	core.authed = true
 	core.myClientID = 1
-	core.channels = make(map[int]tsChannelInfo) // hand-built cores skip the constructor's maps
+	core.channels = make(map[int]tsChannelInfo)
 
-	// Scripted server: the clientmove ack, then the refresh's
-	// channelinfo answer (channellist does not carry this field).
 	go func() {
 		time.Sleep(30 * time.Millisecond)
 		tc.cmdCh <- tsResp(t, "error id=0 msg=ok")
@@ -69,8 +61,6 @@ func TestJoinChannelRefreshesTalkPower(t *testing.T) {
 	}
 }
 
-// udpVoicePair returns a sender socket + a receiver socket so tests can
-// assert whether a voice packet actually left the client.
 func udpVoicePair(t *testing.T) (*net.UDPConn, *net.UDPConn) {
 	t.Helper()
 	rx, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
@@ -119,7 +109,7 @@ func TestSendVoiceFailsOpenWhileUnknown(t *testing.T) {
 		authed:      true,
 		myClientID:  1,
 		myChannelID: 7,
-		myTalkPower: 0, // unknown → fail open
+		myTalkPower: 0,
 		channels:    map[int]tsChannelInfo{7: {cid: 7, talkPower: 100, talkPowerKnown: false}},
 		clientInfo:  make(map[int]tsClientInfo),
 		tsConn: &tsConnection{
@@ -182,7 +172,6 @@ func TestGetGroupCallReportsTalkPowerBlocked(t *testing.T) {
 		t.Errorf("Meta[\"talk_power\"] = %q, want \"blocked\" — the polled UI path must see the dead-room state (B-26)", cs.Meta["talk_power"])
 	}
 
-	// Sufficient power reports ok; unknown reports unknown.
 	m.channels[7] = tsChannelInfo{cid: 7, talkPower: 5, talkPowerKnown: true}
 	cs, err = m.GetGroupCall("ch:7")
 	if err != nil {
@@ -201,12 +190,6 @@ func TestGetGroupCallReportsTalkPowerBlocked(t *testing.T) {
 	}
 }
 
-// TestMyChannelIDConcurrentMoveAndReadRace: BUGS B-37 —
-// tsHandleClientMoved wrote t.myChannelID with NO mutex while
-// GetGroupCall reads it under clientInfoMu and tsHandleTextMessage
-// reads it bare — a data race the detector must flag pre-fix (run with
-// -race; the fix moves the write into clientInfoMu and wraps the
-// remaining bare read).
 func TestMyChannelIDConcurrentMoveAndReadRace(t *testing.T) {
 	m := &TeamSpeakCore{
 		authed:     true,
@@ -225,9 +208,6 @@ func TestMyChannelIDConcurrentMoveAndReadRace(t *testing.T) {
 		_, _ = m.GetGroupCall("ch:7")
 	}
 	<-done
-	// slice-280 pin: the moves must actually have landed — a silent
-	// no-op handler would leave the race detector green with nothing
-	// exercised (clid 1 == myClientID → myChannelID = ctid 7).
 	m.clientInfoMu.RLock()
 	got := m.myChannelID
 	m.clientInfoMu.RUnlock()

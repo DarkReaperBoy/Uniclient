@@ -8,13 +8,11 @@ import (
 	"uniclient/engine"
 )
 
-// ── emojiAutocompleteQuery (pure) ──────────────────────────────────────────
-
 func TestEmojiAutocompleteQuery(t *testing.T) {
 	cases := []struct {
 		name       string
 		text       string
-		caret      int // rune offset of the caret
+		caret      int
 		wantQuery  string
 		wantStart  int
 		wantActive bool
@@ -42,8 +40,6 @@ func TestEmojiAutocompleteQuery(t *testing.T) {
 	}
 }
 
-// ── emojiAutocompleteMatches (pure) ─────────────────────────────────────────
-
 func kw(k string, es ...string) engine.EmojiKeywordEntry {
 	return engine.EmojiKeywordEntry{Keyword: k, Emoticons: es}
 }
@@ -61,23 +57,19 @@ func TestEmojiAutocompleteMatches(t *testing.T) {
 	if got := emojiAutocompleteMatches(nil, "fire", 32); got != nil {
 		t.Errorf("nil keywords should match nothing, got %v", got)
 	}
-	// Exact keyword first, then prefixes.
 	got := emojiAutocompleteMatches(kws, "fire", 32)
 	want := []string{"🔥", "🎆"}
 	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
 		t.Errorf("matches(fire) = %v, want %v", got, want)
 	}
-	// Prefix only.
 	got = emojiAutocompleteMatches(kws, "fir", 32)
 	if len(got) != 2 || got[0] != "🔥" || got[1] != "🎆" {
 		t.Errorf("matches(fir) = %v, want [🔥 🎆]", got)
 	}
-	// Multiple emoticons under one keyword, order preserved.
 	got = emojiAutocompleteMatches(kws, "heart", 32)
 	if len(got) != 2 || got[0] != "❤️" || got[1] != "♥️" {
 		t.Errorf("matches(heart) = %v, want [❤️ ♥️]", got)
 	}
-	// Dedupe across keywords.
 	dup := []engine.EmojiKeywordEntry{kw("fire", "🔥"), kw("flame", "🔥", "🥵")}
 	got = emojiAutocompleteMatches(dup, "f", 32)
 	seen := map[string]int{}
@@ -87,24 +79,18 @@ func TestEmojiAutocompleteMatches(t *testing.T) {
 	if seen["🔥"] != 1 {
 		t.Errorf("dedupe failed: %v", got)
 	}
-	// Cap respected.
 	if got := emojiAutocompleteMatches(kws, "", 0); got != nil {
-		// zero cap on empty query already nil; sanity only
 		_ = got
 	}
-	// Case-insensitive.
 	got = emojiAutocompleteMatches(kws, "FIRE", 32)
 	if len(got) != 2 {
 		t.Errorf("matches(FIRE) = %v, want 2", got)
 	}
 }
 
-// ── editor replacement round-trip ───────────────────────────────────────────
-
 func TestEmojiAutocompleteApply(t *testing.T) {
 	var ed widget.Editor
 	ed.SetText("hello :fire")
-	// Caret at end; replace runes [6,11) with the emoji.
 	ed.SetCaret(6, 11)
 	ed.Insert("🔥")
 	if got := ed.Text(); got != "hello 🔥" {
@@ -112,8 +98,6 @@ func TestEmojiAutocompleteApply(t *testing.T) {
 	}
 }
 
-// The suggestion panel must never fight the emoji picker or the attach menu:
-// the visibility predicate is pure and testable.
 func TestEmojiAutocompleteVisible(t *testing.T) {
 	if emojiAutocompleteVisible(true, true) {
 		t.Errorf("hidden while the emoji picker is open")

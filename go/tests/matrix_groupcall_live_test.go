@@ -1,33 +1,5 @@
 //go:build live
 
-// Live proof for B-6 → F-62: MSC3401 Tier-1 full-mesh group calls
-// against a REAL Matrix homeserver (self-hosted dendrite), two real
-// accounts, real sync — not the in-process loopback harness of slice
-// 298. The chain proven end to end: room + invite → both join the
-// conf (adoption, not fork) → cross-synced m.call.member state →
-// conf-tagged room-event offer/answer/candidates → ICE on the real
-// network → SendVoiceFrame reaches the other core's OnVoiceFrame with
-// sender attribution and byte-exact payload.
-//
-// Provision (once per host — dendrite is pure Go, no docker):
-//
-//	GOBIN=$HOME/go/bin go install github.com/matrix-org/dendrite/cmd/dendrite@v0.13.8
-//	GOBIN=$HOME/go/bin go install github.com/matrix-org/dendrite/cmd/generate-config@v0.13.8
-//	GOBIN=$HOME/go/bin go install github.com/matrix-org/dendrite/cmd/generate-keys@v0.13.8
-//	D=$HOME/.cache/uniclient-dendrite
-//	generate-config -ci -dir $D/ > $D/dendrite.yaml
-//	generate-keys -private-key $D/matrix_key.pem
-//	dendrite -config $D/dendrite.yaml -http-bind-address 127.0.0.1:8008 \
-//	  -really-enable-open-registration &
-//
-// Run:
-//
-//	cd go && MATRIX_DENDRITE_URL=http://127.0.0.1:8008 \
-//	  go test -tags goolm,live ./tests/ -run TestMatrixGroupCallLive \
-//	  -v -timeout 180s
-//
-// Env-gated (MATRIX_DENDRITE_URL) like every other live rung: never in
-// CI, never needs secrets in the repo.
 package tests
 
 import (
@@ -46,8 +18,6 @@ import (
 	"uniclient/utils"
 )
 
-// ensureMatrixUser registers user@server via the m.login.dummy flow;
-// an existing user (M_USER_EXISTS) is fine — the core logs in itself.
 func ensureMatrixUser(t *testing.T, hs, user, password string) {
 	t.Helper()
 	body := fmt.Sprintf(`{"username":%q,"password":%q,"auth":{"type":"m.login.dummy"}}`, user, password)
@@ -61,12 +31,11 @@ func ensureMatrixUser(t *testing.T, hs, user, password string) {
 		return
 	}
 	if strings.Contains(string(raw), "M_USER_EXISTS") || strings.Contains(string(raw), "M_USER_IN_USE") {
-		return // idempotent: user already registered from a previous run
+		return
 	}
 	t.Fatalf("register %s: HTTP %d: %s", user, resp.StatusCode, string(raw))
 }
 
-// poll polls until cond is true or the deadline passes.
 func poll(t *testing.T, what string, timeout time.Duration, cond func() bool) {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
@@ -79,8 +48,6 @@ func poll(t *testing.T, what string, timeout time.Duration, cond func() bool) {
 	t.Fatalf("timed out after %s waiting for %s", timeout, what)
 }
 
-// TestMatrixGroupCallLive: two real accounts on a self-hosted
-// dendrite; see the file header for provisioning.
 func TestMatrixGroupCallLive(t *testing.T) {
 	hs := os.Getenv("MATRIX_DENDRITE_URL")
 	if hs == "" {
@@ -126,11 +93,8 @@ func TestMatrixGroupCallLive(t *testing.T) {
 	}
 	t.Log("both accounts authenticated; sync running")
 
-	// Room: alice creates + invites bob.
 	aliceID, bobID := "@b6alice:localhost", "@b6bob:localhost"
 	if strings.Contains(hs, "//") {
-		// server_name is `localhost` in the generated config regardless
-		// of the URL's port — keep the IDs fixed to that.
 	}
 	_ = aliceID
 	_ = bobID
@@ -144,13 +108,11 @@ func TestMatrixGroupCallLive(t *testing.T) {
 	}
 	t.Logf("room: %s", roomID)
 
-	// Bob joins (invited).
 	poll(t, "bob joins the room", 20*time.Second, func() bool {
 		return bob.JoinRoom(roomID) == nil
 	})
 	t.Log("bob joined")
 
-	// Both join the conf — bob must ADOPT alice's conf, not fork one.
 	csA, err := alice.JoinGroupCall(roomID)
 	if err != nil {
 		t.Fatalf("alice JoinGroupCall: %v", err)
@@ -167,12 +129,6 @@ func TestMatrixGroupCallLive(t *testing.T) {
 	}
 	t.Logf("shared conf: %s", csA.ID)
 
-	// Membership cross-syncs: BOTH sides must see two live participants
-	// (each side's m.call.member state event reached the other via
-	// real sync) — this is what drives reconcileGroupMesh. The closure
-	// logs per-side state every ~5s so a timeout is diagnosable from
-	// the test output alone (slice 304: three consecutive opaque
-	// 30s timeouts).
 	var logged bool
 	var lastDiag time.Time
 	poll(t, "both sides see 2 live participants", 30*time.Second, func() bool {
@@ -201,7 +157,6 @@ func TestMatrixGroupCallLive(t *testing.T) {
 	})
 	t.Log("membership cross-synced: 2 participants on both sides")
 
-	// Audio over the real mesh: B receives A's frame, sender-attributed.
 	received := make(chan struct {
 		sender string
 		opus   []byte

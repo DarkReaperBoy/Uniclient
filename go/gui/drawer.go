@@ -17,30 +17,25 @@ import (
 	"uniclient/engine"
 )
 
-// Hamburger main menu (AyuGram parity §1.11, matrix #49): the ☰ drawer.
-// Account switching, contacts, calls, night mode, the Ayu ghost-mode master
-// toggle, new group/channel, settings. Every row drives real engine state —
-// no placeholders (AGENTS.md §7).
-
 var (
-	drawerScrimTag   = new(struct{}) // scrim press-to-close
-	drawerKeyTag     = new(struct{}) // keyboard: Escape
+	drawerScrimTag   = new(struct{})
+	drawerKeyTag     = new(struct{})
 	drawerAcctRows   []widget.Clickable
-	drawerAcctAll    widget.Clickable // "All accounts"
-	drawerAcctAdd    widget.Clickable // "+ Add account"
-	drawerAcctHeader widget.Clickable // current account (→ settings)
+	drawerAcctAll    widget.Clickable
+	drawerAcctAdd    widget.Clickable
+	drawerAcctHeader widget.Clickable
 	drawerContacts   widget.Clickable
 	drawerCalls      widget.Clickable
 	drawerSettings   widget.Clickable
 	drawerNewGroup   widget.Clickable
 	drawerNewChan    widget.Clickable
-	drawerGhostCfg   widget.Clickable // ⚙ → Ayu preferences
-	drawerSavedBtn   widget.Clickable // Saved messages
+	drawerGhostCfg   widget.Clickable
+	drawerSavedBtn   widget.Clickable
 	drawerNight      = new(widget.Bool)
 	drawerGhost      = new(widget.Bool)
 	drawerStreamer   = new(widget.Bool)
-	drawerLRead      = new(widget.Bool) // AyuGram LRead: mark read locally
-	drawerSRead      = new(widget.Bool) // AyuGram SRead: send read receipts
+	drawerLRead      = new(widget.Bool)
+	drawerSRead      = new(widget.Bool)
 	drawerNightSync  bool
 	drawerGhostSync  bool
 	drawerStreamSync bool
@@ -52,15 +47,12 @@ func init() {
 	drawerList.Axis = layout.Vertical
 }
 
-// ghostAllOn reports whether the global ghost flags are all enabled — the
-// drawer master toggle shows "on" only for the full ghost profile.
 func ghostAllOn(c cfgSnapshot) bool {
 	return c.SendReadReceipts && c.SendUploadProgress && c.SendReadStories &&
 		c.SendOnlinePackets && c.SendOfflineAfterOnline && c.MarkReadAfterAction &&
 		c.UseScheduledMessages && c.SendWithoutSound
 }
 
-// openDrawer opens the hamburger menu and closes conflicting shell surfaces.
 func (a *App) openDrawer() {
 	a.mu.Lock()
 	a.drawerOpen = true
@@ -68,14 +60,13 @@ func (a *App) openDrawer() {
 	a.headerMenu = nil
 	a.mu.Unlock()
 	accountMenuOpen = false
-	drawerNightSync = false // resync switches from the config snapshot
+	drawerNightSync = false
 	drawerGhostSync = false
 	drawerStreamSync = false
 	drawerReadSync = false
 	a.invalidate()
 }
 
-// closeDrawer dismisses the hamburger menu.
 func (a *App) closeDrawer() {
 	a.mu.Lock()
 	if !a.drawerOpen {
@@ -87,8 +78,6 @@ func (a *App) closeDrawer() {
 	a.invalidate()
 }
 
-// setGhostAll flips every global ghost flag at once (the AyuGram master
-// switch; async) and refreshes the config snapshot.
 func (a *App) setGhostAll(v bool) {
 	go func() {
 		for _, field := range []string{
@@ -114,9 +103,7 @@ func (a *App) setGhostAll(v bool) {
 	}()
 }
 
-// layoutDrawer renders the scrim + left panel over the whole window.
 func (a *App) layoutDrawer(gtx layout.Context, f frame) layout.Dimensions {
-	// Steal keyboard focus from the a.wid.composer so Escape reaches us first.
 	gtx.Execute(key.FocusCmd{Tag: nil})
 	{
 		stack := clip.Rect{Max: gtx.Constraints.Max}.Push(gtx.Ops)
@@ -133,7 +120,6 @@ func (a *App) layoutDrawer(gtx layout.Context, f frame) layout.Dimensions {
 		}
 	}
 
-	// Scrim first (bottom of the hit-test order), then the panel.
 	paint.FillShape(gtx.Ops, color.NRGBA{R: 0, G: 0, B: 0, A: 0x66},
 		clip.Rect{Max: gtx.Constraints.Max}.Op())
 	{
@@ -151,7 +137,6 @@ func (a *App) layoutDrawer(gtx layout.Context, f frame) layout.Dimensions {
 		}
 	}
 
-	// Panel anchored left, full height.
 	w := gtx.Dp(unit.Dp(300))
 	if w > gtx.Constraints.Max.X {
 		w = gtx.Constraints.Max.X
@@ -169,11 +154,9 @@ func (a *App) layoutDrawer(gtx layout.Context, f frame) layout.Dimensions {
 	return layout.Dimensions{Size: gtx.Constraints.Max}
 }
 
-// drawerPanel: the scrolling menu content.
 func (a *App) drawerPanel(gtx layout.Context, f frame) layout.Dimensions {
 	growClickables(&drawerAcctRows, len(f.accounts))
 
-	// Row events.
 	if drawerAcctHeader.Clicked(gtx) {
 		a.closeDrawer()
 		a.openSettings(setSectionMain)
@@ -222,7 +205,7 @@ func (a *App) drawerPanel(gtx layout.Context, f frame) layout.Dimensions {
 			acc = currentAccount(f).ID
 		}
 		a.closeDrawer()
-		a.openCallsBox(acc) // slice 154: the Calls box (tdesktop main-menu behavior)
+		a.openCallsBox(acc)
 	}
 	if drawerSettings.Clicked(gtx) {
 		a.closeDrawer()
@@ -257,7 +240,6 @@ func (a *App) drawerPanel(gtx layout.Context, f frame) layout.Dimensions {
 		}
 	}
 
-	// Switches: sync from the snapshot on open, then let the user drive.
 	current := currentAccount(f)
 	if !drawerNightSync {
 		drawerNight.Value = f.cfg.Theme == "light"
@@ -314,11 +296,9 @@ func (a *App) drawerPanel(gtx layout.Context, f frame) layout.Dimensions {
 	return dims
 }
 
-// drawerChildren builds the row widgets (index-stable for the list).
 func (a *App) drawerChildren(f frame, current engine.AccountInfo) []func(gtx layout.Context) layout.Dimensions {
 	rows := make([]func(gtx layout.Context) layout.Dimensions, 0, 20)
 
-	// Current account header (→ settings).
 	rows = append(rows, func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Top: unit.Dp(10), Left: unit.Dp(12), Right: unit.Dp(12), Bottom: unit.Dp(6)}.Layout(gtx,
 			func(gtx layout.Context) layout.Dimensions {
@@ -351,7 +331,6 @@ func (a *App) drawerChildren(f frame, current engine.AccountInfo) []func(gtx lay
 			})
 	})
 
-	// Other accounts, All accounts, Add account.
 	for i, acc := range f.accounts {
 		i, acc := i, acc
 		if current.ID != "" && acc.ID == current.ID {
@@ -370,14 +349,12 @@ func (a *App) drawerChildren(f frame, current engine.AccountInfo) []func(gtx lay
 		return drawerAccountRowLabel(gtx, a.ui, &drawerAcctAdd, "Add account", false)
 	})
 
-	// Saved messages (self chat).
 	if !drawerRowHidden(f.cfg.DrawerHidden, drawerItemSaved) {
 		rows = append(rows, a.drawerIconRow(&drawerSavedBtn, iconActionBackup, "Saved messages"))
 	}
 
 	rows = append(rows, a.drawerDividerRow())
 
-	// Contacts / Calls / Night mode.
 	if !drawerRowHidden(f.cfg.DrawerHidden, drawerItemContacts) {
 		rows = append(rows, a.drawerIconRow(&drawerContacts, iconCommunicationContacts, "Contacts"))
 	}
@@ -393,7 +370,6 @@ func (a *App) drawerChildren(f frame, current engine.AccountInfo) []func(gtx lay
 
 	rows = append(rows, a.drawerDividerRow())
 
-	// AyuGram section: ghost-mode master + preferences shortcut.
 	if !drawerRowHidden(f.cfg.DrawerHidden, drawerItemGhost) {
 		rows = append(rows, a.drawerSectionLabel("AyuGram"))
 		rows = append(rows, func(gtx layout.Context) layout.Dimensions {
@@ -419,7 +395,6 @@ func (a *App) drawerChildren(f frame, current engine.AccountInfo) []func(gtx lay
 
 	rows = append(rows, a.drawerDividerRow())
 
-	// New group / New channel (accent rows, like Ayu's blue actions).
 	if !drawerRowHidden(f.cfg.DrawerHidden, drawerItemNewGroup) {
 		rows = append(rows, a.drawerIconRowAccent(&drawerNewGroup, iconSocialGroup, "New group"))
 	}
@@ -429,7 +404,6 @@ func (a *App) drawerChildren(f frame, current engine.AccountInfo) []func(gtx lay
 
 	rows = append(rows, a.drawerDividerRow())
 
-	// Settings.
 	rows = append(rows, a.drawerIconRow(&drawerSettings, iconActionSettings, "Settings"))
 
 	return rows
@@ -454,21 +428,18 @@ func (a *App) drawerSectionLabel(txt string) func(gtx layout.Context) layout.Dim
 	}
 }
 
-// drawerIconRow: plain menu row with a leading icon.
 func (a *App) drawerIconRow(btn *widget.Clickable, icon *widget.Icon, label string) func(gtx layout.Context) layout.Dimensions {
 	return func(gtx layout.Context) layout.Dimensions {
 		return drawerMenuRow(gtx, a.ui, btn, icon, label, a.ui.p.Text)
 	}
 }
 
-// drawerIconRowAccent: same row, accent color (New group / New channel).
 func (a *App) drawerIconRowAccent(btn *widget.Clickable, icon *widget.Icon, label string) func(gtx layout.Context) layout.Dimensions {
 	return func(gtx layout.Context) layout.Dimensions {
 		return drawerMenuRow(gtx, a.ui, btn, icon, label, a.ui.p.Accent)
 	}
 }
 
-// drawerSwitchRow: icon + label + trailing switch.
 func (a *App) drawerSwitchRow(gtx layout.Context, icon *widget.Icon, label string, sw *widget.Bool) layout.Dimensions {
 	return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(2), Left: unit.Dp(8), Right: unit.Dp(8)}.Layout(gtx,
 		func(gtx layout.Context) layout.Dimensions {
@@ -539,7 +510,6 @@ func drawerAccountRow(gtx layout.Context, u *UI, btn *widget.Clickable, acc engi
 							}
 							return lbl.Layout(gtx)
 						}),
-						// per-account unread badge (AyuGram tray parity, slice 36)
 						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 							return layout.Dimensions{}
 						}),
@@ -570,7 +540,6 @@ func drawerAccountRowLabel(gtx layout.Context, u *UI, btn *widget.Clickable, lab
 		})
 }
 
-// Drawer row ids for the customization settings (Ayu "drawer" menu).
 const (
 	drawerItemSaved    = "saved"
 	drawerItemContacts = "contacts"
@@ -580,7 +549,6 @@ const (
 	drawerItemNewChan  = "new_channel"
 )
 
-// drawerRowHidden reports whether a drawer row id is hidden by config.
 func drawerRowHidden(hidden []string, id string) bool {
 	for _, h := range hidden {
 		if h == id {
@@ -590,7 +558,6 @@ func drawerRowHidden(hidden []string, id string) bool {
 	return false
 }
 
-// drawerCustomItems lists the toggleable rows: id + display label.
 func drawerCustomItems() []struct{ id, label string } {
 	return []struct{ id, label string }{
 		{drawerItemSaved, "Saved messages"},

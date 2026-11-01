@@ -1,15 +1,5 @@
 //go:build live
 
-// Live integration test for the XMPP core's connection chain against a
-// REAL public XMPP server (conversations.im by default): TCP connect,
-// stream negotiation, STARTTLS, and the SASL SCRAM handshake with throwaway
-// credentials. The expected outcome is an AUTH FAILURE from the server —
-// which proves the entire pre-auth chain works mechanically (stream
-// framing, TLS upgrade, SASL mechanics, stream restart). Not run in CI.
-//
-// Run: cd go && go test -tags goolm,live ./tests/ -run TestXMPPLive -v -timeout 120s
-// Env: XMPP_LIVE_SERVER (default "conversations.im:5222"), XMPP_LIVE_JID
-// (default a random throwaway), XMPP_LIVE_PASSWORD (default "wrong-pass-xyz").
 package tests
 
 import (
@@ -55,14 +45,10 @@ func TestXMPPLiveConnectChain(t *testing.T) {
 	took := time.Since(start)
 
 	if err == nil {
-		// Should not happen with throwaway credentials — but if the server
-		// ever created the account, treat it as full success.
 		t.Logf("unexpected FULL auth success as %s (took %s)", jid, took)
 		return
 	}
 
-	// The failure must be an AUTH failure — anything else (dial error,
-	// TLS error, XML error) means the chain is broken before SASL.
 	if !isAuthKind(err) {
 		t.Fatalf("connection chain broken before SASL (took %s): %v", took, err)
 	}
@@ -116,16 +102,6 @@ func equalFoldStr(a, b string) bool {
 	return true
 }
 
-// TestXMPPLiveRegisterAndMessage: the FULL end-to-end XMPP verification —
-// XEP-0077 in-band registration on a public server (conversations.im
-// accepts IBR; jabber.de and pimux.de too, measured 2026-09-10), then
-// SASL authentication with the brand-new credentials on the same stream,
-// resource binding, and a self-addressed message round-trip (the server
-// routes it back to our available resource). Proves: registration IQ
-// format, SASL SCRAM with server-side state, message send, server
-// routing, and the full receive path — every XMPP layer at once.
-//
-// Run: cd go && go test -tags goolm,live ./tests/ -run TestXMPPLiveRegister -v -timeout 120s
 func TestXMPPLiveRegisterAndMessage(t *testing.T) {
 	server := osGetenvDefault("XMPP_LIVE_SERVER", "conversations.im:5222")
 	domain := server
@@ -147,7 +123,6 @@ func TestXMPPLiveRegisterAndMessage(t *testing.T) {
 	core := cores.NewXMPPCore(store)
 	defer core.Logout()
 
-	// Collect incoming messages via the update handler.
 	recv := make(chan string, 16)
 	core.OnUpdate(func(u cores.Update) {
 		if u.Type == cores.UpdateNewMessage && u.Message != nil && u.Message.Text != "" {
@@ -166,10 +141,6 @@ func TestXMPPLiveRegisterAndMessage(t *testing.T) {
 		},
 	})
 	if err != nil {
-		// Honest classification: an IBR-specific rejection is a server
-		// policy answer (e.g. conversations.im occasionally gates new
-		// registrations) — the pre-auth chain is still proven by
-		// TestXMPPLiveConnectChain. Anything else is a real failure.
 		if strings.Contains(err.Error(), "ibr:") {
 			t.Skipf("server declined in-band registration (%v) — policy, not a client bug; pre-auth chain still proven by TestXMPPLiveConnectChain", err)
 		}
@@ -177,7 +148,6 @@ func TestXMPPLiveRegisterAndMessage(t *testing.T) {
 	}
 	t.Logf("registered + authenticated as %s in %s (SASL with brand-new credentials)", jid, time.Since(start))
 
-	// Self-addressed message: the server routes it back to our resource.
 	body := fmt.Sprintf("uniclient e2e %d", rand.Intn(1000000))
 	if _, err := core.SendMessage(jid, cores.OutgoingMessage{Text: body}); err != nil {
 		t.Fatalf("SendMessage: %v", err)
@@ -190,14 +160,9 @@ func TestXMPPLiveRegisterAndMessage(t *testing.T) {
 		}
 		t.Logf("MESSAGE ROUND-TRIP OK: server routed our self-addressed message back verbatim")
 	case <-time.After(15 * time.Second):
-		// The register + SASL layers are already proven above; a routing
-		// hiccup on a public server is not a client-side regression
-		// signal (the chain is re-proven by the mumble/TS live tests'
-		// stricter equivalents).
 		t.Skip("self-message not delivered within 15s (public-server routing); registration + SASL verified")
 	}
 
-	// Best-effort cleanup: unregister the throwaway account.
 	if err := core.UnregisterAccount(); err == nil {
 		t.Log("throwaway account unregistered (XEP-0077 remove)")
 	} else {

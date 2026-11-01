@@ -1,12 +1,5 @@
 package gui
 
-// "Seen by" read receipts (AyuGram read receipts in small groups, matrix
-// row 97, slice 98): the context menu on an own message in a DM or group
-// gains "Seen by" — a dialog with the chat's last-read date (engine
-// GetOutboxReadDate) and the per-user read list (engine
-// GetMessageReadParticipantsDetailed: name + date). Privacy errors are
-// honest sentences, never dead rows.
-
 import (
 	"image"
 
@@ -19,21 +12,19 @@ import (
 	"uniclient/engine"
 )
 
-// seenDlgState is the open seen-by dialog (nil when closed).
 type seenDlgState struct {
 	msg        engine.CachedMessage
 	parts      []map[string]interface{}
 	readDate   int64
-	readDateOK bool // the outbox read date resolved
+	readDateOK bool
 	loaded     bool
-	privacy    string // non-empty: the engine's privacy marker
+	privacy    string
 }
 
 var (
 	seenDlgKeyTag = new(struct{})
 )
 
-// seenByRowName (pure, testable): display name for one participant row.
 func seenByRowName(entry map[string]interface{}) string {
 	if n, ok := entry["name"].(string); ok && n != "" {
 		return n
@@ -44,8 +35,6 @@ func seenByRowName(entry map[string]interface{}) string {
 	return "someone"
 }
 
-// seenByPrivacyNote (pure, testable): the honest sentence for the
-// engine's privacy error markers ("" = not a privacy error).
 func seenByPrivacyNote(err string) string {
 	switch err {
 	case "privacy:my_hidden":
@@ -58,9 +47,6 @@ func seenByPrivacyNote(err string) string {
 	return ""
 }
 
-// seenByMenuGate (pure): own, non-service messages in chats Telegram
-// gives read receipts for (DMs and groups — channels are broadcast,
-// no per-reader receipts).
 func seenByMenuGate(m engine.CachedMessage, chatType int) bool {
 	if !m.IsOutgoing || m.IsService {
 		return false
@@ -68,7 +54,6 @@ func seenByMenuGate(m engine.CachedMessage, chatType int) bool {
 	return chatType == engine.ChatTypeDMVal || chatType == engine.ChatTypeGroupVal || chatType == engine.ChatTypeTopicVal
 }
 
-// openSeenByDialog shows the read receipt for a message and loads it.
 func (a *App) openSeenByDialog(m *engine.CachedMessage) {
 	if m == nil {
 		return
@@ -81,7 +66,6 @@ func (a *App) openSeenByDialog(m *engine.CachedMessage) {
 	a.loadSeenBy()
 }
 
-// closeSeenByDialog dismisses the dialog.
 func (a *App) closeSeenByDialog() {
 	a.mu.Lock()
 	a.seenDlg = nil
@@ -89,7 +73,6 @@ func (a *App) closeSeenByDialog() {
 	a.invalidate()
 }
 
-// loadSeenBy fetches the read date + participants.
 func (a *App) loadSeenBy() {
 	a.mu.Lock()
 	d := a.seenDlg
@@ -130,7 +113,6 @@ func (a *App) loadSeenBy() {
 	}()
 }
 
-// layoutSeenByDialog renders the read-receipt card over the chat pane.
 func (a *App) layoutSeenByDialog(gtx layout.Context, f frame) layout.Dimensions {
 	d := f.seenDlg
 	{
@@ -218,7 +200,6 @@ func (a *App) layoutSeenByDialog(gtx layout.Context, f frame) layout.Dimensions 
 	})
 }
 
-// seenByRow: name + read time.
 func (a *App) seenByRow(gtx layout.Context, entry map[string]interface{}) layout.Dimensions {
 	return roundedFill(gtx, a.ui.p.SurfaceHi, 10, func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {

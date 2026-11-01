@@ -16,32 +16,22 @@ import (
 	xproxy "golang.org/x/net/proxy"
 )
 
-// ProxyConfig describes a connection proxy used to dial Telegram DCs. It mirrors
-// AyuGram's MTP::ProxyData (core/core_settings_proxy.h): when Enabled, every DC
-// connection is routed through the proxy. The app's mode maps as 0=disabled,
-// 1=system, 2=custom — only "custom" (Enabled with a Type+Host+Port) installs a
-// resolver; disabled/system fall back to the OS-default direct dialer.
 type ProxyConfig struct {
 	Enabled  bool
-	Type     string // "socks5", "http", "mtproto"
+	Type     string
 	Host     string
 	Port     int
 	Username string
 	Password string
-	Secret   string // MTProto secret, hex-encoded
+	Secret   string
 	IPv6     bool
 }
 
-// active reports whether this config should install a custom resolver.
 func (p ProxyConfig) active() bool {
 	return p.Enabled && p.Host != "" && p.Port > 0 &&
 		(p.Type == "socks5" || p.Type == "http" || p.Type == "mtproto")
 }
 
-// resolver builds the gotd DC resolver for this proxy, or (nil, nil) when no
-// custom routing is needed (disabled/system → default dialer). SOCKS5 and HTTP
-// tunnel raw TCP via dcs.Plain+DialFunc; MTProto uses gotd's obfuscated
-// dcs.MTProxy transport.
 func (p ProxyConfig) resolver() (dcs.Resolver, error) {
 	if !p.active() {
 		return nil, nil
@@ -61,8 +51,6 @@ func (p ProxyConfig) resolver() (dcs.Resolver, error) {
 	return dcs.Plain(dcs.PlainOptions{Dial: df, PreferIPv6: p.IPv6}), nil
 }
 
-// dialFunc builds a dcs.DialFunc that tunnels TCP through a SOCKS5 or HTTP
-// CONNECT proxy. MTProto is handled separately (see resolver).
 func (p ProxyConfig) dialFunc() (dcs.DialFunc, error) {
 	addr := net.JoinHostPort(p.Host, strconv.Itoa(p.Port))
 	switch p.Type {
@@ -88,8 +76,6 @@ func (p ProxyConfig) dialFunc() (dcs.DialFunc, error) {
 	}
 }
 
-// httpConnectDialFunc returns a DialFunc that opens a tunnel to target through
-// an HTTP proxy using the CONNECT method (with optional Basic auth).
 func httpConnectDialFunc(proxyAddr, user, pass string) dcs.DialFunc {
 	return func(ctx context.Context, network, target string) (net.Conn, error) {
 		var d net.Dialer
@@ -121,8 +107,6 @@ func httpConnectDialFunc(proxyAddr, user, pass string) dcs.DialFunc {
 			conn.Close()
 			return nil, fmt.Errorf("http proxy CONNECT %s: %s", target, resp.Status)
 		}
-		// The proxy may have pre-buffered tunnel bytes into br alongside the
-		// response headers; wrap so they are not lost on subsequent reads.
 		if br.Buffered() > 0 {
 			return &bufferedConn{Conn: conn, r: br}, nil
 		}
@@ -130,8 +114,6 @@ func httpConnectDialFunc(proxyAddr, user, pass string) dcs.DialFunc {
 	}
 }
 
-// bufferedConn drains any bytes buffered during the HTTP CONNECT handshake
-// before falling through to the raw connection.
 type bufferedConn struct {
 	net.Conn
 	r *bufio.Reader

@@ -6,11 +6,6 @@ import (
 	"uniclient/engine"
 )
 
-// Saved Messages (slice 116) — pure decision logic: which accounts get the
-// sidebar shortcut, the bookmark-avatar predicate, and the forward-dialog
-// candidate build. Engine-side creation/idempotency is pinned in
-// engine/savedmessages_test.go.
-
 func TestSavedRowAccounts(t *testing.T) {
 	accs := []engine.AccountInfo{
 		{ID: "tg", Platform: "telegram", DisplayName: "Alice"},
@@ -24,12 +19,10 @@ func TestSavedRowAccounts(t *testing.T) {
 		t.Fatalf("rows = %v, want [tg tg2]", got)
 	}
 
-	// No capability anywhere → no rows (honest gating, §1.10).
 	if got := savedRowAccounts(accs, nil); len(got) != 0 {
 		t.Fatalf("rows = %v, want none", got)
 	}
 
-	// Account list order is preserved.
 	rev := savedRowAccounts([]engine.AccountInfo{{ID: "b"}, {ID: "a"}}, map[string]bool{"a": true, "b": true})
 	if len(rev) != 2 || rev[0] != "b" || rev[1] != "a" {
 		t.Fatalf("order not preserved: %v", rev)
@@ -60,13 +53,11 @@ func TestBuildForwardCandidates(t *testing.T) {
 		{AccountID: "irc", ChatID: "30", Title: "Elsewhere"},
 	}
 
-	// Without a saved chat: same-account chats, source excluded.
 	got := buildForwardCandidates(chats, src, "")
 	if len(got) != 1 || got[0].ChatID != "20" {
 		t.Fatalf("candidates = %v", got)
 	}
 
-	// With a saved chat: it is pinned FIRST, rest keep their order.
 	got = buildForwardCandidates(chats, src, "42")
 	if len(got) != 2 {
 		t.Fatalf("candidates = %v, want 2", got)
@@ -78,7 +69,6 @@ func TestBuildForwardCandidates(t *testing.T) {
 		t.Fatalf("second = %+v", got[1])
 	}
 
-	// The saved chat already in the list must not duplicate.
 	withSaved := append([]engine.ChatInfo{{AccountID: "tg", ChatID: "42", Title: "Saved Messages"}}, chats...)
 	got = buildForwardCandidates(withSaved, src, "42")
 	if len(got) != 2 {
@@ -97,7 +87,6 @@ func TestSavedRowSubtitle(t *testing.T) {
 	if s := savedRowSubtitle("tg", accs, 1); s != "" {
 		t.Fatalf("single-account subtitle = %q, want empty", s)
 	}
-	// Accounts without a display name fall back to the id.
 	anon := []engine.AccountInfo{{ID: "x"}, {ID: "y"}}
 	if s := savedRowSubtitle("x", anon, 2); s != "x" {
 		t.Fatalf("anon subtitle = %q, want x", s)

@@ -6,8 +6,6 @@ import (
 	"github.com/gotd/td/tg"
 )
 
-// privacyKeyFor maps every settings-style key to a Telegram input privacy
-// key, and rejects unknown keys (slice 62).
 func TestPrivacyKeyFor(t *testing.T) {
 	for _, key := range []string{
 		"last_seen", "phone_number", "profile_photo", "calls", "p2p",
@@ -22,8 +20,6 @@ func TestPrivacyKeyFor(t *testing.T) {
 	}
 }
 
-// privacyScopeFromRules classifies the rule shapes Telegram returns for the
-// four simple scopes (slice 62).
 func TestPrivacyScopeFromRules(t *testing.T) {
 	cases := []struct {
 		name  string
@@ -56,8 +52,6 @@ func TestPrivacyScopeFromRules(t *testing.T) {
 	}
 }
 
-// privacyRulesForScope round-trips through privacyScopeFromRules: building
-// rules for a simple scope must classify back to that scope (slice 62).
 func TestPrivacyRulesForScope(t *testing.T) {
 	for _, scope := range []string{"everybody", "contacts", "close_friends", "nobody"} {
 		rules := privacyRulesForScope(scope)
@@ -71,8 +65,6 @@ func TestPrivacyRulesForScope(t *testing.T) {
 		}
 		var out []tg.PrivacyRuleClass
 		for _, r := range rules {
-			// Input rules classify identically: Allow/Disallow constructors
-			// mirror the output rule types.
 			switch v := r.(type) {
 			case *tg.InputPrivacyValueAllowAll:
 				out = append(out, &tg.PrivacyValueAllowAll{})

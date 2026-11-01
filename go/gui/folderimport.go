@@ -1,10 +1,5 @@
 package gui
 
-// Folder import dialog (AyuGram "import filters", slice 94): a paste
-// field for a previously exported folders blob + Import. Rendered as a
-// content-pane replacement (the folder menu lives in the sidebar; the
-// dialog takes the content pane like the new-chat dialog).
-
 import (
 	"image"
 	"strings"
@@ -18,10 +13,9 @@ import (
 	"gioui.org/widget/material"
 )
 
-// folderImportState is the open import dialog (nil when closed).
 type folderImportState struct {
 	accountID string
-	err       string // last import error, shown inline
+	err       string
 	busy      bool
 }
 
@@ -32,7 +26,6 @@ var (
 	folderImportCloseBtn widget.Clickable
 )
 
-// openFolderImportDialog opens the paste-import dialog for an account.
 func (a *App) openFolderImportDialog(accountID string) {
 	a.mu.Lock()
 	a.folderImportDlg = &folderImportState{accountID: accountID}
@@ -40,7 +33,6 @@ func (a *App) openFolderImportDialog(accountID string) {
 	a.invalidate()
 }
 
-// closeFolderImportDialog dismisses the import dialog.
 func (a *App) closeFolderImportDialog() {
 	a.mu.Lock()
 	a.folderImportDlg = nil
@@ -48,7 +40,6 @@ func (a *App) closeFolderImportDialog() {
 	a.invalidate()
 }
 
-// submitFolderImport runs the import from the editor's contents.
 func (a *App) submitFolderImport() {
 	a.mu.Lock()
 	d := a.folderImportDlg
@@ -96,7 +87,6 @@ func (a *App) submitFolderImport() {
 	}()
 }
 
-// layoutFolderImportDialog renders the paste-import dialog.
 func (a *App) layoutFolderImportDialog(gtx layout.Context, f frame) layout.Dimensions {
 	d := f.folderImportDlg
 	{
@@ -113,8 +103,6 @@ func (a *App) layoutFolderImportDialog(gtx layout.Context, f frame) layout.Dimen
 			a.closeFolderImportDialog()
 		}
 	}
-	// The paste field is multi-line (JSON): Enter inserts newlines, so
-	// import runs from the button — no submit drain here.
 	if folderImportCloseBtn.Clicked(gtx) {
 		a.closeFolderImportDialog()
 	}

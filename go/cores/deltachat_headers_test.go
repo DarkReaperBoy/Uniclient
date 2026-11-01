@@ -8,15 +8,6 @@ import (
 	"github.com/ProtonMail/go-crypto/openpgp"
 )
 
-// DeltaChat header parsing tests — parseRawHeaders had zero tests
-// before slice 249.
-
-// TestParseRawHeadersNormalizesKeys: BUGS B-29 — RFC 5322 header names
-// are case-insensitive, but the parser preserved whatever case the sender
-// wrote while readers looked up a MIX of cases (some dual-checked, some
-// not: Chat-Edit, Chat-Delete, Chat-Group-Member-*, Autocrypt,
-// Content-Disposition had NO lowercase fallback). Keys are now stored
-// lowercase so every reader sees one canonical form. RED before the fix.
 func TestParseRawHeadersNormalizesKeys(t *testing.T) {
 	in := "Chat-Version: 1.2\r\n" +
 		"CONTENT-DISPOSITION: attachment; filename=\"a b.png\"\r\n" +
@@ -37,11 +28,6 @@ func TestParseRawHeadersNormalizesKeys(t *testing.T) {
 	}
 }
 
-// TestParseRawHeadersValueSemantics pins the value handling that must
-// survive the key-normalization change: CRLF stripping, folded
-// continuation lines joined with a single space, trimming, the flush on
-// blank line, the trailing-header flush without a final newline, and the
-// colon-less line dropping cleanly.
 func TestParseRawHeadersValueSemantics(t *testing.T) {
 	in := "Subject:   hello   world  \r\n" +
 		"Chat-Content: \r\n" +
@@ -79,14 +65,6 @@ func TestParseRawHeadersEmptyInput(t *testing.T) {
 	}
 }
 
-// TestAutocryptKeydataSurvivesHeaderFolding: BUGS B-31 — RFC 5322
-// mailers wrap long headers (OpenPGP keydata is hundreds of base64
-// chars → ALWAYS folded at 76). The parser's fold join injected a SPACE
-// into the base64 stream, `base64.StdEncoding.DecodeString` rejected it,
-// and the error was swallowed — so the peer's public key was silently
-// never stored and E2EE silently downgraded to plaintext. RED before the
-// fix (keydata must be whitespace-free at decode, decode failures must
-// be logged).
 func TestAutocryptKeydataSurvivesHeaderFolding(t *testing.T) {
 	ent, err := openpgp.NewEntity("Fold", "", "fold@example.org", nil)
 	if err != nil {
@@ -101,8 +79,6 @@ func TestAutocryptKeydataSurvivesHeaderFolding(t *testing.T) {
 		t.Fatalf("test key too short to fold: %d b64 chars", len(full))
 	}
 
-	// Build the raw header exactly like a compliant mailer wraps it:
-	// 70-char chunks, each continuation line led by WSP.
 	var raw bytes.Buffer
 	raw.WriteString("Autocrypt: addr=fold@example.org; prefer-encrypt=mutual; keydata=")
 	rest := full
@@ -151,10 +127,6 @@ func TestAutocryptKeydataSurvivesHeaderFolding(t *testing.T) {
 	}
 }
 
-// FuzzParseRawHeaders: hostile-server fuzzing (slice 261) for the
-// DeltaChat header splitter — mail servers and forwarders control
-// these bytes; parsing must never panic (§1.10). Seeds cover folded,
-// CRLF, colon-less, empty-value and binary cases from the unit tests.
 func FuzzParseRawHeaders(f *testing.F) {
 	f.Add([]byte(""))
 	f.Add([]byte("Subject: hi\r\nFrom: a@b\r\n\r\n"))

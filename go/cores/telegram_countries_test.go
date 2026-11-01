@@ -1,9 +1,5 @@
 package cores
 
-// telegram_countries_test.go — slice 214 tests-first: the
-// help.getCountriesList normalization (localized name fallback, hidden
-// exclusion).
-
 import (
 	"testing"
 

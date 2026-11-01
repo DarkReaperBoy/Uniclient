@@ -6,8 +6,6 @@ import (
 	"uniclient/engine"
 )
 
-// Chat-chrome pure helpers (gui/chrome.go).
-
 func mkMsg(id string, ts int64) engine.CachedMessage {
 	return engine.CachedMessage{MsgID: id, Timestamp: ts}
 }
@@ -21,7 +19,7 @@ func TestUnreadSepIndex(t *testing.T) {
 		{0, 3, -1},
 		{10, 3, 7},
 		{10, 10, 0},
-		{10, 25, 0}, // more unread than messages → top
+		{10, 25, 0},
 		{1, 1, 0},
 	}
 	for _, c := range cases {
@@ -32,18 +30,17 @@ func TestUnreadSepIndex(t *testing.T) {
 }
 
 func TestBuildChatRows(t *testing.T) {
-	// Midnight-based so day boundaries are exact.
 	day := func(h int) int64 { return 1_699_920_000_000 + int64(h)*3_600_000 }
 	msgs := []engine.CachedMessage{
 		mkMsg("a", day(0)),
 		mkMsg("b", day(1)),
-		mkMsg("c", day(25)), // next day
+		mkMsg("c", day(25)),
 		mkMsg("d", day(26)),
 	}
 
 	t.Run("dividers only", func(t *testing.T) {
 		rows := buildChatRows(msgs, "")
-		if len(rows) != 6 { // 4 messages + 2 day dividers
+		if len(rows) != 6 {
 			t.Fatalf("rows = %d, want 6", len(rows))
 		}
 		days := 0
@@ -61,8 +58,6 @@ func TestBuildChatRows(t *testing.T) {
 	})
 
 	t.Run("separator anchored before its message", func(t *testing.T) {
-		// Anchor on d: same day as c, so no day divider sits between the
-		// separator and d — adjacency is exact.
 		rows := buildChatRows(msgs, "d")
 		var sepAt, dAt = -1, -1
 		for i, r := range rows {
@@ -118,7 +113,7 @@ func TestRowIndexOf(t *testing.T) {
 	})
 
 	t.Run("first message row", func(t *testing.T) {
-		if got := rowIndexOf(msgs, "a", ""); got != 1 { // row 0 is the day divider
+		if got := rowIndexOf(msgs, "a", ""); got != 1 {
 			t.Errorf("rowIndexOf(a) = %d, want 1", got)
 		}
 	})

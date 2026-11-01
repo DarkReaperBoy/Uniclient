@@ -1,12 +1,5 @@
 package lottie
 
-// render.go — Stage C: draws one animation frame into Gio ops. The
-// renderer handles the .tgs-relevant subset: shape layers (groups, rect,
-// ellipse, bezier paths, fills, strokes), null layers (transform only),
-// precomp layers (recursive), solid layers, and parent chains. Masks,
-// gradients, trim paths and repeaters render as their untrimmed base
-// shape (honest subset — most sticker animations only need this).
-
 import (
 	"fmt"
 	"image"
@@ -18,23 +11,17 @@ import (
 	"gioui.org/op/paint"
 )
 
-// maxDepth bounds precomp recursion (malformed files must not hang us).
 const maxDepth = 8
 
-// renderer carries per-frame evaluation state.
 type renderer struct {
-	anim  *Animation
-	frame float64
-	ops   *op.Ops
-	// viewport scale: animation units → pixels.
-	kx, ky float64
-	ox, oy float64
-	// fill/stroke counters (test introspection).
+	anim           *Animation
+	frame          float64
+	ops            *op.Ops
+	kx, ky         float64
+	ox, oy         float64
 	fills, strokes int
 }
 
-// Draw renders one frame of anim into ops, mapping the animation's
-// w×h viewport onto the given pixel rectangle (letterboxed by aspect).
 func Draw(anim *Animation, frame float64, ops *op.Ops, into image.Rectangle) {
 	if anim == nil || ops == nil || into.Dx() <= 0 || into.Dy() <= 0 {
 		return
@@ -48,7 +35,6 @@ func Draw(anim *Animation, frame float64, ops *op.Ops, into image.Rectangle) {
 	if w <= 0 || h <= 0 {
 		w, h = 512, 512
 	}
-	// Fit (contain) into the rectangle.
 	r.kx = float64(into.Dx()) / w
 	r.ky = float64(into.Dy()) / h
 	if r.kx < r.ky {
@@ -63,13 +49,10 @@ func Draw(anim *Animation, frame float64, ops *op.Ops, into image.Rectangle) {
 	r.drawLayers(r.anim.Layers, m, 0)
 }
 
-// drawLayers paints layers in order (Bodymovin: earlier layers render on
-// top), skipping layers outside their in/out span.
 func (r *renderer) drawLayers(layers []Layer, parent affine, depth int) {
 	if depth > maxDepth {
 		return
 	}
-	// Index map for the parent chain.
 	byIndex := make(map[int]int, len(layers))
 	for i, l := range layers {
 		if l.Index != 0 {
@@ -82,7 +65,6 @@ func (r *renderer) drawLayers(layers []Layer, parent affine, depth int) {
 			continue
 		}
 		m := TransformAt(l.Transform, r.frame).affine
-		// Walk the parent chain.
 		pi := l.Parent
 		guard := 0
 		for pi != 0 && guard < len(layers)+1 {
@@ -104,11 +86,9 @@ func (r *renderer) drawLayers(layers []Layer, parent affine, depth int) {
 		case LayerSolid:
 			r.drawSolid(l, m)
 		case LayerNull:
-			// transform-only: children already applied via parent chain
 		case LayerPrecomp:
 			for _, a := range r.anim.Assets {
 				if a.ID == l.RefID {
-					// Precomp layer opacity applies to the asset render.
 					r.drawLayers(a.Layers, m, depth+1)
 					break
 				}
@@ -117,7 +97,6 @@ func (r *renderer) drawLayers(layers []Layer, parent affine, depth int) {
 	}
 }
 
-// drawSolid paints a solid layer (sw×sh rect of sc color).
 func (r *renderer) drawSolid(l Layer, m affine) {
 	if len(l.SolidColor) < 4 || l.SolidW <= 0 || l.SolidH <= 0 {
 		return
@@ -128,19 +107,12 @@ func (r *renderer) drawSolid(l Layer, m affine) {
 	r.fill(spec, col)
 }
 
-// drawShapes paints a shape list (layer shapes or nested group items)
-// with the accumulated matrix: geometry paints with the first fill /
-// stroke that follows it in the same list; groups recurse through their
-// "tr" transform.
 func (r *renderer) drawShapes(shapes []Shape, m affine, opacity float64) {
 	for i := range shapes {
 		if shapes[i].Hidden {
 			continue
 		}
 		if shapes[i].Type == ShapeGroup {
-			// The group's transform is the "tr" item inside its item
-			// list (usually last); apply it, then recurse — the item
-			// itself is consumed here.
 			mm, op := m, opacity
 			for j := range shapes[i].Items {
 				if shapes[i].Items[j].Type == ShapeTransform {
@@ -154,9 +126,8 @@ func (r *renderer) drawShapes(shapes []Shape, m affine, opacity float64) {
 			continue
 		}
 		if shapes[i].Type == ShapeTransform {
-			continue // layer-level transform already applied
+			continue
 		}
-		// Geometry + following styles.
 		var fill, stroke *Shape
 		for j := i + 1; j < len(shapes); j++ {
 			if shapes[j].Hidden {
@@ -179,7 +150,6 @@ func (r *renderer) drawShapes(shapes []Shape, m affine, opacity float64) {
 	}
 }
 
-// drawGeometry paints one geometry item with its resolved styles.
 func (r *renderer) drawGeometry(it *Shape, m affine, opacity float64, fill, stroke *Shape) {
 	p := r.toPx(m)
 	var spec clip.PathSpec
@@ -218,12 +188,9 @@ func (r *renderer) drawGeometry(it *Shape, m affine, opacity float64, fill, stro
 	}
 }
 
-// toPx precomputes the unit→pixel transform (matrix × viewport fit).
 func (r *renderer) toPx(m affine) pxTransform {
-	// Compose: scale by k then translate by o, then the layer matrix.
 	fit := affine{a: r.kx, d: r.ky, tx: r.ox, ty: r.oy}
 	full := mulAffine(fit, m)
-	// Average scale magnitude for stroke widths.
 	s := (abs64(full.a) + abs64(full.b) + abs64(full.c) + abs64(full.d)) / 4
 	if s == 0 {
 		s = 1
@@ -248,7 +215,6 @@ func abs64(v float64) float64 {
 	return v
 }
 
-// rectPath: rounded rectangle centered at (cx,cy) with size (w,h).
 func (r *renderer) rectPath(cx, cy, w, h, rad float64, p pxTransform) clip.PathSpec {
 	if w <= 0 || h <= 0 {
 		return clip.PathSpec{}
@@ -270,25 +236,22 @@ func (r *renderer) rectPath(cx, cy, w, h, rad float64, p pxTransform) clip.PathS
 		path.Line(p.pt(-w, 0))
 		path.Line(p.pt(0, -h))
 	} else {
-		// Rounded corners via cubics.
 		path.Line(p.pt(x0+w-rad, y0))
 		corner := func(cx0, cy0, ex, ey, mx, my float64) {
 			path.Cube(p.pt(cx0, cy0), p.pt(ex, ey), p.pt(mx, my))
 		}
-		corner(x1, y0, x1, y0+rad, x1, y0+rad) // top-right
+		corner(x1, y0, x1, y0+rad, x1, y0+rad)
 		path.Line(p.pt(x1, y1-rad))
-		corner(x1, y1, x1-rad, y1, x1-rad, y1) // bottom-right
+		corner(x1, y1, x1-rad, y1, x1-rad, y1)
 		path.Line(p.pt(x0+rad, y1))
-		corner(x0, y1, x0, y1-rad, x0, y1-rad) // bottom-left
+		corner(x0, y1, x0, y1-rad, x0, y1-rad)
 		path.Line(p.pt(x0, y0+rad))
-		corner(x0, y0, x0+rad, y0, x0+rad, y0) // top-left
+		corner(x0, y0, x0+rad, y0, x0+rad, y0)
 	}
 	path.Close()
 	return path.End()
 }
 
-// ellipsePath: ellipse centered at (cx,cy), diameter (w,h), via four
-// cubic segments (k = 0.5523).
 func (r *renderer) ellipsePath(cx, cy, w, h float64, p pxTransform) clip.PathSpec {
 	if w <= 0 || h <= 0 {
 		return clip.PathSpec{}
@@ -306,8 +269,6 @@ func (r *renderer) ellipsePath(cx, cy, w, h float64, p pxTransform) clip.PathSpe
 	return path.End()
 }
 
-// bezierPath: a "sh" path property (static vertex form stored in Vec as
-// flattened [x,y] pairs — every other value is a vertex).
 func (r *renderer) bezierPath(it *Shape, p pxTransform) clip.PathSpec {
 	v := it.PathProp.Vec
 	if it.PathProp.Animated || len(v) < 4 {
@@ -352,7 +313,6 @@ func (r *renderer) colorOf(c []float64, opacity float64) color.NRGBA {
 	}
 }
 
-// String aids debugging.
 func (a *Animation) String() string {
 	return fmt.Sprintf("lottie(%q %vx%v@%v %v layers, %v assets)", a.Name, a.Width, a.Height, a.FrameRate, len(a.Layers), len(a.Assets))
 }

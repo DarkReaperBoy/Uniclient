@@ -1,13 +1,5 @@
 package gui
 
-// Group-call screen (AyuGram parity slice 102): joining a group call (the
-// chat's live-call bar) now raises a real call screen in the Voice tab —
-// participants with speaking/muted/hand-raised/video states from the
-// engine's polled group-call info, self sorted first, and controls that
-// dispatch real engine calls (SetCallMuted / RaiseHand / LeaveGroupCall).
-// The poll ends and the screen closes when the engine reports the call no
-// longer active — honest empty/exit states only (§1.10).
-
 import (
 	"image/color"
 	"time"
@@ -21,19 +13,16 @@ import (
 	"uniclient/engine"
 )
 
-// gcPollInterval: how often the joined call screen refreshes participants.
-// Faster than the call-bar poll — speaking indicators need fresher data.
 const gcPollInterval = 2 * time.Second
 
-// joinedCall is the group call the user is currently in (slice 102).
 type joinedCall struct {
 	accountID  string
 	callID     string
 	chatID     string
-	title      string // chat title fallback
-	muted      bool   // local mirror of SetCallMuted (optimistic)
-	handRaised bool   // local mirror of RaiseHand (optimistic)
-	noiseOn    bool   // local mirror of SetNoiseSuppression (slice 103)
+	title      string
+	muted      bool
+	handRaised bool
+	noiseOn    bool
 }
 
 var (
@@ -44,7 +33,6 @@ var (
 	gcLeaveBtn widget.Clickable
 )
 
-// gcRowJoinBtnFor returns the per-row join clickable (pool keyed by chat).
 func (a *App) gcRowJoinBtnFor(chatID string) *widget.Clickable {
 	if btn, ok := a.wid.gcRowJoinMap[chatID]; ok {
 		return btn
@@ -61,9 +49,6 @@ func init() {
 	gcList.Axis = layout.Vertical
 }
 
-// ── pure derivations ──────────────────────────────────────────────────────
-
-// gcSelf finds self in the participant list (nil when absent).
 func gcSelf(ps []engine.GroupCallParticipant, selfID string) *engine.GroupCallParticipant {
 	if selfID == "" {
 		return nil
@@ -76,8 +61,6 @@ func gcSelf(ps []engine.GroupCallParticipant, selfID string) *engine.GroupCallPa
 	return nil
 }
 
-// gcSelfMuted decides the mute toggle's state: the server's word when self
-// is listed; the optimistic local mirror until then.
 func gcSelfMuted(ps []engine.GroupCallParticipant, selfID string, localMuted bool) bool {
 	if p := gcSelf(ps, selfID); p != nil {
 		return p.IsMuted
@@ -85,14 +68,11 @@ func gcSelfMuted(ps []engine.GroupCallParticipant, selfID string, localMuted boo
 	return localMuted
 }
 
-// gcShowRaiseHand: the hand button appears only for force-muted self (muted
-// by an admin, cannot self-unmute) — AyuGram's use case for raising a hand.
 func gcShowRaiseHand(ps []engine.GroupCallParticipant, selfID string) bool {
 	p := gcSelf(ps, selfID)
 	return p != nil && p.IsMuted && !p.CanSelfUnmute
 }
 
-// gcRow is one rendered participant row.
 type gcRow struct {
 	name     string
 	self     bool
@@ -102,7 +82,6 @@ type gcRow struct {
 	video    bool
 }
 
-// gcRows maps engine participants to render rows, self first.
 func gcRows(ps []engine.GroupCallParticipant, selfID string) []gcRow {
 	rows := make([]gcRow, 0, len(ps))
 	for _, p := range ps {
@@ -116,7 +95,6 @@ func gcRows(ps []engine.GroupCallParticipant, selfID string) []gcRow {
 		})
 	}
 	if selfID != "" {
-		// Stable partition: self first, everyone else keeps order.
 		var self, others []gcRow
 		for _, r := range rows {
 			if r.self {
@@ -135,7 +113,6 @@ func gcRows(ps []engine.GroupCallParticipant, selfID string) []gcRow {
 	return rows
 }
 
-// gcCountLabel renders the participant count line.
 func gcCountLabel(n int) string {
 	switch {
 	case n <= 0:
@@ -147,12 +124,8 @@ func gcCountLabel(n int) string {
 	}
 }
 
-// voiceRoomCaps reports whether an account's capabilities mark it as a
-// standing voice-room backend (Mumble, TeamSpeak).
 func voiceRoomCaps(caps []string) bool { return capContains(caps, cores.CapVoiceRooms) }
 
-// gcJoinedTitle picks the call's display title (server title beats chat
-// title fallback).
 func gcJoinedTitle(gc *engine.GroupCallInfo, fallback string) string {
 	if gc != nil && gc.Title != "" {
 		return gc.Title
@@ -160,10 +133,6 @@ func gcJoinedTitle(gc *engine.GroupCallInfo, fallback string) string {
 	return fallback
 }
 
-// ── state transitions ─────────────────────────────────────────────────────
-
-// setJoinedCall records a successful group-call join (slice 102) and starts
-// the participant poll.
 func (a *App) setJoinedCall(accountID, callID, chatID, title string) {
 	a.mu.Lock()
 	a.joinedGC = &joinedCall{
@@ -171,14 +140,13 @@ func (a *App) setJoinedCall(accountID, callID, chatID, title string) {
 		callID:    callID,
 		chatID:    chatID,
 		title:     title,
-		muted:     true, // Telegram joins group calls muted by default
+		muted:     true,
 	}
 	a.mu.Unlock()
 	a.startJoinedCallPoll()
 	a.invalidate()
 }
 
-// startJoinedCallPoll polls the joined call's participants until it ends.
 func (a *App) startJoinedCallPoll() {
 	go func() {
 		a.pollJoinedCallOnce()
@@ -196,9 +164,6 @@ func (a *App) startJoinedCallPoll() {
 	}()
 }
 
-// pollJoinedCallOnce refreshes the joined call's participant snapshot; a
-// call reported inactive closes the screen (the user was removed / the call
-// ended server-side).
 func (a *App) pollJoinedCallOnce() {
 	a.mu.Lock()
 	jc := a.joinedGC
@@ -211,8 +176,6 @@ func (a *App) pollJoinedCallOnce() {
 	if a.joinedGC != nil && a.joinedGC.callID == jc.callID {
 		switch {
 		case err != nil || gc == nil:
-			// Keep the last known snapshot — transient fetch errors must
-			// not blank the screen.
 		case gc.Active:
 			a.joinedGCInfo = gc
 		default:
@@ -224,7 +187,6 @@ func (a *App) pollJoinedCallOnce() {
 	a.invalidate()
 }
 
-// leaveJoinedCall leaves the joined group call (button + call ended).
 func (a *App) leaveJoinedCall() {
 	a.mu.Lock()
 	jc := a.joinedGC
@@ -244,7 +206,6 @@ func (a *App) leaveJoinedCall() {
 	}()
 }
 
-// toggleJoinedMute flips the mic in the joined call.
 func (a *App) toggleJoinedMute() {
 	a.mu.Lock()
 	jc := a.joinedGC
@@ -263,7 +224,6 @@ func (a *App) toggleJoinedMute() {
 	}()
 }
 
-// toggleJoinedHand raises/lowers the hand (force-muted self only).
 func (a *App) toggleJoinedHand() {
 	a.mu.Lock()
 	jc := a.joinedGC
@@ -282,7 +242,6 @@ func (a *App) toggleJoinedHand() {
 	}()
 }
 
-// toggleJoinedNoise flips the in-call noise suppression (slice 103).
 func (a *App) toggleJoinedNoise() {
 	a.mu.Lock()
 	jc := a.joinedGC
@@ -301,8 +260,6 @@ func (a *App) toggleJoinedNoise() {
 	}()
 }
 
-// joinGroupCallFromVoice joins from a Voice-tab row (slice 102: the Join
-// button became real — it was informational-only before the call screen).
 func (a *App) joinGroupCallFromVoice(c engine.ChatInfo) {
 	go func() {
 		id, err := a.eng.JoinGroupCall(c.AccountID, c.ChatID)
@@ -315,10 +272,6 @@ func (a *App) joinGroupCallFromVoice(c engine.ChatInfo) {
 	}()
 }
 
-// afterVoiceJoin surfaces the join result: the toast plus — when the
-// device layer failed to start (e.g. mic permission denied) — an honest
-// notice that mic and speaker are off rather than a silent half-working
-// room.
 func (a *App) afterVoiceJoin(c engine.ChatInfo) {
 	if voiceRoomCaps(a.capsCached(c.AccountID)) {
 		a.setToast("Joined the voice room " + c.Title)
@@ -330,10 +283,6 @@ func (a *App) afterVoiceJoin(c engine.ChatInfo) {
 	}
 }
 
-// ── layout ────────────────────────────────────────────────────────────────
-
-// layoutGroupCallScreen: the joined-call surface replacing the Voice tab
-// content while in a call (slice 102).
 func (a *App) layoutGroupCallScreen(gtx layout.Context, f frame) layout.Dimensions {
 	jc := f.joinedGC
 	info := f.joinedGCInfo
@@ -360,7 +309,6 @@ func (a *App) layoutGroupCallScreen(gtx layout.Context, f frame) layout.Dimensio
 	}
 
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		// Header: call title + live count + leave button.
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Top: unit.Dp(14), Left: unit.Dp(18), Right: unit.Dp(18), Bottom: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
@@ -391,7 +339,6 @@ func (a *App) layoutGroupCallScreen(gtx layout.Context, f frame) layout.Dimensio
 				)
 			})
 		}),
-		// Controls row: mute (state-aware) + raise hand (force-muted only).
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Left: unit.Dp(18), Right: unit.Dp(18), Bottom: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				var children []layout.FlexChild
@@ -432,7 +379,6 @@ func (a *App) layoutGroupCallScreen(gtx layout.Context, f frame) layout.Dimensio
 				return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, children...)
 			})
 		}),
-		// Participants.
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			if len(rows) == 0 {
 				return layout.Inset{Left: unit.Dp(18), Top: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -451,7 +397,6 @@ func (a *App) layoutGroupCallScreen(gtx layout.Context, f frame) layout.Dimensio
 	)
 }
 
-// gcLiveLabel renders the count line under the title.
 func gcLiveLabel(info *engine.GroupCallInfo) string {
 	if info == nil {
 		return "group call · live"
@@ -470,7 +415,6 @@ func gcLiveLabel(info *engine.GroupCallInfo) string {
 	return label
 }
 
-// gcParticipantRow renders one participant (self first, flagged "You").
 func (a *App) gcParticipantRow(gtx layout.Context, f frame, r gcRow) layout.Dimensions {
 	name := r.name
 	subColor := a.ui.p.TextDim
@@ -492,7 +436,6 @@ func (a *App) gcParticipantRow(gtx layout.Context, f frame, r gcRow) layout.Dime
 				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Inset{Right: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-							// Speaking participants get the online dot.
 							dot := dotNone
 							if r.speaking {
 								dot = dotOnline
@@ -526,7 +469,6 @@ func (a *App) gcParticipantRow(gtx layout.Context, f frame, r gcRow) layout.Dime
 							}),
 						)
 					}),
-					// State icons: mic-off / hand / video.
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						type ic struct {
 							icon  *widget.Icon

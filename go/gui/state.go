@@ -23,27 +23,14 @@ import (
 	"uniclient/utils"
 )
 
-// App is the root GUI state. Background goroutines mutate state under mu and
-// call win.Invalidate() to schedule a redraw — the Gio event loop then reads
-// state during the frame. All engine calls (network I/O) run on background
-// goroutines, never in the frame loop.
 type App struct {
 	win *app.Window
 	ui  *UI
 	eng *engine.Engine
 
-	// loopLogMu/loopLogLast throttle the per-frame video-note loop's
-	// seek-failure diagnostic to one line per 10s (B-44): the caller
-	// (videoAudioLoop) runs on the UI draw path every frame.
 	loopLogMu   sync.Mutex
 	loopLogLast time.Time
 
-	// Separate-window safety (B-47): reachable from layoutChatView /
-	// openChat, which separate windows run on their own goroutines —
-	// package-level instances would share click/selection state across
-	// windows (call-graph walk from Root's separate branch marked
-	// exactly these). msgFrameLastOwn is set once per messageList pass
-	// (B-48: the inline Seen receipt never rendered without it).
 	inlineKbdBtns     [][]widget.Clickable
 	replyKbdBtns      [][]widget.Clickable
 	musicMenuBtn      widget.Clickable
@@ -55,76 +42,51 @@ type App struct {
 	msgFrameLastOwn   string
 	fwdSel            map[string]bool
 
-	// wid is this window's interactive widget state (slice 168:
-	// multi-window chats — each window owns its widgets).
 	wid widgets
 
-	// separate: non-nil in a separate chat window (slice 168) — the chat
-	// this window renders. Main-window-only surfaces never draw there.
 	separate *chatKey
 
-	// cross-window hops (applied on this App's own GUI loop):
-	// pendingDeselect deselects a chat taken over by another window;
-	// pendingLock applies the shared passcode state.
 	pendingDeselect *chatKey
 	pendingLock     *bool
 
-	// engine event subscription (multi-window fan-out, slice 168) and the
-	// lock-bus unsubscribe.
 	sepSub    *engine.EventSubscription
 	lockUnsub func()
 
-	mu sync.Mutex // guards everything below
+	mu sync.Mutex
 
-	// world state
 	accounts []engine.AccountInfo
-	chats    []engine.ChatInfo // unified, newest first
+	chats    []engine.ChatInfo
 	messages []engine.CachedMessage
-	msgFor   *chatKey // which chat `messages` belongs to
+	msgFor   *chatKey
 
-	// session state
 	selected *chatKey
 	folder   int
 	search   string
 
-	// global search results (slice 16): message hits + server chat hits;
-	// posts (slice 138): public-post hits for hashtag queries.
 	searchMsgs   []engine.SearchResult
 	searchPosts  []engine.SearchResult
 	searchGlobal []engine.ChatInfo
 	searchFor    string
 
-	mode       int               // 0 chat, 1 voice
-	auth       *engine.AuthState // login flow in progress
+	mode       int
+	auth       *engine.AuthState
 	authAcct   string
 	showPicker bool
-	acctFilter string // "" = unified list, else filter to one account
+	acctFilter string
 
-	// archived-chats view (slice 67): true while the sidebar shows the
-	// archived chats instead of the main list.
 	archiveView bool
 
-	// in-app media player redraw loop (slice 113): true while the
-	// 250 ms playback ticker runs (progress/waveform repaints).
 	mediaTickerOn bool
 
-	// hold-to-record voice notes (slice 114): gesture state + the
-	// 100 ms repaint ticker while capturing.
 	voiceRec         voiceRecState
 	voiceRecTickerOn bool
 
-	// voice-note transcription (slice 115): expanded-text state per
-	// message key + per-account capability cache.
 	transcriptOpen map[string]bool
 	transcribeCap  map[string]bool
 
-	// Saved Messages (slice 116): per-account capability + the saved
-	// chat id (self-DM), refreshed with the account list.
 	savedCap    map[string]bool
 	savedChatID map[string]string
 
-	// forum topics (slice 118): the open topic ("" = topic list view),
-	// the cached topic list + default icons, and the topic dialog.
 	forumTopic  string
 	forumTopics []cores.ForumTopic
 	forumLoaded bool
@@ -132,161 +94,122 @@ type App struct {
 	forumIcons  []cores.ForumTopicIconInfo
 	forumDlg    *forumDlgState
 
-	// group-call live bar (slice 70): polled info for the open chat and the
-	// chat the poll loop belongs to (nil = no loop running).
 	groupCall    *engine.GroupCallInfo
 	callPollFor  *chatKey
-	viewsPollFor *chatKey // slice 187: channel-post views ticker target
+	viewsPollFor *chatKey
 
-	// 1:1 call overlay (slice 101): the active DM call panel, fed by
-	// EventIncomingCall/EventCallState or a header StartCall.
 	call *callUI
 
-	// header call-button capability cache (slice 101): caps of the open
-	// chat's account — the phone/video buttons gate on CALLS.
 	hdrCaps    []string
 	hdrCapsFor string
 
-	// joined group call (slice 102): the call the user is in + its polled
-	// participant snapshot (the Voice tab becomes the call screen).
 	joinedGC     *joinedCall
 	joinedGCInfo *engine.GroupCallInfo
 
-	// call device pickers (slice 103): type → enumerated OS devices.
 	devPickers map[string]*devPickerState
 
-	// story viewer (slice 104): the open stories overlay.
-	// storyViewGen is its session key (R54).
 	storyView    *storyViewerState
 	storyViewGen int
 
-	// slow-mode countdown redraw guard (slice 69).
 	slowTickPending bool
 
-	// bot commands panel (slice 76): the chat's commands, loaded lazily.
 	botCmds       []engine.BotCommandInfo
 	botCmdsFor    *chatKey
 	botCmdsLoaded bool
 	botCmdsOn     bool
 
-	// sponsored messages (slice 163): the open chat's ad block (engine
-	// caches 5 minutes per chat) + the per-visit view-report ledger +
-	// the report/about dialog.
 	sponsored       []cores.SponsoredMessageInfo
 	sponsoredFor    string
 	sponsoredViewed map[string]bool
 	sponsoredDlg    *sponsoredDlgState
 
-	// similar channels (slice 167): the open channel's recommendations.
-	// similarExpanded (slice 169): per-chat expanded overrides (key
-	// account|chat); absent = the collapse-config default.
 	similar         []engine.SimilarChannelInfo
 	similarFor      string
 	similarExpanded map[string]bool
 
-	// inline bot results (slice 128): live @bot query panel state. The
-	// fetch flow guards by key (account|bot|query) + in-flight flag +
-	// throttle; inlineForOffset tracks the next page for "More".
 	inlineRes       *cores.InlineBotResults
 	inlineForKey    string
 	inlineForOffset string
 	inlineBusy      bool
 	inlineLastAsk   time.Time
-	inlineBotIDs    map[string]string // username → resolved bot id (per session)
+	inlineBotIDs    map[string]string
 
-	// top peers strip (slice 72): search-focus rows, scoped to one account.
 	topPeers       []engine.ChatInfo
 	topPeersFor    string
 	topPeersLoaded bool
 	toast          string
 	toastAt        time.Time
-	connecting     map[string]bool // accountID -> busy
+	connecting     map[string]bool
 	sending        bool
 	loadingMsgs    bool
-	loadedOlder    int // how many pages loaded (scroll-up)
+	loadedOlder    int
 
-	// message-action state (AyuGram parity §1.11: reply/edit a.wid.composer modes,
-	// context menu, forward picker, reactions).
-	cMode        composerMode           // reply/edit header above the a.wid.composer
-	menu         *menuTarget            // open message context menu (copy)
-	fwd          []engine.CachedMessage // forward picker sources (1 or batch)
-	menuCaps     []string               // capabilities cached for the menu's account
+	cMode        composerMode
+	menu         *menuTarget
+	fwd          []engine.CachedMessage
+	menuCaps     []string
 	menuCapsFor  string
-	availEmojis  []string // available reactions for the menu's account
+	availEmojis  []string
 	availFor     string
 	loadingOlder bool
-	olderDone    bool // no more history pages for the open chat
+	olderDone    bool
 
-	// selection mode (AyuGram parity slice 14): marked message IDs.
 	selOn bool
 	sel   map[string]bool
 
-	// media-bubble state (AyuGram parity slice 2): live download progress fed
-	// by engine events, and the auto-download ledger for prefetches.
-	downloads map[string]dlState // dlKey → progress
-	autoDl    map[string]bool    // msgID → prefetch already issued
-	// downloads that should auto-open in the system player on
-	// completion (slice 86: tap = play/view intent).
-	openOnDone map[string]bool // dlKey → open when EventDownloadComplete
-	saveOnDone map[string]bool // dlKey → copy to Downloads on complete (slice 99)
-	// downloads that should play IN-CHAT on completion — round video
-	// notes are players in the bubble, not system-player handoffs
-	// (slice 220). Lazily created like openOnDone.
-	playOnDone map[string]bool // dlKey → play inline when EventDownloadComplete
+	downloads  map[string]dlState
+	autoDl     map[string]bool
+	openOnDone map[string]bool
+	saveOnDone map[string]bool
+	playOnDone map[string]bool
 
-	// settings surface (AyuGram parity slice 3): open view + section, the
-	// config snapshot for the toggles, and async-loaded page data.
 	settingsOpen bool
 	settingsSect int
 	cfg          cfgSnapshot
 
-	// system tray (slice 137): nil while off/unsupported. accentNow is the
-	// accent snapshot the tray icon re-renders from (kept race-free: the
-	// UI goroutine refreshes it inside snapshot()).
-	tray      *trayController
-	accentNow color.NRGBA
-	// local passcode lock (slice 87): vault-backed PIN gate + editor dialog.
+	tray              *trayController
+	accentNow         color.NRGBA
 	lock              *lockState
 	lockDlg           *lockDlgState
-	twofaDlg          *twofaDlgState                      // cloud-password editor dialog (slice 120)
-	twofaStates       map[string]cores.CloudPasswordState // accountID → live 2FA state (slice 120)
-	soundPicker       *soundPickerState                   // notification-sound picker (slice 121)
+	twofaDlg          *twofaDlgState
+	twofaStates       map[string]cores.CloudPasswordState
+	soundPicker       *soundPickerState
 	notifyAccts       map[string]notifyAcctState
 	notifyLoaded      bool
 	blockedUsers      map[string][]cores.User
 	sessionsList      map[string][]cores.Session
 	privacyLoaded     bool
-	privacyScopes     map[string]map[string]string      // accountID → key → scope (slice 62)
-	privacyDlg        *privacyDlgState                  // scope picker dialog (slice 62)
-	autoDlRules       map[string]map[string]interface{} // source → rules (slice 63)
+	privacyScopes     map[string]map[string]string
+	privacyDlg        *privacyDlgState
+	autoDlRules       map[string]map[string]interface{}
 	autoDlOn          bool
-	autoDlDlg         *autodlDlgState                      // rules editor dialog (slice 63)
-	callsList         map[string][]engine.CallHistoryEntry // accountID → recent calls (slice 64)
+	autoDlDlg         *autodlDlgState
+	callsList         map[string][]engine.CallHistoryEntry
 	callsLoaded       bool
-	themeDlg          *chatThemeDlgState     // per-chat theme picker (slice 65)
-	wallpaperDlg      *wallpaperDlgState     // per-chat wallpaper picker (slice 218)
-	chatThemes        []cores.ChatThemeInfo  // picker data (slice 65)
-	chatThemesFor     string                 // account the data belongs to (slice 65)
-	chatThemesOn      bool                   // picker data loaded (slice 65)
-	cloudThemes       []cores.CloudThemeInfo // cloud theme list (slice 66)
-	cloudThemesFor    string                 // account name the list came from (slice 66)
-	cloudThemeAcct    string                 // account ID the list came from (slice 66)
-	profileEdit       *profileEditState      // own-profile editor (slice 71)
-	stickerMgr        *stickerMgrState       // stickers & emoji manager (slice 139)
-	folderMgr         *folderMgrState        // chat-folders manager (slice 142)
-	premiumPage       *premiumPageState      // Telegram Premium page (slice 143)
-	starsPage         *starsPageState        // Telegram Stars page (slice 144)
-	businessPage      *businessPageState     // Telegram Business page (slice 148)
-	langCode          string                 // active language (slice 140)
-	langStrings       map[string]string      // pack overrides (copy-on-write)
-	langStringsLoaded bool                   // restore-once guard
-	langs             []engine.LanguageInfo  // available languages
+	themeDlg          *chatThemeDlgState
+	wallpaperDlg      *wallpaperDlgState
+	chatThemes        []cores.ChatThemeInfo
+	chatThemesFor     string
+	chatThemesOn      bool
+	cloudThemes       []cores.CloudThemeInfo
+	cloudThemesFor    string
+	cloudThemeAcct    string
+	profileEdit       *profileEditState
+	stickerMgr        *stickerMgrState
+	folderMgr         *folderMgrState
+	premiumPage       *premiumPageState
+	starsPage         *starsPageState
+	businessPage      *businessPageState
+	langCode          string
+	langStrings       map[string]string
+	langStringsLoaded bool
+	langs             []engine.LanguageInfo
 	langsLoaded       bool
 	langsFor          string
 	langsErr          string
 	langApplying      bool
-	cloudThemesOn     bool                // list loaded (slice 66)
-	cloudDlg          *cloudThemeDlgState // install confirm dialog (slice 66)
+	cloudThemesOn     bool
+	cloudDlg          *cloudThemeDlgState
 	cacheTotal        int64
 	cacheTags         [6]int64
 	cacheLoaded       bool
@@ -294,90 +217,67 @@ type App struct {
 	ghostSel          string
 	ghostFlags        map[string]engine.GhostFlags
 	ghostLoaded       bool
-	// right info panel (AyuGram parity slice 4): profile/members/media
-	panelOpen   bool
-	panelChat   chatKey
-	panelLoaded bool
-	panelMuted  bool
-	profile     *engine.CachedUser
-	members     []engine.MemberInfo
-	mediaCounts []engine.SharedMediaCountItem
-	// slice 133: bot info panel — the chat's bot commands (tap inserts).
-	panelBotCmds []engine.BotCommandInfo
-	// slice 206: profile music — the panel peer's playlist (first track
-	// + count row opens the full view) and the open playlist dialog.
-	panelMusic   []engine.MusicTrack
-	musicDlg     *musicDlgState
-	musicRowMenu *musicRowMenuState
-	// slice 210: music attach box (saved-music source).
-	musicAttachDlg *musicAttachDlgState
-	// slice 211: gift picker.
-	giftDlg    *giftDlgState
-	giftHideOn bool
-	// slice 212: giveaway box (create + prepaid launch).
-	giveawayDlg *giveawayDlgState
-	// shared-media tab browser (slice 78): active tab + lazy per-tab
-	// item windows, reset on every panel reload.
-	panelTab         string
-	panelTabItems    map[string][]engine.SharedMediaItem
-	panelTabLoaded   map[string]bool
-	panelTabPending  map[string]bool
-	panelLinks       []engine.SharedLinkItem
-	panelLinksLoaded bool
+	panelOpen         bool
+	panelChat         chatKey
+	panelLoaded       bool
+	panelMuted        bool
+	profile           *engine.CachedUser
+	members           []engine.MemberInfo
+	mediaCounts       []engine.SharedMediaCountItem
+	panelBotCmds      []engine.BotCommandInfo
+	panelMusic        []engine.MusicTrack
+	musicDlg          *musicDlgState
+	musicRowMenu      *musicRowMenuState
+	musicAttachDlg    *musicAttachDlgState
+	giftDlg           *giftDlgState
+	giftHideOn        bool
+	giveawayDlg       *giveawayDlgState
+	panelTab          string
+	panelTabItems     map[string][]engine.SharedMediaItem
+	panelTabLoaded    map[string]bool
+	panelTabPending   map[string]bool
+	panelLinks        []engine.SharedLinkItem
+	panelLinksLoaded  bool
 
-	// attach flow (AyuGram parity slice 5): OS file picker + upload pipeline
 	expl           *explorer.Explorer
 	attachMenuOpen bool
-	// live-location attach-dialog state (slice 131) — GUI-loop-only,
-	// per-App: each window's dialog owns its own (R56).
-	attachLiveOn  bool
-	attachLiveSel int
+	attachLiveOn   bool
+	attachLiveSel  int
 
-	// emoji picker (AyuGram parity slice 10): panel open + active category
 	emojiOpen bool
 	emojiTab  int
 
-	// chat chrome (AyuGram parity slice 11): unread boundary snapshot +
-	// pinned messages for the open chat.
 	unreadAtOpen   int
-	unreadSepMsgID string // boundary message the separator anchors to
+	unreadSepMsgID string
 	pinned         []engine.CachedMessage
 	pinnedIdx      int
 	pinnedLoaded   bool
 
-	// server folders (AyuGram parity slice 6): real dialog-filter tabs
 	folders          []engine.FolderInfo
 	foldersFor       string
 	foldersSupported bool
 	folderDlg        *folderDlgState
-	folderInvites    *folderInvitesState // folder invite-links dialog (slice 54)
-	attachDlg        *attachDlgState     // location/contact share dialog (slice 56)
-	addMemDlg        *addMemDlgState     // add-members picker (slice 79)
-	searchTab        int                 // search results tab (slice 57)
-	ttlDlg           *ttlDlgState        // message auto-delete dialog (slice 60)
-	muteDlg          *muteDlgState       // mute-duration picker (slice 134)
-	// helper-panel modes & data (slice 58)
-	emojiMode      int // panel: 0 emoji, 1 stickers, 2 gifs
-	stickerPacks   []cores.StickerPackSummary
-	stickerPackIdx int
-	recentStickers []cores.StickerInfo
-	savedGifs      []cores.GifInfo
-	panelMediaFor  string
-	stickersLoaded bool
-	gifsLoaded     bool
+	folderInvites    *folderInvitesState
+	attachDlg        *attachDlgState
+	addMemDlg        *addMemDlgState
+	searchTab        int
+	ttlDlg           *ttlDlgState
+	muteDlg          *muteDlgState
+	emojiMode        int
+	stickerPacks     []cores.StickerPackSummary
+	stickerPackIdx   int
+	recentStickers   []cores.StickerInfo
+	savedGifs        []cores.GifInfo
+	panelMediaFor    string
+	stickersLoaded   bool
+	gifsLoaded       bool
 
-	// chat-row context menu (slice 8)
 	chatMenu *chatMenuTarget
 
-	// folder-tab context menu (slice 54)
 	folderMenu *folderMenuTarget
 
-	// chat-header "..." menu (slice 15)
 	headerMenu *headerMenuTarget
 
-	// hamburger main menu (AyuGram parity slice 17): drawer, contacts
-	// sheet, new group/channel dialog, and the pending-open hop that lets
-	// goroutines schedule openChat on the GUI loop.
 	drawerOpen    bool
 	contactsOpen  bool
 	contactsFor   string
@@ -389,72 +289,51 @@ type App struct {
 	newDlgErr     string
 	pendingOpen   *chatKey
 	pendingTitle  string
-	pendingJump   *jumpReq       // permalink deep-link jump after the chat opens (slice 161)
-	pendingTopic  *string        // topic permalink: scope the opened chat to this topic before jumping (slice 189)
-	pendingThread *threadOpenReq // comment permalink: open the chat straight into the thread view and jump to the linked comment (slice 196)
+	pendingJump   *jumpReq
+	pendingTopic  *string
+	pendingThread *threadOpenReq
 
-	// uiGen (R31): the message-window generation. Every reset of the
-	// message scope — openChat, deselect, topic/comment/saved-scope
-	// switches — increments it under a.mu. Async installers capture the
-	// gen BEFORE their engine call and install only if it still matches
-	// at landing: a fetch that returns after the user moved on is dropped
-	// instead of installing the old view's window into the new one
-	// (cross-chat content under the wrong header, msgFor misdirecting the
-	// next send). Compare under a.mu; never crosses the snapshot.
 	uiGen int
 
-	// the Calls box (AyuGram parity slice 154): per-account call-history
-	// page — grouped rows, redial, clear-all, group-calls subsection.
-	callsBoxOpen   bool
-	callsBoxFor    string
-	callsBoxRows   []callBoxRow
-	callsBoxBusy   bool
-	callsBoxDone   bool
-	callsBoxLoad   bool
-	callsBoxGen    int // R50: load-session key; open/clear bump it, tails apply only on a match
-	callsBoxMenu   *callsBoxMenuTarget
-	callsRowMenu   *callsRowMenuTarget
-	callsClearDlg  bool
-	callsDelDlg    int // rowIdx of the delete confirm; -1 none
-	callsRowBounds []image.Rectangle
-	// savedsublists.go (slice 204): Lists-pane row bounds + menu rect.
+	callsBoxOpen         bool
+	callsBoxFor          string
+	callsBoxRows         []callBoxRow
+	callsBoxBusy         bool
+	callsBoxDone         bool
+	callsBoxLoad         bool
+	callsBoxGen          int
+	callsBoxMenu         *callsBoxMenuTarget
+	callsRowMenu         *callsRowMenuTarget
+	callsClearDlg        bool
+	callsDelDlg          int
+	callsRowBounds       []image.Rectangle
 	savedListRowBounds   []image.Rectangle
 	savedSublistMenuRect image.Rectangle
 	callsBoxMenuRect     image.Rectangle
 	callsRowMenuRect     image.Rectangle
 
-	// in-chat search (AyuGram parity slice 18): scoped FTS + jump nav.
-	// inSearchFromPanel is per-window (R14, B-47 class): the picker's open
-	// flag rides the App like every other slice-168 window state, never the
-	// package (two windows' GUI loops must not share it).
 	inSearch          bool
 	inSearchQ         string
 	inChatHits        []engine.SearchResult
-	inChatFor         string // "q@acct/chat" staleness guard
+	inChatFor         string
 	inChatIdx         int
 	inChatBusy        bool
-	inSearchFrom      string // from-user filter (slice 26)
+	inSearchFrom      string
 	inSearchFromName  string
-	inSearchFromPanel bool // from-user picker open (per-window, R14)
+	inSearchFromPanel bool
 
-	// delete + report dialogs (AyuGram parity slice 19)
 	delDlg    *delDlgState
 	reportDlg *reportDlgState
 
-	// clear-history confirm (slice 190, chat-row menu)
 	clearDlg *clearDlgState
 
-	// restrict/ban box (slice 191, member menu)
 	restrictDlg *restrictDlgState
 
-	// signup photo staging (slice 193): path + temp + preview b64
 	signupPhotoPath string
 	signupPhotoTemp []string
 	signupPhotoB64  string
 
-	// comment-thread scope (slice 195)
-	threadScope *threadScopeState
-	// Saved Messages sublists (slice 197)
+	threadScope      *threadScopeState
 	savedListOpen    bool
 	savedLists       []cores.SavedSublistInfo
 	savedListsLoaded bool
@@ -462,129 +341,94 @@ type App struct {
 	savedScope       *savedScopeState
 	savedTags        []cores.SavedReactionTagInfo
 	savedTagsLoaded  bool
-	// slice 204: the open row context menu + delete confirm.
 	savedSublistMenu *savedSublistMenuTarget
 	savedDelDlg      *savedDelDlgState
 
-	// drafts + scheduled send (AyuGram parity slice 20)
 	schedDlg *schedDlgState
 
-	// polls (AyuGram parity slice 42): creation dialog + optimistic votes
 	pollDlg     *pollDlgState
-	pollDlgGen  int // R51: dialog session key; openPollDialog bumps it, send tails land only on a match
+	pollDlgGen  int
 	pollVotes   map[string]map[int]bool
-	pollStopped map[string]bool // pollVoteKey → optimistic stop overlay (slice 124)
+	pollStopped map[string]bool
 
-	// translations (AyuGram Ayu translator, slice 46): shown message
-	// translations, keyed account|chat|msg.
-	translations map[string]string
-	// chat-wide translate bar (slice 150): per-chat on-flag + the
-	// persisted target language + the auto-fetch dedup set.
-	transChatOn map[string]bool
-	transTarget string
-	transAsked  map[string]bool
-	// transPickerOpen is per-window (R28, B-47 class): the language
-	// picker's open flag — layout-written under a.mu, read from the frame.
+	translations    map[string]string
+	transChatOn     map[string]bool
+	transTarget     string
+	transAsked      map[string]bool
 	transPickerOpen bool
-	// inline read receipt (slice 152): per-chat cached seen-state for
-	// the last own DM message.
-	seenInline map[string]*seenInlineState
+	seenInline      map[string]*seenInlineState
 
-	// who-reacted dialog (slice 49)
 	reactors *reactorsState
 
-	// Ayu regex message-filter editor dialog (slice 90, matrix row 238)
 	ayuFilterDlg       *ayuFilterDlgState
-	ayuFilterCount     int  // settings-row value cache
-	ayuFilterCountOn   bool // count loaded
+	ayuFilterCount     int
+	ayuFilterCountOn   bool
 	ayuFilterCountBusy bool
 
-	// Ayu shadow-ban manager dialog (slice 91, matrix row 240)
 	shadowDlg *shadowDlgState
 
-	// edits-history dialog (slice 96, matrix row 164)
 	editHistDlg   *editHistState
-	msgDetailDlg  *msgDetailState  // message details (slice 105)
-	memberMenu    *memberMenuState // profile member admin menu (slice 106)
-	commonChats   []cores.Dialog   // groups in common (slice 107)
+	msgDetailDlg  *msgDetailState
+	memberMenu    *memberMenuState
+	commonChats   []cores.Dialog
 	commonLoaded  bool
-	stickerSetDlg *stickerSetDlgState // sticker pack viewer (slice 108)
+	stickerSetDlg *stickerSetDlgState
 
-	// deleted-messages browser dialog (slice 97, matrix row 165)
 	deletedDlg *deletedDlgState
 
-	// seen-by read-receipt dialog (slice 98, matrix row 97)
 	seenDlg *seenDlgState
 
-	// export-data wizard dialog (slice 100, matrix row 208)
 	exportDlg        *exportDlgState
-	exportOptsSynced bool // checkbox pool seeded for the current open
+	exportOptsSynced bool
 
-	// Folder paste-import dialog (slice 94, matrix row 67)
 	folderImportDlg *folderImportState
 
-	// emoji keyword search (slice 50): Telegram emoji keywords, fetched
-	// once per session for the emoji panel's search field.
 	emojiKws         []engine.EmojiKeywordEntry
 	emojiKwsLoaded   bool
 	emojiKwsFetching bool
 
-	// custom-emoji reaction thumbnails (slice 53), cached per session.
 	customThumbs         map[int64]cores.CustomEmojiThumb
 	customThumbsFetching map[string]bool
-	emojiArtFetching     map[string]bool // slice 132: per-message inline custom-emoji batch guard
-	customThumbWant      []int64         // pending batch (consumed by customThumbFor)
+	emojiArtFetching     map[string]bool
+	customThumbWant      []int64
 	customThumbWantAcc   string
 
-	// per-message silent sends (AyuGram 🔕, slice 23): sticky toggle
 	silentNext bool
 
-	// invite-link join (AyuGram parity slice 24)
 	inviteDlg *inviteDlgState
 
-	// scheduled-messages panel (AyuGram parity slice 21)
 	schedPanel bool
 	schedMsgs  []engine.CachedMessage
 	schedLoad  bool
 
-	// paid-media unlock confirm (slice 181)
 	paidDlg *paidConfirmState
 
-	// call rating dialog (slice 179): armed when an ended call lasted
-	// minRateCallDur; Send walks engine.SendCallRating.
 	rateDlg *rateCallState
 
-	// send-as identity picker (slice 178): the open chat's offered
-	// identities + the locally-saved choice + the picker dialog.
 	sendAs    []engine.SendAsPeerInfo
 	sendAsFor *chatKey
 	sendAsCur string
 	sendAsDlg bool
 
-	// channel statistics page (slice 184)
 	statsPanel bool
 
-	// boosts page (slice 192)
-	boostPanel  bool
-	boostStatus map[string]interface{}
-	boosters    []map[string]interface{}
-	boostNext   string
-	boostTotal  int
-	boostGifts  bool
-	boostLoad   bool
-	boostErr    string
-	statsData   *cores.ChannelStats
-	statsLoad   bool
-	statsErr    string
-	// slice 213: stats Earn tab (channel revenue + withdrawal).
+	boostPanel    bool
+	boostStatus   map[string]interface{}
+	boosters      []map[string]interface{}
+	boostNext     string
+	boostTotal    int
+	boostGifts    bool
+	boostLoad     bool
+	boostErr      string
+	statsData     *cores.ChannelStats
+	statsLoad     bool
+	statsErr      string
 	statsEarnTab  bool
 	statsEarn     *cores.StarsRevenueResult
 	statsEarnLoad bool
 	statsEarnErr  string
 	statsWdBusy   bool
 
-	// admin log / Recent Actions panel (slice 177): the open chat's
-	// admin events + paging/filter/search state.
 	adminPanel     bool
 	adminEvents    []cores.AdminLogEvent
 	adminLoad      bool
@@ -593,85 +437,52 @@ type App struct {
 	adminFilters   map[string]bool
 	adminErr       string
 
-	// fullscreen media viewer (AyuGram parity slice 9, §12): shared under
-	// mu; zoom/pan gesture state lives with the frame-loop bookkeeping.
 	viewer *viewerState
 
-	// picture-in-picture panel (slice 222, parity row 279): shared under
-	// mu like the viewer; its geometry is mutated on the frame loop only.
 	pip *pipState
 
-	// Last window size seen by Root (frame-loop only) — overlays that are
-	// sized against the viewport rather than their own container read it.
 	vpW, vpH int
 
-	// Instant View reader overlay (slice 176): the open IV page + its
-	// navigation history, shared under mu like the viewer.
 	iv *ivState
 
-	// transient
-	typing map[string]time.Time // chatKey -> last typing seen
+	typing map[string]time.Time
 
-	// header presence (AyuGram parity slice 28): live online/last-seen
-	// for the open DM peer, fed by GetUserProfile + EventUserStatus.
 	hdrPresence *engine.CachedUser
 
-	// login code (AyuGram parity slice 31): code relayed by a connected
-	// account while another account sits at the OTP step.
 	loginCode   string
 	loginCodeAt time.Time
 
-	// pending clipboard copy (slice 34): background goroutines queue text;
-	// the frame loop flushes it via gtx.Execute (GUI goroutine only).
 	pendingCopy string
-	notifyAt    map[string]time.Time // chatKey -> last banner (throttle, slice 22)
+	notifyAt    map[string]time.Time
 
-	// hover chat-preview popup (slice 145): the row under the mouse, the
-	// rest position, and the visible peek card. hoverFrame is the
-	// per-frame marker (GUI goroutine); the rest are a.mu-guarded.
 	hoverChatKey string
 	hoverSince   time.Time
-	hoverPos     image.Point // last mouse position in sidebar coords (Move events)
-	hoverFrame   bool        // some row reported hover this frame (GUI goroutine)
+	hoverPos     image.Point
+	hoverFrame   bool
 	chatPeek     *chatPeekState
-	sidebarW     int // rendered sidebar width (peek anchors beside it)
+	sidebarW     int
 
-	// spoiler reveal state (slice 32, GUI goroutine): msgID → revealed.
 	spoilerRevealed map[string]bool
 
-	// frame-loop-only layout bookkeeping (single GUI goroutine, no lock):
-	// message-row bounds in chat-pane coordinates for right-click hit tests,
-	// and the rendered context-menu rect for outside-press dismissal.
-	rowBounds      map[int]image.Rectangle
-	menuRect       image.Rectangle
-	attachMenuRect image.Rectangle
-	emojiRect      image.Rectangle
-	// sidebar (chat-row menu) bookkeeping
-	chatRowBounds  map[int]image.Rectangle
-	sbVisible      []engine.ChatInfo
-	sbAboveList    int
-	chatMenuRect   image.Rectangle
-	sbTabBounds    []image.Rectangle // folder-tab bounds (right-click → menu)
-	folderMenuRect image.Rectangle   // folder-tab context menu (slice 54)
-	headerMenuRect image.Rectangle
-	listTop        int // top Y of the message list within the chat pane
-	headerH        int // chat header height
-	// media viewer gesture state (frame-loop only): zoom factor, pan
-	// offset, double-click bookkeeping.
-	mvZoom         float32
-	mvPan          f32.Point
-	mvLastPressAt  time.Time
-	mvLastPressPos f32.Point
-	// media viewer box/scaled bookkeeping (frame-loop only, PER WINDOW —
-	// R19): the center box + last painted image size, read by the pan
-	// clamp. Was package-level: layoutMediaView renders in BOTH window
-	// branches (app.go Root), so two windows' GUI loops raced on them.
-	mvBoxW, mvBoxH       int
-	mvScaledW, mvScaledH float32
-	// rubber-band gesture state (frame-loop only, PER WINDOW — R23): the
-	// overlay renders in BOTH window branches (layoutChatView), so another
-	// window's frame must never see (or reset) this window's in-flight
-	// drag. Was package-level — B-47 class.
+	rowBounds              map[int]image.Rectangle
+	menuRect               image.Rectangle
+	attachMenuRect         image.Rectangle
+	emojiRect              image.Rectangle
+	chatRowBounds          map[int]image.Rectangle
+	sbVisible              []engine.ChatInfo
+	sbAboveList            int
+	chatMenuRect           image.Rectangle
+	sbTabBounds            []image.Rectangle
+	folderMenuRect         image.Rectangle
+	headerMenuRect         image.Rectangle
+	listTop                int
+	headerH                int
+	mvZoom                 float32
+	mvPan                  f32.Point
+	mvLastPressAt          time.Time
+	mvLastPressPos         f32.Point
+	mvBoxW, mvBoxH         int
+	mvScaledW, mvScaledH   float32
 	rubberOn               bool
 	rubberStart, rubberCur image.Point
 }
@@ -701,49 +512,29 @@ func New(win *app.Window, eng *engine.Engine) *App {
 	return a
 }
 
-// Start boots the app: initial data pull + event subscription + reconnect.
 func (a *App) Start() {
 	eng := a.eng
-	// Register for engine events (multi-window fan-out; SetEventCallback
-	// would replace every subscriber).
 	a.sepSub = eng.Subscribe(func(data []byte) { a.onEvent(data) })
-	// Lock bus (slice 168): the passcode state is process-wide.
 	a.lockUnsub = lockBroadcastShare(a.onLockBroadcast)
 	if !a.isSeparate() {
 		sepMu.Lock()
 		mainRef = a
 		sepMu.Unlock()
 	}
-	// Apply the persisted theme before the first frame renders (the frame
-	// loop has not started yet — single-threaded at this point).
 	if cfg := eng.GetConfig(); cfg != nil {
 		a.ui.applyTheme(cfg.Theme)
 		a.ui.applyAccent(cfg.AccentColor)
 		a.ui.applyFontScale(cfg.FontScale)
-		// Custom fonts (slice 146): restore the picked files (parse
-		// failures fall back to defaults silently — the paths survive
-		// for a later re-try when the file returns).
 		if cfg.FontPath != "" || cfg.MonoFontPath != "" {
 			_ = a.ui.applyUserFonts(cfg.FontPath, cfg.MonoFontPath)
 		}
-		a.psLoad() // power saving (slice 135): restore the animation gates
+		a.psLoad()
 		a.ui.applyBubbleCorners(cfg.BubbleCorners == nil || *cfg.BubbleCorners)
-		// Layout tweak sliders (slice 93): the effective values fold in
-		// the legacy corners toggle for older configs.
 		a.ui.applyLayoutTweaks(utils.EffectiveBubbleRadius(*cfg), utils.EffectiveWideMultiplier(*cfg))
-		// Avatar corners (slice 215): restore the userpic shape.
 		a.ui.applyAvatarCorners(utils.EffectiveAvatarCorners(*cfg))
-		// Language (slice 140): restore the persisted choice. Pack
-		// strings load lazily once an account connects (the override
-		// needs a core); the code itself drives the Language card now.
 		a.langCode = cfg.Language
-		// Chat-wide translation target (slice 150): restore persisted.
 		a.transTarget = normalizeTransTarget(cfg.TranslateTarget)
 	}
-	// Local passcode (slice 87): boot LOCKED when the vault has one — the
-	// lock screen renders before any chat content. Separate windows (slice
-	// 168) honor the SHARED state instead: a fresh window boots unlocked
-	// while the app is unlocked (the bus keeps it in step afterwards).
 	if data, err := eng.GetPasscodeConfig(); err != nil {
 		a.setToast("Passcode: " + err.Error())
 	} else if st := lockFromConfig(data); st != nil {
@@ -757,8 +548,6 @@ func (a *App) Start() {
 		}
 	}
 	if a.isSeparate() {
-		// Separate windows ride the main window's connections: no tray, no
-		// account (re)connect, no second DBus notification server.
 		go a.refreshAccounts()
 		go a.refreshChats()
 		return
@@ -768,38 +557,26 @@ func (a *App) Start() {
 	go eng.ConnectAllAccounts()
 }
 
-// Shutdown releases app-owned background resources (the tray icon).
-// Called from the window event loop's exit path (DestroyEvent).
 func (a *App) Shutdown() {
 	if a.lockUnsub != nil {
 		a.lockUnsub()
 	}
-	stopInstanceServer() // close the toast click-through channel (slice 202)
+	stopInstanceServer()
 	if a.isSeparate() {
-		return // tray + taskbar are main-window-owned singletons
+		return
 	}
 	a.stopTray()
-	stopTaskbar() // release the Windows overlay COM reference (slice 153)
-	stopAppIcon() // close the X11 helper connection / free live HICONs (slice 170)
+	stopTaskbar()
+	stopAppIcon()
 }
 
-// ListenEvents forwards window events to the file explorer (it must see
-// every event — e.g. ViewEvent on mobile — to wire OS dialogs).
 func (a *App) ListenEvents(evt event.Event) {
 	if a.expl != nil {
 		a.expl.ListenEvents(evt)
 	}
-	// Android audio (slice 209): capture the view handle + JavaVM from the
-	// ViewEvent stream — the OpenSL mic path needs them to request the
-	// RECORD_AUDIO runtime permission (no-op on other platforms).
 	audio.SetAndroidViewEvent(evt)
-	// Windows taskbar overlay badge (slice 153): capture the native
-	// window handle when the view event carries one. Main window only —
-	// the badge is a singleton and separate windows must not hijack it.
 	if ev, ok := evt.(app.ViewEvent); ok && !a.isSeparate() {
 		taskbarSetWindow(ev)
-		// App icon set (slice 170): capture the native handle and apply
-		// the configured set (WM_SETICON on Windows, _NET_WM_ICON on X11).
 		a.mu.Lock()
 		set := effectiveAppIconSet(a.cfg)
 		accent := a.accentNow
@@ -808,7 +585,6 @@ func (a *App) ListenEvents(evt event.Event) {
 	}
 }
 
-// invalidate schedules a redraw (safe from any goroutine).
 func (a *App) invalidate() {
 	if a.win != nil {
 		a.win.Invalidate()
@@ -823,8 +599,6 @@ func (a *App) setToast(msg string) {
 	a.invalidate()
 }
 
-// copyTextSoon queues a clipboard copy from any goroutine; the next frame
-// executes clipboard.WriteCmd (gtx is only valid on the GUI loop).
 func (a *App) copyTextSoon(txt string) {
 	if txt == "" {
 		return
@@ -839,13 +613,8 @@ func (a *App) copyTextSoon(txt string) {
 	a.setToast("Copied: " + shown)
 }
 
-// ── background refreshers ────────────────────────────────────────────────
-
 func (a *App) refreshAccounts() {
 	accs := a.eng.ListAccounts()
-	// Per-account capabilities, re-checked with the account list (cores
-	// come and go with connection state): voice transcription (slice
-	// 115) + Saved Messages (slice 116).
 	caps := make(map[string]bool, len(accs))
 	savedCap := make(map[string]bool, len(accs))
 	savedChat := make(map[string]string, len(accs))
@@ -860,9 +629,6 @@ func (a *App) refreshAccounts() {
 	a.savedCap = savedCap
 	a.savedChatID = savedChat
 	a.mu.Unlock()
-	// Profile music (slice 206): one own-ID-set load per account per
-	// session (hash-gated afterwards) so the bubble-menu gate reflects
-	// the real server state from the start.
 	go func() {
 		for _, acc := range accs {
 			if a.eng.ProfileMusicSupported(acc.ID) {
@@ -870,13 +636,11 @@ func (a *App) refreshAccounts() {
 			}
 		}
 	}()
-	a.ensureLangStrings() // slice 140: restore pack strings once a core exists
-	a.updateTray()        // slice 137: tray account rows
+	a.ensureLangStrings()
+	a.updateTray()
 	a.invalidate()
 }
 
-// ensureLangStrings lazily loads the persisted language's pack strings
-// once an account core exists (after boot or a fresh login).
 func (a *App) ensureLangStrings() {
 	a.mu.Lock()
 	code := a.langCode
@@ -916,19 +680,16 @@ func (a *App) refreshChats() {
 	a.mu.Lock()
 	a.chats = chats
 	a.mu.Unlock()
-	a.syncCallPoll() // slice 70: the live-call bar tracks the open chat
-	a.updateTray()   // slice 137: unread badge on the tray icon
+	a.syncCallPoll()
+	a.updateTray()
 	a.invalidate()
 }
 
-// refreshMessages reloads the open chat's messages (cache-first), preserving
-// any older history pages the user already scrolled up to (merge instead of
-// clobbering the window — AyuGram keeps the loaded history in place).
 func (a *App) refreshMessages() {
 	a.mu.Lock()
 	key := a.msgFor
 	selected := a.selected
-	gen := a.uiGen // R31: drop the install if the view moves on mid-fetch
+	gen := a.uiGen
 	a.mu.Unlock()
 	k := key
 	if k == nil {
@@ -953,14 +714,12 @@ func (a *App) refreshMessages() {
 	if err != nil {
 		log.Printf("gui: messages: %v", err)
 	}
-	// oldest-first for display
 	for i, j := 0, len(msgs)-1; i < j; i, j = i+1, j-1 {
 		msgs[i], msgs[j] = msgs[j], msgs[i]
 	}
 	a.mergeMessages(k, msgs, gen)
 }
 
-// topicScopeFor returns the open forum topic for the chat ("" = none).
 func (a *App) topicScopeFor(k *chatKey) string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -973,12 +732,8 @@ func (a *App) topicScopeFor(k *chatKey) string {
 	return a.forumTopic
 }
 
-// mergeMessages installs a fresh newest window (oldest-first slice), keeping
-// pre-loaded older pages that fall outside it.
 func (a *App) mergeMessages(k *chatKey, fresh []engine.CachedMessage, gen int) {
 	a.mu.Lock()
-	// R31: install only into the view that requested the fetch — a
-	// chat switch, scope switch or deselect mid-fetch drops it.
 	if a.uiGen != gen || a.selected == nil || *a.selected != *k {
 		a.mu.Unlock()
 		a.invalidate()
@@ -1008,10 +763,6 @@ func (a *App) mergeMessages(k *chatKey, fresh []engine.CachedMessage, gen int) {
 	a.invalidate()
 }
 
-// ── event pump ───────────────────────────────────────────────────────────
-
-// onEvent decodes engine JSON events and updates UI state. Runs on the
-// engine's goroutine; state writes are under mu, redraw via invalidate.
 func (a *App) onEvent(data []byte) {
 	var env struct {
 		Type      string          `json:"type"`
@@ -1033,8 +784,6 @@ func (a *App) onEvent(data []byte) {
 		a.onMessageEvent(env.Type, env.AccountID, env.Data)
 		go a.refreshChats()
 	case engine.EventMsgTranscribed:
-		// Voice-note transcription landed (slice 115): the open chat's
-		// voice bubbles re-render with the stored text.
 		var t engine.MsgTranscribedEvent
 		if json.Unmarshal(env.Data, &t) == nil {
 			a.onMessageEvent(env.Type, env.AccountID, env.Data)
@@ -1054,15 +803,12 @@ func (a *App) onEvent(data []byte) {
 				a.invalidate()
 			}()
 		}
-	// Header presence (slice 28): live peer status updates.
 	case engine.EventUserStatus:
 		var s engine.UserStatusEvent
 		if json.Unmarshal(env.Data, &s) == nil {
 			a.onUserStatus(env.AccountID, s)
 		}
 	case engine.EventLoginCode:
-		// A connected account relayed a login code for the pending login
-		// (slice 31) — keep it for the OTP banner + auto-fill.
 		var m map[string]string
 		if json.Unmarshal(env.Data, &m) == nil && m["code"] != "" {
 			a.mu.Lock()
@@ -1072,8 +818,6 @@ func (a *App) onEvent(data []byte) {
 			a.invalidate()
 		}
 		go a.refreshAuth()
-	// Profile music (slice 206): own-playlist mutations and ID-set
-	// refreshes reload the panel's Music section + the open playlist view.
 	case engine.EventProfileMusicChanged:
 		var pm engine.ProfileMusicEvent
 		if json.Unmarshal(env.Data, &pm) == nil {
@@ -1110,7 +854,6 @@ func (a *App) onEvent(data []byte) {
 			a.onExportComplete(ev, env.AccountID)
 			a.setToast("Export complete")
 		}
-	// 1:1 call overlay (slice 101): ringing + state transitions.
 	case engine.EventIncomingCall:
 		var c cores.CallSession
 		if json.Unmarshal(env.Data, &c) == nil {
@@ -1121,25 +864,18 @@ func (a *App) onEvent(data []byte) {
 		if json.Unmarshal(env.Data, &c) == nil {
 			a.onCallStateEvent(env.AccountID, &c)
 		}
-	// Group-call state events keep the chat list's HasActiveCall current
-	// even without a chat snapshot (group calls start/stop at any time).
 	case engine.EventGroupCallState:
 		go a.refreshChats()
 	}
 }
 
 func (a *App) onMessageEvent(typ, accountID string, data json.RawMessage) {
-	// Desktop notifications (slice 22): gate + banner on every incoming
-	// message, regardless of which chat (if any) is open.
 	if typ == engine.EventMsgReceived {
 		var ev engine.MsgReceivedEvent
 		if json.Unmarshal(data, &ev) == nil && ev.AccountID == accountID {
 			a.maybeNotify(ev)
 		}
 	}
-	// A send permanently failed after the pending queue's 5 retries (R20):
-	// say so wherever the user is — the failed bubble keeps the text and
-	// its menu carries Resend; without this toast the failure is silent.
 	if typ == engine.EventMsgStatus {
 		var ev engine.MsgStatusEvent
 		if json.Unmarshal(data, &ev) == nil && ev.Status == engine.MsgStatusFailed {
@@ -1154,7 +890,6 @@ func (a *App) onMessageEvent(typ, accountID string, data json.RawMessage) {
 	if !open {
 		return
 	}
-	// Cheap path: only the open chat reloads its messages.
 	if typ == engine.EventMsgReceived {
 		var m engine.MsgReceivedEvent
 		if json.Unmarshal(data, &m) == nil && m.AccountID == k.AccountID && m.ChatID == k.ChatID {
@@ -1165,7 +900,6 @@ func (a *App) onMessageEvent(typ, accountID string, data json.RawMessage) {
 	go a.refreshMessages()
 }
 
-// onDownloadProgress records live byte counts for a media bubble.
 func (a *App) onDownloadProgress(d engine.DownloadProgressEvent) {
 	a.mu.Lock()
 	if a.downloads == nil {
@@ -1178,21 +912,14 @@ func (a *App) onDownloadProgress(d engine.DownloadProgressEvent) {
 	a.invalidate()
 }
 
-// onDownloadComplete flips the bubble to its local file (copy-on-write so an
-// in-flight frame keeps a consistent slice) and swaps the displayed image
-// from thumbnail to the full photo.
 func (a *App) onDownloadComplete(d engine.DownloadCompleteEvent) {
 	a.mu.Lock()
 	if a.downloads == nil {
 		a.downloads = make(map[string]dlState)
 	}
 	a.downloads[dlKey(d.AccountID, d.ChatID, d.MsgID, d.Seq)] = dlState{recv: 1, total: 1, state: engine.DownloadComplete}
-	// Slice 86: taps on playable media mark the download — completion
-	// hands the saved file to the system player. Slice 220: round video
-	// notes mark it for IN-CHAT playback instead.
 	wantOpen := a.consumeOpenOnDoneLocked(d.AccountID, d.ChatID, d.MsgID, d.Seq)
 	wantInline := a.consumePlayOnDoneLocked(d.AccountID, d.ChatID, d.MsgID, d.Seq)
-	// Slice 99: save marks copy the finished file into Downloads.
 	wantSave := a.consumeSaveOnDoneLocked(d.AccountID, d.ChatID, d.MsgID, d.Seq)
 	if k := a.msgFor; k != nil && k.AccountID == d.AccountID && k.ChatID == d.ChatID {
 		for i := range a.messages {
@@ -1206,7 +933,6 @@ func (a *App) onDownloadComplete(d engine.DownloadCompleteEvent) {
 			}
 		}
 	}
-	// The open media viewer swaps the shown item onto its local file.
 	if v := a.viewer; v != nil && v.accountID == d.AccountID && v.chatID == d.ChatID {
 		for i := range v.items {
 			if v.items[i].MsgID == d.MsgID {
@@ -1224,9 +950,6 @@ func (a *App) onDownloadComplete(d engine.DownloadCompleteEvent) {
 		return
 	}
 	if wantInline {
-		// Round note: parse and play it in the bubble (slice 220). Checked
-		// before wantOpen so a doubly-marked download never escapes to the
-		// system player.
 		a.startVideoNoteInline(d.AccountID, d.ChatID, d.MsgID, d.LocalPath)
 		return
 	}
@@ -1234,12 +957,6 @@ func (a *App) onDownloadComplete(d engine.DownloadCompleteEvent) {
 		a.openMedia(d.LocalPath, true)
 		return
 	}
-	// Row 281: this clip played from the fetch-on-read stream and its
-	// bytes have just landed. Sound joins NOW, caught up to the
-	// picture's playhead — the audio starts where the eyes are instead
-	// of replaying from zero (slice 229). Guards: an active, PLAYING,
-	// parsed inline player on this exact path (a download-driven
-	// playback already returned above through wantInline/wantOpen).
 	st, have := h264Players.peek(d.MsgID)
 	if joinAt, ok := streamJoinAt(st, have, d.LocalPath, h264Players.elapsed(d.MsgID)); ok {
 		a.videoAudioPlayAt(d.AccountID, d.ChatID, d.MsgID, d.LocalPath, joinAt)
@@ -1250,7 +967,6 @@ func (a *App) onDownloadComplete(d engine.DownloadCompleteEvent) {
 	a.invalidate()
 }
 
-// onDownloadFailed flips the bubble back to "tap to retry".
 func (a *App) onDownloadFailed(d engine.DownloadFailedEvent) {
 	a.mu.Lock()
 	if a.downloads == nil {
@@ -1277,8 +993,6 @@ func (a *App) authAcctLocked() string {
 	defer a.mu.Unlock()
 	return a.authAcct
 }
-
-// ── engine operations (all async, results land via events/refresh) ───────
 
 func (a *App) addAccount(platform string) {
 	a.mu.Lock()
@@ -1309,13 +1023,10 @@ func (a *App) startAuth(id string) {
 	a.auth = st
 	a.authAcct = id
 	if st != nil && st.State == engine.AuthStateReady {
-		// finalizeAuth already connected and synced — drop the login view.
 		a.auth = nil
 	}
 	a.mu.Unlock()
 	a.invalidate()
-	// engine.ConnectAccount is implied by auth completing for new accounts;
-	// existing saved accounts reconnect at boot via ConnectAllAccounts.
 }
 
 func (a *App) submitAuth(input string) {
@@ -1338,8 +1049,6 @@ func (a *App) submitAuth(input string) {
 		a.mu.Unlock()
 		a.invalidate()
 		if st != nil && st.State == engine.AuthStateReady {
-			// Slice 193: a photo staged during signup uploads immediately
-			// after the account exists (tdesktop's signup-photo flow).
 			a.signupConsumePhoto(id)
 			go func() {
 				_ = a.eng.ConnectAccount(id)
@@ -1360,7 +1069,7 @@ func (a *App) authBack() {
 
 func (a *App) authCancel() {
 	id := a.authAcctLocked()
-	a.signupResetPhoto() // slice 193: drop the staged signup photo
+	a.signupResetPhoto()
 	a.eng.CancelAuth(id)
 	a.mu.Lock()
 	a.auth = nil
@@ -1388,10 +1097,6 @@ func (a *App) removeAccount(id string) {
 	}()
 }
 
-// consumePendingOpen runs a background-scheduled openChat on the GUI loop
-// (set by the new group/channel creation flow).
-// jumpReq is a deferred jump-to-message: set by permalink deep links,
-// consumed after the target chat's first message load (slice 161).
 type jumpReq struct {
 	msgID string
 	ts    int64
@@ -1410,15 +1115,6 @@ func (a *App) consumePendingOpen() {
 	a.openChat(*k, title)
 }
 
-// leaveChatMediaReset releases the view-scoped inline media state when
-// the user leaves a chat: streamed video-note entries own open stream
-// readers that (before B-4) only closed at reset/replace or the
-// 48-entry eviction, and the view's audio track was never paused here —
-// the draw-driven loop re-arm stops with the picture, but the CURRENT
-// track kept playing out behind the next chat (BUGS.md B-4 + B-9).
-// Called WITHOUT a.mu held: closeSrc reaches the engine's file guard.
-// Pausing is own-track-only inside videoAudioPause, so leaving a chat
-// can never pause someone else's music.
 func (a *App) leaveChatMediaReset() {
 	for _, id := range h264Players.resetAll() {
 		a.videoAudioPause(id)
@@ -1426,11 +1122,8 @@ func (a *App) leaveChatMediaReset() {
 }
 
 func (a *App) openChat(k chatKey, title string) {
-	a.hideChatPeek() // the chat's own content replaces the hover preview
+	a.hideChatPeek()
 
-	// Draft flush: persist whatever the a.wid.composer holds for the chat we are
-	// LEAVING, then restore the new chat's draft (slice 20). Runs on the
-	// GUI goroutine, so touching the a.wid.composer editor is safe.
 	a.mu.Lock()
 	prev := a.selected
 	var next engine.ChatInfo
@@ -1441,9 +1134,6 @@ func (a *App) openChat(k chatKey, title string) {
 		}
 	}
 	a.mu.Unlock()
-	// Separate window (slice 168): retarget this window — title follows
-	// the chat, the registry entry moves, and any other window currently
-	// showing k deselects (one window per chat).
 	if a.isSeparate() {
 		oldK := chatKey{}
 		if prev != nil {
@@ -1462,19 +1152,19 @@ func (a *App) openChat(k chatKey, title string) {
 	a.selected = &k
 	a.loadingMsgs = true
 	a.messages = nil
-	a.uiGen++ // R31: any loader still in flight for the previous view is stale
+	a.uiGen++
 	openGen := a.uiGen
 	a.olderDone = false
 	a.loadingOlder = false
 	a.cMode = composerMode{}
 	a.menu = nil
 	a.fwd = nil
-	a.forumTopic = ""   // slice 118: forum chats open on the topic list
-	a.threadScope = nil // slice 195: leaving the chat closes the thread view
-	a.savedScope = nil  // slice 197: leaving the chat closes the sublist view
+	a.forumTopic = ""
+	a.threadScope = nil
+	a.savedScope = nil
 	a.savedListOpen = false
 	a.forumDlg = nil
-	a.hdrPresence = nil // slice 28: refetch presence for the new peer
+	a.hdrPresence = nil
 	a.selOn = false
 	a.sel = nil
 	a.autoDl = make(map[string]bool)
@@ -1487,12 +1177,12 @@ func (a *App) openChat(k chatKey, title string) {
 	a.attachDlg = nil
 	a.addMemDlg = nil
 	a.ttlDlg = nil
-	a.privacyDlg = nil  // slice 62: close the scope picker
-	a.twofaDlg = nil    // slice 120: close the 2FA editor
-	a.soundPicker = nil // slice 121: close the sound picker
-	a.autoDlDlg = nil   // slice 63: close the auto-download editor
-	a.themeDlg = nil    // slice 65: close the theme picker
-	a.cloudDlg = nil    // slice 66: close the install dialog
+	a.privacyDlg = nil
+	a.twofaDlg = nil
+	a.soundPicker = nil
+	a.autoDlDlg = nil
+	a.themeDlg = nil
+	a.cloudDlg = nil
 	a.headerMenu = nil
 	a.profile = nil
 	a.members = nil
@@ -1507,65 +1197,60 @@ func (a *App) openChat(k chatKey, title string) {
 	a.pinnedIdx = 0
 	a.pinnedLoaded = false
 	a.unreadSepMsgID = ""
-	a.viewer = nil       // slice 9: close any open media viewer
-	a.iv = nil           // slice 176: close the Instant View reader
-	a.statsPanel = false // slice 184: close the statistics page
+	a.viewer = nil
+	a.iv = nil
+	a.statsPanel = false
 	a.statsEarnTab = false
 	a.statsEarn = nil
 	a.statsEarnLoad = false
 	a.statsEarnErr = ""
 	a.statsWdBusy = false
-	a.boostPanel = false // slice 192: close the boosts page
+	a.boostPanel = false
 	a.statsData = nil
-	a.adminPanel = false // slice 177: close the admin log panel
+	a.adminPanel = false
 	a.adminEvents = nil
-	a.sendAs = nil // slice 178: reset the send-as surface
+	a.sendAs = nil
 	a.sendAsFor = nil
 	a.sendAsCur = ""
 	a.sendAsDlg = false
-	a.inSearch = false // slice 18: close in-chat search
+	a.inSearch = false
 	a.inSearchQ = ""
 	a.inChatHits = nil
 	a.inChatIdx = 0
 	a.inChatBusy = false
 	a.inSearchFrom = ""
 	a.inSearchFromName = ""
-	a.inSearchFromPanel = false // R14: per-window picker state closes too
-	a.transPickerOpen = false   // R28: same for the translate picker
-	a.delDlg = nil              // slice 19: close delete/report dialogs
+	a.inSearchFromPanel = false
+	a.transPickerOpen = false
+	a.delDlg = nil
 	a.reportDlg = nil
-	a.clearDlg = nil    // slice 190: close clear-history confirm
-	a.restrictDlg = nil // slice 191: close the restrict/ban box
-	a.schedDlg = nil    // slice 20: close the schedule dialog
-	a.groupCall = nil   // slice 70: live-call bar state for the new chat
+	a.clearDlg = nil
+	a.restrictDlg = nil
+	a.schedDlg = nil
+	a.groupCall = nil
 	a.callPollFor = nil
-	a.viewsPollFor = nil // slice 187: views ticker retargets below
-	a.botCmds = nil      // slice 76: bot commands for the new chat
+	a.viewsPollFor = nil
+	a.botCmds = nil
 	a.botCmdsFor = nil
 	a.botCmdsLoaded = false
 	a.botCmdsOn = false
-	a.sponsored = nil // slice 163: sponsored block for the new chat
+	a.sponsored = nil
 	a.sponsoredFor = ""
 	a.sponsoredViewed = nil
 	a.sponsoredDlg = nil
-	a.similar = nil // slice 167: similar-channels block for the new chat
+	a.similar = nil
 	a.similarFor = ""
-	// similarExpanded persists across chats deliberately (per-channel
-	// runtime state, tdesktop SimilarExpanded parity — not reset on switch).
-	a.replyKbdUsedFor = "" // slice 127: single_use reply keyboard resets per chat
-	a.inlineRes = nil      // slice 128: inline-bot panel resets per chat
+	a.replyKbdUsedFor = ""
+	a.inlineRes = nil
 	a.inlineForKey = ""
 	a.inlineForOffset = ""
 	a.inlineBusy = false
 
-	// Restore the incoming chat's draft into the a.wid.composer (slice 20).
 	if next.DraftText != "" {
 		a.wid.composer.SetText(next.DraftText)
 	} else {
 		a.wid.composer.SetText("")
 	}
-	// Unread snapshot BEFORE the read receipt fires (openChat marks read
-	// right after the first load) — the separator position for this visit.
 	a.unreadAtOpen = 0
 	for _, c := range a.chats {
 		if c.AccountID == k.AccountID && c.ChatID == k.ChatID {
@@ -1574,24 +1259,22 @@ func (a *App) openChat(k chatKey, title string) {
 		}
 	}
 	a.mu.Unlock()
-	a.rowBounds = make(map[int]image.Rectangle) // stale rows from the previous chat
-	a.spoilerRevealed = nil                     // slice 32: re-hide spoilers
+	a.rowBounds = make(map[int]image.Rectangle)
+	a.spoilerRevealed = nil
 	a.loadPinned(k)
-	// Header presence for DMs (slice 28): initial online/last-seen fetch.
-	// Live updates arrive via engine.EventUserStatus (see onEvent).
 	if next.Type == engine.ChatTypeDMVal && next.ChatID != "" {
 		go a.loadHdrPresence(k)
 	}
-	a.syncCallPoll()              // slice 70: start the live-call poll if this chat has one
-	a.syncViewsRefresh()          // slice 187: channel-post views ticker
-	if next.ThemeEmoticon != "" { // slice 188: resolve the chat's tint
+	a.syncCallPoll()
+	a.syncViewsRefresh()
+	if next.ThemeEmoticon != "" {
 		a.ensureChatThemeList(next.AccountID)
 	}
-	a.loadBotCmds(k)   // slice 76: fetch the chat's bot commands
-	a.loadSponsored(k) // slice 163: fetch the chat's sponsored messages
-	a.loadSimilar(k)   // slice 167: fetch the channel's recommendations
-	a.loadHdrCaps(k)   // slice 101: header call-button capabilities
-	if next.IsForum {  // slice 118: forums open on the topic list
+	a.loadBotCmds(k)
+	a.loadSponsored(k)
+	a.loadSimilar(k)
+	a.loadHdrCaps(k)
+	if next.IsForum {
 		go a.loadForumTopics(k)
 	}
 	a.invalidate()
@@ -1603,13 +1286,8 @@ func (a *App) openChat(k chatKey, title string) {
 		for i, j := 0, len(msgs)-1; i < j; i, j = i+1, j-1 {
 			msgs[i], msgs[j] = msgs[j], msgs[i]
 		}
-		// R31: the install is generation-guarded — a chat switch, scope
-		// switch or deselect during the fetch drops it (the loader that
-		// owns the current view installs its own window).
 		a.applyOpenChatMessages(k, openGen, msgs)
 		go func() {
-			// LRead off (AyuGram): leave the chat unread locally —
-			// the drawer toggle gates the mark-on-open call.
 			a.mu.Lock()
 			localRead := a.cfg.LocalReadMark
 			a.mu.Unlock()
@@ -1622,13 +1300,6 @@ func (a *App) openChat(k chatKey, title string) {
 	}()
 }
 
-// applyOpenChatMessages installs the initial window for an openChat load
-// (R31: only if the open's generation still matches — a chat switch, scope
-// switch or deselect during the fetch drops the install). On a successful
-// install it also consumes the pending deep-link hops (permalink jumps,
-// slices 161/189/196) and anchors the unread separator to the boundary
-// message (first load of this visit, before the read receipt). On a drop
-// the pendings stay set for the loader that owns the current view.
 func (a *App) applyOpenChatMessages(k chatKey, gen int, msgs []engine.CachedMessage) {
 	a.mu.Lock()
 	if a.uiGen != gen || a.selected == nil || *a.selected != k {
@@ -1659,9 +1330,6 @@ func (a *App) applyOpenChatMessages(k chatKey, gen int, msgs []engine.CachedMess
 	}
 }
 
-// sendText routes the a.wid.composer submit through the active reply/edit mode
-// (AyuGram input field: reply header → SendMessage(replyToID), edit header
-// → EditMessage). Runs the engine call on a background goroutine.
 func (a *App) sendText(text string) {
 	a.mu.Lock()
 	k := a.selected
@@ -1691,18 +1359,13 @@ func (a *App) sendText(text string) {
 			}
 			return
 		}
-		// Compose markdown (slice 33): typed markers become entities.
 		sendText, sendEnts := text, []cores.TextEntity(nil)
 		if hasMarkdown(text) {
 			sendText, sendEnts = parseMarkdown(text)
 		}
-		// Ayu improve link previews (slice 155): rewrite matching hosts in
-		// the outgoing text so Telegram renders the richer mirror embeds.
 		if cfg := a.eng.GetConfig(); cfg != nil && cfg.AyuImproveLinkPreviews {
 			sendText = improveLinkURLs(sendText)
 		}
-		// Slice 195: an open comment thread sends into the discussion
-		// group, replying to the thread root (tdesktop's comment composer).
 		sendChat, sendReply := k.ChatID, replyID
 		if ts := a.threadScopeFor(k); ts != nil && ts.discussionChat != "" {
 			sendChat = ts.discussionChat
@@ -1714,11 +1377,10 @@ func (a *App) sendText(text string) {
 			a.setToast("Send failed: " + err.Error())
 			return
 		}
-		a.clearDraft(*k) // slice 20: sent → the draft is consumed
+		a.clearDraft(*k)
 	}()
 }
 
-// startReply enters reply mode for a message (copy retained).
 func (a *App) startReply(m *engine.CachedMessage) {
 	a.mu.Lock()
 	a.cMode.startReply(m)
@@ -1726,18 +1388,14 @@ func (a *App) startReply(m *engine.CachedMessage) {
 	a.invalidate()
 }
 
-// startEdit enters edit mode and prefills the a.wid.composer with the original text.
 func (a *App) startEdit(m *engine.CachedMessage) {
 	a.mu.Lock()
 	a.cMode.startEdit(m)
 	a.mu.Unlock()
 	a.wid.composer.SetText(m.ContentText)
-	// Focus is executed by the menu's Edit action via key.FocusCmd (gio
-	// v0.10.2 editors take focus through commands, not methods).
 	a.invalidate()
 }
 
-// cancelComposerMode clears the reply/edit header.
 func (a *App) cancelComposerMode() {
 	a.mu.Lock()
 	editing := a.cMode.editTarget() != nil
@@ -1749,13 +1407,6 @@ func (a *App) cancelComposerMode() {
 	a.invalidate()
 }
 
-// loadOlder fetches the next history page above the current window when the
-// user scrolls to the top (AyuGram HistoryWidget::loadMessages).
-// loadOlder fetches the next history page above the current window when the
-// user scrolls to the top (AyuGram HistoryWidget::loadMessages). The oldest
-// message is snapshotted under the initial lock (R31: the tag-scope offset
-// used to re-read a.messages[0] on the goroutine, outside the lock); the
-// install is generation-guarded via applyOlderPage.
 func (a *App) loadOlder() {
 	a.mu.Lock()
 	if a.loadingOlder || a.olderDone || a.selected == nil || len(a.messages) == 0 {
@@ -1765,24 +1416,20 @@ func (a *App) loadOlder() {
 	a.loadingOlder = true
 	k := *a.selected
 	oldest := a.messages[0].Timestamp
-	oldestID := 0 // slice 199: the tag scope pages by message id
+	oldestID := 0
 	if v, err := strconv.ParseInt(a.messages[0].MsgID, 10, 64); err == nil {
 		oldestID = int(v)
 	}
-	gen := a.uiGen // R31: drop the page if the view moves on mid-fetch
+	gen := a.uiGen
 	a.mu.Unlock()
 	go func() {
 		var older []engine.CachedMessage
 		var err error
 		if ts := a.threadScopeFor(&k); ts != nil && ts.discussionChat != "" {
-			// Slice 195: the comment thread pages from the thread filter.
 			older, err = a.eng.GetThreadMessages(k.AccountID, ts.discussionChat, ts.rootID, oldest, 50)
 		} else if ss := a.savedScopeFor(&k); ss != nil && ss.tag != "" {
-			// Slice 199: the tag scope pages through the server-side tag
-			// search (offsetID = the window's oldest message id).
 			older, err = a.eng.SearchSavedMessagesByReaction(k.AccountID, k.ChatID, "", []string{ss.tag}, oldestID, 50)
 		} else if ss := a.savedScopeFor(&k); ss != nil {
-			// Slice 197: the saved sublist pages from the saved_peer filter.
 			older, err = a.eng.GetSavedSublistMessages(k.AccountID, k.ChatID, ss.peerID, oldest, 50)
 		} else if topic := a.topicScopeFor(&k); topic != "" {
 			older, err = a.eng.GetTopicMessages(k.AccountID, k.ChatID, topic, oldest, 50)
@@ -1793,11 +1440,6 @@ func (a *App) loadOlder() {
 	}()
 }
 
-// applyOlderPage installs one fetched history page above the current
-// window (R31: only if the generation captured at fetch time still
-// matches — a chat or scope switch mid-fetch drops the page instead of
-// prepending the old view's history onto the new view's window). The
-// fetch's own loadingOlder flag clears on every path.
 func (a *App) applyOlderPage(k chatKey, gen int, older []engine.CachedMessage, err error) {
 	a.mu.Lock()
 	a.loadingOlder = false
@@ -1810,7 +1452,6 @@ func (a *App) applyOlderPage(k chatKey, gen int, older []engine.CachedMessage, e
 		if len(older) == 0 {
 			a.olderDone = true
 		} else {
-			// older is newest-first; messages is oldest-first — prepend reversed.
 			merged := make([]engine.CachedMessage, 0, len(older)+len(a.messages))
 			for i := len(older) - 1; i >= 0; i-- {
 				merged = append(merged, older[i])
@@ -1823,9 +1464,6 @@ func (a *App) applyOlderPage(k chatKey, gen int, older []engine.CachedMessage, e
 	a.invalidate()
 }
 
-// ── settings surface (AyuGram parity §8) ──────────────────────────────────
-
-// cfgSnapshot is the frame-read copy of the engine app config.
 type cfgSnapshot struct {
 	Theme                  string
 	Accent                 string
@@ -1846,69 +1484,56 @@ type cfgSnapshot struct {
 	NotifyGroups           bool
 	NotifyMentionsOnly     bool
 	NotifyPreviews         bool
-	NotifySound            string // slice 121: default | gentle | none
+	NotifySound            string
 	AyuDeletedMark         string
 	AyuEditedMark          string
 	AyuSaveDeleted         bool
 	AyuSaveHistory         bool
 	AyuSaveForBots         bool
 	BubbleCorners          bool
-	BubbleRadius           int     // slice 93 layout slider (effective, legacy-folded)
-	WideMult               float64 // slice 93 layout slider (effective)
+	BubbleRadius           int
+	WideMult               float64
 	DownloadDir            string
 	HideAllChats           bool
 	RecentSearches         []string
 	DrawerHidden           []string
 	Streamer               bool
-	SystemTray             bool // effective (nil = on)
+	SystemTray             bool
 	ComposerSubmit         string
-	SwipeAction            string          // "" = disabled
-	CornerReply            bool            // effective (nil = on, tdesktop default)
-	CornerReaction         bool            // effective (nil = on, tdesktop default)
-	LocalPremium           map[string]bool // AyuGram local premium per account
+	SwipeAction            string
+	CornerReply            bool
+	CornerReaction         bool
+	LocalPremium           map[string]bool
 	AyuImproveLinkPreviews bool
-	// Ayu behavior extras (slice 173): effective values.
-	AyuMsgSeconds      bool
-	AyuFilterZalgo     bool
-	AyuReactChannels   bool // nil = ON (AyuGram default)
-	AyuReactGroups     bool
-	AyuReactPrivate    bool
-	AyuConfirmSticker  bool
-	AyuConfirmGif      bool
-	AyuConfirmVoice    bool
-	AyuHideSimilar     bool   // AyuGram hideSimilarChannels (slice 169)
-	AyuCollapseSimilar bool   // effective collapse (nil = on, AyuGram default)
-	AyuAppIcon         string // AyuGram appIcon set ID (slice 170)
-	// Avatar corners (slice 215, AyuGram userpic styling): effective
-	// slider 0..23 (23 = circle) and the forums-match-chats toggle.
-	AyuAvatarCorners      int
-	AyuSingleCornerRadius bool
+	AyuMsgSeconds          bool
+	AyuFilterZalgo         bool
+	AyuReactChannels       bool
+	AyuReactGroups         bool
+	AyuReactPrivate        bool
+	AyuConfirmSticker      bool
+	AyuConfirmGif          bool
+	AyuConfirmVoice        bool
+	AyuHideSimilar         bool
+	AyuCollapseSimilar     bool
+	AyuAppIcon             string
+	AyuAvatarCorners       int
+	AyuSingleCornerRadius  bool
 
-	// call devices (slice 103): "" = system default
 	CallInputDevice  string
 	CallOutputDevice string
 	CallCameraDevice string
 }
 
-// notifyAcctState carries per-account notification behavior for the page.
 type notifyAcctState struct {
-	contact bool // contact sign-up notifications
-	calls   bool // calls disabled on this account
-	// reactions/poll-votes notify (AyuGram, slice 61)
-	reactOn   bool
-	reactFrom string // "everyone" | "contacts"
-	pollsOn   bool
-	pollsFrom string
-	// senderName: reactions-notify "show_sender_name". No UI row ships
-	// (§1.10) — the field exists so a loaded override SURVIVES the next
-	// applyReactionsNotify instead of being stomped to true (R33).
+	contact    bool
+	calls      bool
+	reactOn    bool
+	reactFrom  string
+	pollsOn    bool
+	pollsFrom  string
 	senderName bool
 }
 
-// applyReactionsMap fills the reactions/polls fields from the engine's
-// settings map (loadNotifyAccts). Pure. show_sender_name keeps its
-// struct default (true) when the map is silent — the engine only records
-// the override (R33).
 func (st *notifyAcctState) applyReactionsMap(rn map[string]interface{}) {
 	st.reactOn, _ = rn["reactions_enabled"].(bool)
 	st.reactFrom = reactionsFromValue(rn["reactions_from"])
@@ -1919,8 +1544,6 @@ func (st *notifyAcctState) applyReactionsMap(rn map[string]interface{}) {
 	}
 }
 
-// reactionsFromValue coerces an engine reactions-from value ("everyone" /
-// "contacts"; anything else = everyone).
 func reactionsFromValue(v interface{}) string {
 	if s, ok := v.(string); ok && s == "contacts" {
 		return "contacts"
@@ -1928,10 +1551,6 @@ func reactionsFromValue(v interface{}) string {
 	return "everyone"
 }
 
-// applyReactionsNotify persists one account's reactions/polls notify
-// settings (async, AyuGram reactions notifications). showSenderName rides
-// the struct (loaded from the engine; true unless the account overrode it
-// — R33: never stomp another client's setting).
 func (a *App) applyReactionsNotify(accountID string, st notifyAcctState) {
 	go func() {
 		if err := a.eng.SetReactionsNotifySettings(accountID, st.reactOn, st.reactFrom, st.pollsOn, st.pollsFrom, st.senderName); err != nil {
@@ -1940,9 +1559,6 @@ func (a *App) applyReactionsNotify(accountID string, st notifyAcctState) {
 	}()
 }
 
-// openSettings switches the content pane to the settings view and kicks off
-// the async data loads for its pages. Switch/toggle pools reset because the
-// values they mirror are re-read fresh.
 func (a *App) openSettings(section int) {
 	a.mu.Lock()
 	a.settingsOpen = true
@@ -1951,19 +1567,18 @@ func (a *App) openSettings(section int) {
 	settingsSwitches = make(map[string]*widget.Bool)
 	settingsSynced = make(map[string]bool)
 	ayuMarksSynced = false
-	layoutSliderSeeded = false // slice 93: re-seed layout sliders from config
+	layoutSliderSeeded = false
 	go a.refreshConfig()
 	go a.loadStorage()
 	go a.loadAutoDl()
-	go a.loadCloudThemes() // slice 66
+	go a.loadCloudThemes()
 	go a.loadNotifyAccts()
 	go a.loadPrivacy()
 	go a.loadGhost()
-	go a.loadCallDevices() // slice 103: call device pickers
+	go a.loadCallDevices()
 	a.invalidate()
 }
 
-// closeSettings returns to the chat/list layout.
 func (a *App) closeSettings() {
 	a.mu.Lock()
 	a.settingsOpen = false
@@ -1976,29 +1591,21 @@ func (a *App) refreshConfig() {
 	if c == nil {
 		return
 	}
-	// Pure mapping lives in cfgFromAppConfig (callsettings.go, slice 103).
 	snap := cfgFromAppConfig(c)
 	a.mu.Lock()
 	prevIcon := a.cfg.AyuAppIcon
 	a.cfg = snap
 	accent := a.accentNow
 	a.mu.Unlock()
-	setMsgShowSeconds(snap.AyuMsgSeconds) // slice 173
-	// Avatar corners (slice 215): the frame copy drives chatAvatar;
-	// the UI twin drives every non-chat avatar surface.
+	setMsgShowSeconds(snap.AyuMsgSeconds)
 	a.ui.applyAvatarCorners(snap.AyuAvatarCorners)
-	a.updateTray() // slice 137: ghost/streamer checkbox state
-	// App icon set (slice 170): re-apply when the configured set changed
-	// (the default set re-renders with the live accent on every refresh
-	// — cheap, deduped inside the apply layer).
+	a.updateTray()
 	if prevIcon != snap.AyuAppIcon || snap.AyuAppIcon == "" || snap.AyuAppIcon == "default" {
 		go applyAppIconRuntime(effectiveAppIconSet(snap), accent)
 	}
 	a.invalidate()
 }
 
-// antiRecallFromConfig resolves the persisted anti-recall keys against
-// the engine defaults (true/true/false); nil keys mean "default". Pure.
 func antiRecallFromConfig(c *utils.AppConfig) (saveDeleted, saveHistory, saveForBots bool) {
 	saveDeleted = c.AyuSaveDeleted == nil || *c.AyuSaveDeleted
 	saveHistory = c.AyuSaveHistory == nil || *c.AyuSaveHistory
@@ -2006,7 +1613,6 @@ func antiRecallFromConfig(c *utils.AppConfig) (saveDeleted, saveHistory, saveFor
 	return
 }
 
-// loadStorage reads the cache accounting for the Data & Storage page.
 func (a *App) loadStorage() {
 	total, err1 := a.eng.GetCacheSize()
 	tags, err2 := a.eng.GetCacheSizesByTag("")
@@ -2024,8 +1630,6 @@ func (a *App) loadStorage() {
 	a.invalidate()
 }
 
-// loadCalls reads the recent-call list per account for the Voice tab
-// (slice 64).
 func (a *App) loadCalls() {
 	calls := make(map[string][]engine.CallHistoryEntry)
 	for _, acc := range a.eng.ListAccounts() {
@@ -2039,7 +1643,6 @@ func (a *App) loadCalls() {
 	a.invalidate()
 }
 
-// loadNotifyAccts reads per-account notification behavior.
 func (a *App) loadNotifyAccts() {
 	st := make(map[string]notifyAcctState)
 	for _, acc := range a.eng.ListAccounts() {
@@ -2060,9 +1663,6 @@ func (a *App) loadNotifyAccts() {
 	a.invalidate()
 }
 
-// loadPrivacy reads blocked users, active sessions, privacy scopes, and
-// the cloud-password (2FA) state per account (scopes: slice 62; 2FA:
-// slice 120).
 func (a *App) loadPrivacy() {
 	blocked := make(map[string][]cores.User)
 	sessions := make(map[string][]cores.Session)
@@ -2089,7 +1689,6 @@ func (a *App) loadPrivacy() {
 	a.invalidate()
 }
 
-// loadGhost reads the effective ghost flags per account.
 func (a *App) loadGhost() {
 	g := make(map[string]engine.GhostFlags)
 	for _, acc := range a.eng.ListAccounts() {
@@ -2101,8 +1700,6 @@ func (a *App) loadGhost() {
 	a.invalidate()
 }
 
-// applyConfigBool persists one config boolean via the bridge (async).
-// applyDrawerHidden shows/hides one drawer row (Ayu customization).
 func (a *App) applyDrawerHidden(id string, show bool) {
 	go func() {
 		c := a.eng.GetConfig()
@@ -2139,8 +1736,6 @@ func (a *App) applyConfigBool(field string, v bool) {
 	}()
 }
 
-// applySystemTray persists the tray toggle and starts/stops the tray after
-// the write lands (slice 137).
 func (a *App) applySystemTray(v bool) {
 	go func() {
 		c := configFieldChanges("system_tray", v)
@@ -2157,10 +1752,9 @@ func (a *App) applySystemTray(v bool) {
 	}()
 }
 
-// applyTheme swaps the palette and persists the theme name (async).
 func (a *App) applyTheme(light bool) {
 	name := themeName(light)
-	a.ui.applyTheme(name) // re-applies the stored accent after the swap
+	a.ui.applyTheme(name)
 	go func() {
 		c := engine.ConfigChanges{Theme: name}
 		if err := a.eng.UpdateConfigFromBridge(&c); err != nil {
@@ -2169,7 +1763,6 @@ func (a *App) applyTheme(light bool) {
 	}()
 }
 
-// applyAccent tints the accent pair and persists it (appearance, slice 59).
 func (a *App) applyAccent(hex string) {
 	a.ui.applyAccent(hex)
 	go func() {
@@ -2181,7 +1774,6 @@ func (a *App) applyAccent(hex string) {
 	}()
 }
 
-// applyFontScale sets the global text scale and persists it.
 func (a *App) applyFontScale(v float64) {
 	a.ui.applyFontScale(v)
 	go func() {
@@ -2193,7 +1785,6 @@ func (a *App) applyFontScale(v float64) {
 	}()
 }
 
-// applyGhostFlag flips one flag of an account's ghost override (async).
 func (a *App) applyGhostFlag(accountID, field string, v bool) {
 	a.mu.Lock()
 	g := a.ghostFlags[accountID]
@@ -2212,14 +1803,11 @@ func (a *App) applyGhostFlag(accountID, field string, v bool) {
 	}()
 }
 
-// acctFilterLocked returns the current account scope.
 func (a *App) acctFilterLocked() string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.acctFilter
 }
-
-// stillTyping reports an active typing indicator for a chat.
 
 func (a *App) stillTyping(k chatKey) bool {
 	a.mu.Lock()
@@ -2228,9 +1816,6 @@ func (a *App) stillTyping(k chatKey) bool {
 	return ok && time.Since(t) < 4*time.Second
 }
 
-// loadHdrPresence fetches the DM peer's profile for the chat header's
-// online/last-seen line (AyuGram peer status). GetUserProfile treats the
-// DM chat id as the user id, same as the info panel.
 func (a *App) loadHdrPresence(k chatKey) {
 	p, err := a.eng.GetUserProfile(k.AccountID, k.ChatID)
 	if err != nil || p == nil {
@@ -2244,8 +1829,6 @@ func (a *App) loadHdrPresence(k chatKey) {
 	a.invalidate()
 }
 
-// onUserStatus applies a live peer status event to the open chat's header
-// (engine users-table writes already happened engine-side).
 func (a *App) onUserStatus(accountID string, s engine.UserStatusEvent) {
 	a.mu.Lock()
 	if a.selected != nil && a.selected.AccountID == accountID && a.selected.ChatID == s.UserID {
@@ -2262,13 +1845,9 @@ func (a *App) onUserStatus(accountID string, s engine.UserStatusEvent) {
 	a.invalidate()
 }
 
-// snapshot returns consistent copies for one frame. Message slices etc. are
-// copied by reference — they are only ever replaced, never mutated in place.
 func (a *App) snapshot() frame {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	// Tray accent stash (slice 137): the UI goroutine owns palette reads;
-	// mirroring it here keeps updateTray's background reads race-free.
 	if a.ui != nil {
 		a.accentNow = a.ui.p.Accent
 	}
@@ -2544,7 +2123,6 @@ func (a *App) snapshot() frame {
 	return f
 }
 
-// frame is an immutable per-frame snapshot.
 type frame struct {
 	showPicker bool
 	acctFilter string
@@ -2561,70 +2139,53 @@ type frame struct {
 	searchGlobal []engine.ChatInfo
 	searchFor    string
 
-	// archived-chats view (slice 67)
 	archiveView bool
 
-	// group-call live bar (slice 70): polled info for the open chat
 	groupCall *engine.GroupCallInfo
 
-	// 1:1 call overlay (slice 101)
 	call    *callUI
 	hdrCaps []string
 
-	// joined group call (slice 102)
 	joinedGC     *joinedCall
 	joinedGCInfo *engine.GroupCallInfo
 
-	// call device pickers (slice 103)
 	devPickers map[string]*devPickerState
 
-	// story viewer (slice 104)
 	storyView *storyViewerState
 
-	// bot commands panel (slice 76)
 	botCmds       []engine.BotCommandInfo
 	botCmdsOn     bool
 	botCmdsLoaded bool
 
-	// sponsored messages (slice 163): the open chat's ad block + dialog.
 	sponsored    []cores.SponsoredMessageInfo
 	sponsoredDlg *sponsoredDlgState
 
-	// similar channels (slice 167)
 	similar []engine.SimilarChannelInfo
 
-	// voice-note transcription (slice 115): the open chat's account can
-	// transcribe (engine VoiceTranscriber).
 	transcribeCap bool
 
-	// Saved Messages (slice 116): capable account ids (sidebar rows) +
-	// accountID to saved chat id (avatar predicate, forward pinning).
 	savedMsgAccts []string
 	savedMsgChats map[string]string
 	savedChatID   map[string]string
 
-	// forum topics (slice 118): the open topic, the list, load state,
-	// the icon set and the dialog.
 	forumTopic  string
 	forumTopics []cores.ForumTopic
 	forumLoaded bool
 	forumIcons  []cores.ForumTopicIconInfo
 	forumDlg    *forumDlgState
 
-	// top peers strip (slice 72)
 	topPeers       []engine.ChatInfo
 	topPeersFor    string
 	topPeersLoaded bool
 
-	mode        int
-	auth        *engine.AuthState
-	authAcct    string
-	toast       string
-	toastAt     time.Time
-	connecting  map[string]bool
-	sending     bool
-	loadingMsgs bool
-	// message-action surface
+	mode         int
+	auth         *engine.AuthState
+	authAcct     string
+	toast        string
+	toastAt      time.Time
+	connecting   map[string]bool
+	sending      bool
+	loadingMsgs  bool
 	cMode        composerMode
 	menu         *menuTarget
 	fwd          []engine.CachedMessage
@@ -2633,20 +2194,17 @@ type frame struct {
 	loadingOlder bool
 	now          time.Time
 
-	// selection mode (slice 14)
 	selOn bool
 	sel   map[string]bool
 
-	// media bubbles (slice 2)
 	downloads map[string]dlState
 
-	// settings surface (slice 3)
 	settingsOpen    bool
 	settingsSect    int
 	cfg             cfgSnapshot
 	lock            *lockState
 	lockDlg         *lockDlgState
-	twofaDlg        *twofaDlgState // cloud-password editor (slice 120)
+	twofaDlg        *twofaDlgState
 	twofaStates     map[string]cores.CloudPasswordState
 	soundPicker     *soundPickerState
 	notifyAccts     map[string]notifyAcctState
@@ -2654,38 +2212,38 @@ type frame struct {
 	blockedUsers    map[string][]cores.User
 	sessionsList    map[string][]cores.Session
 	privacyLoaded   bool
-	privacyScopes   map[string]map[string]string      // accountID → key → scope (slice 62)
-	privacyDlg      *privacyDlgState                  // scope picker dialog (slice 62)
-	autoDlRules     map[string]map[string]interface{} // source → rules (slice 63)
+	privacyScopes   map[string]map[string]string
+	privacyDlg      *privacyDlgState
+	autoDlRules     map[string]map[string]interface{}
 	autoDlOn        bool
-	autoDlDlg       *autodlDlgState                      // rules editor dialog (slice 63)
-	callsList       map[string][]engine.CallHistoryEntry // accountID → recent calls (slice 64)
+	autoDlDlg       *autodlDlgState
+	callsList       map[string][]engine.CallHistoryEntry
 	callsLoaded     bool
-	themeDlg        *chatThemeDlgState     // per-chat theme picker (slice 65)
-	wallpaperDlg    *wallpaperDlgState     // per-chat wallpaper picker (slice 218)
-	chatThemes      []cores.ChatThemeInfo  // picker data (slice 65)
-	chatThemesFor   string                 // account the data belongs to (slice 65)
-	chatThemesOn    bool                   // picker data loaded (slice 65)
-	cloudThemes     []cores.CloudThemeInfo // cloud theme list (slice 66)
-	cloudThemesFor  string                 // account name the list came from (slice 66)
-	cloudThemeAcct  string                 // account ID the list came from (slice 66)
-	cloudThemesOn   bool                   // list loaded (slice 66)
-	cloudDlg        *cloudThemeDlgState    // install confirm dialog (slice 66)
-	profileEdit     *profileEditState      // own-profile editor (slice 71)
-	stickerMgr      *stickerMgrState       // stickers & emoji manager (slice 139)
-	chatPeek        *chatPeekState         // hover preview (slice 145)
+	themeDlg        *chatThemeDlgState
+	wallpaperDlg    *wallpaperDlgState
+	chatThemes      []cores.ChatThemeInfo
+	chatThemesFor   string
+	chatThemesOn    bool
+	cloudThemes     []cores.CloudThemeInfo
+	cloudThemesFor  string
+	cloudThemeAcct  string
+	cloudThemesOn   bool
+	cloudDlg        *cloudThemeDlgState
+	profileEdit     *profileEditState
+	stickerMgr      *stickerMgrState
+	chatPeek        *chatPeekState
 	sidebarW        int
 	hoverPos        image.Point
-	folderMgr       *folderMgrState             // chat-folders manager (slice 142)
-	premiumPage     *premiumPageState           // Telegram Premium page (slice 143)
-	starsPage       *starsPageState             // Telegram Stars page (slice 144)
-	businessPage    *businessPageState          // Telegram Business page (slice 148)
-	transChatOn     map[string]bool             // chat-wide translate bar (slice 150)
-	transTarget     string                      // translation target language (slice 150)
-	transPickerOpen bool                        // language picker open (per-window, R28)
-	seenInline      map[string]*seenInlineState // inline read receipt (slice 152)
-	langCode        string                      // active language (slice 140)
-	langStrings     map[string]string           // pack overrides
+	folderMgr       *folderMgrState
+	premiumPage     *premiumPageState
+	starsPage       *starsPageState
+	businessPage    *businessPageState
+	transChatOn     map[string]bool
+	transTarget     string
+	transPickerOpen bool
+	seenInline      map[string]*seenInlineState
+	langCode        string
+	langStrings     map[string]string
 	langs           []engine.LanguageInfo
 	langsLoaded     bool
 	langsFor        string
@@ -2697,56 +2255,43 @@ type frame struct {
 	ghostSel        string
 	ghostFlags      map[string]engine.GhostFlags
 	ghostLoaded     bool
-	// right info panel (slice 4)
-	panelOpen   bool
-	panelChat   chatKey
-	panelLoaded bool
-	panelMuted  bool
-	profile     *engine.CachedUser
-	// slice 133: bot info panel — the chat's bot commands.
-	panelBotCmds []engine.BotCommandInfo
-	// slice 206: profile music — the panel peer's playlist + dialogs.
-	panelMusic   []engine.MusicTrack
-	musicDlg     *musicDlgState
-	musicRowMenu *musicRowMenuState
-	// slice 210: music attach box.
-	musicAttachDlg *musicAttachDlgState
-	// slice 211: gift picker.
-	giftDlg    *giftDlgState
-	giftHideOn bool
-	// slice 212: giveaway box.
-	giveawayDlg *giveawayDlgState
+	panelOpen       bool
+	panelChat       chatKey
+	panelLoaded     bool
+	panelMuted      bool
+	profile         *engine.CachedUser
+	panelBotCmds    []engine.BotCommandInfo
+	panelMusic      []engine.MusicTrack
+	musicDlg        *musicDlgState
+	musicRowMenu    *musicRowMenuState
+	musicAttachDlg  *musicAttachDlgState
+	giftDlg         *giftDlgState
+	giftHideOn      bool
+	giveawayDlg     *giveawayDlgState
 
-	// header presence (slice 28): DM peer online/last-seen for the header
 	hdrPresence *engine.CachedUser
 
-	// login code (slice 31): fresh code for the OTP banner/auto-fill.
-	loginCode      string
-	loginCodeFresh bool
-	members        []engine.MemberInfo
-	mediaCounts    []engine.SharedMediaCountItem
-	// shared-media tab browser (slice 78)
+	loginCode        string
+	loginCodeFresh   bool
+	members          []engine.MemberInfo
+	mediaCounts      []engine.SharedMediaCountItem
 	panelTab         string
 	panelTabItems    map[string][]engine.SharedMediaItem
 	panelTabLoaded   map[string]bool
 	panelLinks       []engine.SharedLinkItem
 	panelLinksLoaded bool
 
-	// attach flow (slice 5)
 	attachMenuOpen bool
 
-	// emoji picker (slice 10)
 	emojiOpen bool
 	emojiTab  int
 
-	// chat chrome (slice 11): unread separator + pinned bar
 	unreadAtOpen   int
 	unreadSepMsgID string
 	pinned         []engine.CachedMessage
 	pinnedIdx      int
 	pinnedLoaded   bool
 
-	// server folders (slice 6)
 	folders          []engine.FolderInfo
 	foldersFor       string
 	foldersSupported bool
@@ -2763,16 +2308,12 @@ type frame struct {
 	recentStickers   []cores.StickerInfo
 	savedGifs        []cores.GifInfo
 
-	// chat-row context menu (slice 8)
 	chatMenu *chatMenuTarget
 
-	// folder-tab context menu (slice 54)
 	folderMenu *folderMenuTarget
 
-	// chat-header "..." menu (slice 15)
 	headerMenu *headerMenuTarget
 
-	// hamburger main menu (slice 17)
 	drawerOpen   bool
 	contactsOpen bool
 	contactsFor  string
@@ -2783,7 +2324,6 @@ type frame struct {
 	newDlg       *newChatDlg
 	newDlgErr    string
 
-	// the Calls box (slice 154)
 	callsBoxOpen  bool
 	callsBoxFor   string
 	callsBoxRows  []callBoxRow
@@ -2794,9 +2334,8 @@ type frame struct {
 	callsRowMenu  *callsRowMenuTarget
 	callsClearDlg bool
 	callsDelDlg   int
-	mediaConfirm  bool // Ayu send-confirmation card open (slice 173)
+	mediaConfirm  bool
 
-	// in-chat search (slice 18)
 	inSearch          bool
 	inSearchQ         string
 	inChatHits        []engine.SearchResult
@@ -2804,25 +2343,19 @@ type frame struct {
 	inChatBusy        bool
 	inSearchFrom      string
 	inSearchFromName  string
-	inSearchFromPanel bool // from-user picker open (per-window, R14)
+	inSearchFromPanel bool
 
-	// delete + report dialogs (slice 19)
 	delDlg    *delDlgState
 	reportDlg *reportDlgState
 
-	// clear-history confirm (slice 190)
 	clearDlg *clearDlgState
 
-	// restrict/ban box (slice 191)
 	restrictDlg *restrictDlgState
 
-	// signup photo staging (slice 193)
 	signupPhotoPath string
 	signupPhotoB64  string
 
-	// comment-thread scope (slice 195)
-	threadScope *threadScopeState
-	// Saved Messages sublists (slice 197)
+	threadScope      *threadScopeState
 	savedListOpen    bool
 	savedLists       []cores.SavedSublistInfo
 	savedListsLoaded bool
@@ -2833,65 +2366,49 @@ type frame struct {
 	savedSublistMenu *savedSublistMenuTarget
 	savedDelDlg      *savedDelDlgState
 
-	// scheduled send (slice 20)
 	schedDlg *schedDlgState
 
-	// polls (slice 42)
 	pollDlg *pollDlgState
 
-	// Ayu regex message-filter editor dialog (slice 90, matrix row 238)
 	ayuFilterDlg     *ayuFilterDlgState
 	ayuFilterCount   int
 	ayuFilterCountOn bool
 
-	// Ayu shadow-ban manager dialog (slice 91, matrix row 240)
 	shadowDlg *shadowDlgState
 
-	// Folder paste-import dialog (slice 94, matrix row 67)
 	folderImportDlg *folderImportState
 
-	// edits-history dialog (slice 96, matrix row 164)
 	editHistDlg   *editHistState
-	msgDetailDlg  *msgDetailState  // message details (slice 105)
-	memberMenu    *memberMenuState // profile member admin menu (slice 106)
-	commonChats   []cores.Dialog   // groups in common (slice 107)
+	msgDetailDlg  *msgDetailState
+	memberMenu    *memberMenuState
+	commonChats   []cores.Dialog
 	commonLoaded  bool
-	stickerSetDlg *stickerSetDlgState // sticker pack viewer (slice 108)
+	stickerSetDlg *stickerSetDlgState
 
-	// deleted-messages browser dialog (slice 97, matrix row 165)
 	deletedDlg *deletedDlgState
 
-	// seen-by read-receipt dialog (slice 98, matrix row 97)
 	seenDlg *seenDlgState
 
-	// export-data wizard dialog (slice 100, matrix row 208)
 	exportDlg    *exportDlgState
-	takeoutAccts []string // takeout-capable accounts (Data page gate)
+	takeoutAccts []string
 
-	// who-reacted dialog (slice 49)
 	reactors *reactorsState
 
-	// scheduled-messages panel (slice 21)
 	schedPanel bool
 	schedMsgs  []engine.CachedMessage
 	schedLoad  bool
 
-	// paid-media unlock confirm (slice 181)
 	paidDlg *paidConfirmState
 
-	// call rating dialog (slice 179)
 	rateDlg *rateCallState
 
-	// send-as identity picker (slice 178)
 	sendAs    []engine.SendAsPeerInfo
 	sendAsFor *chatKey
 	sendAsCur string
 	sendAsDlg bool
 
-	// channel statistics page (slice 184)
 	statsPanel bool
 
-	// boosts page (slice 192)
 	boostPanel  bool
 	boostStatus map[string]interface{}
 	boosters    []map[string]interface{}
@@ -2910,7 +2427,6 @@ type frame struct {
 	statsLoad     bool
 	statsErr      string
 
-	// admin log / Recent Actions panel (slice 177)
 	adminPanel     bool
 	adminEvents    []cores.AdminLogEvent
 	adminLoad      bool
@@ -2918,18 +2434,14 @@ type frame struct {
 	adminFilters   map[string]bool
 	adminErr       string
 
-	// invite-link join + silent sends (slices 23/24)
 	inviteDlg  *inviteDlgState
 	silentNext bool
 
-	// fullscreen media viewer (slice 9)
 	viewer *viewerState
 
-	// picture-in-picture panel (slice 222)
 	pip *pipState
 
-	// Instant View reader overlay (slice 176)
 	iv *ivState
 }
 
-var _ = op.InvalidateCmd{} // referenced in widgets that animate
+var _ = op.InvalidateCmd{}

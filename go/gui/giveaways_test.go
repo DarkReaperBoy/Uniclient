@@ -1,9 +1,5 @@
 package gui
 
-// giveaways_test.go — slice 212 tests: pure helpers for the giveaway
-// creation box (labels, date presets + 5-minute rounding, send gate) and
-// the prepaid-giveaway rows parsed out of the boost status map.
-
 import (
 	"testing"
 	"time"
@@ -46,22 +42,18 @@ func TestGiveawayDatePresets(t *testing.T) {
 }
 
 func TestGiveawayUntilDate(t *testing.T) {
-	// tdesktop ThreeDaysAfterToday: +3 days, then minutes rounded up to
-	// a 5-minute boundary — seconds preserved (QTime keeps them).
 	now := time.Date(2026, 9, 14, 12, 3, 30, 0, time.UTC)
 	got := giveawayUntilDate(3, now)
 	want := time.Date(2026, 9, 17, 12, 5, 30, 0, time.UTC).Unix()
 	if got != want {
 		t.Errorf("until = %d, want %d", got, want)
 	}
-	// Already on a boundary → unchanged minutes.
 	now2 := time.Date(2026, 9, 14, 12, 0, 0, 0, time.UTC)
 	got2 := giveawayUntilDate(7, now2)
 	want2 := time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC).Unix()
 	if got2 != want2 {
 		t.Errorf("until = %d, want %d", got2, want2)
 	}
-	// 12:04:59 → 12:05:59 (minute rounds up, seconds ride along).
 	now3 := time.Date(2026, 9, 14, 12, 4, 59, 0, time.UTC)
 	got3 := giveawayUntilDate(3, now3)
 	want3 := time.Date(2026, 9, 17, 12, 5, 59, 0, time.UTC).Unix()
@@ -92,7 +84,6 @@ func TestPrepaidFromBoostStatus(t *testing.T) {
 		t.Errorf("bare row = %+v", rows[2])
 	}
 
-	// Absent / typed-wrong fields stay honest.
 	if got := prepaidFromBoostStatus(map[string]interface{}{}); len(got) != 0 {
 		t.Errorf("empty status = %d rows", len(got))
 	}
@@ -122,22 +113,18 @@ func TestGiveawaySendGate(t *testing.T) {
 	opts := []cores.StarsGiveawayOptionInfo{
 		{Stars: 500, Winners: []cores.StarsGiveawayWinnerInfo{{Users: 10, PerUserStars: 50}}},
 	}
-	// Balance short → disabled (honest, like the gift picker).
 	st := &giveawayDlgState{loaded: true, options: opts, selOpt: 0, selWin: 0, balance: 100, dateIdx: 0}
 	if giveawaySendEnabled(st) {
 		t.Error("balance-short giveaway must be disabled")
 	}
-	// Balance covers the total → enabled.
 	st.balance = 500 * 1_000_000_000
 	if !giveawaySendEnabled(st) {
 		t.Error("funded giveaway must be enabled")
 	}
-	// Not loaded → disabled.
 	st.loaded = false
 	if giveawaySendEnabled(st) {
 		t.Error("unloaded giveaway must be disabled")
 	}
-	// Sending in flight → disabled.
 	st.loaded = true
 	st.sending = true
 	if giveawaySendEnabled(st) {

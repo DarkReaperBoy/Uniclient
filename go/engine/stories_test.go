@@ -7,10 +7,9 @@ import (
 	"uniclient/cores"
 )
 
-// storyLinkStub: a core exposing the story surfaces (reactor + link exporter).
 type storyLinkStub struct {
 	cores.StubCore
-	reacted  map[string]string // chatID|storyID → emoji ("" = removed)
+	reacted  map[string]string
 	exported []int
 	link     string
 }
@@ -44,7 +43,6 @@ func TestEngineReactToStory(t *testing.T) {
 	if stub.reacted["42|7"] != "👍" {
 		t.Fatalf("stub saw %q, want 👍", stub.reacted["42|7"])
 	}
-	// Empty emoji = remove the reaction (tdesktop tap-again semantics).
 	if err := e.ReactToStory("tg", "42", 7, ""); err != nil {
 		t.Fatalf("remove reaction: %v", err)
 	}

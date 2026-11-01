@@ -1,10 +1,5 @@
 package h264vid
 
-// Hostile-input fuzzing for the video-note/sticker decoder (extension of
-// the webm fuzz contract, slice 255): Parse must never panic — a crafted
-// media file must fail one clip, never kill the client (§1.10) — and it
-// must never return (nil, nil).
-
 import "testing"
 
 func FuzzParse(f *testing.F) {

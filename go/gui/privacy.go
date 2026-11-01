@@ -14,17 +14,6 @@ import (
 	"uniclient/engine"
 )
 
-// Privacy scope editor (AyuGram parity, matrix "Privacy & security"):
-// the Privacy & Security settings page gains a "Privacy" block listing
-// AyuGram's rows (last seen, phone number, profile photo, calls, P2P,
-// forwards, group invites, voice messages, bio, birthday) with the live
-// server-side scope as the row value. Tapping a row opens this small
-// picker (modeled on the auto-delete dialog) offering Everybody / My
-// contacts / Close friends (where supported) / Nobody; the engine's
-// SetPrivacyScope persists it server-side. Per-user exceptions
-// ("always allow" / "never allow" lists) are a later slice.
-
-// privacyKeyLabels are the display rows, in AyuGram order.
 var privacyKeyLabels = []struct {
 	key   string
 	label string
@@ -41,7 +30,6 @@ var privacyKeyLabels = []struct {
 	{"birthday", "Birthday"},
 }
 
-// privacyScopeLabel renders a scope for display (row values, toasts).
 func privacyScopeLabel(scope string) string {
 	switch scope {
 	case "everybody":
@@ -56,7 +44,6 @@ func privacyScopeLabel(scope string) string {
 	return "—"
 }
 
-// privacyScopeChoices is the picker's option list for one key.
 func privacyScopeChoices(key string) []string {
 	choices := []string{"everybody", "contacts"}
 	if engine.PrivacyScopeCloseFriends(key) {
@@ -65,7 +52,6 @@ func privacyScopeChoices(key string) []string {
 	return append(choices, "nobody")
 }
 
-// privacyDlgState is the open scope picker.
 type privacyDlgState struct {
 	accountID string
 	key       string
@@ -77,7 +63,6 @@ var (
 	privacyDlgKeyTag    = new(struct{})
 )
 
-// openPrivacyDialog opens the scope picker for one privacy key.
 func (a *App) openPrivacyDialog(accountID, key string) {
 	a.mu.Lock()
 	a.privacyDlg = &privacyDlgState{accountID: accountID, key: key}
@@ -85,7 +70,6 @@ func (a *App) openPrivacyDialog(accountID, key string) {
 	a.invalidate()
 }
 
-// closePrivacyDialog dismisses it.
 func (a *App) closePrivacyDialog() {
 	a.mu.Lock()
 	a.privacyDlg = nil
@@ -93,8 +77,6 @@ func (a *App) closePrivacyDialog() {
 	a.invalidate()
 }
 
-// applyPrivacyScope persists the chosen scope (async + toast) and refreshes
-// the cached scopes for the row.
 func (a *App) applyPrivacyScope(accountID, key, scope string) {
 	go func() {
 		if err := a.eng.SetPrivacyScope(accountID, key, scope); err != nil {
@@ -112,7 +94,6 @@ func (a *App) applyPrivacyScope(accountID, key, scope string) {
 	}()
 }
 
-// privacyKeyTitle resolves a key's row label for toasts.
 func privacyKeyTitle(key string) string {
 	for _, r := range privacyKeyLabels {
 		if r.key == key {
@@ -122,14 +103,11 @@ func privacyKeyTitle(key string) string {
 	return key
 }
 
-// layoutPrivacyScopeDialog renders the scope picker (content-pane
-// replacement, like the other settings/header dialogs).
 func (a *App) layoutPrivacyScopeDialog(gtx layout.Context, f frame) layout.Dimensions {
 	st := f.privacyDlg
 	choices := privacyScopeChoices(st.key)
 	growClickables(&privacyDlgRowBtns, len(choices))
 
-	// Esc closes (self-handled).
 	{
 		stack := clip.Rect{Max: image.Pt(gtx.Constraints.Max.X, gtx.Constraints.Max.Y)}.Push(gtx.Ops)
 		event.Op(gtx.Ops, privacyDlgKeyTag)

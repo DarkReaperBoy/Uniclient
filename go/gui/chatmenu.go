@@ -15,33 +15,19 @@ import (
 	"uniclient/engine"
 )
 
-// Chat-row context menu (AyuGram parity §2 "Chat row context menu"):
-// right-click a chat row for mute (1h/8h/forever), pin, mark read/unread,
-// archive, delete — all real engine calls. Hit-testing mirrors the chat
-// pane: the sidebar registers a pane-wide press area; row bounds recorded
-// during layout map the press to a chat.
-
-// sidebarPaneTag receives pointer presses across the sidebar.
 var sidebarPaneTag = new(struct{})
 
-// chatMenuTarget is an open chat-row context menu. When folderPick is
-// set the menu shows the account's folders instead (add-to-folder).
 type chatMenuTarget struct {
 	chat       engine.ChatInfo
 	pos        image.Point
 	folderPick bool
 }
 
-// chatMenuAction is one menu row: a label plus the row id (the engine
-// action, or "separate" for the multi-window row).
 type chatMenuAction struct {
 	label string
 	id    string
 }
 
-// chatMenuItems derives the action rows for a chat (flags decide labels).
-// separateSupported prepends the multi-window row (slice 168, tdesktop
-// Filler::addNewWindow) on platforms that can host extra windows.
 func chatMenuItems(c engine.ChatInfo, separateSupported bool) []chatMenuAction {
 	var items []chatMenuAction
 	if separateSupported {
@@ -70,8 +56,6 @@ func chatMenuItems(c engine.ChatInfo, separateSupported bool) []chatMenuAction {
 	} else {
 		items = append(items, chatMenuAction{"Archive", "archive"})
 	}
-	// Block user (AyuGram chat-row menu, DMs; the header ⋮ menu keeps the
-	// state-aware unblock with the profile loaded).
 	if c.Type == engine.ChatTypeDMVal {
 		items = append(items, chatMenuAction{"Block user", "block"})
 	}
@@ -81,7 +65,6 @@ func chatMenuItems(c engine.ChatInfo, separateSupported bool) []chatMenuAction {
 	return items
 }
 
-// dispatchChatAction runs one menu action against the engine (async).
 func (a *App) dispatchChatAction(c engine.ChatInfo, action string) {
 	go func() {
 		var err error
@@ -114,7 +97,6 @@ func (a *App) dispatchChatAction(c engine.ChatInfo, action string) {
 		case "delete":
 			err = a.eng.DeleteChat(c.AccountID, c.ChatID, false)
 		case "addfolder":
-			// Handled synchronously in layoutChatMenu (opens the picker).
 		}
 		if err != nil {
 			a.setToast("Chat action failed: " + err.Error())
@@ -122,16 +104,14 @@ func (a *App) dispatchChatAction(c engine.ChatInfo, action string) {
 	}()
 }
 
-// openChatMenu opens the chat-row menu at pos.
 func (a *App) openChatMenu(c engine.ChatInfo, pos image.Point) {
-	a.hideChatPeek() // the menu replaces the hover preview
+	a.hideChatPeek()
 	a.mu.Lock()
 	a.chatMenu = &chatMenuTarget{chat: c, pos: pos}
 	a.mu.Unlock()
 	a.invalidate()
 }
 
-// closeChatMenu dismisses it.
 func (a *App) closeChatMenu() {
 	a.mu.Lock()
 	a.chatMenu = nil
@@ -139,8 +119,6 @@ func (a *App) closeChatMenu() {
 	a.invalidate()
 }
 
-// processSidebarEvents registers the sidebar press area and routes presses:
-// right-click on a chat row opens the menu; any outside press closes it.
 func (a *App) processSidebarEvents(gtx layout.Context, f frame) {
 	stack := clip.Rect{Max: gtx.Constraints.Max}.Push(gtx.Ops)
 	event.Op(gtx.Ops, sidebarPaneTag)
@@ -158,8 +136,6 @@ func (a *App) processSidebarEvents(gtx layout.Context, f frame) {
 		case pointer.Press:
 			a.onSidebarPress(f, pe)
 		case pointer.Move:
-			// Hover peek anchor (slice 145): remember where the mouse
-			// rests in sidebar coords (the sidebar starts at window 0,0).
 			a.hoverPos = image.Pt(int(pe.Position.X), int(pe.Position.Y))
 		}
 	}
@@ -182,7 +158,6 @@ func (a *App) onSidebarPress(f frame, pe pointer.Event) {
 	if pe.Buttons != pointer.ButtonSecondary {
 		return
 	}
-	// Folder tabs first (right-click a server folder tab → its menu).
 	if f.folderDlg == nil {
 		tabs := buildFolderTabs(f.acctFilter, f.folders, f.foldersSupported, f.cfg.HideAllChats)
 		for i, r := range a.sbTabBounds {
@@ -202,15 +177,11 @@ func (a *App) onSidebarPress(f frame, pe pointer.Event) {
 	}
 }
 
-// layoutChatMenu draws the open chat-row menu, clamped to the sidebar.
 func (a *App) layoutChatMenu(gtx layout.Context, f frame) layout.Dimensions {
 	m := f.chatMenu.chat
 	if f.chatMenu.folderPick {
 		return a.layoutFolderPickMenu(gtx, f, m)
 	}
-	// The account's folders enable the add-to-folder row (slice 27).
-	// frame.folders is loaded for the scoped account (frame.foldersFor),
-	// so the row only appears when the chat belongs to that account.
 	folders := foldersForAccount(f, m.AccountID)
 	hasFolders := f.foldersSupported && len(folders) > 0
 	items := chatMenuItems(m, separateWindowSupported(runtime.GOOS))
@@ -250,14 +221,11 @@ func (a *App) layoutChatMenu(gtx layout.Context, f frame) layout.Dimensions {
 				if btn.Clicked(gtx) {
 					chat, action := m, items[i].id
 					if action == "separate" {
-						// Slice 168: open the chat in its own
-						// window (tdesktop Filler::addNewWindow).
 						a.closeChatMenu()
 						a.openSeparateWindow(chatKey{chat.AccountID, chat.ChatID}, chat.Title)
 					} else if action == "addfolder" {
 						a.openChatFolderPick(chat)
 					} else if action == "clearhist" {
-						// Slice 190: confirm box, never instant.
 						a.closeChatMenu()
 						a.openClearDialog(chat)
 					} else {
@@ -282,8 +250,6 @@ func (a *App) layoutChatMenu(gtx layout.Context, f frame) layout.Dimensions {
 	})
 }
 
-// foldersForAccount returns the frame's server folders when they were
-// loaded for the given account (folders are fetched per account scope).
 func foldersForAccount(f frame, accountID string) []engine.FolderInfo {
 	if f.foldersFor != accountID || accountID == "" {
 		return nil
@@ -291,7 +257,6 @@ func foldersForAccount(f frame, accountID string) []engine.FolderInfo {
 	return f.folders
 }
 
-// openChatFolderPick switches the chat menu into folder-choice mode.
 func (a *App) openChatFolderPick(chat engine.ChatInfo) {
 	a.mu.Lock()
 	if a.chatMenu != nil {
@@ -301,7 +266,6 @@ func (a *App) openChatFolderPick(chat engine.ChatInfo) {
 	a.invalidate()
 }
 
-// layoutFolderPickMenu: the account's folders; clicking one adds the chat.
 func (a *App) layoutFolderPickMenu(gtx layout.Context, f frame, m engine.ChatInfo) layout.Dimensions {
 	folders := foldersForAccount(f, m.AccountID)
 	growClickables(&a.wid.chatMenuBtns, len(folders)+1)
@@ -326,7 +290,6 @@ func (a *App) layoutFolderPickMenu(gtx layout.Context, f frame, m engine.ChatInf
 	}
 	a.chatMenuRect = image.Rect(pos.X, pos.Y, pos.X+menuW, pos.Y+h)
 
-	// Cancel row sits last (AyuGram dialogs put the negative action last).
 	cancelIdx := len(folders)
 	if a.wid.chatMenuBtns[cancelIdx].Clicked(gtx) {
 		a.closeChatMenu()
@@ -379,7 +342,6 @@ func (a *App) layoutFolderPickMenu(gtx layout.Context, f frame, m engine.ChatInf
 	})
 }
 
-// folderNames: display names for folders (emoticon + name, AyuGram style).
 func folderNames(folders []engine.FolderInfo) []string {
 	out := make([]string, 0, len(folders))
 	for _, fo := range folders {

@@ -6,8 +6,6 @@ import (
 	"uniclient/engine"
 )
 
-// actionsFor gates every context-menu entry on real message state and real
-// backend capabilities (AyuGram parity: the menu never shows a dead action).
 func TestActionsFor(t *testing.T) {
 	telegramCaps := []string{"TEXT", "REACTIONS", "ADMIN", "CALLS"}
 	noReactCaps := []string{"TEXT"}
@@ -84,9 +82,6 @@ func TestActionsFor(t *testing.T) {
 		}
 	})
 
-	// R20: a permanently failed send keeps its text in the failed
-	// bubble (engine pending queue) — the only thing missing was the
-	// way back: a Resend action on exactly that state.
 	t.Run("failed send offers resend", func(t *testing.T) {
 		m := base()
 		m.IsOutgoing = true
@@ -106,7 +101,6 @@ func TestActionsFor(t *testing.T) {
 	})
 }
 
-// composerMode mirrors AyuGram's reply/edit header bar above the input field.
 func TestComposerMode(t *testing.T) {
 	var c composerMode
 
@@ -130,7 +124,6 @@ func TestComposerMode(t *testing.T) {
 		t.Errorf("reply header preview = %q, want %q", preview, "hi there")
 	}
 
-	// Switching to edit replaces reply (AyuGram: one mode at a time).
 	editMsg := &engine.CachedMessage{MsgID: "43", ContentText: "old text"}
 	c.startEdit(editMsg)
 	if c.replyTarget() != "" || c.editTarget() == nil || c.editTarget().MsgID != "43" {
@@ -146,7 +139,6 @@ func TestComposerMode(t *testing.T) {
 		t.Fatalf("cancel must clear the mode: %+v", c)
 	}
 
-	// startReply then cancel then startEdit with prefill text.
 	c.startReply(msg)
 	c.cancel()
 	c.startEdit(editMsg)
@@ -155,14 +147,12 @@ func TestComposerMode(t *testing.T) {
 	}
 }
 
-// quotePreview truncates long quoted previews the way AyuGram's reply bar does.
 func TestQuotePreview(t *testing.T) {
 	cases := []struct {
 		in, want string
 	}{
 		{"", ""},
 		{"short", "short"},
-		// previews keep the first line only (AyuGram one-liner quotes)
 		{"line one\nline two", "line one"},
 	}
 	for _, c := range cases {

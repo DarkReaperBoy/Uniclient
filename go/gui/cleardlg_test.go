@@ -6,11 +6,6 @@ import (
 	"uniclient/engine"
 )
 
-// Clear-history confirm dialog (slice 190, tdesktop "Clear history?" box):
-// pure helpers — title/hint composition, revoke-offer gating, and the
-// engine-clear wiring through the dialog's submit path. Layout is verified
-// by compile + review (repo discipline).
-
 func TestClearDialogTitleAndHint(t *testing.T) {
 	if got := clearDialogTitle("News"); got != "Clear history?" {
 		t.Errorf("clearDialogTitle = %q, want Clear history?", got)
@@ -27,16 +22,12 @@ func TestClearDialogTitleAndHint(t *testing.T) {
 }
 
 func TestCanRevokeClearHistory(t *testing.T) {
-	// Private chats: clearing with revoke wipes both sides (Telegram
-	// deleteHistory semantics) — always offered.
 	if !canRevokeClearHistory(engine.ChatInfo{Type: engine.ChatTypeDMVal}) {
 		t.Fatal("DM: revoke should be offered")
 	}
-	// Self chat: same as DM.
 	if !canRevokeClearHistory(engine.ChatInfo{Type: engine.ChatTypeDMVal, ChatID: "self"}) {
 		t.Fatal("self chat: revoke should be offered")
 	}
-	// Groups/channels: only admins can clear for everyone.
 	if canRevokeClearHistory(engine.ChatInfo{Type: engine.ChatTypeGroupVal}) {
 		t.Fatal("plain member group: no revoke")
 	}
@@ -46,7 +37,6 @@ func TestCanRevokeClearHistory(t *testing.T) {
 	if !canRevokeClearHistory(engine.ChatInfo{Type: engine.ChatTypeChanVal, IsCreator: true}) {
 		t.Fatal("creator channel: revoke")
 	}
-	// Saved-messages-style zero type falls back to no revoke.
 	if canRevokeClearHistory(engine.ChatInfo{}) {
 		t.Fatal("unknown zero chat: no revoke")
 	}

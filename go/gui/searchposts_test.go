@@ -6,9 +6,6 @@ import (
 	"uniclient/engine"
 )
 
-// TestPostsSearchQuery: the hashtag gate for global post search
-// (channels.searchPosts is a hashtag-scoped API — tdesktop only queries
-// it for '#' queries; anything else would be a wasted RPC).
 func TestPostsSearchQuery(t *testing.T) {
 	cases := []struct {
 		q    string
@@ -16,11 +13,11 @@ func TestPostsSearchQuery(t *testing.T) {
 	}{
 		{"#news", true},
 		{"#a", true},
-		{"#", false},    // bare hash, no term
-		{"news", false}, // plain text — chat/message search only
+		{"#", false},
+		{"news", false},
 		{"# News", false},
 		{"", false},
-		{"  #news", false}, // callers trim; the raw predicate rejects it
+		{"  #news", false},
 	}
 	for _, c := range cases {
 		if got := postsSearchQuery(c.q); got != c.want {
@@ -29,8 +26,6 @@ func TestPostsSearchQuery(t *testing.T) {
 	}
 }
 
-// TestBuildSearchRowsPosts: a "Posts" section renders between Messages and
-// Global results; absent when there are no post hits.
 func TestBuildSearchRowsPosts(t *testing.T) {
 	chats := []engine.ChatInfo{{AccountID: "a1", ChatID: "1", Title: "Alpha"}}
 	msgs := []engine.SearchResult{{AccountID: "a1", ChatID: "1", MsgID: "5", Text: "hello"}}
@@ -49,7 +44,6 @@ func TestBuildSearchRowsPosts(t *testing.T) {
 		}
 	}
 
-	// Post rows are message rows (snippet + chat title render path).
 	found := false
 	for _, r := range rows {
 		if r.kind == sbRowMsg && r.msg != nil && r.msg.MsgID == "9" {
@@ -60,7 +54,6 @@ func TestBuildSearchRowsPosts(t *testing.T) {
 		t.Fatal("post hit missing from rows")
 	}
 
-	// No posts → no Posts section.
 	rows = buildSearchRows(chats, msgs, nil, global, "")
 	for _, r := range rows {
 		if r.kind == sbRowHeader && r.title == "Posts" {
@@ -69,8 +62,6 @@ func TestBuildSearchRowsPosts(t *testing.T) {
 	}
 }
 
-// TestFilterSearchRowsPosts: the Posts section survives on All and
-// Messages tabs, hidden on Chats/Links/Files.
 func TestFilterSearchRowsPosts(t *testing.T) {
 	posts := []engine.SearchResult{{AccountID: "a1", ChatID: "-100777", MsgID: "9", Text: "#news", ChatTitle: "Daily"}}
 	msgs := []engine.SearchResult{{AccountID: "a1", ChatID: "1", MsgID: "5", Text: "hello"}}
@@ -101,7 +92,6 @@ func TestFilterSearchRowsPosts(t *testing.T) {
 	}
 }
 
-// sectionTitles lists the header row titles in order. Test helper.
 func sectionTitles(rows []sbRow) []string {
 	var out []string
 	for _, r := range rows {

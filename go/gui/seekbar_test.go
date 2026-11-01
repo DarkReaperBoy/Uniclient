@@ -1,9 +1,5 @@
 package gui
 
-// Seek bar + music row subtitle (slice 185): pure logic — the pointer
-// fraction mapping (clamping, degenerate widths) and the audio bubble's
-// performer/duration/size subtitle composition.
-
 import (
 	"image"
 	"os/exec"
@@ -50,7 +46,6 @@ func TestSeekFraction(t *testing.T) {
 }
 
 func TestAudioSubLine(t *testing.T) {
-	// Static (not playing): duration + size.
 	s := audioSubLine("", 192, false, 0, 0, 4100000)
 	if !strings.Contains(s, "3:12") {
 		t.Errorf("static line missing duration: %q", s)
@@ -62,7 +57,6 @@ func TestAudioSubLine(t *testing.T) {
 		t.Errorf("double separator: %q", s)
 	}
 
-	// Playing: live elapsed/total replaces the static duration.
 	s = audioSubLine("Rush", 192, true, 30, 192, 4100000)
 	if !strings.HasPrefix(s, "Rush · ") {
 		t.Errorf("performer must lead: %q", s)
@@ -71,25 +65,17 @@ func TestAudioSubLine(t *testing.T) {
 		t.Errorf("live elapsed/total missing: %q", s)
 	}
 
-	// No size, no performer: just the duration.
 	s = audioSubLine("", 65, false, 0, 0, 0)
 	if s != "1:05" && s != "1:05 " {
 		t.Errorf("bare line = %q", s)
 	}
 
-	// Zero duration honest empty.
 	if got := audioSubLine("", 0, false, 0, 0, 0); got != "" && got != "0:00" {
 		t.Errorf("zero-duration line = %q", got)
 	}
 }
 
-// TestVoiceWaveformSeekWiring (slice 186): a press on the waveform strip
-// while this message owns the player seeks the engine player to the
-// pointer's fraction — and only when the message is the active playback
-// (a finished/foreign waveform registers no input).
 func TestVoiceWaveformSeekWiring(t *testing.T) {
-	// A real 1 s Opus tone through the public PlayMedia (headless: no
-	// device, but the PCM+duration load — everything seeking needs).
 	if _, err := exec.LookPath("ffmpeg"); err != nil {
 		t.Skip("ffmpeg unavailable — decode fixture not generated")
 	}
@@ -128,29 +114,25 @@ func TestVoiceWaveformSeekWiring(t *testing.T) {
 		a.voiceWaveform(gtx, m, 0, 1, true, seekable)
 	}
 
-	// Frame 1 declares the handler.
 	render(true)
 	r.Frame(gtx.Ops)
-	// Press at half the 150 px strip → seek to 0.5.
 	r.Queue(
 		pointer.Event{Kind: pointer.Press, Source: pointer.Mouse, Buttons: pointer.ButtonPrimary, Position: f32.Pt(75, 13)},
 		pointer.Event{Kind: pointer.Release, Source: pointer.Mouse, Buttons: pointer.ButtonPrimary, Position: f32.Pt(75, 13)},
 	)
 	ops.Reset()
-	render(true) // drains the press
+	render(true)
 	if pos := e.MediaState().Position; pos < 0.45 || pos > 0.55 {
 		t.Fatalf("waveform press did not seek: position %.3f", pos)
 	}
 
-	// Non-active message: the strip never registers input — the press
-	// would not move the player.
 	r.Frame(gtx.Ops)
 	r.Queue(
 		pointer.Event{Kind: pointer.Press, Source: pointer.Mouse, Buttons: pointer.ButtonPrimary, Position: f32.Pt(120, 13)},
 		pointer.Event{Kind: pointer.Release, Source: pointer.Mouse, Buttons: pointer.ButtonPrimary, Position: f32.Pt(120, 13)},
 	)
 	ops.Reset()
-	render(false) // not seekable — no handler declared
+	render(false)
 	if pos := e.MediaState().Position; pos < 0.45 || pos > 0.55 {
 		t.Fatalf("non-seekable waveform moved the player: %.3f", pos)
 	}

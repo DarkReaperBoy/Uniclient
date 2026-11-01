@@ -6,17 +6,15 @@ import (
 	"github.com/gotd/td/tg"
 )
 
-// wireBusinessFullUser builds a self userFull with every business field
-// populated — the read-model source of truth for the tests below.
 func wireBusinessFullUser() *tg.UserFull {
 	full := &tg.UserFull{}
 	wh := &tg.BusinessWorkHours{
 		TimezoneID: "Europe/Berlin",
 		OpenNow:    true,
 		WeeklyOpen: []tg.BusinessWeeklyOpen{
-			{StartMinute: 9 * 60, EndMinute: 17 * 60},                 // Mon 09:00–17:00
-			{StartMinute: 1*24*60 + 9*60, EndMinute: 1*24*60 + 17*60}, // Tue
-			{StartMinute: 6*24*60 + 21*60, EndMinute: 7*24*60 + 4*60}, // Sun 21:00 → Mon 04:00 (wrap)
+			{StartMinute: 9 * 60, EndMinute: 17 * 60},
+			{StartMinute: 1*24*60 + 9*60, EndMinute: 1*24*60 + 17*60},
+			{StartMinute: 6*24*60 + 21*60, EndMinute: 7*24*60 + 4*60},
 		},
 	}
 	full.SetBusinessWorkHours(*wh)
@@ -55,9 +53,6 @@ func wireQuickReplies() []QuickReplyInfo {
 	}
 }
 
-// TestBusinessInfoFromWire: every business field of the self userFull
-// lands in the read model, greeting/away texts resolve through the
-// quick-reply list, and the schedule maps to its string discriminator.
 func TestBusinessInfoFromWire(t *testing.T) {
 	self := &tg.User{ID: 1, Self: true, Premium: true}
 	out := businessInfoFromWire(wireBusinessFullUser(), self, wireQuickReplies())
@@ -125,11 +120,9 @@ func TestBusinessInfoFromWire(t *testing.T) {
 	}
 }
 
-// TestBusinessInfoFromWireEmpty: a bare userFull yields an honest,
-// near-empty model (no fabricated sections).
 func TestBusinessInfoFromWireEmpty(t *testing.T) {
 	out := businessInfoFromWire(&tg.UserFull{}, &tg.User{Self: true}, nil)
-	if len(out) != 1 { // premium=false only
+	if len(out) != 1 {
 		t.Fatalf("model = %v", out)
 	}
 	if v, _ := out["premium"].(bool); v {
@@ -137,8 +130,6 @@ func TestBusinessInfoFromWireEmpty(t *testing.T) {
 	}
 }
 
-// TestQuickRepliesFromWire: shortcut rows resolve their top message text
-// from the messages vector.
 func TestQuickRepliesFromWire(t *testing.T) {
 	res := &tg.MessagesQuickReplies{
 		QuickReplies: []tg.QuickReply{
@@ -162,7 +153,6 @@ func TestQuickRepliesFromWire(t *testing.T) {
 	}
 }
 
-// TestTimezonesFromWire: id/name/offset carried through.
 func TestTimezonesFromWire(t *testing.T) {
 	res := &tg.HelpTimezonesList{Timezones: []tg.Timezone{
 		{ID: "Europe/Berlin", Name: "Berlin", UtcOffset: 3600},
@@ -174,13 +164,10 @@ func TestTimezonesFromWire(t *testing.T) {
 	}
 }
 
-// TestBuildWorkHours: interval mapping + validation + clear semantics.
 func TestBuildWorkHours(t *testing.T) {
-	// clear on empty
 	if wh, err := buildWorkHours(map[string]interface{}{}); wh != nil || err != nil {
 		t.Fatalf("empty → %v/%v", wh, err)
 	}
-	// valid schedule
 	wh, err := buildWorkHours(map[string]interface{}{
 		"timezone_id": "Europe/Berlin",
 		"weekly_open": []interface{}{
@@ -197,14 +184,12 @@ func TestBuildWorkHours(t *testing.T) {
 	if wh.WeeklyOpen[1].EndMinute != 10080 {
 		t.Fatalf("end = %d", wh.WeeklyOpen[1].EndMinute)
 	}
-	// end beyond the 8*24*60 ceiling rejects
 	_, err = buildWorkHours(map[string]interface{}{
 		"weekly_open": []interface{}{map[string]interface{}{"start": 0, "end": 8*24*60 + 1}},
 	})
 	if err == nil {
 		t.Fatalf("out-of-range end accepted")
 	}
-	// inverted interval rejects
 	_, err = buildWorkHours(map[string]interface{}{
 		"weekly_open": []interface{}{map[string]interface{}{"start": 600, "end": 540}},
 	})
@@ -213,7 +198,6 @@ func TestBuildWorkHours(t *testing.T) {
 	}
 }
 
-// TestBuildLocation: clear / address-only / address+geo / errors.
 func TestBuildLocation(t *testing.T) {
 	if a, g, err := buildLocation(map[string]interface{}{}); a != "" || g != nil || err != nil {
 		t.Fatalf("empty → %q/%v/%v", a, g, err)
@@ -231,7 +215,6 @@ func TestBuildLocation(t *testing.T) {
 	}
 }
 
-// TestBuildGreeting: defaults, validation and clear.
 func TestBuildGreeting(t *testing.T) {
 	if m, err := buildGreeting(map[string]interface{}{}); m != nil || err != nil {
 		t.Fatalf("empty → %v/%v", m, err)
@@ -245,20 +228,13 @@ func TestBuildGreeting(t *testing.T) {
 	if m.NoActivityDays != 21 || m.ShortcutID != 3 || !m.Recipients.NewChats {
 		t.Fatalf("m = %+v", m)
 	}
-	// default inactivity = 7
 	m, _ = buildGreeting(map[string]interface{}{"contacts": true})
 	if m.NoActivityDays != 7 {
 		t.Fatalf("default days = %d", m.NoActivityDays)
 	}
-	// invalid inactivity
 	if _, err := buildGreeting(map[string]interface{}{"contacts": true, "no_activity_days": 10}); err == nil {
 		t.Fatalf("days=10 accepted")
 	}
-	// Empty map = the CLEAR path: it must short-circuit before
-	// recipient validation and return no error (buildGreeting's
-	// len(data)==0 contract). The old form of this check was
-	// `err != nil || true` with an empty body — a literal no-op that
-	// asserted nothing (slice-279 notice-but-never-fail audit).
 	if _, err := buildGreeting(map[string]interface{}{}); err != nil {
 		t.Fatalf("empty map must clear before recipient validation, got error: %v", err)
 	}
@@ -267,7 +243,6 @@ func TestBuildGreeting(t *testing.T) {
 	}
 }
 
-// TestBuildAway: the three schedule modes + custom validation.
 func TestBuildAway(t *testing.T) {
 	if m, err := buildAway(map[string]interface{}{}); m != nil || err != nil {
 		t.Fatalf("empty → %v/%v", m, err)
@@ -302,7 +277,6 @@ func TestBuildAway(t *testing.T) {
 	}
 }
 
-// TestBuildIntro: mandatory fields, clear, length caps.
 func TestBuildIntro(t *testing.T) {
 	if m, err := buildIntro(map[string]interface{}{}); m != nil || err != nil {
 		t.Fatalf("empty → %v/%v", m, err)
@@ -319,7 +293,6 @@ func TestBuildIntro(t *testing.T) {
 	}
 }
 
-// TestSanitizeShortcutName: char whitelist, 12-char cap, fallback.
 func TestSanitizeShortcutName(t *testing.T) {
 	if got := sanitizeShortcutName("greeting", "x"); got != "greeting" {
 		t.Fatalf("plain = %q", got)
@@ -338,7 +311,6 @@ func TestSanitizeShortcutName(t *testing.T) {
 	}
 }
 
-// TestLenientDataReaders: the map readers accept int/float/string/bool.
 func TestLenientDataReaders(t *testing.T) {
 	m := map[string]interface{}{
 		"b": true, "s": "str", "i": 7, "f": 1.5,

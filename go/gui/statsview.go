@@ -22,23 +22,13 @@ import (
 	"uniclient/engine"
 )
 
-// Channel statistics page (slice 184, parity row "Channel statistics
-// screens" — tdesktop's channel Statistics): overview cards (followers
-// with delta, views/shares/reactions per post, per-story counters,
-// enabled notifications %) + line charts drawn from Telegram's chart
-// JSON ({"columns":[["x",ts...],["y",v...]]}). Opened from the header ⋮
-// menu for admin channels; non-channels never see it (§1.10).
-
 var statsPanelTag = new(struct{})
 
-// chartPoint is one (timestamp, value) sample.
 type chartPoint struct {
 	T int64
 	V float64
 }
 
-// parseChartJSON extracts the x/y series from Telegram's chart data.
-// Pure — unit-tested.
 func parseChartJSON(data string) []chartPoint {
 	if data == "" {
 		return nil
@@ -61,9 +51,9 @@ func parseChartJSON(data string) []chartPoint {
 		case id == "x":
 			dst = &xs
 		case len(ys) == 0:
-			dst = &ys // the first non-x series (single-series charts)
+			dst = &ys
 		default:
-			continue // multi-series charts: first series only
+			continue
 		}
 		for _, v := range col[1:] {
 			if f, ok := v.(float64); ok {
@@ -85,7 +75,6 @@ func parseChartJSON(data string) []chartPoint {
 	return pts
 }
 
-// chartRange: the value extents (min/max) of a series.
 func chartRange(pts []chartPoint) (min, max float64) {
 	min, max = math.MaxFloat64, -math.MaxFloat64
 	for _, p := range pts {
@@ -106,7 +95,6 @@ func chartRange(pts []chartPoint) (min, max float64) {
 	return min, max
 }
 
-// fmtChartValue renders a chart axis value compactly. Pure — tested.
 func fmtChartValue(v float64) string {
 	switch {
 	case v >= 1e6:
@@ -120,12 +108,10 @@ func fmtChartValue(v float64) string {
 	}
 }
 
-// fmtStatsDate renders a unix timestamp for the chart's date axis.
 func fmtStatsDate(unix int64) string {
 	return time.Unix(unix, 0).Format("Jan 2")
 }
 
-// statsDeltaLabel: the current-vs-previous delta with an arrow. Pure.
 func statsDeltaLabel(cur, prev float64) string {
 	if cur == prev {
 		return "±0"
@@ -142,7 +128,6 @@ func statsDeltaLabel(cur, prev float64) string {
 	return sign + strconv.FormatFloat(d, 'f', 1, 64)
 }
 
-// openStatsPanel loads the channel's statistics.
 func (a *App) openStatsPanel() {
 	a.mu.Lock()
 	k := a.selected
@@ -177,7 +162,6 @@ func (a *App) openStatsPanel() {
 	}()
 }
 
-// closeStatsPanel dismisses the page.
 func (a *App) closeStatsPanel() {
 	a.mu.Lock()
 	if !a.statsPanel {
@@ -190,7 +174,6 @@ func (a *App) closeStatsPanel() {
 	a.invalidate()
 }
 
-// layoutStatsPanel: the statistics page (chat-pane replacement).
 func (a *App) layoutStatsPanel(gtx layout.Context, f frame, chat *engine.ChatInfo) layout.Dimensions {
 	{
 		stack := clip.Rect{Max: gtx.Constraints.Max}.Push(gtx.Ops)
@@ -248,7 +231,6 @@ func (a *App) layoutStatsPanel(gtx layout.Context, f frame, chat *engine.ChatInf
 			return a.ui.Divider(gtx)
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			// Slice 213: Overview | Earn tabs (channel revenue page).
 			return layout.Inset{Top: unit.Dp(6), Left: unit.Dp(12), Right: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -307,7 +289,6 @@ func (a *App) layoutStatsPanel(gtx layout.Context, f frame, chat *engine.ChatInf
 	)
 }
 
-// statsOverviewCards: the 2-column card grid of headline counters.
 func (a *App) statsOverviewCards(gtx layout.Context, st *cores.ChannelStats) layout.Dimensions {
 	cards := []struct {
 		label string
@@ -368,11 +349,9 @@ func (a *App) statsOverviewCards(gtx layout.Context, st *cores.ChannelStats) lay
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, rows...)
 }
 
-// statsChartCard renders one chart: title + the polyline + axis labels.
 func (a *App) statsChartCard(gtx layout.Context, g cores.StatsGraphData) layout.Dimensions {
 	pts := parseChartJSON(g.JSON)
 	if len(pts) < 2 {
-		// A single-point or unparseable graph is honestly skipped.
 		return layout.Dimensions{}
 	}
 	minV, maxV := chartRange(pts)
@@ -421,7 +400,6 @@ func (a *App) statsChartCard(gtx layout.Context, g cores.StatsGraphData) layout.
 	})
 }
 
-// drawChartLine paints the polyline (accent) over faint gridlines.
 func (a *App) drawChartLine(gtx layout.Context, pts []chartPoint, minV, maxV float64, w, h int) layout.Dimensions {
 	if w <= 0 || h <= 0 || len(pts) < 2 {
 		return layout.Dimensions{}
@@ -437,7 +415,6 @@ func (a *App) drawChartLine(gtx layout.Context, pts []chartPoint, minV, maxV flo
 		return float32(h) - float32((pts[i].V-minV)/(maxV-minV))*float32(h)
 	}
 
-	// Gridlines: 4 horizontal hairlines.
 	for k := 1; k < 4; k++ {
 		y := h * k / 4
 		stack := clip.Rect{Max: image.Pt(w, 1)}.Push(gtx.Ops)
@@ -445,7 +422,6 @@ func (a *App) drawChartLine(gtx layout.Context, pts []chartPoint, minV, maxV flo
 		stack.Pop()
 	}
 
-	// The polyline.
 	var p clip.Path
 	p.Begin(gtx.Ops)
 	p.MoveTo(f32.Pt(xAt(0), yAt(0)))
@@ -459,8 +435,6 @@ func (a *App) drawChartLine(gtx layout.Context, pts []chartPoint, minV, maxV flo
 	return layout.Dimensions{Size: image.Pt(w, h)}
 }
 
-// setStatsEarnTab swaps the stats page tab; entering Earn loads the
-// revenue stats (payments.getStarsRevenueStats) once.
 func (a *App) setStatsEarnTab(earn bool) {
 	a.mu.Lock()
 	if a.statsEarnTab == earn {
@@ -500,9 +474,6 @@ func (a *App) setStatsEarnTab(earn bool) {
 	}()
 }
 
-// earnChartsFromMaps (pure, testable): the revenue graph maps onto the
-// stats chart shape; async graphs (token-only loads, no JSON yet) are
-// dropped — statsChartCard would honestly skip them anyway.
 func earnChartsFromMaps(charts []map[string]interface{}) []cores.StatsGraphData {
 	out := make([]cores.StatsGraphData, 0, len(charts))
 	for _, c := range charts {
@@ -524,12 +495,10 @@ func earnChartsFromMaps(charts []map[string]interface{}) []cores.StatsGraphData 
 	return out
 }
 
-// earnStarsValue (pure, testable): nanostars → trimmed star count.
 func earnStarsValue(nano int64) string {
 	return strconv.FormatFloat(float64(nano)/1e9, 'f', -1, 64)
 }
 
-// earnBalanceLabels (pure, testable): the balance card lines.
 func earnBalanceLabels(st *cores.StarsRevenueResult) (balance, overall string) {
 	if st == nil {
 		return "", ""
@@ -537,8 +506,6 @@ func earnBalanceLabels(st *cores.StarsRevenueResult) (balance, overall string) {
 	return earnStarsValue(st.AvailableBalance) + " Stars available", earnStarsValue(st.OverallRevenue) + " Stars overall"
 }
 
-// earnUsdLabel (pure, testable): the approximate USD value line; empty
-// when the rate is unknown (honest absence).
 func earnUsdLabel(nano int64, rate float64) string {
 	if rate <= 0 || nano <= 0 {
 		return ""
@@ -546,7 +513,6 @@ func earnUsdLabel(nano int64, rate float64) string {
 	return fmt.Sprintf("≈ $%.2f", float64(nano)/1e9*rate)
 }
 
-// earnWithdrawReady (pure, testable): the Withdraw button gate.
 func earnWithdrawReady(st *cores.StarsRevenueResult, busy bool) bool {
 	if st == nil || busy || !st.WithdrawalEnabled {
 		return false
@@ -555,9 +521,6 @@ func earnWithdrawReady(st *cores.StarsRevenueResult, busy bool) bool {
 		(st.WithdrawalMin == 0 && st.AvailableBalance > 0)
 }
 
-// withdrawStarsRevenue runs the withdrawal flow: 2FA password →
-// payments.getStarsRevenueWithdrawalURL → open the returned URL in the
-// browser (tdesktop HandleWithdrawalButton).
 func (a *App) withdrawStarsRevenue(f frame, chat *engine.ChatInfo) {
 	if chat == nil || f.statsWdBusy || f.statsEarn == nil {
 		return
@@ -591,8 +554,6 @@ func (a *App) withdrawStarsRevenue(f frame, chat *engine.ChatInfo) {
 	}()
 }
 
-// layoutStatsEarn: the channel revenue page (balance card, charts,
-// withdraw row).
 func (a *App) layoutStatsEarn(gtx layout.Context, f frame, chat *engine.ChatInfo) layout.Dimensions {
 	st := f.statsEarn
 	if f.statsEarnLoad && st == nil {
@@ -636,7 +597,6 @@ func (a *App) layoutStatsEarn(gtx layout.Context, f frame, chat *engine.ChatInfo
 	})
 }
 
-// statsEarnBalanceCard: available + overall balance with the USD line.
 func (a *App) statsEarnBalanceCard(gtx layout.Context, st *cores.StarsRevenueResult) layout.Dimensions {
 	bal, overall := earnBalanceLabels(st)
 	return roundedFill(gtx, a.ui.p.Surface, 12, func(gtx layout.Context) layout.Dimensions {
@@ -664,7 +624,6 @@ func (a *App) statsEarnBalanceCard(gtx layout.Context, st *cores.StarsRevenueRes
 	})
 }
 
-// statsEarnWithdrawRow: 2FA password + Withdraw button.
 func (a *App) statsEarnWithdrawRow(gtx layout.Context, f frame, st *cores.StarsRevenueResult) layout.Dimensions {
 	if !st.WithdrawalEnabled && st.AvailableBalance == 0 {
 		return layout.Dimensions{}

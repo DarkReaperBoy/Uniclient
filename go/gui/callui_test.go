@@ -1,11 +1,5 @@
 package gui
 
-// 1:1 call overlay (AyuGram parity slice 101): header call-button gating,
-// the call session state machine fed by engine call events, the status line
-// (ringing/connecting/elapsed/ended), control visibility per state, and the
-// post-end auto-dismiss window. Pure derivations locked here — the overlay
-// itself only renders what these decide.
-
 import (
 	"testing"
 	"time"
@@ -20,16 +14,13 @@ func TestDMCallButtons(t *testing.T) {
 	if v, vid := dmCallButtons(dm, calls); !v || !vid {
 		t.Fatalf("DM + CALLS cap: voice=%v video=%v, want true/true", v, vid)
 	}
-	// No CALLS capability → no buttons (honest gating, §1.10).
 	if v, vid := dmCallButtons(dm, []string{cores.CapText}); v || vid {
 		t.Fatalf("no CALLS cap: voice=%v video=%v, want false/false", v, vid)
 	}
-	// Bots cannot be called.
 	bot := engine.ChatInfo{Type: engine.ChatTypeDMVal, IsBot: true}
 	if v, vid := dmCallButtons(bot, calls); v || vid {
 		t.Fatalf("bot DM: voice=%v video=%v, want false/false", v, vid)
 	}
-	// Groups/channels never get 1:1 call buttons (group calls have their own bar).
 	group := engine.ChatInfo{Type: engine.ChatTypeGroupVal}
 	if v, vid := dmCallButtons(group, calls); v || vid {
 		t.Fatalf("group chat: voice=%v video=%v, want false/false", v, vid)
@@ -62,7 +53,6 @@ func TestCallUIIncomingFromSession(t *testing.T) {
 	if c.callID != "call2" || c.chatID != "8" || c.peerName != "Bob" {
 		t.Fatalf("fields: %+v", c)
 	}
-	// No resolved peer name → honest fallback, never a blank line.
 	c2 := callUIFromSession("acct", cs, "", false)
 	if c2.peerName != "Unknown caller" {
 		t.Fatalf("peerName fallback = %q", c2.peerName)
@@ -83,7 +73,6 @@ func TestCallUIApplyEvent(t *testing.T) {
 	now := time.Unix(1000000, 0)
 	c := newOutgoingCall("a1", "7", "A", false, "c1")
 
-	// ringing → connecting → active: startedAt stamped once.
 	if !c.applyEvent(string(cores.CallStateConnecting), now) {
 		t.Fatal("connecting must change state")
 	}
@@ -96,14 +85,12 @@ func TestCallUIApplyEvent(t *testing.T) {
 	if !c.startedAt.Equal(now.Add(2 * time.Second)) {
 		t.Fatalf("startedAt = %v", c.startedAt)
 	}
-	// Stale ringing after active must be ignored (no timer reset).
 	if c.applyEvent(string(cores.CallStateRinging), now.Add(3*time.Second)) {
 		t.Fatal("stale ringing after active must be ignored")
 	}
 	if c.state != string(cores.CallStateActive) {
 		t.Fatalf("state after stale ringing = %q", c.state)
 	}
-	// ended is terminal.
 	if !c.applyEvent(string(cores.CallStateEnded), now.Add(60*time.Second)) {
 		t.Fatal("ended must change state")
 	}
@@ -140,7 +127,6 @@ func TestCallUIStatusLine(t *testing.T) {
 	if s := c.statusLine(now.Add(999 * time.Second)); s != "Call ended · 2:05" {
 		t.Fatalf("ended = %q, want 'Call ended · 2:05'", s)
 	}
-	// Ended without ever being active: no duration to show.
 	c2 := newOutgoingCall("a1", "7", "A", false, "c3")
 	c2.applyEvent(string(cores.CallStateEnded), now)
 	if s := c2.statusLine(now); s != "Call ended" {
@@ -150,32 +136,27 @@ func TestCallUIStatusLine(t *testing.T) {
 
 func TestCallUIControls(t *testing.T) {
 	now := time.Unix(1000000, 0)
-	// Incoming ringing: accept + decline.
 	in := callUIFromSession("a1", &cores.CallSession{ID: "c1", State: cores.CallStateRinging}, "B", false)
 	ct := in.controls()
 	if !ct.accept || !ct.decline || ct.mute || ct.camera || ct.end || ct.close {
 		t.Fatalf("incoming ringing controls: %+v", ct)
 	}
-	// Outgoing ringing: only end (cancel).
 	out := newOutgoingCall("a1", "7", "A", false, "c2")
 	ct = out.controls()
 	if ct.accept || ct.decline || ct.mute || ct.camera || !ct.end || ct.close {
 		t.Fatalf("outgoing ringing controls: %+v", ct)
 	}
-	// Active voice call: mute + end, no camera.
 	out.applyEvent(string(cores.CallStateActive), now)
 	ct = out.controls()
 	if ct.accept || ct.decline || !ct.mute || ct.camera || !ct.end || ct.close {
 		t.Fatalf("active voice controls: %+v", ct)
 	}
-	// Active video call: camera control appears.
 	vid := newOutgoingCall("a1", "7", "A", true, "c3")
 	vid.applyEvent(string(cores.CallStateActive), now)
 	ct = vid.controls()
 	if !ct.mute || !ct.camera || !ct.end || ct.accept || ct.decline || ct.close {
 		t.Fatalf("active video controls: %+v", ct)
 	}
-	// Ended: only close.
 	out.applyEvent(string(cores.CallStateEnded), now)
 	ct = out.controls()
 	if !ct.close || ct.accept || ct.decline || ct.mute || ct.camera || ct.end {
@@ -199,8 +180,6 @@ func TestCallUIDismissible(t *testing.T) {
 }
 
 func TestCallElapsedTicker(t *testing.T) {
-	// The 1s invalidation loop must run while the call is active for the
-	// same session only.
 	c := newOutgoingCall("a1", "7", "A", false, "c1")
 	if callElapsedTickerWanted(c, "a1", "c1") {
 		t.Fatal("non-active call must not tick")

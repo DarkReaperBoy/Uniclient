@@ -2,12 +2,6 @@
 
 package gui
 
-// tray_live_test.go — slice 137: REAL wire-level verification of the tray
-// against a private dbus-daemon: a fake org.kde.StatusNotifierWatcher
-// receives the registration, the SNI object serves its properties, and the
-// com.canonical.dbusmenu GetLayout/Event round-trips work. Skips when no
-// dbus-daemon binary exists (hermetic otherwise — own bus, own socket).
-
 import (
 	"bufio"
 	"os/exec"
@@ -18,7 +12,6 @@ import (
 	"github.com/godbus/dbus/v5"
 )
 
-// liveTrayWatcher is a fake org.kde.StatusNotifierWatcher.
 type liveTrayWatcher struct {
 	registered chan string
 }
@@ -31,11 +24,6 @@ func (w *liveTrayWatcher) RegisterStatusNotifierItem(service string) *dbus.Error
 	return nil
 }
 
-// startPrivateBus launches an isolated session bus. No --fork: the
-// launched process IS the daemon, so the cleanup kill actually reaps it
-// (with --fork, the printed-parent exits immediately and the real daemon
-// leaked — each test run left a dbus-daemon behind). Returns the address
-// and a cleanup func.
 func startPrivateBus(t *testing.T) (string, func()) {
 	t.Helper()
 	bin, err := exec.LookPath("dbus-daemon")
@@ -62,7 +50,6 @@ func startPrivateBus(t *testing.T) (string, func()) {
 	}
 }
 
-// collectMenuLabels walks a dbusmenu layout tree collecting labels.
 func collectMenuLabels(v interface{}, out *[]string) {
 	row, ok := v.([]interface{})
 	if !ok || len(row) < 3 {
@@ -85,7 +72,6 @@ func TestTrayLiveSNIRegistration(t *testing.T) {
 	defer cleanup()
 	t.Setenv("DBUS_SESSION_BUS_ADDRESS", addr)
 
-	// Fake watcher on the private bus.
 	wconn, err := dbus.Dial(addr)
 	if err != nil {
 		t.Fatalf("watcher dial: %v", err)
@@ -106,7 +92,6 @@ func TestTrayLiveSNIRegistration(t *testing.T) {
 		t.Fatalf("request watcher name: %v reply=%d", err, reply)
 	}
 
-	// Boot the tray controller against this bus (minimal App: palette only).
 	a := &App{ui: NewUI()}
 	c := startTray(a)
 	defer c.stop()
@@ -116,7 +101,6 @@ func TestTrayLiveSNIRegistration(t *testing.T) {
 		if !strings.HasPrefix(svc, "org.kde.StatusNotifierItem-") {
 			t.Fatalf("registered service = %q, want org.kde.StatusNotifierItem-*", svc)
 		}
-		// The SNI object must serve its properties on that bus name.
 		sobj := wconn.Object(svc, "/StatusNotifierItem")
 		var category dbus.Variant
 		if err := sobj.Call("org.freedesktop.DBus.Properties.Get", 0,
@@ -131,13 +115,11 @@ func TestTrayLiveSNIRegistration(t *testing.T) {
 			"org.kde.StatusNotifierItem", "IconPixmap").Store(&pixmaps); err != nil {
 			t.Fatalf("Properties.Get IconPixmap: %v", err)
 		}
-		// The tray sets its icon at startup: at least one pixmap with data.
 		arr, ok := pixmaps.Value().([][]interface{})
 		if !ok || len(arr) == 0 {
 			t.Fatalf("IconPixmap = %v, want ≥1 pixmap", pixmaps.Value())
 		}
 
-		// The dbusmenu object must serve the AyuGram menu layout.
 		mobj := wconn.Object(svc, "/MenuBar")
 		var rev uint32
 		var layout dbus.Variant
@@ -154,8 +136,6 @@ func TestTrayLiveSNIRegistration(t *testing.T) {
 			}
 		}
 
-		// Event round-trip on the Quit item (no window in this test — the
-		// handler no-ops safely; the wire call itself must succeed).
 		var needUpdate bool
 		if err := mobj.Call("com.canonical.dbusmenu.AboutToShow", 0, int32(0)).Store(&needUpdate); err != nil {
 			t.Fatalf("AboutToShow: %v", err)
@@ -165,8 +145,6 @@ func TestTrayLiveSNIRegistration(t *testing.T) {
 	}
 }
 
-// TestTrayLiveSyncUpdates: sync() relabels account rows and swaps the icon
-// through the same D-Bus surface.
 func TestTrayLiveSyncUpdates(t *testing.T) {
 	addr, cleanup := startPrivateBus(t)
 	defer cleanup()
@@ -197,12 +175,11 @@ func TestTrayLiveSyncUpdates(t *testing.T) {
 
 	select {
 	case svc := <-w.registered:
-		// Initial sync with one account carrying unread.
 		c.sync(traySnapshot{
 			Accounts:    []trayAccount{{ID: "a1", Name: "@alice", Unread: 4}},
 			TotalUnread: 4,
 		}, a.ui.p.Accent, cfgSnapshot{})
-		time.Sleep(100 * time.Millisecond) // property writes settle
+		time.Sleep(100 * time.Millisecond)
 
 		mobj := wconn.Object(svc, "/MenuBar")
 		var rev uint32
@@ -217,7 +194,6 @@ func TestTrayLiveSyncUpdates(t *testing.T) {
 			t.Fatalf("labels %v missing @alice (4)", labels)
 		}
 
-		// Resync: unread grows to 12 — in-place relabel (no rebuild).
 		c.sync(traySnapshot{
 			Accounts:    []trayAccount{{ID: "a1", Name: "@alice", Unread: 12}},
 			TotalUnread: 12,
@@ -233,7 +209,6 @@ func TestTrayLiveSyncUpdates(t *testing.T) {
 			t.Fatalf("labels %v missing @alice (12) after resync", labels)
 		}
 
-		// The icon regenerated with the badge count (tooltip too).
 		sobj := wconn.Object(svc, "/StatusNotifierItem")
 		var tip dbus.Variant
 		if err := sobj.Call("org.freedesktop.DBus.Properties.Get", 0,

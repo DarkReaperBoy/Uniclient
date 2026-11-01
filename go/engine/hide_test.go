@@ -5,9 +5,6 @@ import (
 	"testing"
 )
 
-// Locally-hidden messages (AyuGram "hide message", slice 35): hidden rows
-// vanish from GetMessages while staying in the messages table.
-
 func newTestEngine(t *testing.T) *Engine {
 	db, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
@@ -59,7 +56,6 @@ func TestHideMessageFiltersGetMessages(t *testing.T) {
 		}
 	}
 
-	// Unhide restores it.
 	if err := e.HideMessage("a1", "c1", "m2", false); err != nil {
 		t.Fatal(err)
 	}
@@ -90,12 +86,9 @@ func TestRepeatMessageText(t *testing.T) {
 	e := newTestEngine(t)
 	seedMessage(t, e, "m1", 1000)
 
-	// No account registered → SendMessage fails; that still proves the
-	// lookup + validation path (the not-found error differs).
 	if _, err := e.RepeatMessage("a1", "c1", "missing"); err == nil {
 		t.Fatal("repeat of unknown message should fail")
 	}
-	// Account exists but not found → SendMessage's account error.
 	if _, err := e.RepeatMessage("a1", "c1", "m1"); err == nil {
 		t.Fatal("repeat without a live account should fail at send, not lookup")
 	}

@@ -1,9 +1,5 @@
 package gui
 
-// Sticker & emoji manager (slice 139): pure helpers — installed/archived
-// split, reorder-order math, row subtitles, search filter + merge, and
-// featured visibility. tdesktop Stickers-and-Emoji semantics.
-
 import (
 	"testing"
 
@@ -36,17 +32,14 @@ func TestStickerMgrSplit(t *testing.T) {
 func TestStickerMgrMoveOrder(t *testing.T) {
 	ids := []int64{10, 20, 30, 40}
 
-	// move up (toward 0)
 	got := stickerMgrMoveOrder(ids, 2, -1)
 	if got[0] != 10 || got[1] != 30 || got[2] != 20 || got[3] != 40 {
 		t.Fatalf("move up = %v", got)
 	}
-	// move down
 	got = stickerMgrMoveOrder(ids, 1, 1)
 	if got[0] != 10 || got[1] != 30 || got[2] != 20 || got[3] != 40 {
 		t.Fatalf("move down = %v", got)
 	}
-	// edges clamp
 	got = stickerMgrMoveOrder(ids, 0, -1)
 	if got[0] != 10 || got[1] != 20 {
 		t.Fatalf("edge up = %v", got)
@@ -55,7 +48,6 @@ func TestStickerMgrMoveOrder(t *testing.T) {
 	if got[3] != 40 {
 		t.Fatalf("edge down = %v", got)
 	}
-	// invalid index / delta unchanged (new slice, same order)
 	got = stickerMgrMoveOrder(ids, -1, 1)
 	if len(got) != 4 || got[2] != 30 {
 		t.Fatalf("invalid idx = %v", got)
@@ -64,7 +56,6 @@ func TestStickerMgrMoveOrder(t *testing.T) {
 	if got[2] != 30 {
 		t.Fatalf("zero delta = %v", got)
 	}
-	// input not mutated
 	if ids[1] != 20 || ids[2] != 30 {
 		t.Fatalf("input mutated: %v", ids)
 	}
@@ -96,16 +87,13 @@ func TestStickerMgrFilter(t *testing.T) {
 	if len(got) != 1 || got[0].Title != "Cats" {
 		t.Fatalf("filter cats = %+v", got)
 	}
-	// short-name matches, case-insensitive
 	got = stickerMgrFilter(packs, "DOGS")
 	if len(got) != 1 || got[0].Title != "Dogs" {
 		t.Fatalf("filter DOGS = %+v", got)
 	}
-	// empty query = everything
 	if got := stickerMgrFilter(packs, ""); len(got) != len(packs) {
 		t.Fatal("empty query filtered")
 	}
-	// whitespace-only query = everything
 	if got := stickerMgrFilter(packs, "   "); len(got) != len(packs) {
 		t.Fatal("blank query filtered")
 	}
@@ -116,8 +104,8 @@ func TestStickerMgrFilter(t *testing.T) {
 
 func TestStickerMgrFeaturedVisible(t *testing.T) {
 	featured := []cores.StickerPackSummary{
-		{SetID: 1, Title: "Already-in"},   // installed
-		{SetID: 3, Title: "Already-arch"}, // archived
+		{SetID: 1, Title: "Already-in"},
+		{SetID: 3, Title: "Already-arch"},
 		{SetID: 7, Title: "Fresh"},
 	}
 	got := stickerMgrFeaturedVisible(featured, mgrPacks())
@@ -136,7 +124,6 @@ func TestStickerMgrSearchMerge(t *testing.T) {
 	if len(got) != 1 || got[0].SetID != 8 {
 		t.Fatalf("merge = %+v, want only the unknown set", got)
 	}
-	// empty known: everything passes
 	if got := stickerMgrSearchMerge(results, nil); len(got) != 3 {
 		t.Fatalf("nil known = %+v", got)
 	}
@@ -164,7 +151,6 @@ func TestStickerMgrTabConstants(t *testing.T) {
 	}
 }
 
-// mgrSetOrder extracts the set-ID order for ReorderStickerSets.
 func TestStickerMgrSetOrder(t *testing.T) {
 	got := stickerMgrSetOrder(mgrPacks()[:3])
 	if len(got) != 3 || got[0] != 1 || got[1] != 2 || got[2] != 3 {

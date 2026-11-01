@@ -1,9 +1,5 @@
 package gui
 
-// Ayu message filters GUI (slice 90, matrix row 238): settings-row
-// summaries, the escTarget registration, and the content-pane dialog
-// priority contract (incl. the c1fca15c ordering regression pin).
-
 import (
 	"regexp"
 	"strings"
@@ -51,12 +47,10 @@ func TestFilterCountText(t *testing.T) {
 }
 
 func TestContentPaneDialogSurface(t *testing.T) {
-	// Nothing open → no dialog.
 	if got := contentDialogSurface(frame{}); got != "" {
 		t.Fatalf("empty frame = %q, want \"\"", got)
 	}
 
-	// Each dialog alone wins.
 	solo := map[string]frame{
 		"newChat":       {newDlg: &newChatDlg{}},
 		"contacts":      {contactsOpen: true},
@@ -78,8 +72,6 @@ func TestContentPaneDialogSurface(t *testing.T) {
 		}
 	}
 
-	// REGRESSION PIN (c1fca15c): dialogs opened from settings must beat
-	// the settings page, and the passcode LOCK must beat everything.
 	reg := frame{
 		settingsOpen: true,
 		selected:     &chatKey{AccountID: "a", ChatID: "c"},
@@ -122,12 +114,10 @@ func TestQuickFilterPattern(t *testing.T) {
 			t.Errorf("%s: quickFilterPattern = %q, want %q", tc.name, got, tc.want)
 		}
 	}
-	// Long text capped at 64 runes.
 	long := strings.Repeat("x", 100)
 	if got := quickFilterPattern(long); len([]rune(got)) != 64 {
 		t.Errorf("cap: len = %d runes, want 64", len([]rune(got)))
 	}
-	// The quoted suggestion must actually match the source text.
 	src := "Special (50%) offer — act now!"
 	if !regexp.MustCompile(quickFilterPattern(src)).MatchString(src) {
 		t.Error("quoted pattern must match its source text")
@@ -135,7 +125,6 @@ func TestQuickFilterPattern(t *testing.T) {
 }
 
 func TestActionsForFilterGate(t *testing.T) {
-	// Filter follows Copy: only messages with text.
 	txt := engine.CachedMessage{MsgID: "m1", ContentText: "promo spam"}
 	if acts := actionsFor(&txt, nil); !acts.Filter {
 		t.Error("text message: Filter must be offered")

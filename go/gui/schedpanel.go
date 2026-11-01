@@ -15,18 +15,10 @@ import (
 	"uniclient/engine"
 )
 
-// Scheduled-messages manager (AyuGram parity, matrix #scheduled-list):
-// opened from the chat-header "⋮" menu. Lists the chat's scheduled
-// messages (engine.GetScheduledMessages) with Send now / Reschedule /
-// Delete actions. Rescheduling reuses the schedule dialog against the
-// message (engine.RescheduleMessage); deletion goes through the new
-// engine.DeleteScheduledMessages.
-
 var (
 	schedPanelTag = new(struct{})
 )
 
-// openSchedPanel loads the scheduled list for the open chat.
 func (a *App) openSchedPanel() {
 	a.mu.Lock()
 	k := a.selected
@@ -54,7 +46,6 @@ func (a *App) openSchedPanel() {
 	}()
 }
 
-// closeSchedPanel dismisses the panel.
 func (a *App) closeSchedPanel() {
 	a.mu.Lock()
 	if !a.schedPanel {
@@ -67,7 +58,6 @@ func (a *App) closeSchedPanel() {
 	a.invalidate()
 }
 
-// reloadSchedPanel re-fetches the list (after an action).
 func (a *App) reloadSchedPanel() {
 	a.mu.Lock()
 	k := a.selected
@@ -93,7 +83,6 @@ func (a *App) reloadSchedPanel() {
 	}()
 }
 
-// schedSendNow sends one scheduled message immediately.
 func (a *App) schedSendNow(m engine.CachedMessage) {
 	acc, chat, id := m.AccountID, m.ChatID, m.MsgID
 	go func() {
@@ -106,7 +95,6 @@ func (a *App) schedSendNow(m engine.CachedMessage) {
 	}()
 }
 
-// schedDelete removes one scheduled message.
 func (a *App) schedDelete(m engine.CachedMessage) {
 	acc, chat, id := m.AccountID, m.ChatID, m.MsgID
 	go func() {
@@ -118,7 +106,6 @@ func (a *App) schedDelete(m engine.CachedMessage) {
 	}()
 }
 
-// openReschedDialog preps the schedule dialog for an existing message.
 func (a *App) openReschedDialog(m engine.CachedMessage) {
 	a.mu.Lock()
 	a.schedDlg = &schedDlgState{preset: 0, resched: &m}
@@ -135,7 +122,6 @@ func (a *App) openReschedDialog(m engine.CachedMessage) {
 	a.invalidate()
 }
 
-// schedRowText (pure, testable): preview line for a scheduled row.
 func schedRowText(m engine.CachedMessage) string {
 	txt := strings.TrimSpace(m.ContentText)
 	if txt == "" && m.MediaType != 0 {
@@ -152,7 +138,6 @@ func schedRowText(m engine.CachedMessage) string {
 	return txt
 }
 
-// schedRowWhen (pure, testable): the time line.
 func schedRowWhen(m engine.CachedMessage) string {
 	if m.ScheduleDate == 0 {
 		return "unscheduled"
@@ -160,7 +145,6 @@ func schedRowWhen(m engine.CachedMessage) string {
 	return time.Unix(m.ScheduleDate, 0).Format("Mon 2 Jan · 15:04")
 }
 
-// layoutSchedPanel replaces the chat pane with the scheduled list.
 func (a *App) layoutSchedPanel(gtx layout.Context, f frame, chat *engine.ChatInfo) layout.Dimensions {
 	{
 		stack := clip.Rect{Max: image.Pt(gtx.Constraints.Max.X, gtx.Constraints.Max.Y)}.Push(gtx.Ops)
@@ -203,7 +187,6 @@ func (a *App) layoutSchedPanel(gtx layout.Context, f frame, chat *engine.ChatInf
 	}
 
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		// Header.
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Top: unit.Dp(8), Bottom: unit.Dp(8), Left: unit.Dp(8), Right: unit.Dp(12)}.Layout(gtx,
 				func(gtx layout.Context) layout.Dimensions {
@@ -301,8 +284,6 @@ func (a *App) schedRow(gtx layout.Context, m engine.CachedMessage, i int) layout
 	)
 }
 
-// paintAvatarRing strokes an accent ring around a size×size avatar
-// (unread-stories indicator, AyuGram parity).
 func paintAvatarRing(gtx layout.Context, u *UI, size int) {
 	w := float32(gtx.Dp(unit.Dp(2)))
 	if w < 1 {

@@ -14,18 +14,12 @@ import (
 	"uniclient/engine"
 )
 
-// Reactions list (AyuGram parity, matrix "Reactions/views list"): the
-// message context menu gains "Who reacted" for messages with reactions —
-// a dialog with one tab per reaction emoji, listing the users who chose
-// it (engine GetMessageReactorsList, per-emoji filter + offset paging).
-
-// reactorsState: open "who reacted" dialog (nil when closed).
 type reactorsState struct {
 	msg    engine.CachedMessage
-	emojis []string         // tab list (the message's reaction emojis)
-	sel    int              // selected emoji index
-	users  []cores.Reaction // reactors for the selected emoji
-	offset string           // next-page cursor ("" = exhausted)
+	emojis []string
+	sel    int
+	users  []cores.Reaction
+	offset string
 	busy   bool
 }
 
@@ -33,8 +27,6 @@ var (
 	reactorsKeyTag = new(struct{})
 )
 
-// reactorTabs (pure, testable): the emoji tabs for a message's reactions,
-// in strip order, custom-emoji placeholders skipped.
 func reactorTabs(m *engine.CachedMessage) []string {
 	var tabs []string
 	for _, r := range m.Reactions {
@@ -45,7 +37,6 @@ func reactorTabs(m *engine.CachedMessage) []string {
 	return tabs
 }
 
-// reactorRowName (pure, testable): display name for one reactor row.
 func reactorRowName(r cores.Reaction) string {
 	if r.PeerName != "" {
 		return r.PeerName
@@ -56,8 +47,6 @@ func reactorRowName(r cores.Reaction) string {
 	return "someone"
 }
 
-// openReactors shows the who-reacted dialog for a message (fetches the
-// selected emoji's reactors; the first emoji when none is passed).
 func (a *App) openReactors(m *engine.CachedMessage, emoji string) {
 	if m == nil || len(m.Reactions) == 0 {
 		return
@@ -83,7 +72,6 @@ func (a *App) openReactors(m *engine.CachedMessage, emoji string) {
 	a.loadReactors("")
 }
 
-// closeReactors dismisses the dialog.
 func (a *App) closeReactors() {
 	a.mu.Lock()
 	a.reactors = nil
@@ -91,8 +79,6 @@ func (a *App) closeReactors() {
 	a.invalidate()
 }
 
-// loadReactors fetches one page of reactors for the selected emoji
-// (appending when paging with an offset).
 func (a *App) loadReactors(offset string) {
 	a.mu.Lock()
 	d := a.reactors
@@ -140,7 +126,6 @@ func (a *App) loadReactors(offset string) {
 	}()
 }
 
-// layoutReactorsDialog renders the who-reacted card over the chat pane.
 func (a *App) layoutReactorsDialog(gtx layout.Context, f frame) layout.Dimensions {
 	d := f.reactors
 	{
@@ -185,7 +170,6 @@ func (a *App) layoutReactorsDialog(gtx layout.Context, f frame) layout.Dimension
 		return roundedFill(gtx, a.ui.p.Surface, 12, func(gtx layout.Context) layout.Dimensions {
 			return layout.UniformInset(unit.Dp(14)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-					// Header + close.
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 							layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
@@ -199,13 +183,11 @@ func (a *App) layoutReactorsDialog(gtx layout.Context, f frame) layout.Dimension
 							}),
 						)
 					}),
-					// Emoji tabs.
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Inset{Top: unit.Dp(6), Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, tabRowChildren(a, d)...)
 						})
 					}),
-					// Reactor rows.
 					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 						if d.busy && len(d.users) == 0 {
 							return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -220,7 +202,6 @@ func (a *App) layoutReactorsDialog(gtx layout.Context, f frame) layout.Dimension
 						}
 						return layout.Flex{Axis: layout.Vertical}.Layout(gtx, reactorRowsChildren(a, d)...)
 					}),
-					// Load more.
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						if d.offset == "" || d.busy {
 							return layout.Dimensions{}
@@ -237,7 +218,6 @@ func (a *App) layoutReactorsDialog(gtx layout.Context, f frame) layout.Dimension
 	})
 }
 
-// tabRowChildren builds the emoji tab chips (selected highlighted).
 func tabRowChildren(a *App, d *reactorsState) []layout.FlexChild {
 	children := make([]layout.FlexChild, 0, len(d.emojis))
 	for i, e := range d.emojis {
@@ -263,7 +243,6 @@ func tabRowChildren(a *App, d *reactorsState) []layout.FlexChild {
 	return children
 }
 
-// reactorRowsChildren builds the user rows ("emoji + name").
 func reactorRowsChildren(a *App, d *reactorsState) []layout.FlexChild {
 	children := make([]layout.FlexChild, 0, len(d.users))
 	for _, u := range d.users {

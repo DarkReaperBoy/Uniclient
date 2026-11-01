@@ -14,22 +14,10 @@ import (
 	"maunium.net/go/mautrix/id"
 )
 
-// B-6 → F-62: rooms WE create must grant the MSC3401 event types at
-// PL 0, or any non-creator member (PL 0 < state_default 50) cannot
-// publish their m.call.member state event — exactly the live-dendrite
-// failure (`M_FORBIDDEN ... 0 < 50` on bob's membership publish).
-// Reference implementations do the same at createRoom time
-// (matrix-dart-sdk: powerLevelContentOverride.events = {call.member:
-// 0, call: 0}).
-//
-// Seam-RED (WORKLOG 300): CreateGroup currently sends NO
-// power_level_content_override at all.
-
 type createRoomCapture struct {
 	Body string
 }
 
-// newCreateRoomServer answers ONLY POST /createRoom and captures it.
 func newCreateRoomServer(t *testing.T) (*httptest.Server, *createRoomCapture) {
 	t.Helper()
 	cap := &createRoomCapture{}
@@ -90,9 +78,6 @@ func TestCreateGroupGrantsMSC3401PowerLevels(t *testing.T) {
 	if v, ok := ev["org.matrix.msc3401.call"]; !ok || v != 0 {
 		t.Errorf("power_level_content_override missing call=0: %v", ev)
 	}
-	// The override must NOT drop server defaults (shallow-merge servers
-	// replace the whole events map — providing only our keys would
-	// silently drop m.room.power_levels:100 etc).
 	if v := ev["m.room.power_levels"]; v != 100 {
 		t.Errorf("default m.room.power_levels not preserved: %v", ev)
 	}

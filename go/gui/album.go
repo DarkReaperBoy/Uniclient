@@ -16,17 +16,6 @@ import (
 	"uniclient/engine"
 )
 
-// Media albums (AyuGram parity §5 "Bubbles: grouped/album layout"):
-// consecutive messages sharing a GroupedID render as ONE bubble with
-// Telegram's album grid — 1 full, 2 side-by-side, 3 tall+stacked, 4+ a 2×2
-// grid with an overflow counter. Cells tap straight into the media pipeline
-// (download/cancel) and open the fullscreen viewer once complete; the album
-// caption is the group member carrying text. GroupedID flows from the cores
-// through CachedMessage — pure GUI work (§1.10: engine-backed only).
-
-// a.wid.albumCellClicks pools per-cell clickables (msgID-keyed, pruned like
-// a.wid.reactionClicks).
-
 func (a *App) albumCellClickable(key string) *widget.Clickable {
 	if c, ok := a.wid.albumCellClicks[key]; ok {
 		return c
@@ -39,15 +28,6 @@ func (a *App) albumCellClickable(key string) *widget.Clickable {
 	return c
 }
 
-// ── pure geometry (unit-tested) ───────────────────────────────────────────
-
-// albumCells returns the cell rects for an n-item album in a W×H box with
-// gap px between cells, following Telegram's patterns:
-//
-//	n=1: single full cell
-//	n=2: two columns
-//	n=3: tall left + two stacked right
-//	n≥4: 2×2 grid (extra items overflow into the "+N" counter)
 func albumCells(n, W, H, gap int) []image.Rectangle {
 	if n <= 0 || W <= 0 || H <= 0 {
 		return nil
@@ -71,7 +51,7 @@ func albumCells(n, W, H, gap int) []image.Rectangle {
 			image.Rect(halfW+gap, 0, W, halfH),
 			image.Rect(halfW+gap, halfH+gap, W, H),
 		}
-	default: // 4
+	default:
 		return []image.Rectangle{
 			image.Rect(0, 0, halfW, halfH),
 			image.Rect(halfW+gap, 0, W, halfH),
@@ -81,7 +61,6 @@ func albumCells(n, W, H, gap int) []image.Rectangle {
 	}
 }
 
-// albumOverCount returns how many items overflow the 4-cell grid.
 func albumOverCount(n int) int {
 	if n <= 4 {
 		return 0
@@ -89,8 +68,6 @@ func albumOverCount(n int) int {
 	return n - 4
 }
 
-// albumCaption picks the group member's caption text (Telegram puts the
-// caption on one album member).
 func albumCaption(messages []engine.CachedMessage, idx []int) string {
 	for _, i := range idx {
 		if messages[i].ContentText != "" {
@@ -100,7 +77,6 @@ func albumCaption(messages []engine.CachedMessage, idx []int) string {
 	return ""
 }
 
-// isAlbumMedia reports whether a message participates in an album grid.
 func isAlbumMedia(m *engine.CachedMessage) bool {
 	if !m.HasMedia || m.GroupedID == "" {
 		return false
@@ -112,12 +88,6 @@ func isAlbumMedia(m *engine.CachedMessage) bool {
 	return false
 }
 
-// ── layout ────────────────────────────────────────────────────────────────
-
-// albumRow renders one album group as a single bubble: grid of media cells
-// (cover-cropped), caption, reactions and meta from the first member,
-// outgoing styling and margins like messageRow. idx are the member indices
-// into messages.
 func (a *App) albumRow(gtx layout.Context, f frame, messages []engine.CachedMessage, idx []int) layout.Dimensions {
 	first := &messages[idx[0]]
 	out := first.IsOutgoing
@@ -128,8 +98,7 @@ func (a *App) albumRow(gtx layout.Context, f frame, messages []engine.CachedMess
 	}
 	pad := gtx.Constraints.Max.X - maxW
 
-	// Grid box: aspect from the first item, clamped.
-	boxW := maxW - gtx.Dp(unit.Dp(20)) // bubble inset padding
+	boxW := maxW - gtx.Dp(unit.Dp(20))
 	aspect := 4.0 / 3.0
 	if first.MediaWidth != 0 && first.MediaHeight != 0 {
 		aspect = float64(first.MediaWidth) / float64(first.MediaHeight)
@@ -161,7 +130,6 @@ func (a *App) albumRow(gtx layout.Context, f frame, messages []engine.CachedMess
 				caption := albumCaption(messages, idx)
 				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						// The grid.
 						return layout.Stack{}.Layout(gtx,
 							layout.Expanded(func(gtx layout.Context) layout.Dimensions {
 								clipStack := clip.Rect{Max: image.Pt(boxW, boxH)}.Push(gtx.Ops)
@@ -227,10 +195,6 @@ func (a *App) albumRow(gtx layout.Context, f frame, messages []engine.CachedMess
 	return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(2), Right: unit.Dp(pad)}.Layout(gtx, bubble)
 }
 
-// albumCell renders one grid cell: cover-cropped image (thumb until the
-// download lands), play badge on videos, tap routing identical to a media
-// bubble (download / cancel / open the viewer), "+N" overflow counter on
-// the last cell.
 func (a *App) albumCell(gtx layout.Context, f frame, m *engine.CachedMessage, cell image.Rectangle, over int, last bool) layout.Dimensions {
 	st, live := f.downloads[dlKey(m.AccountID, m.ChatID, m.MsgID, 0)]
 	state := m.MediaDownloadState
@@ -249,10 +213,9 @@ func (a *App) albumCell(gtx layout.Context, f frame, m *engine.CachedMessage, ce
 	cgtx.Constraints = layout.Constraints{Max: image.Pt(w, h), Min: image.Pt(w, h)}
 
 	bl := material.ButtonLayout(a.ui.Theme, btn)
-	bl.Background = color.NRGBA{} // transparent: the cell paints itself
+	bl.Background = color.NRGBA{}
 	bl.CornerRadius = 5
 	return bl.Layout(cgtx, func(gtx layout.Context) layout.Dimensions {
-		// Pixels: downloaded file → full image; else the inline thumbnail.
 		var img *image.RGBA
 		if state == engine.DownloadComplete && m.MediaLocalPath != "" && isDisplayableImage(m.MediaLocalPath) {
 			key := "file:" + m.MediaLocalPath
@@ -276,7 +239,6 @@ func (a *App) albumCell(gtx layout.Context, f frame, m *engine.CachedMessage, ce
 		}
 		clipStack.Pop()
 
-		// Video: play glyph.
 		if m.MediaType == engine.MediaVideo || m.MediaType == engine.MediaVideoNote {
 			d := gtx.Dp(unit.Dp(40))
 			dx := (w - d) / 2
@@ -286,13 +248,11 @@ func (a *App) albumCell(gtx layout.Context, f frame, m *engine.CachedMessage, ce
 			off.Pop()
 		}
 
-		// Downloading: subtle fill; failed: retry tint.
 		if live && state == engine.DownloadInProgress {
 			defer clip.Rect{Max: image.Pt(w, h)}.Push(gtx.Ops).Pop()
 			paint.Fill(gtx.Ops, translucent(0x42))
 		}
 
-		// "+N" overflow counter on the last cell.
 		if last && over > 0 {
 			defer clip.Rect{Max: image.Pt(w, h)}.Push(gtx.Ops).Pop()
 			paint.Fill(gtx.Ops, translucent(0x66))
@@ -304,13 +264,10 @@ func (a *App) albumCell(gtx layout.Context, f frame, m *engine.CachedMessage, ce
 	})
 }
 
-// translucent is a black veil of the given alpha.
 func translucent(alpha byte) color.NRGBA {
 	return color.NRGBA{A: alpha}
 }
 
-// drawImageCover paints img scaled to COVER a w×h cell (aspect-fill,
-// center-cropped) — album cells crop, they don't letterbox.
 func drawImageCover(gtx layout.Context, img *image.RGBA, w, h int) {
 	w0, h0 := img.Bounds().Dx(), img.Bounds().Dy()
 	if w0 <= 0 || h0 <= 0 || w <= 0 || h <= 0 {
@@ -322,7 +279,6 @@ func drawImageCover(gtx layout.Context, img *image.RGBA, w, h int) {
 	if sy > s {
 		s = sy
 	}
-	// Center the overscaled image.
 	sw, sh := float32(w0)*s, float32(h0)*s
 	ox := (float32(w) - sw) / 2
 	oy := (float32(h) - sh) / 2

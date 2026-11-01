@@ -20,18 +20,12 @@ import (
 	"uniclient/wrtc"
 )
 
-// B-6 → F-62, slice 297: conf-tagged transport over room events.
-// Seam-RED (WORKLOG 297): undefined: reconcileGroupMesh.
-
 type meshPut struct {
-	Kind string // "state" or "send"
+	Kind string
 	Type string
 	Body string
 }
 
-// meshPuts is the race-safe capture store: the HTTP handlers append
-// under mu while relays/tests snapshot (the loopback relay polls
-// CONTINUOUSLY, so a bare slice would be a real data race).
 type meshPuts struct {
 	mu   sync.Mutex
 	list []meshPut
@@ -51,7 +45,6 @@ func (p *meshPuts) snapshot() []meshPut {
 	return out
 }
 
-// newMeshHomeserver captures BOTH state and message event PUTs.
 func newMeshHomeserver(t *testing.T) (*httptest.Server, *meshPuts) {
 	t.Helper()
 	puts := &meshPuts{}
@@ -69,8 +62,6 @@ func newMeshHomeserver(t *testing.T) (*httptest.Server, *meshPuts) {
 			puts.append(meshPut{Kind: "send", Type: parts[0], Body: readBody(r)})
 			writeEventID(w)
 		case strings.HasSuffix(p, "/leave") && r.Method == http.MethodPost:
-			// ORDER matters: the empty-membership publish must precede
-			// the room leave (you cannot write state after leaving).
 			puts.append(meshPut{Kind: "leave", Type: "leave", Body: readBody(r)})
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = io.WriteString(w, `{}`)
@@ -102,7 +93,7 @@ func newMeshTestCore(t *testing.T, srvURL string) *MatrixCore {
 	core := &MatrixCore{
 		authed:     true,
 		ctx:        context.Background(),
-		cancel:     func() {}, // Close() calls m.cancel — keep it non-nil
+		cancel:     func() {},
 		deviceID:   "DEV1",
 		userID:     id.UserID("@alice:test"),
 		homeserver: srvURL,
@@ -125,7 +116,6 @@ func newMeshTestCore(t *testing.T, srvURL string) *MatrixCore {
 	return core
 }
 
-// makeOfferSDP builds a REAL offer (pion, no network needed).
 func makeOfferSDP(t *testing.T, m *MatrixCore) string {
 	t.Helper()
 	pc, err := m.createPeerConnection()
@@ -147,7 +137,6 @@ func makeOfferSDP(t *testing.T, m *MatrixCore) string {
 	return offer.SDP
 }
 
-// wrtcNewOpusTrack mirrors the production audio track setup.
 func wrtcNewOpusTrack() (*wrtc.TrackLocalStaticRTP, error) {
 	return wrtc.NewTrackLocalStaticRTP(
 		webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeOpus, ClockRate: 48000, Channels: 2},
@@ -173,9 +162,6 @@ func seededMeshCore(t *testing.T, srvURL string) *MatrixCore {
 	return core
 }
 
-// TestGroupReconcileSendsConfTaggedOffer: the offer side must emit a
-// conf_id-tagged m.call.invite carrying a real SDP offer, and register
-// the peer — the mesh's "who connects" decision on the wire.
 func TestGroupReconcileSendsConfTaggedOffer(t *testing.T) {
 	srv, puts := newMeshHomeserver(t)
 	core := seededMeshCore(t, srv.URL)
@@ -223,9 +209,6 @@ func TestGroupReconcileSendsConfTaggedOffer(t *testing.T) {
 	}
 }
 
-// TestGroupIncomingInviteRoutesToMesh: a conf-tagged invite from our
-// conf must register the peer (and answer asynchronously); it must NOT
-// leak into the 1:1 activeCalls table.
 func TestGroupIncomingInviteRoutesToMesh(t *testing.T) {
 	srv, puts := newMeshHomeserver(t)
 	core := seededMeshCore(t, srv.URL)
@@ -255,13 +238,12 @@ func TestGroupIncomingInviteRoutesToMesh(t *testing.T) {
 		t.Fatal("group invite leaked into the 1:1 activeCalls table")
 	}
 
-	// The answer (auto-accept) must go out conf-tagged.
 	deadline := time.Now().Add(8 * time.Second)
 	for time.Now().Before(deadline) {
 		for _, p := range puts.snapshot() {
 			p := p
 			if p.Kind == "send" && p.Type == event.CallAnswer.Type && strings.Contains(p.Body, `"conf_id":"conf_x"`) {
-				return // GREEN
+				return
 			}
 		}
 		time.Sleep(50 * time.Millisecond)
@@ -269,8 +251,6 @@ func TestGroupIncomingInviteRoutesToMesh(t *testing.T) {
 	t.Fatalf("no conf-tagged answer observed; puts=%+v", puts.snapshot())
 }
 
-// TestGroupIncomingInviteWrongConfIgnored: another room's call must be
-// dropped, not joined.
 func TestGroupIncomingInviteWrongConfIgnored(t *testing.T) {
 	srv, _ := newMeshHomeserver(t)
 	core := seededMeshCore(t, srv.URL)
@@ -295,8 +275,6 @@ func TestGroupIncomingInviteWrongConfIgnored(t *testing.T) {
 	}
 }
 
-// TestSendICECandidatesConfTagged: the 1:1 candidates sender must tag
-// candidates when the call carries a conf.
 func TestSendICECandidatesConfTagged(t *testing.T) {
 	srv, puts := newMeshHomeserver(t)
 	core := seededMeshCore(t, srv.URL)
@@ -324,13 +302,10 @@ func TestSendICECandidatesConfTagged(t *testing.T) {
 	}
 }
 
-// TestGroupReconcileRemovesDepartedPeers: when membership no longer
-// lists a live device, its peer connection is closed and dropped.
 func TestGroupReconcileRemovesDepartedPeers(t *testing.T) {
 	srv, _ := newMeshHomeserver(t)
 	core := seededMeshCore(t, srv.URL)
 
-	// Register a peer as if it existed.
 	pc, err := core.createPeerConnection()
 	if err != nil {
 		t.Fatalf("pc: %v", err)
@@ -340,7 +315,6 @@ func TestGroupReconcileRemovesDepartedPeers(t *testing.T) {
 	core.groupPeers = map[string]*matrixCall{key: {ID: "conf_x", RoomID: id.RoomID("!room:test"), pc: pc}}
 	core.groupMu.Unlock()
 
-	// Bob leaves (expired membership).
 	core.groupMembers["@bob:test"] = matrixCallMemberContent{Calls: []matrixCallMemberCall{{
 		CallID:  "conf_x",
 		Devices: []matrixCallDevice{{DeviceID: "BOB1", ExpiresTS: time.Now().UnixMilli() - 1}},

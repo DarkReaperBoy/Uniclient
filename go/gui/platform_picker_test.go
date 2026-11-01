@@ -5,11 +5,6 @@ import (
 	"testing"
 )
 
-// pickerPlatformsFor(goos) is the picker's offer list for a build's GOOS.
-// Browsers cannot open raw sockets, so a js/wasm build must not offer the
-// six TCP-dialing backends — a login form that can only ever end in a
-// connection error is a placeholder (AGENTS.md §1.10: hide what cannot
-// work, never fake it).
 func TestWebPickerHidesSocketOnlyBackends(t *testing.T) {
 	web := pickerPlatformsFor("js")
 	if len(web) == 0 {

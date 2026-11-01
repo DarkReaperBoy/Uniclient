@@ -1,9 +1,5 @@
 package gui
 
-// Shadow ban GUI (slice 91, matrix row 240): row naming, header-menu
-// presence, escTarget self-handling, and the context-menu gate (which
-// messages offer the shadow-ban action and when).
-
 import (
 	"testing"
 
@@ -27,7 +23,6 @@ func TestShadowBanRowName(t *testing.T) {
 }
 
 func TestHeaderMenuHasShadowBans(t *testing.T) {
-	// Every chat type exposes the per-chat ban manager.
 	for _, c := range []engine.ChatInfo{
 		{AccountID: "a", ChatID: "u1", Type: engine.ChatTypeDMVal},
 		{AccountID: "a", ChatID: "g1", Type: engine.ChatTypeGroupVal},

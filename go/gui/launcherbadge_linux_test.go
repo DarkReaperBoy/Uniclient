@@ -2,11 +2,6 @@
 
 package gui
 
-// Unity launcher-entry badge (slice 160): the Linux dock unread-count
-// badge — tdesktop updateUnityCounter 1:1 (com.canonical.Unity.
-// LauncherEntry Update signal on the session bus). Pure logic locked
-// here; the dbus emission lives in launcherbadge_linux.go.
-
 import (
 	"image/color"
 	"strconv"
@@ -18,8 +13,6 @@ import (
 )
 
 func TestDjb2Hash(t *testing.T) {
-	// djb2 (xdg "string hash"): h = 5381; h = (h<<5)+h+c, uint32 wrap.
-	// Known vector: djb2("uniclient") — computed once, pinned.
 	cases := map[string]uint32{
 		"":          5381,
 		"a":         177670,
@@ -33,13 +26,10 @@ func TestDjb2Hash(t *testing.T) {
 }
 
 func TestDjb2HashReferenceVector(t *testing.T) {
-	// Independent reference: djb2("application") via a loop written
-	// differently (add-then-shift) — must match the shift-then-add form
-	// modulo 2^32 because (h<<5)+h == h*33.
 	h := uint32(5381)
 	for _, c := range "application" {
 		h = h*33 + uint32(c)
-		h = h * 1 // no-op to keep the loop shape distinct
+		h = h * 1
 	}
 	if got := djb2Hash("application"); got != h {
 		t.Errorf("djb2Hash(application) = %d, want %d", got, h)
@@ -58,7 +48,6 @@ func TestLauncherEntryPath(t *testing.T) {
 }
 
 func TestUnityBadgeProps(t *testing.T) {
-	// Zero count: count 0, hidden.
 	props := unityBadgeProps(0)
 	if props["count"].Value() != int64(0) {
 		t.Errorf("count = %v", props["count"].Value())
@@ -67,7 +56,6 @@ func TestUnityBadgeProps(t *testing.T) {
 		t.Errorf("count-visible = %v", props["count-visible"].Value())
 	}
 
-	// Plain count.
 	props = unityBadgeProps(42)
 	if props["count"].Value() != int64(42) {
 		t.Errorf("count = %v", props["count"].Value())
@@ -76,7 +64,6 @@ func TestUnityBadgeProps(t *testing.T) {
 		t.Errorf("count-visible = %v", props["count-visible"].Value())
 	}
 
-	// tdesktop counterSlice: 9999 clamp.
 	props = unityBadgeProps(123456)
 	if props["count"].Value() != int64(9999) {
 		t.Errorf("clamped count = %v", props["count"].Value())
@@ -89,8 +76,6 @@ func TestLauncherAppID(t *testing.T) {
 	}
 }
 
-// djb2HashReference is a slow but obviously-correct djb2 (used to pin
-// the fast implementation against drift).
 func djb2HashReference(s string) uint32 {
 	h := uint32(5381)
 	for _, c := range s {
@@ -99,11 +84,6 @@ func djb2HashReference(s string) uint32 {
 	return h
 }
 
-// TestLauncherBadgeWire verifies the Update signal on a REAL private
-// dbus-daemon (hermetic — own bus, own socket; skips without dbus-daemon):
-// updateTaskbarBadge must emit com.canonical.Unity.LauncherEntry.Update
-// on the djb2-derived object path with the app_id string and the
-// count/count-visible property dict — the exact tdesktop wire form.
 func TestLauncherBadgeWire(t *testing.T) {
 	addr, cleanup := startPrivateBus(t)
 	defer cleanup()
@@ -112,7 +92,6 @@ func TestLauncherBadgeWire(t *testing.T) {
 	dbusConn = nil
 	dbusErr = nil
 
-	// Monitor side: subscribe to the Unity signal on the entry path.
 	mconn, err := dbus.Dial(addr)
 	if err != nil {
 		t.Fatalf("monitor dial: %v", err)
@@ -134,7 +113,6 @@ func TestLauncherBadgeWire(t *testing.T) {
 	signals := make(chan *dbus.Signal, 4)
 	mconn.Signal(signals)
 
-	// Emit with a count: must arrive with count 42, visible true.
 	updateTaskbarBadge(42, color.NRGBA{})
 	select {
 	case sig := <-signals:
@@ -165,7 +143,6 @@ func TestLauncherBadgeWire(t *testing.T) {
 		t.Fatal("no Update signal within 3s")
 	}
 
-	// Zero count clears the badge: visible false.
 	updateTaskbarBadge(0, color.NRGBA{})
 	select {
 	case sig := <-signals:

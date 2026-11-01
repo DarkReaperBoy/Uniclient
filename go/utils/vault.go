@@ -12,14 +12,11 @@ import (
 	"golang.org/x/crypto/argon2"
 )
 
-// Vault is an encrypted key-value store backed by a single file.
-// All data is held in memory while open, encrypted at rest using AES-256-GCM
-// with a master key derived from the user's password via Argon2id.
 type Vault struct {
 	mu        sync.RWMutex
 	path      string
 	masterKey []byte
-	data      map[string]map[string]json.RawMessage // bucket → key → value
+	data      map[string]map[string]json.RawMessage
 	dirty     bool
 }
 
@@ -28,11 +25,10 @@ const (
 	vaultVersion  = 1
 )
 
-// vaultFile is the on-disk format.
 type vaultFile struct {
 	Version    int    `json:"version"`
 	Salt       []byte `json:"salt"`
-	Ciphertext []byte `json:"ciphertext"` // AES-256-GCM encrypted JSON of data
+	Ciphertext []byte `json:"ciphertext"`
 }
 
 var (
@@ -42,7 +38,6 @@ var (
 	ErrKeyNotFound    = errors.New("key not found in bucket")
 )
 
-// CreateVault creates a new vault file at path, encrypted with password.
 func CreateVault(path, password string) (*Vault, error) {
 	v := &Vault{
 		path: path,
@@ -54,14 +49,12 @@ func CreateVault(path, password string) (*Vault, error) {
 	}
 	v.masterKey = deriveVaultKey(password, salt)
 
-	// Write initial empty vault
 	if err := v.flush(salt); err != nil {
 		return nil, err
 	}
 	return v, nil
 }
 
-// OpenVault opens an existing vault file with the given password.
 func OpenVault(path, password string) (*Vault, error) {
 	raw, err := readVaultBytes(path)
 	if err != nil {
@@ -93,7 +86,6 @@ func OpenVault(path, password string) (*Vault, error) {
 	}, nil
 }
 
-// Put stores a value in the vault under bucket/key.
 func (v *Vault) Put(bucket, key string, value any) error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
@@ -110,7 +102,6 @@ func (v *Vault) Put(bucket, key string, value any) error {
 	return nil
 }
 
-// Get retrieves a value from the vault. dest must be a pointer.
 func (v *Vault) Get(bucket, key string, dest any) error {
 	v.mu.RLock()
 	defer v.mu.RUnlock()
@@ -126,7 +117,6 @@ func (v *Vault) Get(bucket, key string, dest any) error {
 	return json.Unmarshal(raw, dest)
 }
 
-// Delete removes a key from a bucket.
 func (v *Vault) Delete(bucket, key string) error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
@@ -143,7 +133,6 @@ func (v *Vault) Delete(bucket, key string) error {
 	return nil
 }
 
-// ListBuckets returns all bucket names.
 func (v *Vault) ListBuckets() []string {
 	v.mu.RLock()
 	defer v.mu.RUnlock()
@@ -155,7 +144,6 @@ func (v *Vault) ListBuckets() []string {
 	return buckets
 }
 
-// ListKeys returns all keys in a bucket.
 func (v *Vault) ListKeys(bucket string) ([]string, error) {
 	v.mu.RLock()
 	defer v.mu.RUnlock()
@@ -171,7 +159,6 @@ func (v *Vault) ListKeys(bucket string) ([]string, error) {
 	return keys, nil
 }
 
-// Save encrypts and writes the vault to disk.
 func (v *Vault) Save() error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
@@ -184,10 +171,8 @@ func (v *Vault) Save() error {
 }
 
 func (v *Vault) flushWithExistingKey() error {
-	// Read existing salt from storage
 	raw, err := readVaultBytes(v.path)
 	if err != nil {
-		// New file — generate salt
 		salt := make([]byte, vaultSaltSize)
 		if _, err := io.ReadFull(rand.Reader, salt); err != nil {
 			return fmt.Errorf("generate salt: %w", err)
@@ -206,12 +191,6 @@ func (v *Vault) flushWithExistingKey() error {
 }
 
 func (v *Vault) flush(salt []byte) error {
-	// Cross-instance merge (js/wasm): localStorage is shared by every tab of
-	// the origin and each tab holds its own in-memory image — without a
-	// re-read+merge before the flush, a save from one tab erases every
-	// account/session another tab wrote in the meantime (risk R1). Native is
-	// a no-op: the single-instance lock file makes concurrent writers
-	// impossible.
 	v.mergeForeignVaultData()
 	plaintext, err := json.Marshal(v.data)
 	if err != nil {
@@ -237,12 +216,10 @@ func (v *Vault) flush(salt []byte) error {
 	return nil
 }
 
-// Close saves and closes the vault.
 func (v *Vault) Close() error {
 	return v.Save()
 }
 
-// Export copies the vault file to a destination path (still encrypted).
 func (v *Vault) Export(destPath string) error {
 	if err := v.Save(); err != nil {
 		return err
@@ -254,9 +231,7 @@ func (v *Vault) Export(destPath string) error {
 	return os.WriteFile(destPath, src, 0600)
 }
 
-// ImportVault imports a vault file, decrypting with the given password.
 func ImportVault(srcPath, destPath, password string) (*Vault, error) {
-	// First, verify we can open the source with the given password
 	v, err := OpenVault(srcPath, password)
 	if err != nil {
 		return nil, fmt.Errorf("import: %w", err)
@@ -273,10 +248,6 @@ func deriveVaultKey(password string, salt []byte) []byte {
 	return argon2.IDKey([]byte(password), salt, Argon2Iterations, Argon2Memory, Argon2Parallelism, KeySize)
 }
 
-// mergeVaultData folds foreign bucket/key pairs into ours. Key-level
-// conflicts go to OURS: this instance is about to persist its own newer
-// write, and adopting theirs would silently drop the user action that
-// triggered this flush.
 func mergeVaultData(ours, foreign map[string]map[string]json.RawMessage) {
 	for bucket, keys := range foreign {
 		ob, ok := ours[bucket]

@@ -1,10 +1,5 @@
 package engine
 
-// AudioMeta (slice 185): the cached message's embedded music tags
-// (audio_title / audio_performer from the core's DocumentAttributeAudio
-// export) parse out of ContentRaw; absent/degenerate content stays
-// honestly empty.
-
 import (
 	"encoding/json"
 	"testing"
@@ -30,19 +25,16 @@ func TestAudioMeta(t *testing.T) {
 		t.Fatalf("AudioMeta = %q, %q", title, performer)
 	}
 
-	// No extra at all.
 	m = &CachedMessage{ContentRaw: []byte(`{"id":"m2","text":"hi"}`)}
 	if title, performer = m.AudioMeta(); title != "" || performer != "" {
 		t.Fatalf("absent tags = %q, %q", title, performer)
 	}
 
-	// Only one of the two.
 	m = &CachedMessage{ContentRaw: []byte(`{"extra":{"audio_performer":"X"}}`)}
 	if title, performer = m.AudioMeta(); title != "" || performer != "X" {
 		t.Fatalf("performer-only = %q, %q", title, performer)
 	}
 
-	// Degenerate: nil receiver, empty raw, garbage raw.
 	m = nil
 	if title, performer = m.AudioMeta(); title != "" || performer != "" {
 		t.Fatalf("nil receiver = %q, %q", title, performer)
@@ -56,7 +48,6 @@ func TestAudioMeta(t *testing.T) {
 		t.Fatalf("garbage raw = %q, %q", title, performer)
 	}
 
-	// Non-string values are skipped, not fatal.
 	m = &CachedMessage{ContentRaw: []byte(`{"extra":{"audio_title":42,"audio_performer":true}}`)}
 	if title, performer = m.AudioMeta(); title != "" || performer != "" {
 		t.Fatalf("non-string tags = %q, %q", title, performer)

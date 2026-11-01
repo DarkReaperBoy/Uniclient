@@ -6,8 +6,6 @@ import (
 	"uniclient/cores"
 )
 
-// Compose markdown (AyuGram parity slice 33).
-
 func TestParseMarkdownBasic(t *testing.T) {
 	cases := []struct {
 		in    string
@@ -45,11 +43,9 @@ func TestParseMarkdownMixed(t *testing.T) {
 	if len(ents) != 2 {
 		t.Fatalf("ents = %+v, want 2", ents)
 	}
-	// "bold" starts at rune index 6 → UTF-16 offset 6.
 	if ents[0].Type != "bold" || ents[0].Offset != 6 || ents[0].Length != 4 {
 		t.Errorf("bold ent = %+v", ents[0])
 	}
-	// "it" starts at 17.
 	if ents[1].Type != "italic" || ents[1].Offset != 17 || ents[1].Length != 2 {
 		t.Errorf("italic ent = %+v", ents[1])
 	}

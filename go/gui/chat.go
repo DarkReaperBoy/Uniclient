@@ -22,54 +22,40 @@ import (
 	"uniclient/engine"
 )
 
-// Chat view widgets.
-
-// layoutChatView: header, message list (scrollable), a.wid.composer, plus the
-// message-action overlay layer (context menu, forward picker swap).
 func (a *App) layoutChatView(gtx layout.Context, f frame, narrow bool) layout.Dimensions {
 	if f.selected == nil {
 		return a.layoutEmptyState(gtx)
 	}
-	// Forward picker replaces the pane content (AyuGram ChooseRecipientBox;
-	// layout swap = no click-through).
 	if len(f.fwd) > 0 {
 		return a.layoutForwardDialog(gtx, f)
 	}
 	chat := findChat(f, *f.selected)
 
-	// Right info panel replaces the pane on narrow layouts (AyuGram slide-in).
 	if f.panelOpen && narrow {
 		return a.layoutInfoPanel(gtx, f, chat, true)
 	}
 
-	// Scheduled-messages panel replaces the pane (AyuGram, slice 21).
 	if f.schedPanel {
 		return a.layoutSchedPanel(gtx, f, chat)
 	}
 
-	// Admin log / Recent Actions panel replaces the pane (slice 177).
 	if f.adminPanel {
 		return a.layoutAdminPanel(gtx, f, chat)
 	}
 
-	// Channel statistics page replaces the pane (slice 184).
 	if f.statsPanel {
 		return a.layoutStatsPanel(gtx, f, chat)
 	}
 
-	// Boosts page replaces the pane (slice 192).
 	if f.boostPanel {
 		return a.layoutBoostPanel(gtx, f, chat)
 	}
 
-	// Route pane presses (right-click context menu, menu dismissal).
 	a.processPaneEvents(gtx, f)
 
 	chatPane := func(gtx layout.Context) layout.Dimensions {
 		return a.chatPaneColumn(gtx, f, chat, narrow)
 	}
-	// Saved-sublists pane (slice 197): the saved chat's right sidebar —
-	// tdesktop's Lists panel (one row per saved-from dialog).
 	if f.savedListOpen && f.selected != nil {
 		return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
 			layout.Flexed(1, chatPane),
@@ -84,7 +70,6 @@ func (a *App) layoutChatView(gtx layout.Context, f frame, narrow bool) layout.Di
 		)
 	}
 	if f.panelOpen {
-		// Desktop: chat column | divider | info panel (AyuGram 3rd pane).
 		return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
 			layout.Flexed(1, chatPane),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -100,11 +85,8 @@ func (a *App) layoutChatView(gtx layout.Context, f frame, narrow bool) layout.Di
 	return chatPane(gtx)
 }
 
-// chatPaneColumn renders the chat column (header + messages + a.wid.composer) plus
-// the overlay menu — the non-panel layout of the chat view.
 func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo, narrow bool) layout.Dimensions {
 	dims := layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		// Header
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			d := a.chatHeader(gtx, f, chat, narrow)
 			a.headerH = d.Size.Y
@@ -115,8 +97,6 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 			a.listTop = a.headerH + d.Size.Y
 			return d
 		}),
-		// Forum subsection tabs (slice 156): horizontal topic tab strip
-		// under the header — "All topics" + one tab per cached topic.
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if chat == nil || !chat.IsForum {
 				return layout.Dimensions{}
@@ -125,7 +105,6 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 			a.listTop += d.Size.Y
 			return d
 		}),
-		// Forum topic bar (slice 118): the open topic's identity strip.
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if chat == nil || !chat.IsForum || f.forumTopic == "" {
 				return layout.Dimensions{}
@@ -134,9 +113,6 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 			a.listTop += d.Size.Y
 			return d
 		}),
-		// // Comment-thread bar (slice 195, wiring fix 2026-09-14): the open
-		// thread's identity strip under the header — back returns to the
-		// channel. (Shipped unwired in slice 195: the view had no back.)
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if f.threadScope == nil {
 				return layout.Dimensions{}
@@ -145,8 +121,6 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 			a.listTop += d.Size.Y
 			return d
 		}),
-		// Saved-sublist scope bar (slice 197): the open sublist's identity
-		// strip under the header — back returns to the whole saved chat.
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if f.savedScope == nil {
 				return layout.Dimensions{}
@@ -155,10 +129,6 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 			a.listTop += d.Size.Y
 			return d
 		}),
-		// Group-call live bar (slice 70): under the header while the chat
-		// has an active call; participant data polled from the engine.
-		// Voice-room backends (Mumble/TeamSpeak) show it on every channel —
-		// a channel IS a standing voice room, empty or not.
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if chat == nil {
 				return layout.Dimensions{}
@@ -170,7 +140,6 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 			a.listTop += d.Size.Y
 			return d
 		}),
-		// Selection bar (AyuGram multi-select) replaces the pinned bar.
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if f.selOn {
 				d := a.layoutSelBar(gtx, f)
@@ -181,7 +150,6 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 			a.listTop += d.Size.Y
 			return d
 		}),
-		// In-chat search bar + results (slice 18) under the pinned bar.
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if !f.inSearch || f.selected == nil {
 				return layout.Dimensions{}
@@ -190,8 +158,6 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 			a.listTop += d.Size.Y
 			return d
 		}),
-		// Chat-wide translate bar (slice 150): tdesktop's "Translate to
-		// …" strip between the search bar and the message list.
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if f.selected == nil || !chatTranslateOn(f, f.selected) {
 				return layout.Dimensions{}
@@ -200,8 +166,6 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 			a.listTop += d.Size.Y
 			return d
 		}),
-		// Bot-chat sponsored bar (slice 163): the ad strip below the
-		// header bars, above the messages (tdesktop top controls).
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if chat == nil || !chat.IsBot || len(f.sponsored) == 0 {
 				return layout.Dimensions{}
@@ -210,7 +174,6 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 			a.listTop += d.Size.Y
 			return d
 		}),
-		// Messages — or the forum topic list on a forum's root view (slice 118).
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			if chat != nil && chat.IsForum && f.forumTopic == "" {
 				return a.topicListPane(gtx, f, chat)
@@ -220,10 +183,6 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.ui.Divider(gtx)
 		}),
-		// Bot reply keyboard (slice 127): the chat's active custom
-		// keyboard under the a.wid.composer area — latest keyboard message
-		// wins, a later keyboard_hide clears it, single_use hides it
-		// after one tap.
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if chat != nil && chat.IsForum && f.forumTopic == "" {
 				return layout.Dimensions{}
@@ -232,12 +191,9 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 			a.replyKbdSingleUse = singleUse
 			return a.layoutReplyKeyboard(gtx, f, kbd, src)
 		}),
-		// Composer (JOIN bar for not-joined previews, restriction bar for
-		// write-restricted chats, recording panel while a voice note is
-		// captured, input + slow-mode chip otherwise)
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if chat != nil && chat.IsForum && f.forumTopic == "" {
-				return layout.Dimensions{} // topic list view: no a.wid.composer
+				return layout.Dimensions{}
 			}
 			if chat != nil && chat.NotJoined {
 				return a.joinBar(gtx, f, chat)
@@ -254,91 +210,68 @@ func (a *App) chatPaneColumn(gtx layout.Context, f frame, chat *engine.ChatInfo,
 		}),
 	)
 
-	// Context menu on top of everything in the pane.
 	if f.menu != nil {
 		a.layoutContextMenu(gtx, f)
 	}
-	// Ayu send-confirmation card (slice 173): centered scrim + card.
 	if f.mediaConfirm {
 		a.layoutMediaConfirm(gtx)
 	}
-	// Forum topic dialog (slice 118): create/edit/actions.
 	if f.forumDlg != nil {
 		a.layoutForumDialog(gtx, f)
 	}
-	// Chat-header "..." menu.
 	if f.headerMenu != nil {
 		a.layoutHeaderMenu(gtx, f)
 	}
-	// Attach popup above the a.wid.composer.
 	if f.attachMenuOpen {
 		a.layoutAttachMenu(gtx, f)
 	}
-	// Emoji picker above the a.wid.composer.
 	if f.emojiOpen {
 		a.layoutEmojiPanel(gtx, f)
 	}
-	// Bot commands panel above the a.wid.composer (slice 76).
 	if f.botCmdsOn {
 		a.layoutBotCmdsPanel(gtx, f)
 	}
-	// Inline bot results panel (slice 128): "@bot query" live results.
 	a.layoutInlineResults(gtx, f)
-	// Inline ":shortcode" emoji autocomplete strip (AyuGram a.wid.composer).
 	a.layoutEmojiAutocomplete(gtx, f)
-	// Delete confirm (slice 19).
 	if f.delDlg != nil {
 		a.layoutDeleteDialog(gtx, f)
 	}
-	// Report flow (slice 19).
 	if f.reportDlg != nil {
 		a.layoutReportDialog(gtx, f)
 	}
-	// Sponsored report/about dialog (slice 163).
 	if f.sponsoredDlg != nil {
 		a.layoutSponsoredDialog(gtx, f)
 	}
-	// Send-as identity picker dialog (slice 178).
 	if f.sendAsDlg {
 		a.layoutSendAsDialog(gtx, f)
 	}
-	// Paid-media unlock confirm (slice 181).
 	if f.paidDlg != nil {
 		a.layoutPaidConfirm(gtx, f)
 	}
-	// Schedule dialog (slice 20).
 	if f.schedDlg != nil {
 		a.layoutScheduleDialog(gtx, f)
 	}
-	// Poll creation dialog (slice 42).
 	if f.pollDlg != nil {
 		a.layoutPollDialog(gtx, f)
 	}
-	// Who-reacted dialog (slice 49).
 	if f.reactors != nil {
 		a.layoutReactorsDialog(gtx, f)
 	}
-	// Ayu shadow-ban manager dialog (slice 91).
 	if f.shadowDlg != nil {
 		a.layoutShadowDialog(gtx, f)
 	}
-	// Edits-history dialog (slice 96).
 	if f.editHistDlg != nil {
 		a.layoutEditHistDialog(gtx, f)
 	}
-	// Deleted-messages browser dialog (slice 97).
 	if f.deletedDlg != nil {
 		a.layoutDeletedDialog(gtx, f)
 	}
-	// Seen-by read-receipt dialog (slice 98).
 	if f.seenDlg != nil {
 		a.layoutSeenByDialog(gtx, f)
 	}
-	// Message-details dialog (slice 105).
 	if f.msgDetailDlg != nil {
 		a.layoutMsgDetail(gtx, f)
 	}
-	// Sticker-pack dialog (slice 108).
 	if f.stickerSetDlg != nil {
 		a.layoutStickerSetDialog(gtx, f)
 	}
@@ -355,7 +288,6 @@ func findChat(f frame, k chatKey) *engine.ChatInfo {
 	return nil
 }
 
-// chatHeader: back button (narrow), avatar, title, status/typing, platform tag.
 func (a *App) chatHeader(gtx layout.Context, f frame, chat *engine.ChatInfo, narrow bool) layout.Dimensions {
 	return layout.Inset{Top: unit.Dp(6), Bottom: unit.Dp(6), Left: unit.Dp(8), Right: unit.Dp(12)}.Layout(gtx,
 		func(gtx layout.Context) layout.Dimensions {
@@ -383,7 +315,6 @@ func (a *App) chatHeader(gtx layout.Context, f frame, chat *engine.ChatInfo, nar
 						if a.stillTyping(*f.selected) {
 							sub = "typing…"
 						} else if chat.Type == engine.ChatTypeDMVal && f.hdrPresence != nil {
-							// DM peer presence (slice 28): online / last seen.
 							sub, online = presenceSubtitle(f.hdrPresence)
 						} else if chat.MemberCount > 0 {
 							sub = memberCountLabel(chat)
@@ -414,7 +345,6 @@ func (a *App) chatHeader(gtx layout.Context, f frame, chat *engine.ChatInfo, nar
 								lbl.Color = a.ui.p.Accent
 								return lbl.Layout(gtx)
 							}
-							// presence leaks identity — mask in streamer mode
 							if f.cfg.Streamer {
 								return a.masked(gtx, lbl.Layout)
 							}
@@ -422,14 +352,11 @@ func (a *App) chatHeader(gtx layout.Context, f frame, chat *engine.ChatInfo, nar
 						}),
 					)
 				}),
-				// connection indicator for this chat's account
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					acc := accountByID(f, chat.AccountID)
 					dot := connDotFor(acc)
 					return statusChip(gtx, a.ui, dot)
 				}),
-				// 1:1 call buttons (slice 101): phone + video for callable DMs,
-				// capability-gated (hidden otherwise — never dead UI, §1.10).
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					voice, _ := false, false
 					if chat != nil {
@@ -466,15 +393,12 @@ func (a *App) chatHeader(gtx layout.Context, f frame, chat *engine.ChatInfo, nar
 						return btn.Layout(gtx)
 					})
 				}),
-				// Lists — Saved Messages sublists pane toggle (slice 197);
-				// capability-gated to the saved chat (never dead UI, §1.10).
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					if chat == nil || f.selected == nil || !isSavedMessagesChat(chat.AccountID, chat.ChatID, f.savedMsgChats) {
 						return layout.Dimensions{}
 					}
 					return a.savedHeaderBtn(gtx, f, *f.selected)
 				}),
-				// search — in-chat search (AyuGram, slice 18)
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					if a.wid.headerSearchBtn.Clicked(gtx) {
 						a.toggleInChatSearch()
@@ -486,7 +410,6 @@ func (a *App) chatHeader(gtx layout.Context, f frame, chat *engine.ChatInfo, nar
 					}
 					return btn.Layout(gtx)
 				}),
-				// info (ⓘ) — right panel toggle (AyuGram)
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					if a.wid.panelInfoBtn.Clicked(gtx) {
 						if f.panelOpen {
@@ -499,7 +422,6 @@ func (a *App) chatHeader(gtx layout.Context, f frame, chat *engine.ChatInfo, nar
 					btn.Color = a.ui.p.TextDim
 					return btn.Layout(gtx)
 				}),
-				// "..." — peer menu (AyuGram ⋮)
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					if a.wid.headerMoreBtn.Clicked(gtx) {
 						if chat != nil {
@@ -531,7 +453,7 @@ func backIf(narrow bool, gtx layout.Context, a *App) layout.FlexChild {
 		a.msgFor = nil
 		a.mu.Unlock()
 		if prev != nil {
-			a.flushDraft(*prev) // slice 20: keep the text for next time
+			a.flushDraft(*prev)
 		}
 		a.invalidate()
 	}
@@ -574,7 +496,6 @@ func accountByID(f frame, id string) engine.AccountInfo {
 	return engine.AccountInfo{}
 }
 
-// statusChip renders a small colored connection dot with label.
 func statusChip(gtx layout.Context, u *UI, dot connDot) layout.Dimensions {
 	return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		d := gtx.Dp(unit.Dp(10))
@@ -607,39 +528,20 @@ func dotLabel(d connDot) string {
 	}
 }
 
-// messageList: scrolling message bubbles + day dividers + typing row.
-// Records per-message row bounds (pane coords) for right-click hit tests and
-// triggers scroll-up history pagination (AyuGram loadMessages).
 func (a *App) messageList(gtx layout.Context, f frame, chat *engine.ChatInfo) layout.Dimensions {
-	// The frame's last own outgoing message — the inline Seen receipt
-	// renders only under it (B-48: this assignment never existed, so
-	// the slice-152 receipt could never show). Per-pass, App-scoped
-	// (B-47: separate windows each track their own).
 	a.msgFrameLastOwn = lastOwnMsgID(f.messages)
 
-	// Background layers: the chat's custom wallpaper (slice 218) first —
-	// when it renders, the theme gradient is skipped (a custom wallpaper
-	// replaces it, tdesktop behavior); else the chat-theme background
-	// (slice 188) paints its soft wallpaper gradient. Both render under
-	// every row.
 	if chat != nil {
 		if !a.wallpaperBackground(gtx, *chat, f) {
 			a.chatThemeBackground(gtx, *chat, f)
 		}
 	}
 
-	// Auto-scroll: AnchorEnd keeps us pinned unless the user scrolls up.
-	// While someone is typing we keep the view pinned & animating.
 	if a.stillTyping(*f.selected) || f.sending || dlActive(f.downloads) {
 		gtx.Execute(op.InvalidateCmd{At: time.Now().Add(200 * time.Millisecond)})
 	}
 
-	// Build the row model: day dividers + messages + the unread separator
-	// anchored to its boundary message, then the sponsored block below the
-	// last post of broadcast channels (slice 163).
 	rows := appendSponsoredRows(buildChatRows(f.messages, f.unreadSepMsgID), chat, f.forumTopic, f.sponsored)
-	// Similar-channels gating (slice 169): AyuGram hide/collapse settings
-	// + the per-chat expanded override.
 	simKey := ""
 	if f.selected != nil {
 		simKey = f.selected.AccountID + "|" + f.selected.ChatID
@@ -648,7 +550,6 @@ func (a *App) messageList(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 	rows = appendSimilarRow(rows, chat, f.forumTopic, len(f.similar), f.cfg.AyuHideSimilar, simCollapsed)
 
 	if f.loadingMsgs {
-		// loading indicator at top
 		return layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -666,12 +567,10 @@ func (a *App) messageList(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 		})
 	}
 
-	// Empty chat intro (AyuGram "No messages here yet…").
 	if len(f.messages) == 0 {
 		return a.emptyIntro(gtx, f)
 	}
 
-	// Reset this frame's row bounds; refill as visible rows lay out.
 	a.rowBounds = make(map[int]image.Rectangle, len(rows))
 	paneW := gtx.Constraints.Max.X
 	y := -a.wid.msgList.Position.Offset
@@ -705,13 +604,10 @@ func (a *App) messageList(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 		return d
 	})
 
-	// Rubber-band selection overlay (slice 84): selection-mode drags mark
-	// every visible row the rectangle touches.
 	if f.selOn {
 		a.rubberBandOverlay(gtx, f, dims.Size)
 	}
 
-	// Scroll-up pagination: at (or near) the top, load older history once.
 	if a.wid.msgList.Position.First == 0 && a.wid.msgList.Position.Offset <= 64 &&
 		!f.loadingOlder && len(f.messages) > 0 && a.olderExhaustedLocked() == false {
 		a.loadOlder()
@@ -719,7 +615,6 @@ func (a *App) messageList(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 	return dims
 }
 
-// olderExhaustedLocked reports whether the open chat has more history.
 func (a *App) olderExhaustedLocked() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -739,12 +634,7 @@ func (a *App) dayDivider(gtx layout.Context, day string) layout.Dimensions {
 	})
 }
 
-// messageRow renders one message bubble: outgoing right-aligned accent,
-// incoming left-aligned surface.
 func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) layout.Dimensions {
-	// Service messages render as centered pills (AyuGram: "X joined the
-	// group"), not bubbles — no sender, no tail, no reactions. Gift
-	// messages (slice 180) render the gift card bubble instead.
 	if m.IsService {
 		if g := parseGift(m); giftBubbleVisible(g) {
 			return a.layoutGiftBubble(gtx, m, g)
@@ -753,11 +643,8 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 	}
 	out := m.IsOutgoing
 
-	// Highlight deleted (anti-recall) messages with the Ayu mark string.
 	text := m.ContentText
 	if f.cfg.AyuFilterZalgo {
-		// Ayu filterZalgo (slice 173): strip zalgo runs + bidi controls
-		// from the rendered body — the cached text is never modified.
 		text = ayuFilterText(text, true)
 	}
 	deleted := m.IsDeleted
@@ -765,13 +652,9 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 		text = deletedMarkText(text, f.cfg.AyuDeletedMark)
 	}
 
-	// Bubble width (AyuGram "wide multiplier", slice 93): the pane
-	// fraction is configurable 0.70..1.00; default 0.75 (the old 3/4).
 	maxW := int(float64(gtx.Constraints.Max.X) * a.ui.wideMultiplier())
 	pad := gtx.Constraints.Max.X - maxW
 
-	// Stickers render without bubble chrome (AyuGram): bare artwork with
-	// a translucent meta pill overlaid bottom-right (slice 123).
 	if isBareStickerMsg(m) {
 		bubble := func(gtx layout.Context) layout.Dimensions {
 			return a.bareStickerBubble(gtx, f, m, out, deleted)
@@ -785,18 +668,14 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 	bubble := func(gtx layout.Context) layout.Dimensions {
 		bg := a.ui.p.BubbleIn
 		if out {
-			bg = a.chatOutgoingBubble(chatOf(f, *m), f) // slice 188: chat-theme tint
+			bg = a.chatOutgoingBubble(chatOf(f, *m), f)
 		}
-		// Anti-recall (Ayu, slice 80): recalled bubbles fade to half
-		// opacity across bg, text and sender name.
 		if deleted {
 			bg = deletedFade(bg, true)
 		}
 		return roundedFill(gtx, bg, unit.Dp(a.ui.bubbleRadius()), func(gtx layout.Context) layout.Dimensions {
 			return layout.UniformInset(unit.Dp(10)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-					// Forwarded-from header (AyuGram: "Forwarded from X"),
-					// masked in streamer mode (slice 44).
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						if m.ForwardFrom == "" {
 							return layout.Dimensions{}
@@ -807,25 +686,13 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 						}
 						return layout.Inset{Bottom: unit.Dp(3)}.Layout(gtx, lbl.Layout)
 					}),
-					// Poll (AyuGram parity, slice 42): question + tappable
-					// options + vote bars, from the message's raw Extra.
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return a.pollBlock(gtx, m)
 					}),
-					// Link preview card (slice 117): thumb + site + title +
-					// description above the text, tap opens the URL.
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return a.webPageBlock(gtx, m)
 					}),
-					// Media attachment (AyuGram: photo/video/voice/audio/file bubble,
-					// driven by the engine download pipeline). A link-preview card
-					// owns its message's only media row (the page photo, slice 130)
-					// — never double-render it as a photo bubble.
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						// Paid-media star wall (parity row 153; slice-238
-						// wiring — BUGS.md B-12): LOCKED paid posts own
-						// this row; the server's paid_unlocked update
-						// hands it back to the normal media path.
 						if p, ok := paidBubbleWall(m); ok {
 							return a.layoutPaidMediaWall(gtx, m, p)
 						}
@@ -834,22 +701,19 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 						}
 						return a.mediaBlock(gtx, f, m)
 					}),
-					// Reply quote block (AyuGram quoted bar, click → jump).
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						if m.ReplyPreview == "" {
 							return layout.Dimensions{}
 						}
 						return a.replyQuote(gtx, f, *m, *f.msgFor)
 					}),
-					// sender name in group chats (masked in streamer mode);
-					// Telegram name color + admin rank (slice 77).
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						if out || m.SenderName == "" || m.IsService {
 							return layout.Dimensions{}
 						}
 						lbl := a.ui.Label(unit.Sp(13), ayuFilterText(senderTitle(*m), f.cfg.AyuFilterZalgo))
 						senderCol := senderColorFor(m.SenderColorID, m.SenderID)
-						if deleted { // anti-recall fade (slice 80)
+						if deleted {
 							senderCol = deletedFade(senderCol, true)
 						}
 						lbl.Color = senderCol
@@ -863,15 +727,13 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 						if text == "" || pollIsBody(m) {
 							return layout.Dimensions{}
 						}
-						// Rich text (slice 32): entity formatting + spoiler reveal.
-						// Pass the bubble color so hidden spoilers vanish into it.
 						body := *m
 						body.ContentText = text
 						bgCol := a.ui.p.BubbleIn
 						if out {
-							bgCol = a.chatOutgoingBubble(chatOf(f, *m), f) // slice 188
+							bgCol = a.chatOutgoingBubble(chatOf(f, *m), f)
 						}
-						if deleted { // anti-recall fade (slice 80)
+						if deleted {
 							bgCol = deletedFade(bgCol, true)
 						}
 						baseCol := a.ui.p.TextDim
@@ -883,35 +745,24 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 						}
 						return a.richTextLabel(gtx, body, unit.Sp(15), baseCol, bgCol, true)
 					}),
-					// Translation block (Ayu translator, slice 46) — shown for
-					// per-message toggles AND the chat-wide bar (slice 150),
-					// which also lazily fetches every text message's result.
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						if chatTranslateOn(f, &chatKey{AccountID: m.AccountID, ChatID: m.ChatID}) {
 							a.ensureAutoTranslation(m)
 						}
 						return a.translationBlock(gtx, m)
 					}),
-					// Inline keyboard (slice 127): bot button rows below the
-					// content (callback/url/copy/switch_inline/game/buy —
-					// tdesktop HistoryView placement).
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return a.layoutInlineKeyboard(gtx, m)
 					}),
-					// Reactions strip (AyuGram parity: emoji + count, own highlighted).
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						if len(m.Reactions) == 0 {
 							return layout.Dimensions{}
 						}
-						// Ayu show{Channel,Group,Private}Reactions (slice 173):
-						// per-chat-type reaction-strip visibility.
 						if chat := chatOf(f, *m); !reactionsVisible(chat, f.cfg) {
 							return layout.Dimensions{}
 						}
 						return a.reactionStrip(gtx, f, m)
 					}),
-					// meta: auto-delete timer (slice 182) + channel-post views
-					// (slice 187) + time + edited + status ticks
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						msgTTL, _ := parseTTLExtras(m)
 						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
@@ -919,14 +770,9 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 								return a.layoutTTLTimer(gtx, msgTTL)
 							}),
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								// Channel-post comments (slice 195): the
-								// tappable count chip — opens the thread view.
 								return a.commentsChip(gtx, f, *m)
 							}),
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								// Channel-post counters (tdesktop's eye
-								// glyph row): views always when counted,
-								// forwards beside when non-zero.
 								if m.Views <= 0 {
 									return layout.Dimensions{}
 								}
@@ -965,8 +811,6 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 							}),
 						)
 					}),
-					// Inline read receipt (slice 152): tdesktop's DM "Seen"
-					// row w/ reader avatar under the last own message.
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						chat := chatOf(f, *m)
 						if !seenInlineGate(*m, chat.Type, m.MsgID == a.msgFrameLastOwn) {
@@ -980,7 +824,6 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 		})
 	}
 
-	// Selection mode: leading check circle outside the bubble (AyuGram).
 	if f.selOn {
 		circle := func(gtx layout.Context) layout.Dimensions {
 			return a.selectionCircle(gtx, f.sel[m.MsgID])
@@ -1000,15 +843,11 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 		return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(2), Right: unit.Dp(pad)}.Layout(gtx, row)
 	}
 	if out {
-		// Own rows get the corner reaction pill too (tdesktop canReact).
 		a.loadFavoriteReaction(m.AccountID)
 		return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(2), Left: unit.Dp(pad)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return a.cornerButtonsOverlay(gtx, f, m, false, bubble)
 		})
 	}
-	// Corner buttons (slices 157+159): incoming rows carry the NE-anchored
-	// favorite-reaction pill + fast-reply pill when hovered (tdesktop
-	// cornerReaction + cornerReply).
 	canReply := cornerReplyCanSend(f, m)
 	a.loadFavoriteReaction(m.AccountID)
 	row := func(gtx layout.Context) layout.Dimensions {
@@ -1017,8 +856,6 @@ func (a *App) messageRow(gtx layout.Context, f frame, m *engine.CachedMessage) l
 	return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(2), Right: unit.Dp(pad)}.Layout(gtx, row)
 }
 
-// replyQuote renders the quoted reply block inside a bubble. The cached
-// preview is "sender\ntext" or plain "text" (AyuGram quoted bar).
 func (a *App) replyQuote(gtx layout.Context, f frame, m engine.CachedMessage, k chatKey) layout.Dimensions {
 	sender, body := m.ReplyPreview, m.ReplyPreview
 	if i := strings.IndexByte(m.ReplyPreview, '\n'); i >= 0 {
@@ -1057,9 +894,6 @@ func (a *App) replyQuote(gtx layout.Context, f frame, m engine.CachedMessage, k 
 	})
 }
 
-// a.wid.replyQuoteClicks: per-message clickables for the reply-quote
-// click-to-jump (AyuGram quote navigation, slice 25).
-
 func (a *App) replyQuoteClickable(msgID string) *widget.Clickable {
 	if c, ok := a.wid.replyQuoteClicks[msgID]; ok {
 		return c
@@ -1071,9 +905,6 @@ func (a *App) replyQuoteClickable(msgID string) *widget.Clickable {
 	a.wid.replyQuoteClicks[msgID] = c
 	return c
 }
-
-// a.wid.reactionClicks holds per-(message,emoji) pill clickables, pruned when the
-// map outgrows the open chat (rows scroll out and never come back).
 
 func (a *App) reactionClickable(key string) *widget.Clickable {
 	if c, ok := a.wid.reactionClicks[key]; ok {
@@ -1087,13 +918,8 @@ func (a *App) reactionClickable(key string) *widget.Clickable {
 	return c
 }
 
-// reactionStrip renders the reactions under a bubble: emoji + count pills,
-// the user's own reaction highlighted with the accent. Clicking a pill
-// toggles the own reaction (engine ReactToMessage; optimistic cache update).
 func (a *App) reactionStrip(gtx layout.Context, f frame, m *engine.CachedMessage) layout.Dimensions {
 	canReact := actionsFor(m, f.menuCaps).React
-	// Register the message's custom-emoji document ids so the first pill
-	// below batches one engine fetch for the whole strip.
 	if want := customWantDocs(m.Reactions); len(want) > 0 {
 		a.noteCustomThumbs(m.AccountID, want)
 	}
@@ -1101,7 +927,7 @@ func (a *App) reactionStrip(gtx layout.Context, f frame, m *engine.CachedMessage
 	for i := range m.Reactions {
 		r := m.Reactions[i]
 		if r.Emoji == "" && r.DocumentID == 0 {
-			continue // reaction without identity (e.g. paid placeholder)
+			continue
 		}
 		emoji, docID, count, byMe := r.Emoji, r.DocumentID, r.Count, r.ByMe
 		react := emoji
@@ -1153,24 +979,16 @@ func (a *App) reactionStrip(gtx layout.Context, f frame, m *engine.CachedMessage
 	return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, children...)
 }
 
-// tickKind is the meta-strip glyph for an outgoing message status.
 type tickKind int
 
 const (
-	tickSending   tickKind = iota // spinner — still working on it
-	tickSent                      // single dim check
-	tickDelivered                 // dim double check
-	tickRead                      // ACCENT double check
-	tickFailed                    // error mark — never a check (R20)
+	tickSending tickKind = iota
+	tickSent
+	tickDelivered
+	tickRead
+	tickFailed
 )
 
-// statusTickKind maps an engine message status to its meta-strip glyph
-// (pure — pinned by TestStatusTickKind). R20: the old inline switch used
-// magic numbers that had drifted from the engine consts — Sending(1) drew a
-// check mark, the read accent landed on Delivered(3), Read(4) drew the dim
-// double-check, and a permanently Failed(5) send drew the DELIVERED
-// double-check (a lost message looked delivered). Unknown/zero (legacy
-// rows) maps to the spinner: honest "still working on it".
 func statusTickKind(s int) tickKind {
 	switch s {
 	case engine.MsgStatusSending:
@@ -1204,15 +1022,11 @@ func (a *App) statusTicks(gtx layout.Context, status int, f frame) layout.Dimens
 	case tickRead:
 		return doubleCheck(gtx, a.ui.p.Accent, d)
 	case tickFailed:
-		// A permanently failed send (engine pending queue exhausted its 5
-		// retries): an error mark in the theme's error color — the message
-		// menu's Resend action is the way back (R20).
 		return alertMark(gtx, a.ui.p.Error, d)
 	}
 	return layout.Dimensions{}
 }
 
-// doubleCheck draws two overlapping checks (delivered / read).
 func doubleCheck(gtx layout.Context, c color.NRGBA, d int) layout.Dimensions {
 	return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions { return check(gtx, c, d, 0) }),
@@ -1220,19 +1034,15 @@ func doubleCheck(gtx layout.Context, c color.NRGBA, d int) layout.Dimensions {
 	)
 }
 
-// alertMark draws an exclamation mark (a vertical bar over a dot) — the
-// failed-send glyph. Pure shape drawing, same family as check().
 func alertMark(gtx layout.Context, c color.NRGBA, d int) layout.Dimensions {
 	s := float32(d)
 	var p clip.Path
 	p.Begin(gtx.Ops)
-	// Vertical bar with rounded caps, drawn as a stroke.
 	p.MoveTo(f32.Pt(s/2, s*0.12))
 	p.LineTo(f32.Pt(s/2, s*0.62))
 	bar := clip.Stroke{Path: p.End(), Width: float32(gtx.Dp(unit.Dp(2)))}.Op().Push(gtx.Ops)
 	paint.Fill(gtx.Ops, c)
 	bar.Pop()
-	// Dot.
 	r := gtx.Dp(unit.Dp(1.5))
 	cx, cy := int(s/2), int(s*0.82)
 	dot := clip.Ellipse(image.Rect(cx-r, cy-r, cx+r, cy+r)).Push(gtx.Ops)
@@ -1241,7 +1051,6 @@ func alertMark(gtx layout.Context, c color.NRGBA, d int) layout.Dimensions {
 	return layout.Dimensions{Size: image.Pt(d, d)}
 }
 
-// check draws a simple check mark path.
 func check(gtx layout.Context, c color.NRGBA, size int, dx int) layout.Dimensions {
 	s := float32(size)
 	x1 := float32(size)/4 + float32(dx)
@@ -1262,9 +1071,6 @@ func check(gtx layout.Context, c color.NRGBA, size int, dx int) layout.Dimension
 	return layout.Dimensions{Size: image.Pt(size, size)}
 }
 
-// joinBar: the JOIN action shown instead of the a.wid.composer for not-joined
-// channel previews (AyuGram preview behavior, slice 19). Joins via
-// engine.JoinChannel; the engine re-sync flips the chat to joined.
 func (a *App) joinBar(gtx layout.Context, f frame, chat *engine.ChatInfo) layout.Dimensions {
 	if a.wid.joinBarBtn.Clicked(gtx) {
 		acc, id := chat.AccountID, chat.ChatID
@@ -1293,17 +1099,8 @@ func (a *App) joinBar(gtx layout.Context, f frame, chat *engine.ChatInfo) layout
 		})
 }
 
-// composerBar: input + send, disabled state shows progress. When a reply or
-// edit mode is active (AyuGram input field), a header chip with the quoted
-// message sits above the input row. Slow-mode chats carry a countdown chip
-// that gates sending (slice 69).
-// composerSubmitKeyTag listens for Ctrl+Enter submits (slice 155).
 var composerSubmitKeyTag = new(struct{})
 
-// trySubmitComposer sends the a.wid.composer's current text through the shared
-// gate — length limit, slow-mode wait, in-flight guard — shared by the
-// Enter SubmitEvent, the send button, and the Ctrl+Enter shortcut
-// (slice 155). Returns true when a send started.
 func (a *App) trySubmitComposer(f frame, chat *engine.ChatInfo) bool {
 	txt := strings.TrimSpace(a.wid.composer.Text())
 	if txt == "" || f.sending {
@@ -1325,12 +1122,7 @@ func (a *App) trySubmitComposer(f frame, chat *engine.ChatInfo) bool {
 }
 
 func (a *App) composerBar(gtx layout.Context, f frame, chat *engine.ChatInfo) layout.Dimensions {
-	// Composer submit mode (tdesktop Messages setting, slice 155): Enter
-	// submits by default; "ctrl-enter" moves submission to Ctrl+Enter and
-	// makes Enter a newline.
 	a.wid.composer.Submit = composerSubmitSends(f.cfg.ComposerSubmit)
-	// Ctrl+Enter submits (both modes — tdesktop behavior); only while the
-	// a.wid.composer holds focus so other editors (search, dialogs) keep it.
 	keyLayer(gtx, composerSubmitKeyTag)
 	for _, name := range []key.Name{key.NameReturn, key.NameEnter} {
 		for {
@@ -1344,14 +1136,11 @@ func (a *App) composerBar(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 		}
 	}
 
-	// Slow-mode wait active → the shared gate blocks submission; keep
-	// the countdown ticker armed while the wait runs.
 	if chat != nil {
 		if remain := slowmodeRemain(*chat, f.now); remain > 0 {
 			a.scheduleSlowTick(remain)
 		}
 	}
-	// Submit on Enter (Shift+Enter = newline) unless mobile-wide.
 	for {
 		ev, ok := a.wid.composer.Update(gtx)
 		if !ok {
@@ -1367,8 +1156,6 @@ func (a *App) composerBar(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 		a.trySubmitComposer(f, chat)
 	}
 
-	// Send-as identities (slice 178): loaded once per chat open; the
-	// row hides itself when there is no real choice.
 	a.ensureSendAs(f)
 
 	return layout.Inset{Top: unit.Dp(8), Bottom: unit.Dp(8), Left: unit.Dp(12), Right: unit.Dp(12)}.Layout(gtx,
@@ -1384,7 +1171,6 @@ func (a *App) composerBar(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 			}
 			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Horizontal, Alignment: layout.End}.Layout(gtx,
-					// attach (📎) — file/photo picker menu (AyuGram)
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						if a.wid.attachBtn.Clicked(gtx) {
 							a.toggleAttachMenu()
@@ -1395,7 +1181,6 @@ func (a *App) composerBar(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 							return btn.Layout(gtx)
 						})
 					}),
-					// emoji (😊) — picker panel (AyuGram)
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						if a.wid.emojiBtn.Clicked(gtx) {
 							a.toggleEmojiPanel()
@@ -1409,8 +1194,6 @@ func (a *App) composerBar(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 							return btn.Layout(gtx)
 						})
 					}),
-					// bot-commands button (slice 76): renders only when the
-					// open chat has commands (engine-loaded; never dead).
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						if !botCmdPanelNeeded(f.botCmds) {
 							return layout.Dimensions{}
@@ -1427,8 +1210,6 @@ func (a *App) composerBar(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 							return btn.Layout(gtx)
 						})
 					}),
-					// hold-to-record mic (slice 114): only when the a.wid.composer
-					// is empty and the account's core sends voice notes.
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						if !a.voiceRecWanted(f) {
 							return layout.Dimensions{}
@@ -1446,16 +1227,12 @@ func (a *App) composerBar(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 							})
 						})
 					}),
-					// slow-mode countdown pill (slice 69) — blocks sending
-					// while the server's wait is active.
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						if chat == nil {
 							return layout.Dimensions{}
 						}
 						return a.slowmodeChip(gtx, f, chat)
 					}),
-					// silent (🔕) — send without sound (AyuGram
-					// per-message mute, slice 23).
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						if a.wid.silentBtn.Clicked(gtx) {
 							a.mu.Lock()
@@ -1480,9 +1257,6 @@ func (a *App) composerBar(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 							return btn.Layout(gtx)
 						})
 					}),
-					// link preview toggle — visible only while the text contains a
-					// link (AyuGram/Telegram preview toggle, slice 117): off sends
-					// with no_webpage.
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						if !composedHasLink(a.wid.composer.Text()) || f.msgFor == nil {
 							return layout.Dimensions{}
@@ -1512,8 +1286,6 @@ func (a *App) composerBar(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 							return btn.Layout(gtx)
 						})
 					}),
-					// schedule (⏰) — schedule the composed
-					// message (AyuGram, slice 20).
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						if a.wid.composerSchedBtn.Clicked(gtx) {
 							a.openScheduleDialog()
@@ -1544,10 +1316,6 @@ func (a *App) composerBar(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 					}),
 				)
 			}))
-			// Char counter (slice 88, AyuGram row 124): remaining
-			// characters near the limit, red past it. The send
-			// gates above stay honest — over-limit text never
-			// leaves the a.wid.composer.
 			if lbl, visible, over := charCounterState(a.wid.composer.Text(), composerCharLimit); visible {
 				lbl, over := lbl, over
 				children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -1566,11 +1334,8 @@ func (a *App) composerBar(gtx layout.Context, f frame, chat *engine.ChatInfo) la
 	)
 }
 
-// composerCharLimit is Telegram's per-message text limit (chars).
 const composerCharLimit = 4096
 
-// charCounterState returns the remaining-chars caption and whether it
-// shows (AyuGram: only near the limit). Pure — locked by tests.
 func charCounterState(text string, limit int) (string, bool, bool) {
 	n := utf8.RuneCountInString(text)
 	remain := limit - n
@@ -1580,14 +1345,11 @@ func charCounterState(text string, limit int) (string, bool, bool) {
 	return strconv.Itoa(remain), true, remain < 0
 }
 
-// composerOverLimit reports whether the draft exceeds the limit.
 func composerOverLimit(text string) bool {
 	_, _, over := charCounterState(text, composerCharLimit)
 	return over
 }
 
-// composerChip renders the reply/edit header above the input: title, quoted
-// preview, and a close (cancel) button — AyuGram's InputField header bar.
 func (a *App) composerChip(gtx layout.Context, f frame) layout.Dimensions {
 	if a.wid.chipCancelBtn.Clicked(gtx) {
 		a.cancelComposerMode()
@@ -1628,8 +1390,6 @@ func (a *App) composerChip(gtx layout.Context, f frame) layout.Dimensions {
 	})
 }
 
-// deletedFade halves a color's alpha for anti-recall bubbles (AyuGram
-// renders recalled messages semi-transparent). Pure.
 func deletedFade(c color.NRGBA, deleted bool) color.NRGBA {
 	if !deleted {
 		return c

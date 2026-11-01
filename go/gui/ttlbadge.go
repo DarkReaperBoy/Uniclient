@@ -11,17 +11,6 @@ import (
 	"uniclient/engine"
 )
 
-// TTL badges (slice 182, parity row "Expired/self-destruct media" —
-// tdesktop's one-time media + auto-delete timer chrome): media with a
-// self-destruct TTL (media_ttl_seconds, the one-time photo/video/voice
-// flow — the server destroys the media after the view) renders the
-// "One-time …" chip above the media block; messages in auto-delete
-// chats (ttl_seconds) render a timer glyph + period beside the
-// timestamp. Both read the cached Extra the telegram core already
-// writes — no new RPCs.
-
-// parseTTLExtras returns (message auto-delete period, media one-time
-// TTL) from the cached Extra. Pure — unit-tested.
 func parseTTLExtras(m *engine.CachedMessage) (msgTTL, mediaTTL int) {
 	if m == nil || len(m.ContentRaw) == 0 {
 		return 0, 0
@@ -44,8 +33,6 @@ func parseTTLExtras(m *engine.CachedMessage) (msgTTL, mediaTTL int) {
 	return msgTTL, mediaTTL
 }
 
-// fmtTTLPeriod renders an auto-delete period compactly: 30s / 5m / 2h /
-// 1d / 1w. Pure — unit-tested.
 func fmtTTLPeriod(sec int) string {
 	switch {
 	case sec <= 0:
@@ -75,8 +62,6 @@ func fmtTTLPeriod(sec int) string {
 	}
 }
 
-// oneTimeLabel: the one-time chip's label (tdesktop's notificationText
-// variants). "" for media kinds without a one-time flow. Pure.
 func oneTimeLabel(mediaType int) string {
 	switch mediaType {
 	case engine.MediaImage:
@@ -92,14 +77,10 @@ func oneTimeLabel(mediaType int) string {
 	}
 }
 
-// oneTimeChipVisible: the chip shows only for one-time-able media kinds
-// carrying a media TTL. Pure.
 func oneTimeChipVisible(mediaType, mediaTTL int) bool {
 	return mediaTTL > 0 && oneTimeLabel(mediaType) != ""
 }
 
-// layoutTTLTimer renders the auto-delete timer chip in the meta row:
-// timer glyph + period text.
 func (a *App) layoutTTLTimer(gtx layout.Context, period int) layout.Dimensions {
 	txt := fmtTTLPeriod(period)
 	if txt == "" {

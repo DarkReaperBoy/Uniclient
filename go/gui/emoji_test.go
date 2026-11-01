@@ -6,8 +6,6 @@ import (
 	"gioui.org/layout"
 )
 
-// Emoji picker pure helpers (gui/emoji.go, §4 a.wid.composer helpers).
-
 func TestEmojiRowCount(t *testing.T) {
 	cases := []struct {
 		n, cols, want int
@@ -17,7 +15,7 @@ func TestEmojiRowCount(t *testing.T) {
 		{8, 8, 1},
 		{9, 8, 2},
 		{80, 8, 10},
-		{5, 0, 0}, // degenerate cols
+		{5, 0, 0},
 		{10, 3, 4},
 	}
 	for _, c := range cases {
@@ -65,22 +63,18 @@ func TestEmojiDatasetSanity(t *testing.T) {
 
 func TestCellsForRow(t *testing.T) {
 	emojis := []string{"a", "b", "c", "d", "e"}
-	// Rigid children are lazy (invoked at Layout time), so verify the shape:
-	// every row is padded to exactly `cols` children.
 	kids := cellsForRow(emojis, 2, 8, func(gtx layout.Context, idx int, e string) layout.Dimensions {
 		return layout.Dimensions{}
 	})
 	if len(kids) != 8 {
 		t.Errorf("cellsForRow returns %d children, want 8 (padded)", len(kids))
 	}
-	// Full-row start still yields cols children, none lazy-invoked here.
 	kids = cellsForRow(emojis, 0, 8, func(gtx layout.Context, idx int, e string) layout.Dimensions {
 		return layout.Dimensions{}
 	})
 	if len(kids) != 8 {
 		t.Errorf("full row returns %d children, want 8", len(kids))
 	}
-	// Empty set yields cols spacer children.
 	kids = cellsForRow(nil, 0, 8, func(gtx layout.Context, idx int, e string) layout.Dimensions {
 		return layout.Dimensions{}
 	})

@@ -1,12 +1,5 @@
 package vp9anim
 
-// tests-first for BUGS.md B-17 — hostile-input fuzzing for the VP9/webm
-// animation parser (the repo had ZERO fuzz targets).
-//
-// Contract under fuzz: Parse must never panic, and never return
-// (nil, nil) — an error or a real animation, never fabricated
-// structure (§1.10).
-
 import (
 	"os"
 	"path/filepath"
@@ -14,8 +7,6 @@ import (
 )
 
 func FuzzParse(f *testing.F) {
-	// Seeds from the committed official test streams (same ones the
-	// unit pins use) plus hostile fragments.
 	if entries, err := os.ReadDir("testdata"); err == nil {
 		for _, e := range entries {
 			if e.IsDir() {

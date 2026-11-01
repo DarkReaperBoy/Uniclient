@@ -7,21 +7,9 @@ import (
 	"uniclient/cores"
 )
 
-// TestStarsPageStateIsCopyOnWrite pins R38 (the second R34 sibling sweep):
-// starsPageState was mutated IN PLACE by loadStarsPage's head+tail (the
-// load goroutine: appending/loading/err/loaded/status/nextPage under a.mu),
-// setStarsFilter and reloadStarsPage — while the GUI loop read the same
-// fields through the frame pointer under frameMu only (layoutStarsPage's
-// loading/err branches, the tabs' st.filter, the balance card's
-// st.status.BalanceNano, the rows' range over st.status.Txns, the
-// load-more's st.nextPage). The pre-fix shape is R34's class (loadTail vs
-// layoutReads — RED-proven at R34 with the dependency-free scratch repro);
-// updateStarsPage now installs copies. The append path is pinned separately
-// below (it had an extra, deeper half).
 func TestStarsPageStateIsCopyOnWrite(t *testing.T) {
 	a := &App{}
 	a.starsPage = &starsPageState{accountID: "acc", loading: true, filter: ""}
-	// The frame's pointer, taken the way snapshot() takes it.
 	a.mu.Lock()
 	frameSt := a.starsPage
 	a.mu.Unlock()
@@ -32,9 +20,6 @@ func TestStarsPageStateIsCopyOnWrite(t *testing.T) {
 		go func(i int) {
 			defer wg.Done()
 			for j := 0; j < 1500; j++ {
-				// The load tail's fields (non-append mode), via the real
-				// installer — a fresh status each time, as the engine
-				// returns a fresh object per page.
 				a.updateStarsPage(func(n *starsPageState) bool {
 					if n.accountID != "acc" {
 						return false
@@ -50,13 +35,11 @@ func TestStarsPageStateIsCopyOnWrite(t *testing.T) {
 					n.nextPage = "off"
 					return true
 				})
-				// The filter/reload paths' fields.
 				a.updateStarsPage(func(n *starsPageState) bool {
 					n.filter = ""
 					n.loading = true
 					return true
 				})
-				// The append flag (loadMore's in-flight guard).
 				a.updateStarsPage(func(n *starsPageState) bool {
 					n.appending = j%2 == 0
 					return true
@@ -65,8 +48,6 @@ func TestStarsPageStateIsCopyOnWrite(t *testing.T) {
 		}(i)
 	}
 
-	// The layout reader: the HELD pointer, no lock — what layoutStarsPage
-	// does under frameMu.
 	readDone := make(chan struct{})
 	go func() {
 		defer close(readDone)
@@ -101,13 +82,6 @@ func TestStarsPageStateIsCopyOnWrite(t *testing.T) {
 	}
 }
 
-// TestStarsAppendBuildsFreshSlice pins R38's deeper half: the append path
-// used to do `st.status.Txns = append(st.status.Txns, page2...)` IN PLACE —
-// the slice-header write raced layoutStarsPage's range loop AND the append
-// wrote into the very backing array a mid-layout frame was iterating. The
-// installer's append mode now builds a fresh StarsStatus with a fresh Txns
-// slice: the previously-installed status (what a frame holds) keeps its own
-// contents and backing untouched.
 func TestStarsAppendBuildsFreshSlice(t *testing.T) {
 	a := &App{}
 	a.starsPage = &starsPageState{accountID: "acc", loaded: true, status: &cores.StarsStatus{
@@ -116,16 +90,14 @@ func TestStarsAppendBuildsFreshSlice(t *testing.T) {
 		NextOffset:  "off1",
 	}, nextPage: "off1"}
 
-	// The frame's view, taken the way snapshot() takes it.
 	a.mu.Lock()
 	frameSt := a.starsPage
-	frameTxns := frameSt.status.Txns // the slice header the frame's range copies
+	frameTxns := frameSt.status.Txns
 	frameStatus := frameSt.status
 	a.mu.Unlock()
 
-	// The load-more tail: page 2 arrives, append mode.
 	page2 := &cores.StarsStatus{
-		BalanceNano: 999, // ignored by append (balance rides page 1)
+		BalanceNano: 999,
 		Txns:        []cores.StarsTxn{{ID: "p2a"}, {ID: "p2b"}, {ID: "p2c"}},
 		NextOffset:  "",
 	}
@@ -160,8 +132,6 @@ func TestStarsAppendBuildsFreshSlice(t *testing.T) {
 	if head.status.BalanceNano != 750 {
 		t.Fatalf("append keeps the loaded balance (old behavior), got %d", head.status.BalanceNano)
 	}
-	// The frame-held status and slice are untouched — same pointer, same
-	// contents, same length.
 	if len(frameStatus.Txns) != 2 || frameStatus.Txns[0].ID != "p1a" || frameStatus.Txns[1].ID != "p1b" {
 		t.Fatalf("the frame-held status must keep its own rows: %v", frameStatus.Txns)
 	}
@@ -170,9 +140,6 @@ func TestStarsAppendBuildsFreshSlice(t *testing.T) {
 	}
 }
 
-// TestUpdateStarsPageContract pins the installer: closed page → nil; fn=false
-// → nil with the head untouched; fn=true → a NEW struct installed (untouched
-// fields carried, mutations visible, previous head frozen).
 func TestUpdateStarsPageContract(t *testing.T) {
 	a := &App{}
 	if got := a.updateStarsPage(func(n *starsPageState) bool { return true }); got != nil {
@@ -191,7 +158,7 @@ func TestUpdateStarsPageContract(t *testing.T) {
 
 	got := a.updateStarsPage(func(n *starsPageState) bool {
 		if n.accountID != "acc" {
-			return false // the staleness guard every tail relies on
+			return false
 		}
 		n.loading = true
 		return true

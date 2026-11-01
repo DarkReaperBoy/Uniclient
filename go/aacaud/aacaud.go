@@ -1,20 +1,3 @@
-// Package aacaud demuxes the AAC audio track out of an MP4 container and
-// decodes it to PCM, in pure Go with no cgo.
-//
-// It exists because Telegram sends H.264 + AAC, and the viewer's volume
-// control (parity row 276) is meaningless until we can produce samples to
-// apply volume to. The decoding itself is done by github.com/tphakala/go-aac,
-// which was chosen by measurement rather than reputation: it reproduced
-// ffmpeg's fixed-point AAC decoder byte for byte on 4/4 fixtures here, while
-// the permissively-licensed alternative failed at 17 dB SNR on stereo content
-// (see research/aac_decoder.md). This package supplies the half that library
-// deliberately leaves out: reading the track out of an MP4.
-//
-// MP4 gives raw access units plus an AudioSpecificConfig — not ADTS — and it
-// documents its own timing in an edit list: AAC's 1024-sample encoder priming
-// lives there as media_time. Decode trims exactly that, because a decoder
-// that plays the priming puts every video note 21 ms out of sync with its
-// picture and pads the tail with the final frame's silence.
 package aacaud
 
 import (
@@ -28,42 +11,27 @@ import (
 	aacpcm "github.com/tphakala/go-aac/pcm"
 )
 
-// Sentinel errors. Callers distinguish "this message has no sound" from
-// "this sound is out of scope" from "these bytes are broken", because the
-// three want different handling: silence, a system-player handoff, and a
-// toast respectively.
 var (
-	// ErrNoAudio reports an MP4 with no audio (sound) track.
-	ErrNoAudio = errors.New("aacaud: no audio track")
-	// ErrUnsupported reports well-formed audio we cannot decode — HE-AAC,
-	// or anything that is not AAC-LC mono/stereo.
+	ErrNoAudio     = errors.New("aacaud: no audio track")
 	ErrUnsupported = errors.New("aacaud: unsupported audio")
-	// ErrCorrupt reports broken structure: a malformed box, a table that
-	// contradicts itself, or bytes that are not an MP4 at all.
-	ErrCorrupt = errors.New("aacaud: corrupt file")
+	ErrCorrupt     = errors.New("aacaud: corrupt file")
 )
 
-// Sample is one AAC access unit with its decode timestamp in the track's
-// timescale. DTS is what an A/V sync loop reads to decide whether the
-// picture has caught up with the sound.
 type Sample struct {
 	Data []byte
-	DTS  int64 // ticks, Track.Timescale per second
+	DTS  int64
 }
 
-// Track is the audio track found in an MP4.
 type Track struct {
-	SampleRate int      // Hz, from the AudioSpecificConfig
-	Channels   int      // 1 or 2
-	ASC        []byte   // AudioSpecificConfig, as stored in esds
-	Timescale  uint32   // mdhd timescale (ticks per second)
-	Priming    int      // leading samples to discard (edit-list media_time)
-	Length     int      // presentation samples to keep
-	Samples    []Sample // access units in decode order
+	SampleRate int
+	Channels   int
+	ASC        []byte
+	Timescale  uint32
+	Priming    int
+	Length     int
+	Samples    []Sample
 }
 
-// Duration is the presentation length of the audio, i.e. what the UI should
-// show and what the picture must stay locked to.
 func (t *Track) Duration() time.Duration {
 	if t.SampleRate <= 0 || t.Length <= 0 {
 		return 0
@@ -71,8 +39,6 @@ func (t *Track) Duration() time.Duration {
 	return time.Duration(int64(t.Length) * int64(time.Second) / int64(t.SampleRate))
 }
 
-// ParseFile opens path and parses its audio track. The file is closed when
-// ParseFile returns; the track holds its own copies of the access units.
 func ParseFile(path string) (*Track, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -82,17 +48,11 @@ func ParseFile(path string) (*Track, error) {
 	return Parse(f)
 }
 
-// mbox is a parsed ISO-BMFF box: its four-character type and its payload
-// (everything after the header).
 type mbox struct {
 	typ  string
 	body []byte
 }
 
-// children splits an ISO-BMFF box payload into its child boxes. Every
-// length is validated against what is actually buffered, so a file that
-// lies about a size yields ErrCorrupt instead of a slice panic — this is
-// the single choke point TestTruncatedFileIsRejectedNotPanicked exercises.
 func children(b []byte) ([]mbox, error) {
 	var out []mbox
 	for off := 0; off+8 <= len(b); {
@@ -107,7 +67,7 @@ func children(b []byte) ([]mbox, error) {
 			size = int(binary.BigEndian.Uint64(b[off+8 : off+16]))
 			hdr = 16
 		case size == 0:
-			size = len(b) - off // box extends to end of its parent
+			size = len(b) - off
 		}
 		if size < hdr || off+size > len(b) {
 			return nil, fmt.Errorf("%w: box %q claims %d bytes at offset %d of %d",
@@ -119,9 +79,6 @@ func children(b []byte) ([]mbox, error) {
 	return out, nil
 }
 
-// Parse reads the audio track from an ISO-BMFF (MP4) stream. It scans for
-// moov wherever the muxer put it (faststart puts it first, most muxers last),
-// so it works on Telegram uploads and on locally recorded notes alike.
 func Parse(r io.ReadSeeker) (*Track, error) {
 	if r == nil {
 		return nil, fmt.Errorf("%w: nil reader", ErrCorrupt)
@@ -144,7 +101,7 @@ func Parse(r io.ReadSeeker) (*Track, error) {
 		}
 		tr, err := parseTrak(r, b.body, movieTS)
 		if errors.Is(err, ErrNoAudio) {
-			continue // this one is the video track; keep looking
+			continue
 		}
 		if err != nil {
 			return nil, err
@@ -154,8 +111,6 @@ func Parse(r io.ReadSeeker) (*Track, error) {
 	return nil, ErrNoAudio
 }
 
-// readMoov returns the moov box payload and the movie (mvhd) timescale,
-// which the edit list's segment_duration is expressed in.
 func readMoov(r io.ReadSeeker, end int64) ([]byte, uint32, error) {
 	var hdr [16]byte
 	for off := int64(0); off+8 <= end; {
@@ -176,7 +131,7 @@ func readMoov(r io.ReadSeeker, end int64) ([]byte, uint32, error) {
 			size = int64(binary.BigEndian.Uint64(hdr[8:16]))
 			hdrLen = 16
 		case size == 0:
-			size = end - off // box extends to end of file
+			size = end - off
 		}
 		if size < hdrLen || off+size > end {
 			return nil, 0, fmt.Errorf("%w: box %q claims size %d at offset %d", ErrCorrupt, typ, size, off)
@@ -197,7 +152,7 @@ func readMoov(r io.ReadSeeker, end int64) ([]byte, uint32, error) {
 				}
 			}
 			if movieTS == 0 {
-				movieTS = 1000 // ISO default; only reachable on odd muxers
+				movieTS = 1000
 			}
 			return body, movieTS, nil
 		}
@@ -219,8 +174,6 @@ func parseMVHD(b []byte) uint32 {
 	return binary.BigEndian.Uint32(b[12:16])
 }
 
-// parseTrak returns ErrNoAudio for a track whose handler is not `soun`,
-// so Parse can keep scanning the sibling tracks.
 func parseTrak(r io.ReadSeeker, trakBody []byte, movieTS uint32) (*Track, error) {
 	boxes, err := children(trakBody)
 	if err != nil {
@@ -325,9 +278,6 @@ func parseTrak(r io.ReadSeeker, trakBody []byte, movieTS uint32) (*Track, error)
 	if err != nil {
 		return nil, err
 	}
-	// The sample entry repeats these two fields; if they disagree with the
-	// ASC the file is internally inconsistent, and trusting the wrong one
-	// would resample silently.
 	if mp4aRate != 0 && int(mp4aRate) != rate {
 		return nil, fmt.Errorf("%w: mp4a says %d Hz, ASC says %d", ErrCorrupt, mp4aRate, rate)
 	}
@@ -369,16 +319,13 @@ func parseTrak(r io.ReadSeeker, trakBody []byte, movieTS uint32) (*Track, error)
 		Samples:    samples,
 	}
 
-	// Presentation length: the edit list is authoritative when present —
-	// it is where the priming trim and the end trim are documented.
-	// Without one, every decoded sample is presented as-is.
 	tr.Priming, tr.Length = editPresentation(edit, movieTS, rate, deltas)
 	return tr, nil
 }
 
 type editList struct {
-	mediaTime  int64 // ticks in the media timescale; -1 = empty edit
-	segmentDur int64 // ticks in the movie timescale
+	mediaTime  int64
+	segmentDur int64
 }
 
 func parseELST(b []byte) (*editList, error) {
@@ -404,21 +351,21 @@ func parseELST(b []byte) (*editList, error) {
 			}
 			segDur = int64(binary.BigEndian.Uint32(b[p : p+4]))
 			mt := binary.BigEndian.Uint32(b[p+4 : p+8])
-			if mt == 0xFFFFFFFF { // empty edit — skip it and keep looking
+			if mt == 0xFFFFFFFF {
 				p += 8 + 2
 				continue
 			}
 			mediaTime = int64(mt)
 			p += 8
 		}
-		p += 2 // track rate (fixed 16.16)
+		p += 2
 		if e.mediaTime < 0 || mediaTime > 0 {
 			e.segmentDur, e.mediaTime = segDur, mediaTime
 			break
 		}
 	}
 	if e.mediaTime < 0 {
-		return nil, nil // only empty edits
+		return nil, nil
 	}
 	return e, nil
 }
@@ -436,23 +383,19 @@ func parseMDHD(b []byte) uint32 {
 	return binary.BigEndian.Uint32(b[12:16])
 }
 
-// editPresentation converts the edit list into "drop this many leading
-// samples, present this many in total", the two numbers Decode needs.
 func editPresentation(e *editList, movieTS uint32, rate int, deltas []int64) (priming, length int) {
 	totalTicks := int64(0)
 	for _, d := range deltas {
 		totalTicks += d
 	}
-	// deltas are in the media timescale, which for audio is the sample rate
 	length = int(totalTicks)
 	if e == nil || e.segmentDur <= 0 || movieTS == 0 {
 		return 0, length
 	}
-	priming = int(e.mediaTime) // media_time is already in media ticks
+	priming = int(e.mediaTime)
 	if priming < 0 {
 		priming = 0
 	}
-	// segment_duration is in movie ticks; convert to samples at this rate.
 	length = int(e.segmentDur * int64(rate) / int64(movieTS))
 	if length <= 0 {
 		length = int(totalTicks)
@@ -460,13 +403,11 @@ func editPresentation(e *editList, movieTS uint32, rate int, deltas []int64) (pr
 	return priming, length
 }
 
-// parseSTSD reads the one and only sample description and returns the
-// AudioSpecificConfig plus the sample entry's own rate/channel fields.
 func parseSTSD(b []byte) (asc []byte, rate uint32, channels uint16, err error) {
 	if len(b) < 16 {
 		return nil, 0, 0, fmt.Errorf("%w: short stsd", ErrCorrupt)
 	}
-	entries, err := children(b[8:]) // version/flags + entry_count
+	entries, err := children(b[8:])
 	if err != nil {
 		return nil, 0, 0, err
 	}
@@ -474,12 +415,6 @@ func parseSTSD(b []byte) (asc []byte, rate uint32, channels uint16, err error) {
 		if e.typ != "mp4a" {
 			continue
 		}
-		// AudioSampleEntry = SampleEntry(6 reserved + 2 data_ref) + 8
-		// reserved + channelcount + samplesize + pre_defined + reserved
-		// + samplerate(16.16) = 36 bytes total, measured FROM THE BOX
-		// START. e.body already excludes the 8-byte box header, so child
-		// boxes begin at body[28] — using 36 here walks 8 bytes into esds
-		// and reports "no esds" on a perfectly good file.
 		if len(e.body) < 28 {
 			return nil, 0, 0, fmt.Errorf("%w: short mp4a sample entry", ErrCorrupt)
 		}
@@ -502,13 +437,11 @@ func parseSTSD(b []byte) (asc []byte, rate uint32, channels uint16, err error) {
 	return nil, 0, 0, fmt.Errorf("%w: stsd has no mp4a entry", ErrCorrupt)
 }
 
-// esdsASC walks the descriptor chain ES_Descriptor → DecoderConfigDescriptor
-// → DecoderSpecificInfo and returns the ASC bytes.
 func esdsASC(b []byte) ([]byte, error) {
 	if len(b) < 5 {
 		return nil, fmt.Errorf("%w: short esds", ErrCorrupt)
 	}
-	p := 4 // version + flags
+	p := 4
 	for p < len(b) {
 		tag := b[p]
 		p++
@@ -521,14 +454,14 @@ func esdsASC(b []byte) ([]byte, error) {
 			return nil, fmt.Errorf("%w: descriptor 0x%02x claims %d bytes past the box", ErrCorrupt, tag, l)
 		}
 		switch tag {
-		case 0x05: // DecoderSpecificInfo — this is the ASC
+		case 0x05:
 			return append([]byte(nil), b[p:p+l]...), nil
-		case 0x03: // ES_Descriptor: ES_ID(2) + flags(1), then nested
+		case 0x03:
 			if l < 3 {
 				return nil, fmt.Errorf("%w: short ES_Descriptor", ErrCorrupt)
 			}
 			p += 3
-		case 0x04: // DecoderConfigDescriptor: 13 fixed bytes, then nested
+		case 0x04:
 			if l < 13 {
 				return nil, fmt.Errorf("%w: short DecoderConfigDescriptor", ErrCorrupt)
 			}
@@ -588,7 +521,7 @@ func parseSTSZ(b []byte) ([]int, error) {
 		return nil, fmt.Errorf("%w: implausible sample count %d", ErrCorrupt, count)
 	}
 	if uniform != 0 {
-		return make([]int, count), nil // filled by the caller's uniform size
+		return make([]int, count), nil
 	}
 	if 12+count*4 > len(b) {
 		return nil, fmt.Errorf("%w: stsz claims %d entries", ErrCorrupt, count)
@@ -650,8 +583,6 @@ func parseSTSC(b []byte) ([]stscEntry, error) {
 	return out, nil
 }
 
-// readSamples walks the chunk table and reads each access unit from the
-// file, stamping it with the decode time from stts.
 func readSamples(r io.ReadSeeker, sizes []int, chunks []int64, perChunk []stscEntry, deltas []int64) ([]Sample, error) {
 	if len(sizes) == 0 {
 		return nil, fmt.Errorf("%w: audio track has no samples", ErrCorrupt)
@@ -696,14 +627,6 @@ func readSamples(r io.ReadSeeker, sizes []int, chunks []int64, perChunk []stscEn
 	return out, nil
 }
 
-// Decode decodes the whole track to interleaved little-endian S16 PCM,
-// trimmed to the presentation window: the edit list's priming samples are
-// dropped from the front and the encoder's trailing pad is cut from the end,
-// which is exactly what ffmpeg outputs for the same file.
-//
-// The samples are framed the way go-aac expects raw input — each access unit
-// prefixed with a big-endian uint16 length, because raw AAC has no syncword
-// to find the boundaries with.
 func Decode(t *Track) ([]byte, error) {
 	if t == nil || len(t.Samples) == 0 {
 		return nil, fmt.Errorf("%w: no access units", ErrCorrupt)
@@ -730,7 +653,7 @@ func Decode(t *Track) ([]byte, error) {
 			ErrCorrupt, info.SampleRate, t.SampleRate)
 	}
 
-	frame := 2 * t.Channels // bytes per sample across all channels
+	frame := 2 * t.Channels
 	if frame == 0 {
 		return nil, fmt.Errorf("%w: zero channels", ErrCorrupt)
 	}
@@ -744,8 +667,6 @@ func Decode(t *Track) ([]byte, error) {
 	return pcm[start:end], nil
 }
 
-// mapDecodeErr turns go-aac's sentinels into ours so callers can branch on
-// "unsupported" (hand to the system player) vs "corrupt" (toast and stop).
 func mapDecodeErr(err error) error {
 	switch {
 	case errors.Is(err, aacpcm.ErrUnsupportedSBR), errors.Is(err, aacpcm.ErrUnsupported):
@@ -757,22 +678,18 @@ func mapDecodeErr(err error) error {
 	}
 }
 
-// ascInfo parses an AudioSpecificConfig and returns the sample rate and
-// channel count. Anything that is not AAC-LC mono/stereo is refused: our
-// decoder is LC-only, and decoding HE-AAC as LC yields plausible-looking
-// noise rather than an error.
 func ascInfo(asc []byte) (rate, channels int, err error) {
 	if len(asc) < 2 {
 		return 0, 0, fmt.Errorf("%w: AudioSpecificConfig is %d bytes", ErrCorrupt, len(asc))
 	}
 	aot := int(asc[0] >> 3)
-	if aot == 31 { // escape: 32 + 6 more bits
+	if aot == 31 {
 		if len(asc) < 3 {
 			return 0, 0, fmt.Errorf("%w: truncated escaped AudioObjectType", ErrCorrupt)
 		}
 		aot = 32 + int(asc[0]&0x7<<3) + int(asc[1]>>5)
 	}
-	if aot != 2 { // 2 = AAC Low Complexity
+	if aot != 2 {
 		return 0, 0, fmt.Errorf("%w: AudioObjectType %d (want AAC-LC = 2; HE-AAC/SBR is out of scope)",
 			ErrUnsupported, aot)
 	}
@@ -793,9 +710,6 @@ func ascInfo(asc []byte) (rate, channels int, err error) {
 	return aacSampleRates[sfi], chanCfg, nil
 }
 
-// checkASC reports whether an AudioSpecificConfig describes audio we can
-// decode. Exported shape kept unexported — it exists so the config gate is
-// testable without a fixture for every out-of-scope profile.
 func checkASC(asc []byte) error {
 	_, _, err := ascInfo(asc)
 	return err
@@ -806,8 +720,6 @@ var aacSampleRates = [13]int{
 	22050, 16000, 12000, 11025, 8000, 7350,
 }
 
-// reader adapts a byte slice to io.Reader without importing bytes, so the
-// framed buffer is handed over directly.
 type reader struct {
 	b []byte
 }

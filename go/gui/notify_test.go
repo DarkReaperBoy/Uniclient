@@ -102,7 +102,6 @@ func TestNotifyPreviewBody(t *testing.T) {
 	if got := notifyPreviewBody(m, true); got != "meet me at the station" {
 		t.Errorf("previews on = %q", got)
 	}
-	// Hidden previews never leak the text — or the media type.
 	if got := notifyPreviewBody(m, false); got != "New message" {
 		t.Errorf("previews off = %q", got)
 	}

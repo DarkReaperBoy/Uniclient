@@ -6,26 +6,17 @@ import (
 	"github.com/gotd/td/tg"
 )
 
-// Channel statistics (slice 184, parity row "Channel statistics
-// screens" — tdesktop's channel Statistics page): stats.getBroadcastStats
-// over the channel + stats.loadAsyncGraph for token graphs; the result
-// is a flat struct the GUI renders (overview cards + line charts).
-
-// StatsValue is one current-vs-previous counter.
 type StatsValue struct {
 	Current  float64 `json:"current"`
 	Previous float64 `json:"previous"`
 }
 
-// StatsGraphData is one graph: inline JSON when already loaded, or the
-// async token the engine resolves via stats.loadAsyncGraph.
 type StatsGraphData struct {
 	Title string `json:"title"`
 	JSON  string `json:"json,omitempty"`
 	Token string `json:"token,omitempty"`
 }
 
-// ChannelStats is the flattened stats.getBroadcastStats result.
 type ChannelStats struct {
 	MinDate int `json:"min_date"`
 	MaxDate int `json:"max_date"`
@@ -41,8 +32,6 @@ type ChannelStats struct {
 	Graphs []StatsGraphData `json:"graphs"`
 }
 
-// statsGraphJSON extracts the inline JSON or the async token from one
-// graph constructor. Pure — unit-tested.
 func statsGraphJSON(g tg.StatsGraphClass) (json, token string) {
 	switch v := g.(type) {
 	case *tg.StatsGraph:
@@ -53,7 +42,6 @@ func statsGraphJSON(g tg.StatsGraphClass) (json, token string) {
 	return "", ""
 }
 
-// statsPercent: part/total as a percentage (0 when total is 0).
 func statsPercent(p tg.StatsPercentValue) float64 {
 	if p.Total == 0 {
 		return 0
@@ -61,8 +49,6 @@ func statsPercent(p tg.StatsPercentValue) float64 {
 	return p.Part / p.Total * 100
 }
 
-// broadcastStatsToResult flattens the broadcast stats (graphs in
-// tdesktop's page order; nil graphs drop). Pure — unit-tested.
 func broadcastStatsToResult(st *tg.StatsBroadcastStats) *ChannelStats {
 	if st == nil {
 		return nil
@@ -97,11 +83,7 @@ func broadcastStatsToResult(st *tg.StatsBroadcastStats) *ChannelStats {
 	return r
 }
 
-// GetChannelStats fetches the channel's broadcast statistics, resolving
-// async graph tokens through stats.loadAsyncGraph so every returned
-// graph carries inline JSON.
 func (t *TelegramCore) GetChannelStats(chatID string) (*ChannelStats, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -125,8 +107,6 @@ func (t *TelegramCore) GetChannelStats(chatID string) (*ChannelStats, error) {
 	if r == nil {
 		return nil, fmt.Errorf("no stats data")
 	}
-	// Resolve async tokens (stats.loadAsyncGraph) so the GUI only ever
-	// sees inline JSON.
 	for i := range r.Graphs {
 		g := &r.Graphs[i]
 		if g.Token == "" {
@@ -136,7 +116,7 @@ func (t *TelegramCore) GetChannelStats(chatID string) (*ChannelStats, error) {
 			Token: g.Token,
 		})
 		if err != nil {
-			g.Token = "" // unavailable graph drops (honest empty)
+			g.Token = ""
 			g.JSON = ""
 			continue
 		}
@@ -148,7 +128,6 @@ func (t *TelegramCore) GetChannelStats(chatID string) (*ChannelStats, error) {
 			g.JSON = ""
 		}
 	}
-	// Drop graphs that ended up empty.
 	out := r.Graphs[:0]
 	for _, g := range r.Graphs {
 		if g.JSON != "" {

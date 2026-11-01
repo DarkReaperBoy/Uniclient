@@ -29,27 +29,15 @@ import (
 	"uniclient/engine"
 )
 
-// Media bubbles + download progress (AyuGram parity, research/ayugram_parity.md
-// §5 "Media"): photo/video/voice/audio/file bubble rendering driven by the
-// engine media pipeline (RequestDownload / EventDownloadProgress / Complete /
-// Failed). Thumbnails come inline with the message (Telegram stripped JPEGs,
-// already inflated to valid JPEG by the core); the full file swaps in once
-// downloaded. Nothing renders a state the engine cannot back (§1.10).
-
-// ── download bookkeeping ──────────────────────────────────────────────────
-
-// dlState mirrors one download's live progress for a bubble.
 type dlState struct {
 	recv, total int64
-	state       int // engine.Download* constants
+	state       int
 }
 
 func dlKey(accountID, chatID, msgID string, seq int) string {
 	return accountID + "|" + chatID + "|" + msgID + "|" + strconv.Itoa(seq)
 }
 
-// dlActive reports whether any download is transferring right now (drives the
-// progress-bar animation invalidation).
 func dlActive(dls map[string]dlState) bool {
 	for _, d := range dls {
 		if d.state == engine.DownloadInProgress {
@@ -59,7 +47,6 @@ func dlActive(dls map[string]dlState) bool {
 	return false
 }
 
-// dlFraction clamps recv/total into 0..1.
 func dlFraction(recv, total int64) float32 {
 	if total <= 0 || recv <= 0 {
 		return 0
@@ -70,7 +57,6 @@ func dlFraction(recv, total int64) float32 {
 	return float32(recv) / float32(total)
 }
 
-// fmtBytes renders AyuGram-style sizes ("1.5 KB", "2.4 MB").
 func fmtBytes(n int64) string {
 	switch {
 	case n <= 0:
@@ -94,7 +80,6 @@ func trimFloat(v float64) string {
 	return strings.TrimSuffix(s, ".0")
 }
 
-// fmtDur renders a duration as m:ss / h:mm:ss.
 func fmtDur(sec int) string {
 	if sec < 0 {
 		sec = 0
@@ -113,12 +98,6 @@ func pad2(n int) string {
 	return itoa(n)
 }
 
-// ── decoded-image cache (thumbs + files) ──────────────────────────────────
-
-// mediaImg caches decoded images keyed by "thumb:<b64>" / "file:<path>".
-// Decoding happens off the frame thread; frames only look up. The cache is
-// reset (not LRU-evicted) when it outgrows a full chat of bubbles — keys are
-// stable, so a later frame re-decodes what it needs.
 type mediaImgCache struct {
 	mu      sync.Mutex
 	imgs    map[string]*image.RGBA
@@ -145,7 +124,6 @@ func (c *mediaImgCache) store(key string, img *image.RGBA) {
 	c.mu.Unlock()
 }
 
-// start claims a decode slot; false while a decode for the key is in flight.
 func (c *mediaImgCache) start(key string) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -162,7 +140,6 @@ func (c *mediaImgCache) fail(key string) {
 	c.mu.Unlock()
 }
 
-// imgToRGBA converts any decoded image to the GPU-friendly RGBA layout.
 func imgToRGBA(src image.Image) *image.RGBA {
 	if rgba, ok := src.(*image.RGBA); ok {
 		return rgba
@@ -173,9 +150,6 @@ func imgToRGBA(src image.Image) *image.RGBA {
 	return dst
 }
 
-// decodeImageAsync decodes raw image bytes off-thread, caches the result and
-// invalidates so the bubble repaints with real pixels. Failed decodes release
-// the pending claim so a retry is possible.
 func (a *App) decodeImageAsync(key string, read func() ([]byte, error)) {
 	if !mediaImgs.start(key) {
 		return
@@ -207,17 +181,12 @@ func (a *App) decodeFileAsync(path string) {
 	a.decodeImageAsync("file:"+path, func() ([]byte, error) { return os.ReadFile(path) })
 }
 
-// imageExts are the formats the stdlib decoders here can display.
 var imageExts = map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".gif": true, ".webp": true}
 
-// isDisplayableImage reports whether a local media path can be shown inline.
 func isDisplayableImage(path string) bool {
 	return imageExts[strings.ToLower(filepath.Ext(path))]
 }
 
-// ── drawing primitives ────────────────────────────────────────────────────
-
-// fitScale returns the aspect-fit scale for w0×h0 inside maxW×maxH.
 func fitScale(w0, h0, maxW, maxH int) float32 {
 	if w0 <= 0 || h0 <= 0 {
 		return 1
@@ -229,8 +198,6 @@ func fitScale(w0, h0, maxW, maxH int) float32 {
 	return s
 }
 
-// fitDims returns the aspect-fit size for w0×h0 inside maxW×maxH (rounded,
-// clamped; degenerate source falls back to the box).
 func fitDims(w0, h0, maxW, maxH int) (int, int) {
 	if w0 <= 0 || h0 <= 0 {
 		return maxW, maxH
@@ -253,8 +220,6 @@ func fitDims(w0, h0, maxW, maxH int) (int, int) {
 	return w, h
 }
 
-// drawImageScaled paints img aspect-fit into a maxW×maxH box with rounded
-// corners, linear filtering (thumbnail upscale, AyuGram-style).
 func drawImageScaled(gtx layout.Context, img *image.RGBA, maxW, maxH, radius int) layout.Dimensions {
 	w0, h0 := img.Bounds().Dx(), img.Bounds().Dy()
 	if w0 <= 0 || h0 <= 0 {
@@ -274,8 +239,6 @@ func drawImageScaled(gtx layout.Context, img *image.RGBA, maxW, maxH, radius int
 	return layout.Dimensions{Size: image.Pt(w, h)}
 }
 
-// drawImageEllipse paints img scaled into a square, clipped to a circle
-// (round video messages).
 func drawImageEllipse(gtx layout.Context, img *image.RGBA, diameter int) layout.Dimensions {
 	w0, h0 := img.Bounds().Dx(), img.Bounds().Dy()
 	if w0 <= 0 || h0 <= 0 || diameter <= 0 {
@@ -293,7 +256,6 @@ func drawImageEllipse(gtx layout.Context, img *image.RGBA, diameter int) layout.
 	return layout.Dimensions{Size: image.Pt(diameter, diameter)}
 }
 
-// drawPlayBadge renders a translucent circle with a white play triangle.
 func drawPlayBadge(gtx layout.Context, diameter int) layout.Dimensions {
 	if diameter <= 0 {
 		return layout.Dimensions{}
@@ -318,9 +280,6 @@ func drawPlayBadge(gtx layout.Context, diameter int) layout.Dimensions {
 	return layout.Dimensions{Size: image.Pt(diameter, diameter)}
 }
 
-// ── bubble kinds ──────────────────────────────────────────────────────────
-
-// mediaBlockKind maps an engine media type to the bubble kind rendering it.
 func mediaBlockKind(mt int) string {
 	switch mt {
 	case engine.MediaImage, engine.MediaGIF:
@@ -342,9 +301,6 @@ func mediaBlockKind(mt int) string {
 	}
 }
 
-// a.wid.mediaClicks pools whole-bubble clickables (msgID-keyed, pruned like
-// a.wid.reactionClicks when rows scroll away for good).
-
 func (a *App) mediaClickable(key string) *widget.Clickable {
 	if c, ok := a.wid.mediaClicks[key]; ok {
 		return c
@@ -357,25 +313,20 @@ func (a *App) mediaClickable(key string) *widget.Clickable {
 	return c
 }
 
-// mediaBlock renders one message's media attachment and routes taps through
-// the engine download pipeline: none/failed → download, in-progress → cancel,
-// complete → reveal the local path (AyuGram bubble behavior).
 func (a *App) mediaBlock(gtx layout.Context, f frame, m *engine.CachedMessage) layout.Dimensions {
 	kind := mediaBlockKind(m.MediaType)
 
-	// Live download state (event-fed) wins over the DB snapshot.
 	st, live := f.downloads[dlKey(m.AccountID, m.ChatID, m.MsgID, 0)]
 	state := m.MediaDownloadState
 	if live {
 		state = st.state
 	}
 
-	// AyuGram auto-downloads photos/GIFs/stickers as they scroll into view.
 	if autoDownloadable(m.MediaType) &&
 		state == engine.DownloadNone && a.markAutoDl(m.MsgID) {
 		msg := *m
 		go func() {
-			_ = a.eng.RequestDownload(msg.AccountID, msg.ChatID, msg.MsgID, 0, 2) // prefetch priority
+			_ = a.eng.RequestDownload(msg.AccountID, msg.ChatID, msg.MsgID, 0, 2)
 		}()
 	}
 
@@ -422,9 +373,7 @@ func (a *App) mediaBlock(gtx layout.Context, f frame, m *engine.CachedMessage) l
 	return dims
 }
 
-// actMedia dispatches the tap for a media bubble.
 func (a *App) actMedia(gtx layout.Context, m *engine.CachedMessage, state int) {
-	// Selection mode: taps mark messages instead of media actions.
 	a.mu.Lock()
 	selOn := a.selOn
 	a.mu.Unlock()
@@ -433,8 +382,6 @@ func (a *App) actMedia(gtx layout.Context, m *engine.CachedMessage, state int) {
 		return
 	}
 	msg := *m
-	// Location/contact bubbles carry no downloadable payload — tap copies
-	// the maps URL / phone number instead (same clipboard hop as links).
 	switch msg.MediaType {
 	case engine.MediaLocation:
 		if g := parseGeoMessage(&msg); g != nil {
@@ -449,15 +396,7 @@ func (a *App) actMedia(gtx layout.Context, m *engine.CachedMessage, state int) {
 	}
 	switch state {
 	case engine.DownloadNone, engine.DownloadFailed:
-		// Slice 86: a tap expresses play/view intent — the completed
-		// file hands off to the system player automatically. Round video
-		// notes are the exception: they play INLINE in the bubble
-		// (slice 220), which is how tdesktop treats video messages.
 		if msg.MediaType == engine.MediaVideoNote {
-			// Row 281: an undownloaded note plays from the ranged stream
-			// immediately (slice 229) — the stream IS the download; it
-			// promotes the row when its last chunk lands. No stream
-			// available → the wait-for-download flow below, unchanged.
 			if a.startStreamedVideoNote(&msg) {
 				return
 			}
@@ -473,24 +412,17 @@ func (a *App) actMedia(gtx layout.Context, m *engine.CachedMessage, state int) {
 	case engine.DownloadInProgress:
 		go func() { a.eng.CancelDownload(msg.AccountID, msg.ChatID, msg.MsgID, 0) }()
 	default:
-		// Complete: photos/GIFs/videos open the fullscreen viewer; voice
-		// notes and Opus audio play IN-APP (slice 113); stickers replay
-		// (.tgs) / view (.webp) / replay in-chat (.webm) (slices 123+216);
-		// other types fall back to the system player (slice 86 handoff).
 		switch msg.MediaType {
 		case engine.MediaImage, engine.MediaGIF, engine.MediaVideo:
 			a.openViewerFromMsg(gtx, &msg)
 		case engine.MediaVideoNote:
-			// Round notes play in the bubble (slice 220); the fullscreen
-			// viewer stays the fallback for files our pure-Go decoder
-			// rejects, so the bubble is never dead (§1.10).
 			if !a.tapVideoNote(&msg) {
 				a.openViewerFromMsg(gtx, &msg)
 			}
 		case engine.MediaSticker, engine.MediaDice:
 			if msg.MediaType == engine.MediaDice &&
 				(state == engine.DownloadNone || state == engine.DownloadFailed) {
-				a.ensureDiceSticker(&msg) // resolve + download (tap retries)
+				a.ensureDiceSticker(&msg)
 				return
 			}
 			switch stickerRenderKind(&msg) {
@@ -502,11 +434,10 @@ func (a *App) actMedia(gtx layout.Context, m *engine.CachedMessage, state int) {
 				} else if msg.MediaLocalPath != "" {
 					a.openMedia(msg.MediaLocalPath, true)
 				}
-			default: // webm video sticker: replay in-chat (slice 216)
+			default:
 				a.replayWebmSticker(&msg)
 			}
 		case engine.MediaVoice, engine.MediaAudio:
-			// Slice 185: MP3 music plays in-app too (pure-Go decode).
 			if msg.MediaLocalPath != "" && engine.IsInAppPlayable(msg.MediaLocalPath) {
 				a.toggleVoicePlayback(&msg)
 			} else if msg.MediaLocalPath != "" {
@@ -520,8 +451,6 @@ func (a *App) actMedia(gtx layout.Context, m *engine.CachedMessage, state int) {
 	}
 }
 
-// markAutoDl records that a prefetch was issued for a message this session so
-// repaints don't re-enqueue it.
 func (a *App) markAutoDl(msgID string) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -535,10 +464,6 @@ func (a *App) markAutoDl(msgID string) bool {
 	return true
 }
 
-// ── kind bubbles ──────────────────────────────────────────────────────────
-
-// photoBubble: the image itself, aspect-fit and rounded. Shows the inline
-// thumbnail immediately; swaps to the downloaded file once it lands.
 func (a *App) photoBubble(gtx layout.Context, f frame, m *engine.CachedMessage, state int) layout.Dimensions {
 	maxW := gtx.Dp(unit.Dp(280))
 	if avail := gtx.Constraints.Max.X; avail > 0 && avail < maxW {
@@ -563,7 +488,6 @@ func (a *App) photoBubble(gtx layout.Context, f frame, m *engine.CachedMessage, 
 		return drawImageScaled(gtx, img, maxW, maxH, 8)
 	}
 
-	// Decoding in flight or no thumb: aspect box from metadata.
 	w0, h0 := m.MediaWidth, m.MediaHeight
 	if w0 <= 0 || h0 <= 0 {
 		w0, h0 = 4, 3
@@ -576,8 +500,6 @@ func (a *App) photoBubble(gtx layout.Context, f frame, m *engine.CachedMessage, 
 	return a.mediaPlaceholder(gtx, m, w, h)
 }
 
-// videoBubble: thumbnail with a play badge and duration pill; round video
-// notes render as a circle.
 func (a *App) videoBubble(gtx layout.Context, f frame, m *engine.CachedMessage, state int) layout.Dimensions {
 	if m.MediaType == engine.MediaVideoNote {
 		return a.videoNoteBubble(gtx, f, m)
@@ -629,13 +551,8 @@ func (a *App) videoBubble(gtx layout.Context, f frame, m *engine.CachedMessage, 
 	)
 }
 
-// videoNoteBubble: round video message — circle thumbnail, centered play.
 func (a *App) videoNoteBubble(gtx layout.Context, f frame, m *engine.CachedMessage) layout.Dimensions {
 	d := gtx.Dp(unit.Dp(190))
-	// Slice 220: a playing note renders its live frames circle-cropped
-	// with no play badge — it IS the player, exactly as tdesktop draws
-	// video messages. Until the first frame decodes, the thumbnail+badge
-	// below holds the box.
 	if dims, ok := a.drawVideoNoteFrame(gtx, m.MsgID, d); ok {
 		return dims
 	}
@@ -666,8 +583,6 @@ func (a *App) videoNoteBubble(gtx layout.Context, f frame, m *engine.CachedMessa
 	)
 }
 
-// durationBadge renders the m:ss pill pinned to the bottom-right of its
-// parent (used inside layout.Expanded).
 func (a *App) durationBadge(gtx layout.Context, m *engine.CachedMessage) layout.Dimensions {
 	if m.MediaDuration <= 0 {
 		return layout.Dimensions{}
@@ -687,10 +602,6 @@ func (a *App) durationBadge(gtx layout.Context, m *engine.CachedMessage) layout.
 	)
 }
 
-// voiceBubble: in-app player (slice 113) — play/pause circle, waveform
-// strip with live progress, speed chip, elapsed/total label. Playback
-// runs through the engine's Ogg/Opus media player; non-Opus files (or
-// platforms without the audio backend) keep the system-player handoff.
 func (a *App) voiceBubble(gtx layout.Context, f frame, m *engine.CachedMessage) layout.Dimensions {
 	st := a.eng.MediaState()
 	active := st.Playing || st.Paused
@@ -712,7 +623,6 @@ func (a *App) voiceBubble(gtx layout.Context, f frame, m *engine.CachedMessage) 
 
 	return layout.Inset{Top: unit.Dp(2), Bottom: unit.Dp(2)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
-			// Play / pause circle.
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				btn := a.mediaPlayClickable(m.AccountID + "|" + m.ChatID + "|" + m.MsgID)
 				d := gtx.Dp(unit.Dp(44))
@@ -730,7 +640,6 @@ func (a *App) voiceBubble(gtx layout.Context, f frame, m *engine.CachedMessage) 
 					return dims
 				})
 			}),
-			// Waveform + labels (+ transcription block, slice 115).
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -759,7 +668,6 @@ func (a *App) voiceBubble(gtx layout.Context, f frame, m *engine.CachedMessage) 
 					}),
 				)
 			}),
-			// Speed chip.
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				clk := a.mediaPlayClickable(m.AccountID + "|" + m.ChatID + "|" + m.MsgID + "|speed")
 				if clk.Clicked(gtx) {
@@ -771,7 +679,6 @@ func (a *App) voiceBubble(gtx layout.Context, f frame, m *engine.CachedMessage) 
 					})
 				})
 			}),
-			// Transcribe glyph (slice 115): "A→A" while untranscribed.
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				if !transcribeWanted(m, f.transcribeCap) {
 					return layout.Dimensions{}
@@ -790,9 +697,6 @@ func (a *App) voiceBubble(gtx layout.Context, f frame, m *engine.CachedMessage) 
 	})
 }
 
-// toggleVoicePlayback: download-first, then in-app play/pause; the
-// system player stays the fallback for non-Opus files and platforms
-// without the audio backend.
 func (a *App) toggleVoicePlayback(m *engine.CachedMessage) {
 	st := a.eng.MediaState()
 	mine := (st.Playing || st.Paused) && st.AccountID == m.AccountID && st.ChatID == m.ChatID && st.MsgID == m.MsgID
@@ -802,8 +706,6 @@ func (a *App) toggleVoicePlayback(m *engine.CachedMessage) {
 		return
 	}
 	if m.MediaLocalPath == "" {
-		// Not downloaded yet — the normal tap flow (download then open)
-		// takes over.
 		return
 	}
 	if !engine.IsInAppPlayable(m.MediaLocalPath) {
@@ -822,9 +724,6 @@ func (a *App) toggleVoicePlayback(m *engine.CachedMessage) {
 	a.invalidate()
 }
 
-// startPlaybackTickerIfNeeded redraws ~4×/s while media plays so the
-// waveform progress and elapsed label stay live (same pattern as the
-// call elapsed ticker).
 func (a *App) startPlaybackTickerIfNeeded() {
 	a.mu.Lock()
 	if a.mediaTickerOn {
@@ -849,12 +748,6 @@ func (a *App) startPlaybackTickerIfNeeded() {
 	}()
 }
 
-// voiceWaveform: the amplitude strip. Real bars when the message
-// carries waveform data, a plain progress track otherwise (§1.10 — no
-// fake waveforms); the played portion is accent-tinted. When this
-// message is the active in-app playback (seekable), the strip doubles
-// as a seek control — press/drag/release seeks to the pointer fraction
-// (tdesktop's VoiceMessages seek interaction, slice 186).
 func (a *App) voiceWaveform(gtx layout.Context, m *engine.CachedMessage, pos, total float64, playing, seekable bool) layout.Dimensions {
 	const nBars = 44
 	w := gtx.Dp(unit.Dp(150))
@@ -870,8 +763,6 @@ func (a *App) voiceWaveform(gtx layout.Context, m *engine.CachedMessage, pos, to
 		}
 	}
 
-	// Seek input (slice 186): the whole strip is the grab area while
-	// this message owns the player.
 	if seekable {
 		key := m.AccountID + "|" + m.ChatID + "|" + m.MsgID + "|wave"
 		tag := a.seekBarTag(key)
@@ -890,7 +781,7 @@ func (a *App) voiceWaveform(gtx layout.Context, m *engine.CachedMessage, pos, to
 			case pointer.Press, pointer.Drag, pointer.Release:
 				f := seekFraction(pe.Position.X, w, progress)
 				if last, ok := a.wid.seekBarApplied[key]; ok && absF64(f-last) < 0.005 && pe.Kind == pointer.Drag {
-					continue // throttle sub-half-percent drag moves
+					continue
 				}
 				a.wid.seekBarApplied[key] = f
 				_ = a.eng.SeekMedia(f)
@@ -901,8 +792,6 @@ func (a *App) voiceWaveform(gtx layout.Context, m *engine.CachedMessage, pos, to
 		stack.Pop()
 	}
 
-	// Amplitudes: the cached waveform (Telegram sends ~100 bytes of
-	// 0..31 amplitudes) downsampled to nBars; flat mid bars when absent.
 	wf := m.VoiceWaveform()
 	amps := make([]float32, nBars)
 	if len(wf) > 0 {
@@ -947,14 +836,12 @@ func (a *App) voiceWaveform(gtx layout.Context, m *engine.CachedMessage, pos, to
 	return layout.Dimensions{Size: image.Pt(w, h)}
 }
 
-// fmtPlaybackTime renders "0:03 / 0:12" (position + total).
 func fmtPlaybackTime(pos, total float64) string {
 	p := fmtDur(int(pos + 0.5))
 	t := fmtDur(int(total + 0.5))
 	return p + " / " + t
 }
 
-// drawPauseBadge renders a translucent circle with white pause bars.
 func drawPauseBadge(gtx layout.Context, diameter int) layout.Dimensions {
 	if diameter <= 0 {
 		return layout.Dimensions{}
@@ -978,7 +865,6 @@ func drawPauseBadge(gtx layout.Context, diameter int) layout.Dimensions {
 	return layout.Dimensions{Size: image.Pt(diameter, diameter)}
 }
 
-// drawSpeedChip renders the small "1×" / "1.5×" speed toggle chip.
 func drawSpeedChip(gtx layout.Context, u *UI, accent color.NRGBA, speed float64) layout.Dimensions {
 	lbl := u.Label(unit.Sp(10), fmtSpeed(speed))
 	lbl.Color = accent
@@ -1000,8 +886,6 @@ func fmtSpeed(s float64) string {
 	}
 }
 
-// a.wid.mediaPlayClickables keeps one stable clickable per player control.
-
 func (a *App) mediaPlayClickable(key string) *widget.Clickable {
 	if c, ok := a.wid.mediaPlayClickables[key]; ok {
 		return c
@@ -1014,9 +898,6 @@ func (a *App) mediaPlayClickable(key string) *widget.Clickable {
 	return c
 }
 
-// audioBubble: music-file row — embedded title/performer tags when the
-// document carries them (tdesktop's music row), the file name otherwise;
-// live elapsed + seek track while the file plays in-app (slice 185).
 func (a *App) audioBubble(gtx layout.Context, m *engine.CachedMessage) layout.Dimensions {
 	title, performer := m.AudioMeta()
 	if title == "" {
@@ -1052,8 +933,6 @@ func (a *App) audioBubble(gtx layout.Context, m *engine.CachedMessage) layout.Di
 							return lbl.Layout(gtx)
 						}),
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							// Seek track while this file plays in-app
-							// (slice 185): press/drag/release seeks.
 							if !mine || st.Duration <= 0 {
 								return layout.Dimensions{}
 							}
@@ -1072,7 +951,6 @@ func (a *App) audioBubble(gtx layout.Context, m *engine.CachedMessage) layout.Di
 	})
 }
 
-// fileBubble: generic document row — state icon, name, size.
 func (a *App) fileBubble(gtx layout.Context, m *engine.CachedMessage) layout.Dimensions {
 	title := mediaTitle(m)
 	if title == "" {
@@ -1113,7 +991,6 @@ func (a *App) fileBubble(gtx layout.Context, m *engine.CachedMessage) layout.Dim
 	})
 }
 
-// mediaTitle derives the bubble title from the file name (extension stripped).
 func mediaTitle(m *engine.CachedMessage) string {
 	name := m.MediaFileName
 	if name == "" {
@@ -1122,10 +999,6 @@ func mediaTitle(m *engine.CachedMessage) string {
 	return strings.TrimSuffix(name, filepath.Ext(name))
 }
 
-// audioSubLine builds the music row's subtitle (slice 185): the performer
-// tag when the document carries one, then the live elapsed/total while
-// the file plays in-app (the message's static duration otherwise), then
-// the file size. Pure — unit-tested.
 func audioSubLine(performer string, msgDur int, mine bool, pos, liveDur float64, size int64) string {
 	sub := fmtDur(msgDur)
 	if mine {
@@ -1140,8 +1013,6 @@ func audioSubLine(performer string, msgDur int, mine bool, pos, liveDur float64,
 	return sub
 }
 
-// mediaPlaceholder: the aspect box shown while a thumbnail decodes or when a
-// message has no inline thumb.
 func (a *App) mediaPlaceholder(gtx layout.Context, m *engine.CachedMessage, w, h int) layout.Dimensions {
 	return roundedFill(gtx, a.ui.p.SurfaceHi, 8, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints = layout.Constraints{Min: image.Pt(w, h), Max: image.Pt(w, h)}
@@ -1153,7 +1024,6 @@ func (a *App) mediaPlaceholder(gtx layout.Context, m *engine.CachedMessage, w, h
 	})
 }
 
-// downloadRow: byte counter + thin progress bar under a downloading bubble.
 func (a *App) downloadRow(gtx layout.Context, recv, total int64) layout.Dimensions {
 	return layout.Inset{Top: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,

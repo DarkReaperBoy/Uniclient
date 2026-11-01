@@ -4,8 +4,6 @@ import (
 	"testing"
 )
 
-// Full reaction picker (slice 55): the quick bar keeps at most 7 pills
-// and flags the expandable ⋯ toggle only when reactions remain.
 func TestQuickReactions(t *testing.T) {
 	seven := []string{"1", "2", "3", "4", "5", "6", "7"}
 	quick, more := quickReactions(seven)

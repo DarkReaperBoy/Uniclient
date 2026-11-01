@@ -4,11 +4,6 @@ import (
 	"testing"
 )
 
-// Signup card (slice 193, parity row "Signup (name/photo)" — tdesktop's
-// signup asks first+last name separately plus an optional photo that
-// uploads as the profile picture right after account creation): pure
-// composition + validation locked here.
-
 func TestSignupNameInput(t *testing.T) {
 	if got := signupNameInput("Alice", "Smith"); got != "Alice\nSmith" {
 		t.Errorf("signupNameInput = %q, want Alice\\nSmith", got)

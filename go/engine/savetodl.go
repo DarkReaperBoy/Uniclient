@@ -1,13 +1,5 @@
 package engine
 
-// Save-to-Downloads (slice 99, matrix row 158): the engine-facing half of
-// AyuGram's "save file / save GIF / save sound" — copies a message's
-// downloaded media file into the user's downloads directory with a
-// collision-safe name. The GUI drives it from the media viewer and the
-// message context menu; undownloaded media reports the honest
-// ErrMediaNotDownloaded sentinel so the caller can start a download and
-// retry on completion.
-
 import (
 	"database/sql"
 	"errors"
@@ -18,16 +10,8 @@ import (
 	"strings"
 )
 
-// ErrMediaNotDownloaded: the message's media has no local file yet — the
-// caller should RequestDownload and retry once EventDownloadComplete
-// fires.
 var ErrMediaNotDownloaded = errors.New("media not downloaded yet")
 
-// SaveMessageMediaToDownloads copies the message's seq-N media file into
-// the downloads directory and returns the destination path. The name
-// prefers the stored file name (sanitized), falling back to the cache
-// file's base name; an existing file of the same name is never
-// overwritten ("photo (1).jpg", …).
 func (e *Engine) SaveMessageMediaToDownloads(accountID, chatID, msgID string, seq int) (string, error) {
 	if seq < 0 {
 		seq = 0
@@ -63,10 +47,6 @@ func (e *Engine) SaveMessageMediaToDownloads(accountID, chatID, msgID string, se
 	return dest, nil
 }
 
-// sanitizeDownloadName picks the saved file name: the stored name when
-// usable, else the cache path's base. Path separators in a stored name
-// never escape the downloads dir (both separators stripped, then the
-// base taken again).
 func sanitizeDownloadName(stored, cachePath string) string {
 	name := strings.TrimSpace(stored)
 	if name != "" {
@@ -83,8 +63,6 @@ func sanitizeDownloadName(stored, cachePath string) string {
 	return name
 }
 
-// uniqueDownloadPath: dir/name, or dir/"name (N).ext" when a file already
-// sits there — the first free slot, never an overwrite.
 func uniqueDownloadPath(dir, name string) string {
 	ext := filepath.Ext(name)
 	stem := strings.TrimSuffix(name, ext)
@@ -97,7 +75,6 @@ func uniqueDownloadPath(dir, name string) string {
 	}
 }
 
-// copyFile streams src to dst (large media never fully buffered).
 func copyFile(src, dst string) error {
 	in, err := os.Open(src)
 	if err != nil {

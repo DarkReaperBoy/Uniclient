@@ -13,23 +13,12 @@ import (
 	"uniclient/engine"
 )
 
-// Emoji picker (AyuGram parity §4 "a.wid.composer helpers" / top-gap #15): the 😊
-// button next to the a.wid.composer opens a category-tabbed emoji panel above the
-// input; taps insert at the caret (widget.Editor.Insert) and keep the panel
-// open for multi-insert, with a backspace key. Emoji are plain text rendered
-// through the Noto Emoji fallback face registered in theme.go — no engine
-// involvement, nothing faked (§1.10). Sticker/GIF tabs (engine sticker APIs)
-// are the follow-up slice.
-
-// emojiCategory is one tab: a representative emoji, a label, and the grid.
 type emojiCategory struct {
 	icon   string
 	label  string
 	emojis []string
 }
 
-// emojiCategories mirrors AyuGram's emoji panel order (minus recent-stickers,
-// which needs a persistence layer).
 var emojiCategories = []emojiCategory{
 	{"😀", "Smileys", []string{
 		"😀", "😃", "😄", "😁", "😆", "😅", "🤣", "😂", "🙂", "🙃", "😉", "😊",
@@ -89,11 +78,6 @@ var emojiCategories = []emojiCategory{
 	}},
 }
 
-// emoji button pool.
-
-// ── pure helpers (unit-tested) ────────────────────────────────────────────
-
-// emojiRowCount returns the grid rows for n items at cols columns.
 func emojiRowCount(n, cols int) int {
 	if cols <= 0 {
 		return 0
@@ -105,7 +89,6 @@ func emojiRowCount(n, cols int) int {
 	return r
 }
 
-// emojiCategorySafe clamps a tab index into the category list.
 func emojiCategorySafe(i int) emojiCategory {
 	if i < 0 || i >= len(emojiCategories) {
 		return emojiCategories[0]
@@ -113,10 +96,6 @@ func emojiCategorySafe(i int) emojiCategory {
 	return emojiCategories[i]
 }
 
-// ── state transitions ─────────────────────────────────────────────────────
-
-// toggleEmojiPanel shows/hides the picker; switching to the emoji panel
-// closes the attach popup (one helper surface at a time, AyuGram behavior).
 func (a *App) toggleEmojiPanel() {
 	a.mu.Lock()
 	a.attachMenuOpen = false
@@ -125,7 +104,6 @@ func (a *App) toggleEmojiPanel() {
 	a.invalidate()
 }
 
-// closeEmojiPanel hides the picker.
 func (a *App) closeEmojiPanel() {
 	a.mu.Lock()
 	a.emojiOpen = false
@@ -133,7 +111,6 @@ func (a *App) closeEmojiPanel() {
 	a.invalidate()
 }
 
-// setEmojiTab switches the visible category.
 func (a *App) setEmojiTab(i int) {
 	a.mu.Lock()
 	if i >= 0 && i < len(emojiCategories) {
@@ -143,8 +120,6 @@ func (a *App) setEmojiTab(i int) {
 	a.invalidate()
 }
 
-// insertEmoji inserts one emoji at the a.wid.composer caret (AyuGram: panel stays
-// open for multi-insert). Called from the GUI goroutine.
 func (a *App) insertEmoji(e string) {
 	if e == "" {
 		return
@@ -153,17 +128,11 @@ func (a *App) insertEmoji(e string) {
 	a.invalidate()
 }
 
-// a.wid.emojiBackspace deletes the cluster before the caret.
 func (a *App) emojiBackspaceAt() {
 	a.wid.composer.Delete(-1)
 	a.invalidate()
 }
 
-// ── emoji search (AyuGram keyword search, slice 50) ────────────────────────
-
-// filterEmojiByKeyword (pure, testable): emojis matching a keyword query —
-// case-insensitive substring over the engine keyword list (Telegram
-// MessagesGetEmojiKeywords: keyword -> emoticons/emojis), deduped, capped.
 func filterEmojiByKeyword(kws []engine.EmojiKeywordEntry, q string, cap int) []string {
 	q = strings.ToLower(strings.TrimSpace(q))
 	if q == "" || len(kws) == 0 {
@@ -192,22 +161,18 @@ func filterEmojiByKeyword(kws []engine.EmojiKeywordEntry, q string, cap int) []s
 	return out
 }
 
-// emojiKeywords returns the cached keyword list (nil until fetched).
 func (a *App) emojiKeywords() []engine.EmojiKeywordEntry {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.emojiKws
 }
 
-// emojiKeywordsLoaded reports whether the keyword map arrived.
 func (a *App) emojiKeywordsLoaded() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.emojiKwsLoaded
 }
 
-// ensureEmojiKeywords fetches the keyword map once (best-effort; failures
-// leave the panel as the plain category grid).
 func (a *App) ensureEmojiKeywords(accountID string) {
 	if accountID == "" {
 		return
@@ -236,15 +201,9 @@ func (a *App) ensureEmojiKeywords(accountID string) {
 	}()
 }
 
-// ── layout ────────────────────────────────────────────────────────────────
-
-// layoutEmojiPanel renders the category-tabbed emoji grid above the a.wid.composer.
-// Records its rect for outside-press dismissal (menu.go onPanePress).
 func (a *App) layoutEmojiPanel(gtx layout.Context, f frame) layout.Dimensions {
 	cat := emojiCategorySafe(f.emojiTab)
 
-	// Search (slice 50): while the field has a query the grid shows keyword
-	// matches from the engine (Telegram emoji keywords), fetched lazily.
 	query := strings.TrimSpace(a.wid.emojiSearchEd.Text())
 	var results []string
 	searching := len([]rune(query)) >= 2
@@ -295,11 +254,9 @@ func (a *App) layoutEmojiPanel(gtx layout.Context, f frame) layout.Dimensions {
 	gtx.Constraints = layout.Constraints{Max: image.Pt(panelW, panelH), Min: image.Pt(panelW, panelH)}
 	return roundedFill(gtx, a.ui.p.Surface, 10, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-			// Top-level mode row: Emoji / Stickers / GIFs (slice 58).
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return a.layoutPanelModeRow(gtx, f)
 			}),
-			// Search row (AyuGram emoji search, slice 50).
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				if f.emojiMode != panelModeEmoji {
 					return layout.Dimensions{}
@@ -314,7 +271,6 @@ func (a *App) layoutEmojiPanel(gtx layout.Context, f frame) layout.Dimensions {
 					})
 				})
 			}),
-			// Tab row.
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				if f.emojiMode != panelModeEmoji {
 					return layout.Dimensions{}
@@ -351,11 +307,9 @@ func (a *App) layoutEmojiPanel(gtx layout.Context, f frame) layout.Dimensions {
 					})
 				})
 			}),
-			// Divider.
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return a.ui.Divider(gtx)
 			}),
-			// Grid (search results while querying, categories otherwise).
 			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 				if f.emojiMode == panelModeStickers {
 					return a.layoutStickerMode(gtx, f)
@@ -399,7 +353,6 @@ func (a *App) layoutEmojiPanel(gtx layout.Context, f frame) layout.Dimensions {
 					})...)
 				})
 			}),
-			// Bottom bar: backspace key (right-aligned, AyuGram layout).
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				if f.emojiMode != panelModeEmoji {
 					return layout.Dimensions{}
@@ -425,8 +378,6 @@ func (a *App) layoutEmojiPanel(gtx layout.Context, f frame) layout.Dimensions {
 	})
 }
 
-// cellsForRow builds the grid children for one row: items [start, start+cols)
-// padded with spacers to keep the grid aligned (the list row is Rigid-height).
 func cellsForRow(emojis []string, start, cols int, cell func(gtx layout.Context, idx int, e string) layout.Dimensions) []layout.FlexChild {
 	out := make([]layout.FlexChild, 0, cols)
 	for c := 0; c < cols; c++ {

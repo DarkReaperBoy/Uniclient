@@ -1,18 +1,5 @@
 package gui
 
-// suggestionbar.go — slice 171: the chat-list top-bar suggestion card
-// (tdesktop dialogs/suggestions 1:1: a card above the dialog rows).
-//
-// Priority (tdesktop suggestion.cpp AllSpecs order, reduced to keys we
-// can act on with REAL local surface — the rest stay hidden exactly
-// like tdesktop hides unknown keys):
-//
-//      BIRTHDAY_CONTACTS_TODAY → open the contact's chat
-//      BIRTHDAY_SETUP          → own profile editor (birthday field)
-//      custom server card      → openLinkExternal(URL)
-//      PREMIUM_OFFER           → Premium settings page
-//      USERPIC_SETUP           → own profile editor (avatar)
-
 import (
 	"fmt"
 	"sync"
@@ -27,8 +14,6 @@ import (
 	"uniclient/engine"
 )
 
-// suggestionState is the GUI-side decision input (mirrors
-// engine.SuggestionState plus the local dismissal set).
 type suggestionState struct {
 	Pending          []string
 	Custom           *promoSuggestionInfo
@@ -41,8 +26,6 @@ type promoSuggestionInfo = engine.PromoSuggestionInfo
 type birthdayContactInfo = engine.BirthdayContactInfo
 type selfState = engine.SelfSuggestionStateInfo
 
-// suggestionOrder is the render priority (tdesktop AllSpecs, filtered
-// to actionable keys).
 var suggestionOrder = []string{
 	"BIRTHDAY_CONTACTS_TODAY",
 	"BIRTHDAY_SETUP",
@@ -51,12 +34,7 @@ var suggestionOrder = []string{
 	"USERPIC_SETUP",
 }
 
-// pickSuggestion chooses the card to render, honoring the local
-// dismissals and the setup-gates. Returns nil for "render nothing".
 func pickSuggestion(st suggestionState) *promoSuggestionInfo {
-	// Local birthday contacts win even without the server key (the data
-	// is local and definitive — tdesktop shows the card while the
-	// birthday set is still being fetched).
 	if !st.dismissed["BIRTHDAY_CONTACTS_TODAY"] && len(st.BirthdayContacts) > 0 {
 		n := len(st.BirthdayContacts)
 		title := fmt.Sprintf("%d contacts have birthdays today", n)
@@ -91,7 +69,7 @@ func pickSuggestion(st suggestionState) *promoSuggestionInfo {
 				continue
 			}
 			if key == "USERPIC_SETUP" && st.Self.PhotoSet {
-				continue // nothing to set up — the server key is stale
+				continue
 			}
 			title, desc := "Upgrade to Premium", "Support bigger uploads, faster downloads and more"
 			if key == "USERPIC_SETUP" {
@@ -116,8 +94,6 @@ func containsSuggestionKey(keys []string, key string) bool {
 	return false
 }
 
-// dismiss hides a key locally (help.dismissSuggestion is fired by the
-// engine separately).
 func (st *suggestionState) dismiss(key string) {
 	if st.dismissed == nil {
 		st.dismissed = map[string]bool{}
@@ -125,14 +101,11 @@ func (st *suggestionState) dismiss(key string) {
 	st.dismissed[key] = true
 }
 
-// ── widget state ───────────────────────────────────────────────────────────
-
 var (
-	suggBarBtn   widget.Clickable // whole-bar action
-	suggCloseBtn widget.Clickable // X
+	suggBarBtn   widget.Clickable
+	suggCloseBtn widget.Clickable
 )
 
-// suggestionFetchState is one account's fetched state.
 type suggestionFetchState struct {
 	st      *engine.SuggestionState
 	fetched time.Time
@@ -141,18 +114,11 @@ type suggestionFetchState struct {
 var (
 	suggStates    = map[string]*suggestionFetchState{}
 	suggFetching  = map[string]bool{}
-	suggDismissed = map[string]map[string]bool{} // accountID → key (GUI-local mirror)
+	suggDismissed = map[string]map[string]bool{}
 )
 
-// suggMu guards the three maps above (R24): the fetch goroutine publishes
-// into suggStates and releases suggFetching while the GUI loop reads them
-// every frame — unguarded that is a fatal concurrent-map panic, and frameMu
-// does not help (the goroutine is not a frame). suggDismissed's inner maps
-// are GUI-loop-only (mutated via suggDismissedStore on clicks), so handing
-// one out through suggDismissedFor stays single-goroutine.
 var suggMu sync.Mutex
 
-// suggStateFor reads one account's fetched state (locked).
 func suggStateFor(acc string) (*suggestionFetchState, bool) {
 	suggMu.Lock()
 	defer suggMu.Unlock()
@@ -160,16 +126,12 @@ func suggStateFor(acc string) (*suggestionFetchState, bool) {
 	return cur, ok
 }
 
-// suggStateStore publishes one account's fetched state (locked; the
-// caller builds the struct first — it is immutable after publish).
 func suggStateStore(acc string, st *suggestionFetchState) {
 	suggMu.Lock()
 	suggStates[acc] = st
 	suggMu.Unlock()
 }
 
-// suggFetchingStart test-and-sets the in-flight flag: false = a fetch is
-// already running (locked).
 func suggFetchingStart(acc string) bool {
 	suggMu.Lock()
 	defer suggMu.Unlock()
@@ -180,22 +142,18 @@ func suggFetchingStart(acc string) bool {
 	return true
 }
 
-// suggFetchingDone releases the in-flight flag (locked).
 func suggFetchingDone(acc string) {
 	suggMu.Lock()
 	delete(suggFetching, acc)
 	suggMu.Unlock()
 }
 
-// suggDismissedFor reads one account's dismissal set (locked read of the
-// outer map; the inner map is GUI-loop-only).
 func suggDismissedFor(acc string) map[string]bool {
 	suggMu.Lock()
 	defer suggMu.Unlock()
 	return suggDismissed[acc]
 }
 
-// suggDismissedStore records one dismissal (locked).
 func suggDismissedStore(acc, key string) {
 	suggMu.Lock()
 	if suggDismissed[acc] == nil {
@@ -205,16 +163,13 @@ func suggDismissedStore(acc, key string) {
 	suggMu.Unlock()
 }
 
-// suggStaleTTL mirrors tdesktop's hourly refresh.
 const suggStaleTTL = time.Hour
 
-// ensureSuggestionState fetches the account's suggestion state when
-// missing or stale (async — the bar renders next frame).
 func (a *App) ensureSuggestionState(f frame) {
 	if len(f.accounts) == 0 {
 		return
 	}
-	acc := f.accounts[0] // the visible account owns the bar (tdesktop: one per session)
+	acc := f.accounts[0]
 	if cur, ok := suggStateFor(acc.ID); ok && time.Since(cur.fetched) < suggStaleTTL {
 		return
 	}
@@ -232,8 +187,6 @@ func (a *App) ensureSuggestionState(f frame) {
 	}()
 }
 
-// guiSuggestionState projects the engine state + local dismissals into
-// the decision input.
 func (a *App) guiSuggestionState(f frame) suggestionState {
 	if len(f.accounts) == 0 {
 		return suggestionState{}
@@ -252,9 +205,6 @@ func (a *App) guiSuggestionState(f frame) suggestionState {
 	}
 }
 
-// layoutSuggestionBar renders the top-bar suggestion card above the
-// dialog rows (below the folder tabs). Nothing renders when no
-// suggestion is active — honest empty (§1.10).
 func (a *App) layoutSuggestionBar(gtx layout.Context, f frame) layout.Dimensions {
 	a.ensureSuggestionState(f)
 	st := a.guiSuggestionState(f)
@@ -292,9 +242,6 @@ func (a *App) layoutSuggestionBar(gtx layout.Context, f frame) layout.Dimensions
 								return t.Layout(gtx)
 							}),
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-								// Close (X) — nested clickable inside the bar's
-								// ButtonLayout: the bar ignores taps landing here
-								// because the X consumes the pointer first.
 								return suggCloseBtn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 									sz := gtx.Dp(unit.Dp(22))
 									gtx.Constraints.Max = image.Pt(sz, sz)
@@ -316,8 +263,6 @@ func (a *App) layoutSuggestionBar(gtx layout.Context, f frame) layout.Dimensions
 	})
 }
 
-// materialButtonSurface wraps a clickable in the standard card surface
-// (rounded, Surface bg) — the sidebar card idiom.
 func materialButtonSurface(a *App, gtx layout.Context, btn *widget.Clickable, w layout.Widget) layout.Dimensions {
 	return roundedFill(gtx, a.ui.p.Surface, unit.Dp(12), func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.X = gtx.Constraints.Max.X
@@ -325,11 +270,10 @@ func materialButtonSurface(a *App, gtx layout.Context, btn *widget.Clickable, w 
 	})
 }
 
-// suggestionGlyph picks the leading icon for a card key.
 func suggestionGlyph(key string) *widget.Icon {
 	switch key {
 	case "BIRTHDAY_CONTACTS_TODAY", "BIRTHDAY_SETUP":
-		return iconActionSchedule // calendar glyph (no cake in the MD set)
+		return iconActionSchedule
 	case "PREMIUM_OFFER":
 		return iconToggleStar
 	default:
@@ -337,7 +281,6 @@ func suggestionGlyph(key string) *widget.Icon {
 	}
 }
 
-// suggestionActivated routes the card tap to its real action.
 func (a *App) suggestionActivated(accountID string, card *promoSuggestionInfo) {
 	switch card.Key {
 	case "BIRTHDAY_CONTACTS_TODAY":

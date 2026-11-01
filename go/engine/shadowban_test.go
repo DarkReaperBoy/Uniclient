@@ -1,9 +1,5 @@
 package engine
 
-// Shadow ban (AyuGram matrix row 240, slice 91): per-chat local ignore —
-// CRUD, GetMessages exclusion (SQL) + live-page exclusion (Go), and the
-// per-chat scoping (a ban in one chat does not leak to another).
-
 import (
 	"testing"
 )
@@ -42,7 +38,6 @@ func TestShadowBanCRUD(t *testing.T) {
 		t.Fatalf("bans = %+v, want one u1/Alice", bans)
 	}
 
-	// Replace keeps the name current.
 	if err := e.ShadowBanSender("a1", "c1", "u1", "Alice in Chains", true); err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +58,6 @@ func TestShadowBanCRUD(t *testing.T) {
 		t.Fatalf("after unban = %+v, want empty", got)
 	}
 
-	// Empty sender / missing scope rejected.
 	if err := e.ShadowBanSender("a1", "c1", "", "x", true); err == nil {
 		t.Error("empty sender accepted")
 	}
@@ -97,15 +91,14 @@ func TestShadowBanFiltersGetMessages(t *testing.T) {
 		t.Fatalf("after ban = %+v, want only m2", msgs)
 	}
 
-	// Windowed reads exclude too (both cursors).
-	msgs, err = e.GetMessages("a1", "c1", 0, 2500, 50) // afterMs: > 2500
+	msgs, err = e.GetMessages("a1", "c1", 0, 2500, 50)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(msgs) != 0 {
 		t.Fatalf("afterMs window: banned m3 still returned (%d rows)", len(msgs))
 	}
-	msgs, err = e.GetMessages("a1", "c1", 1500, 0, 50) // beforeMs: < 1500
+	msgs, err = e.GetMessages("a1", "c1", 1500, 0, 50)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +106,6 @@ func TestShadowBanFiltersGetMessages(t *testing.T) {
 		t.Fatalf("beforeMs window: banned m1 still returned (%d rows)", len(msgs))
 	}
 
-	// Unban restores everything.
 	if err := e.ShadowBanSender("a1", "c1", "u1", "Alice", false); err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +117,6 @@ func TestShadowBanFiltersGetMessages(t *testing.T) {
 
 func TestShadowBanIsPerChat(t *testing.T) {
 	e := newTestEngine(t)
-	// Same sender in two chats.
 	_, err := e.db.Exec(
 		`INSERT INTO messages (account_id, chat_id, msg_id, sender_id, content_text, timestamp)
                  VALUES ('a1', 'c1', 'm1', 'u1', 'x', 1000),
@@ -155,13 +146,12 @@ func TestDropShadowBannedPure(t *testing.T) {
 	page := []CachedMessage{
 		{MsgID: "m1", SenderID: "u1"},
 		{MsgID: "m2", SenderID: "u2"},
-		{MsgID: "m3"}, // no sender (own/service) — survives
+		{MsgID: "m3"},
 	}
 	out := e.dropShadowBanned("a1", "c1", page)
 	if len(out) != 2 || out[0].MsgID != "m2" || out[1].MsgID != "m3" {
 		t.Fatalf("dropShadowBanned = %+v, want m2+m3", out)
 	}
-	// Empty ban set = passthrough (different chat).
 	out = e.dropShadowBanned("a1", "c9", page)
 	if len(out) != 3 {
 		t.Fatalf("no bans = %d rows, want passthrough 3", len(out))

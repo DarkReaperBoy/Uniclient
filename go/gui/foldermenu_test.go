@@ -6,9 +6,6 @@ import (
 	"uniclient/engine"
 )
 
-// Folder-tab context menu (slice 54): row derivation must drop the
-// unavailable move actions and keep the stable order
-// edit → move → invites → export/import (slice 94) → delete.
 func TestFolderMenuItems(t *testing.T) {
 	both := folderMenuItems(true, true)
 	if len(both) != 7 {
@@ -35,7 +32,6 @@ func TestFolderMenuItems(t *testing.T) {
 	}
 }
 
-// folderIDInt parses FolderInfo IDs and rejects malformed ones.
 func TestFolderIDInt(t *testing.T) {
 	cases := map[string]int{
 		"1":             1,
@@ -54,9 +50,6 @@ func TestFolderIDInt(t *testing.T) {
 	}
 }
 
-// The invites dialog survives frame copies structurally (compile-level
-// contract exercised in the wasm suite) — this test pins the empty-list
-// state helpers via a zero frame.
 func TestFolderInvitesStateZero(t *testing.T) {
 	var st folderInvitesState
 	if st.loaded || st.err != "" || len(st.links) != 0 {

@@ -1,10 +1,5 @@
 package gui
 
-// Edits-history viewer (slice 96, matrix row 164): pure helpers — revision
-// row naming, ordering, the context-menu gate (which messages offer the
-// action and when the async lookup has resolved), and escTarget
-// self-handling.
-
 import (
 	"testing"
 
@@ -72,9 +67,6 @@ func TestEscTargetEditHistDlgSelfHandled(t *testing.T) {
 }
 
 func TestMenuActionsEditsItem(t *testing.T) {
-	// menuActionsFor includes "Edits history" when the menu target carries
-	// a resolved revisions lookup (pure item construction — the closures
-	// only run on click).
 	m := engine.CachedMessage{
 		AccountID: "a", ChatID: "c", MsgID: "m1", SenderID: "u1", EditedAt: 1,
 	}
@@ -89,7 +81,6 @@ func TestMenuActionsEditsItem(t *testing.T) {
 	if !found {
 		t.Errorf("menuActionsFor: \"Edits history\" missing (items: %v)", menuLabels(a.menuActionsFor(f, m)))
 	}
-	// Lookup pending → no item.
 	f2 := frame{menu: &menuTarget{msg: m}}
 	for _, it := range a.menuActionsFor(f2, m) {
 		if it.label == "Edits history" {

@@ -6,16 +6,10 @@ import (
 	"io"
 )
 
-// Minimal Ogg container demuxer (RFC 3533) — exactly the subset needed
-// to pull Opus packets out of downloaded voice notes and audio files
-// (Telegram stores both as Ogg/Opus). Pages are verified with the Ogg
-// CRC-32 variant (poly 0x04c11db7, MSB-first, init 0, no final xor);
-// packets spanning page boundaries are reassembled via the lacing table.
-
 const (
 	oggMagic       = "OggS"
 	oggHeaderLen   = 27
-	oggMaxPageSize = 1 << 20 // 1 MiB: voice pages are ~4 KB
+	oggMaxPageSize = 1 << 20
 )
 
 var oggCRCTable [256]uint32
@@ -42,7 +36,6 @@ func oggCRC(data []byte) uint32 {
 	return crc
 }
 
-// oggPage is one parsed page (header fields + payload).
 type oggPage struct {
 	headerType byte
 	granule    int64
@@ -52,14 +45,13 @@ type oggPage struct {
 	lacing     []byte
 }
 
-// readOggPage reads and CRC-verifies the next page from r.
 func readOggPage(r io.Reader, scratch []byte) (oggPage, error) {
 	var head [oggHeaderLen]byte
 	if _, err := io.ReadFull(r, head[:]); err != nil {
 		if err == io.ErrUnexpectedEOF {
 			return oggPage{}, fmt.Errorf("ogg: truncated page header")
 		}
-		return oggPage{}, err // clean io.EOF at a page boundary
+		return oggPage{}, err
 	}
 	if string(head[:4]) != oggMagic {
 		return oggPage{}, fmt.Errorf("ogg: bad magic %q", string(head[:4]))
@@ -90,7 +82,6 @@ func readOggPage(r io.Reader, scratch []byte) (oggPage, error) {
 		return oggPage{}, fmt.Errorf("ogg: truncated payload: %w", err)
 	}
 
-	// CRC over the whole page with the checksum field zeroed.
 	saved := binary.LittleEndian.Uint32(head[22:26])
 	binary.LittleEndian.PutUint32(head[22:26], 0)
 	var page []byte
@@ -111,12 +102,11 @@ func readOggPage(r io.Reader, scratch []byte) (oggPage, error) {
 	}, nil
 }
 
-// oggPacketReader yields complete Ogg packets in stream order.
 type oggPacketReader struct {
 	r       io.Reader
 	scratch []byte
-	ready   [][]byte // completed packets from the last read page
-	pending []byte   // bytes of a packet spanning page boundaries
+	ready   [][]byte
+	pending []byte
 	err     error
 }
 
@@ -124,7 +114,6 @@ func newOggPacketReader(r io.Reader) *oggPacketReader {
 	return &oggPacketReader{r: r, scratch: make([]byte, 0, 8192)}
 }
 
-// Next returns the next complete packet; io.EOF marks the stream end.
 func (o *oggPacketReader) Next() ([]byte, error) {
 	for {
 		if len(o.ready) > 0 {
@@ -152,7 +141,6 @@ func (o *oggPacketReader) readPage() error {
 		o.pending = append(o.pending, pg.payload[off:off+int(v)]...)
 		off += int(v)
 		if v < 255 {
-			// Copy: the next packet reuses pending's backing array.
 			pkt := make([]byte, len(o.pending))
 			copy(pkt, o.pending)
 			o.ready = append(o.ready, pkt)
@@ -162,8 +150,6 @@ func (o *oggPacketReader) readPage() error {
 	return nil
 }
 
-// buildOggPage encodes packets into one Ogg page with a valid CRC —
-// used by tests and fixtures.
 func buildOggPage(packets [][]byte, granule int64, serial, seq uint32, last bool) []byte {
 	var lacing []byte
 	var payload []byte

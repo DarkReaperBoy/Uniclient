@@ -2,8 +2,6 @@ package utils
 
 import "testing"
 
-// TestEffectiveSystemTray: nil = default ON (tdesktop parity), explicit
-// values honored.
 func TestEffectiveSystemTray(t *testing.T) {
 	if !EffectiveSystemTray(AppConfig{}) {
 		t.Fatal("nil pointer should default to tray on")

@@ -11,14 +11,6 @@ import (
 	"uniclient/voice"
 )
 
-// The media player state machine: play → progress → pause/resume →
-// speed scaling → completion → stop. The fill callback is driven
-// directly — on machines without an audio device (headless CI/sandbox)
-// the device would call it with 20 ms buffers; the state machine under
-// test is identical. A real ffmpeg-encoded Opus file exercises the
-// decode path end-to-end.
-
-// ffmpegToneOgg encodes a real 2-second 440 Hz Opus file.
 func ffmpegToneOgg(t *testing.T) string {
 	t.Helper()
 	if _, err := exec.LookPath("ffmpeg"); err != nil {
@@ -41,25 +33,6 @@ func newTestEngineForPlayer(t *testing.T) *Engine {
 	return e
 }
 
-// detachDevice removes any live speaker from under the player so the
-// test is the ONLY fill driver.
-//
-// PlayMedia opens a real device whenever the machine has one — a desktop
-// Linux box has a PulseAudio socket — and StartPlayback then runs a
-// device thread pulling fill concurrently with the test's own fills. That
-// double-counts the sample position (observed: 0.260s where 0.200s of
-// manual fill was driven). Headless CI has no device, which is exactly
-// why this suite passed there and failed on a workstation.
-//
-// stopPlayback is synchronous (<-playDone), so once this returns nothing
-// else pulls from fill.
-//
-// It also rewinds pos to 0: the live device already consumed a real
-// slice of audio between PlayMedia's StartPlayback and here (measured:
-// 2880 samples / 60 ms). That was genuine playback by the real device,
-// but this helper's contract is "act as if a device had just started
-// playback", and the callers assert the delta their own fills produce —
-// so the baseline has to be 0 regardless of whether a device existed.
 func detachDevice(t *testing.T, p *mediaPlayer) {
 	t.Helper()
 	p.mu.Lock()
@@ -69,13 +42,10 @@ func detachDevice(t *testing.T, p *mediaPlayer) {
 		p.sess.Close()
 		p.sess = nil
 	}
-	p.pos = 0        // rewind past whatever the real device already played
-	p.playing = true // the device layer would own this bit
+	p.pos = 0
+	p.playing = true
 }
 
-// playLoaded decodes a real file via PlayMedia, detaches any live device
-// and then simulates the device: playing=true, as a speaker would have
-// set it.
 func playLoaded(t *testing.T, e *Engine, path string) *mediaPlayer {
 	t.Helper()
 	if err := e.PlayMedia("acct", "chat", "m1", path); err != nil {
@@ -103,7 +73,7 @@ func TestMediaPlayerPlayProgress(t *testing.T) {
 		t.Fatalf("identity not tracked: %+v", st)
 	}
 
-	buf := make([]int16, voice.SampleRate/10) // 100 ms
+	buf := make([]int16, voice.SampleRate/10)
 	p.fill(buf)
 	p.fill(buf)
 	st = e.MediaState()
@@ -111,7 +81,6 @@ func TestMediaPlayerPlayProgress(t *testing.T) {
 		t.Fatalf("after 200ms of fill: position %.3f", st.Position)
 	}
 
-	// Pause: fill must not advance and must emit silence.
 	e.TogglePauseMedia()
 	before := e.MediaState().Position
 	for i := range buf {
@@ -126,7 +95,6 @@ func TestMediaPlayerPlayProgress(t *testing.T) {
 		t.Fatalf("paused fill must emit silence, got %d", buf[0])
 	}
 
-	// Resume.
 	e.TogglePauseMedia()
 	p.fill(buf)
 	if e.MediaState().Position <= before {
@@ -141,10 +109,6 @@ func TestMediaPlayerNoDeviceIsHonest(t *testing.T) {
 		t.Fatalf("PlayMedia: %v", err)
 	}
 	st := e.MediaState()
-	// On a machine with speakers this is playing; on headless boxes the
-	// honest state is: decoded, duration known, no device, not playing,
-	// error recorded. Both are acceptable — the invariant is that we
-	// never claim playing without a device.
 	if st.Playing && !st.HasAudio {
 		t.Fatalf("claiming playback without a device: %+v", st)
 	}
@@ -158,7 +122,6 @@ func TestMediaPlayerSpeedAndCompletion(t *testing.T) {
 	e := newTestEngineForPlayer(t)
 	p := playLoaded(t, e, path)
 
-	// Speed ladder: 1 → 1.5 → 2 → 0.5 → 1.
 	for _, want := range []float64{1.5, 2, 0.5, 1} {
 		e.CycleMediaSpeed()
 		if got := e.MediaState().Speed; got != want {
@@ -166,19 +129,17 @@ func TestMediaPlayerSpeedAndCompletion(t *testing.T) {
 		}
 	}
 
-	// At 2x, position advances twice as fast per output sample.
-	e.CycleMediaSpeed() // 1.5
-	e.CycleMediaSpeed() // 2
+	e.CycleMediaSpeed()
+	e.CycleMediaSpeed()
 	pos0 := e.MediaState().Position
-	buf := make([]int16, voice.SampleRate/10) // 100 ms output
+	buf := make([]int16, voice.SampleRate/10)
 	p.fill(buf)
 	advanced := e.MediaState().Position - pos0
-	if advanced < 0.18 || advanced > 0.24 { // ~200 ms source per 100 ms out
+	if advanced < 0.18 || advanced > 0.24 {
 		t.Fatalf("2x fill advanced %.3fs, want ~0.2", advanced)
 	}
 
-	// Completion: fill until done.
-	for i := 0; i < 200; i++ { // 20 s of output — plenty for a 2 s clip at 2x
+	for i := 0; i < 200; i++ {
 		p.fill(buf)
 		if !e.MediaState().Playing {
 			break
@@ -192,7 +153,6 @@ func TestMediaPlayerSpeedAndCompletion(t *testing.T) {
 		t.Fatalf("completed position %.3f < duration %.3f", st.Position, st.Duration)
 	}
 
-	// Stop clears everything.
 	e.StopMedia()
 	st = e.MediaState()
 	if st.Playing || st.MsgID != "" || st.Duration != 0 {
@@ -254,15 +214,10 @@ func TestMediaPlayerEmitsEvents(t *testing.T) {
 	}
 }
 
-// TestMediaPlayerSeek (slice 185): fraction seeking moves the read
-// position (clamped), paused seeking keeps the pause, a finished
-// headless player never fakes Playing (§1.10), and seeking with
-// nothing loaded is an honest error.
 func TestMediaPlayerSeek(t *testing.T) {
 	path := ffmpegToneOgg(t)
 	e := newTestEngineForPlayer(t)
 
-	// Nothing loaded yet.
 	if err := e.SeekMedia(0.5); err == nil {
 		t.Fatal("SeekMedia with nothing loaded must error")
 	}
@@ -270,7 +225,6 @@ func TestMediaPlayerSeek(t *testing.T) {
 	p := playLoaded(t, e, path)
 	dur := e.MediaState().Duration
 
-	// Mid-playback seek: position lands at the fraction of duration.
 	if err := e.SeekMedia(0.5); err != nil {
 		t.Fatalf("SeekMedia(0.5): %v", err)
 	}
@@ -278,7 +232,6 @@ func TestMediaPlayerSeek(t *testing.T) {
 		t.Fatalf("after seek: position %.3f (dur %.3f)", pos, dur)
 	}
 
-	// Clamping.
 	if err := e.SeekMedia(4); err != nil {
 		t.Fatalf("SeekMedia(4): %v", err)
 	}
@@ -292,7 +245,6 @@ func TestMediaPlayerSeek(t *testing.T) {
 		t.Fatalf("negative seek not clamped: %.3f", pos)
 	}
 
-	// Pause, then seek: still paused, position moved.
 	e.TogglePauseMedia()
 	e.SeekMedia(0.75)
 	st := e.MediaState()
@@ -303,18 +255,15 @@ func TestMediaPlayerSeek(t *testing.T) {
 		t.Fatalf("paused seek position %.3f", st.Position)
 	}
 
-	// Simulate natural completion (fill ran off the tail).
 	p.mu.Lock()
 	p.pos = float64(len(p.pcm))
 	p.playing = false
 	p.mu.Unlock()
-	// Headless (no device): a seek must NOT resurrect a Playing state.
 	e.SeekMedia(0.3)
 	if e.MediaState().Playing {
 		t.Fatal("headless seek faked a Playing state (§1.10)")
 	}
 
-	// Stopped: seeking errors again.
 	e.StopMedia()
 	if err := e.SeekMedia(0.5); err == nil {
 		t.Fatal("SeekMedia after StopMedia must error")

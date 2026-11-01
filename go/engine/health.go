@@ -10,10 +10,9 @@ import (
 	"uniclient/cores"
 )
 
-// reconnectState tracks backoff for a single account.
 type reconnectState struct {
 	attempts int
-	lastOK   time.Time // last time connection was stable for >60s
+	lastOK   time.Time
 }
 
 var reconnectDelays = []time.Duration{
@@ -25,7 +24,6 @@ var reconnectDelays = []time.Duration{
 	60 * time.Second,
 }
 
-// nextDelay returns the backoff duration with ±25% jitter.
 func (r *reconnectState) nextDelay() time.Duration {
 	idx := r.attempts
 	if idx >= len(reconnectDelays) {
@@ -35,13 +33,10 @@ func (r *reconnectState) nextDelay() time.Duration {
 	if base == 0 {
 		return 0
 	}
-	// ±25% jitter
 	jitter := time.Duration(rand.Int64N(int64(base)/2)) - base/4
 	return base + jitter
 }
 
-// ConnectAccount creates a core, authenticates using saved credentials,
-// registers the update handler, and starts connection monitoring.
 func (e *Engine) ConnectAccount(accountID string) error {
 	log.Printf("[engine] ConnectAccount(%s): starting", accountID)
 	acc, ok := e.getAccount(accountID)
@@ -54,16 +49,13 @@ func (e *Engine) ConnectAccount(accountID string) error {
 		return fmt.Errorf("no core factory registered")
 	}
 
-	// Create core.
 	core, err := factory(acc.Platform, accountID)
 	if err != nil {
 		log.Printf("[engine] ConnectAccount(%s): create core failed: %v", accountID, err)
 		return fmt.Errorf("create core %s: %w", acc.Platform, err)
 	}
-	// Install any configured proxy before the core connects.
 	e.applyProxyToCore(core)
 
-	// Load saved credentials.
 	creds, err := e.LoadCredentials(accountID)
 	if err != nil {
 		log.Printf("[engine] ConnectAccount(%s): load credentials failed: %v", accountID, err)
@@ -75,7 +67,6 @@ func (e *Engine) ConnectAccount(accountID string) error {
 	e.setConnState(accountID, ConnConnecting)
 	e.emitConnState(accountID, ConnConnecting, "")
 
-	// Create cancellable context for this account's goroutines.
 	ctx, cancel := context.WithCancel(context.Background())
 
 	e.accountsMu.Lock()
@@ -84,12 +75,10 @@ func (e *Engine) ConnectAccount(accountID string) error {
 	acc.lastEvent = time.Now()
 	e.accountsMu.Unlock()
 
-	// Register update handler before authenticating.
 	core.OnUpdate(func(u cores.Update) {
 		e.handleUpdate(accountID, u)
 	})
 
-	// Authenticate.
 	log.Printf("[engine] ConnectAccount(%s): authenticating...", accountID)
 	if err := core.Authenticate(*creds); err != nil {
 		log.Printf("[engine] ConnectAccount(%s): auth failed: %v", accountID, err)
@@ -102,12 +91,8 @@ func (e *Engine) ConnectAccount(accountID string) error {
 	e.setConnState(accountID, ConnConnected)
 	e.emitConnState(accountID, ConnConnected, "")
 
-	// Re-arm a pending "data export ready" suggestion from persisted state, if a
-	// previous takeout was delayed (AyuGram Domain::suggestExportIfNeeded()).
 	e.suggestExportIfNeeded(accountID)
 
-	// Preload persisted peer access hashes into the core's in-memory cache
-	// so API calls succeed before GetDialogs repopulates them.
 	type peerHashPreloader interface {
 		PreloadPeerHashes(channelHashes map[int64]int64, userHashes map[int64]int64)
 	}
@@ -118,7 +103,6 @@ func (e *Engine) ConnectAccount(accountID string) error {
 		}
 	}
 
-	// Update display name and badge flags from profile.
 	e.wg.Add(1)
 	go func() {
 		defer e.wg.Done()
@@ -142,14 +126,12 @@ func (e *Engine) ConnectAccount(accountID string) error {
 		}
 	}()
 
-	// Start background sync.
 	e.wg.Add(1)
 	go func() {
 		defer e.wg.Done()
 		e.syncAccount(ctx, accountID)
 	}()
 
-	// Start heartbeat monitor.
 	e.wg.Add(1)
 	go func() {
 		defer e.wg.Done()
@@ -159,7 +141,6 @@ func (e *Engine) ConnectAccount(accountID string) error {
 	return nil
 }
 
-// ConnectAllAccounts connects all accounts with staggered delays.
 func (e *Engine) ConnectAllAccounts() {
 	accounts := e.ListAccounts()
 	for i, acc := range accounts {
@@ -169,20 +150,12 @@ func (e *Engine) ConnectAllAccounts() {
 		go func() {
 			defer e.wg.Done()
 			time.Sleep(delay)
-			//lint:ignore SA9003 Non-fatal by design: ConnectAccount logs its
-			// own failure (health.go:60/95), other accounts must still connect.
 			if err := e.ConnectAccount(acc.ID); err != nil {
 			}
 		}()
 	}
 }
 
-// syncAccount fetches fresh data from the network after connecting.
-// syncAccountContext is syncAccount's context contract (B-21):
-// finalizeAuth once passed nil, which is safe only while nothing
-// dereferences ctx — one future ctx.Done()/RPC use would turn first
-// login into a panic. Nil is replaced at the boundary so every caller
-// (current and future) can rely on a real context.
 func syncAccountContext(ctx context.Context) context.Context {
 	if ctx == nil {
 		return context.Background()
@@ -191,9 +164,6 @@ func syncAccountContext(ctx context.Context) context.Context {
 }
 
 func (e *Engine) syncAccount(ctx context.Context, accountID string) {
-	//lint:ignore SA4006 Sanitizing ctx here is the B-21 boundary contract
-	// (future uses in this function must see a real context); the value is
-	// deliberately kept even though nothing dereferences ctx today.
 	ctx = syncAccountContext(ctx)
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
@@ -201,7 +171,6 @@ func (e *Engine) syncAccount(ctx context.Context, accountID string) {
 		return
 	}
 
-	// Sync chat list — first page fast, then paginate in background.
 	log.Printf("[engine] syncAccount(%s): fetching dialogs...", accountID)
 	dialogs, err := acc.Core.GetDialogs(cores.PaginationOpts{Limit: 100})
 	if err != nil {
@@ -212,7 +181,6 @@ func (e *Engine) syncAccount(ctx context.Context, accountID string) {
 	e.SyncChats(accountID, dialogs)
 	log.Printf("[engine] syncAccount(%s): sync complete, emitted chat snapshot", accountID)
 
-	// Fetch remaining dialogs in background for folder completeness.
 	if len(dialogs) >= 100 {
 		go func() {
 			more, err := acc.Core.GetDialogs(cores.PaginationOpts{Limit: 500})
@@ -224,7 +192,6 @@ func (e *Engine) syncAccount(ctx context.Context, accountID string) {
 		}()
 	}
 
-	// Cache contacts as users.
 	contacts, err := acc.Core.GetContacts()
 	if err == nil && len(contacts) > 0 {
 		e.BulkUpsertUsers(accountID, contacts)
@@ -232,7 +199,6 @@ func (e *Engine) syncAccount(ctx context.Context, accountID string) {
 	}
 }
 
-// monitorConnection watches for zombie connections and triggers reconnect.
 func (e *Engine) monitorConnection(ctx context.Context, accountID string) {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
@@ -247,15 +213,12 @@ func (e *Engine) monitorConnection(ctx context.Context, accountID string) {
 				continue
 			}
 
-			// Check if we've received any event in the last 60s.
 			if time.Since(acc.lastEvent) > 60*time.Second {
-				// Probe with a lightweight call.
 				if acc.Core != nil {
 					_, err := acc.Core.GetDialogs(cores.PaginationOpts{Limit: 1})
 					if err != nil {
 						e.handleDisconnect(accountID, err)
 					} else {
-						// Probe succeeded — update lastEvent.
 						e.accountsMu.Lock()
 						acc.lastEvent = time.Now()
 						e.accountsMu.Unlock()
@@ -266,19 +229,16 @@ func (e *Engine) monitorConnection(ctx context.Context, accountID string) {
 	}
 }
 
-// handleDisconnect processes a disconnection event and schedules reconnect.
 func (e *Engine) handleDisconnect(accountID string, err error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
 		return
 	}
 
-	// Check for flaky connection (unstable state).
 	e.accountsMu.Lock()
 	acc.reconnect.attempts++
 	attempts := acc.reconnect.attempts
 
-	// If 3+ reconnects in 60s → mark unstable.
 	if attempts >= 3 && time.Since(acc.reconnect.lastOK) < 60*time.Second {
 		acc.ConnState = ConnUnstable
 		e.accountsMu.Unlock()
@@ -289,7 +249,6 @@ func (e *Engine) handleDisconnect(accountID string, err error) {
 		e.emitConnState(accountID, ConnDisconnected, err.Error())
 	}
 
-	// Schedule reconnect with backoff.
 	delay := acc.reconnect.nextDelay()
 	e.wg.Add(1)
 	go func() {
@@ -299,7 +258,6 @@ func (e *Engine) handleDisconnect(accountID string, err error) {
 	}()
 }
 
-// reconnectAccount attempts to reconnect a disconnected account.
 func (e *Engine) reconnectAccount(accountID string) {
 	e.mu.RLock()
 	if e.shuttingDown {
@@ -313,7 +271,6 @@ func (e *Engine) reconnectAccount(accountID string) {
 		return
 	}
 
-	// Close old core if exists.
 	if acc.Core != nil {
 		acc.Core.Close()
 	}
@@ -323,14 +280,12 @@ func (e *Engine) reconnectAccount(accountID string) {
 		return
 	}
 
-	// Reset reconnect state on success.
 	e.accountsMu.Lock()
 	acc.reconnect.attempts = 0
 	acc.reconnect.lastOK = time.Now()
 	e.accountsMu.Unlock()
 }
 
-// DisconnectAccount manually disconnects an account.
 func (e *Engine) DisconnectAccount(accountID string) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok {

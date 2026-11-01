@@ -6,11 +6,6 @@ import (
 	"uniclient/engine"
 )
 
-// Archived-chats collapsed row (AyuGram parity slice 67): archived chats hide
-// behind one collapsed row at the top of the chat list with an aggregate
-// unread badge; opening it filters the list to archived chats only. The
-// split/aggregate/filter rules are pure and locked here.
-
 func TestSplitArchived(t *testing.T) {
 	chats := []engine.ChatInfo{
 		{ChatID: "1", Title: "main"},
@@ -37,7 +32,7 @@ func TestSplitArchivedEmpty(t *testing.T) {
 func TestArchiveAggregateUnread(t *testing.T) {
 	arch := []engine.ChatInfo{
 		{ChatID: "1", UnreadCount: 3},
-		{ChatID: "2", UnreadCount: 5, IsMuted: true}, // muted chats don't count
+		{ChatID: "2", UnreadCount: 5, IsMuted: true},
 		{ChatID: "3", UnreadCount: 0},
 	}
 	if n := archiveAggregateUnread(arch); n != 3 {
@@ -80,7 +75,6 @@ func TestFilterChatsSearchIncludesArchived(t *testing.T) {
 	if len(visible) != 1 || visible[0].ChatID != "2" {
 		t.Fatalf("search must include archived chats, got %+v", visible)
 	}
-	// …and inside the archive view, search still only sees archived chats.
 	f.archiveView = true
 	f.search = "main"
 	if visible := filterChats(f); len(visible) != 0 {

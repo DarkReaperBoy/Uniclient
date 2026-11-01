@@ -10,29 +10,6 @@ import (
 	"testing"
 )
 
-// F-77/F-78 (slice 314): truncated downloads were accepted as complete
-// and failed downloads left truncated partials at dest.
-//
-// F-77: the TeamSpeak file-transfer loop swallowed EVERY read error
-// (`if readErr != nil { break }` then `return nil`) — a dropped
-// connection mid-transfer produced a truncated file reported as a
-// successful download; the server-declared size was parsed with the
-// error IGNORED, so a missing/malformed size field looped zero times
-// and "succeeded" with an EMPTY file. The TS3 FT protocol has no
-// length framing of its own beyond that declared size — raw TCP, so
-// net/http's Content-Length enforcement (which protects github/bale/
-// xmpp) does not exist here.
-//
-// F-78: xmpp DownloadFileHTTP only removed the partial on the F-72
-// ceiling path (write/read errors left it), matrix/deltachat
-// DownloadFile left WriteFile mid-write partials, and the engine's
-// executeDownload error branch never removed localPath.
-//
-// Seam-RED (WORKLOG 314): undefined: receiveTSFile / parseTSSize /
-// ErrTruncated.
-
-// --- F-77: TeamSpeak transfer integrity ---
-
 func TestReceiveTSFileShortStreamFailsAndCleans(t *testing.T) {
 	dest := filepath.Join(t.TempDir(), "f.bin")
 	got, err := receiveTSFile(bytes.NewReader(bytes.Repeat([]byte{'x'}, 10)), dest, 100, nil)
@@ -106,11 +83,6 @@ func TestParseTSSizeRejectsMalformed(t *testing.T) {
 	}
 }
 
-// --- F-78: failed downloads must not leave truncated partials ---
-
-// TestFailedDownloadWritesCleanUpTheirPartial: source-scan pin — every
-// DownloadFile error path that may have created dest must remove it
-// (comments skipped; region = function body).
 func TestFailedDownloadWritesCleanUpTheirPartial(t *testing.T) {
 	regions := []struct{ file, fn, needle string }{
 		{"matrix.go", "func (m *MatrixCore) DownloadFile(", "os.Remove(dest)"},
@@ -146,8 +118,6 @@ func TestFailedDownloadWritesCleanUpTheirPartial(t *testing.T) {
 		}
 	}
 }
-
-// --- F-77 upload half: exact-size send ---
 
 type shortReader struct {
 	data []byte

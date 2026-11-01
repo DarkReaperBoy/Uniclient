@@ -15,21 +15,8 @@ import (
 	"uniclient/engine"
 )
 
-// Forum subsection tabs (AyuGram parity slice 156): tdesktop's
-// SubsectionTabs (history_view_subsection_tabs.cpp), Top mode — a
-// horizontal topic tab strip under the chat header of a forum chat.
-// "All topics" leads (back to the topic list), then one tab per cached
-// topic (pinned-first, as loaded): colored icon circle, title, unread
-// badge, closed lock marker, active highlight; tap switches the topic
-// without returning to the list. Reorderable tabs and the Left/Bottom
-// placement modes remain tdesktop-side extras (SubsectionSliderReorder);
-// the ForumTabs channel flag isn't surfaced by the engine yet — the
-// strip renders for every forum, the flag gate lands with the engine
-// flag.
-
-// topicTab is one subsection-tab entry.
 type topicTab struct {
-	topicID string // "" = All topics (the topic-list view)
+	topicID string
 	title   string
 	colorID int
 	unread  int
@@ -37,10 +24,6 @@ type topicTab struct {
 	active  bool
 }
 
-// topicTabsFor builds the strip entries: the All-topics pseudo-tab first,
-// then the cached topics in their pinned-first order. Hidden topics are
-// skipped (tdesktop hides the hidden General). Active = the open topic
-// ("" = the list view activates All-topics; unknown ids deactivate).
 func topicTabsFor(topics []cores.ForumTopic, active string) []topicTab {
 	tabs := []topicTab{{topicID: "", title: "All topics", active: active == ""}}
 	for _, t := range topics {
@@ -59,8 +42,6 @@ func topicTabsFor(topics []cores.ForumTopic, active string) []topicTab {
 	return tabs
 }
 
-// topicTabBadgeText renders the unread pill text ('99+' clamp — the
-// tray/taskbar semantics).
 func topicTabBadgeText(n int) string {
 	if n <= 0 {
 		return ""
@@ -71,11 +52,6 @@ func topicTabBadgeText(n int) string {
 	return strconv.Itoa(n)
 }
 
-// ── widgets ──────────────────────────────────────────────────────────────
-
-// layoutTopicTabs renders the subsection tab strip for a forum chat.
-// Runs on the GUI goroutine; taps dispatch through the existing
-// openForumTopic / backToForumTopics paths.
 func (a *App) layoutTopicTabs(gtx layout.Context, f frame, chat *engine.ChatInfo) layout.Dimensions {
 	if chat == nil || !chat.IsForum {
 		return layout.Dimensions{}
@@ -99,8 +75,6 @@ func (a *App) layoutTopicTabs(gtx layout.Context, f frame, chat *engine.ChatInfo
 	})
 }
 
-// topicTabChip renders one tab: icon circle (color), title (+ lock),
-// unread pill, active tint.
 func (a *App) topicTabChip(gtx layout.Context, btn *widget.Clickable, tab topicTab) layout.Dimensions {
 	bg := a.ui.p.Surface
 	if tab.active {
@@ -155,11 +129,8 @@ func (a *App) topicTabChip(gtx layout.Context, btn *widget.Clickable, tab topicT
 	})
 }
 
-// topicTabIcon renders the topic's colored icon circle (the topic list's
-// disc, miniaturized).
 func (a *App) topicTabIcon(gtx layout.Context, tab topicTab) layout.Dimensions {
 	if tab.topicID == "" {
-		// All topics: a forum glyph.
 		gtx.Constraints.Max.X = gtx.Dp(unit.Dp(18))
 		gtx.Constraints.Max.Y = gtx.Dp(unit.Dp(18))
 		return iconCommunicationForum.Layout(gtx, a.ui.p.TextDim)
@@ -171,7 +142,6 @@ func (a *App) topicTabIcon(gtx layout.Context, tab topicTab) layout.Dimensions {
 	return layout.Dimensions{Size: image.Pt(size, size)}
 }
 
-// topicTabBadge renders the unread count pill.
 func (a *App) topicTabBadge(gtx layout.Context, text string) layout.Dimensions {
 	return roundedFill(gtx, a.ui.p.Accent, 10, func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Top: unit.Dp(1), Bottom: unit.Dp(1), Left: unit.Dp(6), Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {

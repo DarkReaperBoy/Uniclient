@@ -1,13 +1,5 @@
 package gui
 
-// Calls settings (AyuGram parity slice 103): a Calls section in the
-// settings rail with mic/speaker/camera pickers backed by the engine's real
-// OS device enumeration (GetAudioDevices — pactl/ALSA on Linux) and the
-// persisted per-device config (SetCallAudioDevice). The group-call screen
-// gains a per-call noise-suppression toggle (SetNoiseSuppression). Honest
-// everywhere: an empty enumeration shows only the Default sentinel; picking
-// a device writes it and applies live.
-
 import (
 	"gioui.org/layout"
 	"gioui.org/unit"
@@ -17,26 +9,20 @@ import (
 	"uniclient/utils"
 )
 
-// devPickerState is one device type's picker (slice 103).
 type devPickerState struct {
-	typ     string // "input" | "output" | "camera"
+	typ     string
 	devices []string
 	loaded  bool
 }
 
-// deviceType returns the picker's engine device-type key.
 func (d *devPickerState) deviceType() string { return d.typ }
 
-// devRow is one selectable device row.
 type devRow struct {
 	label    string
-	value    string // "" = Default (system)
+	value    string
 	selected bool
 }
 
-// devPickerRows builds the selectable rows: the Default sentinel first,
-// then the enumerated devices; the current device marks its row. A stale
-// current (device unplugged since last run) selects nothing — never lies.
 func devPickerRows(devices []string, current string) []devRow {
 	rows := make([]devRow, 0, len(devices)+1)
 	rows = append(rows, devRow{label: "Default", value: ""})
@@ -49,7 +35,6 @@ func devPickerRows(devices []string, current string) []devRow {
 	return rows
 }
 
-// devPickerLabel renders the current device for the picker's header row.
 func devPickerLabel(current string) string {
 	if current == "" {
 		return "Default"
@@ -57,7 +42,6 @@ func devPickerLabel(current string) string {
 	return current
 }
 
-// gcNoiseLabel renders the in-call noise-suppression toggle label.
 func gcNoiseLabel(on bool) string {
 	if on {
 		return "NOISE SUPPRESSION: ON"
@@ -65,10 +49,8 @@ func gcNoiseLabel(on bool) string {
 	return "NOISE SUPPRESSION: OFF"
 }
 
-// devPickerBtns pools the device row clickables per picker type.
 var devPickerBtns = map[string][]widget.Clickable{}
 
-// devPickerBtn returns the i-th row clickable for the picker type.
 func devPickerBtn(typ string, i int) *widget.Clickable {
 	btns := devPickerBtns[typ]
 	growClickables(&btns, i+1)
@@ -76,10 +58,6 @@ func devPickerBtn(typ string, i int) *widget.Clickable {
 	return &btns[i]
 }
 
-// cfgFromAppConfig is the pure config → snapshot mapping (extracted from
-// refreshConfig for testability).
-// effectiveSwipeAction normalizes the stored swipe-action config: unknown
-// or empty values mean "disabled" (the tdesktop default).
 func effectiveSwipeAction(v string) string {
 	switch v {
 	case "mute", "pin", "read", "archive", "delete":
@@ -150,9 +128,6 @@ func cfgFromAppConfig(c *utils.AppConfig) cfgSnapshot {
 	}
 }
 
-// loadCallDevices enumerates the OS audio/video devices once (slice 103).
-// The engine call ignores the account parameter (devices are global); the
-// first account ID is passed for API symmetry.
 func (a *App) loadCallDevices() {
 	a.mu.Lock()
 	if a.devPickers != nil {
@@ -181,10 +156,8 @@ func (a *App) loadCallDevices() {
 	}()
 }
 
-// pickCallDevice applies a device selection (slice 103).
 func (a *App) pickCallDevice(typ, device string) {
 	go func() {
-		// The engine persists the device; account is unused by the engine.
 		acc := ""
 		a.mu.Lock()
 		if len(a.accounts) > 0 {
@@ -199,7 +172,6 @@ func (a *App) pickCallDevice(typ, device string) {
 	}()
 }
 
-// setPageCalls: the Calls settings page (slice 103) — device pickers.
 func (a *App) setPageCalls(gtx layout.Context, f frame) layout.Dimensions {
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -222,7 +194,6 @@ func (a *App) setPageCalls(gtx layout.Context, f frame) layout.Dimensions {
 	)
 }
 
-// devPickerSection renders one device picker: title + current value + rows.
 func (a *App) devPickerSection(gtx layout.Context, f frame, typ, title, current string) layout.Dimensions {
 	var rows []devRow
 	loaded := false

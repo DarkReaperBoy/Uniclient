@@ -19,13 +19,6 @@ import (
 	"uniclient/engine"
 )
 
-// Settings view — the AyuGram settings shell (research/ayugram_parity.md §8):
-// a left rail of sections with content pages, every toggle and row backed by
-// a real engine call (config, cache accounting, blocked users, sessions,
-// ghost flags — §1.10: no dead UI).
-
-// settingsSections is the rail, in AyuGram's order (Language between
-// Calls and Ayu, tdesktop's position).
 var settingsSections = []string{
 	"Main", "Notifications", "Privacy & Security", "Data & Storage",
 	"Appearance", "Calls", "Language", "Ayu", "About",
@@ -43,21 +36,18 @@ const (
 	setSectionAbout
 )
 
-// sectionIcons maps each rail section to its icon.
 var sectionIcons = []*widget.Icon{
 	iconActionAccount,
 	iconSocialNotif,
 	iconActionLock,
 	iconActionBackup,
 	iconImagePalette,
-	iconHardwareHeadset, // Calls (slice 103)
-	iconActionSchedule,  // Language (slice 140)
+	iconHardwareHeadset,
+	iconActionSchedule,
 	iconActionGhost,
 	iconActionInfo,
 }
 
-// cacheTagLabels mirrors the engine's Local Storage tags (media.go
-// mediaTypesForTag) in display order.
 var cacheTagLabels = [6]string{"Images", "Stickers", "Voice messages", "Video messages", "Animations", "Media cache"}
 
 func cacheTagLabel(i int) string {
@@ -67,7 +57,6 @@ func cacheTagLabel(i int) string {
 	return cacheTagLabels[i]
 }
 
-// themeName maps a light/dark boolean to the config string.
 func themeName(light bool) string {
 	if light {
 		return "light"
@@ -75,8 +64,6 @@ func themeName(light bool) string {
 	return "dark"
 }
 
-// configFieldChanges builds the partial engine config update for one field.
-// nil for unknown fields.
 func configFieldChanges(field string, v bool) *engine.ConfigChanges {
 	b := v
 	c := &engine.ConfigChanges{}
@@ -153,8 +140,6 @@ func configFieldChanges(field string, v bool) *engine.ConfigChanges {
 	return c
 }
 
-// ghostFlagSet sets one flag on a GhostFlags by config field name; false for
-// unknown fields.
 func ghostFlagSet(g *engine.GhostFlags, field string, v bool) bool {
 	switch field {
 	case "send_read_receipts":
@@ -179,8 +164,6 @@ func ghostFlagSet(g *engine.GhostFlags, field string, v bool) bool {
 	return true
 }
 
-// ── widget pools (frame-loop only) ────────────────────────────────────────
-
 var (
 	settingsRailBtns    []widget.Clickable
 	settingsSwitches    = map[string]*widget.Bool{}
@@ -189,7 +172,7 @@ var (
 	settingsProfileBtns []widget.Clickable
 	settingsAddBtn      widget.Clickable
 	settingsBackBtn     widget.Clickable
-	settingsKeyTag      struct{} // Escape-close key listener tag
+	settingsKeyTag      struct{}
 	clearTagBtns        []widget.Clickable
 	clearAllBtn         widget.Clickable
 	exportDataBtn       widget.Clickable
@@ -197,7 +180,6 @@ var (
 	ghostAcctChips      []widget.Clickable
 	settingsScroll      widget.List
 
-	// Ayu mark-string editors (settings_ayu, slice 47).
 	ayuDeletedEd   widget.Editor
 	ayuEditedEd    widget.Editor
 	ayuMarksSave   widget.Clickable
@@ -221,13 +203,7 @@ func settingsSwitch(key string) *widget.Bool {
 	return s
 }
 
-// ── shell ─────────────────────────────────────────────────────────────────
-
-// layoutSettings: header (back + title), then rail + content (rail collapses
-// to a horizontal chip row on narrow layouts — AyuGram mobile settings).
 func (a *App) layoutSettings(gtx layout.Context, f frame, narrow bool) layout.Dimensions {
-	// Escape closes (self-handled, per escTarget's contract). Pointer-
-	// transparent via keyLayer so the sidebar stays interactive.
 	keyLayer(gtx, settingsKeyTag)
 	for {
 		ev, ok := gtx.Source.Event(key.Filter{Name: key.NameEscape})
@@ -294,8 +270,6 @@ func (a *App) settingsHeader(gtx layout.Context, f frame) layout.Dimensions {
 	)
 }
 
-// settingsRail renders the section list: vertical on desktop, horizontal chip
-// row on narrow layouts.
 func (a *App) settingsRail(gtx layout.Context, f frame, narrow bool) layout.Dimensions {
 	growClickables(&settingsRailBtns, len(settingsSections))
 	axis := layout.Vertical
@@ -359,7 +333,6 @@ func (a *App) settingsRail(gtx layout.Context, f frame, narrow bool) layout.Dime
 	return flex.Layout(gtx, children...)
 }
 
-// settingsPage lays the active section's content in a scrolling list.
 func (a *App) settingsPage(gtx layout.Context, f frame) layout.Dimensions {
 	list := material.List(a.ui.Theme, &settingsScroll)
 	return list.Layout(gtx, 1, func(gtx layout.Context, _ int) layout.Dimensions {
@@ -407,7 +380,6 @@ func (a *App) settingsPage(gtx layout.Context, f frame) layout.Dimensions {
 	})
 }
 
-// sectionTitle renders a page heading.
 func (a *App) sectionTitle(gtx layout.Context, txt string) layout.Dimensions {
 	return layout.Inset{Top: unit.Dp(10), Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		lbl := a.ui.Label(unit.Sp(16), txt)
@@ -416,7 +388,6 @@ func (a *App) sectionTitle(gtx layout.Context, txt string) layout.Dimensions {
 	})
 }
 
-// settingRow renders a plain label + optional value line.
 func (a *App) settingRow(gtx layout.Context, title, sub string) layout.Dimensions {
 	return layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
@@ -435,7 +406,6 @@ func (a *App) settingRow(gtx layout.Context, title, sub string) layout.Dimension
 	})
 }
 
-// toggleRow renders label + material switch; persists via apply on flip.
 func (a *App) toggleRow(gtx layout.Context, key, label string, value bool, apply func(bool)) layout.Dimensions {
 	sw := settingsSwitch(key)
 	if !settingsSynced[key] {
@@ -464,10 +434,6 @@ func (a *App) toggleRow(gtx layout.Context, key, label string, value bool, apply
 	return dims
 }
 
-// ── pages ─────────────────────────────────────────────────────────────────
-
-// setPageMain: account cards (add / remove / state) — multi-backend "one
-// frontend, many accounts" (AGENTS.md §7).
 func (a *App) setPageMain(gtx layout.Context, f frame) layout.Dimensions {
 	growClickables(&settingsRemoveBtns, len(f.accounts))
 	growClickables(&settingsProfileBtns, len(f.accounts))
@@ -546,7 +512,6 @@ func (a *App) setPageMain(gtx layout.Context, f frame) layout.Dimensions {
 			return btn.Layout(gtx)
 		})
 	}))
-	// Chat folders (AyuGram folder settings, slice 85): hide the All tab.
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.sectionTitle(gtx, "Chat folders")
 	}))
@@ -556,44 +521,30 @@ func (a *App) setPageMain(gtx layout.Context, f frame) layout.Dimensions {
 		})
 	}))
 
-	// Stickers and Emoji manager entry (slice 139, tdesktop "Stickers
-	// and Emoji"): per-account set manager. Hidden without accounts
-	// (nothing to manage — §1.10 honest states).
 	if len(f.accounts) > 0 {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.stickerMgrEntryRow(gtx, f)
 		}))
 	}
 
-	// Chat-folders manager entry (slice 142, tdesktop's "Filter chats"
-	// box): folder CRUD + reorder + server-suggested folders. Hidden
-	// without accounts (same honest-state rule).
 	if len(f.accounts) > 0 {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.folderMgrEntryRow(gtx, f)
 		}))
 	}
 
-	// Telegram Premium entry (slice 143, tdesktop's Premium box):
-	// subscription status, plans, limits. Telegram-platform accounts only
-	// (premium is a Telegram surface — no dead UI for other platforms).
 	if premiumEntryVisible(f.accounts) {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.premiumEntryRow(gtx, f)
 		}))
 	}
 
-	// Telegram Stars entry (slice 144, tdesktop's Stars box): balance
-	// + transaction history. Telegram-platform accounts only.
 	if premiumEntryVisible(f.accounts) {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.starsEntryRow(gtx, f)
 		}))
 	}
 
-	// Telegram Business entry (slice 148, tdesktop's Business box):
-	// opening hours, location, greeting/away messages, quick replies,
-	// intro. Telegram-platform accounts only (§1.10).
 	if premiumEntryVisible(f.accounts) {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.businessEntryRow(gtx, f)
@@ -603,8 +554,6 @@ func (a *App) setPageMain(gtx layout.Context, f frame) layout.Dimensions {
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-// setPageNotifications: global config toggles + per-account notification
-// behavior (contact sign-up notifications, calls-disabled-here).
 func (a *App) setPageNotifications(gtx layout.Context, f frame) layout.Dimensions {
 	var children []layout.FlexChild
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -631,15 +580,11 @@ func (a *App) setPageNotifications(gtx layout.Context, f frame) layout.Dimension
 			a.applyConfigBool("notify_previews", v)
 		})
 	}))
-	// System tray icon (slice 137): live start/stop; only on platforms
-	// that have a tray (web/Android render no dead toggle, §1.10).
 	if traySupportedOn {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.toggleRow(gtx, "cfg:system_tray", "System tray icon", c.SystemTray, a.applySystemTray)
 		}))
 	}
-	// Notification sound picker (slice 121): synthesized chimes with
-	// preview; per-chat overrides live in the chat header menu.
 	growClickables(&notifySoundRowBtn, 1)
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		btn := &notifySoundRowBtn[0]
@@ -696,7 +641,6 @@ func (a *App) setPageNotifications(gtx layout.Context, f frame) layout.Dimension
 				}()
 			})
 		}))
-		// Reactions / poll-votes notifications (AyuGram, slice 61).
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.toggleRow(gtx, "notify:react:"+acc.ID, "Reaction notifications", st.reactOn, func(v bool) {
 				a.mu.Lock()
@@ -749,10 +693,8 @@ func (a *App) setPageNotifications(gtx layout.Context, f frame) layout.Dimension
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-// setPagePrivacy: privacy scopes (slice 62), blocked users, and active
-// sessions per account.
 var privacyRowBtns []widget.Clickable
-var lockRowBtns []widget.Clickable // passcode row (slice 87)
+var lockRowBtns []widget.Clickable
 
 func (a *App) setPagePrivacy(gtx layout.Context, f frame) layout.Dimensions {
 	growClickables(&privacyRowBtns, len(f.accounts)*len(privacyKeyLabels))
@@ -766,7 +708,6 @@ func (a *App) setPagePrivacy(gtx layout.Context, f frame) layout.Dimensions {
 		}))
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 	}
-	// Security (slice 87): app-level local passcode lock — not per-account.
 	growClickables(&lockRowBtns, 1)
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.subHeader(gtx, "Security")
@@ -810,15 +751,13 @@ func (a *App) setPagePrivacy(gtx layout.Context, f frame) layout.Dimensions {
 		})
 	}))
 	row := 0
-	twofaRow := 0 // separate index: twofaRowBtns is its own pool (slice 120)
+	twofaRow := 0
 	for _, acc := range f.accounts {
 		acc := acc
 		blocked := f.blockedUsers[acc.ID]
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.subHeader(gtx, accountName(acc)+" ("+platformTitle(acc.Platform)+")")
 		}))
-		// Two-Step Verification (slice 120): cloud-password editor,
-		// capability-gated — cores without the surface get no row.
 		growClickables(&twofaRowBtns, len(f.accounts))
 		if twofaSupportedFor(a, acc.ID) {
 			btn := &twofaRowBtns[twofaRow]
@@ -849,8 +788,6 @@ func (a *App) setPagePrivacy(gtx layout.Context, f frame) layout.Dimensions {
 				})
 			}))
 		}
-		// Privacy scope rows (slice 62): live server-side scope per key;
-		// tapping opens the picker dialog (gui/privacy.go).
 		accScopes := f.privacyScopes[acc.ID]
 		supported := len(accScopes) > 0
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -929,8 +866,6 @@ func (a *App) setPagePrivacy(gtx layout.Context, f frame) layout.Dimensions {
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-// setPageData: cache accounting + per-tag and total clears (engine media
-// pipeline's Local Storage view).
 func (a *App) setPageData(gtx layout.Context, f frame) layout.Dimensions {
 	growClickables(&clearTagBtns, len(cacheTagLabels))
 	var children []layout.FlexChild
@@ -974,12 +909,9 @@ func (a *App) setPageData(gtx layout.Context, f frame) layout.Dimensions {
 			)
 		}))
 	}
-	// Proxy + download path (slice 85).
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.layoutProxySection(gtx, f)
 	}))
-	// Automatic media download rows (slice 63): one per source, value
-	// summarizes the live rules; tap opens the editor dialog.
 	growClickables(&autodlRowBtns, len(autodlSourceLabels))
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.subHeader(gtx, "Automatic media download")
@@ -1025,9 +957,6 @@ func (a *App) setPageData(gtx layout.Context, f frame) layout.Dimensions {
 			a.loadStorage()
 		}()
 	}
-	// Export data wizard (slice 100, matrix row 208): takeout export for
-	// the first takeout-capable connected account (capability-gated — no
-	// dead rows on cores without takeout).
 	if exportDataBtn.Clicked(gtx) {
 		if acct := firstTakeoutAccount(f.takeoutAccts); acct != "" {
 			a.openExportDialog(acct)
@@ -1050,7 +979,6 @@ func (a *App) setPageData(gtx layout.Context, f frame) layout.Dimensions {
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-// accentPresets are the selectable accent colors (AyuGram appearance).
 type accentPreset struct {
 	hex  string
 	name string
@@ -1065,7 +993,6 @@ var accents = []accentPreset{
 	{"#df4549", "Red"},
 }
 
-// fontScaleChoices are the text-scale segments (Small/Default/Large).
 var fontScaleChoices = []struct {
 	label string
 	v     float64
@@ -1078,8 +1005,6 @@ var fontScaleChoices = []struct {
 var appearanceAccentBtns []widget.Clickable
 var appearanceScaleBtns []widget.Clickable
 
-// setPageAppearance: theme (dark/light), accent color, and font scale —
-// all persisted in the config (AyuGram appearance).
 func (a *App) setPageAppearance(gtx layout.Context, f frame) layout.Dimensions {
 	growClickables(&appearanceAccentBtns, len(accents))
 	growClickables(&appearanceScaleBtns, len(fontScaleChoices))
@@ -1093,19 +1018,12 @@ func (a *App) setPageAppearance(gtx layout.Context, f frame) layout.Dimensions {
 			a.applyTheme(v)
 		})
 	}))
-	// Power saving (slice 135, tdesktop parity): master toggle — blocks
-	// chat animation loops (stickers, dice, inline custom emoji render
-	// their first frame, no re-arm). Persisted through AppConfig.
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.toggleRow(gtx, "appearance:powersave", "Power saving", powerSaving.forceAll, func(v bool) {
 			a.psSet(powerSaving.flags, v)
 		})
 	}))
 
-	// Layout tweak sliders (AyuGram appearance, slice 93): bubble corner
-	// radius replaces the legacy rounded/square toggle (radius 12 = the
-	// old rounded default, 2 = near-square); bubble width is the "wide
-	// multiplier" (0.70..1.00 of the chat pane, default 0.75).
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.sectionTitle(gtx, "Layout")
 	}))
@@ -1123,12 +1041,9 @@ func (a *App) setPageAppearance(gtx layout.Context, f frame) layout.Dimensions {
 			func(v float32) float64 { return 0.70 + float64(v)*0.30 },
 			func(w float64) { a.applyLayoutTweaksUI(-1, w) })
 	}))
-	// Messages section (tdesktop Chat settings, slice 155): the
-	// a.wid.composer submit mode (Send with Enter / Ctrl+Enter).
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.layoutMessagesSection(gtx, f)
 	}))
-	// Accent swatches (AyuGram "Choose accent color").
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.sectionTitle(gtx, "Accent color")
 	}))
@@ -1154,7 +1069,6 @@ func (a *App) setPageAppearance(gtx layout.Context, f frame) layout.Dimensions {
 					paint.FillShape(gtx.Ops, c, clip.Ellipse{Min: image.Pt(0, 0), Max: image.Pt(sz, sz)}.Op(gtx.Ops))
 					cl.Pop()
 					if active {
-						// selection ring
 						ring := clip.Stroke{Width: float32(gtx.Dp(unit.Dp(2))), Path: clip.Ellipse{
 							Min: image.Pt(-gtx.Dp(unit.Dp(3)), -gtx.Dp(unit.Dp(3))),
 							Max: image.Pt(sz+gtx.Dp(unit.Dp(3)), sz+gtx.Dp(unit.Dp(3))),
@@ -1169,7 +1083,6 @@ func (a *App) setPageAppearance(gtx layout.Context, f frame) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, children...)
 		})
 	}))
-	// Font scale segments (AyuGram "Choose font size").
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.sectionTitle(gtx, "Font size")
 	}))
@@ -1200,8 +1113,6 @@ func (a *App) setPageAppearance(gtx layout.Context, f frame) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, children...)
 		})
 	}))
-	// Custom fonts (slice 146, tdesktop's font box): pick .ttf/.otf
-	// for the UI (+ optional mono), applied at runtime and persisted.
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.sectionTitle(gtx, "Fonts")
 	}))
@@ -1210,15 +1121,12 @@ func (a *App) setPageAppearance(gtx layout.Context, f frame) layout.Dimensions {
 		r := r
 		children = append(children, r)
 	}
-	// Cloud themes (slice 66): server-side theme list + install flow.
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.layoutCloudThemeSection(gtx, f)
 	}))
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-// setPageAyu: ghost-mode flags — global (config) + per-account overrides
-// (engine ghost override store). The AyuGram differentiator (§10).
 func (a *App) setPageAyu(gtx layout.Context, f frame) layout.Dimensions {
 	growClickables(&ghostAcctChips, len(f.accounts))
 	ghostRows := []struct {
@@ -1234,9 +1142,6 @@ func (a *App) setPageAyu(gtx layout.Context, f frame) layout.Dimensions {
 		{"send_without_sound", "Send without sound"},
 	}
 	var children []layout.FlexChild
-	// Ayu · General (AyuGram settings_general, slice 155): improve link
-	// previews — outgoing links of big platforms are rewritten to their
-	// preview-friendly mirrors.
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.sectionTitle(gtx, "Ayu · General")
 	}))
@@ -1248,8 +1153,6 @@ func (a *App) setPageAyu(gtx layout.Context, f frame) layout.Dimensions {
 			a.applyConfigBool("ayu_improve_link_previews", v)
 		})
 	}))
-	// Ayu behavior extras (slice 173, ayu_settings.h): showMessageSeconds
-	// + filterZalgo (AyuGram General page).
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.settingRow(gtx, "Show seconds in message time", "Message timestamps render HH:MM:SS (AyuGram showMessageSeconds)")
 	}))
@@ -1266,8 +1169,6 @@ func (a *App) setPageAyu(gtx layout.Context, f frame) layout.Dimensions {
 			a.applyConfigBool("ayu_filter_zalgo", v)
 		})
 	}))
-	// Ayu · Reactions (slice 173): show{Channel,Group,Private}Reactions —
-	// per-chat-type reaction-strip visibility, AyuGram defaults ON.
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.sectionTitle(gtx, "Ayu · Reactions")
 	}))
@@ -1295,9 +1196,6 @@ func (a *App) setPageAyu(gtx layout.Context, f frame) layout.Dimensions {
 			a.applyConfigBool("ayu_react_private", v)
 		})
 	}))
-	// Ayu · Confirmations (slice 173): sticker/gif/voiceConfirmation —
-	// a confirm card before the send fires. Round-video notes have no
-	// send path yet, so that AyuGram toggle stays unshipped (§1.10).
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.sectionTitle(gtx, "Ayu · Confirmations")
 	}))
@@ -1325,10 +1223,6 @@ func (a *App) setPageAyu(gtx layout.Context, f frame) layout.Dimensions {
 			a.applyConfigBool("ayu_confirm_voice", v)
 		})
 	}))
-	// Ayu · App icon (slice 170, ayu_settings.h appIcon + icon_picker.cpp):
-	// 12-set preview grid, apply-on-click — runtime window icon via
-	// WM_SETICON (Windows) / _NET_WM_ICON (X11); hidden where neither
-	// exists (js/wasm, Android) per §1.10.
 	if appIconPickerSupported {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.sectionTitle(gtx, "Ayu · App icon")
@@ -1341,11 +1235,6 @@ func (a *App) setPageAyu(gtx layout.Context, f frame) layout.Dimensions {
 		}))
 	}
 
-	// Ayu · Avatar corners (slice 215, ayu settings_appearance
-	// BuildAvatarCorners): userpic shape 0..23 (square → circle,
-	// default circle), live preview row, and the Single Corner Radius
-	// toggle — forums keep tdesktop's native 30% rounding unless it
-	// is on. Applies immediately (Gio repaints per frame).
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.sectionTitle(gtx, "Ayu · Avatar corners")
 	}))
@@ -1364,8 +1253,6 @@ func (a *App) setPageAyu(gtx layout.Context, f frame) layout.Dimensions {
 		})
 	}))
 
-	// Ayu · Channels (slice 169, primary source ayu_settings.h):
-	// hideSimilarChannels + collapseSimilarChannels (default ON).
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.sectionTitle(gtx, "Ayu · Channels")
 	}))
@@ -1385,7 +1272,6 @@ func (a *App) setPageAyu(gtx layout.Context, f frame) layout.Dimensions {
 			a.applyConfigBool("ayu_collapse_similar_channels", v)
 		})
 	}))
-	// Ayu mark strings (AyuGram settings_ayu: deleted/edited marks, slice 47).
 	if !ayuMarksSynced {
 		ayuDeletedEd.SetText(f.cfg.AyuDeletedMark)
 		ayuEditedEd.SetText(f.cfg.AyuEditedMark)
@@ -1446,7 +1332,6 @@ func (a *App) setPageAyu(gtx layout.Context, f frame) layout.Dimensions {
 			a.applyConfigBool("ayu_save_for_bots", v)
 		})
 	}))
-	// Message filters (slice 90, matrix row 238): local regex hide-rules.
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.sectionTitle(gtx, "Ayu · Message filters")
 	}))
@@ -1483,7 +1368,7 @@ func (a *App) setPageAyu(gtx layout.Context, f frame) layout.Dimensions {
 	}))
 	for _, r := range ghostRows {
 		if r.field == "send_read_receipts" {
-			continue // rendered above with typing
+			continue
 		}
 		r := r
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -1499,7 +1384,6 @@ func (a *App) setPageAyu(gtx layout.Context, f frame) layout.Dimensions {
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.subHeader(gtx, "Per-account overrides")
 	}))
-	// account chips
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, a.chips(gtx, f)...)
 	}))
@@ -1546,7 +1430,6 @@ func (a *App) setPageAyu(gtx layout.Context, f frame) layout.Dimensions {
 			return btn.Layout(gtx)
 		})
 	}))
-	// Drawer customization (Ayu "drawer" menu parity): hide drawer rows.
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.sectionTitle(gtx, "Ayu · Drawer")
 	}))
@@ -1566,8 +1449,6 @@ func (a *App) setPageAyu(gtx layout.Context, f frame) layout.Dimensions {
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-// chips renders the account selector chips for the ghost page and records
-// the selection (App.ghostSel).
 func (a *App) chips(gtx layout.Context, f frame) []layout.FlexChild {
 	out := make([]layout.FlexChild, 0, len(f.accounts))
 	sel := f.ghostSel
@@ -1603,17 +1484,12 @@ func (a *App) chips(gtx layout.Context, f frame) []layout.FlexChild {
 	return out
 }
 
-// appVersion is the Uniclient version shown on the About page (bumped at
-// release time; the release pipeline tags the same number).
 const appVersion = "0.10.3"
 
-// aboutRow is one key/description line on the About page.
 type aboutRow struct {
 	key, desc string
 }
 
-// shortcutRows lists the global keyboard shortcuts (AyuGram About page
-// style). Pure — kept in sync with gui/shortcuts.go by tests.
 func shortcutRows() []aboutRow {
 	return []aboutRow{
 		{"Esc", "close the topmost surface (menu, panel, search…)"},
@@ -1626,7 +1502,6 @@ func shortcutRows() []aboutRow {
 	}
 }
 
-// setPageAbout: about page — version, backends, and the shortcut list.
 func (a *App) setPageAbout(gtx layout.Context, f frame) layout.Dimensions {
 	var children []layout.FlexChild
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -1658,8 +1533,6 @@ func (a *App) setPageAbout(gtx layout.Context, f frame) layout.Dimensions {
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
-
-// ── small helpers ─────────────────────────────────────────────────────────
 
 func (a *App) subHeader(gtx layout.Context, txt string) layout.Dimensions {
 	return layout.Inset{Top: unit.Dp(12), Bottom: unit.Dp(2)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {

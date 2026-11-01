@@ -1,11 +1,5 @@
 package gui
 
-// Edit-history viewer (AyuGram "Edits history", matrix row 164, slice 96):
-// the message context menu gains "Edits history" for edited messages — a
-// dialog listing every locally-known revision of the message (engine
-// edited_messages table, newest first, "Load more" paging). Anti-recall's
-// revision copies are exactly what AyuGram's edits-history box shows.
-
 import (
 	"image"
 	"strings"
@@ -19,20 +13,18 @@ import (
 	"uniclient/engine"
 )
 
-// editHistState is the open edits-history dialog (nil when closed).
 type editHistState struct {
 	msg       engine.CachedMessage
 	revisions []engine.EditRevision
 	loaded    bool
 	busy      bool
-	more      bool // another page exists
+	more      bool
 }
 
 var (
 	editHistKeyTag = new(struct{})
 )
 
-// editHistRowTitle (pure, testable): display name for one revision row.
 func editHistRowTitle(r engine.EditRevision) string {
 	if r.SenderName != "" {
 		return r.SenderName
@@ -43,8 +35,6 @@ func editHistRowTitle(r engine.EditRevision) string {
 	return "someone"
 }
 
-// editHistRowPreview (pure, testable): the revision's text, first line,
-// trimmed; "(no text)" for empty bodies.
 func editHistRowPreview(text string) string {
 	t := strings.TrimSpace(text)
 	if t == "" {
@@ -56,15 +46,10 @@ func editHistRowPreview(text string) string {
 	return t
 }
 
-// editsMenuGate (pure): when the context menu offers "Edits history" —
-// an edited, non-service message with the revisions lookup resolved
-// (nil state hides the item until openMenu's lookup lands, mirroring
-// the shadow-ban gate).
 func editsMenuGate(m engine.CachedMessage, stateKnown, hasEdits bool) bool {
 	return m.EditedAt != 0 && !m.IsService && stateKnown && hasEdits
 }
 
-// openEditHistDialog shows the revision list for a message.
 func (a *App) openEditHistDialog(m *engine.CachedMessage) {
 	if m == nil {
 		return
@@ -77,7 +62,6 @@ func (a *App) openEditHistDialog(m *engine.CachedMessage) {
 	a.loadEditHist(0)
 }
 
-// closeEditHistDialog dismisses the dialog.
 func (a *App) closeEditHistDialog() {
 	a.mu.Lock()
 	a.editHistDlg = nil
@@ -85,7 +69,6 @@ func (a *App) closeEditHistDialog() {
 	a.invalidate()
 }
 
-// loadEditHist fetches one page of revisions (appending when paging).
 func (a *App) loadEditHist(offset int) {
 	a.mu.Lock()
 	d := a.editHistDlg
@@ -110,7 +93,7 @@ func (a *App) loadEditHist(offset int) {
 		d.loaded = true
 		if err == nil {
 			d.revisions = append(d.revisions, revs...)
-			d.more = len(revs) == 40 // a full page may mean more behind it
+			d.more = len(revs) == 40
 		}
 		a.mu.Unlock()
 		if err != nil {
@@ -120,7 +103,6 @@ func (a *App) loadEditHist(offset int) {
 	}()
 }
 
-// layoutEditHistDialog renders the revisions card over the chat pane.
 func (a *App) layoutEditHistDialog(gtx layout.Context, f frame) layout.Dimensions {
 	d := f.editHistDlg
 	{
@@ -209,7 +191,6 @@ func (a *App) layoutEditHistDialog(gtx layout.Context, f frame) layout.Dimension
 	})
 }
 
-// editHistRow: sender + timestamp header, text preview body.
 func (a *App) editHistRow(gtx layout.Context, r engine.EditRevision) layout.Dimensions {
 	return roundedFill(gtx, a.ui.p.SurfaceHi, 10, func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {

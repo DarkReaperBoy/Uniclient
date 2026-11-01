@@ -1,13 +1,5 @@
 package cores
 
-// xmpp_localserver_test.go — the "dockerized server" rung of the §9 ladder,
-// without docker: a minimal but REAL XMPP server implementation inside the
-// test (independent protocol logic — not a mock of the client's code).
-// It negotiates the stream, advertises SASL PLAIN, authenticates, handles
-// resource binding + session establishment, and echoes self-addressed
-// messages back — verifying the core's FULL auth chain and message
-// round-trip offline, in CI, with zero secrets.
-
 import (
 	"bufio"
 	"encoding/base64"
@@ -21,8 +13,6 @@ import (
 	"uniclient/utils"
 )
 
-// miniXMPPServer is a single-connection XMPP server speaking enough of
-// RFC 6120/6121 for the client core's connect→auth→bind→message chain.
 type miniXMPPServer struct {
 	ln   net.Listener
 	user string
@@ -56,20 +46,14 @@ func (s *miniXMPPServer) acceptLoop() {
 	}
 }
 
-// stanzaReader extracts complete top-level stream elements from the byte
-// stream (the root <stream:stream> element is never closed; everything
-// else is well-formed per-stanza XML).
 type stanzaReader struct {
 	r   *bufio.Reader
 	c   net.Conn
 	buf string
 }
 
-// next returns the next complete top-level element ("" when incomplete so
-// far). The XML declaration and the stream header are skipped.
 func (sr *stanzaReader) next() (string, error) {
 	for {
-		// Trim leading whitespace / XML decl.
 		sr.buf = strings.TrimLeft(sr.buf, " \r\n\t")
 		if strings.HasPrefix(sr.buf, "<?xml") {
 			if e := strings.Index(sr.buf, "?>"); e >= 0 {
@@ -84,10 +68,9 @@ func (sr *stanzaReader) next() (string, error) {
 				}
 				continue
 			}
-			sr.buf = "" // stray garbage
+			sr.buf = ""
 			continue
 		}
-		// Element name.
 		gt := strings.IndexByte(sr.buf, '>')
 		if gt < 0 {
 			if err := sr.fill(); err != nil {
@@ -102,7 +85,6 @@ func (sr *stanzaReader) next() (string, error) {
 		name := sr.buf[1:nameEnd]
 		selfClose := strings.HasSuffix(sr.buf[:gt+1], "/>")
 		if name == "stream:stream" {
-			// The root element: never closed — treat as consumed header.
 			sr.buf = sr.buf[gt+1:]
 			return "<stream:stream>", nil
 		}
@@ -139,7 +121,7 @@ func (s *miniXMPPServer) handle(conn net.Conn) {
 	defer conn.Close()
 	sr := &stanzaReader{r: bufio.NewReader(conn), c: conn}
 
-	phase := 0 // 0 = pre-auth, 1 = post-auth restart, 2 = bound
+	phase := 0
 	for {
 		stanza, err := sr.next()
 		if err != nil {
@@ -184,7 +166,6 @@ func (s *miniXMPPServer) handle(conn net.Conn) {
 				conn.Write([]byte(fmt.Sprintf("<iq id='%s' type='result'/>", id)))
 			}
 		case strings.HasPrefix(stanza, "<message"):
-			// Echo back to the bound resource, from the bare JID.
 			s.mu.Lock()
 			jid := s.boundJID
 			s.mu.Unlock()
@@ -199,13 +180,9 @@ func (s *miniXMPPServer) handle(conn net.Conn) {
 			default:
 			}
 		}
-		// Unknown stanzas — including initial <presence>, which needs no
-		// acknowledgement — are deliberately ignored (the old empty case
-		// body was SA4017: selecting it had no effect, slice-287).
 	}
 }
 
-// decodeSASLPlain parses <auth mechanism='PLAIN'>b64(\0user\0pass)</auth>.
 func decodeSASLPlain(stanza string) (user, pass string, ok bool) {
 	b64 := extractXMLContent(stanza, "auth")
 	raw, err := base64.StdEncoding.DecodeString(b64)
@@ -219,12 +196,9 @@ func decodeSASLPlain(stanza string) (user, pass string, ok bool) {
 	return parts[1], parts[2], true
 }
 
-// TestXMPPFullChainLocalServer: connect → SASL PLAIN → stream restart →
-// bind → session → self-addressed message round-trip, all against the
-// mini server above (the §9 "dockerized server" rung, offline edition).
 func TestXMPPFullChainLocalServer(t *testing.T) {
 	srv, addr := startMiniXMPPServer(t, "alice", "wonderland")
-	_ = srv // stanza logging available via setLog when debugging
+	_ = srv
 
 	store := utils.NewSessionStore(newTestVaultXMPP(t), "xmpp-mini")
 	core := NewXMPPCore(store)
@@ -249,7 +223,6 @@ func TestXMPPFullChainLocalServer(t *testing.T) {
 		t.Fatalf("Authenticate against mini server: %v", err)
 	}
 
-	// Wrong password must fail with an auth-flavored error.
 	bad := NewXMPPCore(utils.NewSessionStore(newTestVaultXMPP(t), "xmpp-mini-bad"))
 	defer bad.Logout()
 	badCfg := cfg
@@ -262,10 +235,7 @@ func TestXMPPFullChainLocalServer(t *testing.T) {
 	if err := bad.Authenticate(badCfg); err == nil || !strings.Contains(strings.ToLower(err.Error()), "auth") {
 		t.Fatalf("bad password must fail SASL auth, got: %v", err)
 	}
-	// The mini server served one connection; the second core's failure may
-	// have closed the shared listener socket — reconnect not needed here.
 
-	// Self-addressed round-trip through the FIRST core.
 	body := "mini server round-trip 42"
 	if _, err := core.SendMessage("alice@localhost", OutgoingMessage{Text: body}); err != nil {
 		t.Fatalf("SendMessage: %v", err)
@@ -281,7 +251,6 @@ func TestXMPPFullChainLocalServer(t *testing.T) {
 	}
 }
 
-// newTestVaultXMPP builds a throwaway vault for the core's session store.
 func newTestVaultXMPP(t *testing.T) *utils.Vault {
 	t.Helper()
 	dir := t.TempDir()

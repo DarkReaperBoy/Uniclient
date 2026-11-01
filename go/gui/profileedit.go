@@ -17,16 +17,6 @@ import (
 	"uniclient/engine"
 )
 
-// Edit profile (AyuGram parity slice 71): per-account profile editor in
-// Settings → Main. Surface: avatar upload (UploadProfilePhoto via the OS
-// picker), username (UpdateAccountUsername), bio (UpdateBio) and birthday
-// (UpdateBirthday). Values the engine cannot change yet (display name,
-// phone) are shown read-only — never a dead editor (AGENTS.md §1.10).
-//
-// Editor state is only touched on the GUI goroutine (captured into the
-// apply closures at click time); engine calls run on background goroutines
-// and a successful apply re-loads the whole editor from the server.
-
 type profileEditState struct {
 	accountID   string
 	loaded      bool
@@ -52,10 +42,6 @@ var (
 	profileBdayBtn  widget.Clickable
 	profileBackBtn  widget.Clickable
 
-	// profileEdSynced gates the one-shot editor priming: the load tail
-	// (a background goroutine) Stores false when a fresh state lands, the
-	// GUI loop Loads it and Stores true after priming — a plain bool here
-	// was R32's write-races-layout class, so it is an atomic (R41).
 	profileEdSynced atomic.Bool
 )
 
@@ -68,15 +54,14 @@ func init() {
 	profileBdayY.SingleLine = true
 }
 
-// openProfileEdit starts the editor for an account and loads its profile.
 func (a *App) openProfileEdit(accountID string) {
 	a.mu.Lock()
 	a.profileEdit = &profileEditState{accountID: accountID}
-	a.businessPage = nil // one sub-page at a time (settings shell) — the
-	a.stickerMgr = nil   // exclusivity matrix is COMPLETE now (R39's audit
-	a.folderMgr = nil    // found this opener missing four siblings; the
-	a.premiumPage = nil  // shell's shadow order made the gaps benign but
-	a.starsPage = nil    // a stale page reappeared after close)
+	a.businessPage = nil
+	a.stickerMgr = nil
+	a.folderMgr = nil
+	a.premiumPage = nil
+	a.starsPage = nil
 	a.mu.Unlock()
 	profileEdSynced.Store(false)
 	go a.loadProfileEdit(accountID)
@@ -91,7 +76,6 @@ func (a *App) closeProfileEdit() {
 	a.invalidate()
 }
 
-// loadProfileEdit fetches the current values (server-first via the engine).
 func (a *App) loadProfileEdit(accountID string) {
 	st := &profileEditState{accountID: accountID}
 	for _, acc := range a.eng.ListAccounts() {
@@ -140,7 +124,6 @@ func (a *App) loadProfileEdit(accountID string) {
 	a.invalidate()
 }
 
-// accountByIDSnapshot resolves an account under lock (helper).
 func accountByIDSnapshot(a *App, id string) (engine.AccountInfo, bool) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -152,7 +135,6 @@ func accountByIDSnapshot(a *App, id string) (engine.AccountInfo, bool) {
 	return engine.AccountInfo{}, false
 }
 
-// validateUsername: "" (no change) or Telegram's [a-z][a-z0-9_]{4,31}.
 func validateUsername(s string) string {
 	s = strings.ToLower(strings.TrimSpace(s))
 	if s == "" {
@@ -176,7 +158,6 @@ func validateUsername(s string) string {
 	return ""
 }
 
-// validateBio: at most 70 characters (server limit).
 func validateBio(s string) string {
 	if len([]rune(s)) > 70 {
 		return "at most 70 characters"
@@ -184,8 +165,6 @@ func validateBio(s string) string {
 	return ""
 }
 
-// parseBirthday parses D/M/Y fields; all empty = clear (0/0/0). Year may be
-// empty (hidden year). Returns a user-facing message on error.
 func parseBirthday(ds, ms, ys string) (int, int, int, string) {
 	ds, ms, ys = strings.TrimSpace(ds), strings.TrimSpace(ms), strings.TrimSpace(ys)
 	if ds == "" && ms == "" && ys == "" {
@@ -218,7 +197,6 @@ func parseBirthday(ds, ms, ys string) (int, int, int, string) {
 	if y != 0 && (y < 1800 || y > time.Now().Year()) {
 		return 0, 0, 0, "year looks wrong"
 	}
-	// Day-in-month sanity (Feb and 30-day months).
 	dim := 31
 	switch m {
 	case 2:
@@ -234,7 +212,6 @@ func parseBirthday(ds, ms, ys string) (int, int, int, string) {
 
 var monthNames = [13]string{"", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"}
 
-// birthdayLabel renders the stored birthday for display.
 func birthdayLabel(d, m, y int) string {
 	if d == 0 || m == 0 || m < 1 || m > 12 {
 		return "not set"
@@ -245,7 +222,6 @@ func birthdayLabel(d, m, y int) string {
 	return fmt.Sprintf("%s %d", monthNames[m], d)
 }
 
-// layoutProfileEdit renders the editor page inside the settings surface.
 func (a *App) layoutProfileEdit(gtx layout.Context, f frame, st *profileEditState) layout.Dimensions {
 	if profileBackBtn.Clicked(gtx) {
 		a.closeProfileEdit()
@@ -288,7 +264,6 @@ func (a *App) layoutProfileEdit(gtx layout.Context, f frame, st *profileEditStat
 		})
 	}))
 
-	// Avatar + change-photo.
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
@@ -308,7 +283,6 @@ func (a *App) layoutProfileEdit(gtx layout.Context, f frame, st *profileEditStat
 		})
 	}))
 
-	// Read-only rows: display name and phone (no engine setter yet).
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.settingRow(gtx, "Name", st.displayName)
 	}))
@@ -318,8 +292,6 @@ func (a *App) layoutProfileEdit(gtx layout.Context, f frame, st *profileEditStat
 		}))
 	}
 
-	// Username editor: the editor text is captured on the GUI thread at
-	// click time; the engine call + reload run in the background.
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.settingRow(gtx, "Username", "5-32 characters: letters, digits, underscore")
 	}))
@@ -349,7 +321,6 @@ func (a *App) layoutProfileEdit(gtx layout.Context, f frame, st *profileEditStat
 		return a.profileApplyRow(gtx, &profileUserBtn, "Apply username")
 	}))
 
-	// Bio editor.
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.settingRow(gtx, "Bio", "Shown on your profile (70 characters max)")
 	}))
@@ -378,7 +349,6 @@ func (a *App) layoutProfileEdit(gtx layout.Context, f frame, st *profileEditStat
 		return a.profileApplyRow(gtx, &profileBioBtn, "Apply bio")
 	}))
 
-	// Birthday editor.
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.settingRow(gtx, "Birthday", "Current: "+birthdayLabel(st.bdayDay, st.bdayMonth, st.bdayYear))
 	}))
@@ -422,8 +392,6 @@ func (a *App) layoutProfileEdit(gtx layout.Context, f frame, st *profileEditStat
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-// profileApplyRow renders one Apply button (the click handler lives in the
-// caller so it can capture editor text on the GUI thread).
 func (a *App) profileApplyRow(gtx layout.Context, btn *widget.Clickable, label string) layout.Dimensions {
 	return layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(12), Left: unit.Dp(14), Right: unit.Dp(14)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		b := a.ui.TextButton(btn, label)
@@ -432,8 +400,6 @@ func (a *App) profileApplyRow(gtx layout.Context, btn *widget.Clickable, label s
 	})
 }
 
-// profileAvatar renders the file-backed avatar (async decode; the letter
-// avatar shows until the image lands) at the requested size.
 func (a *App) profileAvatar(gtx layout.Context, st *profileEditState, acc engine.AccountInfo, size unit.Dp) layout.Dimensions {
 	sz := gtx.Dp(size)
 	if st.avatarPath != "" {
@@ -448,7 +414,6 @@ func (a *App) profileAvatar(gtx layout.Context, st *profileEditState, acc engine
 	return a.ui.Avatar(gtx, name, size, dotNone)
 }
 
-// pickProfilePhoto opens the OS picker and uploads the chosen image.
 func (a *App) pickProfilePhoto(accountID string) {
 	if a.expl == nil {
 		a.setToast("Photo: file picker unavailable on this platform")

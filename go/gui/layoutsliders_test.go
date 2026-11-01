@@ -1,9 +1,5 @@
 package gui
 
-// Layout tweak sliders (slice 93, matrix row 246): label formatting,
-// clamping/defaults through the engine config boundary, and the legacy
-// corners-toggle fold-in.
-
 import (
 	"testing"
 
@@ -26,8 +22,6 @@ func TestLayoutSliderLabels(t *testing.T) {
 }
 
 func TestEffectiveLayoutTweaks(t *testing.T) {
-	// Defaults: no slider fields set → 12 dp / 0.75 (the pre-slider
-	// look), regardless of the legacy toggle.
 	def := utils.DefaultConfig()
 	if got := utils.EffectiveBubbleRadius(def); got != 12 {
 		t.Errorf("default radius = %d, want 12", got)
@@ -36,7 +30,6 @@ func TestEffectiveLayoutTweaks(t *testing.T) {
 		t.Errorf("default wide = %v, want 0.75", got)
 	}
 
-	// Legacy fold: square toggle → 2 dp.
 	sq := utils.DefaultConfig()
 	square := false
 	sq.BubbleCorners = &square
@@ -44,7 +37,6 @@ func TestEffectiveLayoutTweaks(t *testing.T) {
 		t.Errorf("legacy square radius = %d, want 2", got)
 	}
 
-	// New slider wins over the legacy toggle.
 	both := utils.DefaultConfig()
 	r := 6
 	both.BubbleRadius = &r
@@ -53,7 +45,6 @@ func TestEffectiveLayoutTweaks(t *testing.T) {
 		t.Errorf("slider radius = %d, want 6 (wins over toggle)", got)
 	}
 
-	// Clamps.
 	if got := utils.ClampBubbleRadius(-3); got != 0 {
 		t.Errorf("clamp radius low = %d", got)
 	}

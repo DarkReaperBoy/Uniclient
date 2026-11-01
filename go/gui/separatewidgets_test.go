@@ -8,24 +8,10 @@ import (
 	"testing"
 )
 
-// TestSeparateWindowWidgetsAreNotPackageLevel: BUGS B-47 — separate
-// chat windows run their OWN event loop on their OWN goroutine (Root's
-// `frameMu` serializes frames, but widget/selection STATE is shared),
-// and their draw tree reaches layoutChatView + overlays. A call-graph
-// walk from Root's separate branch (1,165 functions) found exactly the
-// widgets below reachable among the 258 package-level ones, plus the
-// session states used in those paths (reply-keyboard consumption,
-// seen-inline last-own, forward selection — the last one also reset by
-// ANY window's openChat/openForward, wiping another window's pick).
-// All must live on the per-window App ("each window owns its widgets",
-// slice 168). This test pins the fix structurally: each name may be
-// declared ONLY inside the App struct. Source-reading guard — CI/native
-// only (no filesystem on js/wasm).
 func TestSeparateWindowWidgetsAreNotPackageLevel(t *testing.T) {
 	if runtime.GOOS == "js" {
 		t.Skip("source files are unreachable on js/wasm (no filesystem by design)")
 	}
-	// name → the type token its declaration line must carry.
 	targets := [][2]string{
 		{"inlineKbdBtns", "widget.Clickable"},
 		{"replyKbdBtns", "widget.Clickable"},
@@ -71,14 +57,14 @@ func TestSeparateWindowWidgetsAreNotPackageLevel(t *testing.T) {
 				line := body[lineStart : i+lineEnd]
 				idx = i + len(name) + 1
 				if !strings.Contains(line, typ) {
-					continue // not a declaration line (e.g. comment)
+					continue
 				}
 				trimmed := strings.TrimSpace(line)
 				if strings.Contains(line, "=") && !strings.HasPrefix(trimmed, "var ") {
-					continue // an assignment (must be a.-qualified), not a declaration
+					continue
 				}
 				if path == "state.go" && strings.Contains(appStruct, line) {
-					continue // correctly an App field
+					continue
 				}
 				t.Errorf("%s: %q declares %s outside the App struct — separate windows share this state (B-47)",
 					path, strings.TrimSpace(line), name)
@@ -87,13 +73,6 @@ func TestSeparateWindowWidgetsAreNotPackageLevel(t *testing.T) {
 	}
 }
 
-// TestSeenInlineReceiptIsWired: BUGS B-48 — seenInlineGate needs
-// isLastOwn, fed from msgFrameLastOwn, which NOTHING ever assigned
-// (and the pure helper lastOwnMsgID had zero production callers) — the
-// slice-152 inline "Seen" receipt could never render. The unit-tested
-// pure layers hid the missing wire (B-12/B-13 class). Pins the
-// assignment + the App-scoped read. Source-reading guard — CI/native only
-// (no filesystem on js/wasm).
 func TestSeenInlineReceiptIsWired(t *testing.T) {
 	if runtime.GOOS == "js" {
 		t.Skip("source files are unreachable on js/wasm (no filesystem by design)")
@@ -111,7 +90,6 @@ func TestSeenInlineReceiptIsWired(t *testing.T) {
 	}
 }
 
-// appStructBody extracts the text of `type App struct { ... }`.
 func appStructBody(t *testing.T) string {
 	t.Helper()
 	data, err := os.ReadFile("state.go")

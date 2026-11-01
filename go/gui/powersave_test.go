@@ -1,30 +1,25 @@
 package gui
 
-// powersave_test.go — slice 135 tests-first: power saving actually gates
-// the GUI's chat animations (tdesktop's PowerSaving semantics: stickers /
-// custom-emoji loops in chats render their first frame with no re-arm
-// while the matching flag — or force-all — is on).
-
 import (
 	"testing"
 )
 
 func TestPowerSavingBlocks(t *testing.T) {
 	const (
-		stickersChat = 1 << 1 // tdesktop PowerSaving::kStickersChat
-		emojiChat    = 1 << 3 // tdesktop PowerSaving::kEmojiChat
+		stickersChat = 1 << 1
+		emojiChat    = 1 << 3
 	)
 	cases := []struct {
 		flags    int
 		forceAll bool
-		stickers bool // want: stickers/dice animations blocked
-		emoji    bool // want: inline custom-emoji animations blocked
+		stickers bool
+		emoji    bool
 	}{
 		{0, false, false, false},
 		{stickersChat, false, true, false},
 		{emojiChat, false, false, true},
 		{stickersChat | emojiChat, false, true, true},
-		{0, true, true, true}, // force-all: every class treated as enabled
+		{0, true, true, true},
 		{stickersChat, true, true, true},
 	}
 	for _, c := range cases {

@@ -6,9 +6,6 @@ import (
 	"uniclient/engine"
 )
 
-// Channel-post comments (slice 195): the comments chip's label/gating
-// and the thread-bar title — pure.
-
 func TestCommentsLabel(t *testing.T) {
 	if got := commentsCountLabel(1); got != "1 comment" {
 		t.Errorf("singular = %q, want 1 comment", got)
@@ -22,16 +19,12 @@ func TestCommentsLabel(t *testing.T) {
 }
 
 func TestCommentsRowVisible(t *testing.T) {
-	// Channel post with comments → visible.
 	if !commentsRowVisible(engine.ChatInfo{Type: engine.ChatTypeChanVal}, 3) {
 		t.Error("channel post with comments must show the row")
 	}
-	// Zero/absent comments → hidden (no dead chip).
 	if commentsRowVisible(engine.ChatInfo{Type: engine.ChatTypeChanVal}, 0) {
 		t.Error("zero comments must hide the row")
 	}
-	// Groups/DMs never show the comment chip (their replies render as
-	// normal reply headers).
 	if commentsRowVisible(engine.ChatInfo{Type: engine.ChatTypeGroupVal}, 3) {
 		t.Error("group must not show the comment row")
 	}
@@ -49,17 +42,11 @@ func TestThreadBarTitle(t *testing.T) {
 	}
 }
 
-// TestThreadDeepJumpWindow (slice 196): the comment deep-link window —
-// the target-anchored older page (newest-first) reversed into
-// chronological order with the newer tail from the newest page appended,
-// and the jump index pointing at the target comment.
 func TestThreadDeepJumpWindow(t *testing.T) {
 	mk := func(id string, ts int64) engine.CachedMessage {
 		return engine.CachedMessage{MsgID: id, Timestamp: ts}
 	}
-	// Newest page (chronological): three comments newer than the target.
 	newest := []engine.CachedMessage{mk("c1", 10), mk("c2", 20), mk("c3", 30)}
-	// Older page (newest-first, includes the target at its head).
 	older := []engine.CachedMessage{mk("target", 25), mk("o2", 15), mk("o1", 5)}
 
 	win, jump := threadDeepJumpWindow(newest, older, "target")
@@ -79,24 +66,17 @@ func TestThreadDeepJumpWindow(t *testing.T) {
 		t.Errorf("jump = %d, want 2 (the target row)", jump)
 	}
 
-	// Target already in the newest page: the newest page IS the window.
 	win, jump = threadDeepJumpWindow(newest, nil, "c2")
 	if len(win) != 3 || win[1].MsgID != "c2" || jump != 1 {
 		t.Fatalf("in-page target: win=%v jump=%d, want newest page and index 1", win, jump)
 	}
 
-	// Target in neither slice: no window, no jump (honest — caller keeps
-	// the newest page and lands at the bottom).
 	win, jump = threadDeepJumpWindow(newest, older, "nope")
 	if win != nil || jump != -1 {
 		t.Fatalf("missing target: win=%v jump=%d, want nil/-1", win, jump)
 	}
 }
 
-// TestOpenCommentThreadDeepSchedules (slice 196): a comment deep link
-// schedules the chat open plus the pending thread hop — no timestamp
-// prefetch (the thread fetch resolves its own rows), no plain jump, no
-// topic scoping.
 func TestOpenCommentThreadDeepSchedules(t *testing.T) {
 	a := &App{}
 	a.openPermalinkTarget("acc1", "-100123", "My Channel", "55", "", "77")

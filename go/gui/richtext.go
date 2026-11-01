@@ -23,33 +23,14 @@ import (
 	"uniclient/engine"
 )
 
-// Rich-text rendering (AyuGram parity slice 32).
-//
-// Telegram messages carry formatting entities (bold, italic, spoiler,
-// code, links…). The engine round-trips them in CachedMessage.ContentRich
-// (JSON []cores.TextEntity, UTF-16 offsets). This renderer walks entity
-// boundaries, merges overlapping styles per segment, and flows styled
-// words with wrapping — gio v0.10 has no multi-style paragraph API, so
-// each word is recorded to a macro, measured, and placed manually.
-//
-// Spoilers start hidden (gray pill, glyphs in bubble color) and reveal on
-// a click anywhere in the text block.
-
-// a.wid.spoilerBtns are per-message clickables toggling spoiler reveal.
-
-// linkTag marks one tappable link token; the press dispatches by kind:
-// hashtags open the in-chat tag search (slice 92), everything else
-// opens the platform browser / clipboard fallback.
 type linkTag struct {
 	msgID string
 	url   string
-	kind  string // entity type: "hashtag", "url", "mention", …
+	kind  string
 }
 
-// linkTags caches per-message link tags (index-aligned to drawn tokens).
 var linkTags = map[string][]*linkTag{}
 
-// spoilerHas reports whether any entity is a spoiler.
 func spoilerHas(entities []cores.TextEntity) bool {
 	for _, e := range entities {
 		if e.Type == "spoiler" {
@@ -59,21 +40,18 @@ func spoilerHas(entities []cores.TextEntity) bool {
 	return false
 }
 
-// richStyle is the merged style of one segment (overlapping entities add up).
 type richStyle struct {
 	bold, italic, underline, strike, mono, spoiler, quote bool
 	link                                                  string
 	linkKind                                              string
-	emojiDoc                                              int64 // custom-emoji document (slice 132)
+	emojiDoc                                              int64
 }
 
-// richSegment is a text slice with its merged style.
 type richSegment struct {
 	text  string
 	style richStyle
 }
 
-// utf16Len counts UTF-16 code units in s.
 func utf16Len(s string) int {
 	n := 0
 	for _, r := range s {
@@ -82,7 +60,6 @@ func utf16Len(s string) int {
 	return n
 }
 
-// richIndex maps a UTF-16 code-unit offset to a byte index in s.
 func richIndex(s string, u16 int) int {
 	count := 0
 	for i, r := range s {
@@ -94,7 +71,6 @@ func richIndex(s string, u16 int) int {
 	return len(s)
 }
 
-// applyEntity folds one entity into the style.
 func applyEntity(st *richStyle, e cores.TextEntity) {
 	switch e.Type {
 	case "bold":
@@ -128,8 +104,6 @@ func applyEntity(st *richStyle, e cores.TextEntity) {
 	}
 }
 
-// parseRichSegments splits text by entity boundaries and merges the styles
-// covering each slice.
 func parseRichSegments(text string, entities []cores.TextEntity) []richSegment {
 	if text == "" || len(entities) == 0 {
 		return nil
@@ -175,14 +149,12 @@ func parseRichSegments(text string, entities []cores.TextEntity) []richSegment {
 	return out
 }
 
-// richToken is a word or space run with a style.
 type richToken struct {
 	text  string
 	style richStyle
 	space bool
 }
 
-// splitTokens splits a segment into alternating space/word tokens.
 func splitTokens(seg richSegment) []richToken {
 	var out []richToken
 	rest := seg.text
@@ -209,7 +181,6 @@ func splitTokens(seg richSegment) []richToken {
 	return out
 }
 
-// tokenFont builds the font for a style.
 func tokenFont(st richStyle) font.Font {
 	f := font.Font{}
 	if st.bold {
@@ -224,19 +195,15 @@ func tokenFont(st richStyle) font.Font {
 	return f
 }
 
-// richRect is one placed token.
 type richRect struct {
 	pos  image.Point
 	size image.Point
 	tok  richToken
 	call op.CallOp
-	lt   *linkTag  // non-nil for tappable link tokens
-	art  *emojiArt // inline custom-emoji artwork (slice 132)
+	lt   *linkTag
+	art  *emojiArt
 }
 
-// richTextLabel renders the message body with entity formatting; plain
-// label fallback when there are no entities. bg is the bubble color
-// (hidden spoiler glyphs match it).
 func (a *App) richTextLabel(gtx layout.Context, m engine.CachedMessage, size unit.Sp, base, bg color.NRGBA, clickable bool) layout.Dimensions {
 	var entities []cores.TextEntity
 	if len(m.ContentRich) > 0 {
@@ -266,16 +233,12 @@ func (a *App) richTextLabel(gtx layout.Context, m engine.CachedMessage, size uni
 			a.spoilerRevealed[m.MsgID] = !a.spoilerRevealed[m.MsgID]
 		}
 		return btn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			// Spoiler click owns the press surface; links stay inert here.
 			return a.flowRich(gtx, m, size, base, bg, segs, false)
 		})
 	}
 	return a.flowRich(gtx, m, size, base, bg, segs, true)
 }
 
-// flowRich measures each token via a macro, wraps at max width, then
-// plays the macros back with decorations (code/ spoiler pills, underline,
-// strike).
 func (a *App) flowRich(gtx layout.Context, m engine.CachedMessage, size unit.Sp, base, bg color.NRGBA, segs []richSegment, linksEnabled bool) layout.Dimensions {
 	revealed := a.spoilerRevealed[m.MsgID]
 	var tokens []richToken
@@ -299,7 +262,7 @@ func (a *App) flowRich(gtx layout.Context, m engine.CachedMessage, size unit.Sp,
 			col = a.ui.p.TextDim
 		}
 		if st.spoiler && !revealed {
-			col = bg // glyphs invisible until revealed
+			col = bg
 		}
 		lbl := a.ui.Label(size, tok.text)
 		lbl.Color = col
@@ -322,7 +285,7 @@ func (a *App) flowRich(gtx layout.Context, m engine.CachedMessage, size unit.Sp,
 		}
 	}
 	if hasLinks {
-		delete(linkTags, m.MsgID) // rebuild this frame's tags
+		delete(linkTags, m.MsgID)
 	}
 
 	var rects []richRect
@@ -332,17 +295,15 @@ func (a *App) flowRich(gtx layout.Context, m engine.CachedMessage, size unit.Sp,
 		if tok.style.emojiDoc != 0 && !tok.space && artSide > 0 {
 			art = emojiArts.get(tok.style.emojiDoc)
 			if art.kind == emojiArtLottie || art.kind == emojiArtRaster {
-				// Inline artwork token: a side×side square replaces the
-				// base-glyph text measure.
 				sz = image.Pt(artSide, artSide)
 				call = op.CallOp{}
 			} else {
-				art = nil // unknown/unsupported/failed: keep the glyph
+				art = nil
 			}
 		}
 		if tok.space {
 			if x == 0 {
-				continue // no leading spaces after wrap
+				continue
 			}
 			if x+sz.X > maxW {
 				x, y = 0, y+lineH
@@ -378,7 +339,6 @@ func (a *App) flowRich(gtx layout.Context, m engine.CachedMessage, size unit.Sp,
 
 	for _, r := range rects {
 		st := r.tok.style
-		// Background pill for code + hidden spoilers.
 		if st.mono || (st.spoiler && !revealed) {
 			fillCol := a.ui.p.SurfaceHi
 			if st.spoiler && !revealed {
@@ -394,15 +354,12 @@ func (a *App) flowRich(gtx layout.Context, m engine.CachedMessage, size unit.Sp,
 			event.Op(gtx.Ops, r.lt)
 		}
 		if r.art != nil {
-			// Inline custom-emoji artwork (animated lottie or static
-			// raster) in the token box; base glyph stayed the fallback.
 			if !drawEmojiArt(gtx, r.art, r.size.X) {
 				r.call.Add(gtx.Ops)
 			}
 		} else {
 			r.call.Add(gtx.Ops)
 		}
-		// Underline / strike lines (approximate baselines).
 		if st.underline {
 			ly := r.size.Y - gtx.Dp(unit.Dp(2))
 			paint.FillShape(gtx.Ops, a.ui.p.Accent, clip.Rect{Min: image.Pt(0, ly), Max: image.Pt(r.size.X, ly+1)}.Op())
@@ -417,9 +374,6 @@ func (a *App) flowRich(gtx layout.Context, m engine.CachedMessage, size unit.Sp,
 		stack.Pop()
 	}
 
-	// Tappable links: a press on a token area opens the URL in the
-	// platform browser (slice 86); platforms or schemes without an
-	// opener fall back to the clipboard copy (slice 34 behavior).
 	for _, lt := range linkTags[m.MsgID] {
 		for {
 			ev, ok := gtx.Source.Event(pointer.Filter{Target: lt, Kinds: pointer.Press})
@@ -430,8 +384,6 @@ func (a *App) flowRich(gtx layout.Context, m engine.CachedMessage, size unit.Sp,
 				if lt.kind == "hashtag" {
 					a.openInChatSearchWithQuery(lt.url, chatKey{AccountID: m.AccountID, ChatID: m.ChatID})
 				} else if m.AccountID != "" && ivKnownHost(lt.url) {
-					// Slice 176: telegra.ph / graph.org links open the
-					// in-app Instant View reader.
 					a.openInstantView(m.AccountID, lt.url)
 				} else {
 					a.openLinkExternal(lt.url)

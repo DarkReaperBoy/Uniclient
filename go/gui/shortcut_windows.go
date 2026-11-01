@@ -2,26 +2,6 @@
 
 package gui
 
-// shortcut_windows.go — slice 201: the app's own AUMID for Windows
-// toasts. Registers the per-user Start-Menu shortcut carrying
-// PKEY_AppUserModel.ID = "DarkReaperBoy.Uniclient" so toasts raised by
-// the slice-200 transport show "Uniclient" as their source (instead of
-// riding PowerShell's pre-registered AUMID and showing "Windows
-// PowerShell").
-//
-// Pure-Go COM, the taskbar_windows.go pattern: CoCreateInstance(CLSID_
-// ShellLink, IID_IShellLinkW) → SetPath/SetWorkingDirectory/
-// SetIconLocation → QI IPropertyStore → SetValue(PKEY_AppUserModel.ID)
-// → Commit → QI IPersistFile → Save. The property store commits BEFORE
-// IPersistFile::Save so the AUMID rides the persisted .lnk (the recipe
-// from the AppUserModelID docs). ABI (IIDs, vtable slots, PROPERTYKEY)
-// pinned against mingw-w64 shobjidl.h/objidl.h/propsys.h/propkey.h —
-// constants live in the shared comabi.go so CI pins them on every
-// build target.
-//
-// Failure semantics stay slice-200: resolvedToastAUMID falls back to
-// PowerShell's AUMID, toasts still render, never a crash (§1.10).
-
 import (
 	"errors"
 	"os"
@@ -35,14 +15,13 @@ import (
 	"golang.org/x/sys/windows/registry"
 )
 
-// vtable slots — IUnknown 0-2, then declaration order (mingw-w64):
 const (
-	vtShellLinkSetWorkingDirectory = 9  // IShellLinkW::SetWorkingDirectory
-	vtShellLinkSetIconLocation     = 17 // IShellLinkW::SetIconLocation
-	vtShellLinkSetPath             = 20 // IShellLinkW::SetPath
-	vtPersistFileSave              = 6  // IPersistFile::Save
-	vtPropertyStoreSetValue        = 6  // IPropertyStore::SetValue
-	vtPropertyStoreCommit          = 7  // IPropertyStore::Commit
+	vtShellLinkSetWorkingDirectory = 9
+	vtShellLinkSetIconLocation     = 17
+	vtShellLinkSetPath             = 20
+	vtPersistFileSave              = 6
+	vtPropertyStoreSetValue        = 6
+	vtPropertyStoreCommit          = 7
 )
 
 const clsctxInprocServer = 0x1
@@ -52,16 +31,10 @@ var (
 	aumidResolved string
 )
 
-// guidRef reinterprets a shared-ABI winGUID as the x/sys windows.GUID —
-// identical layouts (uint32 + 2×uint16 + [8]byte), pinned by the
-// comabi tests.
 func guidRef(g *winGUID) *windows.GUID {
 	return (*windows.GUID)(unsafe.Pointer(g))
 }
 
-// ensureAUMIDShortcut (re)creates the Start-Menu shortcut with our
-// AUMID. Idempotent and cheap; called once per process from
-// resolvedToastAUMID.
 func ensureAUMIDShortcut() error {
 	exe, err := os.Executable()
 	if err != nil {
@@ -72,8 +45,7 @@ func ensureAUMIDShortcut() error {
 		return errors.New("shortcut: no APPDATA")
 	}
 
-	// CoInitializeEx is idempotent per-thread; S_FALSE is fine.
-	procCoInitializeEx.Call(0, 2 /*COINIT_APARTMENTTHREADED*/)
+	procCoInitializeEx.Call(0, 2)
 
 	var sl uintptr
 	r, _, _ := procCoCreateInstance.Call(
@@ -101,13 +73,11 @@ func ensureAUMIDShortcut() error {
 		uintptr(unsafe.Pointer(&dir16[0]))); r != 0 {
 		return syscall.Errno(r)
 	}
-	// The shortcut icon: the exe itself, index 0.
 	if r, _, _ = syscall.SyscallN(vtableCall(sl, vtShellLinkSetIconLocation), sl,
 		uintptr(unsafe.Pointer(&exe16[0])), 0); r != 0 {
 		return syscall.Errno(r)
 	}
 
-	// System.AppUserModel.ID → Commit (before the persist).
 	ps, ok := queryInterface(sl, guidRef(&iidIPropertyStore))
 	if !ok {
 		return syscall.EINVAL
@@ -127,7 +97,6 @@ func ensureAUMIDShortcut() error {
 		return syscall.Errno(r)
 	}
 
-	// Persist the .lnk.
 	pf, ok := queryInterface(sl, guidRef(&iidIPersistFile))
 	if !ok {
 		return syscall.EINVAL
@@ -138,18 +107,12 @@ func ensureAUMIDShortcut() error {
 		return err
 	}
 	if r, _, _ = syscall.SyscallN(vtableCall(pf, vtPersistFileSave), pf,
-		uintptr(unsafe.Pointer(&lnk16[0])), 1 /*fRemember*/); r != 0 {
+		uintptr(unsafe.Pointer(&lnk16[0])), 1); r != 0 {
 		return syscall.Errno(r)
 	}
 	return nil
 }
 
-// registerAUMIDMetadata (slice 203, the SDL3 toast recipe): the
-// per-user AppUserModelId registry entry — DisplayName + IconUri — that
-// the notification platform reads for the toast header. Belt-and-braces
-// with the Start-Menu shortcut: whichever source the shell resolves
-// first, the toast shows "Uniclient" with the exe icon. HKCU, no
-// elevation; failure is log-worthy only.
 func registerAUMIDMetadata(exe string) error {
 	k, _, err := registry.CreateKey(registry.CURRENT_USER,
 		`Software\Classes\AppUserModelId\`+ourAUMID, registry.SET_VALUE)
@@ -164,17 +127,12 @@ func registerAUMIDMetadata(exe string) error {
 	return k.SetStringValue("IconUri", "file:///"+icon)
 }
 
-// resolvedToastAUMID: our own AUMID once the shortcut registration has
-// succeeded (one attempt per process), PowerShell's pre-registered AUMID
-// as the always-works fallback — the slice-200 v1 semantics, never a
-// crash, toasts keep rendering either way.
 func resolvedToastAUMID() string {
 	aumidOnce.Do(func() {
 		aumidResolved = powerShellAUMID
 		if err := ensureAUMIDShortcut(); err == nil {
 			aumidResolved = ourAUMID
 			if exe, err := os.Executable(); err == nil {
-				// Toast-header metadata (slice 203); never gates the AUMID.
 				_ = registerAUMIDMetadata(exe)
 			}
 		}

@@ -7,9 +7,7 @@ import (
 	"time"
 )
 
-// parseTgs decodes the gzip+JSON container (Stage A).
 func TestParseTgs(t *testing.T) {
-	// A minimal but real-shaped animation, gzip-wrapped like Telegram does.
 	in := `{"v":"5.7.4","fr":60,"ip":0,"op":90,"w":512,"h":512,"layers":[]}`
 	b, err := gzipBytes([]byte(in))
 	if err != nil {
@@ -26,18 +24,14 @@ func TestParseTgs(t *testing.T) {
 		t.Errorf("expected no layers, got %d", len(anim.Layers))
 	}
 
-	// Non-gzip payload must fail (Telegram tgs is always gzipped).
 	if _, err := ParseTgs([]byte(in)); err == nil {
 		t.Errorf("plain JSON must be rejected")
 	}
-	// Garbage must fail cleanly.
 	if _, err := ParseTgs([]byte{0x1f, 0x8b, 0xff, 0x00}); err == nil {
 		t.Errorf("truncated gzip must be rejected")
 	}
 }
 
-// parseAnimation decodes the Bodymovin JSON (Stage A): header, layers,
-// assets, shape trees, transforms — static and animated properties.
 func TestParseAnimation(t *testing.T) {
 	src := `{
 		"v":"5.7.4","fr":30,"ip":0,"op":60,"w":256,"h":256,"nm":"dot",
@@ -74,7 +68,6 @@ func TestParseAnimation(t *testing.T) {
 	if l.Type != LayerShape || l.Index != 1 || l.Parent != 0 {
 		t.Fatalf("layer: %+v", l)
 	}
-	// Static position vs animated rotation vs animated position.
 	if l.Transform.Opacity.Animated || l.Transform.Opacity.Value != 100 {
 		t.Errorf("opacity: %+v", l.Transform.Opacity)
 	}
@@ -91,12 +84,10 @@ func TestParseAnimation(t *testing.T) {
 		if kf[0].StartV[0] != 10 || kf[0].EndV[0] != 246 {
 			t.Errorf("position values: %v → %v", kf[0].StartV, kf[0].EndV)
 		}
-		// Spatial tangents survive (to/ti).
 		if kf[0].SpatialOut == nil || kf[0].SpatialOut[0] != 60 {
 			t.Errorf("spatial out tangent lost: %+v", kf[0].SpatialOut)
 		}
 	}
-	// Shape tree: group with ellipse + fill + transform.
 	if len(l.Shapes) != 1 || l.Shapes[0].Type != ShapeGroup {
 		t.Fatalf("shapes: %+v", l.Shapes)
 	}
@@ -110,7 +101,6 @@ func TestParseAnimation(t *testing.T) {
 	}
 }
 
-// Duration/Frames sanity (Stage A).
 func TestAnimationDuration(t *testing.T) {
 	anim := &Animation{InPoint: 0, OutPoint: 90, FrameRate: 30}
 	if d := anim.Duration(); d != 3*time.Second {
@@ -119,7 +109,6 @@ func TestAnimationDuration(t *testing.T) {
 	if f := anim.FrameAt(time.Second); f != 30 {
 		t.Errorf("frame at 1s = %v, want 30", f)
 	}
-	// Out of range clamps.
 	if f := anim.FrameAt(-1); f != 0 {
 		t.Errorf("clamped frame = %v", f)
 	}
@@ -128,7 +117,6 @@ func TestAnimationDuration(t *testing.T) {
 	}
 }
 
-// gzipBytes helper for tests.
 func gzipBytes(in []byte) ([]byte, error) {
 	var buf bytes.Buffer
 	zw := gzip.NewWriter(&buf)

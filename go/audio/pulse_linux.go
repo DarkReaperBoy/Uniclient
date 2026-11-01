@@ -11,8 +11,6 @@ import (
 
 const audioAvailable = true
 
-// pulseDevice talks to the local PulseAudio/PipeWire daemon over its
-// native protocol — pure Go, no cgo, no new build-time dependencies.
 type pulseDevice struct {
 	mu     sync.Mutex
 	client *pulse.Client
@@ -35,8 +33,6 @@ func openDevice() (device, error) {
 	return &pulseDevice{client: c}, nil
 }
 
-// startMic captures mono 48 kHz float samples and repackages them into
-// 20 ms s16le frames on the returned channel.
 func (d *pulseDevice) startMic() (<-chan []byte, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -52,8 +48,6 @@ func (d *pulseDevice) startMic() (<-chan []byte, error) {
 	done := make(chan struct{})
 	d.micOn, d.micCh, d.micStop, d.micDone = true, frames, stop, done
 
-	// Pulse pushes float32 buffers of arbitrary length; we bank them
-	// into 960-sample s16le frames.
 	var pending []float32
 	toS16 := func(in []float32) (int, error) {
 		pending = append(pending, in...)
@@ -77,7 +71,6 @@ func (d *pulseDevice) startMic() (<-chan []byte, error) {
 				return len(in), nil
 			}
 		}
-		// Never let a stalled reader grow the backlog unboundedly.
 		if len(pending) > 960*8 {
 			pending = pending[len(pending)-960:]
 		}
@@ -118,7 +111,6 @@ func (d *pulseDevice) stopMic() {
 	d.micCh, d.micStop, d.micDone = nil, nil, nil
 }
 
-// startPlayback pulls mixed audio via fill on Pulse's clock.
 func (d *pulseDevice) startPlayback(fill func(out []int16)) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -132,8 +124,6 @@ func (d *pulseDevice) startPlayback(fill func(out []int16)) error {
 	done := make(chan struct{})
 	d.playOn, d.playStop, d.playDone = true, stop, done
 
-	// Scratch buffers sized for whatever Pulse asks for (its buffer
-	// length in samples varies with the negotiated latency).
 	var pcm []int16
 	reader := func(out []float32) (int, error) {
 		if len(pcm) < len(out) {

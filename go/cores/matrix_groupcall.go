@@ -1,21 +1,5 @@
 package cores
 
-// MSC3401 group-call membership for B-6 (Tier 1 full-mesh).
-//
-// Scope of this file: the PURE membership state machine — the
-// `org.matrix.msc3401.call.member` content shape (wire keys are the
-// spec's literal dotted names), expiry filtering (spec: expired
-// devices are ignored), renewal timing, and conf-id generation.
-// Transport (m.call.* room events carrying conf_id — documented
-// deviation from the spec's to-device transport, chosen because the
-// entire 1:1 call stack already runs on room events) and the N×(N−1)
-// mesh land in follow-up slices.
-//
-// Interop honesty: Element's modern default is MatrixRTC/Element
-// Call, so Tier-1 full-mesh calls only reach other MSC3401 full-mesh
-// clients (matrix-js-sdk's reference model). That limitation ships in
-// the F-62 row, not hidden here.
-
 import (
 	"context"
 	"crypto/rand"
@@ -34,25 +18,14 @@ import (
 )
 
 const (
-	// matrixCallMemberEventType is MSC3401's membership state event;
-	// state_key is the member's own Matrix ID.
 	matrixCallMemberEventType = "org.matrix.msc3401.call.member"
-	// matrixCallEventType is the timeline placeholder for a running
-	// call (MSC3401 §call state event).
-	matrixCallEventType = "org.matrix.msc3401.call"
+	matrixCallEventType       = "org.matrix.msc3401.call"
 
-	// matrixDeviceTTLMillis: membership devices carry expires_ts in
-	// POSIX milliseconds and must be renewed while connected; we
-	// publish a 60 s lease and renew at half (matrixNextRenewalAt) so
-	// one dropped state event never expires us mid-call.
 	matrixDeviceTTLMillis int64 = 60_000
 
-	// matrixFeedUserMedia is MSC3401's microphone feed purpose
-	// (screenshare is "m.screenshare", not needed for Tier-1 audio).
 	matrixFeedUserMedia = "m.usermedia"
 )
 
-// matrixCallFeed mirrors one media feed declaration of a device.
 type matrixCallFeed struct {
 	Purpose  string                 `json:"purpose"`
 	StreamID string                 `json:"stream_id,omitempty"`
@@ -60,7 +33,6 @@ type matrixCallFeed struct {
 	Settings map[string]interface{} `json:"settings,omitempty"`
 }
 
-// matrixCallDevice is one joined device of a participant.
 type matrixCallDevice struct {
 	DeviceID  string           `json:"device_id"`
 	SessionID string           `json:"session_id"`
@@ -68,22 +40,16 @@ type matrixCallDevice struct {
 	Feeds     []matrixCallFeed `json:"feeds,omitempty"`
 }
 
-// matrixCallMemberCall is one call entry of a member's membership.
-// Empty Foci = full-mesh (no SFU focus), the Tier-1 marker.
 type matrixCallMemberCall struct {
 	CallID  string             `json:"m.call_id"`
 	Foci    []string           `json:"m.foci"`
 	Devices []matrixCallDevice `json:"m.devices"`
 }
 
-// matrixCallMemberContent is the state event content
-// (`m.calls` array, one item for our single-call model).
 type matrixCallMemberContent struct {
 	Calls []matrixCallMemberCall `json:"m.calls"`
 }
 
-// liveDevices returns the devices that have not expired at the
-// INJECTED instant (no wall-clock dependence — F-9 rule).
 func (c matrixCallMemberCall) liveDevices(now int64) []matrixCallDevice {
 	var out []matrixCallDevice
 	for _, d := range c.Devices {
@@ -94,30 +60,23 @@ func (c matrixCallMemberCall) liveDevices(now int64) []matrixCallDevice {
 	return out
 }
 
-// matrixNextRenewalAt: renew at half the lease.
 func matrixNextRenewalAt(now int64) int64 {
 	return now + matrixDeviceTTLMillis/2
 }
 
-// matrixNewConfID mints a fresh group-call id.
 func matrixNewConfID() string {
 	var b [8]byte
 	if _, err := rand.Read(b[:]); err != nil {
-		// crypto/rand failing is unrecoverable in practice; fall back
-		// to a time-shaped id so callers never see an empty conf id.
 		return "conf_" + hex.EncodeToString([]byte(time.Now().UTC().Format("150405.000000000")))
 	}
 	return "conf_" + hex.EncodeToString(b[:])
 }
 
-// MSC3401 event types. Built explicitly with Class: event.StateEventType —
-// event.NewEventType guesses Message class for org.matrix.* names.
 var (
 	matrixCallMemberStateType = event.Type{Type: matrixCallMemberEventType, Class: event.StateEventType}
 	matrixCallStateType       = event.Type{Type: matrixCallEventType, Class: event.StateEventType}
 )
 
-// matrixNewSessionID mints the per-app-load session id MSC3401 requires.
 func matrixNewSessionID() string {
 	var b [8]byte
 	if _, err := rand.Read(b[:]); err != nil {
@@ -126,13 +85,11 @@ func matrixNewSessionID() string {
 	return "gs-" + hex.EncodeToString(b[:])
 }
 
-// publishGroupMembership writes our own m.call.member state event
-// (state_key = our MXID, spec-mandated) with a fresh lease.
 func (m *MatrixCore) publishGroupMembership(roomID id.RoomID, conf, sess string, now int64) error {
 	content := matrixCallMemberContent{
 		Calls: []matrixCallMemberCall{{
 			CallID: conf,
-			Foci:   []string{}, // full-mesh: no focus
+			Foci:   []string{},
 			Devices: []matrixCallDevice{{
 				DeviceID:  m.deviceID.String(),
 				SessionID: sess,
@@ -150,19 +107,10 @@ func (m *MatrixCore) publishGroupMembership(roomID id.RoomID, conf, sess string,
 	return err
 }
 
-// handleGroupMemberEvent stores a participant's membership (the mesh
-// diff consumes it next slice); expired devices are filtered at READ
-// time via liveDevices, per spec.
 func (m *MatrixCore) handleGroupMemberEvent(evt *event.Event) {
 	if evt.StateKey == nil {
 		return
 	}
-	// MSC3401: the state_key is the member's OWN mxid — auth rules only
-	// special-case m.room.member, so once the event type is granted at
-	// PL 0 any room member could publish a member event under someone
-	// ELSE's state_key. Receivers must check sender == state_key or call
-	// membership is spoofable (RED: "spoofed member event stored",
-	// slice 300).
 	if string(*evt.StateKey) != string(evt.Sender) {
 		return
 	}
@@ -177,37 +125,23 @@ func (m *MatrixCore) handleGroupMemberEvent(evt *event.Event) {
 	}
 	m.groupMembers[uid] = content
 	m.groupMu.Unlock()
-	// Membership changed → re-derive the mesh. Best-effort: the next
-	// renewal tick reconciles again, so a failed pass self-heals.
 	_ = m.reconcileGroupMesh()
 }
 
-// ─── mesh decision layer (slice 296) ────────────────────────────────────────
-// Pure: which peers get a peer-connection and who offers. The SDP
-// fan-out (next slice) consumes these; no socket is touched here.
-
-// groupPeer is one mesh endpoint (device).
 type groupPeer struct {
-	key    string // "mxid|device"
+	key    string
 	UserID id.UserID
 	Device string
 }
 
-// groupPeerKey is the canonical mesh key for a device.
 func groupPeerKey(userID, deviceID string) string {
 	return userID + "|" + deviceID
 }
 
-// groupShouldOffer: lexicographic tie-break — exactly one side of any
-// pair offers, so SDP glare is impossible across the N×(N−1) mesh. A
-// device never offers to itself (own == peer → false).
 func groupShouldOffer(own, peer string) bool {
 	return own < peer
 }
 
-// groupPeersToConnect: every LIVE device except our own, sorted by
-// key for a deterministic diff. Expiry filtering happens here per
-// MSC3401 ("expired devices are ignored") with an injected now.
 func groupPeersToConnect(ownUserID id.UserID, ownDevice string, members map[id.UserID]matrixCallMemberContent, now int64) []groupPeer {
 	var out []groupPeer
 	for uid, content := range members {
@@ -228,8 +162,6 @@ func groupPeersToConnect(ownUserID id.UserID, ownDevice string, members map[id.U
 	return out
 }
 
-// confIDFromRaw reads the conf_id discriminator (group m.call.* vs the
-// 1:1 stack) from raw event content; absent or wrong-typed → "".
 func confIDFromRaw(raw map[string]interface{}) string {
 	if raw == nil {
 		return ""
@@ -240,9 +172,6 @@ func confIDFromRaw(raw map[string]interface{}) string {
 	return ""
 }
 
-// withConfID merges conf_id into marshaled m.call.* content without
-// losing any field — the group transport rides the same event names as
-// the 1:1 stack, distinguished only by this key.
 func withConfID(content interface{}, conf string) (map[string]interface{}, error) {
 	raw, err := json.Marshal(content)
 	if err != nil {
@@ -256,10 +185,6 @@ func withConfID(content interface{}, conf string) (map[string]interface{}, error
 	return m, nil
 }
 
-// ─── mesh transport wiring (slice 297) ───────────────────────────────────────
-
-// peekGroupConf extracts the conf_id discriminator (group m.call.*
-// events carry it; the 1:1 stack never does) from the raw event body.
 func peekGroupConf(evt *event.Event) string {
 	var raw map[string]interface{}
 	if err := json.Unmarshal(evt.Content.VeryRaw, &raw); err != nil {
@@ -268,7 +193,6 @@ func peekGroupConf(evt *event.Event) string {
 	return confIDFromRaw(raw)
 }
 
-// dropGroupPeer removes and closes one mesh peer (key = "mxid|device").
 func (m *MatrixCore) dropGroupPeer(key string) {
 	m.groupMu.Lock()
 	call := m.groupPeers[key]
@@ -279,18 +203,7 @@ func (m *MatrixCore) dropGroupPeer(key string) {
 	}
 }
 
-// reconcileGroupMesh diffs live membership against open peer
-// connections: departed/expired devices are closed, missing peers on
-// the SHOULD-OFFER side get an offer (the lexicographic rule makes
-// exactly one side of every pair connect, so no glare). Membership is
-// filtered to OUR conf first — a room may carry several calls.
 func (m *MatrixCore) reconcileGroupMesh() error {
-	// F-66 / MSC3401: ignore devices whose m.room.member membership is
-	// NOT join (room left, kicked, banned) — a fresh m.call.member
-	// lease alone must not keep a mesh peer to someone who is gone.
-	// Snapshot BEFORE groupMu so roomsMu and groupMu are never nested;
-	// membership we don't know (room state not loaded yet) counts as
-	// join — we only filter known-non-join (conservative keep).
 	joinByRoom := make(map[id.RoomID]map[id.UserID]bool)
 	m.roomsMu.RLock()
 	for roomID, rs := range m.rooms {
@@ -315,7 +228,7 @@ func (m *MatrixCore) reconcileGroupMesh() error {
 	filtered := make(map[id.UserID]matrixCallMemberContent, len(m.groupMembers))
 	for uid, content := range m.groupMembers {
 		if joined, known := roomJoin[uid]; known && !joined {
-			continue // F-66: not in the room → device ignored
+			continue
 		}
 		var kept []matrixCallMemberCall
 		for _, c := range content.Calls {
@@ -364,10 +277,6 @@ func (m *MatrixCore) reconcileGroupMesh() error {
 	return firstErr
 }
 
-// sendGroupOffer creates the OFFER side of one mesh link: pion PC +
-// opus track, conf-tagged m.call.invite with a real SDP, peer
-// registered BEFORE the invite goes out so a fast answer cannot race
-// the store.
 func (m *MatrixCore) sendGroupOffer(room id.RoomID, conf string, peer groupPeer) error {
 	pc, err := m.createPeerConnection()
 	if err != nil {
@@ -435,8 +344,6 @@ func (m *MatrixCore) sendGroupOffer(room id.RoomID, conf string, peer groupPeer)
 	case <-time.After(5 * time.Second):
 	}
 
-	// Group frames are DRIVEN by SendVoiceFrame — the 1:1 silence loop
-	// would interleave and drown them (slice-298 decision).
 	invite := &event.CallInviteEventContent{
 		BaseCallEventContent: event.BaseCallEventContent{
 			CallID:  conf,
@@ -461,14 +368,11 @@ func (m *MatrixCore) sendGroupOffer(room id.RoomID, conf string, peer groupPeer)
 	return nil
 }
 
-// handleGroupCallInvite is the ANSWER side: auto-accept (group calls
-// have no ringing UI), register the peer before answering so the
-// reply path resolves, answer conf-tagged.
 func (m *MatrixCore) handleGroupCallInvite(evt *event.Event, ci *event.CallInviteEventContent, conf string) {
 	m.groupMu.Lock()
 	if conf != m.groupConfID || m.groupConfID == "" {
 		m.groupMu.Unlock()
-		return // foreign conf or not joined
+		return
 	}
 	peerKey := groupPeerKey(string(evt.Sender), ci.PartyID)
 	if _, exists := m.groupPeers[peerKey]; exists {
@@ -577,21 +481,12 @@ func (m *MatrixCore) handleGroupCallInvite(evt *event.Event, ci *event.CallInvit
 	})
 }
 
-// ─── VoiceCore surface for the mesh (slice 298) ─────────────────────────────
-// The engine's startVoiceRunner type-asserts cores.VoiceCore and drives
-// the shared pipeline: mic frames in via SendVoiceFrame (fan-out to
-// every mesh peer), remote Opus out via OnVoiceFrame (sender-tagged).
-
-// OnVoiceFrame registers the receiver for remote group voice.
 func (m *MatrixCore) OnVoiceFrame(handler func(sender string, opus []byte)) {
 	m.groupMu.Lock()
 	m.groupVoiceHandler = handler
 	m.groupMu.Unlock()
 }
 
-// SetVoiceMuted toggles client-side self-mute for the group call
-// (matrix has no server-side mute for our own feed — we simply stop
-// writing to the mesh).
 func (m *MatrixCore) SetVoiceMuted(muted bool) error {
 	m.groupMu.Lock()
 	m.groupVoiceMuted = muted
@@ -599,7 +494,6 @@ func (m *MatrixCore) SetVoiceMuted(muted bool) error {
 	return nil
 }
 
-// SendVoiceFrame writes one 20 ms Opus packet to EVERY live mesh peer.
 func (m *MatrixCore) SendVoiceFrame(opus []byte) error {
 	m.groupMu.Lock()
 	muted := m.groupVoiceMuted
@@ -617,8 +511,6 @@ func (m *MatrixCore) SendVoiceFrame(opus []byte) error {
 	return nil
 }
 
-// writeGroupRTP packetizes one Opus frame with per-peer RTP counters
-// (same header shape as the 1:1 sendAudio loop: PT 111, zero SSRC).
 func (m *MatrixCore) writeGroupRTP(call *matrixCall, frame []byte) {
 	if call == nil || call.audioTrack == nil {
 		return
@@ -644,7 +536,6 @@ func (m *MatrixCore) writeGroupRTP(call *matrixCall, frame []byte) {
 	_, _ = call.audioTrack.Write(pkt)
 }
 
-// emitGroupVoice hands one received Opus frame to the engine handler.
 func (m *MatrixCore) emitGroupVoice(sender string, payload []byte) {
 	m.groupMu.Lock()
 	h := m.groupVoiceHandler
@@ -654,17 +545,10 @@ func (m *MatrixCore) emitGroupVoice(sender string, payload []byte) {
 	}
 }
 
-// GetGroupCall is the engine's groupCaller contract: joined → an
-// ACTIVE IsGroup session with live participants (one entry per user,
-// expired devices filtered, conf-scoped); not joined or another room
-// → (nil, nil) so the engine reports "no active call".
 func (m *MatrixCore) GetGroupCall(chatID string) (*CallSession, error) {
 	if !m.authed {
 		return nil, ErrAuth
 	}
-	// F-66 / MSC3401: participants must be joined to the room —
-	// snapshot membership BEFORE groupMu (locks never nested); unknown
-	// membership counts as join (conservative keep).
 	joined := make(map[id.UserID]bool)
 	m.roomsMu.RLock()
 	if rs := m.rooms[id.RoomID(chatID)]; rs != nil {
@@ -688,7 +572,7 @@ func (m *MatrixCore) GetGroupCall(chatID string) (*CallSession, error) {
 			continue
 		}
 		if j, known := joined[uid]; known && !j {
-			continue // F-66: left/kicked/banned in this room
+			continue
 		}
 		for _, call := range content.Calls {
 			if call.CallID != conf {
@@ -712,19 +596,6 @@ func (m *MatrixCore) GetGroupCall(chatID string) (*CallSession, error) {
 	}, nil
 }
 
-// ─── shared group-call teardown (slice 302) ────────────────────────────
-
-// leaveGroupCallInternal tears down the joined group call exactly
-// once: cancel the membership renewal, publish an EMPTY calls array
-// (MSC3401 — leave the call, stay in the room) while the token and
-// room membership still work, close every mesh peer, clear joined
-// state, and fire the Ended update. Callers arrange the surrounding
-// order — LeaveChat leaves the ROOM after this (no state writes are
-// possible once left), Logout/Close publish BEFORE the token/ctx die.
-// A non-nil error is ONLY the publish failure: callers with a bounded
-// fallback (the room-leave event, logout, shutdown) ignore it — the
-// remote side drops our device at expires_ts (60 s lease) regardless.
-// Returns ("", "", nil) when no call was joined (idempotent).
 func (m *MatrixCore) leaveGroupCallInternal() (id.RoomID, string, error) {
 	m.groupMu.Lock()
 	room, conf := m.groupRoomID, m.groupConfID
@@ -772,29 +643,10 @@ func (m *MatrixCore) leaveGroupCallInternal() (id.RoomID, string, error) {
 	return room, conf, pubErr
 }
 
-// ─── membership renewal (slice 305) ────────────────────────────────────
-
-// matrixRenewInterval is the renewal cadence: half the 60 s lease so
-// one dropped state event never expires us mid-call. Package-level so
-// tests can shrink it (F-69's zombie-call tests run ticks at 20 ms).
 var matrixRenewInterval = time.Duration(matrixDeviceTTLMillis/2) * time.Millisecond
 
-// matrixRenewMaxConsecutiveFails: give up after this many FAILED
-// renewals in a row. Ticks fire at half the 60 s lease, so three
-// consecutive failures span 90 s — the lease published at the last
-// success expired 30 s earlier, the remote side has already dropped
-// us, and the local call is a ZOMBIE (mic/speaker/mesh running into a
-// call nobody sees). A single success resets the counter, so transient
-// blips never end a healthy call (F-69).
 const matrixRenewMaxConsecutiveFails = 3
 
-// runGroupRenewal is the membership-renewal goroutine body: publish a
-// fresh lease every `interval` and re-derive the mesh (remote leases
-// vanish WITHOUT any new state event arriving). Exits on renewCtx/
-// m.ctx cancellation — including the self-teardown below, which
-// cancels renewCtx via leaveGroupCallInternal. The interval is a
-// PARAMETER (F-82): reading the package-global inside this goroutine
-// raced test writes to it (race detector trace, WORKLOG 317).
 func (m *MatrixCore) runGroupRenewal(renewCtx context.Context, roomID id.RoomID, conf, sess string, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -809,11 +661,6 @@ func (m *MatrixCore) runGroupRenewal(renewCtx context.Context, roomID id.RoomID,
 			if err := m.publishGroupMembership(roomID, conf, sess, time.Now().UnixMilli()); err != nil {
 				fails++
 				if fails >= matrixRenewMaxConsecutiveFails {
-					// Persistently rejected: the remote lease is (or is
-					// about to be) expired — stop pretending. Full
-					// teardown: cancel renewal, close mesh, clear state,
-					// fire Ended (F-69; the empty-membership publish
-					// inside will likely fail too — best-effort).
 					if _, _, pubErr := m.leaveGroupCallInternal(); pubErr != nil {
 						_ = pubErr
 					}

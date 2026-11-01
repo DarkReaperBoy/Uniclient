@@ -1,13 +1,5 @@
 package gui
 
-// chatpeek.go — slice 145: the hover chat-preview popup (tdesktop's
-// chat preview): resting the mouse on a chat row for a moment floats a
-// compact card beside the sidebar with the chat's title/status and its
-// last few CACHED messages (engine.GetMessages beforeMs=0 — a pure
-// local SQLite read, no network). The popup is passive (no interaction
-// areas), hides when the row hover ends or the chat opens, and never
-// shows for the selected chat.
-
 import (
 	"image"
 	"strings"
@@ -21,20 +13,15 @@ import (
 	"uniclient/engine"
 )
 
-// peekHoverDelay: how long the mouse must rest on a row before the peek
-// appears (tdesktop ballpark).
 const peekHoverDelay = 600 * time.Millisecond
 
-// peekMaxRunes: one preview line's text clamp.
 const peekMaxRunes = 48
 
-// peekLine is one message preview line.
 type peekLine struct {
 	sender string
 	text   string
 }
 
-// peekMsgLine converts one cached message into a preview line. Pure.
 func peekMsgLine(m engine.CachedMessage) (sender, text string) {
 	txt := strings.TrimSpace(m.ContentText)
 	if txt == "" && m.MediaType != 0 {
@@ -54,8 +41,6 @@ func peekMsgLine(m engine.CachedMessage) (sender, text string) {
 	return "", txt
 }
 
-// peekLines turns the newest-first cache page into display-order lines
-// (oldest at the top), dropping service rows, clamped to max. Pure.
 func peekLines(msgs []engine.CachedMessage, max int) []peekLine {
 	var keep []engine.CachedMessage
 	for _, m := range msgs {
@@ -64,8 +49,6 @@ func peekLines(msgs []engine.CachedMessage, max int) []peekLine {
 		}
 		keep = append(keep, m)
 	}
-	// Cache pages are newest-first; the popup reads top-down = oldest
-	// first. Clamp BEFORE reversing so the most recent lines survive.
 	if len(keep) > max {
 		keep = keep[:max]
 	}
@@ -77,9 +60,7 @@ func peekLines(msgs []engine.CachedMessage, max int) []peekLine {
 	return out
 }
 
-// peekAnchorY clamps the popup's top inside the window. Pure.
 func peekAnchorY(mouseY, peekH, winH int) int {
-	// anchor slightly above the mouse so the row stays visible under it
 	y := mouseY - peekH/5
 	if y+peekH > winH {
 		y = winH - peekH
@@ -90,9 +71,6 @@ func peekAnchorY(mouseY, peekH, winH int) int {
 	return y
 }
 
-// ── state ──────────────────────────────────────────────────────────────────
-
-// chatPeekState is the visible hover preview.
 type chatPeekState struct {
 	accountID string
 	chatID    string
@@ -101,11 +79,6 @@ type chatPeekState struct {
 	lines []peekLine
 }
 
-// noteChatHover records that a chat row is hovered this frame (called
-// from chatRow on the GUI goroutine); a key change re-arms the delay
-// timer, and the frame marker system (resetChatHoverFrame/
-// checkChatHoverFrame around the list) hides the peek when no row is
-// hovered anymore.
 func (a *App) noteChatHover(c engine.ChatInfo) {
 	key := c.AccountID + "/" + c.ChatID
 	a.hoverFrame = true
@@ -114,14 +87,12 @@ func (a *App) noteChatHover(c engine.ChatInfo) {
 	if !same {
 		a.hoverChatKey = key
 		a.hoverSince = time.Now()
-		a.chatPeek = nil // moving between rows hides the previous peek
+		a.chatPeek = nil
 	}
 	a.mu.Unlock()
 	if same {
 		return
 	}
-	// arm the delay timer; the callback re-checks the key under lock so
-	// a fast mouse sweep never fires stale peeks.
 	time.AfterFunc(peekHoverDelay+50*time.Millisecond, func() {
 		a.mu.Lock()
 		key := a.hoverChatKey
@@ -142,7 +113,7 @@ func (a *App) noteChatHover(c engine.ChatInfo) {
 		}
 		if err != nil {
 			a.mu.Unlock()
-			return // honest: no preview without cache
+			return
 		}
 		var title string
 		for _, ch := range a.chats {
@@ -162,14 +133,10 @@ func (a *App) noteChatHover(c engine.ChatInfo) {
 	})
 }
 
-// resetChatHoverFrame clears the per-frame hover marker before the row
-// list lays out.
 func (a *App) resetChatHoverFrame() {
-	a.hoverFrame = false // GUI-goroutine marker, no lock needed
+	a.hoverFrame = false
 }
 
-// checkChatHoverFrame runs after the row list: no hovered row this
-// frame → the hover ended → hide the peek.
 func (a *App) checkChatHoverFrame() {
 	if a.hoverFrame {
 		return
@@ -185,7 +152,6 @@ func (a *App) checkChatHoverFrame() {
 	}
 }
 
-// splitChatKey splits "account/chat". Pure.
 func splitChatKey(key string) (accountID, chatID string) {
 	i := strings.IndexByte(key, '/')
 	if i < 0 {
@@ -194,7 +160,6 @@ func splitChatKey(key string) (accountID, chatID string) {
 	return key[:i], key[i+1:]
 }
 
-// hideChatPeek dismisses the peek (chat opened, menu opened, etc.).
 func (a *App) hideChatPeek() {
 	a.mu.Lock()
 	a.chatPeek = nil
@@ -202,18 +167,12 @@ func (a *App) hideChatPeek() {
 	a.mu.Unlock()
 }
 
-// ── layout ─────────────────────────────────────────────────────────────────
-
-// layoutChatPeek draws the hover preview at the window level (z-order
-// above the chat pane — the sidebar renders before it, so drawing there
-// would land underneath). Passive: no input areas.
 func (a *App) layoutChatPeek(gtx layout.Context, f frame) layout.Dimensions {
 	p := f.chatPeek
 	if p == nil {
 		return layout.Dimensions{}
 	}
 
-	// card size: fixed width, content-driven height estimate
 	w := gtx.Dp(unit.Dp(280))
 	lineH := gtx.Dp(unit.Dp(18))
 	h := gtx.Dp(unit.Dp(10)) + gtx.Dp(unit.Dp(22)) + gtx.Dp(unit.Dp(6)) +
@@ -226,7 +185,6 @@ func (a *App) layoutChatPeek(gtx layout.Context, f frame) layout.Dimensions {
 	gtx.Constraints = layout.Constraints{Max: image.Pt(w, h), Min: image.Pt(w, h)}
 	return roundedFill(gtx, a.ui.p.Surface, 10, func(gtx layout.Context) layout.Dimensions {
 		var children []layout.FlexChild
-		// title
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.UniformInset(unit.Dp(8)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				lbl := a.ui.Label(unit.Sp(14), p.title)
@@ -234,7 +192,6 @@ func (a *App) layoutChatPeek(gtx layout.Context, f frame) layout.Dimensions {
 				return lbl.Layout(gtx)
 			})
 		}))
-		// message lines
 		for _, ln := range p.lines {
 			ln := ln
 			children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {

@@ -1,10 +1,5 @@
 package gui
 
-// Animated .tgs sticker playback (slice 123, on top of the lottie engine
-// from slice 122 A/B/C). Tests lock the pure helpers BEFORE the widgets:
-// container/mime detection, playback math (frame loop + invalidation
-// interval), the per-msg player cache, and the bare-bubble gating.
-
 import (
 	"bytes"
 	"compress/gzip"
@@ -18,7 +13,6 @@ import (
 	"uniclient/lottie"
 )
 
-// gzipTgs compresses a Bodymovin JSON document like a real .tgs file.
 func gzipTgs(t *testing.T, doc string) []byte {
 	t.Helper()
 	var buf bytes.Buffer
@@ -40,7 +34,7 @@ func TestIsTgsMime(t *testing.T) {
 		want bool
 	}{
 		{"application/x-tgsticker", true},
-		{"APPLICATION/X-TGSTICKER", false}, // exact match only
+		{"APPLICATION/X-TGSTICKER", false},
 		{"image/webp", false},
 		{"video/webm+sticker", false},
 		{"", false},
@@ -121,7 +115,6 @@ func TestParseTgsBytes(t *testing.T) {
 	if _, ok := parseTgsBytes([]byte{0x89, 'P', 'N', 'G'}); ok {
 		t.Error("parseTgsBytes(png) = ok, want rejected")
 	}
-	// Degenerate documents (no frames to animate) must not count as playable.
 	if _, ok := parseTgsBytes(gzipTgs(t, `{"v":"5.5.7","fr":30,"ip":0,"op":0,"w":512,"h":512,"layers":[]}`)); ok {
 		t.Error("parseTgsBytes(zero-length op) = ok, want rejected")
 	}
@@ -138,8 +131,8 @@ func TestTgsFrameInterval(t *testing.T) {
 		{60, time.Second / 60},
 		{30, time.Second / 30},
 		{25, time.Second / 25},
-		{120, time.Second / 60}, // capped at 60fps
-		{10, time.Second / 20},  // floored at 20fps
+		{120, time.Second / 60},
+		{10, time.Second / 20},
 		{0, time.Second / 20},
 		{-5, time.Second / 20},
 	}
@@ -151,7 +144,7 @@ func TestTgsFrameInterval(t *testing.T) {
 }
 
 func TestTgsLoopFrame(t *testing.T) {
-	anim := &lottie.Animation{FrameRate: 30, InPoint: 0, OutPoint: 90} // 3s
+	anim := &lottie.Animation{FrameRate: 30, InPoint: 0, OutPoint: 90}
 	cases := []struct {
 		elapsed time.Duration
 		want    float64
@@ -159,15 +152,14 @@ func TestTgsLoopFrame(t *testing.T) {
 		{0, 0},
 		{time.Second, 30},
 		{time.Second * 29 / 10, 87},
-		{3 * time.Second, 0}, // exact loop point wraps
-		{7*time.Second + 500*time.Millisecond, 45}, // 7.5s → 1.5s → frame 45
+		{3 * time.Second, 0},
+		{7*time.Second + 500*time.Millisecond, 45},
 	}
 	for _, c := range cases {
 		if got := tgsLoopFrame(anim, c.elapsed); got != c.want {
 			t.Errorf("tgsLoopFrame(%v) = %v, want %v", c.elapsed, got, c.want)
 		}
 	}
-	// Degenerate animation (no duration): pinned at the in-point.
 	if got := tgsLoopFrame(&lottie.Animation{FrameRate: 30, InPoint: 2, OutPoint: 2}, time.Second); got != 2 {
 		t.Errorf("tgsLoopFrame(degenerate) = %v, want 2", got)
 	}
@@ -190,26 +182,22 @@ func TestTgsPlayerCache(t *testing.T) {
 		t.Error("fresh player flags not zero")
 	}
 
-	// setAnim publishes the animation and marks parsed.
 	anim := &lottie.Animation{FrameRate: 30, InPoint: 0, OutPoint: 90}
 	c.setAnim("m1", "/tmp/a.tgs", anim)
 	if p := c.get("m1"); !p.parsed || p.anim != anim {
 		t.Error("setAnim did not publish parsed state")
 	}
 
-	// replay resets the clock.
 	c.replay("m1")
 	if st := c.get("m1").start; st.IsZero() {
 		t.Error("replay left a zero start time")
 	}
 
-	// failParse pins the failed flag (static fallback, no re-parse).
 	c.failParse("m2")
 	if p := c.get("m2"); !p.failed || p.parsed {
 		t.Error("failParse did not pin the failed state")
 	}
 
-	// markReading guards concurrent reads: claim once, release once.
 	if !c.markReading("m3") {
 		t.Error("first markReading claim rejected")
 	}
@@ -221,7 +209,6 @@ func TestTgsPlayerCache(t *testing.T) {
 		t.Error("markReading after endReading rejected")
 	}
 
-	// Prune: an oversized cache resets without panic.
 	for i := 0; i < 200; i++ {
 		c.get("bulk" + itoa(i))
 	}
@@ -281,15 +268,12 @@ func TestMessageMetaLabel(t *testing.T) {
 }
 
 func TestStickerBubbleSize(t *testing.T) {
-	// Square sticker: full size, no letterbox waste.
 	if w, h := stickerBox(256, 512, 512); w != 256 || h != 256 {
 		t.Errorf("stickerBox(256,512,512) = %d,%d want 256,256", w, h)
 	}
-	// Wide sticker: height shrinks with aspect.
 	if w, h := stickerBox(256, 512, 256); w != 256 || h != 128 {
 		t.Errorf("stickerBox(256,512,256) = %d,%d want 256,128", w, h)
 	}
-	// Degenerate dims: square fallback.
 	if w, h := stickerBox(256, 0, 0); w != 256 || h != 256 {
 		t.Errorf("stickerBox(256,0,0) = %d,%d want 256,256", w, h)
 	}

@@ -6,9 +6,6 @@ import (
 	"github.com/gotd/td/tg"
 )
 
-// notifySoundOn (slice 174): a peer's notification sound state — the
-// ternary OtherSound field. Unset (nil) = the global default = on;
-// NotificationSoundNone = off; anything else (default/local/ringtone) = on.
 func TestNotifySoundOn(t *testing.T) {
 	if !notifySoundOn(nil) {
 		t.Error("unset sound = default = on")
@@ -24,8 +21,6 @@ func TestNotifySoundOn(t *testing.T) {
 	}
 }
 
-// notifyPreviewsOf (slice 174): the ternary ShowPreviews — unset = default
-// = shown; an explicit false hides.
 func TestNotifyPreviewsOf(t *testing.T) {
 	var unset tg.PeerNotifySettings
 	if !notifyPreviewsOf(&unset) {
@@ -43,10 +38,6 @@ func TestNotifyPreviewsOf(t *testing.T) {
 	}
 }
 
-// notifySettingsInput (slice 174): the write-side builder — mute_until
-// always rides; sound and previews ride only when the caller provided a
-// value (nil = leave to the server default), sound mapping true → default,
-// false → none.
 func TestNotifySettingsInput(t *testing.T) {
 	in := notifySettingsInput(1700000000, nil, nil)
 	if in.MuteUntil != 1700000000 {
@@ -84,7 +75,6 @@ func TestNotifySettingsInput(t *testing.T) {
 	}
 }
 
-// ChatNotifySettings decode from the wire (slice 174).
 func TestChatNotifySettingsFromWire(t *testing.T) {
 	s := tg.PeerNotifySettings{}
 	s.SetMuteUntil(1750000000)

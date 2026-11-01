@@ -15,19 +15,12 @@ import (
 	"uniclient/engine"
 )
 
-// Report flow (AyuGram parity, matrix #153 remainder): the Telegram
-// interactive report — first messages.report returns a reason chooser
-// (ReportResultChooseOption), picking one may ask for a comment
-// (ReportResultAddComment), then reports. The engine already models the
-// whole state machine; this dialog drives it.
-
-// reportDlgState: open report dialog (nil when closed).
 type reportDlgState struct {
 	msgs            []engine.CachedMessage
-	options         []cores.ReportOption // stage 1 list
-	chosen          []byte               // picked option bytes
+	options         []cores.ReportOption
+	chosen          []byte
 	commentOptional bool
-	stage           int // 0 = asking server, 1 = choose, 2 = comment
+	stage           int
 	busy            bool
 }
 
@@ -35,7 +28,6 @@ var (
 	reportKeyTag = new(struct{})
 )
 
-// msgIDInt parses a message ID to int (0 on failure).
 func msgIDInt(id string) int {
 	n, err := strconv.Atoi(id)
 	if err != nil {
@@ -44,12 +36,10 @@ func msgIDInt(id string) int {
 	return n
 }
 
-// canReport: non-service messages from other people.
 func canReport(m engine.CachedMessage) bool {
 	return !m.IsService && !m.IsOutgoing
 }
 
-// openReportDialog starts the report flow for one message (context menu).
 func (a *App) openReportDialog(msgs []engine.CachedMessage) {
 	if len(msgs) == 0 {
 		return
@@ -69,7 +59,6 @@ func (a *App) openReportDialog(msgs []engine.CachedMessage) {
 	a.reportStep(nil, "")
 }
 
-// closeReportDialog dismisses (blocked while a request is in flight).
 func (a *App) closeReportDialog() {
 	a.mu.Lock()
 	if a.reportDlg == nil || a.reportDlg.busy {
@@ -81,8 +70,6 @@ func (a *App) closeReportDialog() {
 	a.invalidate()
 }
 
-// reportStep issues one ReportMessage call and advances the dialog from the
-// result. option nil = first (chooser) call.
 func (a *App) reportStep(option []byte, comment string) {
 	a.mu.Lock()
 	if a.reportDlg == nil || a.reportDlg.busy {
@@ -128,7 +115,7 @@ func (a *App) reportStep(option []byte, comment string) {
 			a.mu.Unlock()
 			a.setToast("Report: pick the messages first (select, then report)")
 			return
-		default: // "reported"
+		default:
 			a.reportDlg = nil
 			a.mu.Unlock()
 			a.setToast("Reported")
@@ -139,7 +126,6 @@ func (a *App) reportStep(option []byte, comment string) {
 	}()
 }
 
-// reportPickOption chooses a reason and continues the flow.
 func (a *App) reportPickOption(opt cores.ReportOption) {
 	a.mu.Lock()
 	if a.reportDlg == nil || a.reportDlg.busy {
@@ -151,7 +137,6 @@ func (a *App) reportPickOption(opt cores.ReportOption) {
 	a.reportStep(opt.Option, "")
 }
 
-// reportSendComment submits the optional comment.
 func (a *App) reportSendComment() {
 	a.mu.Lock()
 	if a.reportDlg == nil || a.reportDlg.busy {
@@ -163,10 +148,8 @@ func (a *App) reportSendComment() {
 	a.reportStep(chosen, a.wid.reportCommentEd.Text())
 }
 
-// layoutReportDialog renders the report card over the chat pane.
 func (a *App) layoutReportDialog(gtx layout.Context, f frame) layout.Dimensions {
 	d := f.reportDlg
-	// Escape closes.
 	{
 		stack := clip.Rect{Max: image.Pt(gtx.Constraints.Max.X, gtx.Constraints.Max.Y)}.Push(gtx.Ops)
 		event.Op(gtx.Ops, reportKeyTag)
@@ -285,7 +268,7 @@ func (a *App) reportDialogBody(gtx layout.Context, f frame, d *reportDlgState) l
 			}))
 		}
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, rows...)
-	default: // 2 = comment
+	default:
 		var rows []layout.FlexChild
 		hint := "Add a comment"
 		if d.commentOptional {

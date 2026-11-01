@@ -6,20 +6,13 @@ import (
 	"uniclient/cores"
 )
 
-// Profile music (slice 206): the engine surface — per-(account, peer)
-// ordered track cache fed by the core fetcher, own-playlist mutations
-// (save/remove/reorder) forwarded with cache + event updates, the
-// own-ID gate for the bubble menu, and playback by document ID.
-
-// profileMusicStub: a core exposing the slice-206 surface, recording
-// mutations through pointer logs (accounts hold cores by value).
 type profileMusicStub struct {
 	cores.StubCore
 	selfID string
-	tracks map[string][]cores.MusicTrackInfo // peerID → playlist
+	tracks map[string][]cores.MusicTrackInfo
 	count  map[string]int
 
-	fetches    *[]string // peerIDs fetched
+	fetches    *[]string
 	saves      *[][2]string
 	unsaves    *[]string
 	ownIDs     *[]string
@@ -67,7 +60,6 @@ func (s profileMusicStub) SaveProfileMusicDoc(track, after cores.MusicTrackInfo,
 		return nil
 	}
 	*s.saves = append(*s.saves, [2]string{track.DocID, after.DocID})
-	// Server semantics: plain save moves to top; after moves after `after`.
 	var kept []cores.MusicTrackInfo
 	for _, t := range s.tracks[s.selfID] {
 		if t.DocID != track.DocID {
@@ -86,7 +78,6 @@ func (s profileMusicStub) SaveProfileMusicDoc(track, after cores.MusicTrackInfo,
 		}
 		s.tracks[s.selfID] = out
 	}
-	// The server's own-ID list gains the saved doc.
 	has := false
 	for _, id := range *s.ownIDs {
 		if id == track.DocID {
@@ -168,7 +159,6 @@ func TestGetProfileMusicFeedsColdCache(t *testing.T) {
 	if tracks[0].FileRefB64 != "AAAA" || tracks[0].AccessHash != 5 {
 		t.Errorf("download fields lost: %+v", tracks[0])
 	}
-	// Second read is cache-only (no extra fetch).
 	n := len(*st.fetches)
 	if _, err := e.GetProfileMusic("tg", "7"); err != nil {
 		t.Fatal(err)
@@ -207,12 +197,10 @@ func TestSaveToProfileMusic(t *testing.T) {
 	if len(*st.saves) != 1 || (*st.saves)[0] != [2]string{"7001", ""} {
 		t.Errorf("save call = %+v, want plain add 7001", *st.saves)
 	}
-	// Own playlist cache refreshed: the new track is at the top.
 	ids := e.OwnProfileMusicCached("tg")
 	if len(ids) != 2 || !ids["7001"] || !ids["7000"] {
 		t.Errorf("own IDs after save = %v", ids)
 	}
-	// The own-profile cache row exists too (panel shows the track).
 	tracks, err := e.GetProfileMusic("tg", "42")
 	if err != nil {
 		t.Fatal(err)
@@ -256,7 +244,6 @@ func TestReorderProfileMusic(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Move 7003 after 7001: expect [7001, 7003, 7002].
 	if err := e.ReorderProfileMusic("tg", "7003", "7001"); err != nil {
 		t.Fatal(err)
 	}
@@ -281,7 +268,6 @@ func TestReorderProfileMusicEdgeCases(t *testing.T) {
 	if _, err := e.GetProfileMusic("tg", "42"); err != nil {
 		t.Fatal(err)
 	}
-	// Same position no-op: after = the predecessor already.
 	if err := e.ReorderProfileMusic("tg", "7002", "7001"); err != nil {
 		t.Fatal(err)
 	}
@@ -289,7 +275,6 @@ func TestReorderProfileMusicEdgeCases(t *testing.T) {
 	if tracks[0].DocID != "7001" || tracks[1].DocID != "7002" {
 		t.Errorf("no-op reorder changed order: %v %v", tracks[0].DocID, tracks[1].DocID)
 	}
-	// Unknown doc / unknown after → honest errors, no mutation.
 	if err := e.ReorderProfileMusic("tg", "9999", "7001"); err == nil {
 		t.Error("unknown doc must error")
 	}
@@ -311,14 +296,12 @@ func TestOwnProfileMusicHashGating(t *testing.T) {
 	if len(*st.ownHashes) != 1 || (*st.ownHashes)[0] != 0 {
 		t.Fatalf("first refresh hash = %v, want 0 (cold)", *st.ownHashes)
 	}
-	// Second refresh passes the sum hash; the stub answers notModified.
 	if _, err := e.RefreshOwnProfileMusic("tg"); err != nil {
 		t.Fatal(err)
 	}
 	if len(*st.ownHashes) != 2 || (*st.ownHashes)[1] != 30 {
 		t.Fatalf("second refresh hash = %v, want 30 (10+20)", *st.ownHashes)
 	}
-	// Cached read needs no RPC.
 	before := len(*st.ownHashes)
 	ids := e.OwnProfileMusicCached("tg")
 	if len(ids) != 2 || !ids["10"] || !ids["20"] {
@@ -330,22 +313,16 @@ func TestOwnProfileMusicHashGating(t *testing.T) {
 }
 
 func TestProfileMusicSelfPeerGate(t *testing.T) {
-	// Only user peers have playlists; the engine surface is invoked with
-	// the peer ID verbatim (the core does the InputPeerUser check).
 	e := newProfileMusicEngine(t)
 	st := newProfileMusicStub()
 	st.selfID = "42"
-	st.tracks["-1001234"] = nil // channel-ish peer: core would reject
+	st.tracks["-1001234"] = nil
 	e.accounts = map[string]*Account{"tg": {ID: "tg", Core: st}}
 	if _, err := e.GetProfileMusic("tg", "-1001234"); err != nil {
 		t.Fatalf("engine must forward non-user peers to the core gate: %v", err)
 	}
 }
 
-// ── slice 210: music attach box (saved-music source) ──────────────────────
-
-// SendAudioDocument support on the stub: records what the engine asked the
-// core to send.
 func (s profileMusicStub) SendAudioDocument(chatID string, track cores.MusicTrackInfo, caption string, silent bool, scheduleDate int) (*cores.Message, error) {
 	silentMark := "0"
 	if silent {
@@ -375,8 +352,6 @@ func TestSavedMusicTracks(t *testing.T) {
 		t.Fatalf("own playlist = %+v", tracks)
 	}
 
-	// Unsupported platform: honest ErrNotSupported (the box hides the
-	// saved-music section then).
 	e2 := newProfileMusicEngine(t)
 	e2.accounts = map[string]*Account{"irc": {ID: "irc", Core: plainStub{}}}
 	if _, err := e2.SavedMusicTracks("irc"); err == nil {
@@ -394,7 +369,7 @@ func TestSendSavedMusicTrack(t *testing.T) {
 	}
 	st.count["42"] = 1
 	e.accounts = map[string]*Account{"tg": {ID: "tg", Core: st}}
-	if _, err := e.SavedMusicTracks("tg"); err != nil { // warm the cache
+	if _, err := e.SavedMusicTracks("tg"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -406,7 +381,6 @@ func TestSendSavedMusicTrack(t *testing.T) {
 		t.Fatalf("sends = %v", sends)
 	}
 
-	// Unknown track → honest error, nothing sent.
 	if err := e.SendSavedMusicTrack("tg", "-1001234", "nope", ""); err == nil {
 		t.Fatal("unknown docID must fail")
 	}
@@ -414,7 +388,6 @@ func TestSendSavedMusicTrack(t *testing.T) {
 		t.Fatalf("sends after failure = %d", len(*st.audioSends))
 	}
 
-	// Unsupported core → ErrNotSupported.
 	e2 := newProfileMusicEngine(t)
 	e2.accounts = map[string]*Account{"irc": {ID: "irc", Core: plainStub{}}}
 	if err := e2.SendSavedMusicTrack("irc", "c", "1", ""); err == nil {

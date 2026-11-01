@@ -1,9 +1,5 @@
 package gui
 
-// "Seen by" read receipts (slice 98, matrix row 97): pure helpers — row
-// naming from the engine's detailed participant map, the privacy-note
-// mapping, the context-menu gate, and escTarget self-handling.
-
 import (
 	"testing"
 
@@ -88,7 +84,6 @@ func TestMenuActionsSeenByItem(t *testing.T) {
 	if !found {
 		t.Errorf("menuActionsFor: \"Seen by\" missing for an own group message")
 	}
-	// Channel post → no item (Telegram gives no read receipts there).
 	f.chats = []engine.ChatInfo{{AccountID: "a", ChatID: "c", Type: engine.ChatTypeChanVal}}
 	for _, it := range a.menuActionsFor(f, m) {
 		if it.label == "Seen by" {

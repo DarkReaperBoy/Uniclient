@@ -1,11 +1,5 @@
 package gui
 
-// giveaways.go — slice 212: the giveaway box (tdesktop
-// create_giveaway_box, re-implemented): stars-giveaway creation funded
-// from the star balance (options → winner split → end date → audience
-// toggles → additional prize → send), plus prepaid-giveaway launch rows
-// surfaced from the boosts status. Reached from the boosts page.
-
 import (
 	"sort"
 	"strconv"
@@ -22,16 +16,15 @@ import (
 )
 
 var (
-	giveawayBackBtn    widget.Clickable
-	giveawaySendBtn    widget.Clickable
-	giveawayOnlyNewBtn widget.Clickable
-	giveawayShowWinBtn widget.Clickable
-	giveawayList       widget.List
-	giveawayOptCells   []widget.Clickable
-	giveawayWinCells   []widget.Clickable
-	giveawayDateCells  []widget.Clickable
-	giveawayPrizeEd    widget.Editor
-	// slice 214: country + channel pickers.
+	giveawayBackBtn      widget.Clickable
+	giveawaySendBtn      widget.Clickable
+	giveawayOnlyNewBtn   widget.Clickable
+	giveawayShowWinBtn   widget.Clickable
+	giveawayList         widget.List
+	giveawayOptCells     []widget.Clickable
+	giveawayWinCells     []widget.Clickable
+	giveawayDateCells    []widget.Clickable
+	giveawayPrizeEd      widget.Editor
 	giveawayCountriesRow widget.Clickable
 	giveawayChannelsRow  widget.Clickable
 	giveawayDoneBtn      widget.Clickable
@@ -45,14 +38,11 @@ func init() {
 	giveawayPrizeEd.SingleLine = true
 }
 
-// giveawayDatePreset is one offered end-date offset.
 type giveawayDatePreset struct {
 	Label string
 	Days  int
 }
 
-// giveawayDatePresets (pure, testable): tdesktop defaults to 3 days; the
-// row offers the common offsets.
 func giveawayDatePresets() []giveawayDatePreset {
 	return []giveawayDatePreset{
 		{"in 3 days", 3},
@@ -62,8 +52,6 @@ func giveawayDatePresets() []giveawayDatePreset {
 	}
 }
 
-// giveawayUntilDate (pure, testable): +days, then minutes rounded up to
-// a 5-minute boundary — tdesktop's ThreeDaysAfterToday rule.
 func giveawayUntilDate(days int, now time.Time) int64 {
 	t := now.AddDate(0, 0, days)
 	if r := t.Minute() % 5; r != 0 {
@@ -72,8 +60,6 @@ func giveawayUntilDate(days int, now time.Time) int64 {
 	return t.Unix()
 }
 
-// prepaidGiveawayRow is one already-paid giveaway entry from the boosts
-// status (channels.getBoostsStatus prepaid_giveaways).
 type prepaidGiveawayRow struct {
 	ID       int64
 	Credits  int64
@@ -83,8 +69,6 @@ type prepaidGiveawayRow struct {
 	Date     int64
 }
 
-// prepaidFromBoostStatus (pure, testable) parses the boost-status map's
-// prepaid entries (GetBoostsJSON shape).
 func prepaidFromBoostStatus(st map[string]interface{}) []prepaidGiveawayRow {
 	if st == nil {
 		return nil
@@ -114,12 +98,10 @@ func prepaidFromBoostStatus(st map[string]interface{}) []prepaidGiveawayRow {
 	return rows
 }
 
-// boostIntField reads a numeric map field across int/int64/float64.
 func boostIntField(m map[string]interface{}, key string) int {
 	return int(boostInt64Field(m, key))
 }
 
-// boostInt64Field reads a numeric map field across int/int64/float64.
 func boostInt64Field(m map[string]interface{}, key string) int64 {
 	switch v := m[key].(type) {
 	case int:
@@ -132,7 +114,6 @@ func boostInt64Field(m map[string]interface{}, key string) int64 {
 	return 0
 }
 
-// prepaidRowTitle (pure, testable).
 func prepaidRowTitle(r prepaidGiveawayRow) string {
 	if r.Credits > 0 {
 		return "Prepaid Stars giveaway · " + strconv.FormatInt(r.Credits, 10) + " Stars"
@@ -140,7 +121,6 @@ func prepaidRowTitle(r prepaidGiveawayRow) string {
 	return "Prepaid Premium giveaway · " + strconv.Itoa(r.Months) + " months"
 }
 
-// prepaidRowSub (pure, testable).
 func prepaidRowSub(r prepaidGiveawayRow) string {
 	sub := strconv.Itoa(r.Quantity) + " winners"
 	if r.Boosts > 0 {
@@ -149,9 +129,6 @@ func prepaidRowSub(r prepaidGiveawayRow) string {
 	return sub
 }
 
-// giveawayDlgState is the open giveaway box (nil when closed). Prepaid
-// mode: Prepaid != nil — the box collects date/audience/prize and
-// launches; create mode: Prepaid == nil — full option picker.
 type giveawayDlgState struct {
 	accountID string
 	chatID    string
@@ -162,8 +139,8 @@ type giveawayDlgState struct {
 	options     []cores.StarsGiveawayOptionInfo
 	selOpt      int
 	selWin      int
-	balance     int64 // nanostars
-	periodMax   int   // seconds, 0 = unknown → presets unfiltered
+	balance     int64
+	periodMax   int
 	dateIdx     int
 	onlyNew     bool
 	showWinners bool
@@ -172,7 +149,6 @@ type giveawayDlgState struct {
 	sending     bool
 	launched    bool
 
-	// slice 214: audience pickers.
 	countries     []cores.CountryInfo
 	selCountries  map[string]bool
 	pickCountries bool
@@ -181,7 +157,6 @@ type giveawayDlgState struct {
 	pickChannels  bool
 }
 
-// giveawayOptionLabel (pure, testable): the prize row label.
 func giveawayOptionLabel(o cores.StarsGiveawayOptionInfo) string {
 	s := strconv.FormatInt(o.Stars, 10) + " Stars"
 	if o.YearlyBoosts > 0 {
@@ -193,7 +168,6 @@ func giveawayOptionLabel(o cores.StarsGiveawayOptionInfo) string {
 	return s
 }
 
-// giveawayWinnerLabel (pure, testable): one winner-split chip.
 func giveawayWinnerLabel(w cores.StarsGiveawayWinnerInfo) string {
 	noun := "winners"
 	if w.Users == 1 {
@@ -202,7 +176,6 @@ func giveawayWinnerLabel(w cores.StarsGiveawayWinnerInfo) string {
 	return strconv.Itoa(w.Users) + " " + noun + " · " + strconv.FormatInt(w.PerUserStars, 10) + " Stars each"
 }
 
-// giveawayTotalStars (pure, testable): the selected option's total cost.
 func giveawayTotalStars(st *giveawayDlgState) int64 {
 	if st == nil || st.selOpt < 0 || st.selOpt >= len(st.options) {
 		return 0
@@ -210,9 +183,6 @@ func giveawayTotalStars(st *giveawayDlgState) int64 {
 	return st.options[st.selOpt].Stars
 }
 
-// giveawaySendEnabled (pure, testable): the send-bar gate — loaded,
-// option chosen, balance covers the total, nothing in flight. Prepaid
-// launch needs no balance (already paid).
 func giveawaySendEnabled(st *giveawayDlgState) bool {
 	if st == nil || st.sending || st.launched {
 		return false
@@ -226,8 +196,6 @@ func giveawaySendEnabled(st *giveawayDlgState) bool {
 	return st.balance >= giveawayTotalStars(st)*1_000_000_000
 }
 
-// giveawayDatePresetsFor filters presets by the account's
-// giveaway_period_max when known (pure, testable).
 func giveawayDatePresetsFor(periodMax int) []giveawayDatePreset {
 	presets := giveawayDatePresets()
 	if periodMax <= 0 {
@@ -245,8 +213,6 @@ func giveawayDatePresetsFor(periodMax int) []giveawayDatePreset {
 	return out
 }
 
-// openGiveawayCreator opens the creation box for a channel and kicks the
-// options + balance loads.
 func (a *App) openGiveawayCreator(c engine.ChatInfo) {
 	st := &giveawayDlgState{
 		accountID:   c.AccountID,
@@ -293,8 +259,6 @@ func (a *App) openGiveawayCreator(c engine.ChatInfo) {
 	}()
 }
 
-// giveawayDefaultOption (pure, testable): the server-flagged default, or
-// the first non-extended row.
 func giveawayDefaultOption(opts []cores.StarsGiveawayOptionInfo) int {
 	for i, o := range opts {
 		if o.Default {
@@ -309,7 +273,6 @@ func giveawayDefaultOption(opts []cores.StarsGiveawayOptionInfo) int {
 	return 0
 }
 
-// giveawayDefaultWinner (pure, testable): the split flagged default.
 func giveawayDefaultWinner(opts []cores.StarsGiveawayOptionInfo, optIdx int) int {
 	if optIdx < 0 || optIdx >= len(opts) {
 		return 0
@@ -322,8 +285,6 @@ func giveawayDefaultWinner(opts []cores.StarsGiveawayOptionInfo, optIdx int) int
 	return 0
 }
 
-// sortedKeys (pure, testable): deterministic key ordering for map
-// selections riding the wire (countries ISO codes, channel chat IDs).
 func sortedKeys(m map[string]bool) []string {
 	if len(m) == 0 {
 		return nil
@@ -338,7 +299,6 @@ func sortedKeys(m map[string]bool) []string {
 	return out
 }
 
-// countryLabel (pure, testable): the picker row label.
 func countryLabel(c cores.CountryInfo) string {
 	if c.Name != "" {
 		return c.Name
@@ -346,8 +306,6 @@ func countryLabel(c cores.CountryInfo) string {
 	return c.ISO2
 }
 
-// countryMatches (pure, testable): rows matching the query —
-// case-insensitive substring on name or ISO code.
 func countryMatches(list []cores.CountryInfo, query string) []cores.CountryInfo {
 	query = strings.ToLower(strings.TrimSpace(query))
 	if query == "" || list == nil {
@@ -363,7 +321,6 @@ func countryMatches(list []cores.CountryInfo, query string) []cores.CountryInfo 
 	return out
 }
 
-// giveawayCountryLabel (pure, testable): the Countries row label.
 func giveawayCountryLabel(sel map[string]bool) string {
 	if len(sel) == 0 {
 		return "All countries"
@@ -375,8 +332,6 @@ func giveawayCountryLabel(sel map[string]bool) string {
 	return strconv.Itoa(len(sel)) + " " + noun + " selected"
 }
 
-// giveawayChannelCandidates (pure, testable): same-account channels
-// excluding the giveaway channel itself.
 func giveawayChannelCandidates(chats []engine.ChatInfo, accountID, excludeChatID string) []engine.ChatInfo {
 	var out []engine.ChatInfo
 	for _, c := range chats {
@@ -391,7 +346,6 @@ func giveawayChannelCandidates(chats []engine.ChatInfo, accountID, excludeChatID
 	return out
 }
 
-// giveawayChannelsLabel (pure, testable): the Channels row label.
 func giveawayChannelsLabel(sel map[string]bool) string {
 	if len(sel) == 0 {
 		return "This channel only"
@@ -403,7 +357,6 @@ func giveawayChannelsLabel(sel map[string]bool) string {
 	return strconv.Itoa(len(sel)) + " " + noun
 }
 
-// openPrepaidLaunch opens the box in prepaid-launch mode.
 func (a *App) openPrepaidLaunch(c engine.ChatInfo, row prepaidGiveawayRow) {
 	st := &giveawayDlgState{
 		accountID:    c.AccountID,
@@ -421,10 +374,6 @@ func (a *App) openPrepaidLaunch(c engine.ChatInfo, row prepaidGiveawayRow) {
 	a.giveawayDlg = st
 	a.mu.Unlock()
 	a.invalidate()
-	// R48: the period-max fetch ran SYNCHRONOUSLY on the GUI loop — a
-	// blocking RPC on the frame thread froze the UI for the round-trip.
-	// Goroutine-wrapped now, landing through the installer (R47) with the
-	// prepaid-ID staleness guard.
 	account := c.AccountID
 	go func() {
 		max, _ := a.eng.GetGiveawayPeriodMax(account)
@@ -442,7 +391,6 @@ func (a *App) openPrepaidLaunch(c engine.ChatInfo, row prepaidGiveawayRow) {
 	}()
 }
 
-// closeGiveaway dismisses the box.
 func (a *App) closeGiveaway() {
 	a.mu.Lock()
 	a.giveawayDlg = nil
@@ -450,15 +398,6 @@ func (a *App) closeGiveaway() {
 	a.invalidate()
 }
 
-// updateGiveaway (R47): copy-on-write installer — the R34 discipline.
-// fn mutates a COPY of the giveaway box state (returning false leaves
-// the head alone, and the installer reports whether it installed); the
-// copy is installed under a.mu, never an in-place mutation, so a frame
-// that captured the old pointer keeps a frozen view while the load and
-// send tails swap the head. Guards compare install-immutable identity
-// (accountID+chatID, the prepaid row's ID) — pointer identity would
-// break under copy-on-write. The selCountries/selChats maps stay shared
-// across heads (GUI-loop-only writers, the twofa checked-map precedent).
 func (a *App) updateGiveaway(fn func(st *giveawayDlgState) bool) bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -473,12 +412,6 @@ func (a *App) updateGiveaway(fn func(st *giveawayDlgState) bool) bool {
 	return true
 }
 
-// clampGiveawayDateIdx (R47): keep the live head's dateIdx inside the
-// preset list — through the installer, so the clamp lands on the CURRENT
-// head. The old in-place write hit the FROZEN frame pointer: after any
-// tail install (e.g. periodMax arriving late and shrinking the preset
-// list below the picked index) the LIVE head stayed out of range and
-// sendGiveaway's date guard made the Send button silently dead.
 func (a *App) clampGiveawayDateIdx() {
 	a.updateGiveaway(func(cur *giveawayDlgState) bool {
 		live := giveawayDatePresetsFor(cur.periodMax)
@@ -490,8 +423,6 @@ func (a *App) clampGiveawayDateIdx() {
 	})
 }
 
-// sendGiveaway purchases (create mode) or launches (prepaid mode) the
-// configured giveaway.
 func (a *App) sendGiveaway(f frame) {
 	st := f.giveawayDlg
 	if st == nil {
@@ -585,8 +516,6 @@ func (a *App) sendGiveaway(f frame) {
 	go func() {
 		err := a.eng.CreateStarsGiveaway(account, chat, opt, p)
 		landed := a.updateGiveaway(func(cur *giveawayDlgState) bool {
-			// R47: the old guard was prepaid==nil ONLY — a stale create tail
-			// could stomp a dialog reopened for the same chat.
 			if cur.accountID != account || cur.chatID != chat || cur.prepaid != nil {
 				return false
 			}
@@ -611,7 +540,6 @@ func (a *App) sendGiveaway(f frame) {
 	}()
 }
 
-// layoutGiveaway renders the box (content-pane surface).
 func (a *App) layoutGiveaway(gtx layout.Context, f frame) layout.Dimensions {
 	st := f.giveawayDlg
 	if st == nil {
@@ -733,7 +661,6 @@ func (a *App) layoutGiveaway(gtx layout.Context, f frame) layout.Dimensions {
 
 	var sections []layout.FlexChild
 
-	// Balance + total (create mode only).
 	if st.prepaid == nil {
 		sections = append(sections, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			total := giveawayTotalStars(st)
@@ -753,7 +680,6 @@ func (a *App) layoutGiveaway(gtx layout.Context, f frame) layout.Dimensions {
 		}))
 	}
 
-	// Prize options (create mode).
 	if st.prepaid == nil {
 		sections = append(sections, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if !st.loaded {
@@ -804,7 +730,6 @@ func (a *App) layoutGiveaway(gtx layout.Context, f frame) layout.Dimensions {
 			return layout.Flex{Axis: layout.Vertical}.Layout(gtx, rows...)
 		}))
 
-		// Winner split chips.
 		sections = append(sections, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if len(winners) == 0 {
 				return layout.Dimensions{}
@@ -839,7 +764,6 @@ func (a *App) layoutGiveaway(gtx layout.Context, f frame) layout.Dimensions {
 		}))
 	}
 
-	// End-date presets.
 	sections = append(sections, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Top: unit.Dp(10), Left: unit.Dp(12), Right: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
@@ -870,7 +794,6 @@ func (a *App) layoutGiveaway(gtx layout.Context, f frame) layout.Dimensions {
 		})
 	}))
 
-	// Audience rows: countries + channels (slice 214 pickers).
 	sections = append(sections, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Top: unit.Dp(10), Left: unit.Dp(12), Right: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
@@ -932,7 +855,6 @@ func (a *App) layoutGiveaway(gtx layout.Context, f frame) layout.Dimensions {
 		})
 	}))
 
-	// Audience toggles + additional prize.
 	sections = append(sections, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Top: unit.Dp(10), Left: unit.Dp(12), Right: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
@@ -974,7 +896,6 @@ func (a *App) layoutGiveaway(gtx layout.Context, f frame) layout.Dimensions {
 		})
 	}))
 
-	// Error line.
 	sections = append(sections, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		if st.err == "" {
 			return layout.Dimensions{}
@@ -984,7 +905,6 @@ func (a *App) layoutGiveaway(gtx layout.Context, f frame) layout.Dimensions {
 		})
 	}))
 
-	// Done hint after a successful send/launch.
 	sections = append(sections, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		if !st.launched {
 			return layout.Dimensions{}
@@ -1061,8 +981,6 @@ func (a *App) layoutGiveaway(gtx layout.Context, f frame) layout.Dimensions {
 	)
 }
 
-// layoutGiveawayCountryPicker: the audience country picker
-// (tdesktop select_countries_box) — search + checkbox rows + Done.
 func (a *App) layoutGiveawayCountryPicker(gtx layout.Context, f frame) layout.Dimensions {
 	st := f.giveawayDlg
 	if st == nil {
@@ -1153,8 +1071,6 @@ func (a *App) layoutGiveawayCountryPicker(gtx layout.Context, f frame) layout.Di
 	)
 }
 
-// layoutGiveawayChannelPicker: additional channels the winners must join
-// — same-account channels excluding the giveaway channel itself.
 func (a *App) layoutGiveawayChannelPicker(gtx layout.Context, f frame) layout.Dimensions {
 	st := f.giveawayDlg
 	if st == nil {

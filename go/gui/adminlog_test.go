@@ -7,14 +7,7 @@ import (
 	"uniclient/engine"
 )
 
-// Admin log / Recent Actions panel (slice 177, parity row "Moderation
-// (admin log, restrictions)" — tdesktop's Recent Actions window): pure
-// logic — header-menu gating, paging cursor, filter chips, event row
-// composition, ActionData media extraction. Layout is verified by
-// compile + review.
-
 func TestHeaderMenuAdminLogEntry(t *testing.T) {
-	// Admins of groups/channels see "Recent actions".
 	c := engine.ChatInfo{Type: engine.ChatTypeChanVal, Title: "News", IsAdmin: true}
 	found := false
 	for _, it := range headerMenuItems(c, false, false, false, false, false) {
@@ -36,14 +29,12 @@ func TestHeaderMenuAdminLogEntry(t *testing.T) {
 		t.Fatal("admin supergroup menu lacks Recent actions")
 	}
 
-	// Non-admins never see it (tdesktop semantics).
 	c3 := engine.ChatInfo{Type: engine.ChatTypeChanVal, Title: "News", IsAdmin: false}
 	for _, it := range headerMenuItems(c3, false, false, false, false, false) {
 		if it.id == "adminlog" {
 			t.Fatal("non-admin sees Recent actions")
 		}
 	}
-	// DMs never see it.
 	c4 := engine.ChatInfo{Type: engine.ChatTypeDMVal, IsAdmin: true}
 	for _, it := range headerMenuItems(c4, false, false, false, false, false) {
 		if it.id == "adminlog" {
@@ -80,7 +71,6 @@ func TestAdminFilterChips(t *testing.T) {
 			t.Fatalf("missing filter %q", want)
 		}
 	}
-	// Toggling a filter flips it in the active set (pure).
 	active := map[string]bool{}
 	adminToggleFilter(active, "ban")
 	if !active["ban"] {
@@ -111,7 +101,6 @@ func TestAdminEventRow(t *testing.T) {
 		t.Fatalf("sub = %q", got)
 	}
 
-	// Old → new change rows.
 	e2 := cores.AdminLogEvent{
 		UserName: "Bob",
 		Action:   "changed the group name",
@@ -122,7 +111,6 @@ func TestAdminEventRow(t *testing.T) {
 	if len(chgs) != 2 || chgs[0] != "Before" || chgs[1] != "After" {
 		t.Fatalf("changes = %v", chgs)
 	}
-	// No changes → nil.
 	e3 := cores.AdminLogEvent{UserName: "Bob", Action: "joined"}
 	if chs := adminEventChanges(e3); chs != nil {
 		t.Fatalf("changes on change-less event = %v", chs)
@@ -130,7 +118,6 @@ func TestAdminEventRow(t *testing.T) {
 }
 
 func TestAdminEventMedia(t *testing.T) {
-	// Message events carry the media type + stripped thumb in ActionData.
 	e := cores.AdminLogEvent{
 		UserName: "Jane",
 		Action:   "pinned a message",
@@ -147,7 +134,6 @@ func TestAdminEventMedia(t *testing.T) {
 	if !adminEventHasMessage(e) {
 		t.Fatal("event with MsgText must be a message event")
 	}
-	// Plain event → no media.
 	e2 := cores.AdminLogEvent{UserName: "Bob", Action: "joined"}
 	mt2, thumb2 := adminEventMedia(e2)
 	if mt2 != 0 || thumb2 != "" {

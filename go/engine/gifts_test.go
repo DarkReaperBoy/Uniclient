@@ -1,9 +1,5 @@
 package engine
 
-// gifts_test.go — slice 211 tests: the gift catalog cache (cold fetch →
-// warm read served from memory without a second core call) and the
-// options/balance wrapper gates.
-
 import (
 	"testing"
 
@@ -44,12 +40,6 @@ func newGiftEngine(t *testing.T, core cores.Core) *Engine {
 }
 
 func TestCachedStarGifts(t *testing.T) {
-	// The catalog cache is PACKAGE-level (gifts.byAcct, 10min TTL —
-	// gifts.go): it survives the fresh Engine across in-process
-	// repetitions, so `-count=3` failed with `fetches = 0` on runs 2/3
-	// (B-46). Reset it so every run exercises the cold path this test
-	// asserts; cleanup keeps the package state clean for whatever runs
-	// next in the same binary.
 	resetGiftCache := func() {
 		gifts.mu.Lock()
 		gifts.byAcct = map[string]giftCacheEntry{}
@@ -74,7 +64,6 @@ func TestCachedStarGifts(t *testing.T) {
 		t.Fatalf("fetches = %d, want 1", st.fetches)
 	}
 
-	// Warm read: no second core call.
 	second, err := e.CachedStarGifts("tg")
 	if err != nil {
 		t.Fatal(err)
@@ -90,7 +79,7 @@ func TestCachedStarGifts(t *testing.T) {
 func TestGiftOptionsAndBalance(t *testing.T) {
 	st := &giftStub{
 		options: []cores.StarsGiftAmount{{Stars: 100, Currency: "USD", Amount: 200}},
-		balance: 5_000_000_000, // 5 stars in nanostars
+		balance: 5_000_000_000,
 	}
 	e := newGiftEngine(t, st)
 
@@ -113,7 +102,6 @@ func TestGiftOptionsAndBalance(t *testing.T) {
 		t.Fatalf("balance = %d", bal)
 	}
 
-	// Plain stubs lack the surface → honest errors.
 	e2 := newGiftEngine(t, &plainStub{})
 	if _, err := e2.GetStarsGiftOptions("tg", "1"); err == nil {
 		t.Error("plain stub must not expose gift options")

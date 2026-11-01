@@ -1,6 +1,3 @@
-// Package bootstrap wires the engine for in-process hosts: engine init,
-// the core factory for every platform, and session migration. This is the
-// seam where a host (the GUI app, a test harness) plugs into the engine.
 package bootstrap
 
 import (
@@ -20,9 +17,6 @@ import (
 
 var eng *engine.Engine
 
-// supportedPlatforms is every platform the core factory can construct.
-// It is the single source of truth for what is a real backend — anything
-// else (e.g. the banned "demo" fake) is not part of the product.
 var supportedPlatforms = []string{
 	"telegram",
 	"matrix",
@@ -35,15 +29,10 @@ var supportedPlatforms = []string{
 	"mumble",
 }
 
-// SupportedPlatforms returns every platform the factory can construct.
-// The GUI picker is tested against this list (no placeholder backends).
 func SupportedPlatforms() []string {
 	return append([]string(nil), supportedPlatforms...)
 }
 
-// Init initializes the engine and registers the core factory for every
-// supported platform. Events are delivered to onEvent as JSON EngineEvent
-// envelopes (nil = keep the default no-op).
 func Init(configDir, cacheDir, downloadDir, vaultPassword string, onEvent func([]byte)) (*engine.Engine, error) {
 	e, err := engine.Init(configDir, cacheDir, downloadDir, vaultPassword)
 	if err != nil {
@@ -53,10 +42,8 @@ func Init(configDir, cacheDir, downloadDir, vaultPassword string, onEvent func([
 
 	vault := e.Vault()
 
-	// Migrate old per-file sessions into vault.
 	migrateOldSessions(configDir, vault)
 
-	// Register the core factory — each core gets a SessionStore backed by vault.
 	engine.SetCoreFactory(func(platform, accountID string) (cores.Core, error) {
 		store := utils.NewSessionStore(vault, accountID)
 		switch platform {
@@ -71,8 +58,6 @@ func Init(configDir, cacheDir, downloadDir, vaultPassword string, onEvent func([
 			if v := os.Getenv("TG_API_HASH"); v != "" {
 				apiHash = v
 			}
-			// Test-server accounts (AyuGram Environment::Test) connect to the
-			// test datacenter. Flag is persisted in the vault entry at creation.
 			testMode := false
 			if entry, err := vault.GetAccount(accountID); err == nil && entry != nil {
 				testMode = entry.TestMode
@@ -106,9 +91,6 @@ func Init(configDir, cacheDir, downloadDir, vaultPassword string, onEvent func([
 		}
 	})
 
-	// Purge saved accounts whose platform no longer exists (e.g. the
-	// banned demo backend): they could never connect again and would
-	// rot in the account list as dead rows (AGENTS.md §1.10).
 	supported := make(map[string]bool, len(supportedPlatforms))
 	for _, p := range supportedPlatforms {
 		supported[p] = true
@@ -129,7 +111,6 @@ func Init(configDir, cacheDir, downloadDir, vaultPassword string, onEvent func([
 	return e, nil
 }
 
-// Shutdown stops the engine.
 func Shutdown() error {
 	if eng == nil {
 		return nil
@@ -137,7 +118,6 @@ func Shutdown() error {
 	return eng.Shutdown()
 }
 
-// vaultSessionStorage adapts utils.SessionStore to gotd's session.Storage.
 type vaultSessionStorage struct {
 	store *utils.SessionStore
 }
@@ -154,13 +134,11 @@ func (s *vaultSessionStorage) StoreSession(_ context.Context, data []byte) error
 	return s.store.SaveRaw(data)
 }
 
-// migrateOldSessions imports old per-file sessions into the vault.
-// Scans configDir/sessions/<platform>/<accountID>.json and imports each.
 func migrateOldSessions(configDir string, vault *utils.Vault) {
 	sessDir := filepath.Join(configDir, "sessions")
 	platforms, err := os.ReadDir(sessDir)
 	if err != nil {
-		return // no old sessions
+		return
 	}
 	migrated := false
 	for _, pdir := range platforms {
@@ -176,9 +154,9 @@ func migrateOldSessions(configDir string, vault *utils.Vault) {
 			if f.IsDir() || filepath.Ext(f.Name()) != ".json" {
 				continue
 			}
-			accountID := f.Name()[:len(f.Name())-5] // strip .json
+			accountID := f.Name()[:len(f.Name())-5]
 			if vault.HasSession(accountID) {
-				continue // already migrated
+				continue
 			}
 			raw, err := os.ReadFile(filepath.Join(platDir, f.Name()))
 			if err != nil {

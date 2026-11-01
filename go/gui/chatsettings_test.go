@@ -5,10 +5,7 @@ import (
 	"testing"
 )
 
-// ── Send message with (tdesktop Messages setting) ────────────────────────
-
 func TestComposerSubmitSends(t *testing.T) {
-	// tdesktop default: Enter submits (Shift+Enter newline).
 	if !composerSubmitSends("") {
 		t.Error("empty mode: Enter should submit (tdesktop default)")
 	}
@@ -19,8 +16,6 @@ func TestComposerSubmitSends(t *testing.T) {
 		t.Error("ctrl-enter mode: Enter should NOT submit (Ctrl+Enter does)")
 	}
 }
-
-// ── Ayu improve link previews ─────────────────────────────────────────────
 
 func TestImproveLinkHostRewrite(t *testing.T) {
 	cases := map[string]string{
@@ -53,7 +48,6 @@ func TestImproveLinkHostRewrite(t *testing.T) {
 }
 
 func TestImproveLinkURLs(t *testing.T) {
-	// Path and query survive; only the host swaps (Ayu getBetterLinkPreview).
 	in := "check https://twitter.com/durov/status/123?x=1 and http://www.reddit.com/r/golang top"
 	out := improveLinkURLs(in)
 	if !strings.Contains(out, "https://fixupx.com/durov/status/123?x=1") {
@@ -93,7 +87,6 @@ func TestImproveLinkURLsMultipleAndMixedCase(t *testing.T) {
 	}
 }
 
-// configFieldChanges covers the new Ayu toggle key.
 func TestConfigFieldChangesImproveLinkPreviews(t *testing.T) {
 	c := configFieldChanges("ayu_improve_link_previews", true)
 	if c == nil || c.AyuImproveLinkPreviews == nil || !*c.AyuImproveLinkPreviews {

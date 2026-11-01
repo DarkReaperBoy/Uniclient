@@ -15,28 +15,19 @@ import (
 	"uniclient/engine"
 )
 
-// Add-members dialog (AyuGram peer menu, slice 79): opened from the chat
-// header ⋮ menu for groups/channels — lists the account's contacts with
-// a search filter and multi-select check circles; "Add" dispatches
-// engine.AddMembers (one call, all selected), then refreshes the info
-// panel's member list when it is open.
-
-// addMemDlgState is the open add-members dialog (nil when closed).
 type addMemDlgState struct {
 	accountID string
 	chatID    string
 	contacts  []engine.ContactInfo
 	loaded    bool
 	err       string
-	sel       map[string]bool // user id → selected
+	sel       map[string]bool
 }
 
 var (
 	addMemKeyTag = new(struct{})
 )
 
-// addMemFilter narrows contacts by a case-insensitive substring match on
-// display name, username, or phone. Pure — locked by tests.
 func addMemFilter(contacts []engine.ContactInfo, q string) []engine.ContactInfo {
 	q = strings.TrimSpace(strings.ToLower(q))
 	if q == "" {
@@ -53,9 +44,6 @@ func addMemFilter(contacts []engine.ContactInfo, q string) []engine.ContactInfo 
 	return out
 }
 
-// ── state transitions ─────────────────────────────────────────────────────
-
-// openAddMemberDialog opens the picker for a group chat (async contact load).
 func (a *App) openAddMemberDialog(c engine.ChatInfo) {
 	a.mu.Lock()
 	st := &addMemDlgState{accountID: c.AccountID, chatID: c.ChatID, sel: make(map[string]bool)}
@@ -79,7 +67,6 @@ func (a *App) openAddMemberDialog(c engine.ChatInfo) {
 	}()
 }
 
-// closeAddMemberDialog dismisses the picker.
 func (a *App) closeAddMemberDialog() {
 	a.mu.Lock()
 	a.addMemDlg = nil
@@ -87,8 +74,6 @@ func (a *App) closeAddMemberDialog() {
 	a.invalidate()
 }
 
-// addMembersFromDialog adds every selected contact to the chat (async),
-// then refreshes the open panel's member list.
 func (a *App) addMembersFromDialog() {
 	a.mu.Lock()
 	st := a.addMemDlg
@@ -115,7 +100,6 @@ func (a *App) addMembersFromDialog() {
 			return
 		}
 		a.setToast("Added " + itoa(len(ids)) + " member" + pluralS(len(ids)))
-		// Refresh the info panel (member list) when it is open for this chat.
 		a.mu.Lock()
 		panelOpen := a.panelOpen && a.panelChat == k
 		a.mu.Unlock()
@@ -125,7 +109,6 @@ func (a *App) addMembersFromDialog() {
 	}()
 }
 
-// pluralS returns "s" for counts != 1. Pure.
 func pluralS(n int) string {
 	if n == 1 {
 		return ""
@@ -133,13 +116,9 @@ func pluralS(n int) string {
 	return "s"
 }
 
-// ── layout ────────────────────────────────────────────────────────────────
-
-// layoutAddMemberDialog renders the picker card.
 func (a *App) layoutAddMemberDialog(gtx layout.Context, f frame) layout.Dimensions {
 	st := f.addMemDlg
 
-	// Esc closes (self-handled).
 	{
 		stack := clip.Rect{Max: image.Pt(gtx.Constraints.Max.X, gtx.Constraints.Max.Y)}.Push(gtx.Ops)
 		event.Op(gtx.Ops, addMemKeyTag)
@@ -177,7 +156,6 @@ func (a *App) layoutAddMemberDialog(gtx layout.Context, f frame) layout.Dimensio
 		return roundedFill(gtx, a.ui.p.Surface, 12, func(gtx layout.Context) layout.Dimensions {
 			return layout.UniformInset(unit.Dp(16)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-					// title + selected count
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
 							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -197,7 +175,6 @@ func (a *App) layoutAddMemberDialog(gtx layout.Context, f frame) layout.Dimensio
 							}),
 						)
 					}),
-					// search filter
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Inset{Top: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							for {
@@ -215,13 +192,11 @@ func (a *App) layoutAddMemberDialog(gtx layout.Context, f frame) layout.Dimensio
 							})
 						})
 					}),
-					// contact list
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Inset{Top: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							return a.addMemContactList(gtx, f, st, shown)
 						})
 					}),
-					// action row
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Inset{Top: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
@@ -253,7 +228,6 @@ func (a *App) layoutAddMemberDialog(gtx layout.Context, f frame) layout.Dimensio
 	})
 }
 
-// addMemContactList renders the filtered contacts with check circles.
 func (a *App) addMemContactList(gtx layout.Context, f frame, st *addMemDlgState, shown []engine.ContactInfo) layout.Dimensions {
 	if st.err != "" && !st.loaded {
 		return a.centeredStateLabel(gtx, "Failed to load contacts")
@@ -323,7 +297,6 @@ func (a *App) addMemContactList(gtx layout.Context, f frame, st *addMemDlgState,
 						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 							return layout.Dimensions{}
 						}),
-						// check circle (slice-14 selection style)
 						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 							return a.selectionCircle(gtx, sel)
 						}),

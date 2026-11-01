@@ -7,11 +7,6 @@ import (
 	"uniclient/engine"
 )
 
-// Gift card bubbles (slice 180, GUI half): pure logic — parseGift over
-// the cached message's Extra (gift_* fields written by the telegram
-// core's convertServiceMessage), stars formatting, bubble gating.
-// Layout verified by compile + review.
-
 func giftMessage(extra map[string]interface{}) *engine.CachedMessage {
 	env := struct {
 		Extra map[string]interface{} `json:"extra"`
@@ -49,7 +44,6 @@ func TestParseGift(t *testing.T) {
 		t.Fatalf("flags = %+v", g)
 	}
 
-	// Stars gift.
 	m2 := giftMessage(map[string]interface{}{
 		"gift_kind":  "stars",
 		"gift_stars": float64(75),
@@ -59,7 +53,6 @@ func TestParseGift(t *testing.T) {
 		t.Fatalf("stars gift = %+v", g2)
 	}
 
-	// Plain service message → nil (never a gift bubble).
 	if parseGift(giftMessage(map[string]interface{}{"service_action": "gift_stars"})) != nil {
 		t.Fatal("message without gift_kind parsed as gift")
 	}
@@ -81,7 +74,6 @@ func TestGiftStarsText(t *testing.T) {
 }
 
 func TestGiftBubbleVisible(t *testing.T) {
-	// A parsed gift renders the card, regardless of service framing.
 	g := &giftData{Kind: "stargift", Stars: 100}
 	if !giftBubbleVisible(g) {
 		t.Fatal("stargift must render the card")
@@ -89,7 +81,6 @@ func TestGiftBubbleVisible(t *testing.T) {
 	if giftBubbleVisible(nil) {
 		t.Fatal("nil gift must not render the card")
 	}
-	// Converted-to-stars gifts keep the card (with the converted chip).
 	g2 := &giftData{Kind: "stargift", Stars: 100, Converted: true}
 	if !giftBubbleVisible(g2) {
 		t.Fatal("converted gift must render the card")

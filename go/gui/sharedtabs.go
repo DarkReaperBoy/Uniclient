@@ -14,24 +14,12 @@ import (
 	"uniclient/engine"
 )
 
-// Shared-media tabs in the right info panel (AyuGram profile §7, slice 78):
-// the count pills become a tappable chip bar — Photos / Videos / GIFs /
-// Voice / Audio / Files / Links. Visual tabs render a 3-column thumbnail
-// grid (tap → fullscreen viewer); voice/audio/file/link tabs render
-// jump-to-message rows. Each tab lazy-loads its window from the engine
-// (GetSharedMedia / GetSharedLinks) and caches it until the panel reloads.
-
-// sharedTab is one chip in the shared-media bar.
 type sharedTab struct {
-	key   string // engine filter ("image"…); "links" for the link list
+	key   string
 	label string
-	count int // -1 = unknown (links tab has no count row)
+	count int
 }
 
-// sharedTabsFor maps engine media-count rows to the chip bar. Photos is
-// always present (honest-empty placeholder when a chat has no media);
-// the other kinds appear only with a nonzero count, mirroring AyuGram's
-// show-only-nonempty profile tabs. Pure — locked by tests.
 func sharedTabsFor(counts []engine.SharedMediaCountItem) []sharedTab {
 	byType := make(map[string]int, len(counts))
 	for _, mc := range counts {
@@ -54,12 +42,10 @@ func sharedTabsFor(counts []engine.SharedMediaCountItem) []sharedTab {
 	if f := byType["file"]; f > 0 {
 		tabs = append(tabs, sharedTab{"file", "Files", f})
 	}
-	// Links has no count row in GetSharedMediaCounts — always offered.
 	tabs = append(tabs, sharedTab{"links", "Links", -1})
 	return tabs
 }
 
-// sharedTabLabel pluralizes a tab kind for row titles. Pure.
 func sharedRowTitle(tab, fileName string) string {
 	if fileName != "" {
 		return fileName
@@ -75,8 +61,6 @@ func sharedRowTitle(tab, fileName string) string {
 	return "Media"
 }
 
-// sharedRowSub builds the row's second line: duration (voice/audio),
-// size and a compact date. Pure.
 func sharedRowSub(tab string, it engine.SharedMediaItem) string {
 	var parts []string
 	if (tab == "voice" || tab == "audio") && it.Duration > 0 {
@@ -91,7 +75,6 @@ func sharedRowSub(tab string, it engine.SharedMediaItem) string {
 	return strings.Join(parts, " · ")
 }
 
-// fmtTabDate renders a compact row date ("Jan 2, 15:04"). Pure.
 func fmtTabDate(ms int64) string {
 	if ms <= 0 {
 		return ""
@@ -99,7 +82,6 @@ func fmtTabDate(ms int64) string {
 	return time.UnixMilli(ms).Format("Jan 2, 15:04")
 }
 
-// hostOfURL strips scheme, path and query — the link row's title. Pure.
 func hostOfURL(u string) string {
 	s := u
 	for _, p := range []string{"https://", "http://", "tg://"} {
@@ -108,7 +90,6 @@ func hostOfURL(u string) string {
 			break
 		}
 	}
-	// Cut at the first path separator or query/hash marker.
 	cut := len(s)
 	for i := 0; i < len(s); i++ {
 		if s[i] == '/' || s[i] == '?' || s[i] == '#' {
@@ -119,15 +100,10 @@ func hostOfURL(u string) string {
 	return s[:cut]
 }
 
-// estChipWidthDp estimates a chip's width: fixed padding + ~6.3dp per
-// label rune at 11sp. Wrapping is conservative by design — a chip that
-// lands on the next row early is harmless.
 func estChipWidthDp(label string) int {
 	return 18 + int(float32(len([]rune(label)))*6.3)
 }
 
-// wrapChipRows splits tab indexes into rows that fit maxWidthDp. Pure —
-// locked by tests.
 func wrapChipRows(maxWidthDp int, tabs []sharedTab) [][]int {
 	var rows [][]int
 	x := 0
@@ -152,11 +128,6 @@ func wrapChipRows(maxWidthDp int, tabs []sharedTab) [][]int {
 	return rows
 }
 
-// ── App state transitions ─────────────────────────────────────────────────
-
-// loadPanelTab lazily fetches one tab's item window for the panel chat
-// (async, guarded against duplicate loads). Errors mark the tab loaded
-// with an empty list — the row shows the honest-empty label.
 func (a *App) loadPanelTab(k chatKey, tab string) {
 	a.mu.Lock()
 	if a.panelTabPending[tab] || a.panelTabLoaded[tab] {
@@ -194,10 +165,6 @@ func (a *App) loadPanelTab(k chatKey, tab string) {
 	}()
 }
 
-// ── layout ────────────────────────────────────────────────────────────────
-
-// a.wid.sharedTabClicks pools the chip clickables per chat+tab.
-
 func (a *App) sharedTabClickable(key string) *widget.Clickable {
 	if c, ok := a.wid.sharedTabClicks[key]; ok {
 		return c
@@ -210,7 +177,6 @@ func (a *App) sharedTabClickable(key string) *widget.Clickable {
 	return c
 }
 
-// sharedTabClick sets the active tab.
 func (a *App) sharedTabClick(k chatKey, tab string) {
 	a.mu.Lock()
 	changed := a.panelTab != tab
@@ -221,8 +187,6 @@ func (a *App) sharedTabClick(k chatKey, tab string) {
 	}
 }
 
-// sharedMediaTabs renders the chip bar + active tab content, kicking the
-// tab's lazy load when needed.
 func (a *App) sharedMediaTabs(gtx layout.Context, f frame, chat *engine.ChatInfo, narrow bool) layout.Dimensions {
 	k := *f.selected
 	tabs := sharedTabsFor(f.mediaCounts)
@@ -231,8 +195,6 @@ func (a *App) sharedMediaTabs(gtx layout.Context, f frame, chat *engine.ChatInfo
 		tab = "image"
 	}
 
-	// Kick the active tab's load if it has not been fetched yet (the
-	// Photos tab is prefetched by loadPanel).
 	tabReady := f.panelTabLoaded[tab] || (tab == "image" && f.panelLoaded && f.panelTabItems[tab] != nil)
 	if tab == "links" {
 		tabReady = f.panelLinksLoaded
@@ -242,11 +204,9 @@ func (a *App) sharedMediaTabs(gtx layout.Context, f frame, chat *engine.ChatInfo
 	}
 
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-		// chip bar (wraps on narrow panes)
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.sharedChipBar(gtx, f, k, tabs, tab)
 		}),
-		// active tab content
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if !tabReady {
 				return layout.Inset{Top: unit.Dp(10), Bottom: unit.Dp(10)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -260,18 +220,17 @@ func (a *App) sharedMediaTabs(gtx layout.Context, f frame, chat *engine.ChatInfo
 				return a.sharedLinksList(gtx, f, k, narrow)
 			case "image", "video", "gif":
 				return a.sharedMediaGrid(gtx, f, k, chat, tab)
-			default: // voice / audio / file
+			default:
 				return a.sharedMediaList(gtx, f, k, tab, narrow)
 			}
 		}),
 	)
 }
 
-// sharedChipBar renders the wrapping tab chips.
 func (a *App) sharedChipBar(gtx layout.Context, f frame, k chatKey, tabs []sharedTab, active string) layout.Dimensions {
-	maxW := gtx.Dp(unit.Dp(gtx.Constraints.Max.X)) // px → dp for wrap calc
+	maxW := gtx.Dp(unit.Dp(gtx.Constraints.Max.X))
 	if px := gtx.Constraints.Max.X; px > 0 {
-		maxW = px // dp units == px at scale 1; use px directly for accuracy
+		maxW = px
 	}
 	rows := wrapChipRows(maxW, tabs)
 	children := make([]layout.FlexChild, 0, len(rows)+len(tabs))
@@ -310,9 +269,6 @@ func (a *App) sharedChipBar(gtx layout.Context, f frame, k chatKey, tabs []share
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-// sharedMediaGrid renders the visual tabs (Photos / Videos / GIFs) as a
-// 3-column thumbnail grid; tap opens the fullscreen viewer anchored at
-// that item (§12). Video cells overlay the play badge + duration pill.
 func (a *App) sharedMediaGrid(gtx layout.Context, f frame, k chatKey, chat *engine.ChatInfo, tab string) layout.Dimensions {
 	items := f.panelTabItems[tab]
 	if len(items) == 0 {
@@ -370,7 +326,6 @@ func (a *App) sharedMediaGrid(gtx layout.Context, f frame, k chatKey, chat *engi
 							if !isVideo {
 								return thumb(gtx)
 							}
-							// video overlay: thumbnail + play + duration
 							return layout.Stack{}.Layout(gtx,
 								layout.Stacked(thumb),
 								layout.Stacked(func(gtx layout.Context) layout.Dimensions {
@@ -407,7 +362,6 @@ func (a *App) sharedMediaGrid(gtx layout.Context, f frame, k chatKey, chat *engi
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, rows...)
 }
 
-// tabLabelFor names a tab kind in empty labels. Pure.
 func tabLabelFor(tab string) string {
 	switch tab {
 	case "image":
@@ -420,7 +374,6 @@ func tabLabelFor(tab string) string {
 	return tab
 }
 
-// tabRowIcon picks the row icon per tab.
 func (a *App) tabRowIcon(tab string, it engine.SharedMediaItem) *widget.Icon {
 	switch tab {
 	case "voice":
@@ -435,11 +388,6 @@ func (a *App) tabRowIcon(tab string, it engine.SharedMediaItem) *widget.Icon {
 	return iconFileAttach
 }
 
-// a.wid.sharedRowClicks pools the media/link row clickables (index-scoped per
-// render, reset when the pool outgrows 128).
-
-// sharedMediaList renders the voice / audio / file tabs as tap-to-jump
-// rows (AyuGram's lists: icon, title, duration·size·date).
 func (a *App) sharedMediaList(gtx layout.Context, f frame, k chatKey, tab string, narrow bool) layout.Dimensions {
 	items := f.panelTabItems[tab]
 	if len(items) == 0 {
@@ -491,8 +439,6 @@ func (a *App) sharedMediaList(gtx layout.Context, f frame, k chatKey, tab string
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-// sharedLinksList renders the Links tab: host title, sender + date sub,
-// tap → jump to the message (AyuGram jumps; the chat list scrolls there).
 func (a *App) sharedLinksList(gtx layout.Context, f frame, k chatKey, narrow bool) layout.Dimensions {
 	items := f.panelLinks
 	if len(items) == 0 {
@@ -551,9 +497,6 @@ func (a *App) sharedLinksList(gtx layout.Context, f frame, k chatKey, narrow boo
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-// jumpFromPanel scrolls the chat to a shared-media/link message; on
-// narrow (phone) layout the panel covers the chat, so it closes first —
-// AyuGram's phone profile behavior.
 func (a *App) jumpFromPanel(narrow bool, msgID string, ts int64) {
 	if narrow {
 		a.closePanel()

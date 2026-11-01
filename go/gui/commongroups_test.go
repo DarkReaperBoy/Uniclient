@@ -1,10 +1,5 @@
 package gui
 
-// Groups in common (AyuGram parity slice 107): the DM profile panel gains
-// the shared-groups section — engine.GetCommonChats, rows with member
-// counts, tap opens the chat. Honest empty state (section hidden when
-// none). Pure derivations locked here.
-
 import (
 	"testing"
 

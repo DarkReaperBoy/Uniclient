@@ -1,15 +1,5 @@
 package gui
 
-// Language settings (slice 140): the Language section in the settings
-// rail (tdesktop's position: after Calls). Lists the account's available
-// cloud lang-pack languages (engine.GetLanguages over
-// langpack.getLanguages for the "tdesktop" pack) with search, official /
-// beta / RTL badges; picking one applies it: server-side
-// (SetInterfaceLanguage via engine.SetLanguage), client-side (the
-// settings-surface strings reloaded through engine.GetLangStrings), and
-// persisted (AppConfig.Language). English is the embedded base — missing
-// pack keys keep their English labels, exactly how tdesktop falls back.
-
 import (
 	"gioui.org/layout"
 	"gioui.org/unit"
@@ -30,9 +20,6 @@ func init() {
 	langScroll.Axis = layout.Vertical
 }
 
-// langForAccountID picks the account driving the language surface: the
-// active chat's account, else the first telegram-platform account, else
-// the first account. Pure over the frame accounts.
 func langForAccountID(f frame) string {
 	if f.selected != nil {
 		return f.selected.AccountID
@@ -48,8 +35,6 @@ func langForAccountID(f frame) string {
 	return ""
 }
 
-// setPageLanguage renders the Language section: current-language card,
-// search field, the language list. Lazy-loads on first entry.
 func (a *App) setPageLanguage(gtx layout.Context, f frame) layout.Dimensions {
 	acc := langForAccountID(f)
 	a.ensureLanguages(acc)
@@ -59,7 +44,6 @@ func (a *App) setPageLanguage(gtx layout.Context, f frame) layout.Dimensions {
 		return a.sectionTitle(gtx, langTr(f.langStrings, "lng_languages", "Language"))
 	}))
 
-	// current language card
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Bottom: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			name := languageNameFor(f.langs, f.langCode)
@@ -89,7 +73,6 @@ func (a *App) setPageLanguage(gtx layout.Context, f frame) layout.Dimensions {
 		})
 	}))
 
-	// state rows
 	if f.langsFor != "" && !f.langsLoaded && f.langsErr == "" {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.centeredStateLabel(gtx, "Loading…")
@@ -100,7 +83,6 @@ func (a *App) setPageLanguage(gtx layout.Context, f frame) layout.Dimensions {
 			return lbl.Layout(gtx)
 		}))
 	} else {
-		// search field
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return layout.Inset{Bottom: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				for {
@@ -149,7 +131,6 @@ func (a *App) setPageLanguage(gtx layout.Context, f frame) layout.Dimensions {
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-// langRow renders one language row; tapping applies the language.
 func (a *App) langRow(gtx layout.Context, f frame, l engine.LanguageInfo, i int, acc string) layout.Dimensions {
 	active := f.langCode == l.LangCode
 	if langRowBtns[i].Clicked(gtx) && !active {
@@ -162,8 +143,6 @@ func (a *App) langRow(gtx layout.Context, f frame, l engine.LanguageInfo, i int,
 		if active {
 			bg = a.ui.p.AccentDim
 		}
-		// ButtonLayout renders the clickable's event area — a bare
-		// roundedFill would leave Clicked() dead (§1.10).
 		bl := material.ButtonLayout(a.ui.Theme, &langRowBtns[i])
 		bl.Background = bg
 		bl.CornerRadius = 10
@@ -203,7 +182,6 @@ func (a *App) langRow(gtx layout.Context, f frame, l engine.LanguageInfo, i int,
 	})
 }
 
-// badgeChips renders small badge chips in a row.
 func (a *App) badgeChips(gtx layout.Context, badges []string) layout.Dimensions {
 	return layout.Inset{Top: unit.Dp(3)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Horizontal}.Layout(gtx, badgeChipChildren(a, badges)...)
@@ -228,7 +206,6 @@ func badgeChipChildren(a *App, badges []string) []layout.FlexChild {
 	return children
 }
 
-// ensureLanguages loads the language list once per account scope.
 func (a *App) ensureLanguages(accountID string) {
 	if accountID == "" {
 		return
@@ -238,14 +215,14 @@ func (a *App) ensureLanguages(accountID string) {
 		a.mu.Unlock()
 		return
 	}
-	a.langsLoaded = true // in-flight guard
+	a.langsLoaded = true
 	a.langsFor = accountID
 	a.mu.Unlock()
 	go func() {
 		langs, err := a.eng.GetLanguages(accountID)
 		a.mu.Lock()
 		if err != nil {
-			a.langsLoaded = false // retry on next entry
+			a.langsLoaded = false
 			a.langsErr = err.Error()
 		} else {
 			a.langsErr = ""
@@ -256,8 +233,6 @@ func (a *App) ensureLanguages(accountID string) {
 	}()
 }
 
-// applyLanguage switches the app language: server-side (per-account),
-// client-side (settings-surface strings) and persisted. Runs async.
 func (a *App) applyLanguage(accountID, code string) {
 	if accountID == "" {
 		return
@@ -268,17 +243,13 @@ func (a *App) applyLanguage(accountID, code string) {
 	a.mu.Unlock()
 	a.invalidate()
 	go func() {
-		// Server-side pack load for the account (tdesktop semantics).
 		srvErr := a.eng.SetLanguage(accountID, code)
-		// Client-side: our settings-surface strings. Empty map for en —
-		// the embedded baseline IS English.
 		override := map[string]string{}
 		if code != "" && code != "en" {
 			if m, err := a.eng.GetLangStrings(accountID, code, langKeysForSettings()); err == nil {
 				override = m
 			}
 		}
-		// Persist the choice (AppConfig.Language).
 		cfgErr := a.eng.UpdateConfigFromBridge(&engine.ConfigChanges{Language: code})
 		a.mu.Lock()
 		a.langStrings = override

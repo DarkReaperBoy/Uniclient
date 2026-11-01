@@ -10,16 +10,6 @@ import (
 	"uniclient/engine"
 )
 
-// Inline emoji autocomplete (AyuGram parity, the ":shortcode" a.wid.composer
-// behavior): while the caret sits inside a ":token" (colon at a word start,
-// at least one shortcode char after it), a strip of matching emoji appears
-// above the a.wid.composer; tapping one replaces the whole ":token" with the emoji.
-// Matches come from the same Telegram keyword table the emoji panel's search
-// uses (engine GetEmojiKeywords / MessagesGetEmojiKeywords), so this works
-// on every backend that provides keywords and stays hidden elsewhere (§1.10:
-// no panel without real data).
-
-// emojiAcTokenChars: the shortcode charset Telegram keyword names use.
 func emojiAcTokenChar(r rune) bool {
 	switch {
 	case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
@@ -30,13 +20,6 @@ func emojiAcTokenChar(r rune) bool {
 	return false
 }
 
-// emojiAutocompleteQuery scans backward from the caret (rune offset) for a
-// ":token". Returns the query (token text), the rune offset where the whole
-// ":token" starts (what a tap must replace), and whether a token is active.
-// A colon only counts when it starts a new token (the rune before it is
-// not itself a token char), so URLs ("https://…") and glued words ("a:b",
-// "3:30pm") never trigger — but an emoji inserted right before a fresh
-// ":token" still does (the fast-typing chain pattern).
 func emojiAutocompleteQuery(text string, caret int) (query string, start int, active bool) {
 	r := []rune(text)
 	if caret < 0 || caret > len(r) {
@@ -54,14 +37,11 @@ func emojiAutocompleteQuery(text string, caret int) (query string, start int, ac
 		return "", 0, false
 	}
 	if i-1 > 0 && emojiAcTokenChar(r[i-2]) {
-		return "", 0, false // colon glued to a word/time/URL — not a shortcode
+		return "", 0, false
 	}
 	return string(tok), i - 1, true
 }
 
-// emojiAutocompleteMatches ranks keyword matches for a token: keywords equal
-// to the query first, then prefix matches; every keyword contributes its
-// emoticons (deduped), capped. Pure — tested against the engine table shape.
 func emojiAutocompleteMatches(kws []engine.EmojiKeywordEntry, q string, cap int) []string {
 	q = strings.ToLower(strings.TrimSpace(q))
 	if q == "" || len(kws) == 0 || cap <= 0 {
@@ -102,32 +82,23 @@ func emojiAutocompleteMatches(kws []engine.EmojiKeywordEntry, q string, cap int)
 	return out
 }
 
-// emojiAutocompleteVisible: the strip shows only with a live token and no
-// competing a.wid.composer panels (emoji picker / attach menu own that space).
 func emojiAutocompleteVisible(emojiOpen, attachOpen bool) bool {
 	return !emojiOpen && !attachOpen
 }
 
-// ── state + panel ─────────────────────────────────────────────────────────
-
-// applyEmojiAutocomplete replaces ":token" [start,caret) in the a.wid.composer with
-// the chosen emoji (the Editor's Insert replaces the active selection).
 func (a *App) applyEmojiAutocomplete(start, caret int, emoji string) {
 	a.wid.composer.SetCaret(start, caret)
 	a.wid.composer.Insert(emoji)
 	a.invalidate()
 }
 
-// layoutEmojiAutocomplete renders the suggestion strip above the a.wid.composer.
-// Derived per-frame from the a.wid.composer state — no panel state to invalidate:
-// the strip appears while a token is active and vanishes the moment it is not.
 func (a *App) layoutEmojiAutocomplete(gtx layout.Context, f frame) layout.Dimensions {
 	if !emojiAutocompleteVisible(f.emojiOpen, f.attachMenuOpen) {
 		return layout.Dimensions{}
 	}
 	start, end := a.wid.composer.Selection()
 	if start != end {
-		return layout.Dimensions{} // active text selection: don't fight it
+		return layout.Dimensions{}
 	}
 	query, _, active := emojiAutocompleteQuery(a.wid.composer.Text(), end)
 	if !active {
@@ -148,8 +119,6 @@ func (a *App) layoutEmojiAutocomplete(gtx layout.Context, f frame) layout.Dimens
 	growClickables(&a.wid.emojiAcBtns, len(sugg))
 	for i := range sugg {
 		if a.wid.emojiAcBtns[i].Clicked(gtx) {
-			// Replace the whole ":token" — the caret may have moved since
-			// the query was computed, so re-derive the replacement range.
 			s, e := a.wid.composer.Selection()
 			if s != e {
 				return layout.Dimensions{}
@@ -163,8 +132,6 @@ func (a *App) layoutEmojiAutocomplete(gtx layout.Context, f frame) layout.Dimens
 		}
 	}
 
-	// Horizontal strip anchored above the a.wid.composer (same chrome family as
-	// the bot-commands panel), scrollable when long.
 	return layout.Inset{Left: unit.Dp(12), Right: unit.Dp(12), Bottom: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return roundedFill(gtx, a.ui.p.Surface, 12, func(gtx layout.Context) layout.Dimensions {
 			return layout.UniformInset(unit.Dp(4)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {

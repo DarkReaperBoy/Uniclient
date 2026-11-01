@@ -6,10 +6,6 @@ import (
 	"uniclient/cores"
 )
 
-// Forum topic scoping (slice 118): messages cached with topic_id must filter
-// cleanly, hidden/shadow-banned rows stay excluded, and the empty topic id
-// falls back to the plain chat page.
-
 func seedTopicMessage(t *testing.T, e *Engine, msgID, topicID string, ts int64) {
 	t.Helper()
 	_, err := e.db.Exec(
@@ -27,7 +23,7 @@ func TestGetTopicMessagesFiltersByTopic(t *testing.T) {
 	seedTopicMessage(t, e, "1", "100", 1700000100)
 	seedTopicMessage(t, e, "2", "100", 1700000200)
 	seedTopicMessage(t, e, "3", "200", 1700000300)
-	seedTopicMessage(t, e, "4", "", 1700000400) // no topic (root-ish)
+	seedTopicMessage(t, e, "4", "", 1700000400)
 
 	msgs, err := e.GetTopicMessages("tg", "10", "100", 0, 50)
 	if err != nil {
@@ -48,7 +44,6 @@ func TestGetTopicMessagesFiltersByTopic(t *testing.T) {
 		t.Fatalf("topic 200 rows = %+v", msgs)
 	}
 
-	// beforeMs paging: only older rows return.
 	msgs, err = e.GetTopicMessages("tg", "10", "100", 1700000150, 50)
 	if err != nil {
 		t.Fatal(err)
@@ -57,7 +52,6 @@ func TestGetTopicMessagesFiltersByTopic(t *testing.T) {
 		t.Fatalf("paged rows = %+v", msgs)
 	}
 
-	// Empty topic id = the whole chat page.
 	msgs, err = e.GetTopicMessages("tg", "10", "", 0, 50)
 	if err != nil {
 		t.Fatal(err)
@@ -83,17 +77,13 @@ func TestGetTopicMessagesHiddenExcluded(t *testing.T) {
 	}
 }
 
-// TestGetTopicMessagesAfter (slice 189): the topic-permalink jump's
-// "toward the present" window — strict newer-than, newest-first order,
-// and the chat-wide delegation for the empty topic.
 func TestGetTopicMessagesAfter(t *testing.T) {
 	e := newTestEngine(t)
 	seedTopicMessage(t, e, "1", "100", 1700000100)
 	seedTopicMessage(t, e, "2", "100", 1700000200)
 	seedTopicMessage(t, e, "3", "200", 1700000300)
-	seedTopicMessage(t, e, "4", "", 1700000400) // root message
+	seedTopicMessage(t, e, "4", "", 1700000400)
 
-	// Newer than the middle of topic 100: only msg 2, newest-first.
 	msgs, err := e.GetTopicMessagesAfter("tg", "10", "100", 1700000150, 10)
 	if err != nil {
 		t.Fatal(err)
@@ -102,7 +92,6 @@ func TestGetTopicMessagesAfter(t *testing.T) {
 		t.Fatalf("after(150) = %v", msgIDs(msgs))
 	}
 
-	// Strict: the boundary message itself is excluded.
 	msgs, err = e.GetTopicMessagesAfter("tg", "10", "100", 1700000200, 10)
 	if err != nil {
 		t.Fatal(err)
@@ -111,7 +100,6 @@ func TestGetTopicMessagesAfter(t *testing.T) {
 		t.Fatalf("strict boundary leaked: %v", msgIDs(msgs))
 	}
 
-	// Empty topic delegates to the chat-wide window.
 	msgs, err = e.GetTopicMessagesAfter("tg", "10", "", 1700000350, 10)
 	if err != nil {
 		t.Fatal(err)
@@ -129,10 +117,6 @@ func msgIDs(msgs []CachedMessage) []string {
 	return ids
 }
 
-// ---- slice 205: pinned-topic reorder passthrough ----
-
-// forumTopicsStub: a core exposing the reorder surface (records calls
-// through a pointer field — the account holds the core by value).
 type forumTopicsStub struct {
 	cores.StubCore
 	reorderLog *[][]int
@@ -145,9 +129,6 @@ func (s forumTopicsStub) ReorderPinnedForumTopics(chatID string, topicIDs []int)
 	return nil
 }
 
-// TestReorderPinnedForumTopics: the engine forwards chatID + the full
-// pinned order; cores without the surface (or missing accounts) error
-// honestly.
 func TestReorderPinnedForumTopics(t *testing.T) {
 	e := newTestEngine(t)
 	if _, err := e.db.Exec(

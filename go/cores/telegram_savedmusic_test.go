@@ -1,10 +1,5 @@
 package cores
 
-// telegram_savedmusic_test.go — slice 206 tests-first: profile-music
-// ("saved music", tdesktop Aug 2026) pure builders — document → track
-// normalization (voice notes excluded, honest filename fallback) and the
-// account.saveMusic request shape (unsave / after_id flag mapping).
-
 import (
 	"testing"
 
@@ -81,7 +76,6 @@ func TestNormalizeMusicDocNonAudio(t *testing.T) {
 }
 
 func TestProfileMusicSaveRequest(t *testing.T) {
-	// plain save: no flags.
 	req := profileMusicSaveRequest(MusicTrackInfo{DocID: "7001", AccessHash: 5, FileRefB64: ""}, MusicTrackInfo{}, false)
 	if req.Unsave {
 		t.Error("plain save must not set unsave")
@@ -100,7 +94,6 @@ func TestProfileMusicSaveRequest(t *testing.T) {
 }
 
 func TestProfileMusicSaveRequestAfter(t *testing.T) {
-	// reorder: after_id set with the after document.
 	req := profileMusicSaveRequest(
 		MusicTrackInfo{DocID: "7001", AccessHash: 5},
 		MusicTrackInfo{DocID: "7002", AccessHash: 6}, false)
@@ -156,7 +149,6 @@ func TestAudioSendMediaRequest(t *testing.T) {
 		t.Errorf("schedule date = %d, want 3600", req.ScheduleDate)
 	}
 
-	// No caption / no schedule / no ref: honest minimal request.
 	req2 := audioSendMediaRequest(MusicTrackInfo{DocID: "8"}, "", false, 0, 7)
 	if req2.Message != "" || req2.Silent || req2.ScheduleDate != 0 {
 		t.Errorf("minimal request carries flags: %+v", req2)

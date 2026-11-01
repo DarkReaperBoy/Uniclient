@@ -57,7 +57,6 @@ import (
 
 const tgPlatform = "telegram"
 
-// TelegramCore implements the Core interface for Telegram via gotd/td (pure Go MTProto).
 type TelegramCore struct {
 	mu sync.RWMutex
 	wg sync.WaitGroup
@@ -68,15 +67,10 @@ type TelegramCore struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	// Pre-auth API — available during auth flow (before t.api is set).
-	// Used for resending OTP codes and requesting password recovery mid-auth.
-	preAuthAPI    *tg.Client
-	authPhoneHash string
-	// Serializes the on-demand pre-auth connect (ensurePreAuthAPI) so two intro
-	// langpack queries can't each spawn a duplicate client.Run goroutine.
+	preAuthAPI       *tg.Client
+	authPhoneHash    string
 	preAuthConnectMu sync.Mutex
 
-	// Config
 	apiID             int
 	apiHash           string
 	useTestDC         bool
@@ -95,148 +89,108 @@ type TelegramCore struct {
 	authed            bool
 	customDeviceModel string
 
-	// Session storage
 	sessionStorage telegram.SessionStorage
 
-	// Custom dialer for proxy support
 	dialFunc dcs.DialFunc
 
-	// Proxy config (SOCKS5/HTTP/MTProto) installed by the engine; applied each
-	// time the gotd client is (re)initialised in initClient. Mirrors AyuGram's
-	// Application::setCurrentProxy, which routes MTProto through the proxy.
 	proxyMu  sync.RWMutex
 	proxyCfg ProxyConfig
 
-	// Update handler
 	dispatcher     *tg.UpdateDispatcher
 	updateHandlers []func(Update)
 	updateMu       sync.RWMutex
 
-	// Peer cache — stores access hashes for users and channels
-	// Populated from dialog results, updates, and explicit resolves
-	userAccessHash    map[int64]int64  // userID → accessHash
-	channelAccessHash map[int64]int64  // channelID → accessHash
-	fileAccessHash    map[int64]int64  // fileID → accessHash
-	fileReference     map[int64][]byte // fileID → fileReference
-	fileMimeType      map[int64]string // fileID → mimeType
-	userNames         map[int64]string // userID → display name (first + last)
-	userUsernames     map[int64]string // userID → @username (for via-bot labels etc.)
-	userColorIDs      map[int64]int    // userID → name color_id (0..63, from User.Color.Color)
-	channelNames      map[int64]string // channelID → channel/chat title
-	peerPhotoID       map[int64]int64  // peerID → profile photo ID (for avatar downloads)
+	userAccessHash    map[int64]int64
+	channelAccessHash map[int64]int64
+	fileAccessHash    map[int64]int64
+	fileReference     map[int64][]byte
+	fileMimeType      map[int64]string
+	userNames         map[int64]string
+	userUsernames     map[int64]string
+	userColorIDs      map[int64]int
+	channelNames      map[int64]string
+	peerPhotoID       map[int64]int64
 	peerMu            sync.RWMutex
 
-	// Self user info (populated after auth)
 	selfID   int64
 	selfName string
 
-	// Interactive auth support (user mode)
-	// When OTP/2FA aren't provided upfront, the auth flow blocks on these channels.
-	authCodeCh      chan string    // caller sends OTP code here
-	authPwdCh       chan string    // caller sends 2FA password here
-	authSignUpCh    chan [2]string // caller sends [firstName, lastName] here
-	authCodeReady   chan struct{}  // closed when auth flow needs OTP (signals caller)
-	authPwdReady    chan struct{}  // closed when auth flow needs 2FA password
-	authSignUpReady chan struct{}  // closed when auth flow needs signup info
-	authSetupDone   chan struct{}  // closed after interactive auth channels are initialized
-	authDoneCh      chan struct{}  // closed when auth completes (for interactive flow)
-	authErrCh       chan error     // auth error channel (for interactive flow)
+	authCodeCh      chan string
+	authPwdCh       chan string
+	authSignUpCh    chan [2]string
+	authCodeReady   chan struct{}
+	authPwdReady    chan struct{}
+	authSignUpReady chan struct{}
+	authSetupDone   chan struct{}
+	authDoneCh      chan struct{}
+	authErrCh       chan error
 
-	// Captured sent-code delivery info — read by the engine after Authenticate
-	// returns "otp_required" so the OTP step shows the correct delivery mode.
-	// Mirrors AyuGram's getData()->codeByTelegram / codeByFragmentUrl / callTimeout.
-	authCodeByTelegram   bool   // sentCode.Type == AuthSentCodeTypeApp (code shown in Telegram app)
-	authCodeFragmentURL  string // sentCode.Type == AuthSentCodeTypeFragmentSMS → URL to open
-	authCodeEmailPattern string // sentCode.Type == AuthSentCodeTypeEmailCode → masked login email
-	authCodeTimeout      int    // sentCode.Timeout (seconds until the call countdown fires)
-	authCodeLength       int    // expected code length for the current sent code
+	authCodeByTelegram   bool
+	authCodeFragmentURL  string
+	authCodeEmailPattern string
+	authCodeTimeout      int
+	authCodeLength       int
 
-	// Email-setup-required interactive flow (EmailStatus::SetupRequired).
-	// Closed when the sent code requires a login email to be set up first.
 	authEmailReady chan struct{}
-	emailSetupMode bool   // true while the email→verify→signin detour is active
-	emailNewHash   string // phone_code_hash from the sentCode returned after email verification
+	emailSetupMode bool
+	emailNewHash   string
 
-	// QR login-token push refresh. qrRefreshCb is invoked from the OnLoginToken
-	// update handler so the engine can immediately re-export the token (or finish
-	// login) the instant the phone scans the QR — AyuGram's checkForTokenUpdate.
 	qrRefreshCb func()
 
-	// Call state
-	activeCalls  map[int64]*tgCall         // callID → active call
-	pendingDH    map[int64]*pendingDHState // callID → DH exchange state
-	confCallHash map[int64]int64           // conference callID → accessHash (from CreateConferenceCall)
-	// Outgoing conference-call invites we've sent, tracked client-side like
-	// AyuGram Data::Session::_invitedToCallUsers. callID → userID → invite.
-	// Surfaced as invited/calling participant rows and used by
-	// DeclineOutgoingConferenceInvite (Cancel invite / Stop ringing).
-	confInvites map[int64]map[int64]*confInviteEntry
+	activeCalls  map[int64]*tgCall
+	pendingDH    map[int64]*pendingDHState
+	confCallHash map[int64]int64
+	confInvites  map[int64]map[int64]*confInviteEntry
 
-	// Admin rank cache — chatID → userID → custom rank title (e.g. "admin", "owner", "Head Mod")
 	adminRanks        map[int64]map[int64]string
-	adminRanksFetched map[int64]bool // tracks which chats we've fetched admin ranks for
+	adminRanksFetched map[int64]bool
 	adminRanksMu      sync.RWMutex
 
-	// Raw signaling interceptors — used by test harnesses (e.g., ntgcalls)
-	rawSigInInterceptors  map[int64]func([]byte) // incoming: handleSignalingData
-	rawSigOutInterceptors map[int64]func([]byte) // outgoing: sendCallSignaling
+	rawSigInInterceptors  map[int64]func([]byte)
+	rawSigOutInterceptors map[int64]func([]byte)
 	rawSigInterceptorsMu  sync.RWMutex
 
-	// Forum topic cache — chatID:topicID → {title, iconColor}
 	forumTopics   map[string]forumTopicInfo
 	forumTopicsMu sync.RWMutex
 
-	// Timezone UTC-offset cache (help.getTimezonesList) — id → utcOffset seconds.
-	// Lets the business-hours block shift owner intervals to the viewer's local
-	// time (info_profile_actions.cpp ShiftedIntervals). Guarded by its own mutex
-	// so it can be filled from code already holding t.mu.
 	timezoneOffsets   map[string]int
 	timezoneOffsetsMu sync.RWMutex
 
-	// Server-config cache (help.getConfig, slice 172): the last seen
-	// tg.Config feeds the favorite-reaction read (reactions_default) so
-	// GetDefaultReaction is one RPC per connection and SetDefaultReaction
-	// mirrors its result optimistically (tdesktop applyFavorite).
 	cfgMu     sync.RWMutex
 	cachedCfg *tg.Config
 
-	// Video codec factories — set via SetVideoEncoderFactory/SetVideoDecoderFactory.
-	// Keeps telegram.go pure Go: the implementation (e.g. vpx package) is injected by bridge/tests.
 	newVideoEncoder func(width, height, bitrate int) (VideoEncoder, error)
 	newVideoDecoder func() (VideoDecoder, error)
 }
 
 var _ Core = (*TelegramCore)(nil)
 
-// VideoEncoder encodes raw YUV420P frames to VP8.
 type VideoEncoder interface {
 	Encode(yuv420p []byte, width, height int) (vp8Frame []byte, err error)
 	ForceKeyframe()
 	Close()
 }
 
-// VideoDecoder decodes VP8 frames to raw YUV420P.
 type VideoDecoder interface {
 	Decode(vp8Frame []byte) (yuv420p []byte, width, height int, err error)
 	Close()
 }
 
-// TelegramConfig holds configuration for creating a TelegramCore.
 type TelegramConfig struct {
 	APIID             int
 	APIHash           string
 	UseTestDC         bool
 	SessionStorage    telegram.SessionStorage
-	DialFunc          dcs.DialFunc // custom dialer for proxy support
-	ForceRelayICE     bool         // force relay-only ICE (needed for same-machine two-user tests)
-	ForceV2Sig        bool         // force SCTP/V2 signaling regardless of negotiated version
-	ForceV2Impl       bool         // force V2Impl signaling (InitialSetup+NegotiateChannels) regardless of version
-	ForceV2Ref        bool         // force V2Reference SDP signaling WITHOUT SCTP (override V2Impl auto-detection)
-	ForceV1Framing    bool         // force V1 encryption framing ([seq][payload] instead of [seq|flags][0x7F][len][payload])
-	ForceInstanceImpl bool         // force InstanceImpl (binary protocol, raw ICE) regardless of version
-	NoOwnOffer        bool         // don't send our own SDP offer — wait for remote's (official client interop)
-	MaxCallVersion    string       // limit protocol versions in call requests (e.g., "9.0.0" → only advertise ≤9.x)
-	MinCallVersion    string       // minimum protocol version (e.g., "9.0.0" → only advertise ≥9.x)
+	DialFunc          dcs.DialFunc
+	ForceRelayICE     bool
+	ForceV2Sig        bool
+	ForceV2Impl       bool
+	ForceV2Ref        bool
+	ForceV1Framing    bool
+	ForceInstanceImpl bool
+	NoOwnOffer        bool
+	MaxCallVersion    string
+	MinCallVersion    string
 }
 
 func NewTelegramCore(cfg TelegramConfig) *TelegramCore {
@@ -280,10 +234,8 @@ func NewTelegramCore(cfg TelegramConfig) *TelegramCore {
 	}
 }
 
-// Name returns the platform identifier for Telegram.
 func (t *TelegramCore) Name() string { return tgPlatform }
 
-// Capabilities returns the list of features supported by the Telegram core.
 func (t *TelegramCore) Capabilities() []string {
 	return []string{
 		CapText, CapChannels, CapTopics, CapCalls, CapGroupCalls,
@@ -293,18 +245,12 @@ func (t *TelegramCore) Capabilities() []string {
 	}
 }
 
-// SetProxyConfig installs/updates the proxy used for connections. It takes
-// effect the next time the gotd client is (re)initialised (on connect/reconnect),
-// matching AyuGram's setCurrentProxy which reconnects active sessions on a proxy
-// change. The engine calls this on every Settings→Proxy change and right after
-// creating a core, so a saved proxy is applied before the first connect.
 func (t *TelegramCore) SetProxyConfig(cfg ProxyConfig) {
 	t.proxyMu.Lock()
 	t.proxyCfg = cfg
 	t.proxyMu.Unlock()
 }
 
-// initClient creates the gotd client with configured options.
 func (t *TelegramCore) initClient() {
 	dispatcher := tg.NewUpdateDispatcher()
 	t.dispatcher = &dispatcher
@@ -314,20 +260,10 @@ func (t *TelegramCore) initClient() {
 		UpdateHandler:  dispatcher,
 	}
 
-	// Custom device model set via SetCustomDeviceModel (persisted in the account
-	// credentials and re-applied on every connect by Authenticate). Sent as
-	// initConnection.device_model so a "Rename current device" propagates to
-	// Telegram — and to other clients — on (re)connect, mirroring AyuGram's
-	// deviceModel() → initConnection flow (api_authorizations.cpp:59-61). Called
-	// under t.mu (held by Authenticate/StartQRAuth), so reading the field is safe.
 	if t.customDeviceModel != "" {
 		opts.Device.DeviceModel = t.customDeviceModel
 	}
 
-	// Custom resolver for proxy support. A live ProxyConfig (installed by the
-	// engine from the user's Settings→Proxy) takes precedence and builds the
-	// right resolver (SOCKS5/HTTP tunnel or obfuscated MTProto). The legacy
-	// dialFunc set directly via TelegramConfig (tests) is the fallback.
 	t.proxyMu.RLock()
 	pcfg := t.proxyCfg
 	t.proxyMu.RUnlock()
@@ -345,7 +281,6 @@ func (t *TelegramCore) initClient() {
 		})
 	}
 
-	// Test server
 	if t.useTestDC {
 		opts.DCList = dcs.Test()
 		opts.DC = 2
@@ -353,16 +288,12 @@ func (t *TelegramCore) initClient() {
 
 	t.client = telegram.NewClient(t.apiID, t.apiHash, opts)
 
-	// Register update dispatcher for new messages
 	dispatcher.OnNewMessage(func(ctx context.Context, e tg.Entities, u *tg.UpdateNewMessage) error {
 		var converted *Message
 		switch msg := u.Message.(type) {
 		case *tg.Message:
 			converted = t.convertMessage(msg)
 			t.attachSublistInfo(converted, msg, e)
-			// A login code pushed by Telegram (777000) to this already-connected
-			// session auto-fills+submits the in-progress login on another account,
-			// mirroring AyuGram Account::handleLoginCode (intro_code.cpp:59-62).
 			if code := extractLoginCode(msg); code != "" {
 				t.fireUpdate(Update{
 					Type:      UpdateLoginCode,
@@ -405,10 +336,6 @@ func (t *TelegramCore) initClient() {
 		return nil
 	})
 
-	// QR login: the server pushes updateLoginToken the instant another device
-	// scans the QR. Mirror AyuGram QrWidget::checkForTokenUpdate — fire the
-	// refresh callback so the engine re-exports the token (which then resolves
-	// to success/migrate) immediately instead of waiting for the expiry timer.
 	dispatcher.OnLoginToken(func(ctx context.Context, e tg.Entities, u *tg.UpdateLoginToken) error {
 		t.mu.RLock()
 		cb := t.qrRefreshCb
@@ -430,7 +357,6 @@ func (t *TelegramCore) initClient() {
 		return nil
 	})
 
-	// Channel/supergroup message handlers (supergroups use different update types)
 	dispatcher.OnNewChannelMessage(func(ctx context.Context, e tg.Entities, u *tg.UpdateNewChannelMessage) error {
 		var converted *Message
 		switch msg := u.Message.(type) {
@@ -488,7 +414,6 @@ func (t *TelegramCore) initClient() {
 		return nil
 	})
 
-	// Call update handlers
 	dispatcher.OnPhoneCall(func(ctx context.Context, e tg.Entities, u *tg.UpdatePhoneCall) error {
 		fmt.Printf("[tg-call] UpdatePhoneCall: %T\n", u.PhoneCall)
 		switch c := u.PhoneCall.(type) {
@@ -503,7 +428,6 @@ func (t *TelegramCore) initClient() {
 			}()
 		case *tg.PhoneCall:
 			fmt.Printf("[tg-call] PhoneCall update: %d connections, fp=%d\n", len(c.Connections), c.KeyFingerprint)
-			// For incoming calls: complete DH and start WebRTC
 			go func() {
 				if err := t.handleIncomingCallConfirmed(c); err != nil {
 					fmt.Printf("[tg-call] handleIncomingCallConfirmed ERROR: %v\n", err)
@@ -511,7 +435,6 @@ func (t *TelegramCore) initClient() {
 			}()
 		case *tg.PhoneCallDiscarded:
 			fmt.Printf("[tg-call] Discarded! id=%d reason=%T needRating=%v needDebug=%v\n", c.ID, c.Reason, c.NeedRating, c.NeedDebug)
-			// Call ended — clean up SCTP + WebRTC
 			var accessHash int64
 			t.mu.Lock()
 			if call := t.activeCalls[c.ID]; call != nil {
@@ -556,7 +479,6 @@ func (t *TelegramCore) initClient() {
 		case *tg.PhoneCallWaiting:
 			fmt.Printf("[tg-call] Waiting: id=%d receiveDate=%d\n", c.ID, c.ReceiveDate)
 		case *tg.PhoneCallRequested:
-			// Store incoming call state for later AcceptCall
 			t.mu.Lock()
 			if t.activeCalls == nil {
 				t.activeCalls = make(map[int64]*tgCall)
@@ -575,10 +497,7 @@ func (t *TelegramCore) initClient() {
 				Type:     UpdateCallState,
 				Platform: tgPlatform,
 				Call: &CallSession{
-					ID: strconv.FormatInt(c.ID, 10),
-					// Caller peer id so the panel can resolve their name/avatar,
-					// and meta[incoming] so a global listener can open the
-					// incoming-call panel (AyuGram: createCall(user, Incoming)).
+					ID:      strconv.FormatInt(c.ID, 10),
 					ChatID:  strconv.FormatInt(c.AdminID, 10),
 					IsVideo: c.Video,
 					State:   CallStateRinging,
@@ -595,7 +514,6 @@ func (t *TelegramCore) initClient() {
 		return nil
 	})
 
-	// Group call SFU transport response
 	dispatcher.OnGroupCallConnection(func(ctx context.Context, e tg.Entities, u *tg.UpdateGroupCallConnection) error {
 		fmt.Printf("[tg-group] UpdateGroupCallConnection: presentation=%v params=%d bytes\n",
 			u.Presentation, len(u.Params.Data))
@@ -603,7 +521,6 @@ func (t *TelegramCore) initClient() {
 		return nil
 	})
 
-	// Group call state updates (participant join/leave, title change, ended, etc.)
 	dispatcher.OnGroupCall(func(ctx context.Context, e tg.Entities, u *tg.UpdateGroupCall) error {
 		switch gc := u.Call.(type) {
 		case *tg.GroupCall:
@@ -613,8 +530,6 @@ func (t *TelegramCore) initClient() {
 			call := t.activeCalls[gc.ID]
 			t.mu.RUnlock()
 			if call != nil {
-				// Cache the manager settings (join-muted / messages) so the settings
-				// sheet seeds its toggles from the real server value, like AyuGram.
 				call.gcSettingsMu.Lock()
 				call.gcJoinMuted = gc.JoinMuted
 				call.gcMessagesEnabled = gc.MessagesEnabled
@@ -654,7 +569,6 @@ func (t *TelegramCore) initClient() {
 		return nil
 	})
 
-	// Group call participant updates (join, leave, mute, SSRC changes)
 	dispatcher.OnGroupCallParticipants(func(ctx context.Context, e tg.Entities, u *tg.UpdateGroupCallParticipants) error {
 		inputGC, ok := u.Call.(*tg.InputGroupCall)
 		if !ok {
@@ -680,7 +594,6 @@ func (t *TelegramCore) initClient() {
 			}
 			if p.Left {
 				fmt.Printf("[tg-group]   participant LEFT: userID=%s ssrc=%d\n", userID, p.Source)
-				// Remove from video endpoints
 				call.sfuRemoteVideoMu.Lock()
 				for eid, uid := range call.sfuRemoteVideoEndpts {
 					if uid == userID {
@@ -689,7 +602,6 @@ func (t *TelegramCore) initClient() {
 					}
 				}
 				call.sfuRemoteVideoMu.Unlock()
-				// Drop their audio-level mapping so a stale blob can't linger.
 				if src := uint32(p.Source); src != 0 {
 					call.audioLevelMu.Lock()
 					delete(call.audioLevels, src)
@@ -700,7 +612,6 @@ func (t *TelegramCore) initClient() {
 			} else {
 				fmt.Printf("[tg-group]   participant: userID=%s ssrc=%d muted=%v canSelfUnmute=%v videoJoined=%v\n",
 					userID, p.Source, p.Muted, p.CanSelfUnmute, p.VideoJoined)
-				// Track remote participant video endpoint for SFU subscription
 				if !p.Self {
 					if vid, ok := p.GetVideo(); ok && p.VideoJoined {
 						fmt.Printf("[tg-group]   video endpoint=%s sourceGroups=%d audioSource=%d\n",
@@ -735,21 +646,16 @@ func (t *TelegramCore) initClient() {
 				Volume:           vol,
 				SSRC:             int32(p.Source),
 			})
-			// Map this SSRC → user so incoming audio levels (parsed from the RTP
-			// ssrc-audio-level extension) can be attributed to the right participant.
 			if src := uint32(p.Source); src != 0 && userID != "" && call.ssrcToUser != nil {
 				call.audioLevelMu.Lock()
 				call.ssrcToUser[src] = userID
 				call.audioLevelMu.Unlock()
 			}
 		}
-		// If video endpoints changed, update SFU subscription
 		if videoEndpointsChanged {
 			go t.sendSFUVideoConstraints(call)
 		}
 
-		// Cache the server snapshot (invite-free) then merge client-side
-		// conference invites as extra invited/calling rows.
 		call.lastParticipantsMu.Lock()
 		call.lastParticipants = participants
 		call.lastParticipantsMu.Unlock()
@@ -767,9 +673,6 @@ func (t *TelegramCore) initClient() {
 		return nil
 	})
 
-	// Ephemeral group-call chat messages from any participant. AyuGram ingests
-	// updateGroupCallMessage (and the encrypted conference variant) and renders
-	// them in the call panel's message strip — see calls_group_messages.cpp.
 	dispatcher.OnGroupCallMessage(func(ctx context.Context, e tg.Entities, u *tg.UpdateGroupCallMessage) error {
 		gcID := inputGroupCallID(u.Call)
 		fromID := peerToID(u.Message.FromID)
@@ -790,14 +693,10 @@ func (t *TelegramCore) initClient() {
 		})
 		return nil
 	})
-	// Encrypted (conference / E2E) group-call messages: we have no group-call E2E
-	// chain to decrypt the payload, so we log and skip rather than surface
-	// ciphertext garbage (which would violate "never show fake content").
 	dispatcher.OnGroupCallEncryptedMessage(func(ctx context.Context, e tg.Entities, u *tg.UpdateGroupCallEncryptedMessage) error {
 		fmt.Printf("[tg-group] updateGroupCallEncryptedMessage: %d bytes (no E2E chain — skipped)\n", len(u.EncryptedMessage))
 		return nil
 	})
-	// Notification settings pushed from server (cross-device sync).
 	dispatcher.OnNotifySettings(func(ctx context.Context, e tg.Entities, u *tg.UpdateNotifySettings) error {
 		var peerType string
 		var peerID int64
@@ -827,8 +726,6 @@ func (t *TelegramCore) initClient() {
 		muted := u.NotifySettings.MuteUntil > 0
 		muteUntil := int32(0)
 		if muted && u.NotifySettings.MuteUntil < 2000000000 {
-			// int32-max sentinel (2147483647) = "until turned back on":
-			// normalize to our forever encoding (MuteUntil 0).
 			muteUntil = int32(u.NotifySettings.MuteUntil)
 		}
 		t.fireUpdate(Update{
@@ -844,7 +741,6 @@ func (t *TelegramCore) initClient() {
 		return nil
 	})
 
-	// User status updates (online/offline + coarse last-seen kinds).
 	dispatcher.OnUserStatus(func(ctx context.Context, e tg.Entities, u *tg.UpdateUserStatus) error {
 		userID := strconv.FormatInt(u.UserID, 10)
 		var isOnline bool
@@ -937,10 +833,6 @@ func (t *TelegramCore) initClient() {
 		return nil
 	})
 
-	// Voice-note transcription results (tg.updateTranscribedAudio): the
-	// server pushes these after messages.transcribeAudio — possibly several
-	// times while Pending, with the final text last. The engine stores the
-	// latest text per message and refreshes the voice bubble.
 	dispatcher.OnTranscribedAudio(func(ctx context.Context, e tg.Entities, u *tg.UpdateTranscribedAudio) error {
 		chatID := peerToID(u.Peer)
 		if chatID == "" || u.MsgID == 0 {
@@ -960,9 +852,6 @@ func (t *TelegramCore) initClient() {
 		})
 		return nil
 	})
-
-	// Reaction notification handlers — fire synthetic messages with Extra fields
-	// so the host notification system can distinguish reactions from regular messages.
 
 	dispatcher.OnBotMessageReaction(func(ctx context.Context, e tg.Entities, u *tg.UpdateBotMessageReaction) error {
 		if len(u.NewReactions) == 0 {
@@ -1007,8 +896,6 @@ func (t *TelegramCore) initClient() {
 		chatID := peerToID(u.Peer)
 		msgID := strconv.Itoa(u.MsgID)
 
-		// Full reaction state → engine cache → GUI reaction strip
-		// (cores.UpdateReactions, mirrors HistoryWidget::refreshReactionSummary).
 		results := u.Reactions.GetResults()
 		counts := make([]Reaction, 0, len(results))
 		for _, r := range results {
@@ -1118,9 +1005,6 @@ func (t *TelegramCore) initClient() {
 		return nil
 	})
 
-	// Poll results (tg.UpdateMessagePoll): fresh vote counts for a poll.
-	// Newer layers carry Peer + MsgID; older ones only PollID (== message
-	// id for message polls), where the engine resolves the chat from cache.
 	dispatcher.OnMessagePoll(func(ctx context.Context, e tg.Entities, u *tg.UpdateMessagePoll) error {
 		msgID := int64(0)
 		chatID := ""
@@ -1177,7 +1061,6 @@ func (t *TelegramCore) initClient() {
 		return nil
 	})
 
-	// following the tgcalls protocol spec in docs/tgcalls_protocol.md
 }
 
 func tgActionString(a tg.SendMessageActionClass) string {
@@ -1228,20 +1111,11 @@ func tgReactionEmoji(r tg.ReactionClass) string {
 	}
 }
 
-// Authenticate connects to Telegram and authenticates as a bot or user.
 func (t *TelegramCore) Authenticate(cfg AuthConfig) error {
-	// Clear any prior in-place auth attempt on this core (e.g. a QR token export from
-	// an intro phone↔QR toggle handled by the engine's SwitchAuthMethod) before
-	// bootstrapping the phone/bot flow, so the one-shot authSetupDone channel isn't
-	// double-closed ("close of closed channel") and the previous client.Run goroutine
-	// doesn't leak. No-op on a fresh core. The phone/bot flow then opens its own
-	// client.Run — it can't drive the auth flow over the QR connection's idle Run.
 	t.teardownPriorAuthAttempt()
 
-	// Setup phase — exclusive access
 	t.mu.Lock()
 
-	// Override API ID/Hash from config if provided
 	if v, ok := cfg.Extra["api_id"]; ok {
 		if id, err := strconv.Atoi(v); err == nil {
 			t.apiID = id
@@ -1253,17 +1127,12 @@ func (t *TelegramCore) Authenticate(cfg AuthConfig) error {
 	if v, ok := cfg.Extra["test_server"]; ok && v == "true" {
 		t.useTestDC = true
 	}
-	// Persisted custom device model (saved with the credentials by the engine's
-	// SetCustomDeviceModel). Applied to initConnection.device_model in initClient
-	// so the rename survives restarts and is re-applied to a fresh core on every
-	// connect — AyuGram propagates deviceModel() the same way, on reconnect.
 	if v, ok := cfg.Extra["device_model"]; ok && v != "" {
 		t.customDeviceModel = v
 	}
 	t.initClient()
 	t.ctx, t.cancel = context.WithCancel(context.Background())
 
-	// Set up interactive auth channels for user mode before releasing lock
 	if cfg.Mode == AuthModeUser {
 		if cfg.OTP == "" {
 			t.authCodeCh = make(chan string, 1)
@@ -1281,7 +1150,6 @@ func (t *TelegramCore) Authenticate(cfg AuthConfig) error {
 	}
 	close(t.authSetupDone)
 
-	// Release lock before blocking wait — the goroutine needs to write t.authed
 	t.mu.Unlock()
 
 	authDone := make(chan struct{})
@@ -1319,7 +1187,6 @@ func (t *TelegramCore) Authenticate(cfg AuthConfig) error {
 					password: cfg.Password2F,
 				}
 
-				// If OTP not provided upfront, set up interactive channels
 				if cfg.OTP == "" {
 					authFlow.codeCh = t.authCodeCh
 					authFlow.codeReady = t.authCodeReady
@@ -1339,7 +1206,6 @@ func (t *TelegramCore) Authenticate(cfg AuthConfig) error {
 				flow := auth.NewFlow(authFlow, auth.SendCodeOptions{})
 				authErr := t.client.Auth().IfNecessary(ctx, flow)
 				if authErr != nil && strings.Contains(authErr.Error(), "SRP_ID_INVALID") && authFlow.lastPassword != "" {
-					// SRP challenge expired — fetch fresh params and retry once
 					if pwd, getErr := api.AccountGetPassword(ctx); getErr == nil {
 						if hash, hashErr := auth.PasswordHash(
 							[]byte(authFlow.lastPassword),
@@ -1359,7 +1225,6 @@ func (t *TelegramCore) Authenticate(cfg AuthConfig) error {
 				return fmt.Errorf("unknown auth mode: %s", cfg.Mode)
 			}
 
-			// Auth succeeded — store client references
 			t.mu.Lock()
 			t.api = api
 			t.sender = sndr
@@ -1368,7 +1233,6 @@ func (t *TelegramCore) Authenticate(cfg AuthConfig) error {
 			t.authPhoneHash = ""
 			t.mu.Unlock()
 
-			// Cache self user info for SenderName population
 			if me, err := api.UsersGetUsers(ctx, []tg.InputUserClass{&tg.InputUserSelf{}}); err == nil && len(me) > 0 {
 				if u, ok := me[0].(*tg.User); ok {
 					t.mu.Lock()
@@ -1389,14 +1253,11 @@ func (t *TelegramCore) Authenticate(cfg AuthConfig) error {
 
 			close(authDone)
 
-			// Block to keep the connection alive for updates
 			<-ctx.Done()
 			return ctx.Err()
 		})
 	}()
 
-	// For interactive user mode (no pre-provided OTP), return immediately
-	// when the code is requested. The caller must then use SubmitOTP/Submit2FA.
 	if cfg.Mode == AuthModeUser && cfg.OTP == "" {
 		t.mu.Lock()
 		t.authDoneCh = authDone
@@ -1405,15 +1266,10 @@ func (t *TelegramCore) Authenticate(cfg AuthConfig) error {
 
 		select {
 		case <-authDone:
-			// Session was already valid — no OTP needed.
 			return nil
 		case <-t.authEmailReady:
-			// Server requires a login email to be set up before sending the
-			// phone code (EmailStatus::SetupRequired). The gotd flow is parked in
-			// Code(); the engine now drives the email detour on preAuthAPI.
 			return fmt.Errorf("email_setup_required")
 		case <-t.authCodeReady:
-			// OTP code was requested — return sentinel so caller knows to ask user.
 			return fmt.Errorf("otp_required")
 		case err := <-errCh:
 			if err != nil && !isContextErr(err) {
@@ -1432,7 +1288,6 @@ func (t *TelegramCore) Authenticate(cfg AuthConfig) error {
 		}
 	}
 
-	// Bot mode or user mode with pre-provided OTP — wait for completion.
 	timeout := 30 * time.Second
 	if cfg.Mode == AuthModeUser {
 		timeout = 60 * time.Second
@@ -1458,10 +1313,6 @@ func (t *TelegramCore) Authenticate(cfg AuthConfig) error {
 	}
 }
 
-// SubmitOTP provides the OTP code to an in-progress interactive auth flow.
-// Must be called after Authenticate returns "otp_required".
-// Returns nil on success, "2fa_required" if 2FA password is needed,
-// "signup_required" if the number is not registered.
 func (t *TelegramCore) SubmitOTP(code string) error {
 	if t.authCodeCh == nil {
 		return fmt.Errorf("no auth flow in progress")
@@ -1496,8 +1347,6 @@ func (t *TelegramCore) SubmitOTP(code string) error {
 	}
 }
 
-// Submit2FA provides the 2FA password to an in-progress interactive auth flow.
-// Must be called after SubmitOTP returns "2fa_required".
 func (t *TelegramCore) Submit2FA(password string) error {
 	if t.authPwdCh == nil {
 		return fmt.Errorf("no 2FA flow in progress")
@@ -1528,8 +1377,6 @@ func (t *TelegramCore) Submit2FA(password string) error {
 	}
 }
 
-// SubmitSignUp provides first/last name for a new account registration.
-// Must be called after SubmitOTP signals "signup_required".
 func (t *TelegramCore) SubmitSignUp(firstName, lastName string) error {
 	if t.authSignUpCh == nil {
 		return fmt.Errorf("no signup flow in progress")
@@ -1560,7 +1407,6 @@ func (t *TelegramCore) SubmitSignUp(firstName, lastName string) error {
 	}
 }
 
-// ResendOTPCode requests a new authentication code during an active auth flow.
 func (t *TelegramCore) ResendOTPCode() error {
 	t.mu.RLock()
 	api := t.preAuthAPI
@@ -1577,36 +1423,24 @@ func (t *TelegramCore) ResendOTPCode() error {
 	return err
 }
 
-// AuthCodeInfo returns the delivery details captured from the last sent code so
-// the engine can render the OTP step correctly (Telegram-app code, Fragment URL,
-// login-email pattern, call countdown, length). Mirrors AyuGram
-// getData()->codeBy*/emailPatternLogin/callTimeout.
 func (t *TelegramCore) AuthCodeInfo() (codeByTelegram bool, fragmentURL, emailPatternLogin string, timeout, length int) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	return t.authCodeByTelegram, t.authCodeFragmentURL, t.authCodeEmailPattern, t.authCodeTimeout, t.authCodeLength
 }
 
-// EmailSetupRequired reports whether the current auth flow is parked waiting for
-// a login email to be set up (AuthSentCodeTypeSetUpEmailRequired).
 func (t *TelegramCore) EmailSetupRequired() bool {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	return t.emailSetupMode
 }
 
-// SetQRRefreshCallback installs the callback fired when an updateLoginToken
-// arrives during QR login (used by the engine to push an immediate refresh).
 func (t *TelegramCore) SetQRRefreshCallback(cb func()) {
 	t.mu.Lock()
 	t.qrRefreshCb = cb
 	t.mu.Unlock()
 }
 
-// NoTelegramCode resends the login code via the next available method (SMS/call)
-// and flips the flow out of Telegram-app delivery, returning the new code length
-// and call countdown. Mirrors AyuGram CodeWidget::noTelegramCode → ResendCode →
-// codeByTelegram=false + callStatus/callTimeout from the next type.
 func (t *TelegramCore) NoTelegramCode() (codeLength, timeout int, err error) {
 	t.mu.RLock()
 	api := t.preAuthAPI
@@ -1645,10 +1479,6 @@ func (t *TelegramCore) NoTelegramCode() (codeLength, timeout int, err error) {
 	return length, timeout, nil
 }
 
-// SendVerifyEmailCodeDuringAuth sends a verification code to the given email as
-// part of the login-email setup flow, returning the masked pattern and code
-// length. Mirrors AyuGram EmailWidget → MTPaccount_SendVerifyEmailCode with
-// emailVerifyPurposeLoginSetup(phone, phoneHash).
 func (t *TelegramCore) SendVerifyEmailCodeDuringAuth(email string) (pattern string, length int, err error) {
 	t.mu.RLock()
 	api := t.preAuthAPI
@@ -1671,11 +1501,6 @@ func (t *TelegramCore) SendVerifyEmailCodeDuringAuth(email string) (pattern stri
 	return res.EmailPattern, res.Length, nil
 }
 
-// VerifyEmailDuringAuth confirms the email verification code and returns the
-// freshly-sent phone code's length (the server sends a phone code once the email
-// is verified). Mirrors AyuGram CodeWidget::isEmailVerification → VerifyEmail →
-// emailVerifiedLogin{sent_code}. Returns phoneLength=0 when the response carries
-// a final authorization (login already complete).
 func (t *TelegramCore) VerifyEmailDuringAuth(code string) (phoneLength int, byTelegram bool, timeout int, err error) {
 	t.mu.RLock()
 	api := t.preAuthAPI
@@ -1697,7 +1522,6 @@ func (t *TelegramCore) VerifyEmailDuringAuth(code string) (phoneLength int, byTe
 	}
 	verified, ok := res.(*tg.AccountEmailVerifiedLogin)
 	if !ok {
-		// account.emailVerified (non-login) — unexpected here; treat as done.
 		return 0, false, 0, fmt.Errorf("unexpected email verify response: %T", res)
 	}
 	sc, ok := verified.SentCode.(*tg.AuthSentCode)
@@ -1722,10 +1546,6 @@ func (t *TelegramCore) VerifyEmailDuringAuth(code string) (phoneLength int, byTe
 	return length, byTelegram, timeout, nil
 }
 
-// SubmitPhoneCodeAfterEmail completes login for the email-setup detour by signing
-// in with the phone code delivered after email verification. The normal gotd
-// flow is parked in Code(), so this drives auth.SignIn directly on preAuthAPI and
-// finalizes the session. Returns "2fa_required"/"signup_required" like SubmitOTP.
 func (t *TelegramCore) SubmitPhoneCodeAfterEmail(code string) error {
 	t.mu.RLock()
 	api := t.preAuthAPI
@@ -1757,8 +1577,6 @@ func (t *TelegramCore) SubmitPhoneCodeAfterEmail(code string) error {
 	}
 }
 
-// finishEmailAuth promotes the parked email-setup connection to an authenticated
-// session: it caches self info, publishes the API, and unblocks Authenticate.
 func (t *TelegramCore) finishEmailAuth(a *tg.AuthAuthorization) {
 	t.mu.Lock()
 	t.api = t.preAuthAPI
@@ -1791,10 +1609,6 @@ func (t *TelegramCore) finishEmailAuth(a *tg.AuthAuthorization) {
 	}
 }
 
-// Submit2FAAfterEmail completes a 2FA-protected login for the email-setup detour
-// by running the SRP check directly on preAuthAPI (the gotd flow is parked in
-// Code() so its Password() callback is unreachable). Mirrors the SRP path used
-// in Authenticate for the normal flow.
 func (t *TelegramCore) Submit2FAAfterEmail(password string) error {
 	t.mu.RLock()
 	api := t.preAuthAPI
@@ -1825,15 +1639,6 @@ func (t *TelegramCore) Submit2FAAfterEmail(password string) error {
 	return nil
 }
 
-// Get2FAStateDuringAuth fetches the live cloud-password state on the in-progress
-// (pre-auth) connection so the login UI can decide whether to offer
-// recovery-by-email. gotd's UserAuthenticator.Password callback doesn't surface
-// the account.Password it fetches, so we read it ourselves — the flow is parked
-// awaiting the password, so the connection is idle and this extra
-// account.getPassword is safe (gotd fetches its own fresh SRP params when we
-// later submit). Mirrors AyuGram CodeWidget::gotPassword parsing
-// `pwdState.hasRecovery`/`hint` (intro_code.cpp:341-358) before the 2FA step.
-// Returns (hasRecovery, hint).
 func (t *TelegramCore) Get2FAStateDuringAuth() (bool, string, error) {
 	t.mu.RLock()
 	api := t.api
@@ -1851,7 +1656,6 @@ func (t *TelegramCore) Get2FAStateDuringAuth() (bool, string, error) {
 	return pw.HasRecovery, pw.Hint, nil
 }
 
-// RequestRecoveryDuringAuth requests password recovery email during 2FA auth step.
 func (t *TelegramCore) RequestRecoveryDuringAuth() (string, error) {
 	t.mu.RLock()
 	api := t.preAuthAPI
@@ -1866,7 +1670,6 @@ func (t *TelegramCore) RequestRecoveryDuringAuth() (string, error) {
 	return result.EmailPattern, nil
 }
 
-// ResetPasswordDuringAuth initiates a password reset (7-day wait) during 2FA auth step.
 func (t *TelegramCore) ResetPasswordDuringAuth() (map[string]interface{}, error) {
 	t.mu.RLock()
 	api := t.preAuthAPI
@@ -1896,11 +1699,7 @@ func isContextErr(err error) bool {
 	return err == context.Canceled || err == context.DeadlineExceeded
 }
 
-// Logout signs out of the current Telegram session and closes the connection.
 func (t *TelegramCore) Logout() error {
-	// Snapshot under the write lock, run the logout RPC AFTER releasing:
-	// holding the WRITE lock across an RPC blocks every reader (the whole
-	// core) for the RPC's entire duration — the worst freeze variant.
 	t.mu.Lock()
 	api, ctx := t.api, t.ctx
 	t.authed = false
@@ -1918,10 +1717,7 @@ func (t *TelegramCore) Logout() error {
 	return nil
 }
 
-// GetDialogs returns the list of conversations for the authenticated user.
-// Paginates automatically to fetch up to opts.Limit dialogs (default 500).
 func (t *TelegramCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -1957,7 +1753,7 @@ func (t *TelegramCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 		})
 		if err != nil {
 			if len(allDialogs) > 0 {
-				return allDialogs, nil // Return what we got
+				return allDialogs, nil
 			}
 			return nil, fmt.Errorf("get dialogs: %w", err)
 		}
@@ -1967,22 +1763,19 @@ func (t *TelegramCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 			return allDialogs, err
 		}
 		if len(batch) == 0 {
-			break // No more dialogs
+			break
 		}
 
 		allDialogs = append(allDialogs, batch...)
 
-		// Check if server says we got everything (DialogsSlice has Count).
 		if slice, ok := result.(*tg.MessagesDialogsSlice); ok {
 			if len(allDialogs) >= slice.Count {
 				break
 			}
 		} else {
-			// Non-slice response means all dialogs fit in one response.
 			break
 		}
 
-		// Advance pagination using the last dialog's date/ID/peer.
 		last := batch[len(batch)-1]
 		if last.LastMessage != nil {
 			offsetDate = int(last.LastMessage.Timestamp.Unix())
@@ -2001,9 +1794,7 @@ func (t *TelegramCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 	return allDialogs, nil
 }
 
-// SendMessage sends a text message to the specified chat.
 func (t *TelegramCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -2149,8 +1940,6 @@ func (t *TelegramCore) SendMessage(chatID string, msg OutgoingMessage) (*Message
 	if _, ok := msg.Extra["silent"]; ok {
 		req.SetSilent(true)
 	}
-	// Link preview off (AyuGram composer toggle): Telegram generates the
-	// preview by default; no_webpage suppresses it for this message.
 	if _, ok := msg.Extra["no_webpage"]; ok {
 		req.SetNoWebpage(true)
 	}
@@ -2186,13 +1975,7 @@ func (t *TelegramCore) SendMessage(chatID string, msg OutgoingMessage) (*Message
 	return t.extractMessageFromUpdates(result, chatID), nil
 }
 
-// GetMessages retrieves messages from a chat with pagination support.
-// GetMessageByID fetches one message by its id in a chat — permalink
-// resolution (t.me/user/123, t.me/c/1234/567). Channels must go through
-// channels.getMessages (messages.getMessages rejects channel peers);
-// both paths map + entity-cache through the shared converter.
 func (t *TelegramCore) GetMessageByID(chatID string, msgID string) (*Message, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -2225,8 +2008,6 @@ func (t *TelegramCore) GetMessageByID(chatID string, msgID string) (*Message, er
 			return nil, fmt.Errorf("get channel message: %w", err)
 		}
 	} else {
-		// messages.getMessages takes no peer — message IDs resolve
-		// globally for the account (DMs and basic groups).
 		var err error
 		result, err = api.MessagesGetMessages(ctx, ids)
 		if err != nil {
@@ -2243,8 +2024,6 @@ func (t *TelegramCore) GetMessageByID(chatID string, msgID string) (*Message, er
 }
 
 func (t *TelegramCore) GetMessages(chatID string, opts PaginationOpts) ([]Message, error) {
-	// Snapshot auth + api under a brief lock; the history RPCs run unlocked
-	// (withAPI rule) so a slow/hung getHistory can never pin t.mu.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -2274,14 +2053,12 @@ func (t *TelegramCore) GetMessages(chatID string, opts PaginationOpts) ([]Messag
 		return nil, err
 	}
 
-	// Try getHistory first (works for user mode), fall back to search (works for bots)
 	result, err := api.MessagesGetHistory(ctx, &tg.MessagesGetHistoryRequest{
 		Peer:     inputPeer,
 		Limit:    limit,
 		OffsetID: offsetID,
 	})
 	if err != nil {
-		// Bots get BOT_METHOD_INVALID for getHistory — fallback to search
 		result, err = api.MessagesSearch(ctx, &tg.MessagesSearchRequest{
 			Peer:     inputPeer,
 			Q:        "",
@@ -2297,9 +2074,8 @@ func (t *TelegramCore) GetMessages(chatID string, opts PaginationOpts) ([]Messag
 	return t.convertMessages(result), nil
 }
 
-// GetPinnedMessages returns all pinned messages in a chat.
 func (t *TelegramCore) GetPinnedMessages(chatID string) ([]Message, error) {
-	api, ctx, err := t.withAPI() // withAPI rule: RPCs run unlocked
+	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -2324,14 +2100,12 @@ func (t *TelegramCore) GetPinnedMessages(chatID string) ([]Message, error) {
 	}
 
 	msgs := t.convertMessages(result)
-	// Mark all as pinned since the filter guarantees it.
 	for i := range msgs {
 		msgs[i].IsPinned = true
 	}
 	return msgs, nil
 }
 
-// EditMessage modifies the text of a previously sent message.
 func (t *TelegramCore) EditMessage(chatID string, msgID string, text string) (*Message, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -2436,19 +2210,11 @@ func (t *TelegramCore) EditMessageWithEntities(chatID string, msgID string, text
 	return t.extractMessageFromUpdates(result, chatID), nil
 }
 
-// DeleteMessage removes one or more messages from a chat.
 func (t *TelegramCore) DeleteMessage(chatID string, msgID string) error {
-	// Base interface keeps the historical always-revoke ("delete for everyone")
-	// behaviour for private/basic chats.
 	return t.DeleteMessageRevoke(chatID, msgID, true)
 }
 
-// DeleteMessageRevoke deletes a message, honoring the caller's "delete for
-// everyone" (revoke) choice for private/basic chats. AyuGram applies the same
-// revoke flag from DeleteMessagesBox's checkbox to messages.deleteMessages.
-// Channel/supergroup deletes are always for everyone, so revoke is moot there.
 func (t *TelegramCore) DeleteMessageRevoke(chatID string, msgID string, revoke bool) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -2464,7 +2230,6 @@ func (t *TelegramCore) DeleteMessageRevoke(chatID string, msgID string, revoke b
 		return err
 	}
 
-	// Channels/supergroups need channels.deleteMessages, regular chats use messages.deleteMessages
 	switch p := peer.(type) {
 	case *tg.PeerChannel:
 		hash, _ := t.resolveChannelAccessHash(p.ChannelID)
@@ -2481,19 +2246,16 @@ func (t *TelegramCore) DeleteMessageRevoke(chatID string, msgID string, revoke b
 	return err
 }
 
-// ReplyToMessage sends a text message as a reply to a specific message.
 func (t *TelegramCore) ReplyToMessage(chatID string, replyToMsgID string, msg OutgoingMessage) (*Message, error) {
 	msg.ReplyToID = replyToMsgID
 	return t.SendMessage(chatID, msg)
 }
 
-// ForwardMessage forwards a message from one chat to another.
 func (t *TelegramCore) ForwardMessage(fromChatID string, msgID string, toChatID string) (*Message, error) {
 	return t.ForwardMessageWithOptions(fromChatID, msgID, toChatID, ForwardOptions{})
 }
 
 func (t *TelegramCore) ForwardMessageWithOptions(fromChatID, msgID, toChatID string, opts ForwardOptions) (*Message, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -2537,10 +2299,7 @@ func (t *TelegramCore) ForwardMessageWithOptions(fromChatID, msgID, toChatID str
 	return t.extractMessageFromUpdates(result, toChatID), nil
 }
 
-// ForwardMessagesWithOptions forwards multiple messages in a single API call,
-// preserving album grouping.
 func (t *TelegramCore) ForwardMessagesWithOptions(fromChatID string, msgIDs []string, toChatID string, opts ForwardOptions) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -2589,7 +2348,6 @@ func (t *TelegramCore) ForwardMessagesWithOptions(fromChatID string, msgIDs []st
 	return nil
 }
 
-// ReactToMessage adds or changes an emoji reaction on a message.
 func (t *TelegramCore) ReactToMessage(chatID string, msgID string, emoji string) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -2620,7 +2378,6 @@ func (t *TelegramCore) ReactToMessage(chatID string, msgID string, emoji string)
 	return err
 }
 
-// PinMessage pins a message in a chat.
 func (t *TelegramCore) PinMessage(chatID string, msgID string) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -2639,7 +2396,6 @@ func (t *TelegramCore) PinMessage(chatID string, msgID string) error {
 	return err
 }
 
-// UnpinMessage removes the pin from a message in a chat.
 func (t *TelegramCore) UnpinMessage(chatID string, msgID string) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -2659,9 +2415,8 @@ func (t *TelegramCore) UnpinMessage(chatID string, msgID string) error {
 	return err
 }
 
-// MarkAsRead marks all messages in a chat as read.
 func (t *TelegramCore) MarkAsRead(chatID string, upToMsgID string) error {
-	api, ctx, err := t.withAPI() // withAPI rule: RPCs run unlocked
+	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
 	}
@@ -2675,7 +2430,6 @@ func (t *TelegramCore) MarkAsRead(chatID string, upToMsgID string) error {
 		return err
 	}
 
-	// Channels/supergroups use channels.readHistory
 	if ch, ok := peer.(*tg.PeerChannel); ok {
 		hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
 		_, err = api.ChannelsReadHistory(ctx, &tg.ChannelsReadHistoryRequest{
@@ -2685,7 +2439,6 @@ func (t *TelegramCore) MarkAsRead(chatID string, upToMsgID string) error {
 		return err
 	}
 
-	// Regular chats/DMs use messages.readHistory
 	inputPeer, _ := t.toInputPeer(peer)
 	_, err = api.MessagesReadHistory(ctx, &tg.MessagesReadHistoryRequest{
 		Peer:  inputPeer,
@@ -2694,21 +2447,13 @@ func (t *TelegramCore) MarkAsRead(chatID string, upToMsgID string) error {
 	return err
 }
 
-// GetReadState returns the read state for a chat.
 func (t *TelegramCore) GetReadState(chatID string) (*ReadState, error) {
-	// Telegram doesn't have a direct "who read what" API for non-group chats.
-	// For groups, it's available via MessagesGetMessageReadParticipants.
 	return &ReadState{
 		PeerLastRead: make(map[string]string),
 	}, nil
 }
 
-// UploadFile uploads a file to Telegram and sends it to the specified chat.
 func (t *TelegramCore) UploadFile(chatID string, file FileUpload, progress func(sent, total int64)) (*Message, error) {
-	// withAPI rule: never hold t.mu across the RPC. The uploader streams
-	// many chunk RPCs and the send flows through the message.Builder, so
-	// this path snapshots api+ctx+sender together (they are set and
-	// cleared as a group under t.mu).
 	api, ctx, sender, err := t.withSenderAPI()
 	if err != nil {
 		return nil, err
@@ -2737,8 +2482,6 @@ func (t *TelegramCore) UploadFile(chatID string, file FileUpload, progress func(
 
 	var result tg.UpdatesClass
 
-	// Detect media type and send appropriately for inline preview.
-	// Voice check must precede generic audio/ prefix check.
 	switch {
 	case strings.HasPrefix(file.MimeType, "image/"):
 		photo := message.UploadedPhoto(upload)
@@ -2779,11 +2522,7 @@ func (t *TelegramCore) UploadFile(chatID string, file FileUpload, progress func(
 	return t.extractMessageFromUpdates(result, chatID), nil
 }
 
-// UploadFileWithOptions uploads a file with extended options (voice, video note,
-// silent, schedule, caption). Used by the resend-as-own pipeline.
 func (t *TelegramCore) UploadFileWithOptions(chatID string, file FileUpload, opts UploadOptions, progress func(sent, total int64)) (*Message, error) {
-	// withAPI rule: never hold t.mu across the RPC — snapshot api+ctx+
-	// sender (set/cleared together under t.mu) and stream unlocked.
 	api, ctx, sender, err := t.withSenderAPI()
 	if err != nil {
 		return nil, err
@@ -2937,7 +2676,6 @@ func (t *TelegramCore) buildStyledCaption(text, entitiesJSON string) []styling.S
 	return opts
 }
 
-// SendMediaAlbum sends multiple media items as a single album (grouped message).
 func (t *TelegramCore) SendMediaAlbum(chatID string, items []AlbumItem, silent bool, scheduleDate int64) ([]*Message, error) {
 	api, ctx, err := t.withAPI()
 	if err != nil {
@@ -3013,11 +2751,7 @@ func (t *TelegramCore) SendMediaAlbum(chatID string, items []AlbumItem, silent b
 	return msgs, nil
 }
 
-// DownloadFile downloads a file from Telegram by its file reference.
 func (t *TelegramCore) DownloadFile(fileRef FileRef, dest string, progress func(recv, total int64)) error {
-	// withAPI rule (2026-09-11 freeze fix): downloads stream many chunk
-	// RPCs and can legitimately run for minutes — never pin t.mu across
-	// them (a queued writer would starve every reader and freeze the GUI).
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -3044,17 +2778,12 @@ func (t *TelegramCore) DownloadFile(fileRef FileRef, dest string, progress func(
 	return nil
 }
 
-// DownloadChatAvatar downloads the profile photo for a chat/user and saves it to destPath.
-// Uses InputPeerPhotoFileLocation to fetch the photo from the correct DC.
 func (t *TelegramCore) DownloadChatAvatar(chatID, destPath string) error {
-	// withAPI rule: avatar downloads stream chunk RPCs — never pin t.mu
-	// across them. Peer resolution runs under withPeer's short window.
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
 		return fmt.Errorf("resolve peer: %w", err)
 	}
 
-	// Look up cached photo ID for this peer.
 	var rawID int64
 	switch p := inputPeer.(type) {
 	case *tg.InputPeerUser:
@@ -3098,8 +2827,6 @@ func (t *TelegramCore) DownloadChatAvatar(chatID, destPath string) error {
 	return nil
 }
 
-// getUserAvatarB64 downloads a user's profile photo and returns it as base64.
-// Returns empty string if no photo is available or download fails.
 func (t *TelegramCore) getUserAvatarB64(userID int64) string {
 	t.peerMu.RLock()
 	photoID, ok := t.peerPhotoID[userID]
@@ -3143,15 +2870,7 @@ func (t *TelegramCore) getUserAvatarB64(userID int64) string {
 	return base64.StdEncoding.EncodeToString(data)
 }
 
-// GetUserAvatarThumb returns the small stripped-thumbnail avatar (base64 JPEG)
-// for a single user, for LAZY per-sender avatar loading in group/channel message
-// lists. Mirrors AyuGram loading only the userpics of the senders that actually
-// paint (Message::displayFromPhoto → loadUserpic, history_view_message.cpp:1878)
-// instead of bulk-fetching every participant. Cheap: users.getUsers returns the
-// inline stripped thumb, no profile-photo download. Empty string if the user has
-// no photo. Falls back to a full-photo download only when no thumb is inline.
 func (t *TelegramCore) GetUserAvatarThumb(userID string) (string, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return "", err
@@ -3174,11 +2893,9 @@ func (t *TelegramCore) GetUserAvatarThumb(userID string) (string, error) {
 			break
 		}
 	}
-	// No inline stripped thumb — fall back to a one-off photo download.
 	return t.getUserAvatarB64(id), nil
 }
 
-// SendImageBase64 sends a base64-encoded image as a photo message.
 func (t *TelegramCore) SendImageBase64(chatID string, b64 string, caption string) (*Message, error) {
 	api, ctx, err := t.withAPI()
 	if err != nil {
@@ -3220,7 +2937,6 @@ func (t *TelegramCore) SendImageBase64(chatID string, b64 string, caption string
 }
 
 func (t *TelegramCore) SendContact(chatID string, phone string, firstName string, lastName string, userID string) (*Message, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -3261,116 +2977,80 @@ func (t *TelegramCore) SendContact(chatID string, phone string, firstName string
 	return &Message{ChatID: chatID, IsOutgoing: true, Platform: tgPlatform}, nil
 }
 
-// --- Calls: V2Reference protocol (standard WebRTC SDP + encrypted signaling) ---
-// By advertising versions 11.0.0/10.0.0, the remote uses InstanceV2ReferenceImpl
-// which does standard SDP offer/answer over encrypted signaling — compatible with pion natively.
-// See docs/tgcalls_protocol.md for full protocol spec.
-
-// tgCall holds the state of an active call (1:1 or group/SFU).
 type tgCall struct {
 	id          int64
 	accessHash  int64
 	peerID      int64
 	isOutgoing  bool
 	isVideo     bool
-	isGroupCall bool      // true for SFU group calls
-	authKey     [256]byte // DH shared secret (1:1 only)
+	isGroupCall bool
+	authKey     [256]byte
 
 	pc                  *wrtc.PeerConnection
-	audioTrack          *wrtc.TrackLocalStaticRTP    // stored for SendAudioFrame (1:1 + group calls)
-	videoTrack          *wrtc.TrackLocalStaticSample // VP8 video (pion handles RTP packetization)
+	audioTrack          *wrtc.TrackLocalStaticRTP
+	videoTrack          *wrtc.TrackLocalStaticSample
 	state               CallState
 	muted               bool
 	cancel              context.CancelFunc
-	done                chan struct{} // closed when call ends, signals all goroutines to exit
-	p2pAllowed          bool          // from PhoneCall response — controls ICE transport policy
-	conferenceSupported bool          // from PhoneCall response — server allows upgrading this 1:1 call to a conference
+	done                chan struct{}
+	p2pAllowed          bool
+	conferenceSupported bool
 
-	// 1:1 call status surfaced to the panel. AyuGram binds the call panel to
-	// getKeyShaForFingerprint() / getDurationMs() / signalBarCountValue(); these
-	// fields carry the same data through the call_state meta map (guarded by mu).
-	fpValues      [4]uint64 // emoji-fingerprint indices = ComputeEmojiIndex(SHA256(authKey+g_a)), filled at DH
-	fpReady       bool      // true once the encryption key (and so the emoji) is ready
-	connectedAtMs int64     // authoritative connect time (Unix ms), set when state first becomes active
-	signalBars    int       // signal-bar count 0..4 (>0 once connected), mirrors tgcalls signalBarsUpdated
+	fpValues      [4]uint64
+	fpReady       bool
+	connectedAtMs int64
+	signalBars    int
 
-	// lastParticipants caches the most recent SERVER participant snapshot (before
-	// client-side conference invites are merged) so InviteToConferenceCall /
-	// DeclineOutgoingConferenceInvite can re-emit the list with invited/calling
-	// rows added or removed without waiting for the next server push.
 	lastParticipants   []CallParticipant
 	lastParticipantsMu sync.Mutex
 
-	// Group-call chat + server settings, cached so the audio-level lookup can find
-	// the call by chat and the settings sheet can seed its toggles from the real
-	// server state (mirrors AyuGram reading real->joinMuted()/messagesEnabled()).
 	gcChatID          string
 	gcJoinMuted       bool
 	gcMessagesEnabled bool
 	gcSettingsLoaded  bool
 	gcSettingsMu      sync.Mutex
-	// noiseSuppression is the per-call noise-suppression state applied live by
-	// SetNoiseSuppression (AyuGram call->setNoiseSuppression); the audio pipeline
-	// reads it as the source of truth for this call.
-	noiseSuppression bool
+	noiseSuppression  bool
 
-	// Real-time per-participant audio levels derived from the RTP ssrc-audio-level
-	// header extension (RFC 6464) on incoming SFU audio — the same media-layer
-	// source tgcalls feeds participant blobs from (MTProto never carries levels).
-	audioLevels  map[uint32]float64 // ssrc → last level 0..1
-	audioLevelTs map[uint32]int64   // ssrc → last update (unix ms)
-	ssrcToUser   map[uint32]string  // ssrc → userID (from participant updates)
+	audioLevels  map[uint32]float64
+	audioLevelTs map[uint32]int64
+	ssrcToUser   map[uint32]string
 	audioLevelMu sync.Mutex
 
-	// Audio receive callback (set via SetOnAudioFrame)
 	onAudioFrame func(frame []byte)
 
-	// Video receive callbacks
-	onVideoFrame        func(frame []byte)                      // raw VP8 frame (reassembled)
-	onDecodedVideoFrame func(yuv420p []byte, width, height int) // decoded YUV420P frame
+	onVideoFrame        func(frame []byte)
+	onDecodedVideoFrame func(yuv420p []byte, width, height int)
 
-	// Echo mode: received opus frames are forwarded back immediately
 	echoMode      bool
-	externalAudio bool // when true, silence sender is disabled (external code sends audio)
+	externalAudio bool
 
-	// Audio send state (atomic for concurrent access from silence sender + SendAudioFrame)
-	audioSeq         uint32 // atomic
-	audioTS          uint32 // atomic
+	audioSeq         uint32
+	audioTS          uint32
 	audioSSRC        uint32
-	audioTSIncrement uint32 // samples per frame (960=20ms, 2880=60ms, 5760=120ms at 48kHz)
+	audioTSIncrement uint32
 
-	// Video send state
 	videoSSRC    uint32
-	videoEncoder VideoEncoder // lazy-init'd by SendVideoFrameYUV
+	videoEncoder VideoEncoder
 
-	// Screencast (screen sharing) — separate VP8 track
-	screenTrack          *wrtc.TrackLocalStaticSample            // VP8 screencast
-	onScreenFrame        func(frame []byte)                      // raw VP8 frame
-	onDecodedScreenFrame func(yuv420p []byte, width, height int) // decoded YUV420P frame
-	screenSSRC           uint32                                  // our screencast SSRC
-	screenActive         bool                                    // true when we're actively sharing screen
-	screenEncoder        VideoEncoder                            // lazy-init'd by SendScreenFrameYUV
+	screenTrack          *wrtc.TrackLocalStaticSample
+	onScreenFrame        func(frame []byte)
+	onDecodedScreenFrame func(yuv420p []byte, width, height int)
+	screenSSRC           uint32
+	screenActive         bool
+	screenEncoder        VideoEncoder
 
-	// VP8 frame reassembly (incoming RTP packets → complete VP8 frames)
 	videoFrameBuf  []byte
 	screenFrameBuf []byte
 
-	// VP8 decoder for incoming video (lazy-init'd)
 	videoDecoder VideoDecoder
 
-	// Remote media SSRCs (for OnTrack dispatch: video vs screencast)
 	remoteVideoSSRC  uint32
 	remoteScreenSSRC uint32
 
-	// Call recording (client-side — captures incoming + outgoing audio to file)
 	recording     bool
 	recordingFile *os.File
 	recordingMu   sync.Mutex
 
-	// Latest decoded incoming video frame per stream kind (camera / screen),
-	// kept as YUV420P so the UI can poll & render it (GetGroupCallVideoFrame).
-	// Populated from the decode path in handleIncomingVideoRTP when a decoder
-	// is configured; empty otherwise (the UI then shows the avatar tile).
 	incomingFrameMu     sync.Mutex
 	incomingCameraFrame []byte
 	incomingCameraW     int
@@ -3379,11 +3059,6 @@ type tgCall struct {
 	incomingScreenW     int
 	incomingScreenH     int
 
-	// Latest OUTGOING (locally-captured) video frame per stream kind, kept as
-	// YUV420P so the call panel can render the local self-preview the same way
-	// AyuGram binds _outgoingVideoBubble to _call->videoOutgoing(). Populated
-	// from SendVideoFrameYUV / SendScreenFrameYUV when a capture source feeds
-	// frames; empty otherwise (the panel then shows the dark no-frame surface).
 	outgoingFrameMu     sync.Mutex
 	outgoingCameraFrame []byte
 	outgoingCameraW     int
@@ -3392,80 +3067,68 @@ type tgCall struct {
 	outgoingScreenW     int
 	outgoingScreenH     int
 
-	// Signaling encryption counter (accessed atomically via tgEncryptSignaling)
 	sigCounter uint32
 
-	// Signaling state (protected by mu)
 	mu                sync.Mutex
 	localSetupSent    bool
-	remoteSDPSet      bool   // true after first offer/answer is applied
-	remoteOfferCount  int    // how many remote offers we've processed (usually 0 or 1)
-	dtlsRole          string // our DTLS role: "active" (client) or "passive" (server)
-	localSDP          string // our initial offer/answer SDP (for extracting ICE creds)
+	remoteSDPSet      bool
+	remoteOfferCount  int
+	dtlsRole          string
+	localSDP          string
 	pendingCandidates []webrtc.ICECandidateInit
-	localSDPReady     chan struct{} // Closed when PeerConnection is ready
-	pcReady           chan struct{} // Closed when PeerConnection reaches Connected/Failed/Closed
+	localSDPReady     chan struct{}
+	pcReady           chan struct{}
 	pcReadyOnce       sync.Once
 
-	// SCTP signaling (v11.0.0) — SCTP association over MTProto signaling channel
-	useV2Sig     bool               // true when negotiated version is 11.0.0 (SCTP signaling)
-	sctpConn     *sctpSignalingConn // virtual net.Conn bridging SCTP ↔ MTProto
-	sctpAssoc    *sctp.Association  // SCTP association
-	sctpStream   *sctp.Stream       // SCTP stream 0 for signaling
-	sctpReady    chan struct{}      // closed when SCTP association + stream are ready
-	v2SigCounter uint32             // atomic counter for V2 encryption
+	useV2Sig     bool
+	sctpConn     *sctpSignalingConn
+	sctpAssoc    *sctp.Association
+	sctpStream   *sctp.Stream
+	sctpReady    chan struct{}
+	v2SigCounter uint32
 
-	// Web signaling (v4.0.0/4.0.1) — InitialSetup with inline audio/video/screencast
 	useWebSignaling bool
 
-	// V2Impl signaling (v7.0.0-9.0.0, v12.0.0-13.0.0) — InitialSetup + NegotiateChannels
 	useV2Impl              bool
-	useV1Framing           bool                 // v7.0.0: use V1 encryption framing (simple [seq][payload], no kCustomId/ACKs)
-	remoteInitialSetup     *tgInitialSetup      // stored until NegotiateChannels arrives
-	remoteNegChannels      *tgNegotiateChannels // answer to our offer (same exchangeId)
-	remoteNegChannelsOffer *tgNegotiateChannels // remote's own offer (different exchangeId, has their SSRC)
-	v2ImplExchangeSeq      uint32               // atomic counter for NegotiateChannels exchangeId
-	v2ImplHandshakeDone    bool                 // true after remote InitialSetup processed
-	answeredExchangeIDs    map[string]bool      // dedup: exchangeIds we've already answered (prevents retransmit storm)
+	useV1Framing           bool
+	remoteInitialSetup     *tgInitialSetup
+	remoteNegChannels      *tgNegotiateChannels
+	remoteNegChannelsOffer *tgNegotiateChannels
+	v2ImplExchangeSeq      uint32
+	v2ImplHandshakeDone    bool
+	answeredExchangeIDs    map[string]bool
 
-	// InstanceImpl (v5.0.0, v2.7.7) — binary protocol, raw ICE, no DTLS/SRTP
 	useInstanceImpl   bool
-	iceAgent          *ice.Agent    // raw ICE agent (no PeerConnection)
-	iceConn           *ice.Conn     // connected ICE transport
-	transportCounter  uint32        // atomic: transport encryption seq counter
-	sigEncCounter     uint32        // atomic: signaling encryption seq counter (InstanceImpl binary msgs)
-	pendingAcks       []uint32      // incoming message seqs that need ACKing (protected by mu)
-	instanceImplReady chan struct{} // closed when InstanceImpl ICE agent is ready
-	remoteUfrag       string        // remote ICE ufrag (from CandidatesListMessage)
-	remotePwd         string        // remote ICE pwd
-	remoteCredsReady  chan struct{} // closed when remote ICE ufrag/pwd received
+	iceAgent          *ice.Agent
+	iceConn           *ice.Conn
+	transportCounter  uint32
+	sigEncCounter     uint32
+	pendingAcks       []uint32
+	instanceImplReady chan struct{}
+	remoteUfrag       string
+	remotePwd         string
+	remoteCredsReady  chan struct{}
 
-	// Remote media state (updated from incoming MediaState messages)
 	remoteMuted           bool
-	remoteVideoState      string // "inactive", "active"
-	remoteScreencastState string // "inactive", "active"
+	remoteVideoState      string
+	remoteScreencastState string
 	remoteVideoRotation   int
 	remoteLowBattery      bool
 
-	// SFU (group call) transport — received via UpdateGroupCallConnection
-	sfuTransportReady chan struct{} // closed when SFU transport JSON arrives
-	sfuTransportJSON  string        // raw JSON from UpdateGroupCallConnection
+	sfuTransportReady chan struct{}
+	sfuTransportJSON  string
 
-	// SFU video subscription — data channel sends ReceiverVideoConstraints to tell SFU which video to forward
-	sfuDataChannel       *webrtc.DataChannel // data channel to SFU for video subscription
-	sfuDataChannelOpen   chan struct{}       // closed when data channel opens
-	sfuRemoteVideoEndpts map[string]string   // endpointID → userID (remote participants with video)
-	sfuRemoteVideoMu     sync.Mutex          // protects sfuRemoteVideoEndpts
+	sfuDataChannel       *webrtc.DataChannel
+	sfuDataChannelOpen   chan struct{}
+	sfuRemoteVideoEndpts map[string]string
+	sfuRemoteVideoMu     sync.Mutex
 
-	// Test harness support — when skipWebRTC is true, DH completes but no PeerConnection is created.
-	// The test reads authKey, connections, and protocol from the call state.
 	skipWebRTC  bool
-	connections []tg.PhoneConnectionClass // stored from PhoneCall update
-	protocol    *tg.PhoneCallProtocol     // negotiated protocol from PhoneCall
-	dhDone      chan struct{}             // closed when DH is complete (for test sync)
+	connections []tg.PhoneConnectionClass
+	protocol    *tg.PhoneCallProtocol
+	dhDone      chan struct{}
 }
 
-// tgCallSignaling types for V2 JSON signaling.
 type tgInitialSetup struct {
 	Type         string              `json:"@type"`
 	Ufrag        string              `json:"ufrag"`
@@ -3484,7 +3147,6 @@ type tgMediaDesc struct {
 	RTPExtensions []tgRTPExtension `json:"rtpExtensions"`
 }
 
-// tgWebSSRCGroup — web uses integer SSRCs (not strings like V2Impl)
 type tgWebSSRCGroup struct {
 	Semantics string `json:"semantics,omitempty"`
 	SSRCs     []int  `json:"ssrcs"`
@@ -3526,7 +3188,7 @@ type tgPayloadType struct {
 
 type tgFeedbackType struct {
 	Type    string `json:"type"`
-	Subtype string `json:"subtype"` // always serialize, even empty — matches C++ format
+	Subtype string `json:"subtype"`
 }
 
 type tgRTPExtension struct {
@@ -3552,14 +3214,6 @@ type tgMediaState struct {
 	LowBattery      bool   `json:"lowBattery"`
 }
 
-// applyRemoteMediaState updates a call's remote media state fields from an incoming MediaState
-// and fires an UpdateCallState to notify the UI.
-// unmarshalCallSignal parses ONE remote call-signaling payload (F-79):
-// the typed unmarshal used to be called with its error DROPPED — a
-// corrupt or type-mismatched payload fed a ZERO struct into the
-// handlers (MediaState zeroing remote mute/rotation state; empty
-// Fingerprints reaching [0] indexing below = remote crash). Callers
-// MUST skip the rest of the case when it returns an error.
 func unmarshalCallSignal(data []byte, v any) error {
 	if err := json.Unmarshal(data, v); err != nil {
 		return fmt.Errorf("call signal parse: %w", err)
@@ -3567,9 +3221,6 @@ func unmarshalCallSignal(data []byte, v any) error {
 	return nil
 }
 
-// fingerprintLabel returns the DTLS setup label without panicking on an
-// empty slice (F-79: Fingerprints[0] on a remote InitialSetup with no
-// fingerprints was a remote-triggered index-out-of-range crash).
 func fingerprintLabel(setup tgInitialSetup) string {
 	if len(setup.Fingerprints) == 0 {
 		return "none"
@@ -3577,9 +3228,6 @@ func fingerprintLabel(setup tgInitialSetup) string {
 	return setup.Fingerprints[0].Setup
 }
 
-// firstSSRC returns the first content's SSRC without panicking on an
-// empty contents array (F-79: our answer path echoed the REMOTE
-// offer's contents — an empty remote array crashed us).
 func firstSSRC(contents []tgMediaContent) string {
 	if len(contents) == 0 {
 		return ""
@@ -3600,7 +3248,6 @@ func (t *TelegramCore) applyRemoteMediaState(call *tgCall, ms tgMediaState) {
 	call.remoteLowBattery = ms.LowBattery
 	call.mu.Unlock()
 
-	// Build meta for the host
 	meta := map[string]string{
 		"remote_muted":            strconv.FormatBool(ms.Muted),
 		"remote_video_state":      ms.VideoState,
@@ -3609,8 +3256,6 @@ func (t *TelegramCore) applyRemoteMediaState(call *tgCall, ms tgMediaState) {
 		"remote_low_battery":      strconv.FormatBool(ms.LowBattery),
 		"conference_supported":    strconv.FormatBool(call.conferenceSupported),
 	}
-	// Ride the live status (fingerprint emoji / connect time / signal bars) on
-	// every recurring media-state push so the panel keeps them up to date.
 	for k, v := range call.callStatusMeta() {
 		meta[k] = v
 	}
@@ -3625,12 +3270,6 @@ func (t *TelegramCore) applyRemoteMediaState(call *tgCall, ms tgMediaState) {
 	})
 }
 
-// callStatusMeta returns the live status meta the 1:1 call panel binds to —
-// the encryption-fingerprint emoji indices (AyuGram getKeyShaForFingerprint),
-// the authoritative connect time (getDurationMs) and the signal-bar count
-// (signalBarCountValue). Each entry is omitted until it becomes meaningful so
-// the panel only shows the badge/bars/duration once they are real. Safe to call
-// without holding c.mu.
 func (c *tgCall) callStatusMeta() map[string]string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -3645,23 +3284,12 @@ func (c *tgCall) callStatusMeta() map[string]string {
 	if c.signalBars > 0 {
 		m["signal_bars"] = strconv.Itoa(c.signalBars)
 	}
-	// Local media state — AyuGram binds the mute/camera/screencast buttons to
-	// mutedValue() / isSharingCamera() / isSharingScreen(). Always present so the
-	// panel reflects engine truth (e.g. the screencast "Stop" state) rather than
-	// client-side optimistic flags.
 	m["is_muted"] = strconv.FormatBool(c.muted)
 	m["is_camera_on"] = strconv.FormatBool(c.isVideo)
 	m["is_screen_sharing"] = strconv.FormatBool(c.screenActive)
 	return m
 }
 
-// fireCallStateUpdate emits an UpdateCallState carrying the call's COMPLETE UI
-// meta — remote media state, conference support, the live status badge
-// (fingerprint/connect/signal) and the local media state (mute/camera/screen).
-// Used after local mute/camera/screencast toggles so the panel reflects engine
-// truth immediately; the full meta (not just callStatusMeta) is rebuilt so a
-// local toggle never wipes the remote-mute/battery state the panel is showing.
-// Must NOT be called while holding call.mu.
 func (t *TelegramCore) fireCallStateUpdate(call *tgCall) {
 	if call == nil {
 		return
@@ -3702,10 +3330,6 @@ func (t *TelegramCore) fireCallStateUpdate(call *tgCall) {
 	})
 }
 
-// markCallConnected stamps the authoritative connect time once (AyuGram sets
-// _startTime = crl::now() on the first transition to Established) and raises the
-// signal bars to full — connectivity is by definition established at this point.
-// Must be called while holding c.mu.
 func (c *tgCall) markCallConnected() {
 	if c.connectedAtMs == 0 {
 		c.connectedAtMs = time.Now().UnixMilli()
@@ -3713,15 +3337,8 @@ func (c *tgCall) markCallConnected() {
 	c.signalBars = tgCallSignalBarCount
 }
 
-// tgCallSignalBarCount mirrors Calls::Call::kSignalBarCount (calls_call.h:212).
 const tgCallSignalBarCount = 4
 
-// computeEmojiFingerprintValues reproduces AyuGram's call security-emoji math
-// (calls_emoji_fingerprint.cpp): SHA256(authKey ++ g_a) split into four 8-byte
-// big-endian values with the top bit of each cleared (ComputeEmojiIndex). The
-// panel maps each value modulo the 333-emoji table to one verification emoji.
-// authKey and gA are conventionally 256 bytes; gA is left-padded to 256 to match
-// the caller's on-the-wire representation so both peers derive the same emoji.
 func computeEmojiFingerprintValues(authKey, gA []byte) [4]uint64 {
 	ga := gA
 	if len(ga) < 256 {
@@ -3732,7 +3349,7 @@ func computeEmojiFingerprintValues(authKey, gA []byte) [4]uint64 {
 	h := sha256.New()
 	h.Write(authKey)
 	h.Write(ga)
-	sum := h.Sum(nil) // 32 bytes
+	sum := h.Sum(nil)
 	var vals [4]uint64
 	for i := 0; i < 4; i++ {
 		b := sum[i*8 : i*8+8]
@@ -3748,21 +3365,14 @@ func computeEmojiFingerprintValues(authKey, gA []byte) [4]uint64 {
 	return vals
 }
 
-// isV2ImplVersion returns true if the negotiated version uses InstanceV2Impl signaling
-// (InitialSetup + NegotiateChannels instead of SDP offer/answer).
-// V2Impl versions: 7.0.0 (V1 encryption), 8.0.0-9.0.0 (V2 encryption), 12.0.0-13.0.0 (V3/SCTP).
 func isV2ImplVersion(v string) bool {
 	return v == "8.0.0" || v == "13.0.0"
 }
 
-// isV3Transport returns true if the version uses SCTP signaling transport.
 func isV3Transport(v string) bool {
 	return v == "13.0.0"
 }
 
-// filterVersions returns a filtered version list where only versions with
-// major number ≤ maxVer's major number are included. Used for testing specific
-// protocol versions (prevents server from negotiating a higher version).
 func filterVersions(versions []string, maxVer string, minVers ...string) []string {
 	var maxMajor, minMajor int
 	if maxVer != "" {
@@ -3783,13 +3393,11 @@ func filterVersions(versions []string, maxVer string, minVers ...string) []strin
 		}
 	}
 	if len(filtered) == 0 {
-		return versions // safety: don't return empty
+		return versions
 	}
 	return filtered
 }
 
-// isWebVersion returns true if the version uses Telegram Web signaling format
-// (InitialSetup with inline audio/video/screencast, no NegotiateChannels).
 func isWebVersion(v string) bool {
 	switch v {
 	case "4.0.0", "4.0.1":
@@ -3798,13 +3406,6 @@ func isWebVersion(v string) bool {
 	return false
 }
 
-// =============================================================================
-// InstanceImpl binary message protocol (v5.0.0 / v2.7.7)
-// Binary typed messages over dual encrypted channels (signaling + transport).
-// No SDP, no DTLS, no SRTP — raw ICE + AES-CTR encryption.
-// =============================================================================
-
-// InstanceImpl message type IDs (matching Message.h)
 const (
 	instanceMsgCandidatesList    = 1
 	instanceMsgVideoFormats      = 2
@@ -3820,13 +3421,11 @@ const (
 	instanceMsgEmpty             = 0xFE
 )
 
-// Seq flag bits
 const (
 	seqSingleMessageBit = uint32(1) << 31
 	seqRequiresAckBit   = uint32(1) << 30
 )
 
-// InstanceImpl SSRC assignments (hardcoded in MediaManager.cpp)
 const (
 	instanceSSRCAudioIncoming = 1
 	instanceSSRCAudioOutgoing = 2
@@ -3834,7 +3433,6 @@ const (
 	instanceSSRCVideoOutgoing = 4
 )
 
-// serializeInstanceImplString writes [uint32 BE length][string bytes]
 func serializeInstanceImplString(buf *bytes.Buffer, s string) {
 	var lenBuf [4]byte
 	binary.BigEndian.PutUint32(lenBuf[:], uint32(len(s)))
@@ -3842,7 +3440,6 @@ func serializeInstanceImplString(buf *bytes.Buffer, s string) {
 	buf.WriteString(s)
 }
 
-// deserializeInstanceImplString reads [uint32 BE length][string bytes]
 func deserializeInstanceImplString(data []byte, pos int) (string, int, error) {
 	if pos+4 > len(data) {
 		return "", pos, fmt.Errorf("string: not enough bytes for length at pos %d", pos)
@@ -3856,13 +3453,10 @@ func deserializeInstanceImplString(data []byte, pos int) (string, int, error) {
 	return s, pos + length, nil
 }
 
-// serializeCandidatesListMsg builds the binary CandidatesListMessage.
-// Format: [1 byte count] [for each: [uint32 len][candidate string]] [uint32 len][ufrag] [uint32 len][pwd]
 func serializeCandidatesListMsg(candidates []string, ufrag, pwd string) []byte {
 	var buf bytes.Buffer
 	buf.WriteByte(byte(len(candidates)))
 	for _, c := range candidates {
-		// JsepIceCandidate format: "candidate:..." prefix expected by tgcalls
 		if !strings.HasPrefix(c, "candidate:") {
 			c = "candidate:" + c
 		}
@@ -3873,7 +3467,6 @@ func serializeCandidatesListMsg(candidates []string, ufrag, pwd string) []byte {
 	return buf.Bytes()
 }
 
-// deserializeCandidatesListMsg parses a binary CandidatesListMessage.
 func deserializeCandidatesListMsg(data []byte) (candidates []string, ufrag, pwd string, err error) {
 	if len(data) < 1 {
 		return nil, "", "", fmt.Errorf("CandidatesList: empty")
@@ -3899,15 +3492,10 @@ func deserializeCandidatesListMsg(data []byte) (candidates []string, ufrag, pwd 
 	return candidates, ufrag, pwd, nil
 }
 
-// serializeVideoFormatsMsg builds the binary VideoFormatsMessage.
-// We send an empty list (audio-only) with encodersCount=0.
 func serializeVideoFormatsMsg() []byte {
-	// [1 byte: 0 formats] [1 byte: 0 encoders]
 	return []byte{0, 0}
 }
 
-// serializeRemoteMediaStateMsg builds the binary RemoteMediaStateMessage.
-// bit 0: audio (1=Active), bits 1-2: video state (0=Inactive)
 func serializeRemoteMediaStateMsg(audioActive bool, videoState int) []byte {
 	state := byte(0)
 	if audioActive {
@@ -3917,7 +3505,6 @@ func serializeRemoteMediaStateMsg(audioActive bool, videoState int) []byte {
 	return []byte{state}
 }
 
-// serializeNetworkStatusMsg builds the binary RemoteNetworkStatusMessage (v5.0.0 only).
 func serializeNetworkStatusMsg(isLowCost, isLowDataRequested bool) []byte {
 	buf := []byte{0, 0}
 	if isLowCost {
@@ -3929,12 +3516,10 @@ func serializeNetworkStatusMsg(isLowCost, isLowDataRequested bool) []byte {
 	return buf
 }
 
-// instanceImplSerializeMsg creates the plaintext for a single InstanceImpl message.
-// Format: [4 bytes seq|flags][1 byte typeID][message data]
 func instanceImplSerializeMsg(typeID byte, data []byte, counter *uint32, requiresAck bool) []byte {
 	seq := atomic.AddUint32(counter, 1)
 
-	singleMessage := !requiresAck // single-message optimization only for non-ack messages
+	singleMessage := !requiresAck
 	if singleMessage {
 		seq |= seqSingleMessageBit
 	}
@@ -3949,8 +3534,6 @@ func instanceImplSerializeMsg(typeID byte, data []byte, counter *uint32, require
 	return buf
 }
 
-// instanceImplAppendAcks appends pending ACK messages to an existing serialized buffer.
-// Each ACK: [4 bytes seq][1 byte 0xFF]
 func instanceImplAppendAcks(buf []byte, ackSeqs []uint32) []byte {
 	for _, ackSeq := range ackSeqs {
 		var ackBuf [5]byte
@@ -3961,8 +3544,6 @@ func instanceImplAppendAcks(buf []byte, ackSeqs []uint32) []byte {
 	return buf
 }
 
-// tgEncryptInstanceImplSignaling encrypts an InstanceImpl binary message for the signaling channel.
-// x = 128 (outgoing) or 136 (incoming). Same AES-CTR as V2, but with typed messages, not kCustomId.
 func tgEncryptInstanceImplSignaling(key []byte, plaintext []byte, isOutgoing bool) ([]byte, error) {
 	x := 128
 	if !isOutgoing {
@@ -3989,14 +3570,11 @@ func tgEncryptInstanceImplSignaling(key []byte, plaintext []byte, isOutgoing boo
 	return packet, nil
 }
 
-// tgDecryptInstanceImplSignaling decrypts an InstanceImpl signaling packet and returns decoded messages.
-// Returns: list of (typeID, data, seq) tuples.
 func tgDecryptInstanceImplSignaling(key []byte, packet []byte, isOutgoing bool) ([]instanceImplMsg, error) {
 	if len(packet) < 21 {
 		return nil, fmt.Errorf("InstanceImpl signaling too short: %d", len(packet))
 	}
 
-	// Decrypt direction: swap for receiving
 	x := 136
 	if !isOutgoing {
 		x = 128
@@ -4013,7 +3591,6 @@ func tgDecryptInstanceImplSignaling(key []byte, packet []byte, isOutgoing bool) 
 	plaintext := make([]byte, len(ciphertext))
 	cipher.NewCTR(block, aesIv[:]).XORKeyStream(plaintext, ciphertext)
 
-	// Verify msgKey
 	h := sha256.New()
 	h.Write(key[88+x : 88+x+32])
 	h.Write(plaintext)
@@ -4025,8 +3602,6 @@ func tgDecryptInstanceImplSignaling(key []byte, packet []byte, isOutgoing bool) 
 	return parseInstanceImplMessages(plaintext)
 }
 
-// tgEncryptTransport encrypts data for the InstanceImpl transport channel (raw ICE).
-// x = 0 (outgoing) or 8 (incoming).
 func tgEncryptTransport(key []byte, plaintext []byte, isOutgoing bool) ([]byte, error) {
 	x := 0
 	if !isOutgoing {
@@ -4053,13 +3628,11 @@ func tgEncryptTransport(key []byte, plaintext []byte, isOutgoing bool) ([]byte, 
 	return packet, nil
 }
 
-// tgDecryptTransport decrypts an InstanceImpl transport packet.
 func tgDecryptTransport(key []byte, packet []byte, isOutgoing bool) ([]instanceImplMsg, error) {
 	if len(packet) < 21 {
 		return nil, fmt.Errorf("InstanceImpl transport too short: %d", len(packet))
 	}
 
-	// Decrypt direction: swap for receiving
 	x := 8
 	if !isOutgoing {
 		x = 0
@@ -4076,7 +3649,6 @@ func tgDecryptTransport(key []byte, packet []byte, isOutgoing bool) ([]instanceI
 	plaintext := make([]byte, len(ciphertext))
 	cipher.NewCTR(block, aesIv[:]).XORKeyStream(plaintext, ciphertext)
 
-	// Verify msgKey
 	h := sha256.New()
 	h.Write(key[88+x : 88+x+32])
 	h.Write(plaintext)
@@ -4091,11 +3663,9 @@ func tgDecryptTransport(key []byte, packet []byte, isOutgoing bool) ([]instanceI
 type instanceImplMsg struct {
 	TypeID byte
 	Data   []byte
-	Seq    uint32 // raw seq including flags
+	Seq    uint32
 }
 
-// parseInstanceImplMessages parses decrypted plaintext containing one or more binary messages.
-// Format: [4 bytes seq][1 byte typeID][message data] ... (possibly bundled)
 func parseInstanceImplMessages(plaintext []byte) ([]instanceImplMsg, error) {
 	if len(plaintext) < 5 {
 		return nil, fmt.Errorf("decrypted payload too short: %d", len(plaintext))
@@ -4131,17 +3701,13 @@ func parseInstanceImplMessages(plaintext []byte) ([]instanceImplMsg, error) {
 
 		switch typeID {
 		case instanceMsgEmpty:
-			// No payload
 		case instanceMsgAck:
-			// No payload — just the seq being ACKed
 			messages = append(messages, instanceImplMsg{TypeID: typeID, Seq: seq})
 		case instanceMsgAudioData, instanceMsgVideoData:
-			// Binary data — if single message, rest of packet is data
 			if singleMessage {
 				messages = append(messages, instanceImplMsg{TypeID: typeID, Data: plaintext[pos:], Seq: seq})
 				pos = len(plaintext)
 			} else {
-				// Multi-message: [uint16 length][data]
 				if pos+2 > len(plaintext) {
 					break
 				}
@@ -4154,7 +3720,6 @@ func parseInstanceImplMessages(plaintext []byte) ([]instanceImplMsg, error) {
 				pos += dataLen
 			}
 		case instanceMsgUnstructuredData:
-			// [uint16 length][data] (same as audio/video in non-single mode)
 			if singleMessage {
 				messages = append(messages, instanceImplMsg{TypeID: typeID, Data: plaintext[pos:], Seq: seq})
 				pos = len(plaintext)
@@ -4171,35 +3736,29 @@ func parseInstanceImplMessages(plaintext []byte) ([]instanceImplMsg, error) {
 				pos += dataLen
 			}
 		case instanceMsgCandidatesList:
-			// Rest of this message segment — for multi-msg, we read until we can't anymore
-			// For simplicity: if single-message, rest is data. Otherwise, parse known format.
 			remaining := plaintext[pos:]
 			messages = append(messages, instanceImplMsg{TypeID: typeID, Data: remaining, Seq: seq})
-			pos = len(plaintext) // CandidatesList is always the main message
+			pos = len(plaintext)
 		case instanceMsgVideoFormats:
 			remaining := plaintext[pos:]
 			messages = append(messages, instanceImplMsg{TypeID: typeID, Data: remaining, Seq: seq})
 			pos = len(plaintext)
 		case instanceMsgRemoteMediaState:
-			// 1 byte state
 			if pos < len(plaintext) {
 				messages = append(messages, instanceImplMsg{TypeID: typeID, Data: plaintext[pos : pos+1], Seq: seq})
 				pos++
 			}
 		case instanceMsgVideoParameters:
-			// 4 bytes
 			if pos+4 <= len(plaintext) {
 				messages = append(messages, instanceImplMsg{TypeID: typeID, Data: plaintext[pos : pos+4], Seq: seq})
 				pos += 4
 			}
 		case instanceMsgBatteryLevelIsLow:
-			// 1 byte
 			if pos < len(plaintext) {
 				messages = append(messages, instanceImplMsg{TypeID: typeID, Data: plaintext[pos : pos+1], Seq: seq})
 				pos++
 			}
 		case instanceMsgNetworkStatus:
-			// 1-2 bytes
 			end := pos + 2
 			if end > len(plaintext) {
 				end = len(plaintext)
@@ -4207,10 +3766,8 @@ func parseInstanceImplMessages(plaintext []byte) ([]instanceImplMsg, error) {
 			messages = append(messages, instanceImplMsg{TypeID: typeID, Data: plaintext[pos:end], Seq: seq})
 			pos = end
 		case instanceMsgRequestVideo:
-			// No payload
 			messages = append(messages, instanceImplMsg{TypeID: typeID, Data: nil, Seq: seq})
 		default:
-			// Unknown — skip to end
 			pos = len(plaintext)
 		}
 	}
@@ -4218,20 +3775,15 @@ func parseInstanceImplMessages(plaintext []byte) ([]instanceImplMsg, error) {
 	return messages, nil
 }
 
-// sendInstanceImplSignaling sends a binary InstanceImpl message via the signaling channel (MTProto).
 func (t *TelegramCore) sendInstanceImplSignaling(call *tgCall, typeID byte, data []byte, requiresAck bool) {
-	// Build the message plaintext
 	plaintext := instanceImplSerializeMsg(typeID, data, &call.sigEncCounter, requiresAck)
 
-	// Append pending ACKs
 	call.mu.Lock()
 	acks := call.pendingAcks
 	call.pendingAcks = nil
 	call.mu.Unlock()
 	if len(acks) > 0 {
-		// Can't be single-message if we're appending ACKs — clear the bit
 		if !requiresAck {
-			// Clear single message bit since we're appending more messages
 			seq := binary.BigEndian.Uint32(plaintext[:4])
 			seq &^= seqSingleMessageBit
 			binary.BigEndian.PutUint32(plaintext[:4], seq)
@@ -4247,7 +3799,6 @@ func (t *TelegramCore) sendInstanceImplSignaling(call *tgCall, typeID byte, data
 
 	fmt.Printf("[tg-call] InstanceImpl signaling tx: typeID=%d size=%d acks=%d\n", typeID, len(data), len(acks))
 
-	// Check raw output interceptor
 	t.rawSigInterceptorsMu.RLock()
 	outInterceptor := t.rawSigOutInterceptors[call.id]
 	t.rawSigInterceptorsMu.RUnlock()
@@ -4265,13 +3816,11 @@ func (t *TelegramCore) sendInstanceImplSignaling(call *tgCall, typeID byte, data
 	}
 }
 
-// sendInstanceImplTransport sends an encrypted message over the raw ICE transport channel.
 func (t *TelegramCore) sendInstanceImplTransport(call *tgCall, typeID byte, data []byte) error {
 	if call.iceConn == nil {
 		return fmt.Errorf("ICE not connected")
 	}
 
-	// AudioDataMessage/VideoDataMessage don't require ACK — use single-message packet
 	requiresAck := false
 	singleMessage := true
 
@@ -4297,7 +3846,6 @@ func (t *TelegramCore) sendInstanceImplTransport(call *tgCall, typeID byte, data
 	return err
 }
 
-// handleInstanceImplSignaling handles incoming signaling for an InstanceImpl call.
 func (t *TelegramCore) handleInstanceImplSignaling(call *tgCall, data []byte) {
 	messages, err := tgDecryptInstanceImplSignaling(call.authKey[:], data, call.isOutgoing)
 	if err != nil {
@@ -4337,7 +3885,6 @@ func (t *TelegramCore) handleInstanceImplSignaling(call *tgCall, data []byte) {
 				}
 			}
 
-			// Add remote candidates to ICE agent
 			if call.iceAgent != nil {
 				for _, candStr := range candidates {
 					candStr = strings.TrimPrefix(candStr, "candidate:")
@@ -4360,7 +3907,6 @@ func (t *TelegramCore) handleInstanceImplSignaling(call *tgCall, data []byte) {
 				audioActive := (msg.Data[0] & 1) != 0
 				videoState := (msg.Data[0] >> 1) & 0x03
 				fmt.Printf("[tg-call] InstanceImpl: got MediaState counter=%d audio=%v video=%d\n", counter, audioActive, videoState)
-				// Map binary MediaState to tgMediaState and apply
 				ms := tgMediaState{
 					Muted: !audioActive,
 				}
@@ -4392,7 +3938,6 @@ func (t *TelegramCore) handleInstanceImplSignaling(call *tgCall, data []byte) {
 		}
 	}
 
-	// Send pending ACKs immediately via an empty+ack packet
 	call.mu.Lock()
 	acks := call.pendingAcks
 	call.pendingAcks = nil
@@ -4402,9 +3947,7 @@ func (t *TelegramCore) handleInstanceImplSignaling(call *tgCall, data []byte) {
 	}
 }
 
-// sendInstanceImplAcks sends pending ACKs via a signaling empty+ack packet.
 func (t *TelegramCore) sendInstanceImplAcks(call *tgCall, acks []uint32) {
-	// Empty message: [seq|flags][0xFE] + appended ACKs: [ackSeq][0xFF]...
 	seq := atomic.AddUint32(&call.sigEncCounter, 1)
 	plaintext := make([]byte, 5)
 	binary.BigEndian.PutUint32(plaintext[:4], seq)
@@ -4431,7 +3974,6 @@ func (t *TelegramCore) sendInstanceImplAcks(call *tgCall, acks []uint32) {
 	})
 }
 
-// parseCallConnectionsForICE converts Telegram connection objects to pion/ice TURN URIs.
 func parseCallConnectionsForICE(connections []tg.PhoneConnectionClass) []*stun.URI {
 	var urls []*stun.URI
 	for _, conn := range connections {
@@ -4456,22 +3998,17 @@ func parseCallConnectionsForICE(connections []tg.PhoneConnectionClass) []*stun.U
 	return urls
 }
 
-// startInstanceImplCall sets up an InstanceImpl call (raw ICE + binary messages).
-// Used for v5.0.0 and v2.7.7.
 func (t *TelegramCore) startInstanceImplCall(call *tgCall, connections []tg.PhoneConnectionClass, negotiatedVersion string) error {
 	t0 := time.Now()
 	iceURLs := parseCallConnectionsForICE(connections)
 	fmt.Printf("[tg-call] InstanceImpl: starting (version=%s, outgoing=%v, %d ICE URLs)\n",
 		negotiatedVersion, call.isOutgoing, len(iceURLs))
 
-	// ICE role: CONTROLLING if outgoing, CONTROLLED if incoming
-	// (matching tgcalls NetworkManager: ICEROLE_CONTROLLING for isOutgoing)
 	iceRole := ice.AgentConfig{
 		Urls:         iceURLs,
 		NetworkTypes: []ice.NetworkType{ice.NetworkTypeUDP4},
 	}
 
-	// Use relay-only unless P2P allowed
 	if !call.p2pAllowed || t.forceRelayICE {
 		iceRole.CandidateTypes = []ice.CandidateType{ice.CandidateTypeRelay}
 	}
@@ -4483,13 +4020,11 @@ func (t *TelegramCore) startInstanceImplCall(call *tgCall, connections []tg.Phon
 	call.iceAgent = agent
 	call.instanceImplReady = make(chan struct{})
 
-	// Gather ICE candidates and send via signaling
 	var localCandidates []string
 	var gatherDone = make(chan struct{})
 
 	agent.OnCandidate(func(c ice.Candidate) {
 		if c == nil {
-			// Gathering complete
 			close(gatherDone)
 			return
 		}
@@ -4502,7 +4037,6 @@ func (t *TelegramCore) startInstanceImplCall(call *tgCall, connections []tg.Phon
 		return fmt.Errorf("InstanceImpl gather: %w", err)
 	}
 
-	// Wait for gathering to complete (up to 10s)
 	select {
 	case <-gatherDone:
 	case <-time.After(10 * time.Second):
@@ -4511,20 +4045,16 @@ func (t *TelegramCore) startInstanceImplCall(call *tgCall, connections []tg.Phon
 	fmt.Printf("[tg-call] InstanceImpl: gathered %d candidates (+%dms)\n",
 		len(localCandidates), time.Since(t0).Milliseconds())
 
-	// Get local ICE credentials
 	localUfrag, localPwd, err := agent.GetLocalUserCredentials()
 	if err != nil {
 		return fmt.Errorf("InstanceImpl local creds: %w", err)
 	}
 
-	// Send CandidatesListMessage via signaling
 	candidatesMsg := serializeCandidatesListMsg(localCandidates, localUfrag, localPwd)
 	t.sendInstanceImplSignaling(call, instanceMsgCandidatesList, candidatesMsg, true)
 
-	// Start ICE connection in background
 	call.remoteCredsReady = make(chan struct{})
 	go func() {
-		// Wait for remote ufrag/pwd
 		select {
 		case <-call.remoteCredsReady:
 		case <-call.done:
@@ -4559,7 +4089,6 @@ func (t *TelegramCore) startInstanceImplCall(call *tgCall, connections []tg.Phon
 		call.iceConn = conn
 		fmt.Printf("[tg-call] InstanceImpl: ICE CONNECTED (+%dms)\n", time.Since(t0).Milliseconds())
 
-		// Mark call as active
 		call.mu.Lock()
 		call.state = CallStateActive
 		call.markCallConnected()
@@ -4570,9 +4099,8 @@ func (t *TelegramCore) startInstanceImplCall(call *tgCall, connections []tg.Phon
 			Call:     &CallSession{ID: strconv.FormatInt(call.id, 10), State: CallStateActive, Meta: call.callStatusMeta()},
 		})
 
-		// Send initial signaling messages now that ICE is connected
 		t.sendInstanceImplSignaling(call, instanceMsgRemoteMediaState,
-			serializeRemoteMediaStateMsg(true, 0), true) // audio=active, video=inactive
+			serializeRemoteMediaStateMsg(true, 0), true)
 		t.sendInstanceImplSignaling(call, instanceMsgVideoFormats,
 			serializeVideoFormatsMsg(), true)
 		if negotiatedVersion == "5.0.0" {
@@ -4580,20 +4108,18 @@ func (t *TelegramCore) startInstanceImplCall(call *tgCall, connections []tg.Phon
 				serializeNetworkStatusMsg(true, false), true)
 		}
 
-		// SSRC assignment based on direction
 		var outSSRC, inSSRC uint32
 		if call.isOutgoing {
-			outSSRC = instanceSSRCAudioOutgoing // 2
-			inSSRC = instanceSSRCAudioIncoming  // 1
+			outSSRC = instanceSSRCAudioOutgoing
+			inSSRC = instanceSSRCAudioIncoming
 		} else {
-			outSSRC = instanceSSRCAudioIncoming // 1
-			inSSRC = instanceSSRCAudioOutgoing  // 2
+			outSSRC = instanceSSRCAudioIncoming
+			inSSRC = instanceSSRCAudioOutgoing
 		}
-		_ = inSSRC // used in receive loop
+		_ = inSSRC
 
-		// Start sending audio (opus silence) via transport
 		go func() {
-			silence := []byte{0xF8, 0xFF, 0xFE} // opus silence frame
+			silence := []byte{0xF8, 0xFF, 0xFE}
 			var rtpSeq uint16
 			var rtpTS uint32
 			tick := time.NewTicker(20 * time.Millisecond)
@@ -4611,11 +4137,10 @@ func (t *TelegramCore) startInstanceImplCall(call *tgCall, connections []tg.Phon
 				rtpSeq++
 				rtpTS += 960
 
-				// Build RTP packet
 				rtp := &pionrtp.Packet{
 					Header: pionrtp.Header{
 						Version:        2,
-						PayloadType:    111, // opus
+						PayloadType:    111,
 						SequenceNumber: rtpSeq,
 						Timestamp:      rtpTS,
 						SSRC:           outSSRC,
@@ -4639,7 +4164,6 @@ func (t *TelegramCore) startInstanceImplCall(call *tgCall, connections []tg.Phon
 			}
 		}()
 
-		// Receive loop — read encrypted packets from ICE transport
 		go func() {
 			buf := make([]byte, 2000)
 			for {
@@ -4659,7 +4183,6 @@ func (t *TelegramCore) startInstanceImplCall(call *tgCall, connections []tg.Phon
 
 				messages, err := tgDecryptTransport(call.authKey[:], buf[:n], call.isOutgoing)
 				if err != nil {
-					// Might be retransmitted/duplicate packet
 					continue
 				}
 
@@ -4670,7 +4193,6 @@ func (t *TelegramCore) startInstanceImplCall(call *tgCall, connections []tg.Phon
 							call.onAudioFrame(msg.Data)
 						}
 					case instanceMsgVideoData:
-						// Ignore video for now
 					case instanceMsgRemoteMediaState:
 						if len(msg.Data) >= 1 {
 							fmt.Printf("[tg-call] InstanceImpl transport: MediaState audio=%v\n", (msg.Data[0]&1) != 0)
@@ -4686,13 +4208,9 @@ func (t *TelegramCore) startInstanceImplCall(call *tgCall, connections []tg.Phon
 	return nil
 }
 
-// extractWebInitialSetupFromSDP parses a pion SDP into a Web-style InitialSetup
-// with inline audio/video/screencast media content (for Telegram Web v4.0.0 compatibility).
-// Web expects all 3 media sections even if we only send audio.
 func extractWebInitialSetupFromSDP(sdp string, isOutgoing bool) *tgInitialSetup {
 	v2Setup, v2NC := extractV2ImplFromSDP(sdp, isOutgoing)
 
-	// Populate media sections from parsed SDP contents
 	for _, content := range v2NC.Contents {
 		pts := content.PayloadTypes
 		if pts == nil {
@@ -4703,7 +4221,6 @@ func extractWebInitialSetupFromSDP(sdp string, isOutgoing bool) *tgInitialSetup 
 			exts = []tgRTPExtension{}
 		}
 
-		// Convert V2Impl SSRCGroups to Web SSRCGroups
 		var webGroups []tgWebSSRCGroup
 		for _, g := range content.SSRCGroups {
 			var intSSRCs []int
@@ -4736,14 +4253,13 @@ func extractWebInitialSetupFromSDP(sdp string, isOutgoing bool) *tgInitialSetup 
 				RTPExtensions: exts,
 			}
 			if v2Setup.Video == nil {
-				v2Setup.Video = desc // first video → camera
+				v2Setup.Video = desc
 			} else {
-				v2Setup.Screencast = desc // second video → screencast
+				v2Setup.Screencast = desc
 			}
 		}
 	}
 
-	// VP8 video payload types (standard WebRTC)
 	vp8PayloadTypes := []tgPayloadType{
 		{
 			ID: 96, Name: "VP8", Clockrate: 90000, Channels: 0,
@@ -4765,7 +4281,6 @@ func extractWebInitialSetupFromSDP(sdp string, isOutgoing bool) *tgInitialSetup 
 		{ID: 3, URI: "http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01"},
 	}
 
-	// If no real video track in SDP, generate dummy video SSRCs (Web expects them always)
 	if v2Setup.Video == nil {
 		var eidBuf [4]byte
 		rand.Read(eidBuf[:])
@@ -4783,7 +4298,6 @@ func extractWebInitialSetupFromSDP(sdp string, isOutgoing bool) *tgInitialSetup 
 		}
 	}
 
-	// Generate screencast SSRCs if not already populated from SDP (e.g., from a third m=video section)
 	if v2Setup.Screencast == nil {
 		var eidBuf [4]byte
 		rand.Read(eidBuf[:])
@@ -4804,10 +4318,7 @@ func extractWebInitialSetupFromSDP(sdp string, isOutgoing bool) *tgInitialSetup 
 	return v2Setup
 }
 
-// buildSyntheticSDPFromWebSetup constructs a synthetic SDP from a Web-style InitialSetup
-// (v4.0.0 format with inline audio/video/screencast media content).
 func buildSyntheticSDPFromWebSetup(setup *tgInitialSetup, sdpType string) string {
-	// Convert web InitialSetup to V2Impl format and reuse the existing SDP builder
 	nc := &tgNegotiateChannels{
 		Type: "NegotiateChannels",
 	}
@@ -4820,7 +4331,6 @@ func buildSyntheticSDPFromWebSetup(setup *tgInitialSetup, sdpType string) string
 		})
 	}
 	if setup.Video != nil {
-		// Convert WebSSRCGroups to V2Impl SSRCGroups
 		var groups []tgSSRCGroup
 		for _, wg := range setup.Video.SSRCGroups {
 			var ssrcs []string
@@ -4856,11 +4366,7 @@ func buildSyntheticSDPFromWebSetup(setup *tgInitialSetup, sdpType string) string
 	}
 	sdp := buildSyntheticSDPFromV2Impl(setup, nc, sdpType)
 
-	// Append SCTP data channel m-line for Web signaling.
-	// telegram-tt creates a negotiated data channel (id=0) and expects it in the SDP.
-	// Also patch the BUNDLE group to include the data channel MID.
 	dcMID := strconv.Itoa(len(nc.Contents))
-	// Append data channel MID to BUNDLE group line
 	if i := strings.Index(sdp, "a=group:BUNDLE "); i >= 0 {
 		if eol := strings.Index(sdp[i:], "\r\n"); eol >= 0 {
 			pos := i + eol
@@ -4884,28 +4390,23 @@ func buildSyntheticSDPFromWebSetup(setup *tgInitialSetup, sdpType string) string
 	return sdp
 }
 
-// extractV2ImplFromSDP parses a pion SDP into InitialSetup and NegotiateChannels messages
-// for sending to a remote V2Impl client.
 func extractV2ImplFromSDP(sdp string, isOutgoing bool) (*tgInitialSetup, *tgNegotiateChannels) {
 	setup := &tgInitialSetup{
 		Type: "InitialSetup",
 	}
 
-	// Parse ICE ufrag/pwd
 	for _, line := range strings.Split(sdp, "\r\n") {
 		if strings.HasPrefix(line, "a=ice-ufrag:") {
 			setup.Ufrag = strings.TrimPrefix(line, "a=ice-ufrag:")
 		} else if strings.HasPrefix(line, "a=ice-pwd:") {
 			setup.Pwd = strings.TrimPrefix(line, "a=ice-pwd:")
 		} else if strings.HasPrefix(line, "a=fingerprint:") {
-			// Format: a=fingerprint:sha-256 XX:XX:XX:...
 			parts := strings.SplitN(strings.TrimPrefix(line, "a=fingerprint:"), " ", 2)
 			if len(parts) == 2 {
 				dtlsSetup := "actpass"
 				if !isOutgoing {
-					dtlsSetup = "active" // pion defaults to active when answering
+					dtlsSetup = "active"
 				}
-				// Check actual setup line
 				for _, l2 := range strings.Split(sdp, "\r\n") {
 					if strings.HasPrefix(l2, "a=setup:") {
 						dtlsSetup = strings.TrimPrefix(l2, "a=setup:")
@@ -4921,15 +4422,13 @@ func extractV2ImplFromSDP(sdp string, isOutgoing bool) (*tgInitialSetup, *tgNego
 		}
 	}
 
-	// Parse all m= sections (audio, video) into NegotiateChannels contents
 	nc := &tgNegotiateChannels{
 		Type:       "NegotiateChannels",
 		ExchangeID: "1",
 	}
 
-	// Track current m= section and its content
 	type mSection struct {
-		mediaType string // "audio" or "video"
+		mediaType string
 		content   tgMediaContent
 		ssrcGroup []tgSSRCGroup
 	}
@@ -4946,7 +4445,7 @@ func extractV2ImplFromSDP(sdp string, isOutgoing bool) (*tgInitialSetup, *tgNego
 			currentIdx = len(sections) - 1
 			continue
 		} else if strings.HasPrefix(line, "m=") {
-			currentIdx = -1 // data channel or other — skip
+			currentIdx = -1
 			continue
 		}
 
@@ -4956,7 +4455,6 @@ func extractV2ImplFromSDP(sdp string, isOutgoing bool) (*tgInitialSetup, *tgNego
 		sec := &sections[currentIdx]
 
 		if strings.HasPrefix(line, "a=ssrc-group:") {
-			// a=ssrc-group:FID 12345 67890
 			trimmed := strings.TrimPrefix(line, "a=ssrc-group:")
 			parts := strings.SplitN(trimmed, " ", 2)
 			if len(parts) == 2 {
@@ -4967,13 +4465,11 @@ func extractV2ImplFromSDP(sdp string, isOutgoing bool) (*tgInitialSetup, *tgNego
 				})
 			}
 		} else if strings.HasPrefix(line, "a=ssrc:") {
-			// a=ssrc:12345 cname:...
 			parts := strings.SplitN(strings.TrimPrefix(line, "a=ssrc:"), " ", 2)
 			if len(parts) >= 1 && sec.content.SSRC == "" {
 				sec.content.SSRC = parts[0]
 			}
 		} else if strings.HasPrefix(line, "a=rtpmap:") {
-			// a=rtpmap:111 opus/48000/2 or a=rtpmap:96 VP8/90000
 			trimmed := strings.TrimPrefix(line, "a=rtpmap:")
 			parts := strings.SplitN(trimmed, " ", 2)
 			if len(parts) != 2 {
@@ -4993,7 +4489,6 @@ func extractV2ImplFromSDP(sdp string, isOutgoing bool) (*tgInitialSetup, *tgNego
 				fmt.Sscanf(codecParts[2], "%d", &channels)
 			}
 
-			// Filter codecs: opus for audio, VP8/VP9/H264/rtx for video
 			include := false
 			if sec.mediaType == "audio" {
 				include = strings.EqualFold(name, "opus")
@@ -5057,7 +4552,6 @@ func extractV2ImplFromSDP(sdp string, isOutgoing bool) (*tgInitialSetup, *tgNego
 			extID := 0
 			fmt.Sscanf(parts[0], "%d", &extID)
 			uri := parts[1]
-			// Only include extensions tgcalls recognizes
 			switch {
 			case strings.Contains(uri, "abs-send-time"),
 				strings.Contains(uri, "transport-wide-cc"):
@@ -5069,13 +4563,9 @@ func extractV2ImplFromSDP(sdp string, isOutgoing bool) (*tgInitialSetup, *tgNego
 		}
 	}
 
-	// Build contents list, prune dangling RTX, and attach SSRC groups
 	for _, sec := range sections {
 		content := sec.content
 		content.SSRCGroups = sec.ssrcGroup
-		// Remove RTX codecs whose apt references a non-included primary codec.
-		// pion may register AV1/H265 internally but we only include VP8/VP9/H264 —
-		// dangling RTX entries (apt→nonexistent PT) can cause Chrome to reject the SDP.
 		primaryPTs := make(map[int]bool)
 		for _, pt := range content.PayloadTypes {
 			if !strings.EqualFold(pt.Name, "rtx") {
@@ -5089,7 +4579,7 @@ func extractV2ImplFromSDP(sdp string, isOutgoing bool) (*tgInitialSetup, *tgNego
 				aptID := 0
 				fmt.Sscanf(aptStr, "%d", &aptID)
 				if !primaryPTs[aptID] {
-					continue // dangling RTX — skip
+					continue
 				}
 			}
 			filtered = append(filtered, pt)
@@ -5100,11 +4590,6 @@ func extractV2ImplFromSDP(sdp string, isOutgoing bool) (*tgInitialSetup, *tgNego
 	return setup, nc
 }
 
-// buildSyntheticSDPFromV2Impl constructs a synthetic SDP from remote InitialSetup + NegotiateChannels.
-// sdpType is "offer" or "answer" and determines the SDP type semantics.
-// localAudioSSRC is our own SSRC — if the remote's SSRC matches, it's echoed back and should be skipped.
-// extractRemoteVideoSSRCs parses a remote SDP and sets remoteVideoSSRC / remoteScreenSSRC
-// on the call for incoming track dispatch. The 1st video m-line SSRC = camera, 2nd = screencast.
 func extractRemoteVideoSSRCs(call *tgCall, sdp string) {
 	videoIdx := 0
 	inVideo := false
@@ -5127,7 +4612,7 @@ func extractRemoteVideoSSRCs(call *tgCall, sdp string) {
 						call.remoteScreenSSRC = ssrc
 					}
 					videoIdx++
-					inVideo = false // move to next m-line
+					inVideo = false
 				}
 			}
 		}
@@ -5145,7 +4630,6 @@ func buildSyntheticSDPFromV2Impl(setup *tgInitialSetup, nc *tgNegotiateChannels,
 	sb.WriteString("s=-\r\n")
 	sb.WriteString("t=0 0\r\n")
 
-	// BUNDLE group with MIDs — include all content types
 	var mids []string
 	for i, content := range nc.Contents {
 		if content.Type == "audio" || content.Type == "video" {
@@ -5159,34 +4643,30 @@ func buildSyntheticSDPFromV2Impl(setup *tgInitialSetup, nc *tgNegotiateChannels,
 	sb.WriteString("a=ice-options:trickle\r\n")
 	sb.WriteString("a=msid-semantic: WMS *\r\n")
 
-	// ICE credentials (session-level)
 	sb.WriteString("a=ice-ufrag:" + setup.Ufrag + "\r\n")
 	sb.WriteString("a=ice-pwd:" + setup.Pwd + "\r\n")
 
-	// DTLS fingerprint
 	if len(setup.Fingerprints) > 0 {
 		fp := setup.Fingerprints[0]
 		sb.WriteString("a=fingerprint:" + fp.Hash + " " + fp.Fingerprint + "\r\n")
 		sb.WriteString("a=setup:" + fp.Setup + "\r\n")
 	}
 
-	// Build m-lines from NegotiateChannels contents
 	midIdx := 0
 	for _, content := range nc.Contents {
 		if content.Type != "audio" && content.Type != "video" {
 			continue
 		}
 
-		// Collect payload type IDs
 		var ptIDs []string
 		for _, pt := range content.PayloadTypes {
 			ptIDs = append(ptIDs, strconv.Itoa(pt.ID))
 		}
 		if len(ptIDs) == 0 {
 			if content.Type == "audio" {
-				ptIDs = []string{"111"} // fallback opus
+				ptIDs = []string{"111"}
 			} else {
-				ptIDs = []string{"96"} // fallback VP8
+				ptIDs = []string{"96"}
 			}
 		}
 
@@ -5194,11 +4674,9 @@ func buildSyntheticSDPFromV2Impl(setup *tgInitialSetup, nc *tgNegotiateChannels,
 		sb.WriteString("c=IN IP4 0.0.0.0\r\n")
 		sb.WriteString("a=rtcp:9 IN IP4 0.0.0.0\r\n")
 
-		// ICE credentials (media-level, same as session)
 		sb.WriteString("a=ice-ufrag:" + setup.Ufrag + "\r\n")
 		sb.WriteString("a=ice-pwd:" + setup.Pwd + "\r\n")
 
-		// Fingerprint at media level too
 		if len(setup.Fingerprints) > 0 {
 			fp := setup.Fingerprints[0]
 			sb.WriteString("a=fingerprint:" + fp.Hash + " " + fp.Fingerprint + "\r\n")
@@ -5210,12 +4688,10 @@ func buildSyntheticSDPFromV2Impl(setup *tgInitialSetup, nc *tgNegotiateChannels,
 		sb.WriteString("a=rtcp-mux\r\n")
 		sb.WriteString("a=sendrecv\r\n")
 
-		// RTP extensions
 		for _, ext := range content.RTPExtensions {
 			sb.WriteString("a=extmap:" + strconv.Itoa(ext.ID) + " " + ext.URI + "\r\n")
 		}
 
-		// Codec definitions
 		for _, pt := range content.PayloadTypes {
 			channels := ""
 			if pt.Channels > 0 {
@@ -5223,7 +4699,6 @@ func buildSyntheticSDPFromV2Impl(setup *tgInitialSetup, nc *tgNegotiateChannels,
 			}
 			sb.WriteString("a=rtpmap:" + strconv.Itoa(pt.ID) + " " + pt.Name + "/" + strconv.Itoa(pt.Clockrate) + channels + "\r\n")
 
-			// fmtp parameters
 			if len(pt.Parameters) > 0 {
 				var params []string
 				for k, v := range pt.Parameters {
@@ -5232,7 +4707,6 @@ func buildSyntheticSDPFromV2Impl(setup *tgInitialSetup, nc *tgNegotiateChannels,
 				sb.WriteString("a=fmtp:" + strconv.Itoa(pt.ID) + " " + strings.Join(params, ";") + "\r\n")
 			}
 
-			// RTCP feedback
 			for _, fb := range pt.FeedbackTypes {
 				fbStr := "a=rtcp-fb:" + strconv.Itoa(pt.ID) + " " + fb.Type
 				if fb.Subtype != "" {
@@ -5242,7 +4716,6 @@ func buildSyntheticSDPFromV2Impl(setup *tgInitialSetup, nc *tgNegotiateChannels,
 			}
 		}
 
-		// Include remote SSRC unless it matches our own (Desktop echoes our SSRC in answers).
 		skipSSRC := false
 		if len(localAudioSSRC) > 0 && content.SSRC != "" {
 			remoteSSRC := uint32(0)
@@ -5259,7 +4732,6 @@ func buildSyntheticSDPFromV2Impl(setup *tgInitialSetup, nc *tgNegotiateChannels,
 			}
 			sb.WriteString("a=ssrc:" + content.SSRC + " cname:remote\r\n")
 			sb.WriteString("a=ssrc:" + content.SSRC + " msid:remote-stream " + trackLabel + "\r\n")
-			// SSRC groups (FID for RTX pairing)
 			for _, group := range content.SSRCGroups {
 				if len(group.SSRCs) > 0 {
 					sb.WriteString("a=ssrc-group:" + group.Semantics + " " + strings.Join(group.SSRCs, " ") + "\r\n")
@@ -5271,7 +4743,6 @@ func buildSyntheticSDPFromV2Impl(setup *tgInitialSetup, nc *tgNegotiateChannels,
 	return sb.String()
 }
 
-// tgcalls signaling encryption (AES-256-CTR, matching CryptoHelper.cpp).
 func tgPrepareAesKeyIv(key []byte, msgKey []byte, x int) (aesKey [32]byte, aesIv [16]byte) {
 	h := sha256.New()
 	h.Write(msgKey[:16])
@@ -5293,14 +4764,8 @@ func tgPrepareAesKeyIv(key []byte, msgKey []byte, x int) (aesKey [32]byte, aesIv
 	return
 }
 
-// tgEncryptSignaling encrypts signaling data.
-// Two framing modes:
-//   - V2 (tgcalls C++): [4-byte seq|flags][0x7F][4-byte length][data] — used for desktop/mobile
-//   - Web (gramjs):      [4-byte seq][data] — used for Telegram Web (version 4.0.x)
-//
-// Then AES-CTR encrypted with 16-byte msgKey prepended.
 func tgEncryptSignaling(key []byte, data []byte, isOutgoing bool, counter *uint32, webMode bool) ([]byte, error) {
-	x := 128 // signaling outgoing
+	x := 128
 	if !isOutgoing {
 		x = 136
 	}
@@ -5309,7 +4774,6 @@ func tgEncryptSignaling(key []byte, data []byte, isOutgoing bool, counter *uint3
 
 	var plaintext []byte
 	if webMode {
-		// Web mode: [4-byte LE seq][raw JSON data][padding to 4-byte boundary with 0x20]
 		rawLen := 4 + len(data)
 		padLen := 0
 		if rawLen%4 != 0 {
@@ -5322,16 +4786,14 @@ func tgEncryptSignaling(key []byte, data []byte, isOutgoing bool, counter *uint3
 			plaintext[i] = 0x20
 		}
 	} else {
-		// V2 mode: [4-byte seq|flags][0x7F type][4-byte length][data]
 		seqWithFlags := seq | 0x40000000
 		plaintext = make([]byte, 4+1+4+len(data))
 		binary.BigEndian.PutUint32(plaintext[:4], seqWithFlags)
-		plaintext[4] = 0x7F // kCustomId
+		plaintext[4] = 0x7F
 		binary.BigEndian.PutUint32(plaintext[5:9], uint32(len(data)))
 		copy(plaintext[9:], data)
 	}
 
-	// msgKey = SHA256(key[88+x:88+x+32] || plaintext)[8:24]
 	h := sha256.New()
 	h.Write(key[88+x : 88+x+32])
 	h.Write(plaintext)
@@ -5347,26 +4809,20 @@ func tgEncryptSignaling(key []byte, data []byte, isOutgoing bool, counter *uint3
 	ciphertext := make([]byte, len(plaintext))
 	cipher.NewCTR(block, aesIv[:]).XORKeyStream(ciphertext, plaintext)
 
-	// packet = msgKey || ciphertext
 	packet := make([]byte, 16+len(ciphertext))
 	copy(packet[:16], msgKey)
 	copy(packet[16:], ciphertext)
 	return packet, nil
 }
 
-// tgDecryptSignaling decrypts incoming signaling data and extracts all messages.
-// V2 packets can contain multiple messages: [seq1][type1][...][seq2][type2][...]
-// Message types: 0x7F=kCustomId (data), 0xFE=kEmptyId, 0xFF=kAckId
-// Returns all kCustomId message payloads and seqs needing ACK (seqRequiresAckBit set).
 func tgDecryptSignaling(key []byte, packet []byte, isOutgoing bool, v1Framing ...bool) ([][]byte, []uint32, error) {
-	if len(packet) < 21 { // 16 msgKey + 4 seq + at least 1 byte
+	if len(packet) < 21 {
 		return nil, nil, fmt.Errorf("signaling packet too short: %d bytes", len(packet))
 	}
 
-	// For decryption, swap direction: our outgoing = their incoming
-	x := 136 // incoming signaling for outgoing side
+	x := 136
 	if !isOutgoing {
-		x = 128 // incoming signaling for incoming side
+		x = 128
 	}
 
 	msgKey := packet[:16]
@@ -5381,7 +4837,6 @@ func tgDecryptSignaling(key []byte, packet []byte, isOutgoing bool, v1Framing ..
 	plaintext := make([]byte, len(ciphertext))
 	cipher.NewCTR(block, aesIv[:]).XORKeyStream(plaintext, ciphertext)
 
-	// Verify msgKey
 	h := sha256.New()
 	h.Write(key[88+x : 88+x+32])
 	h.Write(plaintext)
@@ -5394,19 +4849,16 @@ func tgDecryptSignaling(key []byte, packet []byte, isOutgoing bool, v1Framing ..
 		return nil, nil, fmt.Errorf("decrypted payload too short")
 	}
 
-	// V1 framing: [4-byte seq][raw payload] — single message, no type/length, no ACKs
 	if len(v1Framing) > 0 && v1Framing[0] {
 		return [][]byte{plaintext[4:]}, nil, nil
 	}
 
-	// Parse V2 multi-message packet: [seq][type][...][seq][type][...]
 	var messages [][]byte
 	var ackSeqs []uint32
 
-	// First seq at offset 0
 	firstSeq := binary.BigEndian.Uint32(plaintext[:4])
 	if firstSeq&seqRequiresAckBit != 0 {
-		ackSeqs = append(ackSeqs, firstSeq) // keep full seq including flags — C++ matches WITH flags
+		ackSeqs = append(ackSeqs, firstSeq)
 	}
 	pos := 4
 
@@ -5418,18 +4870,15 @@ func tgDecryptSignaling(key []byte, packet []byte, isOutgoing bool, v1Framing ..
 		pos++
 
 		switch typeID {
-		case 0xFE: // kEmptyId — empty message, skip
-			// No payload
-		case 0xFF: // kAckId — ACK, skip (no payload)
-			// No payload
-		case 0x7F: // kCustomId — raw message with [length][data]
+		case 0xFE:
+		case 0xFF:
+		case 0x7F:
 			if pos+4 > len(plaintext) {
 				break
 			}
 			dataLen := int(binary.BigEndian.Uint32(plaintext[pos : pos+4]))
 			pos += 4
 			if pos+dataLen > len(plaintext) {
-				// Truncated — take what we can
 				if pos < len(plaintext) {
 					messages = append(messages, plaintext[pos:])
 				}
@@ -5439,16 +4888,13 @@ func tgDecryptSignaling(key []byte, packet []byte, isOutgoing bool, v1Framing ..
 			messages = append(messages, plaintext[pos:pos+dataLen])
 			pos += dataLen
 		default:
-			// Unknown type — skip to end (can't determine length)
 			pos = len(plaintext)
 		}
 
-		// After processing a message, check for next seq + type
 		if pos+5 <= len(plaintext) {
-			// Next message has [4-byte seq][1-byte type]
 			nextSeq := binary.BigEndian.Uint32(plaintext[pos : pos+4])
 			if nextSeq&seqRequiresAckBit != 0 {
-				ackSeqs = append(ackSeqs, nextSeq) // keep full seq including flags — C++ matches WITH flags
+				ackSeqs = append(ackSeqs, nextSeq)
 			}
 			pos += 4
 		} else {
@@ -5457,29 +4903,23 @@ func tgDecryptSignaling(key []byte, packet []byte, isOutgoing bool, v1Framing ..
 	}
 
 	if len(messages) == 0 {
-		// No kCustomId messages — packet was only ACKs/empty. Return empty.
 		return nil, ackSeqs, nil
 	}
 	return messages, ackSeqs, nil
 }
 
-// --- V2 signaling encryption (version 11.0.0) ---
-// V2 uses simpler framing than V1: just [4-byte seq][data], SCTP handles reliability.
-
 func tgEncryptV2Packet(key []byte, data []byte, isOutgoing bool, counter *uint32) ([]byte, error) {
-	x := 128 // signaling
+	x := 128
 	if !isOutgoing {
 		x = 136
 	}
 
 	seq := atomic.AddUint32(counter, 1)
 
-	// Plaintext: [4-byte BE seq][data]
 	plaintext := make([]byte, 4+len(data))
 	binary.BigEndian.PutUint32(plaintext[:4], seq)
 	copy(plaintext[4:], data)
 
-	// msgKey = SHA256(key[88+x:88+x+32] || plaintext)[8:24]
 	h := sha256.New()
 	h.Write(key[88+x : 88+x+32])
 	h.Write(plaintext)
@@ -5502,14 +4942,13 @@ func tgEncryptV2Packet(key []byte, data []byte, isOutgoing bool, counter *uint32
 }
 
 func tgDecryptV2Packet(key []byte, packet []byte, isOutgoing bool) ([]byte, error) {
-	if len(packet) < 21 { // 16 msgKey + 4 seq + at least 1 byte
+	if len(packet) < 21 {
 		return nil, fmt.Errorf("V2 packet too short: %d bytes", len(packet))
 	}
 
-	// For decryption, swap direction
-	x := 136 // incoming for outgoing side
+	x := 136
 	if !isOutgoing {
-		x = 128 // incoming for incoming side
+		x = 128
 	}
 
 	msgKey := packet[:16]
@@ -5524,7 +4963,6 @@ func tgDecryptV2Packet(key []byte, packet []byte, isOutgoing bool) ([]byte, erro
 	plaintext := make([]byte, len(ciphertext))
 	cipher.NewCTR(block, aesIv[:]).XORKeyStream(plaintext, ciphertext)
 
-	// Verify msgKey
 	h := sha256.New()
 	h.Write(key[88+x : 88+x+32])
 	h.Write(plaintext)
@@ -5533,7 +4971,6 @@ func tgDecryptV2Packet(key []byte, packet []byte, isOutgoing bool) ([]byte, erro
 		return nil, fmt.Errorf("V2 decryption: msgKey mismatch")
 	}
 
-	// Strip 4-byte seq, return payload
 	return plaintext[4:], nil
 }
 
@@ -5549,15 +4986,10 @@ func gzipCompress(data []byte) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// --- SCTP signaling transport (version 11.0.0) ---
-// sctpSignalingConn implements net.Conn, bridging pion/sctp ↔ MTProto signaling.
-// Write() sends raw SCTP packets via MTProto phone.sendSignalingData.
-// Read() blocks until MTProto signaling data arrives and feeds it.
-
 type sctpSignalingConn struct {
-	packets chan []byte  // incoming SCTP packets (preserves packet boundaries)
-	sendFn  func([]byte) // sends raw SCTP packets via MTProto
-	closed  int32        // atomic
+	packets chan []byte
+	sendFn  func([]byte)
+	closed  int32
 }
 
 func newSctpSignalingConn(sendFn func([]byte)) *sctpSignalingConn {
@@ -5567,7 +4999,6 @@ func newSctpSignalingConn(sendFn func([]byte)) *sctpSignalingConn {
 	}
 }
 
-// feed is called when raw SCTP packets arrive from MTProto signaling.
 func (c *sctpSignalingConn) feed(data []byte) {
 	if atomic.LoadInt32(&c.closed) != 0 {
 		return
@@ -5618,14 +5049,10 @@ type sctpAddr struct{}
 func (sctpAddr) Network() string { return "sctp-signaling" }
 func (sctpAddr) String() string  { return "sctp-signaling" }
 
-// setupSctpSignaling creates an SCTP association over the MTProto signaling channel.
-// The outgoing (caller) side is the SCTP Client (sends INIT), incoming is Server.
 func (t *TelegramCore) setupSctpSignaling(call *tgCall) {
 	call.sctpReady = make(chan struct{})
 
-	// sendFn sends raw SCTP packets directly via MTProto (no V1/V2 encryption at this layer)
 	sendFn := func(data []byte) {
-		// Check raw output interceptor
 		t.rawSigInterceptorsMu.RLock()
 		outInterceptor := t.rawSigOutInterceptors[call.id]
 		t.rawSigInterceptorsMu.RUnlock()
@@ -5651,7 +5078,7 @@ func (t *TelegramCore) setupSctpSignaling(call *tgCall) {
 
 		sctpConfig := sctp.Config{
 			NetConn:              call.sctpConn,
-			MaxReceiveBufferSize: 262144, // 256KB, matches tgcalls
+			MaxReceiveBufferSize: 262144,
 		}
 
 		if call.isOutgoing {
@@ -5668,7 +5095,6 @@ func (t *TelegramCore) setupSctpSignaling(call *tgCall) {
 		call.sctpAssoc = assoc
 		fmt.Printf("[tg-call] SCTP association established\n")
 
-		// Open/accept stream 0
 		var stream *sctp.Stream
 		if call.isOutgoing {
 			stream, err = assoc.OpenStream(0, sctp.PayloadTypeWebRTCBinary)
@@ -5685,8 +5111,7 @@ func (t *TelegramCore) setupSctpSignaling(call *tgCall) {
 
 		close(call.sctpReady)
 
-		// Read loop: receive V2-encrypted signaling messages from SCTP stream
-		buf := make([]byte, 64*1024) // max signaling packet 16KB, but allow headroom
+		buf := make([]byte, 64*1024)
 		for {
 			select {
 			case <-call.done:
@@ -5707,14 +5132,12 @@ func (t *TelegramCore) setupSctpSignaling(call *tgCall) {
 			payload := buf[:n]
 			fmt.Printf("[tg-call] SCTP rx: %d bytes\n", n)
 
-			// Decrypt V2 packet
 			decrypted, err := tgDecryptV2Packet(call.authKey[:], payload, call.isOutgoing)
 			if err != nil {
 				fmt.Printf("[tg-call] SCTP V2 decrypt error: %v\n", err)
 				continue
 			}
 
-			// Decompress gzip if needed
 			if len(decrypted) >= 2 && decrypted[0] == 0x1f && decrypted[1] == 0x8b {
 				if decompressed, err := gzipDecompress(decrypted); err == nil {
 					decrypted = decompressed
@@ -5723,7 +5146,6 @@ func (t *TelegramCore) setupSctpSignaling(call *tgCall) {
 
 			fmt.Printf("[tg-call] SCTP signaling: %s\n", string(decrypted[:min(len(decrypted), 300)]))
 
-			// Parse and handle JSON signaling message
 			var msg map[string]interface{}
 			if err := unmarshalCallSignal(decrypted, &msg); err != nil {
 				fmt.Printf("[tg-call] SCTP signaling: invalid JSON: %v\n", err)
@@ -5796,7 +5218,6 @@ func (t *TelegramCore) setupSctpSignaling(call *tgCall) {
 	}()
 }
 
-// sendCallSignalingV2 encrypts, compresses, and sends a signaling message via SCTP stream.
 func (t *TelegramCore) sendCallSignalingV2(call *tgCall, v interface{}) {
 	data, err := json.Marshal(v)
 	if err != nil {
@@ -5805,21 +5226,18 @@ func (t *TelegramCore) sendCallSignalingV2(call *tgCall, v interface{}) {
 	}
 	fmt.Printf("[tg-call] V2 signaling tx: %s\n", string(data[:min(len(data), 300)]))
 
-	// Gzip compress
 	compressed, err := gzipCompress(data)
 	if err != nil {
 		fmt.Printf("[tg-call] V2 gzip error: %v\n", err)
 		return
 	}
 
-	// V2 AES-CTR encrypt
 	encrypted, err := tgEncryptV2Packet(call.authKey[:], compressed, call.isOutgoing, &call.v2SigCounter)
 	if err != nil {
 		fmt.Printf("[tg-call] V2 encrypt error: %v\n", err)
 		return
 	}
 
-	// Wait for SCTP stream to be ready
 	if call.sctpReady != nil {
 		select {
 		case <-call.sctpReady:
@@ -5834,34 +5252,28 @@ func (t *TelegramCore) sendCallSignalingV2(call *tgCall, v interface{}) {
 		return
 	}
 
-	// Send via SCTP stream 0
 	_, err = call.sctpStream.WriteSCTP(encrypted, sctp.PayloadTypeWebRTCBinary)
 	if err != nil {
 		fmt.Printf("[tg-call] V2 SCTP write error: %v\n", err)
 	}
 }
 
-// sendV2SignalingAcks sends an ACK-only packet for V2 JSON signaling over MTProto.
-// Format: [ourSeq][0xFE empty][ackSeq1][0xFF]...[ackSeqN][0xFF]
-// This stops the remote from retransmitting messages we've already received.
 func (t *TelegramCore) sendV2SignalingAcks(call *tgCall, ackSeqs []uint32) {
 	if len(ackSeqs) == 0 {
 		return
 	}
-	// Build ACK-only plaintext: [ourSeq|flags][0xFE] + [ackSeq][0xFF]...
 	seq := atomic.AddUint32(&call.sigCounter, 1)
 	plaintext := make([]byte, 5, 5+5*len(ackSeqs))
 	binary.BigEndian.PutUint32(plaintext[:4], seq)
-	plaintext[4] = 0xFE // kEmptyId
+	plaintext[4] = 0xFE
 	for _, ackSeq := range ackSeqs {
 		var ackBuf [5]byte
 		binary.BigEndian.PutUint32(ackBuf[:4], ackSeq)
-		ackBuf[4] = 0xFF // kAckId
+		ackBuf[4] = 0xFF
 		plaintext = append(plaintext, ackBuf[:]...)
 	}
 
-	// Encrypt with same AES-CTR as tgEncryptSignaling (V2 mode)
-	x := 128 // signaling outgoing
+	x := 128
 	if !call.isOutgoing {
 		x = 136
 	}
@@ -5884,7 +5296,6 @@ func (t *TelegramCore) sendV2SignalingAcks(call *tgCall, ackSeqs []uint32) {
 
 	fmt.Printf("[tg-call] sending %d V2 signaling ACKs\n", len(ackSeqs))
 
-	// Check raw output interceptor
 	t.rawSigInterceptorsMu.RLock()
 	outInterceptor := t.rawSigOutInterceptors[call.id]
 	t.rawSigInterceptorsMu.RUnlock()
@@ -5898,13 +5309,10 @@ func (t *TelegramCore) sendV2SignalingAcks(call *tgCall, ackSeqs []uint32) {
 	})
 }
 
-// createCallWebRTCAPI creates a pion WebRTC API configured for Telegram calls.
-// Registers RED and telephone-event codecs that Desktop includes in re-offers.
 func createCallWebRTCAPI(iceUfrag, icePwd string) *wrtc.API {
 	me := &wrtc.MediaEngine{}
 	me.RegisterDefaultCodecs()
 
-	// Register RED (redundant encoding, PT 63) — Desktop's WebRTC adds this via EnableMedia()
 	me.RegisterCodec(webrtc.RTPCodecParameters{
 		RTPCodecCapability: webrtc.RTPCodecCapability{
 			MimeType:    "audio/red",
@@ -5915,7 +5323,6 @@ func createCallWebRTCAPI(iceUfrag, icePwd string) *wrtc.API {
 		PayloadType: 63,
 	}, webrtc.RTPCodecTypeAudio)
 
-	// Register telephone-event (DTMF, PT 110) — Desktop's WebRTC adds this too
 	me.RegisterCodec(webrtc.RTPCodecParameters{
 		RTPCodecCapability: webrtc.RTPCodecCapability{
 			MimeType:  "audio/telephone-event",
@@ -5924,21 +5331,13 @@ func createCallWebRTCAPI(iceUfrag, icePwd string) *wrtc.API {
 		PayloadType: 110,
 	}, webrtc.RTPCodecTypeAudio)
 
-	// Register RTP header extensions required for BUNDLE demuxing.
-	// When Desktop sends a re-offer with multiple audio m-lines (mid=0 recvonly + mid=2 sendrecv),
-	// pion needs sdes:mid to route incoming RTP packets to the correct transceiver.
-	// Without this, pion logs "Could not determine PayloadType for SSRC" and drops all incoming audio.
 	for _, ext := range []struct {
 		uri string
 		typ webrtc.RTPCodecType
 	}{
-		// sdes:mid — CRITICAL for BUNDLE demux with multiple m-lines of same media type
 		{"urn:ietf:params:rtp-hdrext:sdes:mid", webrtc.RTPCodecTypeAudio},
-		// sdes:rtp-stream-id — used for RID-based stream identification
 		{"urn:ietf:params:rtp-hdrext:sdes:rtp-stream-id", webrtc.RTPCodecTypeAudio},
-		// abs-send-time — used by transport-cc for bandwidth estimation
 		{"http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time", webrtc.RTPCodecTypeAudio},
-		// transport-wide-cc — transport-wide congestion control sequence numbers
 		{"http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01", webrtc.RTPCodecTypeAudio},
 	} {
 		if err := me.RegisterHeaderExtension(webrtc.RTPHeaderExtensionCapability{URI: ext.uri}, ext.typ); err != nil {
@@ -5951,8 +5350,6 @@ func createCallWebRTCAPI(iceUfrag, icePwd string) *wrtc.API {
 	se := wrtc.SettingEngine{}
 	se.SetSRTPReplayProtectionWindow(1024)
 	se.SetICECredentials(iceUfrag, icePwd)
-	// Fire OnTrack before first RTP — combined with deferred re-offer processing (after DTLS),
-	// this ensures the SRTP read stream is opened while DTLS/SRTP is ready.
 	se.SetFireOnTrackBeforeFirstRTP(true)
 	logFactory := pionlogging.NewDefaultLoggerFactory()
 	logFactory.DefaultLogLevel = pionlogging.LogLevelWarn
@@ -5964,7 +5361,6 @@ func createCallWebRTCAPI(iceUfrag, icePwd string) *wrtc.API {
 	)
 }
 
-// getDHConfig retrieves DH parameters from Telegram.
 func (t *TelegramCore) getDHConfig() (p []byte, g int, err error) {
 	result, err := t.api.MessagesGetDhConfig(t.ctx, &tg.MessagesGetDhConfigRequest{
 		Version:      0,
@@ -5983,7 +5379,6 @@ func (t *TelegramCore) getDHConfig() (p []byte, g int, err error) {
 	}
 }
 
-// StartCall initiates a one-on-one voice or video call with a user.
 func (t *TelegramCore) StartCall(chatID string, video bool) (*CallSession, error) {
 	t.mu.RLock()
 	if !t.authed || t.api == nil {
@@ -6001,19 +5396,16 @@ func (t *TelegramCore) StartCall(chatID string, video bool) (*CallSession, error
 	accessHash := t.userAccessHash[uid]
 	t.peerMu.RUnlock()
 
-	// Get DH config
 	p, g, err := t.getDHConfig()
 	if err != nil {
 		return nil, fmt.Errorf("DH config: %w", err)
 	}
 
-	// Generate random a (256 bytes)
 	a := make([]byte, 256)
 	if _, err := io.ReadFull(rand.Reader, a); err != nil {
 		return nil, fmt.Errorf("random: %w", err)
 	}
 
-	// Compute g_a = g^a mod p
 	gBig := new(big.Int).SetInt64(int64(g))
 	aBig := new(big.Int).SetBytes(a)
 	pBig := new(big.Int).SetBytes(p)
@@ -6022,22 +5414,19 @@ func (t *TelegramCore) StartCall(chatID string, video bool) (*CallSession, error
 	gABuf := gA.Bytes()
 	copy(gABytes[256-len(gABuf):], gABuf)
 
-	// g_a_hash = SHA256(g_a)
 	gaHash := sha256.Sum256(gABytes)
 
-	// Supported call versions: 13.0.0 (V2Impl+SCTP), 8.0.0 (V2Impl), 4.0.0 (Web)
 	versions := filterVersions(
 		[]string{"13.0.0", "8.0.0", "4.0.0"},
 		t.maxCallVersion, t.minCallVersion,
 	)
 
-	// phone.requestCall
 	result, err := t.api.PhoneRequestCall(t.ctx, &tg.PhoneRequestCallRequest{
 		UserID:   &tg.InputUser{UserID: uid, AccessHash: accessHash},
 		RandomID: int(binary.BigEndian.Uint32(gaHash[:4])),
 		GAHash:   gaHash[:],
 		Protocol: tg.PhoneCallProtocol{
-			Flags:           0b11, // udp_p2p | udp_reflector
+			Flags:           0b11,
 			MinLayer:        65,
 			MaxLayer:        92,
 			LibraryVersions: versions,
@@ -6048,7 +5437,6 @@ func (t *TelegramCore) StartCall(chatID string, video bool) (*CallSession, error
 		return nil, fmt.Errorf("phone.requestCall: %w", err)
 	}
 
-	// Extract call ID from response
 	var callID int64
 	var callAccessHash int64
 	switch c := result.PhoneCall.(type) {
@@ -6067,7 +5455,6 @@ func (t *TelegramCore) StartCall(chatID string, video bool) (*CallSession, error
 		return nil, fmt.Errorf("no call ID in response")
 	}
 
-	// Store call state for DH completion when receiver accepts
 	t.mu.Lock()
 	if t.activeCalls == nil {
 		t.activeCalls = make(map[int64]*tgCall)
@@ -6081,7 +5468,6 @@ func (t *TelegramCore) StartCall(chatID string, video bool) (*CallSession, error
 		state:      CallStateRinging,
 		done:       make(chan struct{}),
 	}
-	// Store DH private key for later computation (stored in a separate field)
 	t.pendingDH[callID] = &pendingDHState{a: a, gA: gABytes, p: p, g: g}
 	t.activeCalls[callID] = call
 	t.mu.Unlock()
@@ -6094,25 +5480,19 @@ func (t *TelegramCore) StartCall(chatID string, video bool) (*CallSession, error
 	}, nil
 }
 
-// pendingDHState stores DH key exchange state for an outgoing call.
 type pendingDHState struct {
-	a  []byte // private random
-	gA []byte // g^a mod p
-	p  []byte // prime
-	g  int    // generator
+	a  []byte
+	gA []byte
+	p  []byte
+	g  int
 }
 
-// parseCallConnections extracts TURN/STUN ICE servers from the PhoneCall connections list.
-// NOTE: Telegram's TURN may return 403 on CreatePermission for private IPs,
-// but relay-to-relay (public IP) connections may work. We include TURN and let
-// pion handle the 403 errors gracefully (it logs and falls back to other candidates).
 func parseCallConnections(connections []tg.PhoneConnectionClass) []webrtc.ICEServer {
 	var servers []webrtc.ICEServer
 	for _, conn := range connections {
 		switch c := conn.(type) {
 		case *tg.PhoneConnectionWebrtc:
 			if c.Turn {
-				// TURN relay — only IPv4 (IPv6 often fails with "no suitable address found")
 				urls := []string{fmt.Sprintf("turn:%s:%d", c.IP, c.Port)}
 				servers = append(servers, webrtc.ICEServer{
 					URLs:           urls,
@@ -6131,9 +5511,6 @@ func parseCallConnections(connections []tg.PhoneConnectionClass) []webrtc.ICESer
 	return servers
 }
 
-// handleCallAccepted is called when the receiver accepts the call (outgoing side).
-// CRITICAL TIMING: The remote expects our InitialSetup ASAP after confirmCall.
-// Flow: DH → pre-generate ICE creds + confirmCall IN PARALLEL → fire signaling instantly → create PC with TURN.
 func (t *TelegramCore) handleCallAccepted(callID int64, gB []byte, protocol tg.PhoneCallProtocol) error {
 	t0 := time.Now()
 	t.mu.Lock()
@@ -6145,7 +5522,6 @@ func (t *TelegramCore) handleCallAccepted(callID int64, gB []byte, protocol tg.P
 		return fmt.Errorf("no pending DH for call %d", callID)
 	}
 
-	// 1. Compute auth_key = g_b^a mod p (256 bytes, zero-padded)
 	gBBig := new(big.Int).SetBytes(gB)
 	aBig := new(big.Int).SetBytes(dh.a)
 	pBig := new(big.Int).SetBytes(dh.p)
@@ -6159,8 +5535,6 @@ func (t *TelegramCore) handleCallAccepted(callID int64, gB []byte, protocol tg.P
 	fingerprint := int64(binary.LittleEndian.Uint64(sha1Hash[12:20]))
 	fmt.Printf("[tg-call] DH done (+%dms): fp=%d\n", time.Since(t0).Milliseconds(), fingerprint)
 
-	// The verification emoji are now derivable (auth key ready). We are the
-	// caller, so the fingerprint uses our own g_a (dh.gA).
 	call.mu.Lock()
 	call.fpValues = computeEmojiFingerprintValues(call.authKey[:], dh.gA)
 	call.fpReady = true
@@ -6171,7 +5545,6 @@ func (t *TelegramCore) handleCallAccepted(callID int64, gB []byte, protocol tg.P
 	call.state = CallStateConnecting
 	t.mu.Unlock()
 
-	// 2. confirmCall — returns connections list with TURN/STUN servers
 	versions := filterVersions(
 		[]string{"13.0.0", "8.0.0", "4.0.0"},
 		t.maxCallVersion, t.minCallVersion,
@@ -6181,7 +5554,7 @@ func (t *TelegramCore) handleCallAccepted(callID int64, gB []byte, protocol tg.P
 		GA:             dh.gA,
 		KeyFingerprint: fingerprint,
 		Protocol: tg.PhoneCallProtocol{
-			Flags:           0b11, // udp_p2p | udp_reflector
+			Flags:           0b11,
 			MinLayer:        65,
 			MaxLayer:        92,
 			LibraryVersions: versions,
@@ -6199,25 +5572,21 @@ func (t *TelegramCore) handleCallAccepted(callID int64, gB []byte, protocol tg.P
 	if pcResult.KeyFingerprint != fingerprint {
 		return fmt.Errorf("fingerprint mismatch: %d vs %d", pcResult.KeyFingerprint, fingerprint)
 	}
-	// Debug dump of PhoneCall response
 	fmt.Printf("[tg-call] PhoneCall: id=%d admin=%d participant=%d p2p=%v video=%v conferenceSupported=%v\n",
 		pcResult.ID, pcResult.AdminID, pcResult.ParticipantID, pcResult.P2PAllowed, pcResult.Video, pcResult.ConferenceSupported)
 	fmt.Printf("[tg-call] Protocol: minLayer=%d maxLayer=%d versions=%v\n",
 		pcResult.Protocol.MinLayer, pcResult.Protocol.MaxLayer, pcResult.Protocol.LibraryVersions)
-	// Detect negotiated version — should be 10.0.0 or 11.0.0 (V2Reference = standard SDP)
 	negotiatedVersion := ""
 	if len(pcResult.Protocol.LibraryVersions) > 0 {
 		negotiatedVersion = pcResult.Protocol.LibraryVersions[0]
 	}
 	fmt.Printf("[tg-call] Negotiated version: %s\n", negotiatedVersion)
 
-	// Set up SCTP signaling for v13.0.0 or forced
 	if isV3Transport(negotiatedVersion) || t.forceV2Sig {
 		call.useV2Sig = true
 		fmt.Printf("[tg-call] Using SCTP signaling (version %s, forced=%v)\n", negotiatedVersion, t.forceV2Sig)
 		t.setupSctpSignaling(call)
 	}
-	// V2Impl signaling (v8, v13): InitialSetup + NegotiateChannels
 	if t.forceV2Impl || (isV2ImplVersion(negotiatedVersion) && !t.forceV2Sig && !t.forceV2Ref) {
 		call.useV2Impl = true
 		if t.forceV1Framing {
@@ -6225,10 +5594,9 @@ func (t *TelegramCore) handleCallAccepted(callID int64, gB []byte, protocol tg.P
 		}
 		fmt.Printf("[tg-call] Using V2Impl signaling (version %s, forced=%v, v1framing=%v)\n", negotiatedVersion, t.forceV2Impl, call.useV1Framing)
 	}
-	// Web signaling (v4.0.0/4.0.1): InitialSetup with inline media, V1 encryption framing
 	if isWebVersion(negotiatedVersion) && !t.forceV2Sig && !t.forceV2Ref && !t.forceV2Impl {
 		call.useWebSignaling = true
-		call.useV1Framing = true // web uses simple [seq][JSON] framing
+		call.useV1Framing = true
 		fmt.Printf("[tg-call] Using Web signaling (version %s)\n", negotiatedVersion)
 	}
 
@@ -6236,7 +5604,6 @@ func (t *TelegramCore) handleCallAccepted(callID int64, gB []byte, protocol tg.P
 		fmt.Printf("[tg-call] CustomParameters: %s\n", cp.Data)
 	}
 
-	// Store connections and P2P flag for test harness access
 	t.mu.Lock()
 	call.connections = pcResult.Connections
 	call.p2pAllowed = pcResult.P2PAllowed
@@ -6254,7 +5621,6 @@ func (t *TelegramCore) handleCallAccepted(callID int64, gB []byte, protocol tg.P
 		}
 	}
 
-	// If skipWebRTC is set, stop here — the test harness handles media transport
 	if call.skipWebRTC {
 		fmt.Printf("[tg-call] skipWebRTC mode (outgoing) — DH done, %d connections available for test harness\n", len(pcResult.Connections))
 		if call.dhDone != nil {
@@ -6263,31 +5629,24 @@ func (t *TelegramCore) handleCallAccepted(callID int64, gB []byte, protocol tg.P
 		return nil
 	}
 
-	// InstanceImpl: legacy path, only reachable via ForceInstanceImpl config flag
 	if t.forceInstanceImpl {
 		call.useInstanceImpl = true
 		fmt.Printf("[tg-call] Using InstanceImpl (forced, version %s)\n", negotiatedVersion)
 		return t.startInstanceImplCall(call, pcResult.Connections, negotiatedVersion)
 	}
 
-	// 3. Create PeerConnection with TURN servers and debug logging
 	iceServers := parseCallConnections(pcResult.Connections)
 	fmt.Printf("[tg-call] %d connections → %d ICE servers, p2p=%v (+%dms)\n",
 		len(pcResult.Connections), len(iceServers), call.p2pAllowed, time.Since(t0).Milliseconds())
 
-	// ICE transport policy: relay-only unless P2P is allowed (and not forced relay for testing)
 	icePolicy := webrtc.ICETransportPolicyRelay
 	if call.p2pAllowed && !t.forceRelayICE {
 		icePolicy = webrtc.ICETransportPolicyAll
 	}
 
-	// Generate static ICE credentials — prevents ICE restart when re-offer answer is created.
-	// Official clients send a re-offer after answering. Without static creds, pion generates
-	// new ufrag/pwd in the re-offer answer, which the client sees as ICE restart.
 	iceUfrag := generateICECredential(16)
 	icePwd := generateICECredential(32)
 
-	// Full WebRTC API with RED/telephone-event codecs for Desktop interop
 	callAPI := createCallWebRTCAPI(iceUfrag, icePwd)
 	pc, err := callAPI.NewPeerConnection(webrtc.Configuration{
 		ICEServers:         iceServers,
@@ -6308,24 +5667,18 @@ func (t *TelegramCore) handleCallAccepted(callID int64, gB []byte, protocol tg.P
 			call.pcReadyOnce.Do(func() { close(call.pcReady) })
 		}
 	})
-	// Monitor DTLS transport state changes directly
 	monitorCallDTLS(pc, t0)
 
-	// 9. Set up audio, create offer, then send InitialSetup + NegotiateChannels
 	go t.finishCallSetup(call, t0)
 	return nil
 }
 
-// finishCallSetup adds audio track, wires callbacks, creates SDP offer, and sends it
-// as V2Reference signaling (standard SDP offer/answer over encrypted channel).
-// Called as a goroutine after the PeerConnection is created.
 func (t *TelegramCore) finishCallSetup(call *tgCall, t0 time.Time) {
 	pc := call.pc
 	if pc == nil {
 		return
 	}
 
-	// Add opus audio track
 	audioTrack, err := wrtc.NewTrackLocalStaticRTP(
 		webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeOpus, ClockRate: 48000, Channels: 2},
 		"audio", "uniclient-audio",
@@ -6350,8 +5703,6 @@ func (t *TelegramCore) finishCallSetup(call *tgCall, t0 time.Time) {
 		}
 	}()
 
-	// Add VP8 video track if this is a video call
-	// Uses TrackLocalStaticSample for proper VP8 RTP packetization (RFC 7741 fragmentation).
 	if call.isVideo {
 		videoTrack, err := wrtc.NewTrackLocalStaticSample(
 			webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeVP8, ClockRate: 90000},
@@ -6367,7 +5718,6 @@ func (t *TelegramCore) finishCallSetup(call *tgCall, t0 time.Time) {
 		}
 	}
 
-	// Add screencast VP8 track (declared idle, activated by StartScreenShare)
 	if call.useWebSignaling || call.isVideo {
 		screenTrack, err := wrtc.NewTrackLocalStaticSample(
 			webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeVP8, ClockRate: 90000},
@@ -6383,7 +5733,6 @@ func (t *TelegramCore) finishCallSetup(call *tgCall, t0 time.Time) {
 		}
 	}
 
-	// Handle data channels created by remote (V2Reference uses data channel for MediaState)
 	pc.OnDataChannel(func(dc *webrtc.DataChannel) {
 		fmt.Printf("[tg-call] DATA CHANNEL opened: label=%s id=%d\n", dc.Label(), *dc.ID())
 		dc.OnMessage(func(msg webrtc.DataChannelMessage) {
@@ -6391,7 +5740,6 @@ func (t *TelegramCore) finishCallSetup(call *tgCall, t0 time.Time) {
 		})
 	})
 
-	// Wire up callbacks — dispatch audio vs video vs screencast tracks
 	pc.OnTrack(func(track *wrtc.TrackRemote, recv *webrtc.RTPReceiver) {
 		trackSSRC := uint32(track.SSRC())
 		fmt.Printf("[tg-call] Incoming track: kind=%s codec=%s ssrc=%d mid=%s rid=%s streamID=%s\n",
@@ -6402,7 +5750,6 @@ func (t *TelegramCore) finishCallSetup(call *tgCall, t0 time.Time) {
 				strings.Contains(strings.ToLower(track.Codec().MimeType), "vp8") ||
 				strings.Contains(strings.ToLower(track.Codec().MimeType), "vp9") ||
 				strings.Contains(strings.ToLower(track.Codec().MimeType), "h264")
-			// Distinguish screencast from camera by matching remote SSRC
 			isScreencast := isVideo && call.remoteScreenSSRC != 0 && trackSSRC == call.remoteScreenSSRC
 			if isScreencast {
 				fmt.Printf("[tg-call] Track ssrc=%d identified as SCREENCAST\n", trackSSRC)
@@ -6429,11 +5776,10 @@ func (t *TelegramCore) finishCallSetup(call *tgCall, t0 time.Time) {
 						call.onAudioFrame(pkt.Payload)
 					}
 					call.writeRecordingFrame(pkt.Payload)
-					// Echo mode: forward with fixed timestamp increment
 					if call.echoMode && call.audioTrack != nil && len(pkt.Payload) > 0 {
 						tsInc := call.audioTSIncrement
 						if tsInc == 0 {
-							tsInc = 2880 // 60ms at 48kHz default
+							tsInc = 2880
 						}
 						seq := uint16(atomic.AddUint32(&call.audioSeq, 1))
 						ts := atomic.AddUint32(&call.audioTS, tsInc)
@@ -6471,20 +5817,17 @@ func (t *TelegramCore) finishCallSetup(call *tgCall, t0 time.Time) {
 		}
 	})
 
-	// Send ICE candidates
 	pc.OnICECandidate(func(c *webrtc.ICECandidate) {
 		if c == nil {
 			return
 		}
 		cJSON := c.ToJSON()
 		if call.useV2Impl || call.useWebSignaling {
-			// V2Impl / Web: send as Candidates message with sdpString
 			t.sendCallSignaling(call, &tgCandidates{
 				Type:       "Candidates",
 				Candidates: []tgCandidate{{SDPString: cJSON.Candidate}},
 			})
 		} else {
-			// V2Reference: individual candidate messages
 			mid := ""
 			if cJSON.SDPMid != nil {
 				mid = *cJSON.SDPMid
@@ -6502,7 +5845,6 @@ func (t *TelegramCore) finishCallSetup(call *tgCall, t0 time.Time) {
 		}
 	})
 
-	// Create data channel (outgoing side creates it, V2Reference matches standard WebRTC)
 	if call.isOutgoing {
 		dc, err := pc.CreateDataChannel("data", nil)
 		if err == nil {
@@ -6513,13 +5855,10 @@ func (t *TelegramCore) finishCallSetup(call *tgCall, t0 time.Time) {
 	}
 
 	if t.noOwnOffer {
-		// NoOwnOffer mode: don't send our offer. Wait for the remote's offer and answer it.
-		// Used for official client interop where sending our offer causes recvonly + re-offer mess.
 		close(call.localSDPReady)
 		call.localSetupSent = true
 		fmt.Printf("[tg-call] NoOwnOffer mode — waiting for remote SDP offer (+%dms)\n", time.Since(t0).Milliseconds())
 	} else {
-		// Create SDP offer (used for both V2Reference and V2Impl to trigger ICE gathering)
 		offer, err := pc.CreateOffer(nil)
 		if err != nil {
 			fmt.Printf("[tg-call] CreateOffer error: %v\n", err)
@@ -6533,7 +5872,6 @@ func (t *TelegramCore) finishCallSetup(call *tgCall, t0 time.Time) {
 		call.localSDP = offer.SDP
 		fmt.Printf("[tg-call] SDP offer created (+%dms)\n", time.Since(t0).Milliseconds())
 
-		// Extract SSRCs from our offer SDP (audio + video + screencast)
 		currentMedia := ""
 		videoSectionCount := 0
 		for _, line := range strings.Split(offer.SDP, "\r\n") {
@@ -6571,9 +5909,7 @@ func (t *TelegramCore) finishCallSetup(call *tgCall, t0 time.Time) {
 		}
 
 		if call.useWebSignaling {
-			// Web: send InitialSetup with inline audio media
 			webSetup := extractWebInitialSetupFromSDP(offer.SDP, true)
-			// Save declared screencast SSRC so StartScreenShare uses the same one
 			if webSetup.Screencast != nil && webSetup.Screencast.SSRC != "" {
 				var scrSSRC uint32
 				fmt.Sscanf(webSetup.Screencast.SSRC, "%d", &scrSSRC)
@@ -6586,7 +5922,6 @@ func (t *TelegramCore) finishCallSetup(call *tgCall, t0 time.Time) {
 			fmt.Printf("[tg-call] Web: sent InitialSetup (ufrag=%s, audio=%v video=%v screencast=%v) (+%dms)\n",
 				webSetup.Ufrag, webSetup.Audio != nil, webSetup.Video != nil, webSetup.Screencast != nil, time.Since(t0).Milliseconds())
 		} else if call.useV2Impl {
-			// V2Impl: send InitialSetup + NegotiateChannels instead of SDP
 			v2Setup, v2NC := extractV2ImplFromSDP(offer.SDP, true)
 			v2NC.ExchangeID = strconv.FormatUint(uint64(atomic.AddUint32(&call.v2ImplExchangeSeq, 1)), 10)
 
@@ -6598,7 +5933,6 @@ func (t *TelegramCore) finishCallSetup(call *tgCall, t0 time.Time) {
 			fmt.Printf("[tg-call] V2Impl: sent NegotiateChannels (exchangeId=%s, ssrc=%s) (+%dms)\n",
 				v2NC.ExchangeID, firstSSRC(v2NC.Contents), time.Since(t0).Milliseconds())
 		} else {
-			// V2Reference: send standard SDP offer
 			t.sendCallSignaling(call, map[string]interface{}{
 				"@type": "offer",
 				"sdp":   offer.SDP,
@@ -6608,7 +5942,6 @@ func (t *TelegramCore) finishCallSetup(call *tgCall, t0 time.Time) {
 		call.localSetupSent = true
 	}
 
-	// Send MediaState
 	videoState := "inactive"
 	if call.isVideo {
 		videoState = "active"
@@ -6622,7 +5955,6 @@ func (t *TelegramCore) finishCallSetup(call *tgCall, t0 time.Time) {
 		"lowBattery":      false,
 	})
 
-	// Silence sender — sends opus silence to keep the RTP stream alive and trigger OnTrack on remote
 	go func() {
 		select {
 		case <-call.pcReady:
@@ -6644,7 +5976,6 @@ func (t *TelegramCore) finishCallSetup(call *tgCall, t0 time.Time) {
 				return
 			case <-tick.C:
 			}
-			// Echo mode: audio is sent directly from OnTrack handler, skip here
 			if call.echoMode || call.externalAudio {
 				continue
 			}
@@ -6660,7 +5991,6 @@ func (t *TelegramCore) finishCallSetup(call *tgCall, t0 time.Time) {
 		}
 	}()
 
-	// Poll PeerConnection state every 2 seconds (debug)
 	go func() {
 		tick := time.NewTicker(2 * time.Second)
 		defer tick.Stop()
@@ -6690,8 +6020,6 @@ func (t *TelegramCore) finishCallSetup(call *tgCall, t0 time.Time) {
 	}()
 }
 
-// handleIncomingCallConfirmed completes DH for incoming calls when the PhoneCall update arrives.
-// This happens after our phone.acceptCall and the caller's phone.confirmCall.
 func (t *TelegramCore) handleIncomingCallConfirmed(pc *tg.PhoneCall) error {
 	t.mu.Lock()
 	dh := t.pendingDH[pc.ID]
@@ -6699,13 +6027,12 @@ func (t *TelegramCore) handleIncomingCallConfirmed(pc *tg.PhoneCall) error {
 	t.mu.Unlock()
 
 	if dh == nil || call == nil {
-		return nil // Not an incoming call we're handling
+		return nil
 	}
 	if call.isOutgoing {
-		return nil // Outgoing calls use handleCallAccepted path
+		return nil
 	}
 
-	// Compute auth_key = g_a^b mod p (we stored 'b' in dh.a for incoming calls)
 	gA := pc.GAOrB
 	if len(gA) == 0 {
 		return fmt.Errorf("PhoneCall missing g_a")
@@ -6719,14 +6046,11 @@ func (t *TelegramCore) handleIncomingCallConfirmed(pc *tg.PhoneCall) error {
 	copy(authKeyBytes[256-len(akBuf):], akBuf)
 	copy(call.authKey[:], authKeyBytes)
 
-	// The verification emoji are now derivable. The remote is the caller, so the
-	// fingerprint uses the received caller g_a.
 	call.mu.Lock()
 	call.fpValues = computeEmojiFingerprintValues(call.authKey[:], gA)
 	call.fpReady = true
 	call.mu.Unlock()
 
-	// Verify fingerprint matches
 	sha1Hash := sha1.Sum(authKeyBytes)
 	fingerprint := int64(binary.LittleEndian.Uint64(sha1Hash[12:20]))
 	if pc.KeyFingerprint != fingerprint {
@@ -6745,31 +6069,26 @@ func (t *TelegramCore) handleIncomingCallConfirmed(pc *tg.PhoneCall) error {
 	t.mu.Unlock()
 	fmt.Printf("[tg-call] Incoming DH done, fp=%d\n", fingerprint)
 
-	// Signal DH completion (for test harnesses)
 	if call.dhDone != nil {
 		close(call.dhDone)
 	}
 
-	// If skipWebRTC is set, stop here — the test harness handles media transport
 	if call.skipWebRTC {
 		fmt.Printf("[tg-call] skipWebRTC mode — DH done, %d connections available for test harness\n", len(pc.Connections))
 		return nil
 	}
 
-	// Detect negotiated version for incoming call
 	negotiatedVersion := ""
 	if len(pc.Protocol.LibraryVersions) > 0 {
 		negotiatedVersion = pc.Protocol.LibraryVersions[0]
 	}
 	fmt.Printf("[tg-call] Incoming negotiated version: %s\n", negotiatedVersion)
 
-	// Set up SCTP signaling for v13.0.0 or forced
 	if isV3Transport(negotiatedVersion) || t.forceV2Sig {
 		call.useV2Sig = true
 		fmt.Printf("[tg-call] Incoming: using SCTP signaling\n")
 		t.setupSctpSignaling(call)
 	}
-	// V2Impl signaling (v8, v13): InitialSetup + NegotiateChannels instead of SDP
 	if t.forceV2Impl || (isV2ImplVersion(negotiatedVersion) && !t.forceV2Sig && !t.forceV2Ref) {
 		call.useV2Impl = true
 		if t.forceV1Framing {
@@ -6777,7 +6096,6 @@ func (t *TelegramCore) handleIncomingCallConfirmed(pc *tg.PhoneCall) error {
 		}
 		fmt.Printf("[tg-call] Incoming: using V2Impl signaling (version %s, forced=%v, v1framing=%v)\n", negotiatedVersion, t.forceV2Impl, call.useV1Framing)
 	}
-	// Web signaling (v4.0.0/4.0.1)
 	if isWebVersion(negotiatedVersion) && !t.forceV2Sig && !t.forceV2Ref && !t.forceV2Impl {
 		call.useWebSignaling = true
 		call.useV1Framing = true
@@ -6794,7 +6112,6 @@ func (t *TelegramCore) handleIncomingCallConfirmed(pc *tg.PhoneCall) error {
 		}
 	}
 
-	// InstanceImpl: legacy path, only reachable via ForceInstanceImpl config flag
 	if t.forceInstanceImpl {
 		call.useInstanceImpl = true
 		fmt.Printf("[tg-call] Incoming: using InstanceImpl (forced, version %s)\n", negotiatedVersion)
@@ -6806,21 +6123,15 @@ func (t *TelegramCore) handleIncomingCallConfirmed(pc *tg.PhoneCall) error {
 	return t.startCallWebRTC(call, iceServers, time.Now())
 }
 
-// startCallWebRTC creates a PeerConnection for the INCOMING side.
-// With V2Reference, the incoming side waits for the remote's SDP offer,
-// then creates and sends an SDP answer. Standard WebRTC flow.
 func (t *TelegramCore) startCallWebRTC(call *tgCall, iceServers []webrtc.ICEServer, t0 time.Time) error {
-	// ICE transport policy: relay-only unless P2P is allowed (and not forced relay for testing)
 	icePolicy := webrtc.ICETransportPolicyRelay
 	if call.p2pAllowed && !t.forceRelayICE {
 		icePolicy = webrtc.ICETransportPolicyAll
 	}
 
-	// Static ICE credentials — same reason as outgoing side
 	iceUfrag := generateICECredential(16)
 	icePwd := generateICECredential(32)
 
-	// Create PeerConnection with RED/telephone-event codecs for Desktop interop
 	callAPI := createCallWebRTCAPI(iceUfrag, icePwd)
 	pc, err := callAPI.NewPeerConnection(webrtc.Configuration{
 		ICEServers:         iceServers,
@@ -6833,7 +6144,6 @@ func (t *TelegramCore) startCallWebRTC(call *tgCall, iceServers []webrtc.ICEServ
 	call.localSDPReady = make(chan struct{})
 	call.pcReady = make(chan struct{})
 
-	// Add opus audio track
 	audioTrack, err := wrtc.NewTrackLocalStaticRTP(
 		webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeOpus, ClockRate: 48000, Channels: 2},
 		"audio", "uniclient-audio",
@@ -6858,7 +6168,6 @@ func (t *TelegramCore) startCallWebRTC(call *tgCall, iceServers []webrtc.ICEServ
 		}
 	}()
 
-	// Add VP8 video track if this is a video call
 	if call.isVideo {
 		videoTrack, err := wrtc.NewTrackLocalStaticSample(
 			webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeVP8, ClockRate: 90000},
@@ -6874,7 +6183,6 @@ func (t *TelegramCore) startCallWebRTC(call *tgCall, iceServers []webrtc.ICEServ
 		}
 	}
 
-	// Add screencast VP8 track (declared idle, activated by StartScreenShare)
 	if call.useWebSignaling || call.isVideo {
 		screenTrack, err := wrtc.NewTrackLocalStaticSample(
 			webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeVP8, ClockRate: 90000},
@@ -6976,20 +6284,17 @@ func (t *TelegramCore) startCallWebRTC(call *tgCall, iceServers []webrtc.ICEServ
 		}
 	})
 
-	// Send ICE candidates
 	pc.OnICECandidate(func(c *webrtc.ICECandidate) {
 		if c == nil {
 			return
 		}
 		cJSON := c.ToJSON()
 		if call.useV2Impl || call.useWebSignaling {
-			// V2Impl / Web: send as Candidates message
 			t.sendCallSignaling(call, &tgCandidates{
 				Type:       "Candidates",
 				Candidates: []tgCandidate{{SDPString: cJSON.Candidate}},
 			})
 		} else {
-			// V2Reference: individual candidate messages
 			mid := ""
 			if cJSON.SDPMid != nil {
 				mid = *cJSON.SDPMid
@@ -7014,11 +6319,6 @@ func (t *TelegramCore) startCallWebRTC(call *tgCall, iceServers []webrtc.ICEServ
 		})
 	})
 
-	// V2Impl incoming: do NOT create early offer — pion must be in "stable" state
-	// to accept the synthetic remote offer from InitialSetup + NegotiateChannels.
-	// For V2Reference: standard flow, wait for remote SDP offer.
-
-	// Signal that PC is ready
 	close(call.localSDPReady)
 	waitingFor := "SDP offer"
 	if call.useV2Impl {
@@ -7029,7 +6329,6 @@ func (t *TelegramCore) startCallWebRTC(call *tgCall, iceServers []webrtc.ICEServ
 	fmt.Printf("[tg-call] Incoming PC ready, waiting for remote %s (+%dms)\n",
 		waitingFor, time.Since(t0).Milliseconds())
 
-	// Silence sender for incoming side — triggered after connection established
 	go func() {
 		select {
 		case <-call.pcReady:
@@ -7066,7 +6365,6 @@ func (t *TelegramCore) startCallWebRTC(call *tgCall, iceServers []webrtc.ICEServ
 		}
 	}()
 
-	// Poll PeerConnection state every 2 seconds (debug)
 	go func() {
 		tick := time.NewTicker(2 * time.Second)
 		defer tick.Stop()
@@ -7098,8 +6396,6 @@ func (t *TelegramCore) startCallWebRTC(call *tgCall, iceServers []webrtc.ICEServ
 	return nil
 }
 
-// sendCallSignaling encrypts and sends a signaling message for a call.
-// Routes through SCTP for v11.0.0 or direct V1 encryption for v10.0.0.
 func (t *TelegramCore) sendCallSignaling(call *tgCall, v interface{}) {
 	if call.useV2Sig {
 		t.sendCallSignalingV2(call, v)
@@ -7118,7 +6414,6 @@ func (t *TelegramCore) sendCallSignaling(call *tgCall, v interface{}) {
 		return
 	}
 
-	// Check raw output interceptor — used by test harnesses for direct bridging
 	t.rawSigInterceptorsMu.RLock()
 	outInterceptor := t.rawSigOutInterceptors[call.id]
 	t.rawSigInterceptorsMu.RUnlock()
@@ -7136,9 +6431,7 @@ func (t *TelegramCore) sendCallSignaling(call *tgCall, v interface{}) {
 	}
 }
 
-// handleSignalingData decrypts and processes incoming signaling data for a call.
 func (t *TelegramCore) handleSignalingData(callID int64, data []byte) {
-	// Check raw input interceptor — used by test harnesses (ntgcalls)
 	t.rawSigInterceptorsMu.RLock()
 	inInterceptor := t.rawSigInInterceptors[callID]
 	t.rawSigInterceptorsMu.RUnlock()
@@ -7155,27 +6448,23 @@ func (t *TelegramCore) handleSignalingData(callID int64, data []byte) {
 		return
 	}
 
-	// InstanceImpl (v5.0.0, v2.7.7): binary protocol signaling
 	if call.useInstanceImpl {
 		t.handleInstanceImplSignaling(call, data)
 		return
 	}
 
-	// V2 SCTP signaling (v11.0.0): feed raw SCTP packets to the SCTP conn
 	if call.useV2Sig && call.sctpConn != nil {
 		fmt.Printf("[tg-call] SCTP feed: %d bytes (first4hex=%x)\n", len(data), data[:min(4, len(data))])
 		call.sctpConn.feed(data)
 		return
 	}
 
-	// Decrypt signaling (V1 or V2 framing depending on negotiated version)
 	messages, ackSeqs, err := tgDecryptSignaling(call.authKey[:], data, call.isOutgoing, call.useV1Framing)
 	if err != nil {
 		fmt.Printf("[tg-call] signaling decrypt error: %v (%d bytes)\n", err, len(data))
 		return
 	}
 
-	// Send ACKs immediately for V2 framing (not V1) to stop remote retransmission
 	if len(ackSeqs) > 0 && !call.useV1Framing {
 		go t.sendV2SignalingAcks(call, ackSeqs)
 	}
@@ -7189,7 +6478,6 @@ func (t *TelegramCore) handleSignalingData(callID int64, data []byte) {
 			continue
 		}
 
-		// Decompress gzip if needed (V2Reference may gzip large SDPs)
 		if len(plaintext) >= 2 && plaintext[0] == 0x1f && plaintext[1] == 0x8b {
 			if decompressed, err := gzipDecompress(plaintext); err == nil {
 				plaintext = decompressed
@@ -7205,10 +6493,8 @@ func (t *TelegramCore) handleSignalingData(callID int64, data []byte) {
 
 		switch msg["@type"] {
 		case "offer", "answer":
-			// V2Reference: standard SDP offer/answer
 			sdpType := msg["@type"].(string)
 			sdpStr, _ := msg["sdp"].(string)
-			// Log direction attributes for each m-line
 			for _, line := range strings.Split(sdpStr, "\r\n") {
 				if strings.HasPrefix(line, "m=") || line == "a=sendrecv" || line == "a=recvonly" || line == "a=sendonly" || line == "a=inactive" || strings.HasPrefix(line, "a=msid") || strings.HasPrefix(line, "a=mid:") {
 					fmt.Printf("[tg-call] SDP %s: %s\n", sdpType, line)
@@ -7217,7 +6503,6 @@ func (t *TelegramCore) handleSignalingData(callID int64, data []byte) {
 			t.handleRemoteSDP(call, sdpType, sdpStr)
 
 		case "candidate":
-			// V2Reference: standard ICE candidate
 			sdp, _ := msg["sdp"].(string)
 			mid, _ := msg["mid"].(string)
 			mline := 0
@@ -7274,7 +6559,6 @@ func (t *TelegramCore) handleSignalingData(callID int64, data []byte) {
 				fmt.Printf("[tg-call] Got NegotiateChannels (unexpected with V2Reference)\n")
 			}
 		case "Candidates":
-			// V2Impl candidate format — parse and forward
 			var candidates tgCandidates
 			if err := unmarshalCallSignal(plaintext, &candidates); err != nil {
 				fmt.Printf("[tg-call] skip Candidates: %v\n", err)
@@ -7289,9 +6573,7 @@ func (t *TelegramCore) handleSignalingData(callID int64, data []byte) {
 	}
 }
 
-// handleRemoteSDP processes a standard SDP offer or answer from V2Reference signaling.
 func (t *TelegramCore) handleRemoteSDP(call *tgCall, sdpType string, sdp string) {
-	// Wait for PC to be ready
 	if call.localSDPReady != nil {
 		select {
 		case <-call.localSDPReady:
@@ -7310,8 +6592,6 @@ func (t *TelegramCore) handleRemoteSDP(call *tgCall, sdpType string, sdp string)
 
 	if sdpType == "offer" {
 		if !call.remoteSDPSet {
-			// FIRST offer (pion↔pion: incoming side receives outgoing's offer)
-			// Use pion's normal path: SetRemoteDescription + CreateAnswer
 			if err := call.pc.SetRemoteDescription(webrtc.SessionDescription{
 				Type: webrtc.SDPTypeOffer,
 				SDP:  sdp,
@@ -7322,7 +6602,6 @@ func (t *TelegramCore) handleRemoteSDP(call *tgCall, sdpType string, sdp string)
 			call.remoteSDPSet = true
 			fmt.Printf("[tg-call] Remote offer set (first), receivers=%d\n", len(call.pc.GetReceivers()))
 
-			// Extract remote video/screen SSRCs from offer SDP
 			extractRemoteVideoSSRCs(call, sdp)
 
 			answer, err := call.pc.CreateAnswer(nil)
@@ -7334,8 +6613,7 @@ func (t *TelegramCore) handleRemoteSDP(call *tgCall, sdpType string, sdp string)
 				fmt.Printf("[tg-call] SetLocalDescription(answer) error: %v\n", err)
 				return
 			}
-			call.localSDP = answer.SDP // store for ICE credential reuse
-			// Determine our DTLS role from our answer's setup attribute
+			call.localSDP = answer.SDP
 			for _, line := range strings.Split(answer.SDP, "\r\n") {
 				if strings.HasPrefix(line, "a=setup:") {
 					call.dtlsRole = strings.TrimPrefix(line, "a=setup:")
@@ -7364,17 +6642,9 @@ func (t *TelegramCore) handleRemoteSDP(call *tgCall, sdpType string, sdp string)
 				"lowBattery":      false,
 			})
 		} else {
-			// RE-OFFER (official client sends its own offer after answering ours with recvonly).
-			// Process through pion's normal SetRemoteDescription + CreateAnswer.
-			// IMPORTANT: static ICE credentials (SetICECredentials in SettingEngine) ensure
-			// the answer uses the SAME ufrag/pwd as our original offer, preventing ICE restart.
 			call.remoteOfferCount++
 			fmt.Printf("[tg-call] Re-offer #%d received\n", call.remoteOfferCount)
 
-			// Wait for DTLS to be ready before processing re-offer.
-			// pion's undeclaredMediaProcessor needs an active SRTP session (from DTLS)
-			// to handle incoming RTP with undeclared SSRCs. If we process the re-offer
-			// before DTLS, the processor fails and incoming RTP is silently dropped.
 			if call.pc.ConnectionState() != webrtc.PeerConnectionStateConnected {
 				fmt.Printf("[tg-call] Re-offer received but DTLS not ready (state=%s), deferring...\n", call.pc.ConnectionState())
 				call.mu.Unlock()
@@ -7392,8 +6662,6 @@ func (t *TelegramCore) handleRemoteSDP(call *tgCall, sdpType string, sdp string)
 
 			fmt.Printf("[tg-call] Processing re-offer via pion (%d bytes, sigState=%s)\n", len(sdp), call.pc.SignalingState())
 
-			// Desktop/tgcalls sends a re-offer with extra audio m-lines.
-			// Ensure we have enough audio transceivers for the extra m-lines.
 			audioCount := strings.Count(sdp, "m=audio ")
 			existingAudioTransceivers := 0
 			for _, tr := range call.pc.GetTransceivers() {
@@ -7420,15 +6688,10 @@ func (t *TelegramCore) handleRemoteSDP(call *tgCall, sdpType string, sdp string)
 				fmt.Printf("[tg-call] CreateAnswer(re-offer) error: %v\n", err)
 				return
 			}
-			// Set local description with unmodified SDP (pion validates against its state)
 			if err := call.pc.SetLocalDescription(answer); err != nil {
 				fmt.Printf("[tg-call] SetLocalDescription(re-offer) error: %v\n", err)
 				return
 			}
-			// Fix DTLS role in the SDP we SEND: during re-offers, the DTLS role
-			// must NOT change. If we were the DTLS server (passive) in the initial
-			// exchange, the sent answer must also say passive. Pion defaults to
-			// active which causes "Failed to set SSL role" on the remote side.
 			answerSDP := answer.SDP
 			if call.dtlsRole == "passive" {
 				answerSDP = strings.ReplaceAll(answerSDP, "a=setup:active\r\n", "a=setup:passive\r\n")
@@ -7436,7 +6699,6 @@ func (t *TelegramCore) handleRemoteSDP(call *tgCall, sdpType string, sdp string)
 				answerSDP = strings.ReplaceAll(answerSDP, "a=setup:passive\r\n", "a=setup:active\r\n")
 			}
 			fmt.Printf("[tg-call] Re-offer answer created (%d bytes, dtlsRole=%s)\n", len(answerSDP), call.dtlsRole)
-			// Log re-offer answer: direction + mid + setup
 			for _, line := range strings.Split(answerSDP, "\r\n") {
 				if strings.HasPrefix(line, "a=mid:") ||
 					line == "a=sendrecv" || line == "a=recvonly" || line == "a=sendonly" || line == "a=inactive" ||
@@ -7465,13 +6727,11 @@ func (t *TelegramCore) handleRemoteSDP(call *tgCall, sdpType string, sdp string)
 			})
 		}
 	} else if sdpType == "answer" {
-		// Ignore duplicate answers
 		if call.remoteSDPSet {
 			fmt.Printf("[tg-call] Ignoring duplicate SDP answer (already handled)\n")
 			return
 		}
 
-		// Outgoing side: we sent the offer, set remote answer
 		if err := call.pc.SetRemoteDescription(webrtc.SessionDescription{
 			Type: webrtc.SDPTypeAnswer,
 			SDP:  sdp,
@@ -7480,8 +6740,6 @@ func (t *TelegramCore) handleRemoteSDP(call *tgCall, sdpType string, sdp string)
 			return
 		}
 		call.remoteSDPSet = true
-		// Determine our DTLS role from the remote answer's setup attribute.
-		// Remote active → we are passive (server). Remote passive → we are active (client).
 		for _, line := range strings.Split(sdp, "\r\n") {
 			if strings.HasPrefix(line, "a=setup:") {
 				remoteSetup := strings.TrimPrefix(line, "a=setup:")
@@ -7496,11 +6754,9 @@ func (t *TelegramCore) handleRemoteSDP(call *tgCall, sdpType string, sdp string)
 		}
 		fmt.Printf("[tg-call] Remote answer set\n")
 
-		// Extract remote video/screen SSRCs from SDP for OnTrack dispatch
 		extractRemoteVideoSSRCs(call, sdp)
 	}
 
-	// Flush pending ICE candidates
 	for _, c := range call.pendingCandidates {
 		if err := call.pc.AddICECandidate(c); err != nil {
 			fmt.Printf("[tg-call] AddICECandidate error: %v\n", err)
@@ -7512,9 +6768,7 @@ func (t *TelegramCore) handleRemoteSDP(call *tgCall, sdpType string, sdp string)
 	call.pendingCandidates = nil
 }
 
-// handleRemoteCandidate adds or queues an ICE candidate from V2Reference signaling.
 func (t *TelegramCore) handleRemoteCandidate(call *tgCall, sdp string, mid string, mline int) {
-	// Skip reflector candidates (non-standard format pion can't parse)
 	if strings.Contains(sdp, ".reflector") {
 		return
 	}
@@ -7529,7 +6783,6 @@ func (t *TelegramCore) handleRemoteCandidate(call *tgCall, sdp string, mid strin
 		SDPMLineIndex: &mlineIdx,
 	}
 
-	// If we have remote description set, add immediately; otherwise queue
 	if call.pc != nil && call.pc.RemoteDescription() != nil {
 		if err := call.pc.AddICECandidate(init); err != nil {
 			fmt.Printf("[tg-call] AddICECandidate error: %v\n", err)
@@ -7539,15 +6792,7 @@ func (t *TelegramCore) handleRemoteCandidate(call *tgCall, sdp string, mid strin
 	}
 }
 
-// handleRemoteInitialSetupV2Impl processes a remote InitialSetup message for V2Impl signaling.
-// Stores the setup and, if NegotiateChannels is already received, triggers SDP setup.
-// The callee's own InitialSetup is sent from trySetRemoteV2Impl (after CreateAnswer)
-// to ensure we have the correct DTLS setup value from pion's answer.
-// handleRemoteInitialSetupWeb handles InitialSetup from Telegram Web (v4.0.0).
-// Web sends a single InitialSetup with inline audio/video/screencast media content.
-// No NegotiateChannels exchange — simpler than V2Impl.
 func (t *TelegramCore) handleRemoteInitialSetupWeb(call *tgCall, setup *tgInitialSetup) {
-	// Wait for PC to be ready
 	if call.localSDPReady != nil {
 		select {
 		case <-call.localSDPReady:
@@ -7561,14 +6806,13 @@ func (t *TelegramCore) handleRemoteInitialSetupWeb(call *tgCall, setup *tgInitia
 	alreadySet := call.remoteSDPSet
 	call.mu.Unlock()
 	if alreadySet {
-		return // already processed
+		return
 	}
 	if call.pc == nil {
 		fmt.Printf("[tg-call] Web: no PeerConnection\n")
 		return
 	}
 
-	// Extract remote media SSRCs for OnTrack dispatch
 	if setup.Video != nil && setup.Video.SSRC != "" {
 		var ssrc uint32
 		fmt.Sscanf(setup.Video.SSRC, "%d", &ssrc)
@@ -7581,7 +6825,6 @@ func (t *TelegramCore) handleRemoteInitialSetupWeb(call *tgCall, setup *tgInitia
 	}
 	fmt.Printf("[tg-call] Web: remote SSRCs: video=%d screencast=%d\n", call.remoteVideoSSRC, call.remoteScreenSSRC)
 
-	// Build synthetic SDP from the web InitialSetup
 	syntheticSDP := buildSyntheticSDPFromWebSetup(setup, map[bool]string{true: "answer", false: "offer"}[call.isOutgoing])
 	sdpType := webrtc.SDPTypeOffer
 	if call.isOutgoing {
@@ -7606,7 +6849,6 @@ func (t *TelegramCore) handleRemoteInitialSetupWeb(call *tgCall, setup *tgInitia
 
 	fmt.Printf("[tg-call] Web: remote %s set, flushing %d pending candidates\n", sdpType, len(pending))
 
-	// Flush pending candidates
 	for _, c := range pending {
 		if err := call.pc.AddICECandidate(c); err != nil {
 			fmt.Printf("[tg-call] Web: AddICECandidate error: %v\n", err)
@@ -7614,7 +6856,6 @@ func (t *TelegramCore) handleRemoteInitialSetupWeb(call *tgCall, setup *tgInitia
 	}
 
 	if !call.isOutgoing {
-		// INCOMING: create answer and send our InitialSetup
 		answer, err := call.pc.CreateAnswer(nil)
 		if err != nil {
 			fmt.Printf("[tg-call] Web: CreateAnswer error: %v\n", err)
@@ -7629,9 +6870,7 @@ func (t *TelegramCore) handleRemoteInitialSetupWeb(call *tgCall, setup *tgInitia
 		call.localSDP = answer.SDP
 		call.mu.Unlock()
 
-		// Send our InitialSetup with inline audio
 		ourSetup := extractWebInitialSetupFromSDP(answer.SDP, false)
-		// Save declared screencast SSRC so StartScreenShare uses the same one
 		if ourSetup.Screencast != nil && ourSetup.Screencast.SSRC != "" {
 			var scrSSRC uint32
 			fmt.Sscanf(ourSetup.Screencast.SSRC, "%d", &scrSSRC)
@@ -7644,7 +6883,6 @@ func (t *TelegramCore) handleRemoteInitialSetupWeb(call *tgCall, setup *tgInitia
 		fmt.Printf("[tg-call] Web: sent InitialSetup answer (ufrag=%s, audio.ssrc=%s)\n",
 			ourSetup.Ufrag, ourSetup.Audio.SSRC)
 
-		// Extract SSRC from our answer
 		for _, line := range strings.Split(answer.SDP, "\r\n") {
 			if strings.HasPrefix(line, "a=ssrc:") {
 				parts := strings.SplitN(strings.TrimPrefix(line, "a=ssrc:"), " ", 2)
@@ -7659,7 +6897,6 @@ func (t *TelegramCore) handleRemoteInitialSetupWeb(call *tgCall, setup *tgInitia
 			}
 		}
 
-		// Post-DTLS reoffer for SRTP receive streams
 		go func() {
 			tick := time.NewTicker(100 * time.Millisecond)
 			defer tick.Stop()
@@ -7701,7 +6938,6 @@ func (t *TelegramCore) handleRemoteInitialSetupWeb(call *tgCall, setup *tgInitia
 		}()
 	}
 
-	// Send MediaState
 	v2iVideoState := "inactive"
 	if call.isVideo {
 		v2iVideoState = "active"
@@ -7723,16 +6959,11 @@ func (t *TelegramCore) handleRemoteInitialSetupV2Impl(call *tgCall, setup *tgIni
 	hasNC := call.remoteNegChannels != nil
 	call.mu.Unlock()
 
-	// If both InitialSetup and NegotiateChannels received, build synthetic SDP
 	if hasNC {
 		t.trySetRemoteV2Impl(call)
 	}
 }
 
-// handleRemoteNegotiateChannelsV2Impl processes a remote NegotiateChannels message.
-// Handles two types:
-// 1. Answer to our offer (same exchangeId): confirms our outgoing audio → triggers SDP setup
-// 2. Remote's own offer (different exchangeId): declares remote's sending SSRC → we answer it
 func (t *TelegramCore) handleRemoteNegotiateChannelsV2Impl(call *tgCall, nc *tgNegotiateChannels) {
 	call.mu.Lock()
 	ourExchangeID := strconv.FormatUint(uint64(call.v2ImplExchangeSeq), 10)
@@ -7740,7 +6971,6 @@ func (t *TelegramCore) handleRemoteNegotiateChannelsV2Impl(call *tgCall, nc *tgN
 	call.mu.Unlock()
 
 	if nc.ExchangeID == ourExchangeID {
-		// Answer to our offer — store and trigger SDP setup
 		call.mu.Lock()
 		call.remoteNegChannels = nc
 		hasSetup := call.remoteInitialSetup != nil
@@ -7750,16 +6980,13 @@ func (t *TelegramCore) handleRemoteNegotiateChannelsV2Impl(call *tgCall, nc *tgN
 			t.trySetRemoteV2Impl(call)
 		}
 	} else if alreadySet && call.isOutgoing {
-		// Remote's own offer arrived AFTER initial SDP setup — renegotiate immediately
 		t.processRemoteV2ImplOffer(call, nc)
 	} else if call.isOutgoing && nc.ExchangeID != ourExchangeID {
-		// Remote's own offer arrived BEFORE initial SDP setup — store for later
 		call.mu.Lock()
 		call.remoteNegChannelsOffer = nc
 		call.mu.Unlock()
 		fmt.Printf("[tg-call] V2Impl: stored remote's NegotiateChannels offer (exchangeId=%s) for later\n", nc.ExchangeID)
 	} else {
-		// First NegotiateChannels from remote (incoming side), not matching our exchangeId
 		call.mu.Lock()
 		if call.remoteNegChannels == nil {
 			call.remoteNegChannels = nc
@@ -7773,10 +7000,7 @@ func (t *TelegramCore) handleRemoteNegotiateChannelsV2Impl(call *tgCall, nc *tgN
 	}
 }
 
-// trySetRemoteV2Impl builds a synthetic SDP from remote InitialSetup + NegotiateChannels
-// and sets it as the remote description on the PeerConnection.
 func (t *TelegramCore) trySetRemoteV2Impl(call *tgCall) {
-	// Wait for PC to be ready
 	if call.localSDPReady != nil {
 		select {
 		case <-call.localSDPReady:
@@ -7801,7 +7025,6 @@ func (t *TelegramCore) trySetRemoteV2Impl(call *tgCall) {
 		return
 	}
 
-	// Extract remote video/screen SSRCs from NegotiateChannels for OnTrack dispatch
 	videoIdx := 0
 	for _, content := range nc.Contents {
 		if content.Type == "video" && content.SSRC != "" {
@@ -7820,8 +7043,6 @@ func (t *TelegramCore) trySetRemoteV2Impl(call *tgCall) {
 	}
 
 	if call.isOutgoing {
-		// OUTGOING: we already sent offer, remote sends answer
-		// Build synthetic SDP answer from remote's InitialSetup + NegotiateChannels
 		syntheticSDP := buildSyntheticSDPFromV2Impl(setup, nc, "answer", call.audioSSRC)
 		fmt.Printf("[tg-call] V2Impl: built synthetic answer SDP (%d bytes)\n", len(syntheticSDP))
 		fmt.Printf("[tg-call] V2Impl SYNTHETIC ANSWER:\n%s\n", syntheticSDP)
@@ -7842,7 +7063,6 @@ func (t *TelegramCore) trySetRemoteV2Impl(call *tgCall) {
 
 		fmt.Printf("[tg-call] V2Impl: remote answer set (outgoing)\n")
 
-		// Flush pending candidates
 		for _, c := range pending {
 			if err := call.pc.AddICECandidate(c); err != nil {
 				fmt.Printf("[tg-call] V2Impl: AddICECandidate error: %v\n", err)
@@ -7852,7 +7072,6 @@ func (t *TelegramCore) trySetRemoteV2Impl(call *tgCall) {
 			fmt.Printf("[tg-call] V2Impl: flushed %d pending candidates\n", len(pending))
 		}
 
-		// Send MediaState
 		implInVS := "inactive"
 		if call.isVideo {
 			implInVS = "active"
@@ -7866,7 +7085,6 @@ func (t *TelegramCore) trySetRemoteV2Impl(call *tgCall) {
 			LowBattery:      false,
 		})
 
-		// Process any stored NegotiateChannels offer (remote's own offer that arrived before InitialSetup)
 		call.mu.Lock()
 		pendingOffer := call.remoteNegChannelsOffer
 		call.remoteNegChannelsOffer = nil
@@ -7875,8 +7093,6 @@ func (t *TelegramCore) trySetRemoteV2Impl(call *tgCall) {
 			t.processRemoteV2ImplOffer(call, pendingOffer)
 		}
 	} else {
-		// INCOMING: remote (caller) sends offer, we create answer
-		// Build synthetic SDP offer from remote's InitialSetup + NegotiateChannels
 		syntheticSDP := buildSyntheticSDPFromV2Impl(setup, nc, "offer")
 		fmt.Printf("[tg-call] V2Impl: built synthetic offer SDP (%d bytes)\n", len(syntheticSDP))
 		fmt.Printf("[tg-call] V2Impl SYNTHETIC OFFER:\n%s\n", syntheticSDP)
@@ -7895,7 +7111,6 @@ func (t *TelegramCore) trySetRemoteV2Impl(call *tgCall) {
 
 		fmt.Printf("[tg-call] V2Impl: remote offer set (incoming)\n")
 
-		// Create answer
 		answer, err := call.pc.CreateAnswer(nil)
 		if err != nil {
 			fmt.Printf("[tg-call] V2Impl: CreateAnswer error: %v\n", err)
@@ -7912,27 +7127,20 @@ func (t *TelegramCore) trySetRemoteV2Impl(call *tgCall) {
 
 		fmt.Printf("[tg-call] V2Impl: answer created (%d bytes)\n", len(answer.SDP))
 
-		// Now send our InitialSetup — extracted from the ANSWER SDP so DTLS setup is correct.
-		// pion answers "actpass" with "active" (DTLS client/initiator).
 		ourSetup, ourNC := extractV2ImplFromSDP(answer.SDP, false)
 		t.sendCallSignaling(call, ourSetup)
 		fmt.Printf("[tg-call] V2Impl: sent InitialSetup (ufrag=%s, setup=%s)\n",
 			ourSetup.Ufrag, fingerprintLabel(*ourSetup))
 
-		// Send NegotiateChannels answer: echo remote's offer contents entirely.
-		// Must use remote's codecs/SSRCs/ssrcGroups — NOT pion's. Pion's codec list
-		// includes orphan rtx codecs (apt=116 for AV1 etc.) that C++ rejects.
 		answerNC := &tgNegotiateChannels{
 			Type:       "NegotiateChannels",
 			ExchangeID: nc.ExchangeID,
-			Contents:   nc.Contents, // echo offer contents exactly
+			Contents:   nc.Contents,
 		}
 		t.sendCallSignaling(call, answerNC)
 		fmt.Printf("[tg-call] V2Impl: sent NegotiateChannels answer (exchangeId=%s, ssrc=%s [echoed remote])\n",
 			answerNC.ExchangeID, firstSSRC(answerNC.Contents))
 
-		// Also send our OWN NegotiateChannels offer (new exchangeId, our SSRC).
-		// This tells C++ what we'll be sending. C++ will answer with our exchangeId.
 		var eidBuf [4]byte
 		rand.Read(eidBuf[:])
 		ownExchangeID := strconv.FormatUint(uint64(binary.BigEndian.Uint32(eidBuf[:])), 10)
@@ -7941,7 +7149,6 @@ func (t *TelegramCore) trySetRemoteV2Impl(call *tgCall) {
 		fmt.Printf("[tg-call] V2Impl: sent NegotiateChannels own offer (exchangeId=%s, ssrc=%s)\n",
 			ourNC.ExchangeID, firstSSRC(ourNC.Contents))
 
-		// Extract SSRC from our answer
 		for _, line := range strings.Split(answer.SDP, "\r\n") {
 			if strings.HasPrefix(line, "a=ssrc:") {
 				parts := strings.SplitN(strings.TrimPrefix(line, "a=ssrc:"), " ", 2)
@@ -7957,7 +7164,6 @@ func (t *TelegramCore) trySetRemoteV2Impl(call *tgCall) {
 			}
 		}
 
-		// Flush pending candidates
 		call.mu.Lock()
 		pending := call.pendingCandidates
 		call.pendingCandidates = nil
@@ -7971,7 +7177,6 @@ func (t *TelegramCore) trySetRemoteV2Impl(call *tgCall) {
 			fmt.Printf("[tg-call] V2Impl: flushed %d pending candidates\n", len(pending))
 		}
 
-		// Send MediaState
 		implOutVS := "inactive"
 		if call.isVideo {
 			implOutVS = "active"
@@ -7985,11 +7190,6 @@ func (t *TelegramCore) trySetRemoteV2Impl(call *tgCall) {
 			LowBattery:      false,
 		})
 
-		// V2Impl incoming: the initial SetRemoteDescription(offer) happens BEFORE
-		// DTLS/SRTP is ready. pion's RTP receive streams fail to initialize at that
-		// point and never retry. Fix: do a manual reoffer AFTER DTLS connects to
-		// re-register the SRTP receive streams. Same pattern as V2Reference's
-		// deferred re-offer fix.
 		go func() {
 			select {
 			case <-call.pcReady:
@@ -8013,7 +7213,6 @@ func (t *TelegramCore) trySetRemoteV2Impl(call *tgCall) {
 
 			syntheticOffer := buildSyntheticSDPFromV2Impl(remoteSetup, remoteNC, "offer")
 
-			// Add extra recvonly transceiver for the re-offer's audio m-line
 			audioCount := strings.Count(syntheticOffer, "m=audio ")
 			existingAudio := 0
 			for _, tr := range call.pc.GetTransceivers() {
@@ -8052,19 +7251,16 @@ func (t *TelegramCore) trySetRemoteV2Impl(call *tgCall) {
 	}
 }
 
-// processRemoteV2ImplOffer handles the remote's own NegotiateChannels offer (different exchangeId).
-// This contains the remote's ACTUAL sending SSRC. We answer it and do a pion renegotiation.
 func (t *TelegramCore) processRemoteV2ImplOffer(call *tgCall, nc *tgNegotiateChannels) {
 	remoteSSRC := firstSSRC(nc.Contents)
 
-	// Dedup: skip if we've already answered this exchangeId (retransmit from remote)
 	call.mu.Lock()
 	if call.answeredExchangeIDs == nil {
 		call.answeredExchangeIDs = make(map[string]bool)
 	}
 	if call.answeredExchangeIDs[nc.ExchangeID] {
 		call.mu.Unlock()
-		return // already processed, skip retransmit
+		return
 	}
 	call.answeredExchangeIDs[nc.ExchangeID] = true
 	call.mu.Unlock()
@@ -8072,24 +7268,18 @@ func (t *TelegramCore) processRemoteV2ImplOffer(call *tgCall, nc *tgNegotiateCha
 	fmt.Printf("[tg-call] V2Impl: processing remote's NegotiateChannels offer (exchangeId=%s, ssrc=%s, contents=%d)\n",
 		nc.ExchangeID, remoteSSRC, len(nc.Contents))
 
-	// NC answer: echo back the remote's offer contents entirely.
-	// Must use remote's codecs/SSRCs/ssrcGroups — NOT pion's. Pion's codec list
-	// includes orphan rtx codecs (apt=116 for AV1 etc.) that C++ V2Impl's
-	// SetLocalContent rejects with "Failed to set local video description recv parameters".
 	answerNC := &tgNegotiateChannels{
 		Type:       "NegotiateChannels",
 		ExchangeID: nc.ExchangeID,
-		Contents:   nc.Contents, // echo offer contents exactly
+		Contents:   nc.Contents,
 	}
 	t.sendCallSignaling(call, answerNC)
 	fmt.Printf("[tg-call] V2Impl: sent NC answer (echo, %d contents)\n", len(answerNC.Contents))
 
-	// Renegotiate to register remote's sending SSRC
 	call.mu.Lock()
 	setup := call.remoteInitialSetup
 	call.mu.Unlock()
 
-	// Renegotiate to register remote's sending SSRC
 	if setup != nil && call.pc != nil && remoteSSRC != "" {
 		call.mu.Lock()
 		reofferCount := call.remoteOfferCount
@@ -8102,12 +7292,7 @@ func (t *TelegramCore) processRemoteV2ImplOffer(call *tgCall, nc *tgNegotiateCha
 	}
 }
 
-// handleV2ImplReoffer processes Desktop's own NegotiateChannels offer by doing a pion renegotiation.
-// This registers Desktop's sending SSRC so pion can receive incoming audio.
-// Called as a goroutine from handleRemoteNegotiateChannelsV2Impl.
 func (t *TelegramCore) handleV2ImplReoffer(call *tgCall, setup *tgInitialSetup, nc *tgNegotiateChannels) {
-	// Wait for PeerConnection to reach at least "connecting" state (SDP must be set first).
-	// SDP renegotiation works before DTLS connects — we don't need to wait for full "connected".
 	if call.localSDPReady != nil {
 		select {
 		case <-call.localSDPReady:
@@ -8117,11 +7302,9 @@ func (t *TelegramCore) handleV2ImplReoffer(call *tgCall, setup *tgInitialSetup, 
 		}
 	}
 
-	// Build synthetic re-offer with Desktop's SSRC (this is an "offer" from the remote)
 	syntheticOffer := buildSyntheticSDPFromV2Impl(setup, nc, "offer")
 	fmt.Printf("[tg-call] V2Impl reoffer: built synthetic offer with remote SSRC (%d bytes)\n", len(syntheticOffer))
 
-	// Ensure we have enough transceivers for the re-offer
 	audioCount := strings.Count(syntheticOffer, "m=audio ")
 	existingAudio := 0
 	for _, tr := range call.pc.GetTransceivers() {
@@ -8159,8 +7342,6 @@ func (t *TelegramCore) handleV2ImplReoffer(call *tgCall, setup *tgInitialSetup, 
 	fmt.Printf("[tg-call] V2Impl reoffer: done — remote SSRC registered for incoming audio\n")
 }
 
-// gzipDecompress decompresses gzip-compressed data.
-// generateICECredential generates a random ICE credential string of the given length.
 func generateICECredential(length int) string {
 	const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	b := make([]byte, length)
@@ -8171,12 +7352,6 @@ func generateICECredential(length int) string {
 	return string(b)
 }
 
-// tgGzipMaxDecompressed caps gzip output on the signaling path: the
-// compressed bytes come from the network (MTProto layer and V2Reference
-// both sniff for the gzip magic), so a hostile gzip bomb must not
-// expand unbounded in RAM (slice-284 — the decompression sibling of
-// F-53). Callers fall back to the raw bytes on error. Test overrides
-// it downward.
 var tgGzipMaxDecompressed int64 = 128 * 1024 * 1024
 
 func gzipDecompress(data []byte) ([]byte, error) {
@@ -8195,18 +7370,14 @@ func gzipDecompress(data []byte) ([]byte, error) {
 	return out, nil
 }
 
-// JoinGroupCall joins an active group call in a chat.
 func (t *TelegramCore) JoinGroupCall(chatID string) (*CallSession, error) {
 	return t.joinGroupCallInternal(chatID, false, nil)
 }
 
-// JoinGroupCallWithVideo joins a group call with video enabled.
-// video=true adds a VP8 video track to the SFU PeerConnection.
 func (t *TelegramCore) JoinGroupCallWithVideo(chatID string, video bool) (*CallSession, error) {
 	return t.joinGroupCallInternal(chatID, video, nil)
 }
 
-// joinAs is the identity to join as (yourself / a channel you own). nil = InputPeerSelf.
 func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs tg.InputPeerClass) (*CallSession, error) {
 	t.mu.RLock()
 	if !t.authed || t.api == nil {
@@ -8215,11 +7386,8 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs t
 	}
 	t.mu.RUnlock()
 
-	// callDone is closed when the call ends, signaling all goroutines to exit
 	callDone := make(chan struct{})
 
-	// Resolve the chat and find the active group call.
-	// If peer resolution fails, try interpreting chatID as a conference call ID.
 	var gcID int64
 	var gcAccessHash int64
 	peer, err := t.resolvePeer(chatID)
@@ -8245,8 +7413,6 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs t
 
 	fmt.Printf("[tg-group] Found group call: id=%d video=%v\n", gcID, video)
 
-	// Check if already in this call WITH a PeerConnection (fully joined).
-	// If only created (no PC), remove and proceed with full join.
 	t.mu.Lock()
 	existing := t.activeCalls[gcID]
 	if existing != nil && existing.pc != nil {
@@ -8256,16 +7422,11 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs t
 			State: existing.state,
 		}, nil
 	}
-	// Remove placeholder from CreateGroupCall
 	if existing != nil {
 		delete(t.activeCalls, gcID)
 	}
 	t.mu.Unlock()
 
-	// Create PeerConnection with custom MediaEngine that registers header extensions
-	// in the exact order the SFU expects (IDs 1=ssrc-audio-level, 2=abs-send-time,
-	// 3=transport-cc). Extension IDs must match on the wire since the SFU parses
-	// RTP headers by position — a mismatch means the SFU can't read our extensions.
 	me := &wrtc.MediaEngine{}
 	me.RegisterCodec(webrtc.RTPCodecParameters{
 		RTPCodecCapability: webrtc.RTPCodecCapability{
@@ -8283,8 +7444,6 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs t
 		me.RegisterHeaderExtension(webrtc.RTPHeaderExtensionCapability{URI: ext}, webrtc.RTPCodecTypeAudio)
 	}
 
-	// Register VP8 video codec if joining with video.
-	// PTs must match the SFU's response: VP8=100, RTX=101 (Telegram SFU standard).
 	if video {
 		vp8Fbs := []webrtc.RTCPFeedback{
 			{Type: "goog-remb"},
@@ -8300,7 +7459,6 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs t
 			},
 			PayloadType: 100,
 		}, webrtc.RTPCodecTypeVideo)
-		// RTX for VP8 retransmission
 		me.RegisterCodec(webrtc.RTPCodecParameters{
 			RTPCodecCapability: webrtc.RTPCodecCapability{
 				MimeType: "video/rtx", ClockRate: 90000,
@@ -8308,7 +7466,6 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs t
 			},
 			PayloadType: 101,
 		}, webrtc.RTPCodecTypeVideo)
-		// Video header extensions (same IDs as audio: 2=abs-send-time, 3=transport-cc, plus 13=video-orientation)
 		for _, ext := range []string{
 			"http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time",
 			"http://www.ietf.org/id/draft-holmer-rmcat-transport-wide-cc-extensions-01",
@@ -8319,22 +7476,12 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs t
 	}
 
 	ir := &interceptor.Registry{}
-	// Don't use RegisterDefaultInterceptors — it calls ConfigureSimulcastExtensionHeaders
-	// which registers MID/RID/repaired-RID extensions. With those registered, pion does
-	// simulcast probing for unknown SSRCs (from SFU-forwarded audio), which fails because
-	// audio packets don't contain MID/RID. Without them, pion falls back to PT-based
-	// matching: PT 111 → audio m-line, PT 100 → video m-line.
 	wrtc.ConfigureNack(me, ir)
 	wrtc.ConfigureRTCPReports(ir)
 	wrtc.ConfigureStatsInterceptor(ir)
 	wrtc.ConfigureTWCCSender(me, ir)
 	se := wrtc.SettingEngine{}
-	// Filter out IPv6 — user confirmed no IPv6 connectivity, so IPv6 ICE pairs
-	// waste time and cause intermittent failures when pion tries them first.
 	se.SetIPFilter(func(ip net.IP) bool { return ip.To4() != nil })
-	// Allow pion to create dynamic tracks for SSRCs not declared in the SDP answer.
-	// The SFU forwards other participants' audio with their original SSRCs, which aren't
-	// in our synthetic answer. Without this, pion drops the packets and OnTrack never fires.
 	se.SetHandleUndeclaredSSRCWithoutAnswer(true)
 	groupAPI := wrtc.NewAPI(
 		wrtc.WithMediaEngine(me),
@@ -8350,8 +7497,6 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs t
 		return nil, fmt.Errorf("create PeerConnection: %w", err)
 	}
 
-	// Add opus audio track (RTP-based — we manually construct headers with extensions.
-	// The SFU requires ssrc-audio-level extension in RTP packets for routing.)
 	audioRTPTrack, err := wrtc.NewTrackLocalStaticRTP(
 		webrtc.RTPCodecCapability{
 			MimeType: webrtc.MimeTypeOpus, ClockRate: 48000, Channels: 2,
@@ -8379,9 +7524,6 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs t
 		}
 	}()
 
-	// Add video track BEFORE SDP offer so the SDP has both audio + video m-lines.
-	// The SFU expects the DTLS session to have video capability when VideoStopped=false.
-	// Video SSRCs are extracted from the SDP (pion-assigned) for join params.
 	var videoTrackLocal *wrtc.TrackLocalStaticSample
 	if video {
 		videoTrackLocal, err = wrtc.NewTrackLocalStaticSample(
@@ -8415,8 +7557,6 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs t
 		}()
 	}
 
-	// Create data channel for SFU video subscription (ReceiverVideoConstraints).
-	// Must be created before the SDP offer so pion includes m=application in the SDP.
 	var sfuDC *webrtc.DataChannel
 	if video {
 		ordered := true
@@ -8429,7 +7569,6 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs t
 		}
 	}
 
-	// Create SDP offer (includes video m-line if video=true)
 	offer, err := pc.CreateOffer(nil)
 	if err != nil {
 		pc.Close()
@@ -8440,7 +7579,6 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs t
 		return nil, fmt.Errorf("set local desc: %w", err)
 	}
 
-	// Wait for ICE gathering to complete
 	gatherDone := wrtc.GatheringCompletePromise(pc)
 	<-gatherDone
 
@@ -8449,13 +7587,10 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs t
 		pc.Close()
 		return nil, fmt.Errorf("no local description after gather")
 	}
-	// Extract ICE credentials, audio SSRC, and video SSRCs from SDP.
-	// With video=true, the SDP has two m-lines: mid=0 (audio) and mid=1 (video).
-	// SSRCs appear after each m-line. We parse by tracking which m-line section we're in.
 	var ufrag, pwd, fpHash, fpValue string
 	var audioSSRC, videoSSRC uint32
 	var videoRTXSSRC uint32
-	currentMedia := "" // "audio" or "video"
+	currentMedia := ""
 	videoSSRCSet := map[uint32]bool{}
 	for _, line := range strings.Split(localDesc.SDP, "\r\n") {
 		if strings.HasPrefix(line, "a=ice-ufrag:") {
@@ -8484,7 +7619,6 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs t
 				}
 			}
 		} else if strings.HasPrefix(line, "a=ssrc-group:FID ") {
-			// a=ssrc-group:FID <primary> <rtx> — pion generates this for RTX
 			parts := strings.Fields(strings.TrimPrefix(line, "a=ssrc-group:FID "))
 			if len(parts) >= 2 {
 				fmt.Sscanf(parts[0], "%d", &videoSSRC)
@@ -8493,7 +7627,6 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs t
 		}
 	}
 
-	// If no FID group line, fall back to first/second video SSRC
 	if video && videoSSRC == 0 && len(videoSSRCSet) > 0 {
 		for ssrc := range videoSSRCSet {
 			if videoSSRC == 0 {
@@ -8509,7 +7642,6 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs t
 		return nil, fmt.Errorf("failed to extract SDP params: ufrag=%q pwd=%q fp=%q ssrc=%d", ufrag, pwd, fpValue, audioSSRC)
 	}
 
-	// Build ssrc-groups for join params from pion-assigned video SSRCs.
 	ssrcGroups := []interface{}{}
 	if video && videoSSRC != 0 {
 		sources := []int32{int32(videoSSRC)}
@@ -8523,7 +7655,6 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs t
 		fmt.Printf("[tg-group] Video SSRCs from SDP: primary=%d rtx=%d\n", videoSSRC, videoRTXSSRC)
 	}
 
-	// Build join params JSON (matches tgcalls GroupJoinInternalPayload::serialize)
 	joinParams := map[string]interface{}{
 		"ufrag": ufrag,
 		"pwd":   pwd,
@@ -8532,14 +7663,12 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs t
 			"fingerprint": fpValue,
 			"setup":       "active",
 		}},
-		"ssrc":        int32(audioSSRC), // signed int32 like tgcalls
+		"ssrc":        int32(audioSSRC),
 		"ssrc-groups": ssrcGroups,
 	}
 	paramsJSON, _ := json.Marshal(joinParams)
 	fmt.Printf("[tg-group] Join params: %s\n", string(paramsJSON))
 
-	// Call phone.joinGroupCall (must join muted, then unmute after connecting)
-	// Retry on -503 (server timeout — transient)
 	inputGroupCall := &tg.InputGroupCall{ID: gcID, AccessHash: gcAccessHash}
 	joinAsPeer := joinAs
 	if joinAsPeer == nil {
@@ -8566,9 +7695,8 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs t
 		return nil, fmt.Errorf("phone.joinGroupCall: %w", err)
 	}
 
-	// Extract the SFU response from updates — check for UpdateGroupCallConnection inline
 	var sfuTransportFromResponse string
-	initialVideoEndpoints := make(map[string]string) // endpointID → userID
+	initialVideoEndpoints := make(map[string]string)
 	switch u := joinResp.(type) {
 	case *tg.Updates:
 		fmt.Printf("[tg-group] JoinGroupCall response: %d updates\n", len(u.Updates))
@@ -8591,7 +7719,6 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs t
 					} else {
 						fmt.Printf("[tg-group] Remote participant: ssrc=%d muted=%v videoJoined=%v\n",
 							p.Source, p.Muted, p.VideoJoined)
-						// Extract video endpoint for SFU subscription
 						if vid, ok := p.GetVideo(); ok && p.VideoJoined {
 							fmt.Printf("[tg-group]   video endpoint=%s sourceGroups=%d\n",
 								vid.Endpoint, len(vid.SourceGroups))
@@ -8603,7 +7730,6 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs t
 					}
 				}
 			}
-			// Check for SFU transport in response (often sent inline)
 			if gcc, ok := upd.(*tg.UpdateGroupCallConnection); ok {
 				sfuTransportFromResponse = gcc.Params.Data
 				fmt.Printf("[tg-group] SFU transport in response: %d bytes (presentation=%v)\n",
@@ -8612,7 +7738,6 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs t
 		}
 	}
 
-	// Store the group call state
 	call := &tgCall{
 		id:                   gcID,
 		accessHash:           gcAccessHash,
@@ -8633,7 +7758,6 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs t
 		ssrcToUser:           make(map[uint32]string),
 	}
 
-	// Wire up incoming tracks from SFU (audio and video)
 	pc.OnTrack(func(track *wrtc.TrackRemote, recv *webrtc.RTPReceiver) {
 		trackSSRC := uint32(track.SSRC())
 		codec := track.Codec().MimeType
@@ -8641,7 +7765,6 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs t
 			track.Kind(), codec, trackSSRC)
 
 		if track.Kind() == webrtc.RTPCodecTypeVideo {
-			// Video track from SFU (another participant's camera/screen)
 			go func() {
 				for {
 					select {
@@ -8654,12 +7777,10 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs t
 						fmt.Printf("[tg-group] video track.ReadRTP error: %v (ssrc=%d)\n", err, trackSSRC)
 						return
 					}
-					// Use the shared VP8 reassembly pipeline (strips descriptor, reassembles, delivers)
 					t.handleIncomingVideoRTP(call, pkt, false)
 				}
 			}()
 		} else {
-			// Audio track from SFU
 			go func() {
 				for {
 					select {
@@ -8672,10 +7793,6 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs t
 						fmt.Printf("[tg-group] track.ReadRTP error: %v (ssrc=%d)\n", err, trackSSRC)
 						return
 					}
-					// Real per-participant audio level from the RTP ssrc-audio-level
-					// header extension (RFC 6464, ID 1) — drives the participant
-					// speaking blobs. The byte is (V<<7 | -dBov): V=voice activity,
-					// the low 7 bits are loudness in -dBov (0=loudest, 127=silence).
 					if pkt.Header.Extension {
 						if ext := pkt.Header.GetExtension(1); len(ext) >= 1 {
 							if b := ext[0]; b&0x80 != 0 {
@@ -8701,12 +7818,10 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs t
 		}
 	})
 
-	// Data channel for SFU video subscription (ReceiverVideoConstraints)
 	if sfuDC != nil {
 		sfuDC.OnOpen(func() {
 			fmt.Printf("[tg-group] Data channel open — ready for video subscription\n")
 			close(call.sfuDataChannelOpen)
-			// Send initial constraints if we already know remote endpoints
 			t.sendSFUVideoConstraints(call)
 		})
 		sfuDC.OnMessage(func(msg webrtc.DataChannelMessage) {
@@ -8733,7 +7848,6 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs t
 	t.activeCalls[gcID] = call
 	t.mu.Unlock()
 
-	// Use transport from response if available, otherwise wait for UpdateGroupCallConnection
 	if sfuTransportFromResponse != "" {
 		call.sfuTransportJSON = sfuTransportFromResponse
 		fmt.Printf("[tg-group] Using SFU transport from JoinGroupCall response (%d bytes)\n", len(sfuTransportFromResponse))
@@ -8751,7 +7865,6 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs t
 		}
 	}
 
-	// Parse SFU transport and set remote SDP
 	if err := t.applySFUTransport(call); err != nil {
 		pc.Close()
 		t.mu.Lock()
@@ -8760,7 +7873,6 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs t
 		return nil, fmt.Errorf("SFU transport: %w", err)
 	}
 
-	// Video track was added before SDP exchange — store references in the call object.
 	if video && videoTrackLocal != nil {
 		call.videoTrack = videoTrackLocal
 		call.videoSSRC = videoSSRC
@@ -8775,9 +7887,7 @@ func (t *TelegramCore) joinGroupCallInternal(chatID string, video bool, joinAs t
 	}, nil
 }
 
-// handleGroupCallConnection processes UpdateGroupCallConnection — the SFU's transport response.
 func (t *TelegramCore) handleGroupCallConnection(paramsJSON string, isPresentation bool) {
-	// Find the active group call
 	t.mu.RLock()
 	var groupCall *tgCall
 	for _, c := range t.activeCalls {
@@ -8795,21 +7905,17 @@ func (t *TelegramCore) handleGroupCallConnection(paramsJSON string, isPresentati
 
 	if isPresentation {
 		fmt.Printf("[tg-group] Presentation transport received (%d bytes)\n", len(paramsJSON))
-		// Presentation transport is for screen share — currently shares the same PC.
-		// The SFU acknowledges our presentation join; the screen track is already added.
 		return
 	}
 
 	groupCall.sfuTransportJSON = paramsJSON
 	select {
 	case <-groupCall.sfuTransportReady:
-		// Already closed
 	default:
 		close(groupCall.sfuTransportReady)
 	}
 }
 
-// sfuTransport is the parsed SFU transport response JSON.
 type sfuTransport struct {
 	Transport struct {
 		Ufrag        string `json:"ufrag"`
@@ -8852,7 +7958,7 @@ type sfuPayloadType struct {
 	Name       string          `json:"name"`
 	Clockrate  int             `json:"clockrate"`
 	Channels   int             `json:"channels,omitempty"`
-	Parameters json.RawMessage `json:"parameters,omitempty"` // can be {} or [] from SFU
+	Parameters json.RawMessage `json:"parameters,omitempty"`
 	RTCPFbs    []struct {
 		Type    string `json:"type"`
 		Subtype string `json:"subtype,omitempty"`
@@ -8864,12 +7970,7 @@ type sfuHdrExt struct {
 	URI string `json:"uri"`
 }
 
-// applySFUTransport parses the SFU transport JSON and sets the remote SDP answer.
-// The SDP answer must mirror header extensions and RTCP-fb from our offer so pion
-// negotiates them and includes them in outgoing RTP. The SFU needs these extensions
-// (ssrc-audio-level, transport-cc, abs-send-time) to properly route audio.
 func (t *TelegramCore) applySFUTransport(call *tgCall) error {
-	// Log the raw SFU response for debugging
 	fmt.Printf("[tg-group] Raw SFU response JSON: %s\n", call.sfuTransportJSON)
 
 	var transport sfuTransport
@@ -8888,8 +7989,6 @@ func (t *TelegramCore) applySFUTransport(call *tgCall) error {
 			transport.Video.ServerSources, transport.Video.Endpoint)
 	}
 
-	// Extract per-m-line attributes from our offer SDP so the answer mirrors them.
-	// Pion negotiates extensions/RTCP-fb based on what appears in the answer.
 	localDesc := call.pc.LocalDescription()
 	if localDesc == nil {
 		return fmt.Errorf("no local SDP offer available")
@@ -8931,7 +8030,6 @@ func (t *TelegramCore) applySFUTransport(call *tgCall) error {
 		len(audioInfo.extmaps), len(audioInfo.rtcpFbs), len(videoInfo.extmaps), len(videoInfo.rtcpFbs))
 	fmt.Printf("[tg-group] Offer SDP:\n%s\n", localDesc.SDP)
 
-	// Build synthetic SDP answer from SFU transport
 	if len(tr.Fingerprints) == 0 {
 		return fmt.Errorf("sfu transport has no DTLS fingerprint")
 	}
@@ -8943,7 +8041,7 @@ func (t *TelegramCore) applySFUTransport(call *tgCall) error {
 
 	bundleMids := "0"
 	if call.isVideo {
-		bundleMids = "0 1 2" // audio + video + data channel
+		bundleMids = "0 1 2"
 	}
 
 	var sdp strings.Builder
@@ -8957,7 +8055,6 @@ func (t *TelegramCore) applySFUTransport(call *tgCall) error {
 		sdp.WriteString("a=extmap-allow-mixed\r\n")
 	}
 
-	// Audio m-line
 	sdp.WriteString("m=audio 9 UDP/TLS/RTP/SAVPF 111\r\n")
 	sdp.WriteString("c=IN IP4 0.0.0.0\r\n")
 	sdp.WriteString("a=rtcp:9 IN IP4 0.0.0.0\r\n")
@@ -8981,12 +8078,6 @@ func (t *TelegramCore) applySFUTransport(call *tgCall) error {
 		sdp.WriteString(fb + "\r\n")
 	}
 
-	// Video m-line (only when video=true).
-	// Direction is sendonly in the answer: we send video TO the SFU but pion doesn't
-	// need to receive on this m-line. Incoming video from other participants arrives on
-	// undeclared SSRCs which HandleUndeclaredSSRCWithoutAnswer routes to the audio m-line
-	// (the only recvonly/sendrecv m-line). We separate audio vs video in OnTrack by codec.
-	// Using sendrecv would cause simulcast probing for incoming audio SSRCs which fails.
 	if call.isVideo {
 		sdp.WriteString("m=video 9 UDP/TLS/RTP/SAVPF 100 101\r\n")
 		sdp.WriteString("c=IN IP4 0.0.0.0\r\n")
@@ -9008,7 +8099,6 @@ func (t *TelegramCore) applySFUTransport(call *tgCall) error {
 		sdp.WriteString("a=rtpmap:101 rtx/90000\r\n")
 		sdp.WriteString("a=fmtp:101 apt=100\r\n")
 
-		// Data channel m-line (SCTP over DTLS for ReceiverVideoConstraints)
 		sdp.WriteString("m=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\n")
 		sdp.WriteString("c=IN IP4 0.0.0.0\r\n")
 		sdp.WriteString(fmt.Sprintf("a=ice-ufrag:%s\r\n", tr.Ufrag))
@@ -9022,7 +8112,6 @@ func (t *TelegramCore) applySFUTransport(call *tgCall) error {
 	answerSDP := sdp.String()
 	fmt.Printf("[tg-group] Synthetic SDP answer (%d bytes):\n%s\n", len(answerSDP), answerSDP)
 
-	// Set remote description
 	if err := call.pc.SetRemoteDescription(webrtc.SessionDescription{
 		Type: webrtc.SDPTypeAnswer,
 		SDP:  answerSDP,
@@ -9031,7 +8120,6 @@ func (t *TelegramCore) applySFUTransport(call *tgCall) error {
 	}
 	fmt.Printf("[tg-group] Remote SDP answer set OK\n")
 
-	// Add ICE candidates from SFU (skip IPv6 — no connectivity)
 	for _, c := range tr.Candidates {
 		if net.ParseIP(c.IP) != nil && net.ParseIP(c.IP).To4() == nil {
 			fmt.Printf("[tg-group] Skipping IPv6 candidate: %s\n", c.IP)
@@ -9054,15 +8142,11 @@ func (t *TelegramCore) applySFUTransport(call *tgCall) error {
 	return nil
 }
 
-// sendSFUVideoConstraints sends ReceiverVideoConstraints over the data channel
-// to tell the SFU which participants' video streams to forward to us.
-// This matches tgcalls C++ GroupInstanceCustomImpl::maybeUpdateRemoteVideoConstraints.
 func (t *TelegramCore) sendSFUVideoConstraints(call *tgCall) {
 	if call.sfuDataChannel == nil {
 		return
 	}
 
-	// Wait for data channel to be open (non-blocking check)
 	select {
 	case <-call.sfuDataChannelOpen:
 	default:
@@ -9082,7 +8166,6 @@ func (t *TelegramCore) sendSFUVideoConstraints(call *tgCall) {
 		return
 	}
 
-	// Build ReceiverVideoConstraints JSON (matches Obit/Colibri protocol)
 	onStage := make([]interface{}, 0, len(endpoints))
 	constraints := make(map[string]interface{}, len(endpoints))
 	for endpointID := range endpoints {
@@ -9112,7 +8195,6 @@ func (t *TelegramCore) sendSFUVideoConstraints(call *tgCall) {
 	}
 }
 
-// EndCall terminates an active call and cleans up resources.
 func (t *TelegramCore) EndCall(callID string) error {
 	t.mu.RLock()
 	if !t.authed || t.api == nil {
@@ -9130,7 +8212,6 @@ func (t *TelegramCore) EndCall(callID string) error {
 	call := t.activeCalls[cid]
 	if call != nil {
 		call.state = CallStateEnded
-		// Signal all call goroutines to stop
 		if call.done != nil {
 			select {
 			case <-call.done:
@@ -9141,7 +8222,6 @@ func (t *TelegramCore) EndCall(callID string) error {
 		if call.cancel != nil {
 			call.cancel()
 		}
-		// Close SCTP resources
 		if call.sctpStream != nil {
 			call.sctpStream.Close()
 		}
@@ -9155,7 +8235,6 @@ func (t *TelegramCore) EndCall(callID string) error {
 			call.pc.Close()
 		}
 		call.closeVideoCodecs()
-		// Close InstanceImpl resources
 		if call.iceConn != nil {
 			call.iceConn.Close()
 			call.iceConn = nil
@@ -9185,8 +8264,6 @@ func (t *TelegramCore) EndCall(callID string) error {
 	return err
 }
 
-// DeclineCall rejects an incoming 1:1 call with "busy" reason.
-// The caller sees the call as declined/busy.
 func (t *TelegramCore) DeclineCall(callID string) error {
 	t.mu.RLock()
 	if !t.authed || t.api == nil {
@@ -9224,7 +8301,6 @@ func (t *TelegramCore) DeclineCall(callID string) error {
 		return fmt.Errorf("phone.discardCall (decline): %w", err)
 	}
 
-	// Clean up
 	if call.done != nil {
 		select {
 		case <-call.done:
@@ -9246,9 +8322,6 @@ func (t *TelegramCore) DeclineCall(callID string) error {
 	return nil
 }
 
-// SetCallVideo toggles video on/off mid-call. When enabled, MediaState videoState="active"
-// is signaled and SendVideoFrame writes to the video track. When disabled, videoState="inactive".
-// The video transceiver stays in place — only the signaled state and frame sending change.
 func (t *TelegramCore) SetCallVideo(callID string, enabled bool) error {
 	cid, err := strconv.ParseInt(callID, 10, 64)
 	if err != nil {
@@ -9286,7 +8359,6 @@ func (t *TelegramCore) SetCallVideo(callID string, enabled bool) error {
 	return nil
 }
 
-// SetCallMuted mutes or unmutes the microphone in an active call.
 func (t *TelegramCore) SetCallMuted(callID string, muted bool) error {
 	cid, err := strconv.ParseInt(callID, 10, 64)
 	if err != nil {
@@ -9304,7 +8376,6 @@ func (t *TelegramCore) SetCallMuted(callID string, muted bool) error {
 		return fmt.Errorf("no active call %s", callID)
 	}
 
-	// Send updated MediaState via signaling
 	ms := tgMediaState{
 		Type:            "MediaState",
 		Muted:           muted,
@@ -9318,7 +8389,6 @@ func (t *TelegramCore) SetCallMuted(callID string, muted bool) error {
 		ms.ScreencastState = "active"
 	}
 	t.sendCallSignaling(call, ms)
-	// Reflect the new mute state on the local call panel (AyuGram mutedValue()).
 	t.fireCallStateUpdate(call)
 	return nil
 }
@@ -9354,12 +8424,10 @@ func (t *TelegramCore) ToggleCamera(callID string, enabled bool) error {
 		VideoState:      videoState,
 		ScreencastState: screencastState,
 	})
-	// Reflect the new camera state on the local panel (AyuGram isSharingCamera()).
 	t.fireCallStateUpdate(call)
 	return nil
 }
 
-// AcceptCall accepts an incoming call and establishes the WebRTC connection.
 func (t *TelegramCore) AcceptCall(callID string) (*CallSession, error) {
 	t.mu.RLock()
 	if !t.authed || t.api == nil {
@@ -9383,19 +8451,16 @@ func (t *TelegramCore) AcceptCall(callID string) (*CallSession, error) {
 		return nil, fmt.Errorf("call %s is outgoing, not incoming", callID)
 	}
 
-	// Get DH config
 	p, g, err := t.getDHConfig()
 	if err != nil {
 		return nil, fmt.Errorf("DH config: %w", err)
 	}
 
-	// Generate random b (256 bytes)
 	b := make([]byte, 256)
 	if _, err := io.ReadFull(rand.Reader, b); err != nil {
 		return nil, fmt.Errorf("random: %w", err)
 	}
 
-	// Compute g_b = g^b mod p (256 bytes, zero-padded)
 	gBig := new(big.Int).SetInt64(int64(g))
 	bBig := new(big.Int).SetBytes(b)
 	pBig := new(big.Int).SetBytes(p)
@@ -9404,7 +8469,6 @@ func (t *TelegramCore) AcceptCall(callID string) (*CallSession, error) {
 	gBBuf := gB.Bytes()
 	copy(gBBytes[256-len(gBBuf):], gBBuf)
 
-	// Store DH state — 'a' field holds our private 'b' for incoming calls
 	t.mu.Lock()
 	if t.pendingDH == nil {
 		t.pendingDH = make(map[int64]*pendingDHState)
@@ -9412,7 +8476,6 @@ func (t *TelegramCore) AcceptCall(callID string) (*CallSession, error) {
 	t.pendingDH[cid] = &pendingDHState{a: b, gA: gBBytes, p: p, g: g}
 	t.mu.Unlock()
 
-	// phone.acceptCall — sends our g_b to the caller
 	versions := filterVersions(
 		[]string{"13.0.0", "8.0.0", "4.0.0"},
 		t.maxCallVersion, t.minCallVersion,
@@ -9421,7 +8484,7 @@ func (t *TelegramCore) AcceptCall(callID string) (*CallSession, error) {
 		Peer: tg.InputPhoneCall{ID: cid, AccessHash: call.accessHash},
 		GB:   gBBytes,
 		Protocol: tg.PhoneCallProtocol{
-			Flags:           0b11, // udp_p2p | udp_reflector
+			Flags:           0b11,
 			MinLayer:        65,
 			MaxLayer:        92,
 			LibraryVersions: versions,
@@ -9432,8 +8495,6 @@ func (t *TelegramCore) AcceptCall(callID string) (*CallSession, error) {
 	}
 	fmt.Printf("[tg-call] acceptCall OK — waiting for PhoneCall update with g_a\n")
 
-	// The PhoneCall update handler (handleIncomingCallConfirmed) will complete
-	// the DH exchange when the caller sends confirmCall with g_a.
 	return &CallSession{
 		ID:      callID,
 		ChatID:  strconv.FormatInt(call.peerID, 10),
@@ -9442,7 +8503,6 @@ func (t *TelegramCore) AcceptCall(callID string) (*CallSession, error) {
 	}, nil
 }
 
-// CreateGroupCall creates a new group call in a chat.
 func (t *TelegramCore) CreateGroupCall(chatID string, title string) (*CallSession, error) {
 	t.mu.RLock()
 	if !t.authed || t.api == nil {
@@ -9469,7 +8529,6 @@ func (t *TelegramCore) CreateGroupCall(chatID string, title string) (*CallSessio
 		return nil, fmt.Errorf("phone.createGroupCall: %w", err)
 	}
 
-	// Extract the GroupCall from the updates
 	var gcID int64
 	var gcAccessHash int64
 	var gcTitle string
@@ -9491,7 +8550,6 @@ func (t *TelegramCore) CreateGroupCall(chatID string, title string) (*CallSessio
 		return nil, fmt.Errorf("no GroupCall in response updates")
 	}
 
-	// Store the group call
 	call := &tgCall{
 		id:          gcID,
 		accessHash:  gcAccessHash,
@@ -9510,7 +8568,6 @@ func (t *TelegramCore) CreateGroupCall(chatID string, title string) (*CallSessio
 	}, nil
 }
 
-// LeaveGroupCall leaves an active group call.
 func (t *TelegramCore) LeaveGroupCall(callID string) error {
 	t.mu.RLock()
 	if !t.authed || t.api == nil {
@@ -9535,7 +8592,6 @@ func (t *TelegramCore) LeaveGroupCall(callID string) error {
 		return fmt.Errorf("no active group call %s", callID)
 	}
 
-	// Signal all call goroutines to stop
 	if call.done != nil {
 		select {
 		case <-call.done:
@@ -9544,12 +8600,10 @@ func (t *TelegramCore) LeaveGroupCall(callID string) error {
 		}
 	}
 
-	// Close PeerConnection
 	if call.pc != nil {
 		call.pc.Close()
 	}
 
-	// Tell server we're leaving
 	_, err = t.api.PhoneLeaveGroupCall(t.ctx, &tg.PhoneLeaveGroupCallRequest{
 		Call:   &tg.InputGroupCall{ID: cid, AccessHash: call.accessHash},
 		Source: int(call.audioSSRC),
@@ -9562,7 +8616,6 @@ func (t *TelegramCore) LeaveGroupCall(callID string) error {
 	return nil
 }
 
-// EndGroupCall ends (discards) an active group call for everyone.
 func (t *TelegramCore) EndGroupCall(callID string) error {
 	t.mu.RLock()
 	if !t.authed || t.api == nil {
@@ -9611,9 +8664,6 @@ func (t *TelegramCore) EndGroupCall(callID string) error {
 	return nil
 }
 
-// StartGroupCallScreenShare joins the group call presentation with a screen share track.
-// Uses phone.joinGroupCallPresentation with its own SSRC+FID group.
-// The SFU sends a separate UpdateGroupCallConnection(presentation=true) with transport params.
 func (t *TelegramCore) StartGroupCallScreenShare(callID string) error {
 	t.mu.RLock()
 	if !t.authed || t.api == nil {
@@ -9638,7 +8688,6 @@ func (t *TelegramCore) StartGroupCallScreenShare(callID string) error {
 		return fmt.Errorf("screen share already active")
 	}
 
-	// Create a screen share VP8 track on the existing PeerConnection
 	screenTrack, err := wrtc.NewTrackLocalStaticSample(
 		webrtc.RTPCodecCapability{
 			MimeType:     webrtc.MimeTypeVP8,
@@ -9654,7 +8703,6 @@ func (t *TelegramCore) StartGroupCallScreenShare(callID string) error {
 	if err != nil {
 		return fmt.Errorf("add screen track: %w", err)
 	}
-	// Drain RTCP from screen sender
 	go func() {
 		for {
 			select {
@@ -9668,17 +8716,13 @@ func (t *TelegramCore) StartGroupCallScreenShare(callID string) error {
 		}
 	}()
 
-	// Extract screen SSRC from the new track
-	// We need a new offer/answer cycle to get the SSRC, but for SFU presentation
-	// we actually send separate join params. Generate a random SSRC for the presentation.
-	screenSSRC := uint32(time.Now().UnixNano() & 0x7FFFFFFF) // positive int32
+	screenSSRC := uint32(time.Now().UnixNano() & 0x7FFFFFFF)
 	rtxSSRC := screenSSRC + 1
 
 	call.screenTrack = screenTrack
 	call.screenSSRC = screenSSRC
 	call.screenActive = true
 
-	// Build presentation join params (same format as regular join, but with screen SSRCs)
 	localDesc := call.pc.LocalDescription()
 	if localDesc == nil {
 		return fmt.Errorf("no local SDP")
@@ -9732,7 +8776,6 @@ func (t *TelegramCore) StartGroupCallScreenShare(callID string) error {
 	return nil
 }
 
-// StopGroupCallScreenShare leaves the group call presentation.
 func (t *TelegramCore) StopGroupCallScreenShare(callID string) error {
 	t.mu.RLock()
 	if !t.authed || t.api == nil {
@@ -9767,8 +8810,6 @@ func (t *TelegramCore) StopGroupCallScreenShare(callID string) error {
 	return nil
 }
 
-// SetGroupCallParticipantVolume adjusts the volume of a specific participant in a group call.
-// volume: 0-20000 (10000 = 100%, 0 = mute, 20000 = 200%).
 func (t *TelegramCore) SetGroupCallParticipantVolume(callID string, userID string, volume int) error {
 	t.mu.RLock()
 	if !t.authed || t.api == nil {
@@ -9794,7 +8835,6 @@ func (t *TelegramCore) SetGroupCallParticipantVolume(callID string, userID strin
 		return fmt.Errorf("invalid user ID: %w", err)
 	}
 
-	// Clamp volume to valid range
 	if volume < 0 {
 		volume = 0
 	}
@@ -9815,7 +8855,6 @@ func (t *TelegramCore) SetGroupCallParticipantVolume(callID string, userID strin
 	return nil
 }
 
-// MuteGroupCallParticipant admin-mutes or unmutes another participant in a group call.
 func (t *TelegramCore) MuteGroupCallParticipant(callID string, userID string, mute bool) error {
 	t.mu.RLock()
 	if !t.authed || t.api == nil {
@@ -9854,8 +8893,6 @@ func (t *TelegramCore) MuteGroupCallParticipant(callID string, userID string, mu
 	return nil
 }
 
-// resolveActiveGroupCall maps a numeric call ID to its active session, returning
-// the parsed ID and the session (errors if not an active group call).
 func (t *TelegramCore) resolveActiveGroupCall(callID string) (int64, *tgCall, error) {
 	t.mu.RLock()
 	authed := t.authed && t.api != nil
@@ -9876,10 +8913,6 @@ func (t *TelegramCore) resolveActiveGroupCall(callID string) (int64, *tgCall, er
 	return cid, call, nil
 }
 
-// recordAudioLevel updates the smoothed real-time audio level for an incoming
-// SSRC from the RTP ssrc-audio-level extension. Rising levels snap up (a new
-// speaker lights instantly); falling levels ease down so the blob decays like
-// AyuGram's BlobsAnimation rather than flickering per packet.
 func (c *tgCall) recordAudioLevel(ssrc uint32, level float64) {
 	if c.audioLevels == nil {
 		return
@@ -9895,11 +8928,6 @@ func (c *tgCall) recordAudioLevel(ssrc uint32, level float64) {
 	c.audioLevelMu.Unlock()
 }
 
-// GetGroupCallAudioLevels returns the real per-participant audio levels (0..1)
-// for the active group call in chatID, keyed by userID. Levels older than ~250ms
-// are treated as silent (the speaker stopped / Opus DTX), so a participant's blob
-// fades when they go quiet. Pure media-layer data — no MTProto, no synthetic
-// generator: the entire speaking visualisation is now driven by real call audio.
 func (t *TelegramCore) GetGroupCallAudioLevels(chatID string) (map[string]float64, error) {
 	t.mu.RLock()
 	var call *tgCall
@@ -9921,8 +8949,6 @@ func (t *TelegramCore) GetGroupCallAudioLevels(chatID string) (map[string]float6
 		if uid == "" {
 			continue
 		}
-		// Stale (DTX / speaker stopped) or sub-audible → omit, so the map holds
-		// only participants who are actually making sound (empty = nobody speaking).
 		if nowMs-call.audioLevelTs[ssrc] > 250 || lvl < 0.02 {
 			continue
 		}
@@ -9934,11 +8960,6 @@ func (t *TelegramCore) GetGroupCallAudioLevels(chatID string) (map[string]float6
 	return out, nil
 }
 
-// GetGroupCallSettings returns the live (joinMuted, messagesEnabled) state of the
-// active group call so the settings sheet can seed its manager toggles from the
-// real server value (AyuGram real->joinMuted()/messagesEnabled()). Values are
-// cached from UpdateGroupCall; on the first read before any push they're fetched
-// once from the server.
 func (t *TelegramCore) GetGroupCallSettings(callID string) (bool, bool, error) {
 	cid, call, err := t.resolveActiveGroupCall(callID)
 	if err != nil {
@@ -9968,11 +8989,6 @@ func (t *TelegramCore) GetGroupCallSettings(callID string) (bool, bool, error) {
 	return jm, me, nil
 }
 
-// InviteToGroupCall invites users to a NORMAL group voice chat via
-// phone.inviteToGroupCall (AyuGram GroupCall::inviteToGroupCall →
-// MTPphone_InviteToGroupCall). This is the common-case counterpart to
-// InviteToConferenceCall (phone.inviteConferenceCallParticipant), which only
-// works for E2E conference calls and errors out for normal voice chats.
 func (t *TelegramCore) InviteToGroupCall(callID string, userIDs []string) error {
 	cid, call, err := t.resolveActiveGroupCall(callID)
 	if err != nil {
@@ -9996,10 +9012,6 @@ func (t *TelegramCore) InviteToGroupCall(callID string, userIDs []string) error 
 	return err
 }
 
-// SetNoiseSuppression applies noise suppression to the running call live
-// (AyuGram call->setNoiseSuppression). Stored on the call as the per-call source
-// of truth the audio pipeline reads; the engine also persists it as the default
-// for future calls. Resolves group calls first, then 1:1 calls by ID.
 func (t *TelegramCore) SetNoiseSuppression(callID string, enabled bool) error {
 	_, call, err := t.resolveActiveGroupCall(callID)
 	if err != nil {
@@ -10020,8 +9032,6 @@ func (t *TelegramCore) SetNoiseSuppression(callID string, enabled bool) error {
 	return nil
 }
 
-// EditGroupCallTitle renames a voice chat / livestream (manager-only on the
-// server). Mirrors AyuGram GroupCall::changeTitle → phone.editGroupCallTitle.
 func (t *TelegramCore) EditGroupCallTitle(callID, title string) error {
 	cid, call, err := t.resolveActiveGroupCall(callID)
 	if err != nil {
@@ -10038,9 +9048,6 @@ func (t *TelegramCore) EditGroupCallTitle(callID, title string) error {
 	return nil
 }
 
-// ToggleGroupCallRecord starts/stops SERVER-SIDE recording of a group call. The
-// result is delivered to Saved Messages. Mirrors AyuGram GroupCall::toggleRecording
-// → phone.toggleGroupCallRecord (start/video/title flags + video_portrait).
 func (t *TelegramCore) ToggleGroupCallRecord(callID string, start bool, title string, video bool, videoPortrait bool) error {
 	cid, call, err := t.resolveActiveGroupCall(callID)
 	if err != nil {
@@ -10068,9 +9075,6 @@ func (t *TelegramCore) ToggleGroupCallRecord(callID string, start bool, title st
 	return nil
 }
 
-// SetGroupCallMuteNewParticipants toggles whether newly joined members are muted
-// by default (manager-only). Mirrors AyuGram SaveCallJoinMuted →
-// phone.toggleGroupCallSettings(join_muted).
 func (t *TelegramCore) SetGroupCallMuteNewParticipants(callID string, muted bool) error {
 	cid, call, err := t.resolveActiveGroupCall(callID)
 	if err != nil {
@@ -10088,9 +9092,6 @@ func (t *TelegramCore) SetGroupCallMuteNewParticipants(callID string, muted bool
 	return nil
 }
 
-// SetGroupCallMessagesEnabled toggles in-call text messages (manager-only).
-// Mirrors AyuGram SaveCallMessagesEnabled →
-// phone.toggleGroupCallSettings(messages_enabled).
 func (t *TelegramCore) SetGroupCallMessagesEnabled(callID string, enabled bool) error {
 	cid, call, err := t.resolveActiveGroupCall(callID)
 	if err != nil {
@@ -10108,10 +9109,6 @@ func (t *TelegramCore) SetGroupCallMessagesEnabled(callID string, enabled bool) 
 	return nil
 }
 
-// storeOutgoingFrame caches a copy of the latest locally-captured YUV420P frame
-// for the given stream kind ("camera" or "screen") so the call panel can render
-// the self-preview (AyuGram _call->videoOutgoing()). The bytes are copied because
-// the caller may reuse its buffer.
 func (c *tgCall) storeOutgoingFrame(kind string, yuv420p []byte, width, height int) {
 	if len(yuv420p) == 0 || width <= 0 || height <= 0 {
 		return
@@ -10127,19 +9124,6 @@ func (c *tgCall) storeOutgoingFrame(kind string, yuv420p []byte, width, height i
 	c.outgoingFrameMu.Unlock()
 }
 
-// GetGroupCallVideoFrame returns the latest decoded video frame for a stream kind
-// as RGBA8888 bytes plus its dimensions. Returns (nil, 0, 0, nil) when no frame is
-// available yet — the UI then shows the participant's avatar tile (AyuGram's
-// no-frame / paused state).
-//
-// Endpoints:
-//   - "camera" / "screen" — the latest INCOMING frame (AyuGram _call->videoIncoming()).
-//   - "outgoing_camera" / "outgoing_screen" — the latest LOCALLY-CAPTURED frame
-//     (AyuGram _call->videoOutgoing()), used by the panel self-preview bubble.
-//
-// Resolves both group calls and 1:1 calls: a 1:1 video call caches its frames
-// through the same store paths, so the 1:1 call panel reuses this getter for both
-// the remote-video surface and the local self-preview.
 func (t *TelegramCore) GetGroupCallVideoFrame(callID, endpoint string) ([]byte, int, int, error) {
 	cid, err := strconv.ParseInt(callID, 10, 64)
 	if err != nil {
@@ -10181,8 +9165,6 @@ func (t *TelegramCore) GetGroupCallVideoFrame(callID, endpoint string) ([]byte, 
 	return rgba, w, h, nil
 }
 
-// yuv420pToRGBA converts a planar YUV420P (I420) frame to packed RGBA8888 using
-// the BT.601 color matrix. Returns nil if the buffer is too small for w*h.
 func yuv420pToRGBA(yuv []byte, w, h int) []byte {
 	cw := (w + 1) / 2
 	ySize := w * h
@@ -10219,7 +9201,6 @@ func yuv420pToRGBA(yuv []byte, w, h int) []byte {
 	return rgba
 }
 
-// KickGroupCallParticipant removes a participant from a group call by setting their left flag.
 func (t *TelegramCore) KickGroupCallParticipant(callID string, userID string) error {
 	t.mu.RLock()
 	if !t.authed || t.api == nil {
@@ -10259,8 +9240,6 @@ func (t *TelegramCore) KickGroupCallParticipant(callID string, userID string) er
 	return nil
 }
 
-// ToggleGroupCallVideo enables or disables our video in a group call.
-// Uses phone.editGroupCallParticipant with SetVideoStopped.
 func (t *TelegramCore) ToggleGroupCallVideo(callID string, enabled bool) error {
 	t.mu.RLock()
 	if !t.authed || t.api == nil {
@@ -10295,8 +9274,6 @@ func (t *TelegramCore) ToggleGroupCallVideo(callID string, enabled bool) error {
 	return nil
 }
 
-// SetGroupCallMuted mutes or unmutes ourselves in a group call.
-// Uses phone.editGroupCallParticipant with SetMuted.
 func (t *TelegramCore) SetGroupCallMuted(callID string, muted bool) error {
 	t.mu.RLock()
 	if !t.authed || t.api == nil {
@@ -10331,7 +9308,6 @@ func (t *TelegramCore) SetGroupCallMuted(callID string, muted bool) error {
 	return nil
 }
 
-// RaiseHand raises or lowers our hand in a group call.
 func (t *TelegramCore) RaiseHand(callID string, raised bool) error {
 	t.mu.RLock()
 	if !t.authed || t.api == nil {
@@ -10365,8 +9341,6 @@ func (t *TelegramCore) RaiseHand(callID string, raised bool) error {
 	return nil
 }
 
-// SendCallRating sends call quality feedback after a call ends.
-// rating: 1-5 stars, comment: optional text feedback.
 func (t *TelegramCore) SendCallRating(callID string, rating int, comment string) error {
 	t.mu.RLock()
 	if !t.authed || t.api == nil {
@@ -10380,7 +9354,6 @@ func (t *TelegramCore) SendCallRating(callID string, rating int, comment string)
 		return fmt.Errorf("invalid call ID: %w", err)
 	}
 
-	// Clamp rating to valid range
 	if rating < 1 {
 		rating = 1
 	}
@@ -10388,8 +9361,6 @@ func (t *TelegramCore) SendCallRating(callID string, rating int, comment string)
 		rating = 5
 	}
 
-	// We need the access hash — check if the call is still in activeCalls (might have been cleaned up)
-	// The MTProto API requires InputPhoneCall with ID + AccessHash
 	t.mu.RLock()
 	call := t.activeCalls[cid]
 	t.mu.RUnlock()
@@ -10411,7 +9382,6 @@ func (t *TelegramCore) SendCallRating(callID string, rating int, comment string)
 	return nil
 }
 
-// GetGroupCall returns information about an active group call.
 func (t *TelegramCore) GetGroupCall(chatID string) (*CallSession, error) {
 	t.mu.RLock()
 	if !t.authed || t.api == nil {
@@ -10430,7 +9400,6 @@ func (t *TelegramCore) GetGroupCall(chatID string) (*CallSession, error) {
 		return nil, err
 	}
 
-	// Get full group call info
 	gcResult, err := t.api.PhoneGetGroupCall(t.ctx, &tg.PhoneGetGroupCallRequest{
 		Call:  &tg.InputGroupCall{ID: gcID, AccessHash: gcAccessHash},
 		Limit: 50,
@@ -10454,8 +9423,6 @@ func (t *TelegramCore) GetGroupCall(chatID string) (*CallSession, error) {
 	return cs, nil
 }
 
-// JoinAsPeerInfo is a JSON-friendly identity the user can join a group call as
-// (yourself, or a channel/group you manage). Mirrors phone.JoinAsPeers entries.
 type JoinAsPeerInfo struct {
 	ID        string `json:"id"`
 	Title     string `json:"title"`
@@ -10464,8 +9431,6 @@ type JoinAsPeerInfo struct {
 	IsChannel bool   `json:"is_channel"`
 }
 
-// GetGroupCallJoinAsPeers returns the identities the user can join the chat's
-// group call as, via phone.getGroupCallJoinAs (yourself + your channels/groups).
 func (t *TelegramCore) GetGroupCallJoinAsPeers(chatID string) ([]JoinAsPeerInfo, error) {
 	t.mu.RLock()
 	if !t.authed || t.api == nil {
@@ -10561,9 +9526,6 @@ func (t *TelegramCore) GetGroupCallJoinAsPeers(chatID string) ([]JoinAsPeerInfo,
 	return out, nil
 }
 
-// JoinGroupCallAs leaves any current join and rejoins the chat's group call
-// using the given identity (joinAsChatID). It also persists the choice as the
-// default join-as peer (phone.saveDefaultGroupCallJoinAs), matching AyuGram.
 func (t *TelegramCore) JoinGroupCallAs(chatID, joinAsChatID string) (*CallSession, error) {
 	t.mu.RLock()
 	if !t.authed || t.api == nil {
@@ -10581,7 +9543,6 @@ func (t *TelegramCore) JoinGroupCallAs(chatID, joinAsChatID string) (*CallSessio
 		return nil, fmt.Errorf("join-as input peer: %w", err)
 	}
 
-	// Persist the default identity (best-effort — non-fatal on failure).
 	if dialogPeer, derr := t.resolvePeer(chatID); derr == nil {
 		if dialogInput, ierr := t.toInputPeer(dialogPeer); ierr == nil {
 			_, _ = t.api.PhoneSaveDefaultGroupCallJoinAs(t.ctx, &tg.PhoneSaveDefaultGroupCallJoinAsRequest{
@@ -10594,8 +9555,6 @@ func (t *TelegramCore) JoinGroupCallAs(chatID, joinAsChatID string) (*CallSessio
 	return t.joinGroupCallInternal(chatID, false, joinAsInput)
 }
 
-// SendGroupCallMessage sends an ephemeral message into the chat's group-call
-// message stream via phone.sendGroupCallMessage (NOT the permanent chat history).
 func (t *TelegramCore) SendGroupCallMessage(chatID, text string) error {
 	t.mu.RLock()
 	if !t.authed || t.api == nil {
@@ -10623,8 +9582,6 @@ func (t *TelegramCore) SendGroupCallMessage(chatID, text string) error {
 	return nil
 }
 
-// GetGroupCallScheduleSubscribed reports whether the user is subscribed to the
-// scheduled-start reminder for the chat's group call (real->scheduleStartSubscribed()).
 func (t *TelegramCore) GetGroupCallScheduleSubscribed(chatID string) (bool, error) {
 	t.mu.RLock()
 	if !t.authed || t.api == nil {
@@ -10654,8 +9611,6 @@ func (t *TelegramCore) GetGroupCallScheduleSubscribed(chatID string) (bool, erro
 	return false, nil
 }
 
-// CreateScheduledGroupCall creates a group call scheduled for a future time.
-// scheduleDate is a Unix timestamp for when the call should start.
 func (t *TelegramCore) CreateScheduledGroupCall(chatID string, title string, scheduleDate int) (*CallSession, error) {
 	t.mu.RLock()
 	if !t.authed || t.api == nil {
@@ -10683,7 +9638,6 @@ func (t *TelegramCore) CreateScheduledGroupCall(chatID string, title string, sch
 		return nil, fmt.Errorf("phone.createGroupCall (scheduled): %w", err)
 	}
 
-	// Extract group call ID from response
 	var gcID int64
 	switch u := resp.(type) {
 	case *tg.Updates:
@@ -10713,7 +9667,6 @@ func (t *TelegramCore) CreateScheduledGroupCall(chatID string, title string, sch
 	}, nil
 }
 
-// StartScheduledGroupCall starts a previously scheduled group call.
 func (t *TelegramCore) StartScheduledGroupCall(callID string) error {
 	t.mu.RLock()
 	if !t.authed || t.api == nil {
@@ -10777,8 +9730,6 @@ func (t *TelegramCore) ToggleGroupCallStartSubscription(callID string, subscribe
 	return nil
 }
 
-// GetGroupCallStreamRtmpURL returns the RTMP URL and stream key for a group call livestream.
-// revoke=true generates a new stream key, false returns the existing one.
 func (t *TelegramCore) GetGroupCallStreamRtmpURL(chatID string, revoke bool) (string, string, error) {
 	t.mu.RLock()
 	if !t.authed || t.api == nil {
@@ -10804,8 +9755,6 @@ func (t *TelegramCore) GetGroupCallStreamRtmpURL(chatID string, revoke bool) (st
 	return result.URL, result.Key, nil
 }
 
-// GetGroupCallStreamChannels returns available stream channels for a group call.
-// Returns a list of channel entries (scale, lastTimestamp).
 func (t *TelegramCore) GetGroupCallStreamChannels(callID string) ([]map[string]int64, error) {
 	t.mu.RLock()
 	if !t.authed || t.api == nil {
@@ -10844,7 +9793,6 @@ func (t *TelegramCore) GetGroupCallStreamChannels(callID string) ([]map[string]i
 	return channels, nil
 }
 
-// SendAudioFrame sends a raw audio frame to an active call.
 func (t *TelegramCore) SendAudioFrame(callID string, opusData []byte) error {
 	cid, err := strconv.ParseInt(callID, 10, 64)
 	if err != nil {
@@ -10861,7 +9809,7 @@ func (t *TelegramCore) SendAudioFrame(callID string, opusData []byte) error {
 	}
 	tsIncrement := call.audioTSIncrement
 	if tsIncrement == 0 {
-		tsIncrement = 960 // default 20ms at 48kHz
+		tsIncrement = 960
 	}
 	seq := uint16(atomic.AddUint32(&call.audioSeq, 1))
 	ts := atomic.AddUint32(&call.audioTS, tsIncrement)
@@ -10875,18 +9823,14 @@ func (t *TelegramCore) SendAudioFrame(callID string, opusData []byte) error {
 		},
 		Payload: opusData,
 	}
-	// Group calls: add ssrc-audio-level extension (RFC 6464, ext ID 1).
-	// The SFU requires this to route audio. Format: V(1 bit) + level(7 bits).
 	if call.isGroupCall {
 		pkt.Header.Extension = true
-		pkt.Header.ExtensionProfile = 0xBEDE     // RFC 5285 one-byte header
-		pkt.Header.SetExtension(1, []byte{0x9E}) // V=1 (voice), level=30 (-30 dBov)
+		pkt.Header.ExtensionProfile = 0xBEDE
+		pkt.Header.SetExtension(1, []byte{0x9E})
 	}
 	return call.audioTrack.WriteRTP(pkt)
 }
 
-// SendVideoFrame sends a VP8 frame on the video track.
-// vp8Frame is the raw VP8 bitstream (no RTP payload descriptor — pion adds it).
 func (t *TelegramCore) SendVideoFrame(callID string, vp8Frame []byte) error {
 	cid, err := strconv.ParseInt(callID, 10, 64)
 	if err != nil {
@@ -10903,13 +9847,10 @@ func (t *TelegramCore) SendVideoFrame(callID string, vp8Frame []byte) error {
 	}
 	return call.videoTrack.WriteSample(pionmedia.Sample{
 		Data:     vp8Frame,
-		Duration: 33 * time.Millisecond, // 30fps
+		Duration: 33 * time.Millisecond,
 	})
 }
 
-// SendVideoFrameYUV encodes a YUV420P frame to VP8 and sends it.
-// Requires SetVideoEncoderFactory to have been called first.
-// yuv420p must be width*height*3/2 bytes.
 func (t *TelegramCore) SendVideoFrameYUV(callID string, yuv420p []byte, width, height int) error {
 	cid, err := strconv.ParseInt(callID, 10, 64)
 	if err != nil {
@@ -10921,19 +9862,16 @@ func (t *TelegramCore) SendVideoFrameYUV(callID string, yuv420p []byte, width, h
 	if call == nil {
 		return fmt.Errorf("no active call %s", callID)
 	}
-	// Cache the locally-captured frame so the call panel can render the self
-	// preview (AyuGram _call->videoOutgoing()), independent of encode success.
 	call.storeOutgoingFrame("camera", yuv420p, width, height)
 	if call.videoTrack == nil {
 		return fmt.Errorf("no video track (call not started as video)")
 	}
-	// Lazy-init encoder (use built-in pure Go VP8 if no factory set)
 	if call.videoEncoder == nil {
 		factory := t.newVideoEncoder
 		if factory == nil {
 			return fmt.Errorf("no video encoder factory set; call SetVideoEncoderFactory first")
 		}
-		enc, err := factory(width, height, 500000) // 500kbps default
+		enc, err := factory(width, height, 500000)
 		if err != nil {
 			return fmt.Errorf("create video encoder: %w", err)
 		}
@@ -10944,7 +9882,7 @@ func (t *TelegramCore) SendVideoFrameYUV(callID string, yuv420p []byte, width, h
 		return fmt.Errorf("VP8 encode: %w", err)
 	}
 	if vp8Frame == nil {
-		return nil // encoder lag
+		return nil
 	}
 	return call.videoTrack.WriteSample(pionmedia.Sample{
 		Data:     vp8Frame,
@@ -10952,19 +9890,14 @@ func (t *TelegramCore) SendVideoFrameYUV(callID string, yuv420p []byte, width, h
 	})
 }
 
-// SetVideoEncoderFactory sets the factory for creating VP8 encoders.
-// Must be called before starting video calls that use SendVideoFrameYUV.
 func (t *TelegramCore) SetVideoEncoderFactory(f func(width, height, bitrate int) (VideoEncoder, error)) {
 	t.newVideoEncoder = f
 }
 
-// SetVideoDecoderFactory sets the factory for creating VP8 decoders.
-// When set, incoming VP8 frames are decoded and delivered via SetOnDecodedVideoFrame.
 func (t *TelegramCore) SetVideoDecoderFactory(f func() (VideoDecoder, error)) {
 	t.newVideoDecoder = f
 }
 
-// SetOnVideoFrame registers a callback for incoming VP8 frames (reassembled from RTP).
 func (t *TelegramCore) SetOnVideoFrame(callID string, handler func(frame []byte)) error {
 	cid, err := strconv.ParseInt(callID, 10, 64)
 	if err != nil {
@@ -10980,8 +9913,6 @@ func (t *TelegramCore) SetOnVideoFrame(callID string, handler func(frame []byte)
 	return nil
 }
 
-// SetOnDecodedVideoFrame registers a callback for decoded YUV420P video frames.
-// Requires SetVideoDecoderFactory to have been called.
 func (t *TelegramCore) SetOnDecodedVideoFrame(callID string, handler func(yuv420p []byte, width, height int)) error {
 	cid, err := strconv.ParseInt(callID, 10, 64)
 	if err != nil {
@@ -10994,7 +9925,6 @@ func (t *TelegramCore) SetOnDecodedVideoFrame(callID string, handler func(yuv420
 		return fmt.Errorf("no active call %s", callID)
 	}
 	call.onDecodedVideoFrame = handler
-	// Lazy-init decoder
 	if call.videoDecoder == nil && t.newVideoDecoder != nil {
 		dec, err := t.newVideoDecoder()
 		if err != nil {
@@ -11005,7 +9935,6 @@ func (t *TelegramCore) SetOnDecodedVideoFrame(callID string, handler func(yuv420
 	return nil
 }
 
-// SetOnDecodedScreenFrame registers a callback for decoded YUV420P screen frames.
 func (t *TelegramCore) SetOnDecodedScreenFrame(callID string, handler func(yuv420p []byte, width, height int)) error {
 	cid, err := strconv.ParseInt(callID, 10, 64)
 	if err != nil {
@@ -11021,7 +9950,6 @@ func (t *TelegramCore) SetOnDecodedScreenFrame(callID string, handler func(yuv42
 	return nil
 }
 
-// SetOnAudioFrame registers a callback for receiving audio frames from a call.
 func (t *TelegramCore) SetOnAudioFrame(callID string, handler func(frame []byte)) error {
 	cid, err := strconv.ParseInt(callID, 10, 64)
 	if err != nil {
@@ -11037,7 +9965,6 @@ func (t *TelegramCore) SetOnAudioFrame(callID string, handler func(frame []byte)
 	return nil
 }
 
-// SetOnScreenFrame registers a callback for incoming screencast (screen sharing) frames.
 func (t *TelegramCore) SetOnScreenFrame(callID string, handler func(frame []byte)) error {
 	cid, err := strconv.ParseInt(callID, 10, 64)
 	if err != nil {
@@ -11053,8 +9980,6 @@ func (t *TelegramCore) SetOnScreenFrame(callID string, handler func(frame []byte
 	return nil
 }
 
-// SendScreenFrame sends a VP8 frame on the screencast track.
-// vp8Frame is the raw VP8 bitstream (no RTP payload descriptor — pion adds it).
 func (t *TelegramCore) SendScreenFrame(callID string, vp8Frame []byte) error {
 	cid, err := strconv.ParseInt(callID, 10, 64)
 	if err != nil {
@@ -11075,7 +10000,6 @@ func (t *TelegramCore) SendScreenFrame(callID string, vp8Frame []byte) error {
 	})
 }
 
-// SendScreenFrameYUV encodes a YUV420P frame to VP8 and sends it on the screencast track.
 func (t *TelegramCore) SendScreenFrameYUV(callID string, yuv420p []byte, width, height int) error {
 	cid, err := strconv.ParseInt(callID, 10, 64)
 	if err != nil {
@@ -11087,7 +10011,6 @@ func (t *TelegramCore) SendScreenFrameYUV(callID string, yuv420p []byte, width, 
 	if call == nil {
 		return fmt.Errorf("no active call %s", callID)
 	}
-	// Cache the locally-captured screen frame for the panel self-preview.
 	call.storeOutgoingFrame("screen", yuv420p, width, height)
 	if call.screenTrack == nil {
 		return fmt.Errorf("no screen track (call StartScreenShare first)")
@@ -11116,7 +10039,6 @@ func (t *TelegramCore) SendScreenFrameYUV(callID string, yuv420p []byte, width, 
 	})
 }
 
-// StartScreenShare creates a screencast track and signals screencastState=active.
 func (t *TelegramCore) StartScreenShare(callID string) error {
 	cid, err := strconv.ParseInt(callID, 10, 64)
 	if err != nil {
@@ -11129,13 +10051,12 @@ func (t *TelegramCore) StartScreenShare(callID string) error {
 		return fmt.Errorf("no active call %s", callID)
 	}
 	if call.screenActive {
-		return nil // already sharing
+		return nil
 	}
 	if call.screenTrack == nil {
 		return fmt.Errorf("no screen track (Web signaling required)")
 	}
 
-	// screenSSRC should already be set from InitialSetup; fallback for non-web paths
 	if call.screenSSRC == 0 {
 		var buf [4]byte
 		rand.Read(buf[:])
@@ -11145,7 +10066,6 @@ func (t *TelegramCore) StartScreenShare(callID string) error {
 	call.screenActive = true
 	fmt.Printf("[tg-call] Screen sharing started (ssrc=%d)\n", call.screenSSRC)
 
-	// Send updated MediaState with screencastState=active
 	videoState := "inactive"
 	if call.isVideo {
 		videoState = "active"
@@ -11156,12 +10076,10 @@ func (t *TelegramCore) StartScreenShare(callID string) error {
 		VideoState:      videoState,
 		ScreencastState: "active",
 	})
-	// Reflect screen-sharing on the local panel (AyuGram isSharingScreen()).
 	t.fireCallStateUpdate(call)
 	return nil
 }
 
-// StopScreenShare stops the screencast track and signals screencastState=inactive.
 func (t *TelegramCore) StopScreenShare(callID string) error {
 	cid, err := strconv.ParseInt(callID, 10, 64)
 	if err != nil {
@@ -11174,14 +10092,12 @@ func (t *TelegramCore) StopScreenShare(callID string) error {
 		return fmt.Errorf("no active call %s", callID)
 	}
 	if !call.screenActive {
-		return nil // not sharing
+		return nil
 	}
 
-	// Keep the track in the PeerConnection (avoid renegotiation), just stop sending
 	call.screenActive = false
 	fmt.Printf("[tg-call] Screen sharing stopped\n")
 
-	// Send updated MediaState with screencastState=inactive
 	videoState := "inactive"
 	if call.isVideo {
 		videoState = "active"
@@ -11192,18 +10108,10 @@ func (t *TelegramCore) StopScreenShare(callID string) error {
 		VideoState:      videoState,
 		ScreencastState: "inactive",
 	})
-	// Reflect the stop on the local panel — the self-preview is gated on the
-	// is_screen_sharing flag, so it disappears once this propagates.
 	t.fireCallStateUpdate(call)
 	return nil
 }
 
-// SetScreenSharing is the unified screen-share entry point the engine routes to.
-// It dispatches by call type so a 1:1 call uses the in-call screencast track
-// (StartScreenShare/StopScreenShare) while a group call uses the presentation API
-// (StartGroupCallScreenShare/StopGroupCallScreenShare). Previously the engine
-// always used the group path, which errors out for a 1:1 call — leaving the panel
-// unable to ever enter the screen-sharing state.
 func (t *TelegramCore) SetScreenSharing(callID string, enabled bool) error {
 	cid, err := strconv.ParseInt(callID, 10, 64)
 	if err != nil {
@@ -11227,9 +10135,6 @@ func (t *TelegramCore) SetScreenSharing(callID string, enabled bool) error {
 	return t.StopScreenShare(callID)
 }
 
-// StartCallRecording begins recording incoming audio frames to a file.
-// Format: binary Opus — "OPUS" (4 bytes) header, frame count updated on stop.
-// Each frame: uint16_le(len) + payload.
 func (t *TelegramCore) StartCallRecording(callID string, filePath string) error {
 	cid, err := strconv.ParseInt(callID, 10, 64)
 	if err != nil {
@@ -11253,7 +10158,6 @@ func (t *TelegramCore) StartCallRecording(callID string, filePath string) error 
 		return fmt.Errorf("create recording file: %w", err)
 	}
 
-	// Write header: "OPUS" + uint32_le(0) — frame count filled on stop
 	header := []byte{'O', 'P', 'U', 'S', 0, 0, 0, 0}
 	if _, err := f.Write(header); err != nil {
 		f.Close()
@@ -11266,8 +10170,6 @@ func (t *TelegramCore) StartCallRecording(callID string, filePath string) error 
 	return nil
 }
 
-// StopCallRecording stops recording and finalizes the file (updates frame count in header).
-// Returns the number of frames recorded.
 func (t *TelegramCore) StopCallRecording(callID string) (int, error) {
 	cid, err := strconv.ParseInt(callID, 10, 64)
 	if err != nil {
@@ -11294,8 +10196,7 @@ func (t *TelegramCore) StopCallRecording(callID string) (int, error) {
 		return 0, nil
 	}
 
-	// Count frames by scanning the file (from offset 8)
-	pos, _ := f.Seek(0, 2) // current end
+	pos, _ := f.Seek(0, 2)
 	frameBytes := pos - 8
 	frameCount := 0
 	if frameBytes > 0 {
@@ -11311,7 +10212,6 @@ func (t *TelegramCore) StopCallRecording(callID string) (int, error) {
 		}
 	}
 
-	// Update frame count in header
 	var countBuf [4]byte
 	binary.LittleEndian.PutUint32(countBuf[:], uint32(frameCount))
 	f.Seek(4, 0)
@@ -11322,8 +10222,6 @@ func (t *TelegramCore) StopCallRecording(callID string) (int, error) {
 	return frameCount, nil
 }
 
-// readSenderRTCP reads RTCP feedback from a video/screen sender and triggers ForceKeyframe
-// on PLI/FIR requests from the remote receiver. This replaces the old drain-only goroutine.
 func (t *TelegramCore) readSenderRTCP(call *tgCall, sender *wrtc.RTPSender, isScreen bool) {
 	label := "video"
 	if isScreen {
@@ -11371,7 +10269,6 @@ func (t *TelegramCore) readSenderRTCP(call *tgCall, sender *wrtc.RTPSender, isSc
 	}
 }
 
-// closeVideoCodecs releases VP8 encoder/decoder resources for a call.
 func (call *tgCall) closeVideoCodecs() {
 	if call.videoEncoder != nil {
 		call.videoEncoder.Close()
@@ -11387,21 +10284,16 @@ func (call *tgCall) closeVideoCodecs() {
 	}
 }
 
-// handleIncomingVideoRTP processes an incoming VP8 RTP packet: strips the VP8 payload
-// descriptor, reassembles multi-packet frames, and delivers complete VP8 frames to callbacks.
-// If a decoder is configured, also decodes to YUV420P.
 func (t *TelegramCore) handleIncomingVideoRTP(call *tgCall, pkt *pionrtp.Packet, isScreen bool) {
 	if len(pkt.Payload) == 0 {
 		return
 	}
 
-	// Strip VP8 RTP payload descriptor (RFC 7741)
 	vp8Data, isStart := stripVP8RTPDescriptor(pkt.Payload)
 	if vp8Data == nil {
 		return
 	}
 
-	// Get the appropriate frame buffer and callbacks
 	var frameBuf *[]byte
 	var onRawFrame func([]byte)
 	var onDecodedFrame func([]byte, int, int)
@@ -11415,25 +10307,19 @@ func (t *TelegramCore) handleIncomingVideoRTP(call *tgCall, pkt *pionrtp.Packet,
 		onDecodedFrame = call.onDecodedVideoFrame
 	}
 
-	// Start of new VP8 partition — reset buffer
 	if isStart {
 		*frameBuf = (*frameBuf)[:0]
 	}
 	*frameBuf = append(*frameBuf, vp8Data...)
 
-	// RTP marker bit = end of frame
 	if pkt.Header.Marker {
 		completeFrame := append([]byte(nil), *frameBuf...)
 		*frameBuf = (*frameBuf)[:0]
 
-		// Deliver raw VP8 frame
 		if onRawFrame != nil {
 			onRawFrame(completeFrame)
 		}
 
-		// Decode to YUV420P if decoder available. The decoded frame is both
-		// delivered to any registered callback AND cached so the call panel can
-		// poll the latest frame via GetGroupCallVideoFrame.
 		if call.videoDecoder != nil {
 			yuv, w, h, err := call.videoDecoder.Decode(completeFrame)
 			if err == nil && yuv != nil {
@@ -11446,8 +10332,6 @@ func (t *TelegramCore) handleIncomingVideoRTP(call *tgCall, pkt *pionrtp.Packet,
 	}
 }
 
-// storeIncomingFrame caches the latest decoded YUV420P frame for a stream kind
-// so the call panel can poll & render it (GetGroupCallVideoFrame).
 func (c *tgCall) storeIncomingFrame(isScreen bool, yuv []byte, w, h int) {
 	frame := append([]byte(nil), yuv...)
 	c.incomingFrameMu.Lock()
@@ -11459,8 +10343,6 @@ func (c *tgCall) storeIncomingFrame(isScreen bool, yuv []byte, w, h int) {
 	c.incomingFrameMu.Unlock()
 }
 
-// stripVP8RTPDescriptor removes the VP8 RTP payload descriptor per RFC 7741.
-// Returns the raw VP8 frame data and whether this is the start of a VP8 partition.
 func stripVP8RTPDescriptor(payload []byte) (data []byte, isStart bool) {
 	if len(payload) < 1 {
 		return nil, false
@@ -11479,9 +10361,9 @@ func stripVP8RTPDescriptor(payload []byte) (data []byte, isStart bool) {
 		i++
 		if hasPictureID && i < len(payload) {
 			if payload[i]&0x80 != 0 {
-				i++ // 15-bit PictureID MSB
+				i++
 			}
-			i++ // PictureID LSB
+			i++
 		}
 		if hasTL0PICIDX {
 			i++
@@ -11496,7 +10378,6 @@ func stripVP8RTPDescriptor(payload []byte) (data []byte, isStart bool) {
 	return payload[i:], isStart
 }
 
-// writeRecordingFrame writes an audio frame to the recording file if recording is active.
 func (call *tgCall) writeRecordingFrame(payload []byte) {
 	call.recordingMu.Lock()
 	defer call.recordingMu.Unlock()
@@ -11509,8 +10390,6 @@ func (call *tgCall) writeRecordingFrame(payload []byte) {
 	call.recordingFile.Write(payload)
 }
 
-// SetEchoMode enables or disables echo mode for a call.
-// When enabled, all received audio is immediately sent back to the caller.
 func (t *TelegramCore) SetEchoMode(callID string, enabled bool) error {
 	cid, err := strconv.ParseInt(callID, 10, 64)
 	if err != nil {
@@ -11523,13 +10402,11 @@ func (t *TelegramCore) SetEchoMode(callID string, enabled bool) error {
 		return fmt.Errorf("no active call %s", callID)
 	}
 	call.echoMode = enabled
-	call.externalAudio = enabled // disable silence sender — echo handler sends audio directly
+	call.externalAudio = enabled
 	fmt.Printf("[tg-call] Echo mode %s for call %s\n", map[bool]string{true: "ENABLED", false: "disabled"}[enabled], callID)
 	return nil
 }
 
-// SetAudioFrameDuration sets the opus frame duration for outgoing audio.
-// durationMs is the frame length in milliseconds (20, 60, 120).
 func (t *TelegramCore) SetAudioFrameDuration(callID string, durationMs int) error {
 	cid, err := strconv.ParseInt(callID, 10, 64)
 	if err != nil {
@@ -11541,16 +10418,14 @@ func (t *TelegramCore) SetAudioFrameDuration(callID string, durationMs int) erro
 	if call == nil {
 		return fmt.Errorf("no active call %s", callID)
 	}
-	call.audioTSIncrement = uint32(48000 * durationMs / 1000) // samples at 48kHz
-	call.externalAudio = true                                 // stop internal silence sender
+	call.audioTSIncrement = uint32(48000 * durationMs / 1000)
+	call.externalAudio = true
 	fmt.Printf("[tg-call] Audio frame duration set to %dms (%d samples) for call %s, silence sender stopped\n",
 		durationMs, call.audioTSIncrement, callID)
 	return nil
 }
 
-// GetProfile returns the profile information for a user, chat, or channel.
 func (t *TelegramCore) GetProfile(userID string) (*User, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -11581,20 +10456,16 @@ func (t *TelegramCore) GetProfile(userID string) (*User, error) {
 		return nil, ErrNotFound
 	}
 
-	// Cache the access hash from the response
 	t.cacheUserHash(user.ID, user.AccessHash)
 
 	return t.convertUser(user), nil
 }
 
-// CreateGroup creates a new basic group chat with the specified users.
 func (t *TelegramCore) CreateGroup(name string, members []string) (*Dialog, error) {
 	return t.CreateGroupWithTTL(name, members, 0)
 }
 
-// CreateGroupWithTTL creates a group chat with optional TTL (auto-delete period in seconds).
 func (t *TelegramCore) CreateGroupWithTTL(name string, members []string, ttlSeconds int) (*Dialog, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -11622,15 +10493,12 @@ func (t *TelegramCore) CreateGroupWithTTL(name string, members []string, ttlSeco
 		return nil, fmt.Errorf("create group: %w", err)
 	}
 
-	// Extract chat info from the result
 	if result != nil && result.Updates != nil {
 		return t.extractDialogFromUpdates(result.Updates), nil
 	}
 	return &Dialog{Title: name, Type: ChatTypeGroup, Platform: tgPlatform}, nil
 }
 
-// SetChatTTL sets the chat's message auto-delete period in seconds
-// (0 = off) — MessagesSetHistoryTTL.
 func (t *TelegramCore) SetChatTTL(chatID string, ttlSeconds int) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -11647,19 +10515,15 @@ func (t *TelegramCore) SetChatTTL(chatID string, ttlSeconds int) error {
 	return nil
 }
 
-// CreateChannel creates a new channel or supergroup.
 func (t *TelegramCore) CreateChannel(name string, description string) (*Dialog, error) {
 	return t.RawCreateChannel(name, description, true, false)
 }
 
-// RawCreateChannel creates a channel, megagroup (supergroup), or forum.
 func (t *TelegramCore) RawCreateChannel(name, description string, broadcast, megagroup bool) (*Dialog, error) {
 	return t.RawCreateChannelFull(name, description, broadcast, megagroup, false, 0)
 }
 
-// RawCreateChannelFull creates a channel, megagroup, or forum with all flags.
 func (t *TelegramCore) RawCreateChannelFull(name, description string, broadcast, megagroup, forum bool, ttlPeriod int) (*Dialog, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -11683,7 +10547,6 @@ func (t *TelegramCore) RawCreateChannelFull(name, description string, broadcast,
 	return t.extractDialogFromUpdates(result), nil
 }
 
-// CreateTopic creates a new forum topic in a supergroup.
 func (t *TelegramCore) CreateTopic(chatID string, name string) (*Dialog, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -11708,9 +10571,7 @@ func (t *TelegramCore) CreateTopic(chatID string, name string) (*Dialog, error) 
 	}, nil
 }
 
-// GetFolders returns all chat folders configured by the user.
 func (t *TelegramCore) GetFolders() ([]Folder, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -11752,7 +10613,6 @@ func (t *TelegramCore) GetFolders() ([]Folder, error) {
 			}
 
 		case *tg.DialogFilterChatlist:
-			// Shared/public folders — explicit include list only, no type filters.
 			folder = Folder{
 				ID:         strconv.Itoa(filter.ID),
 				Name:       filter.Title.Text,
@@ -11766,7 +10626,7 @@ func (t *TelegramCore) GetFolders() ([]Folder, error) {
 			}
 
 		default:
-			continue // Skip DialogFilterDefault and unknown types
+			continue
 		}
 		log.Printf("[tg-folders] Folder %q (id=%s): contacts=%v nonContacts=%v groups=%v channels=%v bots=%v excludeMuted=%v excludeRead=%v excludeArchived=%v includes=%d excludes=%d pinned=%d includeIDs=%v",
 			folder.Name, folder.ID, folder.Contacts, folder.NonContacts, folder.Groups, folder.Channels, folder.Bots,
@@ -11777,9 +10637,7 @@ func (t *TelegramCore) GetFolders() ([]Folder, error) {
 	return folders, nil
 }
 
-// CreateFolder creates a new chat folder with the specified filters.
 func (t *TelegramCore) CreateFolder(name string, chatIDs []string) (*Folder, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -11795,9 +10653,8 @@ func (t *TelegramCore) CreateFolder(name string, chatIDs []string) (*Folder, err
 		peers = append(peers, inputPeer)
 	}
 
-	filterID := int(time.Now().Unix()%200) + 20 // avoid collision with existing filters (IDs 2-15 common)
+	filterID := int(time.Now().Unix()%200) + 20
 
-	// Telegram folder titles are max 12 UTF-8 chars
 	titleRunes := []rune(name)
 	if len(titleRunes) > 12 {
 		titleRunes = titleRunes[:12]
@@ -11809,7 +10666,6 @@ func (t *TelegramCore) CreateFolder(name string, chatIDs []string) (*Folder, err
 		PinnedPeers:  []tg.InputPeerClass{},
 		ExcludePeers: []tg.InputPeerClass{},
 	}
-	// Set contacts flag to satisfy minimum filter requirements
 	filter.SetFlags()
 
 	_, err = api.MessagesUpdateDialogFilter(ctx, &tg.MessagesUpdateDialogFilterRequest{
@@ -11827,9 +10683,7 @@ func (t *TelegramCore) CreateFolder(name string, chatIDs []string) (*Folder, err
 	}, nil
 }
 
-// CreateFolderWithFlags creates a new chat folder with type filter flags.
 func (t *TelegramCore) CreateFolderWithFlags(name string, chatIDs []string, contacts, nonContacts, groups, channels, bots bool) (*Folder, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -11885,15 +10739,6 @@ func (t *TelegramCore) CreateFolderWithFlags(name string, chatIDs []string, cont
 	}, nil
 }
 
-// UpdateDialogFilterFull creates or edits a chat folder with the COMPLETE filter
-// definition, mirroring AyuGram's collect()+save() (edit_filter_box.cpp:821-1003):
-// it serializes the full ChatFilter — include/exclude peers + every type/exclude
-// flag + tag color + emoticon + static title — and sends it verbatim via
-// messages.updateDialogFilter. filterID <= 0 creates a new filter (fresh id); any
-// other id overwrites the existing one (edit). isChatList preserves a shared
-// (chatlist) folder's type via DialogFilterChatlist (which has no exclude/type
-// rules — only an explicit include list + color + emoticon). colorIndex < 0 (or
-// > 6) means "no tag color".
 func (t *TelegramCore) UpdateDialogFilterFull(
 	filterID int,
 	isChatList bool,
@@ -11905,7 +10750,6 @@ func (t *TelegramCore) UpdateDialogFilterFull(
 	emoticon string,
 	staticTitle bool,
 ) (*Folder, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -11937,7 +10781,6 @@ func (t *TelegramCore) UpdateDialogFilterFull(
 		filterID = int(time.Now().Unix()%200) + 20
 	}
 
-	// Telegram folder titles are max 12 UTF-8 chars.
 	titleRunes := []rune(name)
 	if len(titleRunes) > 12 {
 		titleRunes = titleRunes[:12]
@@ -12014,14 +10857,12 @@ func (t *TelegramCore) UpdateDialogFilterFull(
 	}, nil
 }
 
-// OnUpdate registers a callback to receive real-time updates from Telegram.
 func (t *TelegramCore) OnUpdate(handler func(Update)) {
 	t.updateMu.Lock()
 	defer t.updateMu.Unlock()
 	t.updateHandlers = append(t.updateHandlers, handler)
 }
 
-// Close shuts down the Telegram client and releases all resources.
 func (t *TelegramCore) Close() error {
 	if t.cancel != nil {
 		t.cancel()
@@ -12033,22 +10874,12 @@ func (t *TelegramCore) Close() error {
 	return nil
 }
 
-// teardownPriorAuthAttempt cleans up a previous in-flight auth/connection bootstrap
-// so this core can bootstrap a DIFFERENT login method again on the SAME instance —
-// needed when the intro login method is switched in place (phone↔QR) via the
-// engine's SwitchAuthMethod, instead of the core being Closed and recreated. It
-// cancels the prior client.Run goroutine, waits for it to exit, and re-arms the
-// one-shot authSetupDone channel that the prior bootstrap closed. No-op on a fresh
-// core (nothing bootstrapped yet). Runs WITHOUT t.mu held — it waits on the
-// goroutine, which itself takes t.mu — mirroring Close()'s cancel-then-wait order
-// to avoid deadlock. (The auth flow's Code/Password waits select on ctx.Done, so the
-// cancel unblocks them; only the single auth goroutine is ever tracked by t.wg here.)
 func (t *TelegramCore) teardownPriorAuthAttempt() {
 	t.mu.Lock()
 	cancel := t.cancel
 	t.mu.Unlock()
 	if cancel == nil {
-		return // fresh core — nothing bootstrapped
+		return
 	}
 	cancel()
 	t.wg.Wait()
@@ -12059,8 +10890,6 @@ func (t *TelegramCore) teardownPriorAuthAttempt() {
 	t.sender = nil
 	t.preAuthAPI = nil
 	t.authed = false
-	// Re-arm the one-shot setup channel if the prior bootstrap closed it, so the next
-	// Authenticate/StartQRAuth can close it again without a "close of closed channel".
 	select {
 	case <-t.authSetupDone:
 		t.authSetupDone = make(chan struct{})
@@ -12069,19 +10898,8 @@ func (t *TelegramCore) teardownPriorAuthAttempt() {
 	t.mu.Unlock()
 }
 
-// --- Internal helpers ---
-
-// telegramServiceUserID is Telegram's official "Telegram" service-notifications
-// account (777000), which delivers login-code push messages to existing
-// sessions when the user signs in on a new device.
 const telegramServiceUserID = 777000
 
-// extractLoginCode returns the login code from an incoming service message that
-// Telegram (777000) pushed for a sign-in elsewhere, when it carries a
-// `tg://login?code=NNNNN` link — the same link AyuGram's ResolveLoginCode parses
-// (regex `^login/?(\?code=([0-9]+))`, core/local_url_handlers.cpp:1454) to drive
-// Account::handleLoginCode → CodeWidget auto-fill+submit (intro_code.cpp:59-62).
-// Returns "" when the message isn't such a push.
 func extractLoginCode(msg *tg.Message) string {
 	if msg.Out {
 		return ""
@@ -12090,7 +10908,6 @@ func extractLoginCode(msg *tg.Message) string {
 	if !ok || pu.UserID != telegramServiceUserID {
 		return ""
 	}
-	// Text-URL entities are the canonical carrier of the login link.
 	for _, ent := range msg.Entities {
 		if tu, ok := ent.(*tg.MessageEntityTextURL); ok {
 			if code := loginCodeFromURL(tu.URL); code != "" {
@@ -12098,12 +10915,9 @@ func extractLoginCode(msg *tg.Message) string {
 			}
 		}
 	}
-	// Fall back to an inline link in the raw text.
 	return loginCodeFromURL(msg.Message)
 }
 
-// loginCodeFromURL extracts the digits from a `tg://login?code=NNNNN` URL,
-// matching AyuGram's `^login/?(\?code=([0-9]+))` capture without a regexp dep.
 func loginCodeFromURL(s string) string {
 	for _, marker := range []string{"login?code=", "login/?code="} {
 		i := strings.Index(s, marker)
@@ -12143,7 +10957,6 @@ func (t *TelegramCore) fireUpdate(u Update) {
 	}
 }
 
-// peerToInputPeer converts PeerClass to InputPeerClass using cached access hashes.
 func (t *TelegramCore) peerToInputPeer(peer tg.PeerClass) tg.InputPeerClass {
 	switch p := peer.(type) {
 	case *tg.PeerUser:
@@ -12158,7 +10971,6 @@ func (t *TelegramCore) peerToInputPeer(peer tg.PeerClass) tg.InputPeerClass {
 	return &tg.InputPeerSelf{}
 }
 
-// resolveGroupCall finds the active group call in a chat, returns (id, accessHash, err).
 func (t *TelegramCore) resolveGroupCall(peer tg.PeerClass) (int64, int64, error) {
 	switch p := peer.(type) {
 	case *tg.PeerChannel:
@@ -12195,7 +11007,6 @@ func (t *TelegramCore) resolveGroupCall(peer tg.PeerClass) (int64, int64, error)
 	return 0, 0, fmt.Errorf("no active group call")
 }
 
-// tgMsgID parses a message ID string to int, returning an error for invalid input.
 func tgMsgID(s string) (int, error) {
 	id, err := strconv.Atoi(s)
 	if err != nil {
@@ -12204,7 +11015,6 @@ func tgMsgID(s string) (int, error) {
 	return id, nil
 }
 
-// tgUserID parses a user/channel ID string to int64, returning an error for invalid input.
 func tgUserID(s string) (int64, error) {
 	id, err := strconv.ParseInt(s, 10, 64)
 	if err != nil {
@@ -12213,14 +11023,7 @@ func tgUserID(s string) (int64, error) {
 	return id, nil
 }
 
-// withPeer resolves a chat ID under a brief read lock and returns the input
-// peer with the release func — RPCs must run AFTER the release (see withAPI).
 func (t *TelegramCore) withPeer(chatID string) (tg.InputPeerClass, func(), error) {
-	// withAPI rule: never hold t.mu across an RPC. resolvePeer may itself
-	// RPC (@username resolution) and toInputPeer may RPC (access-hash
-	// misses), so the auth gate is a brief snapshot and the resolution
-	// runs unlocked — the returned release func is a no-op kept for the
-	// call-shape compatibility of the 796 converted methods.
 	if _, _, err := t.withAPI(); err != nil {
 		return nil, nil, err
 	}
@@ -12235,33 +11038,11 @@ func (t *TelegramCore) withPeer(chatID string) (tg.InputPeerClass, func(), error
 	return inputPeer, func() {}, nil
 }
 
-// ── RPC hygiene: deadlines + lock-free hot paths ──────────────────────────
-//
-// Freeze class this section eliminates (owner-reported: clicking a Telegram
-// bot chat froze the client): ~840 core methods held t.mu across t.api.*
-// RPCs. t.ctx carries no deadline, gotd 0.161 runs no heartbeat by default,
-// so a half-open TCP connection (network switch, suspend/resume, NAT drop)
-// hangs RPCs FOREVER — pinning t.mu. Go's RWMutex is fair: one queued writer
-// then blocks every new reader, and any GUI-goroutine core call freezes the
-// window. Two complementary fixes, both following the file's own GetAdminRanks
-// precedent:
-//
-//  1. rpcGuard (below): every t.api call goes through one guarded invoker —
-//     each RPC gets a 60s deadline (tdesktop's default request timeout), so
-//     even a dead connection returns an error instead of hanging forever.
-//  2. withAPI / snapshot rewrites on the chat-open hot path: the lock is held
-//     only long enough to snapshot authed/api/ctx, never across the RPC.
-
-// rpcTimeout bounds a single MTProto RPC when the caller set no deadline of
-// its own. Generous by design: the biggest legit RPCs (full history page,
-// instant-view fetch, 1MB file chunk on a slow link) all finish well inside
-// 60s; anything longer is a dead connection, not slowness.
 const rpcTimeout = 60 * time.Second
 
-// rpcGuard wraps the gotd invoker so every API call carries a deadline.
 type rpcGuard struct {
 	next    tg.Invoker
-	timeout time.Duration // 0 → rpcTimeout (injectable for tests)
+	timeout time.Duration
 }
 
 func (g rpcGuard) Invoke(ctx context.Context, input bin.Encoder, output bin.Decoder) error {
@@ -12277,16 +11058,10 @@ func (g rpcGuard) Invoke(ctx context.Context, input bin.Encoder, output bin.Deco
 	return g.next.Invoke(ctx, input, output)
 }
 
-// guardedClient wraps the live gotd client in the deadline-guarded API
-// client used for t.api / t.preAuthAPI everywhere.
 func (t *TelegramCore) guardedClient() *tg.Client {
 	return tg.NewClient(rpcGuard{next: t.client})
 }
 
-// withAPI snapshots the live API client + session context under a brief
-// read lock. Rule: never hold t.mu across a network RPC — a hung or slow RPC
-// would pin the mutex and starve queued writers plus every later reader.
-// The returned client and ctx stay valid for the whole post-auth session.
 func (t *TelegramCore) withAPI() (*tg.Client, context.Context, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -12296,11 +11071,6 @@ func (t *TelegramCore) withAPI() (*tg.Client, context.Context, error) {
 	return t.api, t.ctx, nil
 }
 
-// withSenderAPI snapshots the live API client, session context AND the
-// gotd message sender under one brief read lock — the sender variant of
-// withAPI for the upload paths that send through the high-level
-// message.Builder (api and sender are set and cleared together under
-// t.mu in auth/Logout/teardown, so the pair snapshot is consistent).
 func (t *TelegramCore) withSenderAPI() (*tg.Client, context.Context, *message.Sender, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -12310,9 +11080,7 @@ func (t *TelegramCore) withSenderAPI() (*tg.Client, context.Context, *message.Se
 	return t.api, t.ctx, t.sender, nil
 }
 
-// resolvePeer resolves a chat ID string to a tg.PeerClass.
 func (t *TelegramCore) resolvePeer(chatID string) (tg.PeerClass, error) {
-	// Handle @username
 	if strings.HasPrefix(chatID, "@") {
 		resolved, err := t.api.ContactsResolveUsername(t.ctx, &tg.ContactsResolveUsernameRequest{
 			Username: strings.TrimPrefix(chatID, "@"),
@@ -12335,15 +11103,12 @@ func (t *TelegramCore) resolvePeer(chatID string) (tg.PeerClass, error) {
 		return nil, ErrNotFound
 	}
 
-	// Numeric ID
 	id, err := strconv.ParseInt(chatID, 10, 64)
 	if err != nil {
 		return nil, fmt.Errorf("invalid chat ID: %s", chatID)
 	}
 
-	// Negative IDs are groups/channels in Telegram convention
 	if id < 0 {
-		// -100xxxx is a channel, -xxxx is a chat
 		absID := -id
 		if absID > 1000000000000 {
 			return &tg.PeerChannel{ChannelID: absID - 1000000000000}, nil
@@ -12371,8 +11136,6 @@ func (t *TelegramCore) toInputPeer(peer tg.PeerClass) (tg.InputPeerClass, error)
 		return nil, fmt.Errorf("unknown peer type: %T", peer)
 	}
 }
-
-// --- Peer access hash cache ---
 
 func (t *TelegramCore) cacheUserHash(userID, accessHash int64) {
 	t.peerMu.Lock()
@@ -12411,7 +11174,6 @@ func (t *TelegramCore) getCachedUserColorID(userID int64) int {
 	if ok {
 		return cid
 	}
-	// -1 = unknown; the host UI falls back to senderId % 7
 	return -1
 }
 
@@ -12450,12 +11212,10 @@ func (t *TelegramCore) PreloadPeerHashes(channelHashes map[int64]int64, userHash
 	}
 }
 
-// encodeFileExtra packs access hash and file reference for later download.
 func encodeFileExtra(accessHash int64, fileRef []byte) string {
 	return strconv.FormatInt(accessHash, 10) + ":" + base64.StdEncoding.EncodeToString(fileRef)
 }
 
-// decodeFileExtra unpacks access hash and file reference from Extra field.
 func decodeFileExtra(extra string) (int64, []byte) {
 	parts := strings.SplitN(extra, ":", 2)
 	if len(parts) != 2 {
@@ -12497,7 +11257,6 @@ func (t *TelegramCore) getCachedFileMime(fileID int64) string {
 	return t.fileMimeType[fileID]
 }
 
-// cacheEntities extracts access hashes from user/chat lists and caches them.
 func (t *TelegramCore) cacheEntities(users []tg.UserClass, chats []tg.ChatClass) {
 	if len(users) == 0 && len(chats) == 0 {
 		return
@@ -12544,9 +11303,7 @@ func (t *TelegramCore) cacheEntities(users []tg.UserClass, chats []tg.ChatClass)
 	t.peerMu.Unlock()
 }
 
-// resolveChannelAccessHash fetches the access hash for a channel/supergroup.
 func (t *TelegramCore) resolveChannelAccessHash(channelID int64) (int64, error) {
-	// Check cache first
 	if hash, ok := t.getCachedChannelHash(channelID); ok {
 		return hash, nil
 	}
@@ -12570,8 +11327,6 @@ func (t *TelegramCore) resolveChannelAccessHash(channelID int64) (int64, error) 
 	return 0, fmt.Errorf("channel %d not found", channelID)
 }
 
-// repliesInfoOf reads the wire replies info (pure): the reply count and
-// whether it is a channel-post comment thread. Slice 195.
 func repliesInfoOf(msg *tg.Message) (count int, isComments bool) {
 	if r, ok := msg.GetReplies(); ok {
 		return r.Replies, r.Comments
@@ -12579,9 +11334,6 @@ func repliesInfoOf(msg *tg.Message) (count int, isComments bool) {
 	return 0, false
 }
 
-// threadRootOf reads the reply header's thread root (pure): reply-to-top
-// when present, else the reply target itself; "" when not a reply.
-// Slice 195 (discussion threads; forum topics set topic_id via Extra).
 func threadRootOf(msg *tg.Message) string {
 	if reply, ok := msg.GetReplyTo(); ok {
 		if rh, ok := reply.(*tg.MessageReplyHeader); ok {
@@ -12618,8 +11370,6 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 		m.Extra["no_forwards"] = true
 	}
 
-	// Paid suggested-post flags (Ton takes precedence over Stars, matching
-	// HistoryItem::paidType / FlagsFromMTP in history_item_helpers.cpp:871-875).
 	if msg.PaidSuggestedPostTon {
 		m.PaidPostType = 2
 	} else if msg.PaidSuggestedPostStars {
@@ -12642,9 +11392,6 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 		}
 		m.Extra["media_unread"] = true
 	}
-	// `mentioned` flag: this message personally mentions the user (@mention or a
-	// reply to their message). Lets the notification layer pierce a muted group
-	// for mentions, matching AyuGram's specialNotificationPeer().
 	if msg.Mentioned {
 		if m.Extra == nil {
 			m.Extra = make(map[string]interface{})
@@ -12669,14 +11416,12 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 		if peer, ok := from.(*tg.PeerUser); ok {
 			m.SenderName = t.getCachedUserName(peer.UserID)
 			m.SenderColorID = t.getCachedUserColorID(peer.UserID)
-			// Look up admin rank from cache for group/supergroup chats.
 			if chatID := peerToInt64(msg.PeerID); chatID != 0 {
 				m.SenderRank = t.getAdminRank(chatID, peer.UserID)
 			}
 		}
 	}
 
-	// Channel post author signature (e.g. "John" when channel has "Sign messages" on).
 	if author, ok := msg.GetPostAuthor(); ok && author != "" && m.SenderRank == "" {
 		m.SenderRank = author
 	}
@@ -12686,9 +11431,6 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 		m.EditedAt = &et
 	}
 
-	// Channel-post comments (slice 195): the replies-info count rides the
-	// message; the thread root (reply-to-top) lets the discussion rows
-	// filter into threads.
 	if c, _ := repliesInfoOf(msg); c > 0 {
 		m.CommentsCount = c
 	}
@@ -12709,7 +11451,6 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 				}
 				tidStr := strconv.Itoa(topicID)
 				m.Extra["topic_id"] = tidStr
-				// Look up cached topic name and color.
 				chatID := peerToID(msg.PeerID)
 				if title, color, ok := t.GetForumTopicInfo(chatID, tidStr); ok {
 					m.Extra["topic_name"] = title
@@ -12733,8 +11474,6 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 	}
 
 	if fwd, ok := msg.GetFwdFrom(); ok {
-		// Resolve forward origin to a display name.
-		// Priority: FromName (privacy-set) > cached user/channel name > PostAuthor > peer ID fallback.
 		if name, ok := fwd.GetFromName(); ok && name != "" {
 			m.ForwardFrom = name
 		} else if from, ok := fwd.GetFromID(); ok {
@@ -12780,7 +11519,6 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 		}
 	}
 
-	// Via-bot label: resolve ViaBotID to @username for inline bot attribution.
 	if viaBotID, ok := msg.GetViaBotID(); ok && viaBotID != 0 {
 		if uname := t.getCachedUsername(viaBotID); uname != "" {
 			if m.Extra == nil {
@@ -12795,7 +11533,6 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 		}
 	}
 
-	// Extract rich-text entities.
 	if len(msg.Entities) > 0 {
 		m.Entities = convertTgEntities(msg.Entities)
 	}
@@ -12879,7 +11616,6 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 						}
 					}
 				}
-				// Extract stripped thumbnail from document's thumb sizes (videos, stickers, GIFs).
 				ref.ThumbB64 = extractStrippedThumbB64(d.Thumbs)
 				m.Attachments = []FileRef{ref}
 				t.cacheFileInfo(d.ID, d.AccessHash, d.FileReference)
@@ -12934,10 +11670,6 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 				}
 				m.Extra["media_spoiler"] = true
 			}
-			// Media-level self-destruct TTL (one-time / view-once voice & video).
-			// Distinct from the message-level ttl_period above; this is what
-			// AyuGram's MediaFile::notificationText() reads via media->ttlSeconds()
-			// to pick the "One-time …" notification variant (data_media_types.cpp:1273-1286).
 			if ttl, ok := md.GetTTLSeconds(); ok && ttl > 0 {
 				if m.Extra == nil {
 					m.Extra = make(map[string]interface{})
@@ -12960,8 +11692,6 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 						ref.Height = s.H
 					}
 				}
-				// Extract stripped thumbnail — a ~100 byte blurred JPEG delivered inline,
-				// so photos show a blurhash-like preview with no download required.
 				ref.ThumbB64 = extractStrippedThumbB64(p.Sizes)
 				m.Attachments = []FileRef{ref}
 				t.cacheFileInfo(p.ID, p.AccessHash, p.FileReference)
@@ -13046,9 +11776,6 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 
 			m.Attachments = []FileRef{{MimeType: "application/x-poll", Name: "poll"}}
 		case *tg.MessageMediaDice:
-			// Dice / emoji games (slice 125): the animation document lives in
-			// the per-emoji dice pack, resolved lazily by the engine
-			// (EnsureDiceSticker rewrites this media row to the real .tgs).
 			if m.Extra == nil {
 				m.Extra = make(map[string]interface{})
 			}
@@ -13145,16 +11872,6 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 			}
 			m.Attachments = []FileRef{{MimeType: "application/x-invoice", Name: "invoice"}}
 		case *tg.MessageMediaPaidMedia:
-			// Paid media (channel paid post). AyuGram represents messageMediaPaidMedia
-			// as a MediaInvoice with isPaidMedia=true (data_media_types.cpp:465-469);
-			// its notificationText() renders "Photo"/"Video"[, caption] instead of an
-			// invoice title (data_media_types.cpp:2185-2193). Classify it as an invoice
-			// attachment (→ media_type 12) and carry the paid-media flag + the
-			// first-item video/photo selector (IsFirstVideo, data_media_types.cpp:592-599).
-			// Slice 181: the star price + preview geometry/thumb ride along
-			// (paid_stars / paid_thumb_b64 / paid_w / paid_h / paid_video_duration);
-			// unlocked extended media splices the REAL media conversion in
-			// (paid_unlocked=true) so the photo/video bubble renders normally.
 			if m.Extra == nil {
 				m.Extra = make(map[string]interface{})
 			}
@@ -13272,14 +11989,6 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 								break
 							}
 						}
-						// Slice 130: export the photo's download
-						// coordinates so the engine can pull the
-						// full-resolution thumb through the standard
-						// media pipeline (tdesktop renders the
-						// Telegram-hosted page photo, not the site's
-						// original image). No attachment is created —
-						// the link-preview card owns the render and
-						// EnsureWebPagePhoto builds the media row.
 						if photo.ID != 0 {
 							m.Extra["wp_photo_id"] = strconv.FormatInt(photo.ID, 10)
 							m.Extra["wp_photo_extra"] = encodeFileExtra(photo.AccessHash, photo.FileReference)
@@ -13441,8 +12150,6 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 	return m
 }
 
-// convertServiceMessage converts a tg.MessageService to our Message struct.
-// Service messages are system events like "X joined the group", "X pinned a message", etc.
 func (t *TelegramCore) convertServiceMessage(svc *tg.MessageService) *Message {
 	m := &Message{
 		ID:         strconv.Itoa(svc.ID),
@@ -13464,11 +12171,6 @@ func (t *TelegramCore) convertServiceMessage(svc *tg.MessageService) *Message {
 
 	m.Text = t.serviceActionText(m.SenderName, svc.Action)
 	m.Extra["service_action"] = serviceActionTag(svc.Action)
-	// AyuGram types a premium gift-code as TYPE_GIFT_PREMIUM_CHANNEL (25) rather than
-	// TYPE_GIFT_PREMIUM (18) when the gift carries a boosted channel
-	// (history_item.cpp:7299-7320: gift.channel = channel(boost_peer); typeOfMessage
-	// filters_utils.cpp:618-624). Surface that as a `channel` flag in the message extra so
-	// the AyuGram regex-filter engine can reproduce the distinction.
 	if gc, ok := svc.Action.(*tg.MessageActionGiftCode); ok {
 		if bp, ok := gc.GetBoostPeer(); ok {
 			if _, isChannel := bp.(*tg.PeerChannel); isChannel {
@@ -13476,9 +12178,6 @@ func (t *TelegramCore) convertServiceMessage(svc *tg.MessageService) *Message {
 			}
 		}
 	}
-	// Gift service messages (slice 180): structured Extra so the GUI can
-	// render the gift card bubble (sticker artwork, star count, note,
-	// limited/converted chips) instead of a flat service line.
 	switch act := svc.Action.(type) {
 	case *tg.MessageActionStarGift:
 		m.Extra["gift_kind"] = "stargift"
@@ -13504,21 +12203,12 @@ func (t *TelegramCore) convertServiceMessage(svc *tg.MessageService) *Message {
 		m.Extra["gift_crypto_amount"] = act.CryptoAmount
 		m.Extra["gift_crypto_currency"] = act.CryptoCurrency
 	case *tg.MessageActionSetChatTheme:
-		// Chat-theme change (slice 188): the LATEST service row with this
-		// extra wins — the engine mirrors it onto chats.theme_emoticon so
-		// the GUI can tint the chat (tdesktop's peerTheme mechanism; the
-		// theme list itself comes from account.getChatThemes).
 		emoticon := ""
 		if th, ok := act.Theme.(*tg.ChatTheme); ok {
 			emoticon = th.Emoticon
 		}
 		m.Extra["chat_theme_emoticon"] = emoticon
 	case *tg.MessageActionSetChatWallPaper:
-		// Custom wallpaper (slice 218): the LATEST service row wins — the
-		// engine mirrors the marshaled WallpaperInfo onto
-		// chats.wallpaper_json so the GUI can render the image behind the
-		// messages (the same peer-mirror mechanism as the theme emoticon;
-		// overwrite/same/for_both flags ride along for the revert UX).
 		if info := t.wallpaperFromWire(act.Wallpaper); info.ID != 0 || info.DocID != 0 {
 			if raw, jerr := json.Marshal(info); jerr == nil {
 				m.Extra["chat_wallpaper"] = string(raw)
@@ -13567,15 +12257,12 @@ func serviceActionTag(action tg.MessageActionClass) string {
 	}
 }
 
-// serviceActionText generates human-readable text from a MessageActionClass.
 func (t *TelegramCore) serviceActionText(sender string, action tg.MessageActionClass) string {
 	if sender == "" {
 		sender = "Someone"
 	}
 	switch a := action.(type) {
 	case *tg.MessageActionGeoProximityReached:
-		// slice 208: tdesktop prepareProximityReached — the three
-		// self/non-self sentence shapes + the 10 m-precision label.
 		fromName := t.proximityPeerName(a.FromID)
 		toName := t.proximityPeerName(a.ToID)
 		fromSelf, toSelf := false, false
@@ -13694,7 +12381,6 @@ func (t *TelegramCore) serviceActionText(sender string, action tg.MessageActionC
 	}
 }
 
-// joinNames joins a list of names with commas and "and".
 func joinNames(names []string) string {
 	switch len(names) {
 	case 0:
@@ -13716,7 +12402,6 @@ func joinNames(names []string) string {
 	}
 }
 
-// convertTgEntities converts gotd MessageEntityClass list to our TextEntity format.
 func convertTgEntities(entities []tg.MessageEntityClass) []TextEntity {
 	result := make([]TextEntity, 0, len(entities))
 	for _, e := range entities {
@@ -13807,10 +12492,6 @@ func (t *TelegramCore) convertUser(user *tg.User) *User {
 		Platform:        tgPlatform,
 	}
 
-	// Classify presence into (isOnline, kind, lastSeen) and propagate via the
-	// User struct AND seed an UpdateUserStatus event so the engine cache picks
-	// up initial state (the OnUserStatus dispatcher only fires on deltas, so
-	// without this the DM top bar has no subtitle until the peer toggles).
 	if status := user.Status; status != nil {
 		var kind string
 		var lastSeen *time.Time
@@ -13850,7 +12531,6 @@ func (t *TelegramCore) convertUser(user *tg.User) *User {
 		}
 	}
 
-	// Extract stripped thumbnail from profile photo (tiny b64 thumbnail, no API call needed).
 	if photo, ok := user.Photo.(*tg.UserProfilePhoto); ok {
 		if thumb, ok := photo.GetStrippedThumb(); ok && len(thumb) > 0 {
 			if jpg := tgStrippedToJPEG(thumb); len(jpg) > 0 {
@@ -13875,10 +12555,6 @@ func (t *TelegramCore) convertUser(user *tg.User) *User {
 	return u
 }
 
-// userAvatarStrippedB64 returns a user's inline stripped-thumbnail avatar as
-// base64 (no API call), mirroring convertUser's avatar extraction. Used to give
-// star-ref bot rows a real userpic instead of a colored letter-tile
-// (info_bot_starref_join_widget.cpp:199).
 func userAvatarStrippedB64(u *tg.User) string {
 	if u == nil {
 		return ""
@@ -13893,13 +12569,6 @@ func userAvatarStrippedB64(u *tg.User) string {
 	return ""
 }
 
-// extractStrippedThumbB64 walks a []PhotoSizeClass looking for a PhotoStrippedSize
-// entry (tiny ~100-byte JPEG thumbnail delivered inline with the message). When
-// found, it inflates it to a valid JPEG and returns the base64 encoding. Works
-// for both Photo.Sizes and Document.Thumbs.
-// storyReactionEmoticon maps a wire reaction to its emoji string —
-// custom-emoji reactions (premium) map to empty (not representable as a
-// plain emoticon; the viewer treats empty as "no plain reaction").
 func storyReactionEmoticon(r tg.ReactionClass) string {
 	if e, ok := r.(*tg.ReactionEmoji); ok {
 		return e.Emoticon
@@ -13918,14 +12587,10 @@ func extractStrippedThumbB64(sizes []tg.PhotoSizeClass) string {
 	return ""
 }
 
-// tgStrippedToJPEG reconstructs a valid JPEG from Telegram's stripped thumbnail format.
-// The format strips the JPEG header/footer to save bytes; we prepend/append them back.
-// See: https://core.telegram.org/api/files#stripped-thumbnails
 func tgStrippedToJPEG(data []byte) []byte {
 	if len(data) < 3 || data[0] != 1 {
 		return nil
 	}
-	// Standard JPEG header template for Telegram stripped photos.
 	header := []byte{
 		0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01,
 		0x00, 0x01, 0x00, 0x00, 0xFF, 0xDB, 0x00, 0x43, 0x00, 0x28, 0x1C, 0x1E, 0x23, 0x1E, 0x19, 0x28,
@@ -13972,12 +12637,9 @@ func tgStrippedToJPEG(data []byte) []byte {
 	}
 	footer := []byte{0xFF, 0xD9}
 
-	// Replace height and width in the SOF0 marker.
-	// SOF0 starts at byte 198: FF C0 00 11 08 [HH] [HL] [WH] [WL] 03
 	header[204] = data[1]
 	header[206] = data[2]
 
-	// Combine: header + scan data + footer.
 	result := make([]byte, 0, len(header)+len(data)-3+len(footer))
 	result = append(result, header...)
 	result = append(result, data[3:]...)
@@ -13985,12 +12647,6 @@ func tgStrippedToJPEG(data []byte) []byte {
 	return result
 }
 
-// paidMediaFirstVideo reports whether the first extended-media item of a paid
-// media post (messageMediaPaidMedia) is a video, mirroring AyuGram's
-// IsFirstVideo(invoice) (data_media_types.cpp:592-599): an unpurchased preview
-// is a video when it carries a video_duration; fully-revealed media is a video
-// when it is not a photo. Selects lng_in_dlg_video over lng_in_dlg_photo for the
-// notification body.
 func paidMediaFirstVideo(media []tg.MessageExtendedMediaClass) bool {
 	if len(media) == 0 {
 		return false
@@ -14122,7 +12778,6 @@ func (t *TelegramCore) extractDialogs(dlgs []tg.DialogClass, msgs []tg.MessageCl
 			dialog.ID = strconv.FormatInt(p.UserID, 10)
 			dialog.Type = ChatTypeDM
 			if p.UserID == t.selfID {
-				// Self-chat = Saved Messages (spec §31.1).
 				dialog.Title = "Saved Messages"
 			} else if user, ok := userMap[p.UserID]; ok {
 				dialog.Title = strings.TrimSpace(user.FirstName + " " + user.LastName)
@@ -14231,7 +12886,6 @@ func (t *TelegramCore) extractDialogs(dlgs []tg.DialogClass, msgs []tg.MessageCl
 			}
 		}
 
-		// Last message
 		if dlg.TopMessage != 0 {
 			if msg, ok := msgMap[dlg.TopMessage]; ok {
 				if m, ok := msg.(*tg.Message); ok {
@@ -14277,7 +12931,6 @@ func (t *TelegramCore) extractMessageFromUpdates(updates tg.UpdatesClass, chatID
 		}
 		return m
 	}
-	// Fallback — at minimum provide timestamp and status
 	return &Message{ChatID: chatID, Platform: tgPlatform, Status: MessageStatusSent, IsOutgoing: true, Timestamp: time.Now()}
 }
 
@@ -14325,7 +12978,6 @@ func (t *TelegramCore) convertMessages(result tg.MessagesMessagesClass) []Messag
 		return nil
 	}
 
-	// Lazily fetch admin ranks for channel/supergroup chats on first message load.
 	for _, m := range rawMsgs {
 		if msg, ok := m.(*tg.Message); ok {
 			if ch, ok := msg.PeerID.(*tg.PeerChannel); ok {
@@ -14350,10 +13002,10 @@ func (t *TelegramCore) convertMessages(result tg.MessagesMessagesClass) []Messag
 			messages = append(messages, *t.convertMessage(msg))
 		case *tg.MessageService:
 			if _, ok := msg.Action.(*tg.MessageActionEmpty); ok {
-				continue // skip empty actions
+				continue
 			}
 			if _, ok := msg.Action.(*tg.MessageActionHistoryClear); ok {
-				continue // skip history clear pseudo-messages
+				continue
 			}
 			messages = append(messages, *t.convertServiceMessage(msg))
 		}
@@ -14374,8 +13026,6 @@ func inputPeerToID(peer tg.InputPeerClass) string {
 	}
 }
 
-// inputGroupCallID extracts the numeric call ID from an InputGroupCallClass
-// (the *tg.InputGroupCall concrete type carries .ID).
 func inputGroupCallID(call tg.InputGroupCallClass) int64 {
 	if igc, ok := call.(*tg.InputGroupCall); ok {
 		return igc.ID
@@ -14383,8 +13033,6 @@ func inputGroupCallID(call tg.InputGroupCallClass) int64 {
 	return 0
 }
 
-// resolveCallMemberName resolves a participant's display name for a group-call
-// message: first from the update's inline entities, then the cached user store.
 func (t *TelegramCore) resolveCallMemberName(e tg.Entities, gcID int64, userID string) string {
 	if userID == "" {
 		return ""
@@ -14408,10 +13056,6 @@ func (t *TelegramCore) resolveCallMemberName(e tg.Entities, gcID int64, userID s
 	return ""
 }
 
-// resolveShortName returns a peer's short name — the first name for a user,
-// the full title for a chat/channel — mirroring AyuGram PeerData::shortName()
-// (data_peer.cpp). It reads the update's inline entities first (always present
-// on a live message), then falls back to the cached name stores.
 func (t *TelegramCore) resolveShortName(peer tg.PeerClass, e tg.Entities) string {
 	switch p := peer.(type) {
 	case *tg.PeerUser:
@@ -14444,17 +13088,6 @@ func (t *TelegramCore) resolveShortName(peer tg.PeerClass, e tg.Entities) string
 	return ""
 }
 
-// attachSublistInfo records a message's saved/monoforum sublist peer
-// (message.saved_peer_id) into m.SavedPeerID and the Extra map. For a
-// channel "Direct Messages" monoforum the host notification layer turns
-// this into the title "{sublistPeer shortName} ({channel})" — mirrors
-// AyuGram HistoryItem::savedSublist() + notifications_manager.cpp:1576-1578.
-// Present on both monoforum messages and the user's own Saved Messages;
-// the host producer distinguishes the two (a self chat keeps the plain
-// title). Messages the server still sends WITHOUT the field (pre-layer-170
-// rows) get the official backfill (deriveSavedPeerID —
-// core.telegram.org/api/saved-messages pseudocode) when they sit in the
-// self chat (slice 197).
 func (t *TelegramCore) attachSublistInfo(m *Message, msg *tg.Message, e tg.Entities) {
 	saved, hasWire := msg.GetSavedPeerID()
 	var id string
@@ -14476,20 +13109,12 @@ func (t *TelegramCore) attachSublistInfo(m *Message, msg *tg.Message, e tg.Entit
 	}
 }
 
-// deriveSavedPeerID backfills a saved message's sublist peer when the
-// wire lacks message.saved_peer_id (pre-layer-170 messages): the
-// official pseudocode from core.telegram.org/api/saved-messages —
-// fwd_from.saved_from_peer, else fwd_from.from_id (ourselves — we only
-// forward from a dialog we have), else fwd_from.from_name (the special
-// anonymous saved user 2666000), else ourselves (plain self messages).
-// Non-self-chat messages (monoforum rows carry the wire field anyway)
-// return "" — not ours to derive. Pure — locked by tests.
 func deriveSavedPeerID(msg *tg.Message, selfID int64) string {
 	if peer, ok := msg.GetSavedPeerID(); ok && peer != nil {
 		return peerToID(peer)
 	}
 	if u, is := msg.GetPeerID().(*tg.PeerUser); !is || u.UserID != selfID {
-		return "" // not the self chat — nothing to backfill
+		return ""
 	}
 	if fwd, ok := msg.GetFwdFrom(); ok {
 		if sp, ok := fwd.GetSavedFromPeer(); ok && sp != nil {
@@ -14498,20 +13123,15 @@ func deriveSavedPeerID(msg *tg.Message, selfID int64) string {
 			}
 		}
 		if _, ok := fwd.GetFromID(); ok {
-			// Official pseudocode: from_id (no saved_from_peer) means the
-			// message was our own → the "My Notes" dialog (ourselves).
 			return strconv.FormatInt(selfID, 10)
 		}
 		if _, ok := fwd.GetFromName(); ok {
 			return "2666000"
 		}
 	}
-	return strconv.FormatInt(selfID, 10) // plain message to self
+	return strconv.FormatInt(selfID, 10)
 }
 
-// GetSavedHistory fetches one sublist's messages
-// (messages.getSavedHistory — messages saved from peerID, paginated by
-// offsetID like messages.getHistory).
 func (t *TelegramCore) GetSavedHistory(peerID string, offsetID, limit int) ([]Message, error) {
 	peer, unlock, err := t.withPeer(peerID)
 	if err != nil {
@@ -14549,7 +13169,6 @@ func peerToID(peer tg.PeerClass) string {
 	}
 }
 
-// peerToInt64 extracts the raw numeric ID from a PeerClass (chat/channel/user).
 func peerToInt64(peer tg.PeerClass) int64 {
 	switch p := peer.(type) {
 	case *tg.PeerUser:
@@ -14563,7 +13182,6 @@ func peerToInt64(peer tg.PeerClass) int64 {
 	}
 }
 
-// getAdminRank returns the cached admin rank for a user in a chat, or "".
 func (t *TelegramCore) getAdminRank(chatID, userID int64) string {
 	t.adminRanksMu.RLock()
 	defer t.adminRanksMu.RUnlock()
@@ -14573,7 +13191,6 @@ func (t *TelegramCore) getAdminRank(chatID, userID int64) string {
 	return ""
 }
 
-// setAdminRank stores an admin rank in the cache.
 func (t *TelegramCore) setAdminRank(chatID, userID int64, rank string) {
 	t.adminRanksMu.Lock()
 	defer t.adminRanksMu.Unlock()
@@ -14583,13 +13200,11 @@ func (t *TelegramCore) setAdminRank(chatID, userID int64, rank string) {
 	t.adminRanks[chatID][userID] = rank
 }
 
-// forumTopicInfo holds cached info for a forum topic (name, icon color).
 type forumTopicInfo struct {
 	Title     string
-	IconColor int // one of the 6 predefined colors (0x6FB9F0, 0xFFD67E, etc.)
+	IconColor int
 }
 
-// cacheForumTopic stores forum topic info for use in message topic buttons.
 func (t *TelegramCore) cacheForumTopic(chatID string, topicID int, title string, iconColor int) {
 	t.forumTopicsMu.Lock()
 	defer t.forumTopicsMu.Unlock()
@@ -14600,8 +13215,6 @@ func (t *TelegramCore) cacheForumTopic(chatID string, topicID int, title string,
 	t.forumTopics[key] = forumTopicInfo{Title: title, IconColor: iconColor}
 }
 
-// GetForumTopicInfo returns cached topic name and color for a given chat+topic.
-// Exported so the engine can call it when populating message topic fields.
 func (t *TelegramCore) GetForumTopicInfo(chatID, topicID string) (title string, iconColor int, ok bool) {
 	t.forumTopicsMu.RLock()
 	defer t.forumTopicsMu.RUnlock()
@@ -14612,7 +13225,6 @@ func (t *TelegramCore) GetForumTopicInfo(chatID, topicID string) (title string, 
 	return "", 0, false
 }
 
-// fetchAndCacheAdminRanks fetches admin ranks for a channel/supergroup and caches them.
 func (t *TelegramCore) fetchAndCacheAdminRanks(channelID int64) {
 	hash, err := t.resolveChannelAccessHash(channelID)
 	if err != nil {
@@ -14649,11 +13261,7 @@ func (t *TelegramCore) fetchAndCacheAdminRanks(channelID int64) {
 	}
 }
 
-// GetAdminRanks returns admin/creator ranks for all admins in a chat.
-// Implements engine.AdminRankProvider.
 func (t *TelegramCore) GetAdminRanks(chatID string) (map[string]string, error) {
-	// Check auth without holding lock for the full duration — avoids deadlock
-	// when background update handlers hold t.mu.Lock().
 	t.mu.RLock()
 	authed := t.authed
 	api := t.api
@@ -14669,10 +13277,9 @@ func (t *TelegramCore) GetAdminRanks(chatID string) (map[string]string, error) {
 
 	ch, ok := peer.(*tg.PeerChannel)
 	if !ok {
-		return nil, nil // basic chats don't have admin ranks
+		return nil, nil
 	}
 
-	// Use cached ranks if available.
 	t.adminRanksMu.RLock()
 	if cached, ok := t.adminRanks[ch.ChannelID]; ok && len(cached) > 0 {
 		t.adminRanksMu.RUnlock()
@@ -14684,7 +13291,6 @@ func (t *TelegramCore) GetAdminRanks(chatID string) (map[string]string, error) {
 	}
 	t.adminRanksMu.RUnlock()
 
-	// Fetch admin participants from the API.
 	t.fetchAndCacheAdminRanks(ch.ChannelID)
 
 	t.adminRanksMu.RLock()
@@ -14700,26 +13306,18 @@ func (t *TelegramCore) GetAdminRanks(chatID string) (map[string]string, error) {
 	return result, nil
 }
 
-// --- Interactive auth helpers ---
-
-// ProvideAuthCode sends the OTP code to the auth flow when it's waiting interactively.
-// Call this after WaitForAuthCode signals that the code is needed.
 func (t *TelegramCore) ProvideAuthCode(code string) {
 	if t.authCodeCh != nil {
 		t.authCodeCh <- code
 	}
 }
 
-// ProvideAuthPassword sends the 2FA password to the auth flow when it's waiting interactively.
 func (t *TelegramCore) ProvideAuthPassword(password string) {
 	if t.authPwdCh != nil {
 		t.authPwdCh <- password
 	}
 }
 
-// AuthCodeRequested returns a channel that is closed when the auth flow needs an OTP code.
-// Returns nil if auth isn't using interactive mode (OTP was pre-provided).
-// Blocks briefly to ensure auth setup is complete (avoids race with Authenticate goroutine).
 func (t *TelegramCore) AuthCodeRequested() <-chan struct{} {
 	if t.authSetupDone != nil {
 		<-t.authSetupDone
@@ -14727,8 +13325,6 @@ func (t *TelegramCore) AuthCodeRequested() <-chan struct{} {
 	return t.authCodeReady
 }
 
-// AuthPasswordRequested returns a channel that is closed when the auth flow needs a 2FA password.
-// Returns nil if auth isn't using interactive mode (password was pre-provided).
 func (t *TelegramCore) AuthPasswordRequested() <-chan struct{} {
 	if t.authSetupDone != nil {
 		<-t.authSetupDone
@@ -14736,27 +13332,13 @@ func (t *TelegramCore) AuthPasswordRequested() <-chan struct{} {
 	return t.authPwdReady
 }
 
-// --- QR auth ---
-
-// StartQRAuth initializes the Telegram client for QR code authentication
-// and exports the first login token. The returned URL should be displayed
-// as a QR code. Call RefreshQRToken periodically to check acceptance.
 func (t *TelegramCore) StartQRAuth() (tokenURL string, expiresSecs int, err error) {
-	// Re-entry from an in-place login-method toggle (intro phone↔QR via the engine's
-	// SwitchAuthMethod): if a prior QR bootstrap on this SAME core already brought up
-	// the MTProto connection, reuse it and just re-export a fresh login token — like
-	// AyuGram re-creating QrWidget over the SAME _account, no reconnect. (This is the
-	// same call RefreshQRToken makes every ~30s on the live connection.) Without it a
-	// second StartQRAuth would re-close the one-shot authSetupDone channel ("close of
-	// closed channel" panic) and spawn a duplicate client.Run goroutine.
 	t.mu.Lock()
 	live := t.api != nil
 	t.mu.Unlock()
 	if live {
 		return t.exportQRLoginToken()
 	}
-	// Not connected yet: clear any prior failed/idle attempt (e.g. a phone auth that
-	// errored before connecting) so this bootstrap starts from a clean slate.
 	t.teardownPriorAuthAttempt()
 
 	t.mu.Lock()
@@ -14783,7 +13365,6 @@ func (t *TelegramCore) StartQRAuth() (tokenURL string, expiresSecs int, err erro
 
 			close(clientReady)
 
-			// Stay connected until context is cancelled
 			<-ctx.Done()
 			return ctx.Err()
 		})
@@ -14800,8 +13381,6 @@ func (t *TelegramCore) StartQRAuth() (tokenURL string, expiresSecs int, err erro
 	return t.exportQRLoginToken()
 }
 
-// RefreshQRToken re-exports the QR login token and checks if it was accepted.
-// Returns accepted=true if the QR was scanned successfully.
 func (t *TelegramCore) RefreshQRToken() (tokenURL string, expiresSecs int, accepted bool, err error) {
 	t.mu.RLock()
 	if t.api == nil {
@@ -14815,7 +13394,6 @@ func (t *TelegramCore) RefreshQRToken() (tokenURL string, expiresSecs int, accep
 		return "", 0, false, exportErr
 	}
 	if url == "" {
-		// Empty URL means auth was accepted
 		return "", 0, true, nil
 	}
 	return url, expires, false, nil
@@ -14843,13 +13421,9 @@ func (t *TelegramCore) exportQRLoginToken() (string, int, error) {
 		if err := t.acceptQRAuthorization(v.Authorization); err != nil {
 			return "", 0, err
 		}
-		return "", 0, nil // empty URL = accepted
+		return "", 0, nil
 
 	case *tg.AuthLoginTokenMigrateTo:
-		// The login token belongs to another DC. Switch the client's main DC and
-		// import the token there to finish the login — AyuGram QrWidget::importTo
-		// (setMainDcId + MTPauth_ImportLoginToken). gotd's Client.MigrateTo moves
-		// the active connection; AuthImportLoginToken then resolves to success.
 		if err := t.client.MigrateTo(t.ctx, v.DCID); err != nil {
 			return "", 0, fmt.Errorf("qr migrate to DC %d: %w", v.DCID, err)
 		}
@@ -14862,9 +13436,8 @@ func (t *TelegramCore) exportQRLoginToken() (string, int, error) {
 			if err := t.acceptQRAuthorization(res.Authorization); err != nil {
 				return "", 0, err
 			}
-			return "", 0, nil // empty URL = accepted
+			return "", 0, nil
 		case *tg.AuthLoginToken:
-			// Server handed back a fresh token on the new DC; show it and keep polling.
 			url := "tg://login?token=" + base64.RawURLEncoding.EncodeToString(res.Token)
 			expiry := int(res.Expires) - int(time.Now().Unix())
 			if expiry < 0 {
@@ -14879,7 +13452,6 @@ func (t *TelegramCore) exportQRLoginToken() (string, int, error) {
 	return "", 0, fmt.Errorf("unexpected token type: %T", result)
 }
 
-// acceptQRAuthorization caches self-user info from a successful QR login token.
 func (t *TelegramCore) acceptQRAuthorization(auth tg.AuthAuthorizationClass) error {
 	authResult, ok := auth.(*tg.AuthAuthorization)
 	if !ok {
@@ -14906,17 +13478,14 @@ func (t *TelegramCore) acceptQRAuthorization(auth tg.AuthAuthorizationClass) err
 	return nil
 }
 
-// --- Auth flow ---
-
 type telegramAuthFlow struct {
 	phone    string
 	code     string
 	password string
 
-	lastPassword string // stored for SRP_ID_INVALID retry
+	lastPassword string
 	core         *TelegramCore
 
-	// Interactive channels (nil if pre-provided)
 	codeCh      chan string
 	codeReady   chan struct{}
 	pwdCh       chan string
@@ -14935,7 +13504,6 @@ func (f *telegramAuthFlow) Password(ctx context.Context) (string, error) {
 		return f.password, nil
 	}
 	if f.pwdCh != nil {
-		// Signal that 2FA password is needed
 		close(f.pwdReady)
 		select {
 		case pw := <-f.pwdCh:
@@ -14956,7 +13524,6 @@ func (f *telegramAuthFlow) Code(ctx context.Context, sentCode *tg.AuthSentCode) 
 		f.core.authCodeByTelegram = false
 		f.core.authCodeFragmentURL = ""
 		f.core.authCodeEmailPattern = ""
-		// Classify the delivery type (AyuGram CodeWidget::updateDescText).
 		switch ct := sentCode.Type.(type) {
 		case *tg.AuthSentCodeTypeApp:
 			f.core.authCodeByTelegram = true
@@ -14967,19 +13534,11 @@ func (f *telegramAuthFlow) Code(ctx context.Context, sentCode *tg.AuthSentCode) 
 				f.core.authCodeLength = ct.Length
 			}
 		case *tg.AuthSentCodeTypeEmailCode:
-			// Login code delivered to the account's login email (the user already
-			// set one up). Capture the masked pattern for the code-step subtitle.
-			// Mirrors intro_step.cpp:381-383 (emailPatternLogin = email_pattern).
 			f.core.authCodeEmailPattern = ct.EmailPattern
 			if ct.Length > 0 {
 				f.core.authCodeLength = ct.Length
 			}
 		case *tg.AuthSentCodeTypeSetUpEmailRequired:
-			// The account must set up a login email before the phone code can be
-			// sent (EmailStatus::SetupRequired). Signal the engine and PARK here:
-			// returning would tear down client.Run and the connection. Staying
-			// blocked keeps preAuthAPI alive so the engine can drive the
-			// email→verify→sign-in detour on it. Mirrors intro_email.cpp.
 			emailReady := f.core.authEmailReady
 			f.core.emailSetupMode = true
 			f.core.mu.Unlock()
@@ -15027,11 +13586,7 @@ func (f *telegramAuthFlow) SignUp(ctx context.Context) (auth.UserInfo, error) {
 	return auth.UserInfo{}, fmt.Errorf("sign up not supported")
 }
 
-// --- User-mode extended methods (not in Core interface) ---
-
-// SearchMessagesGlobal searches messages across all chats.
 func (t *TelegramCore) SearchMessagesGlobal(query string, limit int) ([]Message, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -15054,9 +13609,7 @@ func (t *TelegramCore) SearchMessagesGlobal(query string, limit int) ([]Message,
 	return t.convertMessages(result), nil
 }
 
-// GetContacts returns the user's contact list.
 func (t *TelegramCore) GetContacts() ([]User, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -15069,7 +13622,7 @@ func (t *TelegramCore) GetContacts() ([]User, error) {
 
 	contacts, ok := result.(*tg.ContactsContacts)
 	if !ok {
-		return nil, nil // contacts not modified
+		return nil, nil
 	}
 
 	t.cacheEntities(contacts.Users, nil)
@@ -15083,9 +13636,7 @@ func (t *TelegramCore) GetContacts() ([]User, error) {
 	return users, nil
 }
 
-// BlockUser blocks a user.
 func (t *TelegramCore) BlockUser(userID string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -15102,9 +13653,7 @@ func (t *TelegramCore) BlockUser(userID string) error {
 	return err
 }
 
-// UnblockUser unblocks a user.
 func (t *TelegramCore) UnblockUser(userID string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -15121,7 +13670,6 @@ func (t *TelegramCore) UnblockUser(userID string) error {
 	return err
 }
 
-// ArchiveChat moves a chat to the archive folder.
 func (t *TelegramCore) ArchiveChat(chatID string, archived bool) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -15129,9 +13677,9 @@ func (t *TelegramCore) ArchiveChat(chatID string, archived bool) error {
 	}
 	defer unlock()
 
-	folderID := 1 // 1 = Archive folder
+	folderID := 1
 	if !archived {
-		folderID = 0 // 0 = Main folder (unarchive)
+		folderID = 0
 	}
 
 	_, err = t.api.FoldersEditPeerFolders(t.ctx, []tg.InputFolderPeer{
@@ -15140,7 +13688,6 @@ func (t *TelegramCore) ArchiveChat(chatID string, archived bool) error {
 	return err
 }
 
-// SendScheduled sends a message scheduled for a future time.
 func (t *TelegramCore) SendScheduled(chatID string, text string, scheduleDate int) (*Message, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -15161,7 +13708,6 @@ func (t *TelegramCore) SendScheduled(chatID string, text string, scheduleDate in
 	return t.extractMessageFromUpdates(result, chatID), nil
 }
 
-// GetScheduledMessages retrieves scheduled messages in a chat.
 func (t *TelegramCore) GetScheduledMessages(chatID string) ([]Message, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -15179,7 +13725,6 @@ func (t *TelegramCore) GetScheduledMessages(chatID string) ([]Message, error) {
 	return t.convertMessages(result), nil
 }
 
-// DeleteScheduledMessages deletes scheduled messages by ID.
 func (t *TelegramCore) DeleteScheduledMessages(chatID string, msgIDs []int) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -15194,7 +13739,6 @@ func (t *TelegramCore) DeleteScheduledMessages(chatID string, msgIDs []int) erro
 	return err
 }
 
-// SaveDraft saves a message draft for a chat.
 func (t *TelegramCore) SaveDraft(chatID, text string) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -15209,12 +13753,10 @@ func (t *TelegramCore) SaveDraft(chatID, text string) error {
 	return err
 }
 
-// ClearDraft clears the draft for a chat.
 func (t *TelegramCore) ClearDraft(chatID string) error {
 	return t.SaveDraft(chatID, "")
 }
 
-// ActiveSession represents a logged-in session.
 type ActiveSession struct {
 	Hash            int64  `json:"hash"`
 	Device          string `json:"device"`
@@ -15232,9 +13774,7 @@ type ActiveSession struct {
 	OfficialApp     bool   `json:"official_app"`
 }
 
-// GetActiveSessions returns all active login sessions.
 func (t *TelegramCore) GetActiveSessions() ([]ActiveSession, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -15268,7 +13808,6 @@ func (t *TelegramCore) GetActiveSessions() ([]ActiveSession, error) {
 }
 
 func (t *TelegramCore) GetSessionAutoTerminateDays() (int, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 0, err
@@ -15281,7 +13820,6 @@ func (t *TelegramCore) GetSessionAutoTerminateDays() (int, error) {
 }
 
 func (t *TelegramCore) SetSessionAutoTerminateDays(days int) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -15290,21 +13828,12 @@ func (t *TelegramCore) SetSessionAutoTerminateDays(days int) error {
 	return err
 }
 
-// SetCustomDeviceModel sets the device model name reported to Telegram via
-// initConnection.device_model. The stored value is read back in initClient when
-// the gotd client is (re)built, so the rename propagates to Telegram — and to
-// other clients — on the next (re)connect, mirroring AyuGram's deviceModel() →
-// initConnection flow (api_authorizations.cpp:59-61). The engine persists the
-// value with the account credentials so it survives restarts and is re-applied
-// on every connect (Authenticate reads cfg.Extra["device_model"]); the live
-// current-session name updates reactively in the UI.
 func (t *TelegramCore) SetCustomDeviceModel(model string) {
 	t.mu.Lock()
 	t.customDeviceModel = model
 	t.mu.Unlock()
 }
 
-// SetGroupPermissions sets default permissions for a group/supergroup.
 func (t *TelegramCore) SetGroupPermissions(chatID string, rights tg.ChatBannedRights) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -15319,13 +13848,11 @@ func (t *TelegramCore) SetGroupPermissions(chatID string, rights tg.ChatBannedRi
 	return err
 }
 
-// PromoteAdmin promotes a user to admin in a channel/supergroup.
 func (t *TelegramCore) PromoteAdmin(chatID, userID string, rights tg.ChatAdminRights) error {
 	return t.promoteAdminInternal(chatID, userID, rights, "")
 }
 
 func (t *TelegramCore) promoteAdminInternal(chatID, userID string, rights tg.ChatAdminRights, rank string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -15356,35 +13883,28 @@ func (t *TelegramCore) promoteAdminInternal(chatID, userID string, rights tg.Cha
 	return err
 }
 
-// PromoteAdminWithRights promotes a user with specific admin rights and a custom rank.
 func (t *TelegramCore) PromoteAdminWithRights(chatID, userID string, rights map[string]bool, rank string) error {
 	return t.promoteAdminInternal(chatID, userID, tg.ChatAdminRights{
-		ChangeInfo:     rights["change_info"],
-		DeleteMessages: rights["delete_messages"],
-		BanUsers:       rights["ban_users"],
-		InviteUsers:    rights["invite_users"],
-		PinMessages:    rights["pin_messages"],
-		ManageTopics:   rights["manage_topics"],
-		PostMessages:   rights["post_messages"],
-		EditMessages:   rights["edit_messages"],
-		PostStories:    rights["post_stories"],
-		EditStories:    rights["edit_stories"],
-		DeleteStories:  rights["delete_stories"],
-		ManageCall:     rights["manage_call"],
-		AddAdmins:      rights["add_admins"],
-		Anonymous:      rights["anonymous"],
-		// ManageRanks ("Edit member tags"): part of the megagroup defaultRights()
-		// and saved bitmask (edit_participant_box.cpp:327). Previously dropped.
+		ChangeInfo:           rights["change_info"],
+		DeleteMessages:       rights["delete_messages"],
+		BanUsers:             rights["ban_users"],
+		InviteUsers:          rights["invite_users"],
+		PinMessages:          rights["pin_messages"],
+		ManageTopics:         rights["manage_topics"],
+		PostMessages:         rights["post_messages"],
+		EditMessages:         rights["edit_messages"],
+		PostStories:          rights["post_stories"],
+		EditStories:          rights["edit_stories"],
+		DeleteStories:        rights["delete_stories"],
+		ManageCall:           rights["manage_call"],
+		AddAdmins:            rights["add_admins"],
+		Anonymous:            rights["anonymous"],
 		ManageRanks:          rights["manage_ranks"],
 		ManageDirectMessages: rights["manage_direct"],
-		// AyuGram always forces ChatAdminRight::Other into the saved bitmask
-		// (edit_participant_box.cpp:590) — without it the server can reject a
-		// rights set that is otherwise all-false. Always on.
-		Other: true,
+		Other:                true,
 	}, rank)
 }
 
-// PromoteToAdmin promotes a user to admin with default rights.
 func (t *TelegramCore) PromoteToAdmin(chatID, userID string) error {
 	return t.PromoteAdmin(chatID, userID, tg.ChatAdminRights{
 		ChangeInfo:     true,
@@ -15396,13 +13916,10 @@ func (t *TelegramCore) PromoteToAdmin(chatID, userID string) error {
 	})
 }
 
-// DemoteAdmin removes admin rights from a user.
 func (t *TelegramCore) DemoteAdmin(chatID, userID string) error {
 	return t.PromoteAdmin(chatID, userID, tg.ChatAdminRights{})
 }
 
-// TransferChannelOwnership transfers channel/group ownership to another user.
-// Requires the current owner's 2FA password for verification.
 func (t *TelegramCore) TransferChannelOwnership(chatID, userID, password string) error {
 	api, ctx, err := t.withAPI()
 	if err != nil {
@@ -15437,13 +13954,7 @@ func (t *TelegramCore) TransferChannelOwnership(chatID, userID, password string)
 	return err
 }
 
-// TransferOwnershipPreflight runs AyuGram's pre-flight EditChatCreator probe with
-// an empty password (channel_ownership_transfer.cpp:48) to discover, BEFORE asking
-// for the real password, whether 2FA is missing/too-fresh or the session is too
-// fresh. Returns one of: "need_password" (2FA set, proceed), "no_password",
-// "password_too_fresh", "session_too_fresh", or the raw error string.
 func (t *TelegramCore) TransferOwnershipPreflight(chatID, userID string) (string, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return "", err
@@ -15478,14 +13989,12 @@ func (t *TelegramCore) TransferOwnershipPreflight(chatID, userID string) (string
 	case strings.Contains(msg, "SESSION_TOO_FRESH"):
 		return "session_too_fresh", nil
 	case strings.Contains(msg, "PASSWORD_HASH_INVALID") || strings.Contains(msg, "SRP"):
-		// 2FA is set and an SRP check is required — the expected happy path.
 		return "need_password", nil
 	default:
 		return msg, nil
 	}
 }
 
-// RestrictMember restricts a user from sending messages (until_date=0 means forever).
 func (t *TelegramCore) RestrictMember(chatID, userID string) error {
 	return t.RestrictUser(chatID, userID, tg.ChatBannedRights{
 		SendMessages: true,
@@ -15498,9 +14007,7 @@ func (t *TelegramCore) RestrictMember(chatID, userID string) error {
 	})
 }
 
-// RestrictUser restricts a user in a channel/supergroup.
 func (t *TelegramCore) RestrictUser(chatID, userID string, rights tg.ChatBannedRights) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -15556,9 +14063,7 @@ func (t *TelegramCore) RestrictMemberWithRights(chatID, userID string, rights *D
 	return t.RestrictUser(chatID, userID, br)
 }
 
-// SetSlowMode sets slow mode interval for a supergroup (0 to disable).
 func (t *TelegramCore) SetSlowMode(chatID string, seconds int) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -15582,25 +14087,20 @@ func (t *TelegramCore) SetSlowMode(chatID string, seconds int) error {
 }
 
 type AdminLogEvent struct {
-	ID        int64  `json:"id"`
-	Date      int    `json:"date"`
-	UserID    int64  `json:"user_id"`
-	UserName  string `json:"user_name"`
-	Action    string `json:"action"`
-	Detail    string `json:"detail"`
-	OldValue  string `json:"old_value,omitempty"`
-	NewValue  string `json:"new_value,omitempty"`
-	MessageID int    `json:"message_id,omitempty"`
-	MsgText   string `json:"msg_text,omitempty"`
-	// ActionData carries structured extras the flat string fields can't express:
-	// for message events (pin/edit/delete/send) the media type + stripped thumb so
-	// the UI can render a real bubble preview instead of a blank line; for
-	// participant_edit_rank the rank-change family (prev/new rank + user name).
+	ID         int64                  `json:"id"`
+	Date       int                    `json:"date"`
+	UserID     int64                  `json:"user_id"`
+	UserName   string                 `json:"user_name"`
+	Action     string                 `json:"action"`
+	Detail     string                 `json:"detail"`
+	OldValue   string                 `json:"old_value,omitempty"`
+	NewValue   string                 `json:"new_value,omitempty"`
+	MessageID  int                    `json:"message_id,omitempty"`
+	MsgText    string                 `json:"msg_text,omitempty"`
 	ActionData map[string]interface{} `json:"action_data,omitempty"`
 }
 
 func (t *TelegramCore) GetAdminLogEvents(chatID string, limit int, query string, maxID int64, filters map[string]bool, admins []string) ([]AdminLogEvent, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -15685,8 +14185,6 @@ func (t *TelegramCore) GetAdminLogEvents(chatID string, limit int, query string,
 		}
 		req.SetEventsFilter(f)
 	}
-	// Per-admin filter (FilterBox "admins" selector): restrict the log to actions
-	// taken by the chosen admins. Empty → all admins (history_admin_log_inner.cpp:522).
 	if len(admins) > 0 {
 		inputs := make([]tg.InputUserClass, 0, len(admins))
 		for _, a := range admins {
@@ -15876,32 +14374,17 @@ func (t *TelegramCore) describeAdminLogAction(action tg.ChannelAdminLogEventActi
 	case *tg.ChannelAdminLogEventActionParticipantVolume:
 		return "participant_volume", "", "", "", 0, ""
 	case *tg.ChannelAdminLogEventActionToggleAutotranslation:
-		// channelAdminLogEventActionToggleAutotranslation — channel-wide
-		// auto-translation toggle (history_admin_log_item.cpp:2155).
 		if a.NewValue {
 			return "toggle_autotranslation", "enabled", "", "", 0, ""
 		}
 		return "toggle_autotranslation", "disabled", "", "", 0, ""
 	case *tg.ChannelAdminLogEventActionParticipantEditRank:
-		// channelAdminLogEventActionParticipantEditRank — set/changed/removed
-		// custom title. The set/changed/removed family + the target user are
-		// carried in ActionData (see adminLogActionData) so the UI can localize.
 		return "participant_edit_rank", "", "", "", 0, ""
 	default:
 		return "unknown", fmt.Sprintf("%T", action), "", "", 0, ""
 	}
 }
 
-// adminLogActionData returns the structured extras for the handful of actions
-// whose flat string fields can't capture everything. For message events it
-// extracts the media kind + inline stripped thumbnail (no network round-trip)
-// so the UI renders a real preview instead of a blank service line (item: admin
-// log message bubbles, history_admin_log_item.cpp:1027). For rank edits it
-// carries the prev/new rank + user so the UI can show the set/changed/removed
-// family (history_admin_log_item.cpp:2167). Returns nil when there's nothing extra.
-// adminLogBannedRightsMap turns ChatBannedRights into the per-flag bool map the
-// host side diffs to produce the "added/removed restriction" lines
-// (GenerateParticipantChangeText, history_admin_log_item.cpp:1157).
 func adminLogBannedRightsMap(br *tg.ChatBannedRights) map[string]bool {
 	if br == nil {
 		return nil
@@ -15930,8 +14413,6 @@ func adminLogBannedRightsMap(br *tg.ChatBannedRights) map[string]bool {
 	}
 }
 
-// adminLogAdminRightsMap turns ChatAdminRights into a per-flag bool map for the
-// admin promote/demote diff (GenerateAdminChangeText, history_admin_log_item.cpp:1165).
 func adminLogAdminRightsMap(ar *tg.ChatAdminRights) map[string]bool {
 	if ar == nil {
 		return nil
@@ -15956,8 +14437,6 @@ func adminLogAdminRightsMap(ar *tg.ChatAdminRights) map[string]bool {
 	}
 }
 
-// adminLogParticipantRights extracts the admin/banned rights, member flag and
-// custom rank of a participant for the admin-log diffs.
 func adminLogParticipantRights(p tg.ChannelParticipantClass) (admin map[string]bool, banned map[string]bool, isMember bool, rank string) {
 	switch pp := p.(type) {
 	case *tg.ChannelParticipant, *tg.ChannelParticipantSelf:
@@ -15977,8 +14456,6 @@ func adminLogParticipantRights(p tg.ChannelParticipantClass) (admin map[string]b
 	return
 }
 
-// adminLogInviteLink returns the clickable URL of an exported invite for the
-// admin-log link rendering (history_admin_log_item.cpp:1517).
 func adminLogInviteLink(inv tg.ExportedChatInviteClass) string {
 	if e, ok := inv.(*tg.ChatInviteExported); ok {
 		return e.Link
@@ -15986,9 +14463,6 @@ func adminLogInviteLink(inv tg.ExportedChatInviteClass) string {
 	return ""
 }
 
-// adminLogInviteFields surfaces the field-level invite-link properties (link,
-// label, expiry, usage limit, request-approval) so the UI can build the
-// GenerateInviteLinkChangeText diff (history_admin_log_item.cpp:457-558).
 func adminLogInviteFields(inv tg.ExportedChatInviteClass) (string, map[string]interface{}) {
 	e, ok := inv.(*tg.ChatInviteExported)
 	if !ok {
@@ -16005,9 +14479,6 @@ func adminLogInviteFields(inv tg.ExportedChatInviteClass) (string, map[string]in
 	}
 }
 
-// adminLogTopicFields extracts the reduced ForumTopic fields surfaced in
-// topic-related admin-log events (title/closed/hidden/id). Reduced info only
-// (core.telegram.org/api/recent-actions); deleted topics yield zero values.
 func adminLogTopicFields(tc tg.ForumTopicClass) (title string, closed, hidden bool, id int) {
 	if ft, ok := tc.(*tg.ForumTopic); ok {
 		return ft.Title, ft.Closed, ft.Hidden, ft.ID
@@ -16048,7 +14519,6 @@ func (t *TelegramCore) adminLogActionData(action tg.ChannelAdminLogEventActionCl
 	case *tg.ChannelAdminLogEventActionSendMessage:
 		return msgMedia(a.Message)
 	case *tg.ChannelAdminLogEventActionEditMessage:
-		// Edits render the NEW message's media in the bubble.
 		return msgMedia(a.NewMessage)
 	case *tg.ChannelAdminLogEventActionParticipantEditRank:
 		return map[string]interface{}{
@@ -16077,10 +14547,6 @@ func (t *TelegramCore) adminLogActionData(action tg.ChannelAdminLogEventActionCl
 			"new_rank":   newRank,
 		}
 	case *tg.ChannelAdminLogEventActionParticipantInvite:
-		// GenerateParticipantChangeText(channel, participant) with no old
-		// participant: the verb + diff vary by the invited participant's
-		// CURRENT type (admin → promoted+rights, banned/restricted →
-		// restricted+perms, member → invited). history_admin_log_item.cpp:1152.
 		adminMap, bannedMap, isMember, _ := adminLogParticipantRights(a.Participant)
 		d := map[string]interface{}{
 			"target":     participantUserName(a.Participant, users),
@@ -16125,8 +14591,6 @@ func (t *TelegramCore) adminLogActionData(action tg.ChannelAdminLogEventActionCl
 	case *tg.ChannelAdminLogEventActionExportedInviteRevoke:
 		return map[string]interface{}{"link": adminLogInviteLink(a.Invite)}
 	case *tg.ChannelAdminLogEventActionExportedInviteEdit:
-		// Surface old/new {title,expire,usage,request_needed} so the UI builds
-		// the field-level diff (GenerateInviteLinkChangeText, :457-558).
 		prevLink, prevFields := adminLogInviteFields(a.PrevInvite)
 		newLink, newFields := adminLogInviteFields(a.NewInvite)
 		d := map[string]interface{}{
@@ -16161,7 +14625,6 @@ func (t *TelegramCore) adminLogActionData(action tg.ChannelAdminLogEventActionCl
 	case *tg.ChannelAdminLogEventActionChangeHistoryTTL:
 		return map[string]interface{}{"ttl_prev": a.PrevValue, "ttl_new": a.NewValue}
 	case *tg.ChannelAdminLogEventActionChangeLinkedChat:
-		// new==0 means the link was removed.
 		return map[string]interface{}{
 			"linked_prev": a.PrevValue,
 			"linked_new":  a.NewValue,
@@ -16189,8 +14652,6 @@ func (t *TelegramCore) adminLogActionData(action tg.ChannelAdminLogEventActionCl
 	case *tg.ChannelAdminLogEventActionParticipantSubExtend:
 		return map[string]interface{}{"target": participantUserName(a.NewParticipant, users)}
 	case *tg.ChannelAdminLogEventActionEditTopic:
-		// 1–3 messages for title/closed/hidden changes (createEditTopic,
-		// history_admin_log_item.cpp:1842).
 		pTitle, pClosed, pHidden, _ := adminLogTopicFields(a.PrevTopic)
 		nTitle, nClosed, nHidden, tid := adminLogTopicFields(a.NewTopic)
 		return map[string]interface{}{
@@ -16203,8 +14664,6 @@ func (t *TelegramCore) adminLogActionData(action tg.ChannelAdminLogEventActionCl
 			"new_hidden":  nHidden,
 		}
 	case *tg.ChannelAdminLogEventActionChangeUsernames:
-		// reorder / activate-deactivate / single / generic sub-cases computed
-		// UI-side from the two lists (createChangeUsernames, :1731).
 		return map[string]interface{}{
 			"prev_usernames": a.PrevValue,
 			"new_usernames":  a.NewValue,
@@ -16213,8 +14672,6 @@ func (t *TelegramCore) adminLogActionData(action tg.ChannelAdminLogEventActionCl
 	return nil
 }
 
-// adminLogReactions describes a ChatReactions value for the admin-log line:
-// mode is "none"/"all"/"some" and list carries the emoji/custom-emoji ids.
 func adminLogReactions(r tg.ChatReactionsClass) (string, []string) {
 	switch rr := r.(type) {
 	case *tg.ChatReactionsAll:
@@ -16316,9 +14773,7 @@ func participantUserName(p tg.ChannelParticipantClass, users map[int64]*tg.User)
 	return fmt.Sprintf("User#%d", uid)
 }
 
-// GetStickerSet retrieves a sticker set by short name.
 func (t *TelegramCore) GetStickerSet(shortName string) (*tg.MessagesStickerSet, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -16336,7 +14791,6 @@ func (t *TelegramCore) GetStickerSet(shortName string) (*tg.MessagesStickerSet, 
 		return nil, ErrNotFound
 	}
 
-	// Cache file info for all stickers
 	for _, doc := range stickerSet.Documents {
 		if d, ok := doc.(*tg.Document); ok {
 			t.cacheFileInfo(d.ID, d.AccessHash, d.FileReference)
@@ -16346,9 +14800,7 @@ func (t *TelegramCore) GetStickerSet(shortName string) (*tg.MessagesStickerSet, 
 	return stickerSet, nil
 }
 
-// GetStickerSetInfo implements engine.StickerSetFetcher for the sticker pack viewer.
 func (t *TelegramCore) GetStickerSetInfo(shortName string, setID int64, accessHash int64) (*StickerSetResult, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -16374,7 +14826,6 @@ func (t *TelegramCore) GetStickerSetInfo(shortName string, setID int64, accessHa
 		return nil, ErrNotFound
 	}
 
-	// Build emoji lookup from packs.
 	emojiByDocID := make(map[int64]string)
 	for _, pack := range stickerSet.Packs {
 		for _, docID := range pack.Documents {
@@ -16451,7 +14902,6 @@ func (t *TelegramCore) getFavedStickerIDs() map[int64]bool {
 	return ids
 }
 
-// DeleteStickerFromSet removes a sticker from its set (creator only).
 func (t *TelegramCore) DeleteStickerFromSet(fileID int64) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -16468,9 +14918,7 @@ func (t *TelegramCore) DeleteStickerFromSet(fileID int64) error {
 	return err
 }
 
-// GetCreatedStickerSets returns sticker sets created by the user.
 func (t *TelegramCore) GetCreatedStickerSets() ([]StickerSetResult, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -16500,7 +14948,6 @@ func (t *TelegramCore) GetCreatedStickerSets() ([]StickerSetResult, error) {
 	return created, nil
 }
 
-// AddStickerToExistingSet adds a sticker to a user-created sticker set.
 func (t *TelegramCore) AddStickerToExistingSet(setID, accessHash, fileID int64, emoji string) error {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -16524,7 +14971,6 @@ func (t *TelegramCore) AddStickerToExistingSet(setID, accessHash, fileID int64, 
 }
 
 func (t *TelegramCore) GetStickerSuggestions(emoji string) ([]StickerInfo, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -16570,7 +15016,6 @@ func (t *TelegramCore) GetStickerSuggestions(emoji string) ([]StickerInfo, error
 	return out, nil
 }
 
-// GetInstalledEmojiSets returns the user's installed custom emoji sticker sets with thumbnails.
 func (t *TelegramCore) GetInstalledEmojiSets() ([]EmojiSetSummary, error) {
 	api, ctx, err := t.withAPI()
 	if err != nil {
@@ -16648,8 +15093,6 @@ func (t *TelegramCore) GetInstalledEmojiSets() ([]EmojiSetSummary, error) {
 }
 
 func (t *TelegramCore) GetCustomEmojiThumbs(documentIDs []int64) ([]CustomEmojiThumb, error) {
-	// withAPI rule: one documents RPC plus streamed thumb downloads —
-	// never pin t.mu across them.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -16722,8 +15165,6 @@ func (t *TelegramCore) GetCustomEmojiThumbs(documentIDs []int64) ([]CustomEmojiT
 }
 
 func (t *TelegramCore) GetCustomEmojiFiles(documentIDs []int64) ([]CustomEmojiFile, error) {
-	// withAPI rule: this makes a documents RPC plus one streamed download
-	// per emoji — never pin t.mu across them.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -16747,8 +15188,6 @@ func (t *TelegramCore) GetCustomEmojiFiles(documentIDs []int64) ([]CustomEmojiFi
 		if err != nil || len(buf) == 0 {
 			continue
 		}
-		// Monochrome ("text-color") custom emoji carry the text_color flag on their
-		// DocumentAttributeCustomEmoji; the UI tints these to the row/name color.
 		usesTextColor := false
 		for _, attr := range d.Attributes {
 			if ce, ok := attr.(*tg.DocumentAttributeCustomEmoji); ok {
@@ -16814,8 +15253,6 @@ func (t *TelegramCore) GetCustomEmojiSetInfo(documentID int64) (setID int64, acc
 	return 0, 0, "", "", 0, false, nil
 }
 
-// downloadSmallFile streams a bounded file using the given client snapshot
-// (withAPI rule: callers must not hold t.mu across the streamed RPCs).
 func (t *TelegramCore) downloadSmallFile(api *tg.Client, ctx context.Context, loc tg.InputFileLocationClass, maxBytes int) ([]byte, error) {
 	var buf bytes.Buffer
 	d := downloader.NewDownloader()
@@ -16830,7 +15267,6 @@ func (t *TelegramCore) downloadSmallFile(api *tg.Client, ctx context.Context, lo
 }
 
 func (t *TelegramCore) GetInstalledStickerPacks() ([]StickerPackSummary, error) {
-	// withAPI rule: never pin t.mu across RPCs.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -16900,22 +15336,6 @@ func (t *TelegramCore) GetInstalledStickerPacks() ([]StickerPackSummary, error) 
 	return packs, nil
 }
 
-// ── sticker manager surface (slice 139) ─────────────────────────────────
-//
-// tdesktop's Settings → "Stickers and Emoji" manager works on set rows
-// only (cover + count + flags) — no per-sticker fetch. The lightweight
-// listing is two RPCs: messages.getAllStickers (installed rows, archived
-// flag included) + messages.getArchivedStickers (archived rows with
-// covers). Archiving keeps a set installed but hidden —
-// messages.installStickerSet carries the Archived bool; unarchiving is
-// the same call with Archived=false (tdesktop semantics). Reordering is
-// messages.reorderStickerSets with the full set-ID order.
-
-// installedSetSummary maps one tg.StickerSet row (getAllStickers /
-// getEmojiStickers shape) into the manager's summary. Pure. Note:
-// stickerSet#2dd14edc carries no set-level animated/video flags — those
-// derive from the documents (stickerSetCoveredSummary does that for
-// covered rows).
 func installedSetSummary(s *tg.StickerSet) StickerPackSummary {
 	summary := StickerPackSummary{
 		SetID:      s.ID,
@@ -16942,7 +15362,6 @@ func installedSetSummary(s *tg.StickerSet) StickerPackSummary {
 	return summary
 }
 
-// coveredDocs extracts the cover documents of a covered set row. Pure.
 func coveredDocs(sc tg.StickerSetCoveredClass) []tg.DocumentClass {
 	switch covered := sc.(type) {
 	case *tg.StickerSetCovered:
@@ -16955,8 +15374,6 @@ func coveredDocs(sc tg.StickerSetCoveredClass) []tg.DocumentClass {
 	return nil
 }
 
-// stickerSetCoveredSummary maps one StickerSetCovered row (featured /
-// archived listings) into a summary with its cover stickers. Pure.
 func stickerSetCoveredSummary(sc tg.StickerSetCoveredClass) (StickerPackSummary, bool) {
 	var set *tg.StickerSet
 	switch covered := sc.(type) {
@@ -16973,7 +15390,7 @@ func stickerSetCoveredSummary(sc tg.StickerSetCoveredClass) (StickerPackSummary,
 		return StickerPackSummary{}, false
 	}
 	summary := installedSetSummary(set)
-	summary.Installed = false // covered listings don't imply installation
+	summary.Installed = false
 	for _, doc := range coveredDocs(sc) {
 		d, ok := doc.(*tg.Document)
 		if !ok {
@@ -17009,8 +15426,6 @@ func stickerSetCoveredSummary(sc tg.StickerSetCoveredClass) (StickerPackSummary,
 	return summary, true
 }
 
-// mergeArchivedStickerSets merges archived rows into the installed list —
-// archived wins on duplicate set IDs, order otherwise preserved. Pure.
 func mergeArchivedStickerSets(installed, archived []StickerPackSummary) []StickerPackSummary {
 	if len(archived) == 0 {
 		return installed
@@ -17022,7 +15437,7 @@ func mergeArchivedStickerSets(installed, archived []StickerPackSummary) []Sticke
 	merged := make([]StickerPackSummary, 0, len(installed)+len(archived))
 	for _, p := range installed {
 		if archivedIDs[p.SetID] {
-			continue // replaced by the archived row below
+			continue
 		}
 		merged = append(merged, p)
 	}
@@ -17030,8 +15445,6 @@ func mergeArchivedStickerSets(installed, archived []StickerPackSummary) []Sticke
 	return merged
 }
 
-// stickerSetInstallRequest builds the install/archive toggle request.
-// Pure.
 func stickerSetInstallRequest(setID, accessHash int64, archived bool) *tg.MessagesInstallStickerSetRequest {
 	return &tg.MessagesInstallStickerSetRequest{
 		Stickerset: &tg.InputStickerSetID{ID: setID, AccessHash: accessHash},
@@ -17039,8 +15452,6 @@ func stickerSetInstallRequest(setID, accessHash int64, archived bool) *tg.Messag
 	}
 }
 
-// cacheCoveredDocs registers the cover documents of a covered set row in
-// the file-info cache (download pipeline entry point).
 func (t *TelegramCore) cacheCoveredDocs(sc tg.StickerSetCoveredClass) {
 	for _, doc := range coveredDocs(sc) {
 		if d, ok := doc.(*tg.Document); ok {
@@ -17049,10 +15460,7 @@ func (t *TelegramCore) cacheCoveredDocs(sc tg.StickerSetCoveredClass) {
 	}
 }
 
-// GetStickerSetSummaries is the manager's lightweight listing: installed +
-// archived set summaries in one call, no per-set sticker fetch.
 func (t *TelegramCore) GetStickerSetSummaries() ([]StickerPackSummary, error) {
-	// withAPI rule: never pin t.mu across RPCs.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -17083,11 +15491,7 @@ func (t *TelegramCore) GetStickerSetSummaries() ([]StickerPackSummary, error) {
 	return mergeArchivedStickerSets(installed, archived), nil
 }
 
-// ArchiveStickerSet hides (or restores) an installed set without deleting
-// it: installStickerSet with the Archived flag (tdesktop "Archive" /
-// "Restore").
 func (t *TelegramCore) ArchiveStickerSet(setID, accessHash int64, archived bool) error {
-	// withAPI rule: never pin t.mu across RPCs.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -17097,7 +15501,6 @@ func (t *TelegramCore) ArchiveStickerSet(setID, accessHash int64, archived bool)
 }
 
 func (t *TelegramCore) GetRecentStickers() ([]StickerInfo, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -17145,7 +15548,6 @@ func (t *TelegramCore) GetRecentStickers() ([]StickerInfo, error) {
 }
 
 func (t *TelegramCore) RemoveRecentSticker(fileID int64, extra string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -17167,7 +15569,6 @@ func (t *TelegramCore) RemoveRecentSticker(fileID int64, extra string) error {
 }
 
 func (t *TelegramCore) GetStickerFiles(documentIDs []int64) ([]CustomEmojiFile, error) {
-	// withAPI rule: streamed downloads must not pin t.mu.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -17212,7 +15613,6 @@ func detectStickerMime(data []byte) string {
 }
 
 func (t *TelegramCore) GetSavedGifs() ([]GifInfo, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -17253,7 +15653,6 @@ func (t *TelegramCore) GetSavedGifs() ([]GifInfo, error) {
 }
 
 func (t *TelegramCore) GetGifFiles(documentIDs []int64) ([]CustomEmojiFile, error) {
-	// withAPI rule: streamed downloads must not pin t.mu.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -17284,7 +15683,6 @@ func (t *TelegramCore) GetGifFiles(documentIDs []int64) ([]CustomEmojiFile, erro
 }
 
 func (t *TelegramCore) GetFeaturedStickerPacks() ([]StickerPackSummary, error) {
-	// withAPI rule: never pin t.mu across RPCs.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -17321,7 +15719,6 @@ func (t *TelegramCore) GetFeaturedStickerPacks() ([]StickerPackSummary, error) {
 }
 
 func (t *TelegramCore) SearchStickerSets(query string) ([]StickerPackSummary, error) {
-	// withAPI rule: never pin t.mu across RPCs.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -17358,7 +15755,6 @@ func (t *TelegramCore) SearchStickerSets(query string) ([]StickerPackSummary, er
 }
 
 func (t *TelegramCore) InstallStickerSet(setID, accessHash int64) error {
-	// withAPI rule: never pin t.mu across RPCs.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -17368,7 +15764,6 @@ func (t *TelegramCore) InstallStickerSet(setID, accessHash int64) error {
 }
 
 func (t *TelegramCore) UninstallStickerSet(setID, accessHash int64) error {
-	// withAPI rule: never pin t.mu across RPCs.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -17377,9 +15772,7 @@ func (t *TelegramCore) UninstallStickerSet(setID, accessHash int64) error {
 	return err
 }
 
-// DeleteFolder deletes a dialog filter/folder by ID.
 func (t *TelegramCore) DeleteFolder(filterID int) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -17387,7 +15780,6 @@ func (t *TelegramCore) DeleteFolder(filterID int) error {
 
 	_, err = api.MessagesUpdateDialogFilter(ctx, &tg.MessagesUpdateDialogFilterRequest{
 		ID: filterID,
-		// nil Filter = delete
 	})
 	return err
 }
@@ -17447,7 +15839,6 @@ func (t *TelegramCore) AddChatToFolder(chatID string, folderID int) error {
 }
 
 func (t *TelegramCore) GetTopPeersList(limit int) ([]string, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -17483,7 +15874,6 @@ func (t *TelegramCore) GetTopPeersList(limit int) ([]string, error) {
 }
 
 func (t *TelegramCore) RemoveSavedReactionTag(emoji string, customID int64) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -17500,9 +15890,7 @@ func (t *TelegramCore) RemoveSavedReactionTag(emoji string, customID int64) erro
 	return err
 }
 
-// ResolveUsername resolves a @username to a peer and caches the result.
 func (t *TelegramCore) ResolveUsername(username string) (string, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return "", err
@@ -17533,9 +15921,6 @@ func (t *TelegramCore) ResolveUsername(username string) (string, error) {
 	return "", ErrNotFound
 }
 
-// --- Comprehensive API methods ---
-
-// PinDialog pins a chat dialog to the top of the chat list.
 func (t *TelegramCore) PinDialog(chatID string) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -17548,7 +15933,6 @@ func (t *TelegramCore) PinDialog(chatID string) error {
 	return err
 }
 
-// UnpinDialog unpins a dialog from the chat list.
 func (t *TelegramCore) UnpinDialog(chatID string) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -17561,9 +15945,7 @@ func (t *TelegramCore) UnpinDialog(chatID string) error {
 	return err
 }
 
-// GetPinnedDialogs returns the list of pinned chats.
 func (t *TelegramCore) GetPinnedDialogs() ([]Dialog, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -17576,7 +15958,6 @@ func (t *TelegramCore) GetPinnedDialogs() ([]Dialog, error) {
 	return t.extractDialogs(result.Dialogs, result.Messages, result.Chats, result.Users), nil
 }
 
-// MarkDialogUnread marks or unmarks a chat as unread.
 func (t *TelegramCore) MarkDialogUnread(chatID string, unread bool) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -17589,7 +15970,6 @@ func (t *TelegramCore) MarkDialogUnread(chatID string, unread bool) error {
 	return err
 }
 
-// UnpinAllMessages removes all pinned messages in a chat.
 func (t *TelegramCore) UnpinAllMessages(chatID string) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -17600,7 +15980,6 @@ func (t *TelegramCore) UnpinAllMessages(chatID string) error {
 	return err
 }
 
-// SetTyping sends a specific typing action to a chat.
 func (t *TelegramCore) SetTyping(chatID string, action tg.SendMessageActionClass) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -17611,7 +15990,6 @@ func (t *TelegramCore) SetTyping(chatID string, action tg.SendMessageActionClass
 	return err
 }
 
-// GetOnlineCount returns the number of online members in a chat.
 func (t *TelegramCore) GetOnlineCount(chatID string) (int, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -17625,11 +16003,6 @@ func (t *TelegramCore) GetOnlineCount(chatID string) (int, error) {
 	return result.Onlines, nil
 }
 
-// GetMessagesViewsBatch returns view + forward counts for a batch of
-// channel posts in ONE RPC (messages.getMessagesViews — tdesktop's
-// refresh mechanism for the visible history window). The returned maps
-// key by the string message id; ids that fail to parse are skipped
-// honestly. withAPI-converted (§8).
 func (t *TelegramCore) GetMessagesViewsBatch(chatID string, msgIDs []string) (views, forwards map[string]int, err error) {
 	api, ctx, err := t.withAPI()
 	if err != nil {
@@ -17672,7 +16045,6 @@ func (t *TelegramCore) GetMessagesViewsBatch(chatID string, msgIDs []string) (vi
 	return views, forwards, nil
 }
 
-// GetMessageReadParticipants returns users who read a specific message.
 func (t *TelegramCore) GetMessageReadParticipants(chatID string, msgID string) ([]int64, error) {
 	api, ctx, err := t.withAPI()
 	if err != nil {
@@ -17700,8 +16072,6 @@ func (t *TelegramCore) GetMessageReadParticipants(chatID string, msgID string) (
 	return userIDs, nil
 }
 
-// GetMessageReadParticipantsDetailedJSON returns users with read timestamps as generic maps.
-// On privacy errors, returns nil participants with a non-nil error containing the privacy state string.
 func (t *TelegramCore) GetMessageReadParticipantsDetailedJSON(chatID string, msgID string) ([]map[string]interface{}, error) {
 	api, ctx, err := t.withAPI()
 	if err != nil {
@@ -17751,7 +16121,6 @@ func (t *TelegramCore) GetMessageReadParticipantsDetailedJSON(chatID string, msg
 	return participants, nil
 }
 
-// ReadMentions marks all mentions in a chat as read.
 func (t *TelegramCore) ReadMentions(chatID string) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -17762,7 +16131,6 @@ func (t *TelegramCore) ReadMentions(chatID string) error {
 	return err
 }
 
-// ReadReactions marks all unread reactions in a chat as read.
 func (t *TelegramCore) ReadReactions(chatID string) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -17773,7 +16141,6 @@ func (t *TelegramCore) ReadReactions(chatID string) error {
 	return err
 }
 
-// TranslateText translates message text to the specified language.
 func (t *TelegramCore) TranslateText(chatID string, msgID string, toLang string) (string, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -17820,12 +16187,6 @@ func (t *TelegramCore) ReportMessage(chatID string, msgIDs []int, option []byte,
 		Peer: inputPeer, ID: msgIDs, Option: option, Message: message,
 	})
 	if err != nil {
-		// The modern messages.report flow rejects an empty (or insufficient) id
-		// list with MESSAGE_ID_REQUIRED. AyuGram answers this by opening a message
-		// chooser and re-issuing messages.report with the picked ids — it never
-		// falls back to account.reportPeer. Surface it as a dedicated result type
-		// so the UI can present a chooser and retry, matching that behaviour.
-		// ← boxes/report_messages_box.cpp:84 (MESSAGE_ID_REQUIRED).
 		if rpcErr, ok := tgerr.As(err); ok && rpcErr.Type == "MESSAGE_ID_REQUIRED" {
 			return &ReportResult{Type: "message_id_required"}, nil
 		}
@@ -17846,11 +16207,6 @@ func (t *TelegramCore) ReportMessage(chatID string, msgIDs []int, option []byte,
 	return &ReportResult{Type: "reported"}, nil
 }
 
-// ReportPeer reports a whole peer (no specific message ids) via account.reportPeer.
-// The chat-info "Report" action targets the peer itself, but the modern
-// messages.report flow rejects an empty message-id list with MESSAGE_ID_REQUIRED,
-// so a whole-peer report must use the dedicated account.reportPeer endpoint with
-// a fixed ReportReason. ← Api::ReasonToTL / account.reportPeer (api_report.cpp:26).
 func (t *TelegramCore) ReportPeer(chatID, reason, message string) (bool, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -17886,7 +16242,6 @@ func (t *TelegramCore) ReportPeer(chatID, reason, message string) (bool, error) 
 }
 
 func (t *TelegramCore) ReportReaction(chatID string, msgID int, participantID string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -17913,7 +16268,6 @@ func (t *TelegramCore) ReportReaction(chatID string, msgID int, participantID st
 	return err
 }
 
-// GetWebPagePreview returns the title of a URL preview for link embedding.
 func (t *TelegramCore) GetWebPagePreview(url string) (string, error) {
 	r, err := t.GetWebPagePreviewFull(url)
 	if err != nil {
@@ -17925,9 +16279,7 @@ func (t *TelegramCore) GetWebPagePreview(url string) (string, error) {
 	return "", nil
 }
 
-// GetWebPagePreviewFull returns full structured web page preview data.
 func (t *TelegramCore) GetWebPagePreviewFull(url string) (*WebPagePreviewResult, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -17988,9 +16340,7 @@ func (t *TelegramCore) GetWebPagePreviewFull(url string) (*WebPagePreviewResult,
 	return nil, nil
 }
 
-// GetInstantViewPage fetches a web page and returns its Instant View page blocks as JSON.
 func (t *TelegramCore) GetInstantViewPage(url string) ([]byte, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -18392,7 +16742,6 @@ func ivBlockToMap(b tg.PageBlockClass, photoMap map[int64]ivPhotoInfo, docMap ma
 	return nil
 }
 
-// DownloadIVPhoto downloads an Instant View photo by its ID and returns the local file path.
 func (t *TelegramCore) DownloadIVPhoto(photoID int64, extra string) (string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -18414,7 +16763,6 @@ func (t *TelegramCore) DownloadIVPhoto(photoID int64, extra string) (string, err
 	return dest, nil
 }
 
-// DownloadIVDocument downloads an Instant View document (video, audio) by its ID and returns the local file path.
 func (t *TelegramCore) DownloadIVDocument(docID int64, extra, mime string) (string, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -18447,7 +16795,6 @@ func (t *TelegramCore) DownloadIVDocument(docID int64, extra, mime string) (stri
 	return dest, nil
 }
 
-// SetHistoryTTL sets the auto-delete timer for messages in a chat.
 func (t *TelegramCore) SetHistoryTTL(chatID string, period int) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -18458,9 +16805,7 @@ func (t *TelegramCore) SetHistoryTTL(chatID string, period int) error {
 	return err
 }
 
-// GetAllDrafts returns all message drafts across all chats.
 func (t *TelegramCore) GetAllDrafts() error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -18469,7 +16814,6 @@ func (t *TelegramCore) GetAllDrafts() error {
 	return err
 }
 
-// SendPoll sends a poll to a chat.
 func (t *TelegramCore) SendPoll(chatID string, question string, answers []string) (*Message, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -18490,7 +16834,6 @@ func (t *TelegramCore) SendPoll(chatID string, question string, answers []string
 	return t.extractMessageFromUpdates(result, chatID), nil
 }
 
-// VoteInPoll casts a vote on a poll.
 func (t *TelegramCore) VoteInPoll(chatID string, msgID string, optionIdx int) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -18507,7 +16850,6 @@ func (t *TelegramCore) VoteInPoll(chatID string, msgID string, optionIdx int) er
 	return err
 }
 
-// VoteInPollMulti casts votes for multiple options on a multi-choice poll.
 func (t *TelegramCore) VoteInPollMulti(chatID string, msgID string, optionIndices []int) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -18528,7 +16870,6 @@ func (t *TelegramCore) VoteInPollMulti(chatID string, msgID string, optionIndice
 	return err
 }
 
-// RetractPollVote retracts the user's vote from a poll by sending empty options.
 func (t *TelegramCore) RetractPollVote(chatID string, msgID string) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -18545,7 +16886,6 @@ func (t *TelegramCore) RetractPollVote(chatID string, msgID string) error {
 	return err
 }
 
-// StopPoll closes a poll so no more votes can be cast (only poll creator can do this).
 func (t *TelegramCore) StopPoll(chatID string, msgID string) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -18599,7 +16939,6 @@ func (t *TelegramCore) StopPoll(chatID string, msgID string) error {
 	return err
 }
 
-// ExportChatInvite creates a new invite link for a chat.
 func (t *TelegramCore) ExportChatInvite(chatID string) (string, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -18616,9 +16955,7 @@ func (t *TelegramCore) ExportChatInvite(chatID string) (string, error) {
 	return "", nil
 }
 
-// GetFullChannel returns full information for a channel or supergroup.
 func (t *TelegramCore) GetFullChannel(chatID string) (*Dialog, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -18658,108 +16995,78 @@ func (t *TelegramCore) GetFullChannel(chatID string) (*Dialog, error) {
 }
 
 type ChatPermissionFlags struct {
-	SlowmodeSeconds      int    `json:"slowmode_seconds"`
-	JoinToSend           bool   `json:"join_to_send"`
-	NoForwards           bool   `json:"no_forwards"`
-	JoinRequest          bool   `json:"join_request"`
-	IsForum              bool   `json:"is_forum"`
-	Antispam             bool   `json:"antispam"`
-	Signatures           bool   `json:"signatures"`
-	SignatureProfiles    bool   `json:"signature_profiles"`
-	PreHistoryHidden     bool   `json:"pre_history_hidden"`
-	NoTranslations       bool   `json:"no_translations"`
-	HasUsername          bool   `json:"has_username"`
-	LinkedChatID         string `json:"linked_chat_id"`
-	PendingRequestsCount int    `json:"pending_requests_count"`
-	BoostLevel           int    `json:"boost_level"`
-	// Channel sub-type and admin capability flags (mirror AyuGram ChannelData::*).
-	IsMegagroup    bool `json:"is_megagroup"`
-	IsBroadcast    bool `json:"is_broadcast"`
-	IsGigagroup    bool `json:"is_gigagroup"`
-	AmCreator      bool `json:"am_creator"`
-	HasAdminRights bool `json:"has_admin_rights"`
-	// Server statistics-availability flag (channelFull.can_view_stats). The info
-	// panel gates the Statistics row on this, with no member threshold — mirrors
-	// AyuGram ChannelData::canViewStatistics() (data_channel.cpp:1323).
-	CanViewStats       bool `json:"can_view_stats"`
-	AdminCanChangeInfo bool `json:"admin_can_change_info"`
-	// Member-management capabilities, for gating the member-list Add buttons
-	// (canAddNewItem → canAddMembers/canAddAdmins/canBanMembers).
-	CanAddAdmins          bool   `json:"can_add_admins"`
-	CanBanUsers           bool   `json:"can_ban_users"`
-	CanInviteUsers        bool   `json:"can_invite_users"`
-	CanViewParticipants   bool   `json:"can_view_participants"`
-	ParticipantsHidden    bool   `json:"participants_hidden"`
-	CanSetStickers        bool   `json:"can_set_stickers"`
-	AutoTranslateMinLevel int    `json:"auto_translate_min_level"`
-	MigratedFromChatID    string `json:"migrated_from_chat_id"`
-	// Direct-messages (monoforum) state for the broadcast "Direct Messages" box:
-	// whether the feature is currently enabled and the current per-message price.
-	DirectMessagesEnabled bool  `json:"direct_messages_enabled"`
-	DirectMessagesStars   int64 `json:"direct_messages_stars"`
-	// Star-ref JOIN gating for the channel "Affiliate Program" row: the appConfig
-	// switch (Join::Allowed) plus whether the editor can post (canPostMessages).
-	StarRefJoinAllowed bool `json:"starref_join_allowed"`
-	AdminCanPost       bool `json:"admin_can_post"`
-	// Reactions box extras (EditAllowedReactionsBox): the per-message max-count
-	// slider bounds + current value, and whether paid reactions are enabled.
-	ReactionsUniqMax     int  `json:"reactions_uniq_max"`
-	ReactionsMaxCount    int  `json:"reactions_max_count"`
-	PaidReactionsEnabled bool `json:"paid_reactions_enabled"`
-	// Forum layout: whether the tabbed (vs list) topic UI is active, for
-	// ToggleTopicsBox's initial radio state (channel.forum_tabs flag).
-	ForumTabs bool `json:"forum_tabs"`
-	// hasLocation hides the history-visibility row (refreshHistoryVisibility,
-	// edit_peer_info_box.cpp:864).
-	HasLocation bool `json:"has_location"`
-	// Current allowed-reactions state for pre-populating the Reactions box
-	// (EditAllowedReactionsBox): mode is "all"/"some"/"none"; the list carries
-	// the emoji/custom-emoji-id reactions when mode == "some".
-	ReactionsMode    string   `json:"reactions_mode"`
-	ReactionsAllowed []string `json:"reactions_allowed"`
-	// Minimum group size for the aggressive anti-spam toggle, from the server
-	// appConfig telegram_antispam_group_size_min (menu_antispam_validator.cpp:37).
-	AntispamGroupSizeMin int `json:"antispam_group_size_min"`
-	// Participant count (channel->membersCount()), used to gate the anti-spam
-	// toggle below the size threshold (menu_antispam_validator.cpp:86-90).
-	MemberCount int `json:"member_count"`
+	SlowmodeSeconds       int      `json:"slowmode_seconds"`
+	JoinToSend            bool     `json:"join_to_send"`
+	NoForwards            bool     `json:"no_forwards"`
+	JoinRequest           bool     `json:"join_request"`
+	IsForum               bool     `json:"is_forum"`
+	Antispam              bool     `json:"antispam"`
+	Signatures            bool     `json:"signatures"`
+	SignatureProfiles     bool     `json:"signature_profiles"`
+	PreHistoryHidden      bool     `json:"pre_history_hidden"`
+	NoTranslations        bool     `json:"no_translations"`
+	HasUsername           bool     `json:"has_username"`
+	LinkedChatID          string   `json:"linked_chat_id"`
+	PendingRequestsCount  int      `json:"pending_requests_count"`
+	BoostLevel            int      `json:"boost_level"`
+	IsMegagroup           bool     `json:"is_megagroup"`
+	IsBroadcast           bool     `json:"is_broadcast"`
+	IsGigagroup           bool     `json:"is_gigagroup"`
+	AmCreator             bool     `json:"am_creator"`
+	HasAdminRights        bool     `json:"has_admin_rights"`
+	CanViewStats          bool     `json:"can_view_stats"`
+	AdminCanChangeInfo    bool     `json:"admin_can_change_info"`
+	CanAddAdmins          bool     `json:"can_add_admins"`
+	CanBanUsers           bool     `json:"can_ban_users"`
+	CanInviteUsers        bool     `json:"can_invite_users"`
+	CanViewParticipants   bool     `json:"can_view_participants"`
+	ParticipantsHidden    bool     `json:"participants_hidden"`
+	CanSetStickers        bool     `json:"can_set_stickers"`
+	AutoTranslateMinLevel int      `json:"auto_translate_min_level"`
+	MigratedFromChatID    string   `json:"migrated_from_chat_id"`
+	DirectMessagesEnabled bool     `json:"direct_messages_enabled"`
+	DirectMessagesStars   int64    `json:"direct_messages_stars"`
+	StarRefJoinAllowed    bool     `json:"starref_join_allowed"`
+	AdminCanPost          bool     `json:"admin_can_post"`
+	ReactionsUniqMax      int      `json:"reactions_uniq_max"`
+	ReactionsMaxCount     int      `json:"reactions_max_count"`
+	PaidReactionsEnabled  bool     `json:"paid_reactions_enabled"`
+	ForumTabs             bool     `json:"forum_tabs"`
+	HasLocation           bool     `json:"has_location"`
+	ReactionsMode         string   `json:"reactions_mode"`
+	ReactionsAllowed      []string `json:"reactions_allowed"`
+	AntispamGroupSizeMin  int      `json:"antispam_group_size_min"`
+	MemberCount           int      `json:"member_count"`
 }
 
 type DefaultBannedRights struct {
-	SendPlain       bool `json:"send_plain"`
-	SendPhotos      bool `json:"send_photos"`
-	SendVideos      bool `json:"send_videos"`
-	SendRoundvideos bool `json:"send_roundvideos"`
-	SendAudios      bool `json:"send_audios"`
-	SendVoices      bool `json:"send_voices"`
-	SendDocs        bool `json:"send_docs"`
-	SendStickers    bool `json:"send_stickers"`
-	EmbedLinks      bool `json:"embed_links"`
-	SendPolls       bool `json:"send_polls"`
-	InviteUsers     bool `json:"invite_users"`
-	ManageTopics    bool `json:"manage_topics"`
-	PinMessages     bool `json:"pin_messages"`
-	EditRank        bool `json:"edit_rank"`
-	ChangeInfo      bool `json:"change_info"`
-	SlowmodeSeconds int  `json:"slowmode_seconds"`
-	// Existing boosts-to-unrestrict threshold (channel->boostsUnrestrict) and
-	// per-message Stars charge (commonStarsPerMessage), so the permissions box
-	// opens pre-seeded instead of always 0 (edit_peer_permissions_box.cpp:954,1184).
+	SendPlain        bool  `json:"send_plain"`
+	SendPhotos       bool  `json:"send_photos"`
+	SendVideos       bool  `json:"send_videos"`
+	SendRoundvideos  bool  `json:"send_roundvideos"`
+	SendAudios       bool  `json:"send_audios"`
+	SendVoices       bool  `json:"send_voices"`
+	SendDocs         bool  `json:"send_docs"`
+	SendStickers     bool  `json:"send_stickers"`
+	EmbedLinks       bool  `json:"embed_links"`
+	SendPolls        bool  `json:"send_polls"`
+	InviteUsers      bool  `json:"invite_users"`
+	ManageTopics     bool  `json:"manage_topics"`
+	PinMessages      bool  `json:"pin_messages"`
+	EditRank         bool  `json:"edit_rank"`
+	ChangeInfo       bool  `json:"change_info"`
+	SlowmodeSeconds  int   `json:"slowmode_seconds"`
 	BoostsUnrestrict int   `json:"boosts_unrestrict"`
 	ChargeStars      int64 `json:"charge_stars"`
 }
 
-// computeWriteRestriction determines restriction type and text from ChatBannedRights.
-// personalRights are the user's own restrictions (from Channel.BannedRights).
-// defaultRights are the group-wide restrictions (from DefaultBannedRights).
-// Returns (type, text). type=0 means no restriction.
 func computeWriteRestriction(personalRights *tg.ChatBannedRights, defaultRights tg.ChatBannedRights) (int, string) {
 	if personalRights != nil && personalRights.ViewMessages {
 		return 1, "Sorry, this group is not accessible."
 	}
 	if personalRights != nil && !personalRights.Zero() {
 		until := personalRights.UntilDate
-		isTimed := until > 0 && until < 2145916800 // before 2038
+		isTimed := until > 0 && until < 2145916800
 		if personalRights.SendPlain {
 			if isTimed {
 				return 1, fmt.Sprintf("The admins of this group have restricted you from sending messages until %s.", formatRestrictionDate(until))
@@ -18828,7 +17135,6 @@ func computeWriteRestriction(personalRights *tg.ChatBannedRights, defaultRights 
 		}
 	}
 
-	// Check default (group-wide) restrictions
 	if defaultRights.SendPlain {
 		return 1, "Sending messages is not allowed in this group."
 	}
@@ -18893,9 +17199,6 @@ func (t *TelegramCore) GetDefaultBannedRights(chatID string) (*DefaultBannedRigh
 		t.cacheEntities(result.Users, result.Chats)
 		if fc, ok := result.FullChat.(*tg.ChannelFull); ok {
 			rights.SlowmodeSeconds = fc.SlowmodeSeconds
-			// Seed the boosts-to-unrestrict threshold and per-message Stars charge
-			// so the toggles open ON when already set (and Save round-trips them
-			// instead of silently clearing) (edit_peer_permissions_box.cpp:954,1184).
 			if bu, ok := fc.GetBoostsUnrestrict(); ok {
 				rights.BoostsUnrestrict = bu
 			}
@@ -18986,7 +17289,6 @@ func (t *TelegramCore) SetDefaultBannedRights(chatID string, rights *DefaultBann
 }
 
 func (t *TelegramCore) GetChatPermissionFlags(chatID string) (*ChatPermissionFlags, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -19015,8 +17317,6 @@ func (t *TelegramCore) GetChatPermissionFlags(chatID string) (*ChatPermissionFla
 		flags.NoTranslations = fc.TranslationsDisabled
 		flags.PendingRequestsCount = fc.RequestsPending
 		flags.CanSetStickers = fc.CanSetStickers
-		// canViewMembers() = CanViewParticipants && (!ParticipantsHidden ||
-		// amCreator || hasAdminRights) (data_channel.cpp:727).
 		flags.CanViewParticipants = fc.CanViewParticipants
 		flags.ParticipantsHidden = fc.ParticipantsHidden
 		if stars, ok := fc.GetSendPaidMessagesStars(); ok {
@@ -19031,8 +17331,6 @@ func (t *TelegramCore) GetChatPermissionFlags(chatID string) (*ChatPermissionFla
 				flags.HasLocation = true
 			}
 		}
-		// Current allowed-reactions, so EditAllowedReactionsBox opens pre-filled
-		// instead of always defaulting to "all" (edit_peer_info_box.cpp:1512).
 		flags.ReactionsMode = "none"
 		if ar, ok := fc.GetAvailableReactions(); ok {
 			switch r := ar.(type) {
@@ -19100,8 +17398,6 @@ func (t *TelegramCore) GetChatPermissionFlags(chatID string) (*ChatPermissionFla
 	return flags, nil
 }
 
-// appConfigRawNoLock reads a single appConfig key's raw JSON value.
-// Caller must hold t.mu (read lock).
 func (t *TelegramCore) appConfigRawNoLock(key string) (tg.JSONValueClass, bool) {
 	result, err := t.api.HelpGetAppConfig(t.ctx, 0)
 	if err != nil {
@@ -19123,7 +17419,6 @@ func (t *TelegramCore) appConfigRawNoLock(key string) (tg.JSONValueClass, bool) 
 	return nil, false
 }
 
-// appConfigIntNoLock reads an integer appConfig value. Caller must hold t.mu.
 func (t *TelegramCore) appConfigIntNoLock(key string, def int) int {
 	if v, ok := t.appConfigRawNoLock(key); ok {
 		if n, ok := v.(*tg.JSONNumber); ok {
@@ -19133,7 +17428,6 @@ func (t *TelegramCore) appConfigIntNoLock(key string, def int) int {
 	return def
 }
 
-// appConfigBoolNoLock reads a boolean appConfig value. Caller must hold t.mu.
 func (t *TelegramCore) appConfigBoolNoLock(key string, def bool) bool {
 	if v, ok := t.appConfigRawNoLock(key); ok {
 		if b, ok := v.(*tg.JSONBool); ok {
@@ -19143,9 +17437,6 @@ func (t *TelegramCore) appConfigBoolNoLock(key string, def bool) bool {
 	return def
 }
 
-// appConfigIntAPI / appConfigBoolAPI: the withAPI-snapshot variants of the
-// appConfig readers (slice 192 RLock purge) — config keys fetched through a
-// caller-provided api+ctx pair, so no t.mu is held across the RPC.
 func appConfigIntAPI(api *tg.Client, ctx context.Context, key string, def int) int {
 	if v, ok := appConfigRawAPI(api, ctx, key); ok {
 		if n, ok := v.(*tg.JSONNumber); ok {
@@ -19185,11 +17476,7 @@ func appConfigRawAPI(api *tg.Client, ctx context.Context, key string) (tg.JSONVa
 	return nil, false
 }
 
-// ToggleChannelAutoTranslation enables/disables admin auto-translation for a
-// broadcast channel (channels.toggleAutotranslation). This is the channel-wide
-// admin setting, distinct from the per-user messages.togglePeerTranslations.
 func (t *TelegramCore) ToggleChannelAutoTranslation(chatID string, enabled bool) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -19210,11 +17497,7 @@ func (t *TelegramCore) ToggleChannelAutoTranslation(chatID string, enabled bool)
 	return err
 }
 
-// GetBotManageInfo returns gating info for the bot edit/manage box:
-// whether the bot has verifier settings, whether star-ref setup is allowed by
-// the server appConfig, and the bot's star-ref commission (per-mille).
 func (t *TelegramCore) GetBotManageInfo(chatID string) (map[string]interface{}, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -19230,34 +17513,24 @@ func (t *TelegramCore) GetBotManageInfo(chatID string) (map[string]interface{}, 
 	}
 	t.cacheEntities(result.Users, nil)
 	out := map[string]interface{}{
-		"has_verifier_settings": false,
-		"starref_allowed":       appConfigBoolAPI(api, ctx, "starref_program_allowed", false),
-		"starref_commission":    0,
-		// Server-driven commission bounds for the setup slider, mirroring
-		// appConfig.starrefCommissionMin/Max (info_bot_starref_setup_widget.cpp:626).
+		"has_verifier_settings":  false,
+		"starref_allowed":        appConfigBoolAPI(api, ctx, "starref_program_allowed", false),
+		"starref_commission":     0,
 		"starref_commission_min": appConfigIntAPI(api, ctx, "starref_min_commission_permille", 1),
 		"starref_commission_max": appConfigIntAPI(api, ctx, "starref_max_commission_permille", 900),
 	}
 	if bi, ok := result.FullUser.GetBotInfo(); ok {
 		if vs, ok := bi.GetVerifierSettings(); ok {
 			out["has_verifier_settings"] = true
-			// canModifyDescription gates the editable custom-description field in
-			// the Verify-Accounts confirm box (verify_peers_box.cpp:115); the saved
-			// description pre-fills it.
 			out["verifier_can_modify_description"] = vs.CanModifyCustomDescription
 			if desc, ok := vs.GetCustomDescription(); ok {
 				out["verifier_custom_description"] = desc
 			}
 		}
 	}
-	// UTF-8 length limit for the verification custom description (verify_peers_box.cpp:120).
 	out["bot_verification_description_length_limit"] = appConfigIntAPI(api, ctx, "bot_verification_description_length_limit", 70)
 	if srp, ok := result.FullUser.GetStarrefProgram(); ok {
 		out["starref_commission"] = srp.CommissionPermille
-		// Full program block so the setup screen pre-fills duration (and detects an
-		// ended program via end_date for the 24h cooldown). duration_months == 0
-		// means "forever" (FormatProgramDuration, info_bot_starref_common.cpp:226);
-		// end_date is only set once the program has been ended.
 		program := map[string]interface{}{
 			"commission_permille": srp.CommissionPermille,
 			"duration_months":     srp.DurationMonths,
@@ -19270,13 +17543,7 @@ func (t *TelegramCore) GetBotManageInfo(chatID string) (map[string]interface{}, 
 	return out, nil
 }
 
-// GetBotVerifyState reports whether userID is currently verified BY botID,
-// reading the target's UserFull.bot_verification.bot_id — the real per-bot state
-// AyuGram derives from peer->botVerifyDetails() (verify_peers_box.cpp:92), rather
-// than the global blue check. Lets the Verify Accounts list start each contact in
-// the correct state and offer Remove (not re-Setup) for already-verified users.
 func (t *TelegramCore) GetBotVerifyState(botID, userID string) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -19299,14 +17566,7 @@ func (t *TelegramCore) GetBotVerifyState(botID, userID string) (bool, error) {
 	return false, nil
 }
 
-// SetBotCustomVerification grants (enabled) or revokes (else) the bot's custom
-// verification badge for a peer — a user OR a channel (verify_peers_box.cpp:234
-// createRow allows both). Mirrors AyuGram's Setup/Remove: enabling sets the
-// f_bot|f_enabled flags (plus f_custom_description when a description is given),
-// while removing sends f_bot only (verify_peers_box.cpp:52,72). A JSON-map
-// generic dispatch can't build the typed request, so this is a dedicated method.
 func (t *TelegramCore) SetBotCustomVerification(botID, peerID string, enabled bool, customDescription string) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -19321,7 +17581,6 @@ func (t *TelegramCore) SetBotCustomVerification(botID, peerID string, enabled bo
 	}
 	inputPeer := t.peerToInputPeer(peer)
 	req := &tg.BotsSetCustomVerificationRequest{Peer: inputPeer}
-	// f_bot — required when invoked by a user (must be an owned bot).
 	req.SetBot(&tg.InputUser{UserID: bid, AccessHash: t.getCachedUserHash(bid)})
 	if enabled {
 		req.SetEnabled(true)
@@ -19331,11 +17590,6 @@ func (t *TelegramCore) SetBotCustomVerification(botID, peerID string, enabled bo
 	}
 	return api.BotsSetCustomVerification(ctx, req)
 }
-
-// ── Star-ref (affiliate program) JOIN flow ──
-// For a broadcast channel the only star-ref entry is JOINING other bots'
-// affiliate programs to advertise them (info_bot_starref_join_widget.cpp). A
-// channel cannot OWN a program — that setup flow is bot-only.
 
 func connectedStarRefBotsToMaps(users map[int64]*tg.User, bots []tg.ConnectedBotStarRef) []map[string]interface{} {
 	out := make([]map[string]interface{}, 0, len(bots))
@@ -19364,7 +17618,6 @@ func connectedStarRefBotsToMaps(users map[int64]*tg.User, bots []tg.ConnectedBot
 }
 
 func (t *TelegramCore) GetSuggestedStarRefBots(chatID, offset string, limit int, orderByRevenue, orderByDate bool) (map[string]interface{}, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -19380,8 +17633,6 @@ func (t *TelegramCore) GetSuggestedStarRefBots(chatID, offset string, limit int,
 	if limit <= 0 {
 		limit = 20
 	}
-	// Sort order: default = profitability (both flags false), or by revenue / by
-	// date (info_bot_starref_join_widget.cpp:385).
 	req := &tg.PaymentsGetSuggestedStarRefBotsRequest{Peer: inputPeer, Offset: offset, Limit: limit}
 	req.OrderByRevenue = orderByRevenue
 	req.OrderByDate = orderByDate
@@ -19411,8 +17662,6 @@ func (t *TelegramCore) GetSuggestedStarRefBots(chatID, offset string, limit int,
 			"commission_permille": p.CommissionPermille,
 			"duration_months":     p.DurationMonths,
 		}
-		// Estimated daily revenue per user for the JoinStarRefBox "≈ X / day" line
-		// (program.revenuePerUser, info_bot_starref_common.cpp:569).
 		if dr, ok := p.GetDailyRevenuePerUser(); ok && dr != nil {
 			m["daily_revenue"] = dr.GetAmount()
 		}
@@ -19426,7 +17675,6 @@ func (t *TelegramCore) GetSuggestedStarRefBots(chatID, offset string, limit int,
 }
 
 func (t *TelegramCore) GetConnectedStarRefBots(chatID string) ([]map[string]interface{}, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -19453,7 +17701,6 @@ func (t *TelegramCore) GetConnectedStarRefBots(chatID string) ([]map[string]inte
 }
 
 func (t *TelegramCore) ConnectStarRefBot(chatID, botID string, revoked bool, link string) (map[string]interface{}, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -19470,8 +17717,6 @@ func (t *TelegramCore) ConnectStarRefBot(chatID, botID string, revoked bool, lin
 	if err != nil {
 		return nil, err
 	}
-	// Revoke a connected program via EditConnectedStarRefBot(revoked=true)
-	// (info_bot_starref_join_widget.cpp:622).
 	if revoked {
 		if link == "" {
 			return nil, fmt.Errorf("revoke requires the connected link")
@@ -19521,9 +17766,7 @@ func (t *TelegramCore) ConnectStarRefBot(chatID, botID string, revoked bool, lin
 	return map[string]interface{}{}, nil
 }
 
-// GetParticipants returns participants of a channel or supergroup with filtering.
 func (t *TelegramCore) GetParticipants(chatID string, limit int) ([]User, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -19580,22 +17823,14 @@ type ParticipantExtra struct {
 	CustomRank   string
 	PromotedBy   int64
 	PromotedDate int
-	// Permission/identity flags so the UI can gate row actions exactly like
-	// AyuGram (edit_participants_box.cpp:1962): can't act on the creator, on
-	// yourself, or on an admin you didn't promote / can't edit.
 	IsSelf       bool
 	IsCreator    bool
 	CanEditAdmin bool
 	CanRestrict  bool
-	// The participant's CURRENT banned rights + until timestamp (unix
-	// seconds), set for restricted/banned rows so the GUI restrict box
-	// initializes from server state (tdesktop EditRestrictedBox).
 	BannedRights *DefaultBannedRights
 	BannedUntil  int
 }
 
-// bannedRightsFromTG normalizes tg.ChatBannedRights (true = banned on the
-// wire) into DefaultBannedRights (same polarity). Pure.
 func bannedRightsFromTG(br tg.ChatBannedRights) *DefaultBannedRights {
 	return &DefaultBannedRights{
 		SendPlain:       br.SendPlain,
@@ -19634,11 +17869,6 @@ func (t *TelegramCore) GetParticipantsByRole(chatID, role, query string, limit, 
 		limit = 200
 	}
 
-	// Pending join requests use a different endpoint (messages.getChatInviteImporters
-	// with the `requested` flag) and date/user-based paging, not ChannelsGetParticipants.
-	// Page from the start each call, skipping `offset` already-shown rows, then collect up
-	// to `limit`. Mirrors AyuGram RequestsBoxController::loadMoreRows (kFirstPageCount=16/
-	// kPerPage=200). PromotedDate carries the request timestamp for the row's status text.
 	if role == "requests" {
 		inputPeer := &tg.InputPeerChannel{ChannelID: ch.ChannelID, AccessHash: hash}
 		var users []User
@@ -19730,8 +17960,6 @@ func (t *TelegramCore) GetParticipantsByRole(chatID, role, query string, limit, 
 	}
 	t.cacheEntities(cp.Users, cp.Chats)
 
-	// Self's rights in this channel, so per-row gating matches AyuGram's
-	// canAddOrEditAdmin / canRestrictParticipant / canRemoveParticipant.
 	selfCreator, selfAddAdmins, selfBanUsers := false, false, false
 	for _, c := range cp.Chats {
 		if cc, ok := c.(*tg.Channel); ok && cc.ID == ch.ChannelID {
@@ -19763,8 +17991,6 @@ func (t *TelegramCore) GetParticipantsByRole(chatID, role, query string, limit, 
 				PromotedBy:   pt.PromotedBy,
 				PromotedDate: pt.Date,
 				IsSelf:       isSelf,
-				// CanEdit is the server's "you may edit this admin" flag (set
-				// when you're the creator or you promoted them).
 				CanEditAdmin: !isSelf && pt.CanEdit,
 				CanRestrict:  !isSelf && pt.CanEdit && (selfCreator || selfBanUsers),
 			}
@@ -19786,8 +18012,6 @@ func (t *TelegramCore) GetParticipantsByRole(chatID, role, query string, limit, 
 		}
 	}
 
-	// Regular members carry no special participant type, so fill their gating
-	// flags from self's rights (promote if AddAdmins, restrict if BanUsers).
 	for _, u := range cp.Users {
 		uu, ok := u.(*tg.User)
 		if !ok {
@@ -19817,9 +18041,7 @@ func (t *TelegramCore) GetParticipantsByRole(chatID, role, query string, limit, 
 	return users, extras, nil
 }
 
-// GetCommonChats returns groups and channels shared with a specific user.
 func (t *TelegramCore) GetCommonChats(userID string, limit int) ([]Dialog, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -19856,9 +18078,7 @@ func (t *TelegramCore) GetCommonChats(userID string, limit int) ([]Dialog, error
 	return dialogs, nil
 }
 
-// GetSimilarChannels returns channels recommended as similar to the given channel.
 func (t *TelegramCore) GetSimilarChannels(chatID string) ([]Dialog, error) {
-	// withAPI rule: the RLock is never held across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -19907,22 +18127,13 @@ func (t *TelegramCore) GetSimilarChannels(chatID string) ([]Dialog, error) {
 		if channel.ParticipantsCount > 0 {
 			d.MemberCount = channel.ParticipantsCount
 		}
-		// Cache the access hash so the recommended channel's ID resolves
-		// later (open on tap without a prior dialog).
 		t.cacheChannelHash(channel.ID, channel.AccessHash)
 		dialogs = append(dialogs, d)
 	}
 	return dialogs, nil
 }
 
-// GetChatsToSend returns the boost-eligible peers (channels and supergroups the
-// user can post stories/giveaways to) via stories.getChatsToSend. Mirrors
-// AyuGram's MyChannelsListController::prepare (giveaway_list_controllers.cpp:
-// 250-293): only channel-class peers pass (broadcasts AND megagroups — gotd
-// represents both as *tg.Channel), while basic groups and users are skipped.
-// Access hashes are cached so the returned IDs resolve later at giveaway launch.
 func (t *TelegramCore) GetChatsToSend() ([]Dialog, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -19973,9 +18184,7 @@ func (t *TelegramCore) GetChatsToSend() ([]Dialog, error) {
 	return dialogs, nil
 }
 
-// ExportMessageLink returns a public link to a specific message.
 func (t *TelegramCore) ExportMessageLink(chatID string, msgID string) (string, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return "", err
@@ -20002,7 +18211,6 @@ func (t *TelegramCore) ExportMessageLink(chatID string, msgID string) (string, e
 	return result.Link, nil
 }
 
-// GetSendAs returns peers the user can send messages as in a chat.
 func (t *TelegramCore) GetSendAs(chatID string) ([]string, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -20020,9 +18228,7 @@ func (t *TelegramCore) GetSendAs(chatID string) ([]string, error) {
 	return ids, nil
 }
 
-// SaveDefaultSendAs sets the default send-as peer for a channel chat.
 func (t *TelegramCore) SaveDefaultSendAs(chatID, peerID string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -20050,9 +18256,7 @@ func (t *TelegramCore) SaveDefaultSendAs(chatID, peerID string) error {
 	return err
 }
 
-// JoinChannel joins a public channel or supergroup by its username.
 func (t *TelegramCore) JoinChannel(chatID string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -20070,9 +18274,7 @@ func (t *TelegramCore) JoinChannel(chatID string) error {
 	return err
 }
 
-// LeaveChannel leaves a channel or supergroup.
 func (t *TelegramCore) LeaveChannel(chatID string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -20090,9 +18292,7 @@ func (t *TelegramCore) LeaveChannel(chatID string) error {
 	return err
 }
 
-// ToggleAntiSpam enables or disables the anti-spam system for a supergroup.
 func (t *TelegramCore) ToggleAntiSpam(chatID string, enabled bool) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -20112,9 +18312,7 @@ func (t *TelegramCore) ToggleAntiSpam(chatID string, enabled bool) error {
 	return err
 }
 
-// ToggleSignatures enables or disables author signatures in a channel.
 func (t *TelegramCore) ToggleSignatures(chatID string, enabled bool, profilesEnabled ...bool) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -20138,9 +18336,7 @@ func (t *TelegramCore) ToggleSignatures(chatID string, enabled bool, profilesEna
 	return err
 }
 
-// TogglePreHistoryHidden controls whether new members see pre-join messages.
 func (t *TelegramCore) TogglePreHistoryHidden(chatID string, hidden bool) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -20160,7 +18356,6 @@ func (t *TelegramCore) TogglePreHistoryHidden(chatID string, hidden bool) error 
 	return err
 }
 
-// TogglePeerTranslations toggles auto-translation for a peer.
 func (t *TelegramCore) TogglePeerTranslations(chatID string, disabled bool) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -20173,9 +18368,7 @@ func (t *TelegramCore) TogglePeerTranslations(chatID string, disabled bool) erro
 	return err
 }
 
-// SetGroupStickerSet sets a sticker set for a supergroup by short name.
 func (t *TelegramCore) SetGroupStickerSet(chatID, shortName string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -20201,9 +18394,7 @@ func (t *TelegramCore) SetGroupStickerSet(chatID, shortName string) error {
 	return err
 }
 
-// SetDiscussionGroup links or unlinks a discussion group to/from a channel.
 func (t *TelegramCore) SetDiscussionGroup(broadcastID, groupID string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -20247,9 +18438,7 @@ func (t *TelegramCore) SetDiscussionGroup(broadcastID, groupID string) error {
 	return err
 }
 
-// GetDiscussionGroups returns groups available for linking as discussion groups.
 func (t *TelegramCore) GetDiscussionGroups() ([]map[string]interface{}, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -20269,15 +18458,12 @@ func (t *TelegramCore) GetDiscussionGroups() ([]map[string]interface{}, error) {
 	for _, chat := range chats {
 		switch c := chat.(type) {
 		case *tg.Channel:
-			// username drives the public/private status line + confirm warning
-			// in the discussion-link box (edit_discussion_link_box.cpp:104).
 			groups = append(groups, map[string]interface{}{
 				"id":       fmt.Sprintf("-100%d", c.ID),
 				"title":    c.Title,
 				"username": c.Username,
 			})
 		case *tg.Chat:
-			// Legacy basic groups have no username — always private.
 			groups = append(groups, map[string]interface{}{
 				"id":       fmt.Sprintf("-%d", c.ID),
 				"title":    c.Title,
@@ -20288,7 +18474,6 @@ func (t *TelegramCore) GetDiscussionGroups() ([]map[string]interface{}, error) {
 	return groups, nil
 }
 
-// ToggleNoForwards enables or disables forwarding restrictions in a chat.
 func (t *TelegramCore) ToggleNoForwards(chatID string, enabled bool) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -20299,7 +18484,6 @@ func (t *TelegramCore) ToggleNoForwards(chatID string, enabled bool) error {
 	return err
 }
 
-// SetChatReactions configures which reactions are available in a chat.
 func (t *TelegramCore) SetChatReactions(chatID string, reactions []tg.ReactionClass) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -20318,9 +18502,6 @@ func (t *TelegramCore) SetChatReactions(chatID string, reactions []tg.ReactionCl
 	return err
 }
 
-// SetChatReactionsMode sets chat reactions to "all", "none", or specific emoji
-// list, plus the per-message max-count limit and (broadcast only) paid-reactions
-// toggle that EditAllowedReactionsBox exposes (edit_peer_reactions.cpp:949,1011).
 func (t *TelegramCore) SetChatReactionsMode(chatID string, mode string, emojis []string, maxCount int, paidEnabled bool) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -20360,10 +18541,7 @@ func (t *TelegramCore) SetChatReactionsMode(chatID string, mode string, emojis [
 	return err
 }
 
-// EditChannelTitle changes the title of a channel or supergroup.
-// UpdatePaidMessagesPrice sets the price for direct messages in a channel/supergroup.
 func (t *TelegramCore) UpdatePaidMessagesPrice(chatID string, stars int64, broadcastEnabled bool) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -20389,7 +18567,6 @@ func (t *TelegramCore) UpdatePaidMessagesPrice(chatID string, stars int64, broad
 }
 
 func (t *TelegramCore) SetBoostsUnrestrict(chatID string, boosts int) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -20411,7 +18588,6 @@ func (t *TelegramCore) SetBoostsUnrestrict(chatID string, boosts int) error {
 }
 
 func (t *TelegramCore) GetBoostsJSON(chatID string) (map[string]interface{}, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -20451,8 +18627,6 @@ func (t *TelegramCore) GetBoostsJSON(chatID string) (map[string]interface{}, err
 		for _, pg := range prepaid {
 			switch g := pg.(type) {
 			case *tg.PrepaidGiveaway:
-				// Premium subscriptions — boost count is quantity * multiplier
-				// (computed UI-side); no credits field.
 				giveaways = append(giveaways, map[string]interface{}{
 					"id":       g.ID,
 					"months":   g.Months,
@@ -20460,8 +18634,6 @@ func (t *TelegramCore) GetBoostsJSON(chatID string) (map[string]interface{}, err
 					"date":     g.Date,
 				})
 			case *tg.PrepaidStarsGiveaway:
-				// Telegram Stars giveaway (GiveawayTypeRow::Type::PrepaidCredits):
-				// carries the star amount + an explicit boost count.
 				giveaways = append(giveaways, map[string]interface{}{
 					"id":       g.ID,
 					"credits":  g.Stars,
@@ -20476,11 +18648,7 @@ func (t *TelegramCore) GetBoostsJSON(chatID string) (map[string]interface{}, err
 	return out, nil
 }
 
-// ApplyBoost spends one of the account's own boost slots on a channel
-// (premium.applyBoost — tdesktop's "Boost this channel" button). The
-// server rejects it without premium/free slots; that error surfaces.
 func (t *TelegramCore) ApplyBoost(chatID string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -20499,12 +18667,7 @@ func (t *TelegramCore) ApplyBoost(chatID string) error {
 	return err
 }
 
-// GetDiscussionThread fetches the comment thread of a channel post
-// (messages.getDiscussionMessage — tdesktop's comments view): the linked
-// discussion group's messages for the post, root first. Rows carry
-// ThreadRoot so the engine can cache + filter them.
 func (t *TelegramCore) GetDiscussionThread(chatID, msgID string) ([]Message, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -20539,8 +18702,6 @@ func (t *TelegramCore) GetDiscussionThread(chatID, msgID string) ([]Message, err
 	return out, nil
 }
 
-// ReadDiscussion marks the comment thread of a channel post read
-// (messages.readDiscussion — tdesktop marks on open).
 func (t *TelegramCore) ReadDiscussion(chatID, msgID string) error {
 	api, ctx, err := t.withAPI()
 	if err != nil {
@@ -20567,7 +18728,6 @@ func (t *TelegramCore) ReadDiscussion(chatID, msgID string) error {
 }
 
 func (t *TelegramCore) GetBoostsListJSON(chatID string, isGifts bool, offset string) (map[string]interface{}, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -20598,7 +18758,6 @@ func (t *TelegramCore) GetBoostsListJSON(chatID string, isGifts bool, offset str
 	if nextOff, ok := list.GetNextOffset(); ok {
 		out["next_offset"] = nextOff
 	}
-	// Cache booster users so getUserAvatarB64 can resolve their photo + access hash.
 	t.cacheEntities(list.Users, nil)
 	var boosters []map[string]interface{}
 	userMap := map[int64]tg.UserClass{}
@@ -20633,9 +18792,6 @@ func (t *TelegramCore) GetBoostsListJSON(chatID string, isGifts bool, offset str
 					row["user_name"] = name
 				}
 			}
-			// Real-user booster userpic so the row renders the actual avatar
-			// instead of the letter placeholder (generatePaintUserpicCallback,
-			// info_statistics_list_controllers.cpp:507).
 			if av := t.getUserAvatarB64(uid); av != "" {
 				row["avatar_b64"] = av
 			}
@@ -20650,7 +18806,6 @@ func (t *TelegramCore) GetBoostsListJSON(chatID string, isGifts bool, offset str
 }
 
 func (t *TelegramCore) GetGiftCodeOptions(chatID string) ([]map[string]interface{}, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -20691,7 +18846,6 @@ func (t *TelegramCore) GetGiftCodeOptions(chatID string) ([]map[string]interface
 }
 
 func (t *TelegramCore) GetGiveawayPeriodMax() (int, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 604800, err
@@ -20718,12 +18872,7 @@ func (t *TelegramCore) GetGiveawayPeriodMax() (int, error) {
 	return 604800, nil
 }
 
-// GetGiveawayConfig returns the giveaway-related app-config limits in a single
-// call. Mirrors AyuGram's PremiumGiftCodeOptions::giveaway{BoostsPerPremium,
-// CountriesMax,AddPeersMax,PeriodMax}() which all read the same appConfig object
-// (api/api_premium.cpp:689-715). Fallbacks match the C++ constants.
 func (t *TelegramCore) EditChannelTitle(chatID string, title string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -20743,9 +18892,7 @@ func (t *TelegramCore) EditChannelTitle(chatID string, title string) error {
 	return err
 }
 
-// GetForumTopics returns the list of topics in a forum supergroup.
 func (t *TelegramCore) GetForumTopics(chatID string, limit int) ([]ForumTopic, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -20771,9 +18918,7 @@ func (t *TelegramCore) GetForumTopics(chatID string, limit int) ([]ForumTopic, e
 	return t.parseForumTopicsResult(chatID, result), nil
 }
 
-// GetForumTopicsWithOffset fetches forum topics with pagination offset parameters.
 func (t *TelegramCore) GetForumTopicsWithOffset(chatID string, limit, offsetDate, offsetID, offsetTopic int) ([]ForumTopic, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -20885,9 +19030,7 @@ func (t *TelegramCore) parseForumTopicsResult(chatID string, result *tg.Messages
 	return topics
 }
 
-// ToggleForum enables or disables forum mode for a supergroup.
 func (t *TelegramCore) ToggleForum(chatID string, enabled bool) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -20907,12 +19050,7 @@ func (t *TelegramCore) ToggleForum(chatID string, enabled bool) error {
 	return err
 }
 
-// ToggleForumTabs enables/disables forum mode AND selects the tabbed vs
-// list-based layout (channels.toggleForum tabs flag). Mirrors AyuGram's
-// ToggleTopicsBox which passes both `enabled` and `tabs`
-// (boxes/peers/toggle_topics_box.cpp:214).
 func (t *TelegramCore) ToggleForumTabs(chatID string, enabled bool, tabs bool) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -20932,10 +19070,6 @@ func (t *TelegramCore) ToggleForumTabs(chatID string, enabled bool, tabs bool) e
 	return err
 }
 
-// GetFullUser returns full profile information for a user by their ID.
-// applyBotInfoFields folds a bot_info payload into the user profile:
-// description ("What can this bot do?"), privacy-policy URL and the web-app
-// menu-button label. Pure — unit-tested.
 func applyBotInfoFields(cu *User, bi *tg.BotInfo) {
 	if cu == nil || bi == nil {
 		return
@@ -20954,8 +19088,6 @@ func applyBotInfoFields(cu *User, bi *tg.BotInfo) {
 }
 
 func (t *TelegramCore) GetFullUser(userID string) (*User, error) {
-	// withAPI rule: the UsersGetFullUser RPC (plus the timezone-list fetch
-	// below for business-hours users) runs WITHOUT t.mu held.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -21038,7 +19170,7 @@ func (t *TelegramCore) GetFullUser(userID string) (*User, error) {
 				}
 				type bh struct {
 					Timezone  string     `json:"timezone"`
-					UtcOffset int        `json:"utc_offset"` // owner timezone offset in seconds (help.getTimezonesList)
+					UtcOffset int        `json:"utc_offset"`
 					Intervals []interval `json:"intervals"`
 				}
 				out := bh{Timezone: bwh.TimezoneID}
@@ -21058,7 +19190,6 @@ func (t *TelegramCore) GetFullUser(userID string) (*User, error) {
 	return nil, ErrNotFound
 }
 
-// BotCommandEntry is a bot command with bot identity info.
 type BotCommandEntry struct {
 	Command     string `json:"command"`
 	Description string `json:"description"`
@@ -21068,13 +19199,7 @@ type BotCommandEntry struct {
 	AvatarB64   string `json:"avatar_b64,omitempty"`
 }
 
-// GetChatBotCommands returns bot commands available in a chat.
-// For DM bots: returns the bot's commands from UsersGetFullUser.
-// For groups/channels: returns all bot commands from MessagesGetFullChat/ChannelsGetFullChannel.
 func (t *TelegramCore) GetChatBotCommands(chatID string) ([]BotCommandEntry, error) {
-	// withAPI rule: the full-user/full-chat RPCs run WITHOUT t.mu held —
-	// opening a bot chat fires this alongside GetMessages + GetFullUser, and
-	// three concurrent RLock-across-RPC holders were the reported freeze.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -21194,9 +19319,7 @@ func userDisplayName(u *tg.User) string {
 	return name
 }
 
-// UpdateProfile updates the user's first name, last name, or bio.
 func (t *TelegramCore) UpdateProfile(firstName, lastName, about string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -21223,7 +19346,6 @@ func (t *TelegramCore) SelfUserID() string {
 }
 
 func (t *TelegramCore) GetSelfBio() (string, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return "", err
@@ -21236,7 +19358,6 @@ func (t *TelegramCore) GetSelfBio() (string, error) {
 }
 
 func (t *TelegramCore) GetSelfBirthday() (day, month, year int, err error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 0, 0, 0, err
@@ -21254,7 +19375,6 @@ func (t *TelegramCore) GetSelfBirthday() (day, month, year int, err error) {
 }
 
 func (t *TelegramCore) UpdateBio(bio string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -21265,15 +19385,7 @@ func (t *TelegramCore) UpdateBio(bio string) error {
 	return err
 }
 
-// GetSelfColorAndChannel returns the self user's name colorID, personal channel
-// title, name background-emoji DocumentId, profile colorID, and profile
-// background-emoji DocumentId. AyuGram seeds the EditPeerColorBox from these
-// four distinct current values: peer->colorIndex(), peer->backgroundEmojiId(),
-// peer->colorProfileIndex(), peer->profileBackgroundEmojiId()
-// (edit_peer_color_box.cpp:501-506). profileColorID is -1 when the user has no
-// profile color set (AyuGram's kUnsetColorIndex).
 func (t *TelegramCore) GetSelfColorAndChannel() (colorID int, channelName string, bgEmojiID int64, profileColorID int, profileBgEmojiID int64, err error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return -1, "", 0, -1, 0, err
@@ -21326,7 +19438,6 @@ func (t *TelegramCore) GetSelfColorAndChannel() (colorID int, channelName string
 }
 
 func (t *TelegramCore) UpdateNameColor(colorID int, backgroundEmojiID int64, forProfile bool) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -21354,7 +19465,6 @@ func (t *TelegramCore) UpdateNameColor(colorID int, backgroundEmojiID int64, for
 }
 
 func (t *TelegramCore) GetBackgroundEmojiList() ([]int64, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -21400,7 +19510,6 @@ func (t *TelegramCore) GetContentSettings() (sensitiveEnabled bool, sensitiveCan
 }
 
 func (t *TelegramCore) SetContentSettings(sensitiveEnabled bool) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -21411,9 +19520,7 @@ func (t *TelegramCore) SetContentSettings(sensitiveEnabled bool) error {
 	return err
 }
 
-// UpdateStatus sets the user's online or offline status.
 func (t *TelegramCore) UpdateStatus(online bool) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -21422,9 +19529,7 @@ func (t *TelegramCore) UpdateStatus(online bool) error {
 	return err
 }
 
-// GetUserPhotos returns the profile photos of a user.
 func (t *TelegramCore) GetUserPhotos(userID string, limit int) (int, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 0, err
@@ -21452,7 +19557,6 @@ func (t *TelegramCore) GetUserPhotos(userID string, limit int) (int, error) {
 	return 0, nil
 }
 
-// GetUserPhotoAtIndex downloads the profile photo at a specific index and returns its path and photo ID.
 func (t *TelegramCore) GetUserPhotoAtIndex(userID string, index int) (string, string, error) {
 	api, ctx, err := t.withAPI()
 	if err != nil {
@@ -21546,9 +19650,7 @@ func (t *TelegramCore) GetUserPhotoAtIndex(userID string, index int) (string, st
 	return destPath, photoId, nil
 }
 
-// GetAccountTTL returns the account self-destruct timer.
 func (t *TelegramCore) GetAccountTTL() (int, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 0, err
@@ -21560,9 +19662,7 @@ func (t *TelegramCore) GetAccountTTL() (int, error) {
 	return result.Days, nil
 }
 
-// GetPrivacy returns the privacy rules for a specific setting.
 func (t *TelegramCore) GetPrivacy(key tg.InputPrivacyKeyClass) ([]tg.PrivacyRuleClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -21574,9 +19674,7 @@ func (t *TelegramCore) GetPrivacy(key tg.InputPrivacyKeyClass) ([]tg.PrivacyRule
 	return result.Rules, nil
 }
 
-// SetPrivacy sets privacy rules for a given key (calls, messages, etc.).
 func (t *TelegramCore) SetPrivacy(key tg.InputPrivacyKeyClass, rules []tg.InputPrivacyRuleClass) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -21587,9 +19685,6 @@ func (t *TelegramCore) SetPrivacy(key tg.InputPrivacyKeyClass, rules []tg.InputP
 	return err
 }
 
-// privacyKeyFor maps a settings-style privacy key ("last_seen", "calls", …)
-// to the matching Telegram input privacy key. Returns nil for unknown keys.
-// The vocabulary mirrors AyuGram's privacy settings rows.
 func privacyKeyFor(key string) tg.InputPrivacyKeyClass {
 	switch key {
 	case "last_seen":
@@ -21616,12 +19711,6 @@ func privacyKeyFor(key string) tg.InputPrivacyKeyClass {
 	return nil
 }
 
-// privacyScopeFromRules classifies a Telegram privacy rule list into the
-// simple scope vocabulary shared with the engine and GUI:
-// "everybody" / "contacts" / "close_friends" / "nobody". An AllowAll rule
-// wins outright; otherwise the most restrictive descriptive rule (contacts,
-// close friends) is reported, defaulting to nobody. Per-user exceptions are
-// not modeled at this level.
 func privacyScopeFromRules(rules []tg.PrivacyRuleClass) string {
 	scope := "nobody"
 	for _, r := range rules {
@@ -21639,9 +19728,6 @@ func privacyScopeFromRules(rules []tg.PrivacyRuleClass) string {
 	return scope
 }
 
-// privacyRulesForScope builds the Telegram input rule list for a simple
-// scope. "contacts" allows contacts and disallows everyone else, matching
-// how Telegram clients encode "My contacts".
 func privacyRulesForScope(scope string) []tg.InputPrivacyRuleClass {
 	switch scope {
 	case "everybody":
@@ -21656,13 +19742,11 @@ func privacyRulesForScope(scope string) []tg.InputPrivacyRuleClass {
 			&tg.InputPrivacyValueAllowCloseFriends{},
 			&tg.InputPrivacyValueDisallowAll{},
 		}
-	default: // "nobody"
+	default:
 		return []tg.InputPrivacyRuleClass{&tg.InputPrivacyValueDisallowAll{}}
 	}
 }
 
-// GetPrivacyScope reads the current scope ("everybody"/"contacts"/
-// "close_friends"/"nobody") for a settings-style privacy key.
 func (t *TelegramCore) GetPrivacyScope(key string) (string, error) {
 	k := privacyKeyFor(key)
 	if k == nil {
@@ -21675,7 +19759,6 @@ func (t *TelegramCore) GetPrivacyScope(key string) (string, error) {
 	return privacyScopeFromRules(rules), nil
 }
 
-// SetPrivacyScope applies a simple scope to a settings-style privacy key.
 func (t *TelegramCore) SetPrivacyScope(key, scope string) error {
 	k := privacyKeyFor(key)
 	if k == nil {
@@ -21684,9 +19767,7 @@ func (t *TelegramCore) SetPrivacyScope(key, scope string) error {
 	return t.SetPrivacy(k, privacyRulesForScope(scope))
 }
 
-// GetAllStickerSets returns all installed sticker sets.
 func (t *TelegramCore) GetAllStickerSets() ([]string, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -21704,9 +19785,7 @@ func (t *TelegramCore) GetAllStickerSets() ([]string, error) {
 	return names, nil
 }
 
-// GetFavedStickers returns favorite stickers.
 func (t *TelegramCore) GetFavedStickers() (int, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 0, err
@@ -21721,11 +19800,7 @@ func (t *TelegramCore) GetFavedStickers() (int, error) {
 	return 0, nil
 }
 
-// GetFavedStickersList returns the user's favorited (starred) stickers as a
-// list. AyuGram shows these as the FavedSetId grid section (the first section,
-// before Recent) in the sticker panel — stickers_list_widget.cpp:2931.
 func (t *TelegramCore) GetFavedStickersList() ([]StickerInfo, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -21768,24 +19843,19 @@ func (t *TelegramCore) GetFavedStickersList() ([]StickerInfo, error) {
 	return stickers, nil
 }
 
-// GetGifSearchEmojies returns the GIF-search category emoji from the Telegram
-// app config key gif_search_emojies, falling back to AyuGram's fixed 10-emoji
-// list when the key is absent — stickers_list_footer.cpp:98
-// (GifSearchEmojiFallback + GifSectionsValue).
 func (t *TelegramCore) GetGifSearchEmojies() ([]string, error) {
 	fallback := []string{
-		"\U0001F44D", // 👍
-		"\U0001F618", // 😘
-		"\U0001F60D", // 😍
-		"\U0001F621", // 😡
-		"\U0001F973", // 🥳
-		"\U0001F602", // 😂
-		"\U0001F62E", // 😮
-		"\U0001F644", // 🙄
-		"\U0001F60E", // 😎
-		"\U0001F44E", // 👎
+		"\U0001F44D",
+		"\U0001F618",
+		"\U0001F60D",
+		"\U0001F621",
+		"\U0001F973",
+		"\U0001F602",
+		"\U0001F62E",
+		"\U0001F644",
+		"\U0001F60E",
+		"\U0001F44E",
 	}
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return fallback, err
@@ -21821,9 +19891,7 @@ func (t *TelegramCore) GetGifSearchEmojies() ([]string, error) {
 	return fallback, nil
 }
 
-// StartBot starts a conversation with a bot using a deep link parameter.
 func (t *TelegramCore) StartBot(botID string, chatID string, startParam string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -21842,7 +19910,6 @@ func (t *TelegramCore) StartBot(botID string, chatID string, startParam string) 
 	return err
 }
 
-// GetBotCallbackAnswer sends a callback query to a bot and returns its answer.
 func (t *TelegramCore) GetBotCallbackAnswer(chatID string, msgID string, data []byte, isGame bool) (BotCallbackResult, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -21875,8 +19942,6 @@ func (t *TelegramCore) GetBotCallbackAnswer(chatID string, msgID string, data []
 	}, nil
 }
 
-// RequestURLAuth requests URL auth metadata for an inline keyboard button.
-// Returns a JSON map: {"type":"request","domain":...,"bot_name":...,...} or {"type":"default"}.
 func (t *TelegramCore) RequestURLAuth(chatID string, msgID string, buttonID int) (map[string]interface{}, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -21944,7 +20009,6 @@ func (t *TelegramCore) RequestURLAuth(chatID string, msgID string, buttonID int)
 	return out, nil
 }
 
-// AcceptURLAuth accepts a URL auth request and returns the result URL to open.
 func (t *TelegramCore) AcceptURLAuth(chatID string, msgID string, buttonID int, writeAllowed bool, sharePhone bool) (string, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -21977,9 +20041,7 @@ func (t *TelegramCore) AcceptURLAuth(chatID string, msgID string, buttonID int, 
 	}
 }
 
-// RequestBotWebView opens the main web view for a bot and returns the URL.
 func (t *TelegramCore) RequestBotWebView(chatID string, botID string) (string, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return "", err
@@ -22008,7 +20070,6 @@ func (t *TelegramCore) RequestBotWebView(chatID string, botID string) (string, e
 	return result.URL, nil
 }
 
-// InlineBotResult represents a single inline bot result for the UI.
 type InlineBotResult struct {
 	ID            string `json:"id"`
 	Type          string `json:"type"`
@@ -22023,7 +20084,6 @@ type InlineBotResult struct {
 	DocumentExtra string `json:"document_extra,omitempty"`
 }
 
-// InlineBotResults holds the full response from an inline bot query.
 type InlineBotResults struct {
 	QueryID       int64             `json:"query_id"`
 	NextOffset    string            `json:"next_offset"`
@@ -22033,9 +20093,7 @@ type InlineBotResults struct {
 	SwitchPMParam string            `json:"switch_pm_param,omitempty"`
 }
 
-// GetInlineBotResults queries an inline bot and returns its results.
 func (t *TelegramCore) GetInlineBotResults(botID string, query string) (int, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 0, err
@@ -22055,10 +20113,7 @@ func (t *TelegramCore) GetInlineBotResults(botID string, query string) (int, err
 	return len(result.Results), nil
 }
 
-// GetInlineBotResultsFull queries an inline bot and returns structured results.
 func (t *TelegramCore) GetInlineBotResultsFull(botID string, query string, offset string, chatID string) (*InlineBotResults, error) {
-	// withAPI rule: run the query RPC unlocked (the old RLock-across-RPC +
-	// relock dance around withPeer was both racy and a freeze hazard).
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -22157,9 +20212,7 @@ func (t *TelegramCore) GetInlineBotResultsFull(botID string, query string, offse
 	return out, nil
 }
 
-// GetCallConfig returns the WebRTC configuration for voice and video calls.
 func (t *TelegramCore) GetCallConfig() (int, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 0, err
@@ -22168,12 +20221,10 @@ func (t *TelegramCore) GetCallConfig() (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	return 1, nil // just verify it works
+	return 1, nil
 }
 
-// GetBroadcastStats returns statistics for a broadcast channel.
 func (t *TelegramCore) GetBroadcastStats(chatID string) (map[string]interface{}, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -22326,9 +20377,7 @@ func statsAbsVal(v tg.StatsAbsValueAndPrev) map[string]interface{} {
 	}
 }
 
-// GetAllStories returns all visible stories from contacts and channels.
 func (t *TelegramCore) GetAllStories() (int, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 0, err
@@ -22343,9 +20392,7 @@ func (t *TelegramCore) GetAllStories() (int, error) {
 	return 0, nil
 }
 
-// GetNearestDC returns the nearest data center for the current connection.
 func (t *TelegramCore) GetNearestDC() (int, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 0, err
@@ -22357,7 +20404,6 @@ func (t *TelegramCore) GetNearestDC() (int, error) {
 	return result.NearestDC, nil
 }
 
-// SetChatTheme sets or clears the visual theme for a chat.
 func (t *TelegramCore) SetChatTheme(chatID string, emoticon string) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -22374,9 +20420,6 @@ func (t *TelegramCore) SetChatTheme(chatID string, emoticon string) error {
 	return err
 }
 
-// --- Missing comprehensive methods ---
-
-// GetMessageReactionsList returns the list of reactions on a specific message.
 func (t *TelegramCore) GetMessageReactionsList(chatID string, msgID int, limit int, offset string, reactionFilter string) ([]Reaction, string, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -22439,7 +20482,6 @@ func (t *TelegramCore) GetMessageReactionsList(chatID string, msgID int, limit i
 	return reactions, nextOffset, nil
 }
 
-// GetAvailableReactionEmojis returns all available reaction emoji strings (top reactions first, then remaining).
 func (t *TelegramCore) GetAvailableReactionEmojis() ([]string, error) {
 	api, ctx, err := t.withAPI()
 	if err != nil {
@@ -22479,7 +20521,6 @@ func (t *TelegramCore) GetAvailableReactionEmojis() ([]string, error) {
 	return emojis, nil
 }
 
-// SendBotRequestedPeer sends the selected peer(s) to a bot via the proper API.
 func (t *TelegramCore) SendBotRequestedPeer(chatID string, msgID int, buttonID int, peerIDs []string) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -22512,7 +20553,6 @@ func (t *TelegramCore) SendBotRequestedPeer(chatID string, msgID int, buttonID i
 	return err
 }
 
-// GetUnreadMentions returns unread messages that mention the user.
 func (t *TelegramCore) GetUnreadMentions(chatID string, limit int) ([]Message, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -22531,7 +20571,6 @@ func (t *TelegramCore) GetUnreadMentions(chatID string, limit int) ([]Message, e
 	return t.convertMessages(result), nil
 }
 
-// GetUnreadPollVotes returns messages with unread poll votes in a chat.
 func (t *TelegramCore) GetUnreadPollVotes(chatID string, limit int) ([]Message, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -22550,7 +20589,6 @@ func (t *TelegramCore) GetUnreadPollVotes(chatID string, limit int) ([]Message, 
 	return t.convertMessages(result), nil
 }
 
-// GetUnreadReactions returns messages with unread reactions in a chat.
 func (t *TelegramCore) GetUnreadReactions(chatID string, limit int) ([]Message, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -22569,7 +20607,6 @@ func (t *TelegramCore) GetUnreadReactions(chatID string, limit int) ([]Message, 
 	return t.convertMessages(result), nil
 }
 
-// DeleteHistory deletes message history in a chat up to a specified message.
 func (t *TelegramCore) DeleteHistory(chatID string) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -22580,7 +20617,6 @@ func (t *TelegramCore) DeleteHistory(chatID string) error {
 	return err
 }
 
-// SendScheduledNow immediately sends a previously scheduled message.
 func (t *TelegramCore) SendScheduledNow(chatID string, msgIDs []int) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -22609,7 +20645,6 @@ func (t *TelegramCore) RescheduleMessage(chatID string, msgID int, scheduleDate 
 	return err
 }
 
-// GetPollResults returns the current results of a poll.
 func (t *TelegramCore) GetPollResults(chatID string, msgID int) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -22622,9 +20657,7 @@ func (t *TelegramCore) GetPollResults(chatID string, msgID int) error {
 	return err
 }
 
-// CheckChatInvite returns info about a chat invite link without joining.
 func (t *TelegramCore) CheckChatInvite(hash string) (string, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return "", err
@@ -22654,9 +20687,7 @@ func (t *TelegramCore) CheckChatInvite(hash string) (string, error) {
 	return "", nil
 }
 
-// GetFullChat returns full information for a basic group chat.
 func (t *TelegramCore) GetFullChat(chatID string) (*Dialog, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -22686,9 +20717,7 @@ func (t *TelegramCore) GetFullChat(chatID string) (*Dialog, error) {
 	return d, nil
 }
 
-// ToggleJoinToSend controls whether users must join before sending messages.
 func (t *TelegramCore) ToggleJoinToSend(chatID string, enabled bool) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -22708,9 +20737,7 @@ func (t *TelegramCore) ToggleJoinToSend(chatID string, enabled bool) error {
 	return err
 }
 
-// ToggleJoinRequest enables or disables admin approval for new members.
 func (t *TelegramCore) ToggleJoinRequest(chatID string, enabled bool) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -22730,9 +20757,7 @@ func (t *TelegramCore) ToggleJoinRequest(chatID string, enabled bool) error {
 	return err
 }
 
-// DeleteChannel permanently deletes a channel or supergroup.
 func (t *TelegramCore) DeleteChannel(chatID string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -22752,7 +20777,6 @@ func (t *TelegramCore) DeleteChannel(chatID string) error {
 	return err
 }
 
-// EditForumTopic modifies the title or icon of a forum topic.
 func (t *TelegramCore) EditForumTopic(chatID string, topicID int, title string, iconEmojiId int64) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -22768,9 +20792,7 @@ func (t *TelegramCore) EditForumTopic(chatID string, topicID int, title string, 
 	return err
 }
 
-// FaveSticker adds or removes a sticker from favorites.
 func (t *TelegramCore) FaveSticker(fileID int64, extra string, unfave bool) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -22788,9 +20810,7 @@ func (t *TelegramCore) FaveSticker(fileID int64, extra string, unfave bool) erro
 	return err
 }
 
-// SaveGif saves or unsaves a GIF animation.
 func (t *TelegramCore) SaveGif(fileID int64, extra string, unsave bool) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -22808,9 +20828,7 @@ func (t *TelegramCore) SaveGif(fileID int64, extra string, unsave bool) error {
 	return err
 }
 
-// GetMegagroupStats returns statistics for a supergroup.
 func (t *TelegramCore) GetMegagroupStats(chatID string) (map[string]interface{}, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -22925,7 +20943,6 @@ func (t *TelegramCore) GetMegagroupStats(chatID string) (map[string]interface{},
 	}, nil
 }
 
-// GetPeerStories returns the stories of a specific user or channel.
 func (t *TelegramCore) GetPeerStories(peerID string) (int, error) {
 	inputPeer, unlock, err := t.withPeer(peerID)
 	if err != nil {
@@ -22939,8 +20956,6 @@ func (t *TelegramCore) GetPeerStories(peerID string) (int, error) {
 	return len(result.Stories.Stories), nil
 }
 
-// FetchPeerStoriesData fetches full story items with media references for a peer.
-// Returns JSON array of story objects.
 func (t *TelegramCore) FetchPeerStoriesData(peerID string) (string, error) {
 	inputPeer, unlock, err := t.withPeer(peerID)
 	if err != nil {
@@ -23179,7 +21194,6 @@ type StoryAlbumInfo struct {
 }
 
 func (t *TelegramCore) GetStoryAlbums(peerID string) ([]StoryAlbumInfo, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -23217,7 +21231,6 @@ func (t *TelegramCore) GetStoryAlbums(peerID string) ([]StoryAlbumInfo, error) {
 }
 
 func (t *TelegramCore) GetAlbumStories(peerID string, albumID int, offset, limit int) (string, int, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return "", 0, err
@@ -23286,7 +21299,6 @@ func (t *TelegramCore) GetAlbumStories(peerID string, albumID int, offset, limit
 }
 
 func (t *TelegramCore) CreateStoryAlbum(title string) (int64, string, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 0, "", err
@@ -23302,7 +21314,6 @@ func (t *TelegramCore) CreateStoryAlbum(title string) (int64, string, error) {
 }
 
 func (t *TelegramCore) ReorderStoryAlbums(albumIDs []int) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -23314,9 +21325,7 @@ func (t *TelegramCore) ReorderStoryAlbums(albumIDs []int) error {
 	return err
 }
 
-// GetConfig returns the current Telegram server configuration.
 func (t *TelegramCore) GetConfig() (int, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 0, err
@@ -23328,12 +21337,7 @@ func (t *TelegramCore) GetConfig() (int, error) {
 	return len(result.DCOptions), nil
 }
 
-// GetNotifyDelayConfig returns the server-provided notification timing values
-// from help.getConfig: notify_cloud_delay_ms, notify_default_delay_ms and
-// online_cloud_timeout_ms. These drive Window::Notifications::System::countTiming
-// in AyuGram (notifications_manager.cpp:385-392). All three are milliseconds.
 func (t *TelegramCore) GetNotifyDelayConfig() (cloudDelayMs, defaultDelayMs, onlineCloudTimeoutMs int, err error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 0, 0, 0, err
@@ -23345,9 +21349,7 @@ func (t *TelegramCore) GetNotifyDelayConfig() (cloudDelayMs, defaultDelayMs, onl
 	return result.NotifyCloudDelayMs, result.NotifyDefaultDelayMs, result.OnlineCloudTimeoutMs, nil
 }
 
-// GetAppConfig returns the application configuration from Telegram servers.
 func (t *TelegramCore) GetAppConfig() (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -23359,13 +21361,7 @@ func (t *TelegramCore) GetAppConfig() (bool, error) {
 	return true, nil
 }
 
-// GetMegagroupSizeMax returns the server-configured maximum number of members
-// a megagroup (supergroup) can hold, read from help.getConfig's
-// megagroup_size_max field. This drives the "%1 / %2" member-cap title in the
-// create-group/add-participants UI, matching AyuGram's
-// session().serverConfig().megagroupSizeMax.
 func (t *TelegramCore) GetMegagroupSizeMax() (int, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 0, err
@@ -23377,11 +21373,7 @@ func (t *TelegramCore) GetMegagroupSizeMax() (int, error) {
 	return result.MegagroupSizeMax, nil
 }
 
-// --- Remaining methods for comprehensive coverage ---
-
-// GetPassword retrieves the current 2FA password configuration for the account.
 func (t *TelegramCore) GetPassword() (*tg.AccountPassword, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -23396,7 +21388,6 @@ type PasskeyInfo struct {
 }
 
 func (t *TelegramCore) GetPasskeyList() ([]PasskeyInfo, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -23428,7 +21419,6 @@ type PasswordResetResult struct {
 }
 
 func (t *TelegramCore) GetCloudPasswordState() (CloudPasswordState, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return CloudPasswordState{}, err
@@ -23556,7 +21546,6 @@ func (t *TelegramCore) SetCloudPasswordEmail(currentPassword, email string) erro
 }
 
 func (t *TelegramCore) CheckRecoveryPassword(code string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -23600,7 +21589,6 @@ func (t *TelegramCore) RecoverPasswordWithCode(code, newPassword, hint string) e
 }
 
 func (t *TelegramCore) RequestPasswordRecovery() (string, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return "", err
@@ -23613,7 +21601,6 @@ func (t *TelegramCore) RequestPasswordRecovery() (string, error) {
 }
 
 func (t *TelegramCore) ResetPassword() (PasswordResetResult, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return PasswordResetResult{}, err
@@ -23634,7 +21621,6 @@ func (t *TelegramCore) ResetPassword() (PasswordResetResult, error) {
 }
 
 func (t *TelegramCore) CancelResetPassword() error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -23643,9 +21629,7 @@ func (t *TelegramCore) CancelResetPassword() error {
 	return err
 }
 
-// GetGlobalPrivacy returns the current global privacy settings.
 func (t *TelegramCore) GetGlobalPrivacy() (*tg.GlobalPrivacySettings, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -23654,7 +21638,6 @@ func (t *TelegramCore) GetGlobalPrivacy() (*tg.GlobalPrivacySettings, error) {
 }
 
 func (t *TelegramCore) GetGiftSettings() (showIcon bool, disallowLimited, disallowUnlimited, disallowUnique, disallowChannels, disallowPremium bool, err error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, false, false, false, false, false, err
@@ -23689,7 +21672,6 @@ func (t *TelegramCore) SetGiftSettings(showIcon, acceptLimited, acceptUnlimited,
 }
 
 func (t *TelegramCore) GetArchiveSettings() (archiveAndMute bool, keepArchivedUnmuted bool, keepArchivedFolders bool, err error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, false, false, err
@@ -23702,7 +21684,6 @@ func (t *TelegramCore) GetArchiveSettings() (archiveAndMute bool, keepArchivedUn
 }
 
 func (t *TelegramCore) SetArchiveSettings(archiveAndMute, keepArchivedUnmuted, keepArchivedFolders bool) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -23715,9 +21696,7 @@ func (t *TelegramCore) SetArchiveSettings(archiveAndMute, keepArchivedUnmuted, k
 	return err
 }
 
-// GetAppConfigCheck returns app config only if changed since a given hash.
 func (t *TelegramCore) GetAppConfigCheck() error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -23726,9 +21705,7 @@ func (t *TelegramCore) GetAppConfigCheck() error {
 	return err
 }
 
-// GetConfigDCCount returns the number of available data centers.
 func (t *TelegramCore) GetConfigDCCount() (int, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 0, err
@@ -23740,9 +21717,7 @@ func (t *TelegramCore) GetConfigDCCount() (int, error) {
 	return len(result.DCOptions), nil
 }
 
-// SearchContactsCount returns the count of contacts matching a search query.
 func (t *TelegramCore) SearchContactsCount(query string) (int, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 0, err
@@ -23754,9 +21729,7 @@ func (t *TelegramCore) SearchContactsCount(query string) (int, error) {
 	return len(result.Users) + len(result.MyResults), nil
 }
 
-// GetTopPeersCount returns the count of top (frequently contacted) peers.
 func (t *TelegramCore) GetTopPeersCount() (int, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 0, err
@@ -23777,9 +21750,7 @@ func (t *TelegramCore) GetTopPeersCount() (int, error) {
 	return 0, nil
 }
 
-// GetBirthdaysCount returns the count of contacts with upcoming birthdays.
 func (t *TelegramCore) GetBirthdaysCount() (int, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 0, err
@@ -23791,9 +21762,7 @@ func (t *TelegramCore) GetBirthdaysCount() (int, error) {
 	return len(result.Contacts), nil
 }
 
-// GetRecentStickersCount returns the count of recently used stickers.
 func (t *TelegramCore) GetRecentStickersCount() (int, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 0, err
@@ -23808,9 +21777,7 @@ func (t *TelegramCore) GetRecentStickersCount() (int, error) {
 	return 0, nil
 }
 
-// GetFeaturedStickersCount returns the count of featured sticker sets.
 func (t *TelegramCore) GetFeaturedStickersCount() (int, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 0, err
@@ -23825,9 +21792,7 @@ func (t *TelegramCore) GetFeaturedStickersCount() (int, error) {
 	return 0, nil
 }
 
-// SearchStickerSetsCount returns the count of matching sticker sets.
 func (t *TelegramCore) SearchStickerSetsCount(query string) (int, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 0, err
@@ -23842,7 +21807,6 @@ func (t *TelegramCore) SearchStickerSetsCount(query string) (int, error) {
 	return 0, nil
 }
 
-// GetSearchCounters returns message counts matching different filters in a chat.
 func (t *TelegramCore) GetSearchCounters(chatID string) ([]int, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -23862,9 +21826,7 @@ func (t *TelegramCore) GetSearchCounters(chatID string) ([]int, error) {
 	return counts, nil
 }
 
-// GetDefaultHistoryTTL returns the default auto-delete timer for new chats.
 func (t *TelegramCore) GetDefaultHistoryTTL() (int, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 0, err
@@ -23876,10 +21838,6 @@ func (t *TelegramCore) GetDefaultHistoryTTL() (int, error) {
 	return result.Period, nil
 }
 
-// reactionClassForKey converts the GUI reaction key ("👍" or
-// "custom_<docID>") into the wire ReactionClass (slice 172; shared by
-// SetDefaultReaction). Malformed custom keys fall back to plain-emoji
-// semantics.
 func reactionClassForKey(key string) tg.ReactionClass {
 	if strings.HasPrefix(key, "custom_") {
 		if docID, err := strconv.ParseInt(key[7:], 10, 64); err == nil {
@@ -23889,10 +21847,6 @@ func reactionClassForKey(key string) tg.ReactionClass {
 	return &tg.ReactionEmoji{Emoticon: key}
 }
 
-// decodeDefaultReactionKey extracts the GUI favorite-reaction key from
-// the server config's reactions_default (tg.Config.ReactionsDefault):
-// an emoji, a custom emoji as "custom_<docID>", or "" when the server
-// did not send one (tdesktop favoriteId semantics).
 func decodeDefaultReactionKey(r tg.ReactionClass) string {
 	switch v := r.(type) {
 	case *tg.ReactionEmoji:
@@ -23903,12 +21857,7 @@ func decodeDefaultReactionKey(r tg.ReactionClass) string {
 	return ""
 }
 
-// SetDefaultReaction sets the quick (favorite) reaction — messages.
-// setDefaultReaction, tdesktop Reactions::setFavorite. "custom_<docID>"
-// keys set a custom-emoji favorite; the cached server config mirrors the
-// new value optimistically (applyFavorite semantics).
 func (t *TelegramCore) SetDefaultReaction(emoji string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -23925,18 +21874,11 @@ func (t *TelegramCore) SetDefaultReaction(emoji string) error {
 	return err
 }
 
-// GetDefaultReaction reads the account's default (favorite) reaction from
-// help.getConfig reactions_default (tdesktop favoriteId; fallback 👍 is the
-// caller's). Returns "" when the config omits it.
 func (t *TelegramCore) GetDefaultReaction() (string, error) {
-	// One help.getConfig per connection (slice 172): the config feeds the
-	// favorite-reaction read and SetDefaultReaction mirrors writes into
-	// it — hover-time reads must never re-RPC.
 	t.cfgMu.RLock()
 	cfg := t.cachedCfg
 	t.cfgMu.RUnlock()
 	if cfg == nil {
-		// withAPI rule: never hold t.mu across the RPC.
 		api, ctx, err := t.withAPI()
 		if err != nil {
 			return "", err
@@ -23951,25 +21893,17 @@ func (t *TelegramCore) GetDefaultReaction() (string, error) {
 		cfg = result
 	}
 	if reaction, ok := cfg.GetReactionsDefault(); ok {
-		// Custom-emoji favorites decode to the "custom_<docID>" wire key
-		// (tdesktop reactionDefaultCustom); plain emojis pass through.
 		return decodeDefaultReactionKey(reaction), nil
 	}
 	return "", nil
 }
 
-// ReactToMessageList sets the message's own reactions to exactly the given
-// emoji list — tdesktop toggleReaction semantics: the GUI computes the new
-// list (favorite added/removed) and sends it whole. An empty list removes
-// all own reactions. Custom-emoji reactions pass as "custom_<docID>".
 func (t *TelegramCore) ReactToMessageList(chatID string, msgID string, emojis []string) error {
-	// withAPI rule: never hold t.mu across the RPC (the corner reaction
-	// button fires these on hover taps — slice 159).
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
 	}
-	var peer tg.InputPeerClass // assigned on both paths below (the default was dead)
+	var peer tg.InputPeerClass
 	if inputPeer, unlock, perr := t.withPeer(chatID); perr == nil {
 		peer = inputPeer
 		unlock()
@@ -23998,9 +21932,7 @@ func (t *TelegramCore) ReactToMessageList(chatID string, msgID string, emojis []
 	return err
 }
 
-// ToggleParticipantsHidden hides or reveals the member list in a supergroup.
 func (t *TelegramCore) ToggleParticipantsHidden(chatID string, hidden bool) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -24020,9 +21952,7 @@ func (t *TelegramCore) ToggleParticipantsHidden(chatID string, hidden bool) erro
 	return err
 }
 
-// GetSuggestedFoldersCount returns the count of suggested chat folders.
 func (t *TelegramCore) GetSuggestedFoldersCount() (int, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 0, err
@@ -24034,9 +21964,7 @@ func (t *TelegramCore) GetSuggestedFoldersCount() (int, error) {
 	return len(result), nil
 }
 
-// GetSuggestedFolders returns the list of suggested chat folders from the server.
 func (t *TelegramCore) GetSuggestedFolders() ([]SuggestedFolder, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -24086,7 +22014,6 @@ func (t *TelegramCore) GetSuggestedFolders() ([]SuggestedFolder, error) {
 	return suggestions, nil
 }
 
-// GetPeerSettingsCheck returns action bar settings for a peer.
 func (t *TelegramCore) GetPeerSettingsCheck(chatID string) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -24097,7 +22024,6 @@ func (t *TelegramCore) GetPeerSettingsCheck(chatID string) error {
 	return err
 }
 
-// GetPeerBarSettings returns action bar flags for a peer as a JSON string.
 func (t *TelegramCore) GetPeerBarSettings(chatID string) (string, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -24151,9 +22077,7 @@ func (t *TelegramCore) GetPeerBarSettings(chatID string) (string, error) {
 	return string(data), nil
 }
 
-// GetParticipantInfo returns detailed info about a specific participant in a chat.
 func (t *TelegramCore) GetParticipantInfo(chatID, userID string) (*User, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -24183,11 +22107,6 @@ func (t *TelegramCore) GetParticipantInfo(chatID, userID string) (*User, error) 
 	for _, u := range result.Users {
 		if user, ok := u.(*tg.User); ok && user.ID == uid {
 			cu := t.convertUser(user)
-			// Surface the participant's current status so the Add-Admin /
-			// Add-Exception flows can run AyuGram's showAdmin/showRestricted
-			// pre-flight (already-kicked/restricted/admin confirmation,
-			// add_participants_box.cpp:1412/1542). "kicked" == fully banned
-			// (view_messages), "restricted" == partial ban.
 			switch pp := result.Participant.(type) {
 			case *tg.ChannelParticipantCreator:
 				cu.Role = "creator"
@@ -24195,9 +22114,6 @@ func (t *TelegramCore) GetParticipantInfo(chatID, userID string) (*User, error) 
 				cu.Rank = pp.Rank
 			case *tg.ChannelParticipantAdmin:
 				cu.Role = "admin"
-				// Seed the EditAdminBox from the participant's REAL saved rights +
-				// rank (_oldRights/_oldRank), not the all-on defaults
-				// (edit_participant_box.cpp:304).
 				cu.AdminRights = adminLogAdminRightsMap(&pp.AdminRights)
 				cu.Rank = pp.Rank
 			case *tg.ChannelParticipantBanned:
@@ -24211,12 +22127,7 @@ func (t *TelegramCore) GetParticipantInfo(chatID, userID string) (*User, error) 
 			}
 			if bp, ok := result.Participant.(*tg.ChannelParticipantBanned); ok {
 				br := bp.BannedRights
-				// Ban expiry (0 / INT_MAX = forever). AyuGram seeds the
-				// "Banned until" selector from ChannelParticipantBanned.
-				// BannedRights.UntilDate (edit_participant_box.cpp:796).
 				cu.BannedUntil = br.UntilDate
-				// Attribution footer source (edit_participant_box.cpp:816):
-				// the admin who applied the ban + when.
 				cu.BannedBy = strconv.FormatInt(bp.KickedBy, 10)
 				cu.BannedDate = bp.Date
 				for _, ru := range result.Users {
@@ -24247,7 +22158,6 @@ func (t *TelegramCore) GetParticipantInfo(chatID, userID string) (*User, error) 
 	return nil, ErrNotFound
 }
 
-// UploadProfilePhoto uploads and sets a new profile photo.
 func (t *TelegramCore) UploadProfilePhoto(pngData []byte) error {
 	api, ctx, err := t.withAPI()
 	if err != nil {
@@ -24264,7 +22174,6 @@ func (t *TelegramCore) UploadProfilePhoto(pngData []byte) error {
 	return err
 }
 
-// SetBotPhoto uploads and sets a photo for a bot.
 func (t *TelegramCore) SetBotPhoto(chatID string, pngData []byte) error {
 	api, ctx, err := t.withAPI()
 	if err != nil {
@@ -24286,9 +22195,7 @@ func (t *TelegramCore) SetBotPhoto(chatID string, pngData []byte) error {
 	return err
 }
 
-// SetEmojiProfilePhoto sets a custom emoji as the user's profile photo.
 func (t *TelegramCore) SetEmojiProfilePhoto(documentID int64) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -24302,7 +22209,6 @@ func (t *TelegramCore) SetEmojiProfilePhoto(documentID int64) error {
 	return err
 }
 
-// UploadFallbackPhoto uploads a public fallback photo visible to non-contacts.
 func (t *TelegramCore) UploadFallbackPhoto(pngData []byte) error {
 	api, ctx, err := t.withAPI()
 	if err != nil {
@@ -24319,7 +22225,6 @@ func (t *TelegramCore) UploadFallbackPhoto(pngData []byte) error {
 	return err
 }
 
-// DeleteFallbackPhoto removes the public fallback photo.
 func (t *TelegramCore) DeleteFallbackPhoto() error {
 	api, ctx, err := t.withAPI()
 	if err != nil {
@@ -24343,9 +22248,7 @@ func (t *TelegramCore) DeleteFallbackPhoto() error {
 	return err
 }
 
-// HasFallbackPhoto checks if the user has a public fallback photo set.
 func (t *TelegramCore) HasFallbackPhoto() (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -24358,9 +22261,7 @@ func (t *TelegramCore) HasFallbackPhoto() (bool, error) {
 	return ok, nil
 }
 
-// GetDialogUnreadMarksCount returns the number of unread-marked dialogs.
 func (t *TelegramCore) GetDialogUnreadMarksCount() (int, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 0, err
@@ -24372,11 +22273,7 @@ func (t *TelegramCore) GetDialogUnreadMarksCount() (int, error) {
 	return len(result), nil
 }
 
-// --- Batch 3 methods ---
-
-// ToggleAutotranslation enables or disables automatic message translation for a chat.
 func (t *TelegramCore) ToggleAutotranslation(chatID string, enabled bool) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -24396,9 +22293,7 @@ func (t *TelegramCore) ToggleAutotranslation(chatID string, enabled bool) error 
 	return err
 }
 
-// UpdateChannelColor sets the accent color for a channel or supergroup.
 func (t *TelegramCore) UpdateChannelColor(chatID string, colorIndex int) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -24418,14 +22313,7 @@ func (t *TelegramCore) UpdateChannelColor(chatID string, colorIndex int) error {
 	return err
 }
 
-// UpdateChannelColorEx sets a channel's name color and background emoji together
-// in one channels.updateColor RPC. colorIndex < 0 leaves the name color unchanged
-// (f_color omitted, mirroring AyuGram's kUnsetColorIndex=0xFF), while the background
-// emoji is ALWAYS applied so it can be set or cleared independently of the color
-// (edit_peer_color_box.cpp:600-609, which always passes Flag::f_background_emoji_id
-// for channels). backgroundEmojiID of 0 clears the background emoji.
 func (t *TelegramCore) UpdateChannelColorEx(chatID string, colorIndex int, backgroundEmojiID int64) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -24445,19 +22333,12 @@ func (t *TelegramCore) UpdateChannelColorEx(chatID string, colorIndex int, backg
 	if colorIndex >= 0 {
 		req.SetColor(colorIndex)
 	}
-	// Always carry background_emoji_id (the gotd helper sets the flag even for 0,
-	// and Encode's SetFlags only adds — never clears — so a 0 value still serializes
-	// to clear the emoji), matching AyuGram's unconditional f_background_emoji_id.
 	req.SetBackgroundEmojiID(backgroundEmojiID)
 	_, err = api.ChannelsUpdateColor(ctx, req)
 	return err
 }
 
-// UpdateChannelEmojiStatus sets (documentID != 0) or clears (documentID == 0) a
-// channel's emoji status, applied independently of the name color & background
-// emoji (edit_peer_color_box.cpp:611-617, emojiStatuses().set on the channel).
 func (t *TelegramCore) UpdateChannelEmojiStatus(chatID string, documentID int64) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -24484,13 +22365,11 @@ func (t *TelegramCore) UpdateChannelEmojiStatus(chatID string, documentID int64)
 	return err
 }
 
-// DeleteProfilePhotos removes one or more profile photos.
 func (t *TelegramCore) DeleteProfilePhotos() error {
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
 	}
-	// Get current photos first
 	result, err := api.PhotosGetUserPhotos(ctx, &tg.PhotosGetUserPhotosRequest{
 		UserID: &tg.InputUserSelf{}, Limit: 1,
 	})
@@ -24519,7 +22398,6 @@ func (t *TelegramCore) DeleteProfilePhotos() error {
 	return err
 }
 
-// GetOutboxReadDate returns when an outgoing message was read.
 func (t *TelegramCore) GetOutboxReadDate(chatID, msgID string) (int, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -24537,9 +22415,7 @@ func (t *TelegramCore) GetOutboxReadDate(chatID, msgID string) (int, error) {
 	return result.Date, nil
 }
 
-// SetAccountTTL sets the account self-destruct timer.
 func (t *TelegramCore) SetAccountTTL(days int) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -24548,9 +22424,7 @@ func (t *TelegramCore) SetAccountTTL(days int) error {
 	return err
 }
 
-// ResolvePhone resolves a phone number to a Telegram user.
 func (t *TelegramCore) ResolvePhone(phone string) (string, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return "", err
@@ -24568,9 +22442,7 @@ func (t *TelegramCore) ResolvePhone(phone string) (string, error) {
 	return "", ErrNotFound
 }
 
-// EditCloseFriends sets the list of close friends for story privacy.
 func (t *TelegramCore) EditCloseFriends(userIDs []int64) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -24579,9 +22451,6 @@ func (t *TelegramCore) EditCloseFriends(userIDs []int64) error {
 	return err
 }
 
-// --- Final batch methods ---
-
-// EditChatInvite modifies an existing chat invite link with a new expiration date.
 func (t *TelegramCore) EditChatInvite(chatID, link string, expireDate int) (string, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -24600,7 +22469,6 @@ func (t *TelegramCore) EditChatInvite(chatID, link string, expireDate int) (stri
 	return link, nil
 }
 
-// GetInviteImporters returns users who joined via a specific invite link.
 func (t *TelegramCore) GetInviteImporters(chatID, link string, limit int) (int, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -24619,10 +22487,6 @@ func (t *TelegramCore) GetInviteImporters(chatID, link string, limit int) (int, 
 	return result.Count, nil
 }
 
-// GetInviteImportersList returns the users who joined via a specific invite link
-// (requested=false) or the pending join-requests for that link (requested=true),
-// with their display info — for the single-link info box's joined-members list
-// and Requests-to-join block (edit_peer_invite_link.cpp:592).
 func (t *TelegramCore) GetInviteImportersList(chatID, link string, requested bool, limit int, offsetUserID int64, offsetDate int) (map[string]interface{}, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -24632,9 +22496,6 @@ func (t *TelegramCore) GetInviteImportersList(chatID, link string, requested boo
 	if limit <= 0 {
 		limit = 50
 	}
-	// Pagination cursor (kFirstPage=20 then kPerPage=100 with _lastUser,
-	// edit_peer_invite_link.cpp:898): when an offset user is supplied, continue
-	// from there instead of restarting at the top.
 	var offsetUser tg.InputUserClass = &tg.InputUserEmpty{}
 	if offsetUserID != 0 {
 		offsetUser = &tg.InputUser{UserID: offsetUserID, AccessHash: t.getCachedUserHash(offsetUserID)}
@@ -24683,14 +22544,12 @@ func (t *TelegramCore) GetInviteImportersList(chatID, link string, requested boo
 	}, nil
 }
 
-// DeleteChatInvite revokes and deletes an exported chat invite link.
 func (t *TelegramCore) DeleteChatInvite(chatID, link string) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
 		return err
 	}
 	defer unlock()
-	// Must revoke first, then delete
 	_, err = t.api.MessagesEditExportedChatInvite(t.ctx, &tg.MessagesEditExportedChatInviteRequest{
 		Peer: inputPeer, Link: link, Revoked: true,
 	})
@@ -24703,9 +22562,7 @@ func (t *TelegramCore) DeleteChatInvite(chatID, link string) error {
 	return err
 }
 
-// GetContactIDs returns user IDs of all contacts.
 func (t *TelegramCore) GetContactIDs() (int, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 0, err
@@ -24717,31 +22574,22 @@ func (t *TelegramCore) GetContactIDs() (int, error) {
 	return len(result), nil
 }
 
-// GetDifferenceCheck fetches accumulated updates since the last known state.
 func (t *TelegramCore) GetDifferenceCheck() error {
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
 	}
-	// Get current state first
 	state, err := api.UpdatesGetState(ctx)
 	if err != nil {
 		return fmt.Errorf("get state: %w", err)
 	}
-	// Get difference from current state (should return empty)
 	_, err = api.UpdatesGetDifference(ctx, &tg.UpdatesGetDifferenceRequest{
 		Pts: state.Pts, Date: state.Date, Qts: state.Qts,
 	})
 	return err
 }
 
-// ReorderPinnedSavedDialogs (slice 204) changes the pinned order of
-// Saved Messages sublists (messages.reorderPinnedSavedDialogs, force —
-// a stale server pin outside the passed order unpins instead of
-// corrupting it; the same semantics ReorderPinnedDialogs uses for
-// chats).
 func (t *TelegramCore) ReorderPinnedSavedDialogs(peerIDs []string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -24761,9 +22609,7 @@ func (t *TelegramCore) ReorderPinnedSavedDialogs(peerIDs []string) error {
 	return err
 }
 
-// ReorderPinnedDialogs changes the display order of pinned chats.
 func (t *TelegramCore) ReorderPinnedDialogs(chatIDs []string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -24783,9 +22629,7 @@ func (t *TelegramCore) ReorderPinnedDialogs(chatIDs []string) error {
 	return err
 }
 
-// SetGlobalPrivacy configures global privacy settings.
 func (t *TelegramCore) SetGlobalPrivacy(settings *tg.GlobalPrivacySettings) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -24795,7 +22639,6 @@ func (t *TelegramCore) SetGlobalPrivacy(settings *tg.GlobalPrivacySettings) erro
 }
 
 func (t *TelegramCore) GetHideReadMarks() (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -24822,7 +22665,6 @@ func (t *TelegramCore) SetHideReadMarks(hide bool) error {
 }
 
 func (t *TelegramCore) GetMessagesPrivacy() (option string, chargeStars int64, err error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return "", 0, err
@@ -24869,7 +22711,6 @@ func (t *TelegramCore) SetMessagesPrivacy(option string, chargeStars int64) erro
 }
 
 func (t *TelegramCore) GetConfcallSizeLimit() (int, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 200, err
@@ -24897,7 +22738,6 @@ func (t *TelegramCore) GetConfcallSizeLimit() (int, error) {
 }
 
 func (t *TelegramCore) GetStarsPaidPostAmountMax() (int, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 10000, err
@@ -24924,13 +22764,7 @@ func (t *TelegramCore) GetStarsPaidPostAmountMax() (int, error) {
 	return 10000, nil
 }
 
-// UnlockPaidMedia pays a message's paid-media price with Telegram Stars
-// (the slice-181 star wall's Unlock action): payments.getPaymentForm on
-// the message invoice → payments.sendStarsForm with the fetched form ID.
-// On success the server pushes the updated message (the extended media
-// becomes real media); the GUI refreshes the chat.
 func (t *TelegramCore) UnlockPaidMedia(chatID, msgID string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -24979,7 +22813,6 @@ func (t *TelegramCore) UnlockPaidMedia(chatID, msgID string) error {
 }
 
 func (t *TelegramCore) GetStarsBalance() (int64, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 0, err
@@ -24994,23 +22827,17 @@ func (t *TelegramCore) GetStarsBalance() (int64, error) {
 }
 
 type StarsRevenueResult struct {
-	CurrentBalance    int64   `json:"current_balance"`
-	AvailableBalance  int64   `json:"available_balance"`
-	OverallRevenue    int64   `json:"overall_revenue"`
-	WithdrawalEnabled bool    `json:"withdrawal_enabled"`
-	UsdRate           float64 `json:"usd_rate"`
-	// Revenue + top-hours graphs (the earn section's charts) — previously
-	// dropped (info_channel_earn_list.cpp:611).
-	Charts []map[string]interface{} `json:"charts,omitempty"`
-	// Withdrawal amount bounds for the AddInputFieldForCredits field
-	// (settings_credits_graphics.cpp:3322): min from appConfig
-	// stars_revenue_withdrawal_min, max capped per-withdrawal.
-	WithdrawalMin int64 `json:"withdrawal_min,omitempty"`
-	WithdrawalMax int64 `json:"withdrawal_max,omitempty"`
+	CurrentBalance    int64                    `json:"current_balance"`
+	AvailableBalance  int64                    `json:"available_balance"`
+	OverallRevenue    int64                    `json:"overall_revenue"`
+	WithdrawalEnabled bool                     `json:"withdrawal_enabled"`
+	UsdRate           float64                  `json:"usd_rate"`
+	Charts            []map[string]interface{} `json:"charts,omitempty"`
+	WithdrawalMin     int64                    `json:"withdrawal_min,omitempty"`
+	WithdrawalMax     int64                    `json:"withdrawal_max,omitempty"`
 }
 
 func (t *TelegramCore) GetStarsRevenueStats(chatID string) (StarsRevenueResult, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return StarsRevenueResult{}, err
@@ -25030,8 +22857,6 @@ func (t *TelegramCore) GetStarsRevenueStats(chatID string) (StarsRevenueResult, 
 	if c := statsGraphToMap("Top Hours", result.TopHoursGraph, "Linear"); c != nil {
 		charts = append(charts, c)
 	}
-	// Withdrawal bounds: minimum from appConfig (stars_revenue_withdrawal_min),
-	// max is the per-withdrawal cap clamped to the available balance.
 	avail := result.Status.AvailableBalance.GetAmount()
 	withdrawMin := int64(t.appConfigIntNoLock("stars_revenue_withdrawal_min", 1000))
 	withdrawMax := int64(t.appConfigIntNoLock("stars_revenue_withdrawal_max", 1000000000))
@@ -25050,10 +22875,6 @@ func (t *TelegramCore) GetStarsRevenueStats(chatID string) (StarsRevenueResult, 
 	}, nil
 }
 
-// starsStatusFromWire maps the payments.getStarsTransactions payload
-// (Peer=self) onto the typed status — signed nanostar amounts carried
-// through, counterparty names resolved from the response's users/chats.
-// Pure.
 func starsStatusFromWire(res *tg.PaymentsStarsStatus) StarsStatus {
 	if res == nil {
 		return StarsStatus{}
@@ -25107,11 +22928,8 @@ func starsStatusFromWire(res *tg.PaymentsStarsStatus) StarsStatus {
 	return out
 }
 
-// GetMyStars returns the user's own Telegram Stars balance and
-// transaction history (payments.getStarsTransactions with Peer=self).
-// filter: "" all, "in" incoming only, "out" outgoing only.
 func (t *TelegramCore) GetMyStars(offset, filter string) (StarsStatus, error) {
-	api, ctx, err := t.withAPI() // withAPI rule: RPCs run unlocked
+	api, ctx, err := t.withAPI()
 	if err != nil {
 		return StarsStatus{}, err
 	}
@@ -25133,10 +22951,7 @@ func (t *TelegramCore) GetMyStars(offset, filter string) (StarsStatus, error) {
 	return starsStatusFromWire(res), nil
 }
 
-// GetStarsTransactions returns the Stars transaction history for the channel's
-// balance — the earn section's transaction list (info_channel_earn_list.cpp:1288).
 func (t *TelegramCore) GetStarsTransactions(chatID, offset string, limit int, filter string) (map[string]interface{}, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -25152,8 +22967,6 @@ func (t *TelegramCore) GetStarsTransactions(chatID, offset string, limit int, fi
 	if limit <= 0 {
 		limit = 30
 	}
-	// Full / Incoming / Outgoing history filter tabs (AddCreditsHistoryList,
-	// info_channel_earn_list.cpp:979; requestHistory inbound/outbound flags).
 	req := &tg.PaymentsGetStarsTransactionsRequest{
 		Peer:   inputPeer,
 		Offset: offset,
@@ -25178,12 +22991,9 @@ func (t *TelegramCore) GetStarsTransactions(chatID, offset string, limit int, fi
 			"refund":      tx.Refund,
 			"title":       tx.Title,
 			"description": tx.Description,
-			// Receipt detail for the fuller ReceiptCreditsBox-style detail box
-			// (info_channel_earn_list.cpp:1351): pending/failed/gift status and
-			// the subscription period.
-			"pending": tx.Pending,
-			"failed":  tx.Failed,
-			"gift":    tx.Gift,
+			"pending":     tx.Pending,
+			"failed":      tx.Failed,
+			"gift":        tx.Gift,
 		}
 		if sp, ok := tx.GetSubscriptionPeriod(); ok && sp != 0 {
 			m["subscription_period"] = sp
@@ -25193,16 +23003,10 @@ func (t *TelegramCore) GetStarsTransactions(chatID, offset string, limit int, fi
 	return map[string]interface{}{
 		"transactions": txns,
 		"next_offset":  res.NextOffset,
-		// Credits/Stars balance from PaymentsStarsStatus, distinct from the
-		// currency (TON) revenue stats — gates the bot "Credits" row
-		// (edit_peer_info_box.cpp:1933).
-		"balance": res.Balance.GetAmount(),
+		"balance":      res.Balance.GetAmount(),
 	}, nil
 }
 
-// GetStarsRevenueWithdrawalUrl returns a URL to withdraw the channel's available
-// Stars balance, gated on the user's 2FA password (Api::HandleWithdrawalButton →
-// info_channel_earn_list.cpp:917).
 func (t *TelegramCore) GetStarsRevenueWithdrawalUrl(chatID, password string, amount int64) (string, error) {
 	api, ctx, err := t.withAPI()
 	if err != nil {
@@ -25224,8 +23028,6 @@ func (t *TelegramCore) GetStarsRevenueWithdrawalUrl(chatID, password string, amo
 	if avail <= 0 {
 		return "", fmt.Errorf("no balance available to withdraw")
 	}
-	// A user-chosen partial amount (AddInputFieldForCredits) is clamped to the
-	// available balance; 0 means "withdraw everything".
 	if amount <= 0 || amount > avail {
 		amount = avail
 	}
@@ -25248,13 +23050,7 @@ func (t *TelegramCore) GetStarsRevenueWithdrawalUrl(chatID, password string, amo
 	return res.URL, nil
 }
 
-// GetSponsoredInfo reports whether the channel can restrict sponsored messages
-// (broadcast-only), the current restricted state, the boost level required
-// (appConfig channel_restrict_sponsored_level_min) and the channel's current
-// level — driving the "Restrict sponsored messages" toggle + level badge
-// (info_channel_earn_list.cpp:1391).
 func (t *TelegramCore) GetSponsoredInfo(chatID string) (map[string]interface{}, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -25298,11 +23094,7 @@ func (t *TelegramCore) GetSponsoredInfo(chatID string) (map[string]interface{}, 
 	}, nil
 }
 
-// SetRestrictSponsored toggles channel-wide ad suppression
-// (channels.restrictSponsoredMessages, Api::RestrictSponsored —
-// info_channel_earn_list.cpp:1442). Gated server-side on the boost level.
 func (t *TelegramCore) SetRestrictSponsored(chatID string, restricted bool) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -25323,19 +23115,7 @@ func (t *TelegramCore) SetRestrictSponsored(chatID string, restricted bool) erro
 	return err
 }
 
-// GetBroadcastRevenueStats returns the channel's TON (currency) ad-revenue stats:
-// balances (current/available/overall, in nanotons), the top-hours + revenue
-// charts, usd_rate (USD per TON) and withdrawal_enabled.
-//
-// The current Telegram layer unifies currency (TON) and Stars (credits) revenue
-// under payments.getStarsRevenueStats, distinguished by the `ton` flag — there is
-// no separate stats.getBroadcastRevenueStats anymore. This matches AyuGram's
-// EarnStatistics::request (api_statistics.cpp:699), which sets
-// MTPpayments_getStarsRevenueStats::Flag::f_ton. When `ton` is set the balances
-// come back as starsTonAmount (Amount = nanotons; 1 TON = 1e9 nanotons).
-// (info_channel_earn_list.cpp:611 — currency overview/balance/charts.)
 func (t *TelegramCore) GetBroadcastRevenueStats(chatID string) (StarsRevenueResult, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return StarsRevenueResult{}, err
@@ -25350,8 +23130,6 @@ func (t *TelegramCore) GetBroadcastRevenueStats(chatID string) (StarsRevenueResu
 		return StarsRevenueResult{}, err
 	}
 	charts := []map[string]interface{}{}
-	// AyuGram currency charts: top-hours = Bar, revenue = StackBar
-	// (info_channel_earn_list.cpp:626,645).
 	if c := statsGraphToMap("Top Hours", result.TopHoursGraph, "Bar"); c != nil {
 		charts = append(charts, c)
 	}
@@ -25368,12 +23146,7 @@ func (t *TelegramCore) GetBroadcastRevenueStats(chatID string) (StarsRevenueResu
 	}, nil
 }
 
-// GetBroadcastRevenueTransactions returns the channel's TON (currency) revenue
-// transaction history — payments.getStarsTransactions with the `ton` flag
-// (AyuGram EarnStatistics::requestHistory, api_statistics.cpp:757). Amounts are
-// in nanotons (signed: positive = proceeds in, negative = withdrawal out).
 func (t *TelegramCore) GetBroadcastRevenueTransactions(chatID, offset string, limit int) (map[string]interface{}, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -25402,7 +23175,7 @@ func (t *TelegramCore) GetBroadcastRevenueTransactions(chatID, offset string, li
 	for _, tx := range res.History {
 		m := map[string]interface{}{
 			"id":          tx.ID,
-			"amount":      tx.Amount.GetAmount(), // nanotons (signed)
+			"amount":      tx.Amount.GetAmount(),
 			"date":        tx.Date,
 			"refund":      tx.Refund,
 			"pending":     tx.Pending,
@@ -25410,17 +23183,12 @@ func (t *TelegramCore) GetBroadcastRevenueTransactions(chatID, offset string, li
 			"title":       tx.Title,
 			"description": tx.Description,
 		}
-		// Blockchain explorer success link + completion date for the details box
-		// (entry.successLink, info_channel_earn_list.cpp:1244).
 		if url, ok := tx.GetTransactionURL(); ok && url != "" {
 			m["transaction_url"] = url
 		}
 		if td, ok := tx.GetTransactionDate(); ok && td != 0 {
 			m["transaction_date"] = td
 		}
-		// Recipient/provider for the details box's AddRecipient row
-		// (entry.provider, info_channel_earn_list.cpp:1084) — derived from the
-		// withdrawal peer type.
 		switch tx.Peer.(type) {
 		case *tg.StarsTransactionPeerFragment:
 			m["provider"] = "Fragment"
@@ -25443,11 +23211,6 @@ func (t *TelegramCore) GetBroadcastRevenueTransactions(chatID, offset string, li
 	}, nil
 }
 
-// GetBroadcastRevenueWithdrawalUrl returns a URL to withdraw the channel's
-// available TON (currency) ad-revenue balance, gated on the user's 2FA password.
-// Uses the unified payments.getStarsRevenueWithdrawalUrl with the `ton` flag and
-// amount=0 (Api::HandleWithdrawalButton → api_earn.cpp:103, currencyReceiver path:
-// flags=f_ton, amount=0).
 func (t *TelegramCore) GetBroadcastRevenueWithdrawalUrl(chatID, password string) (string, error) {
 	api, ctx, err := t.withAPI()
 	if err != nil {
@@ -25479,7 +23242,7 @@ func (t *TelegramCore) GetBroadcastRevenueWithdrawalUrl(chatID, password string)
 	res, err := api.PaymentsGetStarsRevenueWithdrawalURL(ctx, &tg.PaymentsGetStarsRevenueWithdrawalURLRequest{
 		Ton:      true,
 		Peer:     inputPeer,
-		Amount:   0, // currency: f_amount not set (api_earn.cpp:110-112)
+		Amount:   0,
 		Password: srpCheck,
 	})
 	if err != nil {
@@ -25523,7 +23286,6 @@ func (t *TelegramCore) GetPremiumStatus() (premiumPossible bool, premiumCanBuy b
 }
 
 func (t *TelegramCore) GetDialogFiltersEnabled() (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -25551,7 +23313,6 @@ func (t *TelegramCore) GetDialogFiltersEnabled() (bool, error) {
 }
 
 func (t *TelegramCore) GetFolderLimits() (freeLimit, premiumLimit int, err error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 10, 20, err
@@ -25633,7 +23394,6 @@ func (t *TelegramCore) GetAllFolderLimits() (map[string]int, error) {
 }
 
 func (t *TelegramCore) GetPublicLinksLimits() (freeLimit, premiumLimit int, err error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 10, 20, err
@@ -25672,7 +23432,6 @@ type ForumTopicIconInfo struct {
 }
 
 func (t *TelegramCore) GetForumTopicDefaultIcons() ([]ForumTopicIconInfo, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -25713,7 +23472,6 @@ type ChannelUsernameInfo struct {
 }
 
 func (t *TelegramCore) GetChannelUsernames(chatID string) ([]ChannelUsernameInfo, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -25753,7 +23511,6 @@ func (t *TelegramCore) GetChannelUsernames(chatID string) ([]ChannelUsernameInfo
 }
 
 func (t *TelegramCore) ToggleChannelUsername(chatID, username string, active bool) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -25775,7 +23532,6 @@ func (t *TelegramCore) ToggleChannelUsername(chatID, username string, active boo
 }
 
 func (t *TelegramCore) ReorderChannelUsernames(chatID string, order []string) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -25796,7 +23552,6 @@ func (t *TelegramCore) ReorderChannelUsernames(chatID string, order []string) (b
 }
 
 func (t *TelegramCore) GetPaidMessagesConfig() (maxStars int64, commissionPermille int32, withdrawRate float64, err error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 0, 0, 0, err
@@ -25835,7 +23590,6 @@ func (t *TelegramCore) GetPaidMessagesConfig() (maxStars int64, commissionPermil
 	return maxStars, commissionPermille, withdrawRate, nil
 }
 
-// GetReactionsList returns the list of available message reactions.
 func (t *TelegramCore) GetReactionsList(chatID, msgID string, limit int) (int, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -25858,7 +23612,6 @@ func (t *TelegramCore) GetReactionsList(chatID, msgID string, limit int) (int, e
 	return result.Count, nil
 }
 
-// GetSearchCalendar returns message counts by date for a chat search.
 func (t *TelegramCore) GetSearchCalendar(chatID string) (int, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -25874,8 +23627,6 @@ func (t *TelegramCore) GetSearchCalendar(chatID string) (int, error) {
 	return len(result.Periods), nil
 }
 
-// --- Upload progress ---
-
 type uploadProgress struct {
 	callback func(sent, total int64)
 	total    int64
@@ -25886,9 +23637,6 @@ func (p *uploadProgress) Chunk(_ context.Context, state uploader.ProgressState) 
 	return nil
 }
 
-// --- Batch 4: remaining untested methods ---
-
-// SendMultiMedia sends a group of media items as an album to a chat.
 func (t *TelegramCore) SendMultiMedia(chatID string, mediaInputs []tg.InputSingleMedia) (int, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -25904,7 +23652,6 @@ func (t *TelegramCore) SendMultiMedia(chatID string, mediaInputs []tg.InputSingl
 	return len(mediaInputs), nil
 }
 
-// GetPollVotes returns the list of users who voted on specific poll options.
 func (t *TelegramCore) GetPollVotes(chatID string, msgID int, limit int) (int, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -25923,7 +23670,6 @@ func (t *TelegramCore) GetPollVotes(chatID string, msgID int, limit int) (int, e
 	return result.Count, nil
 }
 
-// DeleteChatHistory deletes the entire message history in a chat.
 func (t *TelegramCore) DeleteChatHistory(chatID string) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -25936,9 +23682,6 @@ func (t *TelegramCore) DeleteChatHistory(chatID string) error {
 	return err
 }
 
-// DeleteChatHistoryWithRevoke deletes the entire message history in a chat,
-// optionally revoking (deleting for everyone) when the peer supports it.
-// Mirrors AyuGram's clearHistory(peer, revoke) / deleteConversation(peer, revoke).
 func (t *TelegramCore) DeleteChatHistoryWithRevoke(chatID string, revoke bool) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -25951,9 +23694,7 @@ func (t *TelegramCore) DeleteChatHistoryWithRevoke(chatID string, revoke bool) e
 	return err
 }
 
-// ImportChatInvite joins a chat using an invite link.
 func (t *TelegramCore) ImportChatInvite(hash string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -25962,9 +23703,7 @@ func (t *TelegramCore) ImportChatInvite(hash string) error {
 	return err
 }
 
-// GetFullChatParticipantsCount returns the total participant count in a chat.
 func (t *TelegramCore) GetFullChatParticipantsCount(chatID string) (int, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 0, err
@@ -25990,9 +23729,7 @@ func (t *TelegramCore) GetFullChatParticipantsCount(chatID string) (int, error) 
 	return len(result.Users), nil
 }
 
-// InviteToChannel adds users to a channel or supergroup.
 func (t *TelegramCore) InviteToChannel(chatID string, userIDs []string) (int, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 0, err
@@ -26025,9 +23762,7 @@ func (t *TelegramCore) InviteToChannel(chatID string, userIDs []string) (int, er
 	return len(userIDs) - len(result.MissingInvitees), nil
 }
 
-// AddChatUser adds a user to a basic group chat.
 func (t *TelegramCore) AddChatUser(chatID string, userID string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -26053,9 +23788,7 @@ func (t *TelegramCore) AddChatUser(chatID string, userID string) error {
 	return err
 }
 
-// DeleteChatUser removes a user from a basic group chat.
 func (t *TelegramCore) DeleteChatUser(chatID string, userID string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -26080,7 +23813,6 @@ func (t *TelegramCore) DeleteChatUser(chatID string, userID string) error {
 	return err
 }
 
-// EditChannelPhoto changes the photo of a channel or supergroup.
 func (t *TelegramCore) EditChannelPhoto(chatID string, photoData []byte) error {
 	api, ctx, err := t.withAPI()
 	if err != nil {
@@ -26107,7 +23839,6 @@ func (t *TelegramCore) EditChannelPhoto(chatID string, photoData []byte) error {
 	return err
 }
 
-// EditChannelVideoPhoto sets an animated video profile photo for a channel or supergroup.
 func (t *TelegramCore) EditChannelVideoPhoto(chatID string, videoData []byte) error {
 	api, ctx, err := t.withAPI()
 	if err != nil {
@@ -26137,7 +23868,6 @@ func (t *TelegramCore) EditChannelVideoPhoto(chatID string, videoData []byte) er
 	return err
 }
 
-// CreateForumTopic creates a new topic in a forum supergroup.
 func (t *TelegramCore) CreateForumTopic(chatID string, title string) (int, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -26155,7 +23885,6 @@ func (t *TelegramCore) CreateForumTopic(chatID string, title string) (int, error
 	if err != nil {
 		return 0, err
 	}
-	// Extract topic ID from the updates
 	switch u := result.(type) {
 	case *tg.Updates:
 		for _, update := range u.Updates {
@@ -26170,7 +23899,6 @@ func (t *TelegramCore) CreateForumTopic(chatID string, title string) (int, error
 	return 0, nil
 }
 
-// PinForumTopic pins or unpins a forum topic in a supergroup.
 func (t *TelegramCore) PinForumTopic(chatID string, topicID int, pinned bool) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -26183,9 +23911,7 @@ func (t *TelegramCore) PinForumTopic(chatID string, topicID int, pinned bool) er
 	return err
 }
 
-// ReorderPinnedForumTopics changes the order of pinned forum topics.
 func (t *TelegramCore) ReorderPinnedForumTopics(chatID string, topicIDs []int) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -26201,9 +23927,7 @@ func (t *TelegramCore) ReorderPinnedForumTopics(chatID string, topicIDs []int) e
 	return err
 }
 
-// ToggleViewForumAsMessages toggles between forum and message list view.
 func (t *TelegramCore) ToggleViewForumAsMessages(chatID string, enabled bool) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -26223,7 +23947,6 @@ func (t *TelegramCore) ToggleViewForumAsMessages(chatID string, enabled bool) er
 	return err
 }
 
-// ToggleForumTopicClosed closes or reopens a forum topic.
 func (t *TelegramCore) ToggleForumTopicClosed(chatID string, topicID int, closed bool) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -26236,7 +23959,6 @@ func (t *TelegramCore) ToggleForumTopicClosed(chatID string, topicID int, closed
 	return err
 }
 
-// ToggleGeneralTopicHidden hides or shows the General topic (rootId=1) in a forum.
 func (t *TelegramCore) ToggleGeneralTopicHidden(chatID string, hidden bool) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -26249,7 +23971,6 @@ func (t *TelegramCore) ToggleGeneralTopicHidden(chatID string, hidden bool) erro
 	return err
 }
 
-// DeleteTopicHistory deletes all messages in a forum topic.
 func (t *TelegramCore) DeleteTopicHistory(chatID string, topicID int) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -26262,9 +23983,7 @@ func (t *TelegramCore) DeleteTopicHistory(chatID string, topicID int) error {
 	return err
 }
 
-// ReorderDialogFilters changes the display order of chat folders.
 func (t *TelegramCore) ReorderDialogFilters(ids []int) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -26273,9 +23992,7 @@ func (t *TelegramCore) ReorderDialogFilters(ids []int) error {
 	return err
 }
 
-// DeleteContacts removes multiple users from the contact list.
 func (t *TelegramCore) DeleteContacts(userIDs []string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -26293,9 +24010,7 @@ func (t *TelegramCore) DeleteContacts(userIDs []string) error {
 	return err
 }
 
-// ImportContacts imports phone contacts and returns matched Telegram users.
 func (t *TelegramCore) ImportContacts(contacts []tg.InputPhoneContact) (int, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 0, err
@@ -26307,9 +24022,7 @@ func (t *TelegramCore) ImportContacts(contacts []tg.InputPhoneContact) (int, err
 	return len(result.Imported), nil
 }
 
-// UpdateUsername changes the user's primary username.
 func (t *TelegramCore) UpdateUsername(username string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -26319,7 +24032,6 @@ func (t *TelegramCore) UpdateUsername(username string) error {
 }
 
 func (t *TelegramCore) GetChatUsername(chatID string) (string, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return "", err
@@ -26345,9 +24057,7 @@ func (t *TelegramCore) GetChatUsername(chatID string) (string, error) {
 	return "", nil
 }
 
-// UpdateChannelUsername sets or clears a public username on a channel/supergroup.
 func (t *TelegramCore) UpdateChannelUsername(chatID, username string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -26368,9 +24078,7 @@ func (t *TelegramCore) UpdateChannelUsername(chatID, username string) error {
 	return err
 }
 
-// CheckChannelUsername checks if a username is available for a specific channel.
 func (t *TelegramCore) CheckChannelUsername(chatID, username string) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -26390,9 +24098,7 @@ func (t *TelegramCore) CheckChannelUsername(chatID, username string) (bool, erro
 	})
 }
 
-// UpdateBirthday sets or clears the user's birthday on their profile.
 func (t *TelegramCore) UpdateBirthday(day, month, year int) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -26407,9 +24113,7 @@ func (t *TelegramCore) UpdateBirthday(day, month, year int) error {
 	return err
 }
 
-// GetChannelDifference fetches new updates for a channel since a given point.
 func (t *TelegramCore) GetChannelDifference(chatID string) (int, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 0, err
@@ -26437,7 +24141,6 @@ func (t *TelegramCore) GetChannelDifference(chatID string) (int, error) {
 	return 0, nil
 }
 
-// SendInlineBotResult sends a result from an inline bot query.
 func (t *TelegramCore) SendInlineBotResult(chatID string, queryID int64, resultID string) (int, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -26525,7 +24228,6 @@ func (t *TelegramCore) sendStoryCommon(api *tg.Client, ctx context.Context, req 
 	return 0, nil
 }
 
-// SendStoryWithPhoto uploads a photo and posts it as a story.
 func (t *TelegramCore) SendStoryWithPhoto(text string, photoData []byte, opts StoryPostOptions) (int, error) {
 	api, ctx, err := t.withAPI()
 	if err != nil {
@@ -26563,7 +24265,6 @@ func (t *TelegramCore) SendStoryWithPhoto(text string, photoData []byte, opts St
 	return t.sendStoryCommon(api, ctx, req)
 }
 
-// trimVideoWithFFmpeg trims a video using ffmpeg based on start/end ratios (0.0-1.0).
 func trimVideoWithFFmpeg(videoPath string, trimStart, trimEnd float64) (string, error) {
 	probeCmd := exec.Command("ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", videoPath)
 	probeOut, err := probeCmd.Output()
@@ -26596,7 +24297,6 @@ func trimVideoWithFFmpeg(videoPath string, trimStart, trimEnd float64) (string, 
 	return outPath, nil
 }
 
-// overlayVideoWithFFmpeg composites a transparent PNG overlay onto a video using ffmpeg.
 func overlayVideoWithFFmpeg(videoPath string, overlayPNG []byte) (string, error) {
 	storyDir, err := utils.PrivateCacheDir("telegram-story")
 	if err != nil {
@@ -26623,7 +24323,6 @@ func overlayVideoWithFFmpeg(videoPath string, overlayPNG []byte) (string, error)
 	return outPath, nil
 }
 
-// SendStoryWithVideoFile reads a video from disk and posts it as a story.
 func (t *TelegramCore) SendStoryWithVideoFile(text string, videoPath string, opts StoryPostOptions) (int, error) {
 	api, ctx, err := t.withAPI()
 	if err != nil {
@@ -26703,9 +24402,7 @@ func (t *TelegramCore) SendStoryWithVideoFile(text string, videoPath string, opt
 	return t.sendStoryCommon(api, ctx, req)
 }
 
-// SendStory publishes a new story.
 func (t *TelegramCore) SendStory(text string) (int, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 0, err
@@ -26741,9 +24438,7 @@ func (t *TelegramCore) SendStory(text string) (int, error) {
 	return 0, nil
 }
 
-// DeleteStories removes one or more stories by their IDs.
 func (t *TelegramCore) DeleteStories(ids []int) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -26754,9 +24449,7 @@ func (t *TelegramCore) DeleteStories(ids []int) error {
 	return err
 }
 
-// GetStoryViews returns the view counts for specified stories.
 func (t *TelegramCore) GetStoryViews(ids []int) (int, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 0, err
@@ -26774,10 +24467,6 @@ func (t *TelegramCore) GetStoryViews(ids []int) (int, error) {
 	return total, nil
 }
 
-// ReactToStory adds an emoji reaction to a story — or removes it when the
-// emoji is empty (tdesktop tap-again semantics: ReactionEmpty). Users and
-// channels both react through the resolved input peer. withAPI rule: the
-// RLock is never held across the RPC.
 func (t *TelegramCore) ReactToStory(userID string, storyID int, emoji string) error {
 	api, ctx, err := t.withAPI()
 	if err != nil {
@@ -26805,8 +24494,6 @@ func (t *TelegramCore) ReactToStory(userID string, storyID int, emoji string) er
 	return err
 }
 
-// ExportStoryLink returns the public deep link of a story
-// (stories.exportStoryLink) — the story viewer's share surface.
 func (t *TelegramCore) ExportStoryLink(peerID string, storyID int) (string, error) {
 	api, ctx, err := t.withAPI()
 	if err != nil {
@@ -26830,9 +24517,7 @@ func (t *TelegramCore) ExportStoryLink(peerID string, storyID int) (string, erro
 	return res.Link, nil
 }
 
-// GetPinnedStories returns the pinned stories of a user or channel.
 func (t *TelegramCore) GetPinnedStories(userID string) (int, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 0, err
@@ -26852,10 +24537,6 @@ func (t *TelegramCore) GetPinnedStories(userID string) (int, error) {
 	return len(result.Stories), nil
 }
 
-// SetChatWallpaper sets a custom wallpaper in a private chat (slice
-// 218). wallpaper comes from UploadChatWallpaper (or a prior
-// messageActionSetChatWallPaper service row); forBoth is the premium
-// "apply for both sides" flag.
 func (t *TelegramCore) SetChatWallpaper(chatID string, wallpaper WallpaperInfo, forBoth bool) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -26878,8 +24559,6 @@ func (t *TelegramCore) SetChatWallpaper(chatID string, wallpaper WallpaperInfo, 
 	return err
 }
 
-// RevertChatWallpaper restores the previous wallpaper on our side of a
-// private chat (the answer to an unwanted for-both wallpaper).
 func (t *TelegramCore) RevertChatWallpaper(chatID string) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -26893,12 +24572,7 @@ func (t *TelegramCore) RevertChatWallpaper(chatID string) error {
 	return err
 }
 
-// UploadChatWallpaper uploads a custom wallpaper image (JPEG/PNG) for the
-// per-chat flow: account.uploadWallPaper with for_chat, returning the
-// wallpaper reference to pass to SetChatWallpaper. Per the API docs the
-// for_chat flag skips the automatic global install.
 func (t *TelegramCore) UploadChatWallpaper(data []byte, mime string, blurred bool) (WallpaperInfo, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return WallpaperInfo{}, err
@@ -26930,7 +24604,6 @@ func (t *TelegramCore) UploadChatWallpaper(data []byte, mime string, blurred boo
 	return t.wallpaperFromWire(resp), nil
 }
 
-// HideChatJoinRequest approves or dismisses a pending join request.
 func (t *TelegramCore) HideChatJoinRequest(chatID string, userID string, approved bool) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -26949,9 +24622,7 @@ func (t *TelegramCore) HideChatJoinRequest(chatID string, userID string, approve
 	return err
 }
 
-// MigrateChat converts a basic group to a supergroup.
 func (t *TelegramCore) MigrateChat(chatID string) (int64, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 0, err
@@ -26979,11 +24650,7 @@ func (t *TelegramCore) MigrateChat(chatID string) (int64, error) {
 	return 0, fmt.Errorf("supergroup ID not found in migration result")
 }
 
-// --- Chatlist (Folder Sharing) ---
-
-// ExportChatlistInvite creates a shareable invite link for a chat folder.
 func (t *TelegramCore) ExportChatlistInvite(folderID int, title string, peerIDs []string) (string, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return "", err
@@ -27008,9 +24675,7 @@ func (t *TelegramCore) ExportChatlistInvite(folderID int, title string, peerIDs 
 	return result.Invite.URL, nil
 }
 
-// GetChatlistInvites returns invite links for a chat folder (count only).
 func (t *TelegramCore) GetChatlistInvites(folderID int) (int, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 0, err
@@ -27022,9 +24687,7 @@ func (t *TelegramCore) GetChatlistInvites(folderID int) (int, error) {
 	return len(result.Invites), nil
 }
 
-// GetFolderInviteLinks returns detailed invite link data for a chat folder.
 func (t *TelegramCore) GetFolderInviteLinks(folderID int) ([]ChatlistInviteLink, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -27059,11 +24722,7 @@ func (t *TelegramCore) GetFolderInviteLinks(folderID int) ([]ChatlistInviteLink,
 	return links, nil
 }
 
-// EditChatlistInvite modifies the peers and/or custom title of a chatlist invite
-// link. A non-empty title renames the link (chatlists.editExportedInvite f_title),
-// matching AyuGram's "Name Link" action (edit_filter_links.cpp:623-626).
 func (t *TelegramCore) EditChatlistInvite(folderID int, slug string, peerIDs []string, title string) (ChatlistInviteLink, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return ChatlistInviteLink{}, err
@@ -27104,9 +24763,7 @@ func (t *TelegramCore) EditChatlistInvite(folderID int, slug string, peerIDs []s
 	}, nil
 }
 
-// DeleteChatlistInvite deletes an invite link for a chat folder.
 func (t *TelegramCore) DeleteChatlistInvite(folderID int, slug string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -27118,9 +24775,7 @@ func (t *TelegramCore) DeleteChatlistInvite(folderID int, slug string) error {
 	return err
 }
 
-// GetLeaveChatlistSuggestions returns peer IDs the server suggests leaving when removing a chatlist folder.
 func (t *TelegramCore) GetLeaveChatlistSuggestions(folderID int) ([]string, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -27138,9 +24793,7 @@ func (t *TelegramCore) GetLeaveChatlistSuggestions(folderID int) ([]string, erro
 	return ids, nil
 }
 
-// LeaveChatlistFolder leaves a chatlist folder, optionally leaving selected peers.
 func (t *TelegramCore) LeaveChatlistFolder(folderID int, peerIDs []string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -27161,9 +24814,7 @@ func (t *TelegramCore) LeaveChatlistFolder(folderID int, peerIDs []string) error
 	return err
 }
 
-// JoinChatlistInvite joins a shared chat folder via an invite link.
 func (t *TelegramCore) JoinChatlistInvite(slug string, peerIDs []string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -27183,22 +24834,7 @@ func (t *TelegramCore) JoinChatlistInvite(slug string, peerIDs []string) error {
 	return err
 }
 
-// =============================================================================
-// Call Media Transport (WebRTC via pion)
-// =============================================================================
-
-// callMedia manages the WebRTC media transport for a Telegram call.
-
-// =============================================================================
-// Auto-generated gotd/td API wrappers (506 methods)
-// Generated 2026-04-07 — thin passthrough wrappers to t.api.*
-// =============================================================================
-
-// --- Account (110 methods) ---
-
-// AccountAcceptAuthorization accepts a Telegram Passport authorization request.
 func (t *TelegramCore) AccountAcceptAuthorization(request *tg.AccountAcceptAuthorizationRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -27206,9 +24842,7 @@ func (t *TelegramCore) AccountAcceptAuthorization(request *tg.AccountAcceptAutho
 	return api.AccountAcceptAuthorization(ctx, request)
 }
 
-// AccountCancelPasswordEmail cancels the password recovery email setup.
 func (t *TelegramCore) AccountCancelPasswordEmail() (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -27216,9 +24850,7 @@ func (t *TelegramCore) AccountCancelPasswordEmail() (bool, error) {
 	return api.AccountCancelPasswordEmail(ctx)
 }
 
-// AccountChangeAuthorizationSettings modifies settings for an active session.
 func (t *TelegramCore) AccountChangeAuthorizationSettings(request *tg.AccountChangeAuthorizationSettingsRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -27226,9 +24858,7 @@ func (t *TelegramCore) AccountChangeAuthorizationSettings(request *tg.AccountCha
 	return api.AccountChangeAuthorizationSettings(ctx, request)
 }
 
-// AccountChangePhone changes the phone number for the account.
 func (t *TelegramCore) AccountChangePhone(request *tg.AccountChangePhoneRequest) (tg.UserClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -27236,9 +24866,7 @@ func (t *TelegramCore) AccountChangePhone(request *tg.AccountChangePhoneRequest)
 	return api.AccountChangePhone(ctx, request)
 }
 
-// AccountCheckUsername checks whether a username is available.
 func (t *TelegramCore) AccountCheckUsername(username string) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -27246,9 +24874,7 @@ func (t *TelegramCore) AccountCheckUsername(username string) (bool, error) {
 	return api.AccountCheckUsername(ctx, username)
 }
 
-// GetAccountUsernames returns all usernames for the current account.
 func (t *TelegramCore) GetAccountUsernames() ([]ChannelUsernameInfo, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -27277,9 +24903,7 @@ func (t *TelegramCore) GetAccountUsernames() ([]ChannelUsernameInfo, error) {
 	return out, nil
 }
 
-// ToggleAccountUsername activates or deactivates a personal username.
 func (t *TelegramCore) ToggleAccountUsername(username string, active bool) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -27290,9 +24914,7 @@ func (t *TelegramCore) ToggleAccountUsername(username string, active bool) (bool
 	})
 }
 
-// ReorderAccountUsernames reorders personal usernames.
 func (t *TelegramCore) ReorderAccountUsernames(order []string) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -27300,9 +24922,7 @@ func (t *TelegramCore) ReorderAccountUsernames(order []string) (bool, error) {
 	return api.AccountReorderUsernames(ctx, order)
 }
 
-// AccountClearRecentEmojiStatuses clears recently used emoji statuses.
 func (t *TelegramCore) AccountClearRecentEmojiStatuses() (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -27310,9 +24930,7 @@ func (t *TelegramCore) AccountClearRecentEmojiStatuses() (bool, error) {
 	return api.AccountClearRecentEmojiStatuses(ctx)
 }
 
-// AccountConfirmPasswordEmail confirms the password recovery email.
 func (t *TelegramCore) AccountConfirmPasswordEmail(code string) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -27320,9 +24938,7 @@ func (t *TelegramCore) AccountConfirmPasswordEmail(code string) (bool, error) {
 	return api.AccountConfirmPasswordEmail(ctx, code)
 }
 
-// AccountConfirmPhone confirms phone ownership using a verification code.
 func (t *TelegramCore) AccountConfirmPhone(request *tg.AccountConfirmPhoneRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -27330,9 +24946,7 @@ func (t *TelegramCore) AccountConfirmPhone(request *tg.AccountConfirmPhoneReques
 	return api.AccountConfirmPhone(ctx, request)
 }
 
-// AccountCreateBusinessChatLink creates a business chat link.
 func (t *TelegramCore) AccountCreateBusinessChatLink(link tg.InputBusinessChatLink) (*tg.BusinessChatLink, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -27340,9 +24954,7 @@ func (t *TelegramCore) AccountCreateBusinessChatLink(link tg.InputBusinessChatLi
 	return api.AccountCreateBusinessChatLink(ctx, link)
 }
 
-// AccountCreateTheme creates a new custom theme.
 func (t *TelegramCore) AccountCreateTheme(request *tg.AccountCreateThemeRequest) (*tg.Theme, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -27350,9 +24962,7 @@ func (t *TelegramCore) AccountCreateTheme(request *tg.AccountCreateThemeRequest)
 	return api.AccountCreateTheme(ctx, request)
 }
 
-// AccountDeclinePasswordReset cancels an active password reset request.
 func (t *TelegramCore) AccountDeclinePasswordReset() (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -27360,9 +24970,7 @@ func (t *TelegramCore) AccountDeclinePasswordReset() (bool, error) {
 	return api.AccountDeclinePasswordReset(ctx)
 }
 
-// AccountDeleteAccount permanently deletes the Telegram account.
 func (t *TelegramCore) AccountDeleteAccount(request *tg.AccountDeleteAccountRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -27370,9 +24978,7 @@ func (t *TelegramCore) AccountDeleteAccount(request *tg.AccountDeleteAccountRequ
 	return api.AccountDeleteAccount(ctx, request)
 }
 
-// AccountDeleteAutoSaveExceptions removes all auto-save exception rules.
 func (t *TelegramCore) AccountDeleteAutoSaveExceptions() (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -27380,9 +24986,7 @@ func (t *TelegramCore) AccountDeleteAutoSaveExceptions() (bool, error) {
 	return api.AccountDeleteAutoSaveExceptions(ctx)
 }
 
-// AccountDeleteBusinessChatLink removes a business chat link.
 func (t *TelegramCore) AccountDeleteBusinessChatLink(slug string) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -27390,9 +24994,7 @@ func (t *TelegramCore) AccountDeleteBusinessChatLink(slug string) (bool, error) 
 	return api.AccountDeleteBusinessChatLink(ctx, slug)
 }
 
-// AccountDeletePasskey removes a registered passkey.
 func (t *TelegramCore) AccountDeletePasskey(id string) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -27400,9 +25002,7 @@ func (t *TelegramCore) AccountDeletePasskey(id string) (bool, error) {
 	return api.AccountDeletePasskey(ctx, id)
 }
 
-// AccountDeleteSecureValue removes stored Telegram Passport secure values.
 func (t *TelegramCore) AccountDeleteSecureValue(types []tg.SecureValueTypeClass) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -27410,9 +25010,7 @@ func (t *TelegramCore) AccountDeleteSecureValue(types []tg.SecureValueTypeClass)
 	return api.AccountDeleteSecureValue(ctx, types)
 }
 
-// AccountDisablePeerConnectedBot disables a connected bot for a peer.
 func (t *TelegramCore) AccountDisablePeerConnectedBot(peer tg.InputPeerClass) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -27420,9 +25018,7 @@ func (t *TelegramCore) AccountDisablePeerConnectedBot(peer tg.InputPeerClass) (b
 	return api.AccountDisablePeerConnectedBot(ctx, peer)
 }
 
-// AccountEditBusinessChatLink modifies a business chat link.
 func (t *TelegramCore) AccountEditBusinessChatLink(request *tg.AccountEditBusinessChatLinkRequest) (*tg.BusinessChatLink, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -27430,9 +25026,7 @@ func (t *TelegramCore) AccountEditBusinessChatLink(request *tg.AccountEditBusine
 	return api.AccountEditBusinessChatLink(ctx, request)
 }
 
-// AccountFinishTakeoutSession completes a data export (takeout) session.
 func (t *TelegramCore) AccountFinishTakeoutSession(request *tg.AccountFinishTakeoutSessionRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -27440,9 +25034,7 @@ func (t *TelegramCore) AccountFinishTakeoutSession(request *tg.AccountFinishTake
 	return api.AccountFinishTakeoutSession(ctx, request)
 }
 
-// InitTakeout starts a takeout session with simple Go types (no gotd imports needed by caller).
 func (t *TelegramCore) InitTakeout(contacts, msgUsers, msgChats, msgMegagroups, msgChannels, files bool, fileMaxSizeBytes int64) (int64, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return 0, err
@@ -27474,9 +25066,7 @@ func (t *TelegramCore) InitTakeout(contacts, msgUsers, msgChats, msgMegagroups, 
 	return result.ID, nil
 }
 
-// FinishTakeout ends the current takeout session.
 func (t *TelegramCore) FinishTakeout() error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -27485,9 +25075,7 @@ func (t *TelegramCore) FinishTakeout() error {
 	return err
 }
 
-// AccountGetAllSecureValues returns all stored Telegram Passport secure values.
 func (t *TelegramCore) AccountGetAllSecureValues() ([]tg.SecureValue, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -27495,9 +25083,7 @@ func (t *TelegramCore) AccountGetAllSecureValues() ([]tg.SecureValue, error) {
 	return api.AccountGetAllSecureValues(ctx)
 }
 
-// AccountGetAuthorizationForm returns the Passport authorization form for a bot.
 func (t *TelegramCore) AccountGetAuthorizationForm(request *tg.AccountGetAuthorizationFormRequest) (*tg.AccountAuthorizationForm, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -27505,9 +25091,7 @@ func (t *TelegramCore) AccountGetAuthorizationForm(request *tg.AccountGetAuthori
 	return api.AccountGetAuthorizationForm(ctx, request)
 }
 
-// AccountGetAutoDownloadSettings returns automatic media download settings.
 func (t *TelegramCore) AccountGetAutoDownloadSettings() (*tg.AccountAutoDownloadSettings, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -27515,9 +25099,7 @@ func (t *TelegramCore) AccountGetAutoDownloadSettings() (*tg.AccountAutoDownload
 	return api.AccountGetAutoDownloadSettings(ctx)
 }
 
-// AccountGetAutoSaveSettings returns automatic media save settings.
 func (t *TelegramCore) AccountGetAutoSaveSettings() (*tg.AccountAutoSaveSettings, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -27525,9 +25107,7 @@ func (t *TelegramCore) AccountGetAutoSaveSettings() (*tg.AccountAutoSaveSettings
 	return api.AccountGetAutoSaveSettings(ctx)
 }
 
-// AccountGetBotBusinessConnection returns a bot's business connection info.
 func (t *TelegramCore) AccountGetBotBusinessConnection(connectionid string) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -27535,9 +25115,7 @@ func (t *TelegramCore) AccountGetBotBusinessConnection(connectionid string) (tg.
 	return api.AccountGetBotBusinessConnection(ctx, connectionid)
 }
 
-// AccountGetBusinessChatLinks returns all business chat links.
 func (t *TelegramCore) AccountGetBusinessChatLinks() (*tg.AccountBusinessChatLinks, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -27545,9 +25123,7 @@ func (t *TelegramCore) AccountGetBusinessChatLinks() (*tg.AccountBusinessChatLin
 	return api.AccountGetBusinessChatLinks(ctx)
 }
 
-// AccountGetChannelDefaultEmojiStatuses returns default emoji statuses for channels.
 func (t *TelegramCore) AccountGetChannelDefaultEmojiStatuses(hash int64) (tg.AccountEmojiStatusesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -27555,9 +25131,7 @@ func (t *TelegramCore) AccountGetChannelDefaultEmojiStatuses(hash int64) (tg.Acc
 	return api.AccountGetChannelDefaultEmojiStatuses(ctx, hash)
 }
 
-// AccountGetChannelRestrictedStatusEmojis returns restricted emoji statuses for channels.
 func (t *TelegramCore) AccountGetChannelRestrictedStatusEmojis(hash int64) (tg.EmojiListClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -27565,9 +25139,7 @@ func (t *TelegramCore) AccountGetChannelRestrictedStatusEmojis(hash int64) (tg.E
 	return api.AccountGetChannelRestrictedStatusEmojis(ctx, hash)
 }
 
-// AccountGetChatThemes returns available chat themes.
 func (t *TelegramCore) AccountGetChatThemes(hash int64) (tg.AccountThemesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -27575,9 +25147,7 @@ func (t *TelegramCore) AccountGetChatThemes(hash int64) (tg.AccountThemesClass, 
 	return api.AccountGetChatThemes(ctx, hash)
 }
 
-// AccountGetCollectibleEmojiStatuses returns collectible emoji statuses.
 func (t *TelegramCore) AccountGetCollectibleEmojiStatuses(hash int64) (tg.AccountEmojiStatusesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -27585,9 +25155,7 @@ func (t *TelegramCore) AccountGetCollectibleEmojiStatuses(hash int64) (tg.Accoun
 	return api.AccountGetCollectibleEmojiStatuses(ctx, hash)
 }
 
-// AccountGetConnectedBots returns connected bots for the account.
 func (t *TelegramCore) AccountGetConnectedBots() (*tg.AccountConnectedBots, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -27595,9 +25163,7 @@ func (t *TelegramCore) AccountGetConnectedBots() (*tg.AccountConnectedBots, erro
 	return api.AccountGetConnectedBots(ctx)
 }
 
-// AccountGetContactSignUpNotification returns whether contact sign-up notifications are enabled.
 func (t *TelegramCore) AccountGetContactSignUpNotification() (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -27605,9 +25171,7 @@ func (t *TelegramCore) AccountGetContactSignUpNotification() (bool, error) {
 	return api.AccountGetContactSignUpNotification(ctx)
 }
 
-// AccountGetContentSettings returns content filtering settings.
 func (t *TelegramCore) AccountGetContentSettings() (*tg.AccountContentSettings, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -27615,9 +25179,7 @@ func (t *TelegramCore) AccountGetContentSettings() (*tg.AccountContentSettings, 
 	return api.AccountGetContentSettings(ctx)
 }
 
-// AccountGetDefaultBackgroundEmojis returns default background emoji options.
 func (t *TelegramCore) AccountGetDefaultBackgroundEmojis(hash int64) (tg.EmojiListClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -27625,9 +25187,7 @@ func (t *TelegramCore) AccountGetDefaultBackgroundEmojis(hash int64) (tg.EmojiLi
 	return api.AccountGetDefaultBackgroundEmojis(ctx, hash)
 }
 
-// AccountGetDefaultEmojiStatuses returns default emoji status options.
 func (t *TelegramCore) AccountGetDefaultEmojiStatuses(hash int64) (tg.AccountEmojiStatusesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -27635,9 +25195,7 @@ func (t *TelegramCore) AccountGetDefaultEmojiStatuses(hash int64) (tg.AccountEmo
 	return api.AccountGetDefaultEmojiStatuses(ctx, hash)
 }
 
-// AccountGetDefaultGroupPhotoEmojis returns default group photo emoji options.
 func (t *TelegramCore) AccountGetDefaultGroupPhotoEmojis(hash int64) (tg.EmojiListClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -27645,9 +25203,7 @@ func (t *TelegramCore) AccountGetDefaultGroupPhotoEmojis(hash int64) (tg.EmojiLi
 	return api.AccountGetDefaultGroupPhotoEmojis(ctx, hash)
 }
 
-// AccountGetDefaultProfilePhotoEmojis returns default profile photo emoji options.
 func (t *TelegramCore) AccountGetDefaultProfilePhotoEmojis(hash int64) (tg.EmojiListClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -27655,9 +25211,7 @@ func (t *TelegramCore) AccountGetDefaultProfilePhotoEmojis(hash int64) (tg.Emoji
 	return api.AccountGetDefaultProfilePhotoEmojis(ctx, hash)
 }
 
-// AccountGetMultiWallPapers returns multiple wallpapers by their references.
 func (t *TelegramCore) AccountGetMultiWallPapers(wallpapers []tg.InputWallPaperClass) ([]tg.WallPaperClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -27665,9 +25219,7 @@ func (t *TelegramCore) AccountGetMultiWallPapers(wallpapers []tg.InputWallPaperC
 	return api.AccountGetMultiWallPapers(ctx, wallpapers)
 }
 
-// AccountGetNotifyExceptions returns chats with custom notification settings.
 func (t *TelegramCore) AccountGetNotifyExceptions(request *tg.AccountGetNotifyExceptionsRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -27675,9 +25227,7 @@ func (t *TelegramCore) AccountGetNotifyExceptions(request *tg.AccountGetNotifyEx
 	return api.AccountGetNotifyExceptions(ctx, request)
 }
 
-// AccountGetNotifySettings returns notification settings for a chat or category.
 func (t *TelegramCore) AccountGetNotifySettings(peer tg.InputNotifyPeerClass) (*tg.PeerNotifySettings, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -27685,9 +25235,7 @@ func (t *TelegramCore) AccountGetNotifySettings(peer tg.InputNotifyPeerClass) (*
 	return api.AccountGetNotifySettings(ctx, peer)
 }
 
-// AccountGetPaidMessagesRevenue returns revenue from paid messages.
 func (t *TelegramCore) AccountGetPaidMessagesRevenue(request *tg.AccountGetPaidMessagesRevenueRequest) (*tg.AccountPaidMessagesRevenue, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -27695,9 +25243,7 @@ func (t *TelegramCore) AccountGetPaidMessagesRevenue(request *tg.AccountGetPaidM
 	return api.AccountGetPaidMessagesRevenue(ctx, request)
 }
 
-// AccountGetPasskeys returns registered passkeys for the account.
 func (t *TelegramCore) AccountGetPasskeys() (*tg.AccountPasskeys, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -27705,9 +25251,7 @@ func (t *TelegramCore) AccountGetPasskeys() (*tg.AccountPasskeys, error) {
 	return api.AccountGetPasskeys(ctx)
 }
 
-// AccountGetPasswordSettings returns two-factor authentication settings.
 func (t *TelegramCore) AccountGetPasswordSettings(password tg.InputCheckPasswordSRPClass) (*tg.AccountPasswordSettings, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -27715,9 +25259,7 @@ func (t *TelegramCore) AccountGetPasswordSettings(password tg.InputCheckPassword
 	return api.AccountGetPasswordSettings(ctx, password)
 }
 
-// AccountGetReactionsNotifySettings returns reaction notification settings.
 func (t *TelegramCore) AccountGetReactionsNotifySettings() (*tg.ReactionsNotifySettings, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -27725,9 +25267,7 @@ func (t *TelegramCore) AccountGetReactionsNotifySettings() (*tg.ReactionsNotifyS
 	return api.AccountGetReactionsNotifySettings(ctx)
 }
 
-// AccountGetRecentEmojiStatuses returns recently used emoji statuses.
 func (t *TelegramCore) AccountGetRecentEmojiStatuses(hash int64) (tg.AccountEmojiStatusesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -27735,9 +25275,7 @@ func (t *TelegramCore) AccountGetRecentEmojiStatuses(hash int64) (tg.AccountEmoj
 	return api.AccountGetRecentEmojiStatuses(ctx, hash)
 }
 
-// AccountGetSavedMusicIDs returns IDs of saved music tracks.
 func (t *TelegramCore) AccountGetSavedMusicIDs(hash int64) (tg.AccountSavedMusicIDsClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -27745,9 +25283,7 @@ func (t *TelegramCore) AccountGetSavedMusicIDs(hash int64) (tg.AccountSavedMusic
 	return api.AccountGetSavedMusicIDs(ctx, hash)
 }
 
-// AccountGetSavedRingtones returns saved notification ringtones.
 func (t *TelegramCore) AccountGetSavedRingtones(hash int64) (tg.AccountSavedRingtonesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -27755,9 +25291,7 @@ func (t *TelegramCore) AccountGetSavedRingtones(hash int64) (tg.AccountSavedRing
 	return api.AccountGetSavedRingtones(ctx, hash)
 }
 
-// AccountGetSecureValue returns stored Telegram Passport secure values.
 func (t *TelegramCore) AccountGetSecureValue(types []tg.SecureValueTypeClass) ([]tg.SecureValue, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -27765,9 +25299,7 @@ func (t *TelegramCore) AccountGetSecureValue(types []tg.SecureValueTypeClass) ([
 	return api.AccountGetSecureValue(ctx, types)
 }
 
-// AccountGetTheme returns a theme by its slug or ID.
 func (t *TelegramCore) AccountGetTheme(request *tg.AccountGetThemeRequest) (*tg.Theme, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -27775,9 +25307,7 @@ func (t *TelegramCore) AccountGetTheme(request *tg.AccountGetThemeRequest) (*tg.
 	return api.AccountGetTheme(ctx, request)
 }
 
-// AccountGetThemes returns all available themes for a format.
 func (t *TelegramCore) AccountGetThemes(request *tg.AccountGetThemesRequest) (tg.AccountThemesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -27786,7 +25316,6 @@ func (t *TelegramCore) AccountGetThemes(request *tg.AccountGetThemesRequest) (tg
 }
 
 func (t *TelegramCore) GetCloudThemes() ([]CloudThemeInfo, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -27831,7 +25360,6 @@ func (t *TelegramCore) GetCloudThemes() ([]CloudThemeInfo, error) {
 }
 
 func (t *TelegramCore) DeleteCloudTheme(themeID int64) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -27980,9 +25508,7 @@ func (t *TelegramCore) UpdateCloudThemeWithData(themeID, accessHash int64, title
 	return info, nil
 }
 
-// AccountGetTmpPassword generates a temporary password for payments.
 func (t *TelegramCore) AccountGetTmpPassword(request *tg.AccountGetTmpPasswordRequest) (*tg.AccountTmpPassword, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -27990,9 +25516,7 @@ func (t *TelegramCore) AccountGetTmpPassword(request *tg.AccountGetTmpPasswordRe
 	return api.AccountGetTmpPassword(ctx, request)
 }
 
-// AccountGetUniqueGiftChatThemes returns unique gift-based chat themes.
 func (t *TelegramCore) AccountGetUniqueGiftChatThemes(request *tg.AccountGetUniqueGiftChatThemesRequest) (tg.AccountChatThemesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28000,9 +25524,7 @@ func (t *TelegramCore) AccountGetUniqueGiftChatThemes(request *tg.AccountGetUniq
 	return api.AccountGetUniqueGiftChatThemes(ctx, request)
 }
 
-// AccountGetWallPaper returns a wallpaper by its slug or ID.
 func (t *TelegramCore) AccountGetWallPaper(wallpaper tg.InputWallPaperClass) (tg.WallPaperClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28010,9 +25532,7 @@ func (t *TelegramCore) AccountGetWallPaper(wallpaper tg.InputWallPaperClass) (tg
 	return api.AccountGetWallPaper(ctx, wallpaper)
 }
 
-// AccountGetWallPapers returns all available wallpapers.
 func (t *TelegramCore) AccountGetWallPapers(hash int64) (tg.AccountWallPapersClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28020,9 +25540,7 @@ func (t *TelegramCore) AccountGetWallPapers(hash int64) (tg.AccountWallPapersCla
 	return api.AccountGetWallPapers(ctx, hash)
 }
 
-// AccountGetWebAuthorizations returns active web login sessions.
 func (t *TelegramCore) AccountGetWebAuthorizations() (*tg.AccountWebAuthorizations, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28030,9 +25548,7 @@ func (t *TelegramCore) AccountGetWebAuthorizations() (*tg.AccountWebAuthorizatio
 	return api.AccountGetWebAuthorizations(ctx)
 }
 
-// AccountInitPasskeyRegistration starts the passkey registration flow.
 func (t *TelegramCore) AccountInitPasskeyRegistration() (*tg.AccountPasskeyRegistrationOptions, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28040,9 +25556,7 @@ func (t *TelegramCore) AccountInitPasskeyRegistration() (*tg.AccountPasskeyRegis
 	return api.AccountInitPasskeyRegistration(ctx)
 }
 
-// AccountInitTakeoutSession starts a data export (takeout) session.
 func (t *TelegramCore) AccountInitTakeoutSession(request *tg.AccountInitTakeoutSessionRequest) (*tg.AccountTakeout, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28050,9 +25564,7 @@ func (t *TelegramCore) AccountInitTakeoutSession(request *tg.AccountInitTakeoutS
 	return api.AccountInitTakeoutSession(ctx, request)
 }
 
-// InstallCloudTheme installs a cloud theme (high-level wrapper for engine).
 func (t *TelegramCore) InstallCloudTheme(themeID int64, isDark bool) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -28065,9 +25577,7 @@ func (t *TelegramCore) InstallCloudTheme(themeID int64, isDark bool) error {
 	return err
 }
 
-// AccountInstallTheme applies a theme to the client.
 func (t *TelegramCore) AccountInstallTheme(request *tg.AccountInstallThemeRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28075,9 +25585,7 @@ func (t *TelegramCore) AccountInstallTheme(request *tg.AccountInstallThemeReques
 	return api.AccountInstallTheme(ctx, request)
 }
 
-// AccountInstallWallPaper adds a wallpaper to the user's collection.
 func (t *TelegramCore) AccountInstallWallPaper(request *tg.AccountInstallWallPaperRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28085,9 +25593,7 @@ func (t *TelegramCore) AccountInstallWallPaper(request *tg.AccountInstallWallPap
 	return api.AccountInstallWallPaper(ctx, request)
 }
 
-// AccountInvalidateSignInCodes invalidates previously sent sign-in codes.
 func (t *TelegramCore) AccountInvalidateSignInCodes(codes []string) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28095,9 +25601,7 @@ func (t *TelegramCore) AccountInvalidateSignInCodes(codes []string) (bool, error
 	return api.AccountInvalidateSignInCodes(ctx, codes)
 }
 
-// AccountRegisterDevice registers a device for push notifications.
 func (t *TelegramCore) AccountRegisterDevice(request *tg.AccountRegisterDeviceRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28105,9 +25609,7 @@ func (t *TelegramCore) AccountRegisterDevice(request *tg.AccountRegisterDeviceRe
 	return api.AccountRegisterDevice(ctx, request)
 }
 
-// AccountRegisterPasskey completes passkey registration.
 func (t *TelegramCore) AccountRegisterPasskey(credential tg.InputPasskeyCredentialClass) (*tg.Passkey, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28115,9 +25617,7 @@ func (t *TelegramCore) AccountRegisterPasskey(credential tg.InputPasskeyCredenti
 	return api.AccountRegisterPasskey(ctx, credential)
 }
 
-// AccountReorderUsernames changes the display order of usernames.
 func (t *TelegramCore) AccountReorderUsernames(order []string) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28125,9 +25625,7 @@ func (t *TelegramCore) AccountReorderUsernames(order []string) (bool, error) {
 	return api.AccountReorderUsernames(ctx, order)
 }
 
-// AccountReportPeer reports a peer for terms of service violation.
 func (t *TelegramCore) AccountReportPeer(request *tg.AccountReportPeerRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28135,9 +25633,7 @@ func (t *TelegramCore) AccountReportPeer(request *tg.AccountReportPeerRequest) (
 	return api.AccountReportPeer(ctx, request)
 }
 
-// AccountReportProfilePhoto reports a user's profile photo.
 func (t *TelegramCore) AccountReportProfilePhoto(request *tg.AccountReportProfilePhotoRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28145,9 +25641,7 @@ func (t *TelegramCore) AccountReportProfilePhoto(request *tg.AccountReportProfil
 	return api.AccountReportProfilePhoto(ctx, request)
 }
 
-// AccountResendPasswordEmail resends the password recovery email.
 func (t *TelegramCore) AccountResendPasswordEmail() (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28155,9 +25649,7 @@ func (t *TelegramCore) AccountResendPasswordEmail() (bool, error) {
 	return api.AccountResendPasswordEmail(ctx)
 }
 
-// AccountResetNotifySettings resets all notification settings to defaults.
 func (t *TelegramCore) AccountResetNotifySettings() (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28165,9 +25657,7 @@ func (t *TelegramCore) AccountResetNotifySettings() (bool, error) {
 	return api.AccountResetNotifySettings(ctx)
 }
 
-// AccountResetPassword initiates a password reset with a waiting period.
 func (t *TelegramCore) AccountResetPassword() (tg.AccountResetPasswordResultClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28175,9 +25665,7 @@ func (t *TelegramCore) AccountResetPassword() (tg.AccountResetPasswordResultClas
 	return api.AccountResetPassword(ctx)
 }
 
-// AccountResetWallPapers resets wallpapers to the default set.
 func (t *TelegramCore) AccountResetWallPapers() (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28185,9 +25673,7 @@ func (t *TelegramCore) AccountResetWallPapers() (bool, error) {
 	return api.AccountResetWallPapers(ctx)
 }
 
-// AccountResetWebAuthorization terminates a specific web login session.
 func (t *TelegramCore) AccountResetWebAuthorization(hash int64) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28195,9 +25681,7 @@ func (t *TelegramCore) AccountResetWebAuthorization(hash int64) (bool, error) {
 	return api.AccountResetWebAuthorization(ctx, hash)
 }
 
-// AccountResetWebAuthorizations terminates all web login sessions.
 func (t *TelegramCore) AccountResetWebAuthorizations() (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28205,9 +25689,7 @@ func (t *TelegramCore) AccountResetWebAuthorizations() (bool, error) {
 	return api.AccountResetWebAuthorizations(ctx)
 }
 
-// AccountResolveBusinessChatLink resolves a business chat link to its target.
 func (t *TelegramCore) AccountResolveBusinessChatLink(slug string) (*tg.AccountResolvedBusinessChatLinks, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28215,9 +25697,7 @@ func (t *TelegramCore) AccountResolveBusinessChatLink(slug string) (*tg.AccountR
 	return api.AccountResolveBusinessChatLink(ctx, slug)
 }
 
-// AccountSaveAutoDownloadSettings updates automatic media download settings.
 func (t *TelegramCore) AccountSaveAutoDownloadSettings(request *tg.AccountSaveAutoDownloadSettingsRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28225,9 +25705,7 @@ func (t *TelegramCore) AccountSaveAutoDownloadSettings(request *tg.AccountSaveAu
 	return api.AccountSaveAutoDownloadSettings(ctx, request)
 }
 
-// AccountSaveAutoSaveSettings updates automatic media save settings.
 func (t *TelegramCore) AccountSaveAutoSaveSettings(request *tg.AccountSaveAutoSaveSettingsRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28235,9 +25713,7 @@ func (t *TelegramCore) AccountSaveAutoSaveSettings(request *tg.AccountSaveAutoSa
 	return api.AccountSaveAutoSaveSettings(ctx, request)
 }
 
-// AccountSaveMusic saves a music track to the user's collection.
 func (t *TelegramCore) AccountSaveMusic(request *tg.AccountSaveMusicRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28245,9 +25721,7 @@ func (t *TelegramCore) AccountSaveMusic(request *tg.AccountSaveMusicRequest) (bo
 	return api.AccountSaveMusic(ctx, request)
 }
 
-// AccountSaveRingtone saves or unsaves a notification ringtone.
 func (t *TelegramCore) AccountSaveRingtone(request *tg.AccountSaveRingtoneRequest) (tg.AccountSavedRingtoneClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28255,9 +25729,7 @@ func (t *TelegramCore) AccountSaveRingtone(request *tg.AccountSaveRingtoneReques
 	return api.AccountSaveRingtone(ctx, request)
 }
 
-// AccountSaveSecureValue stores a Telegram Passport secure value.
 func (t *TelegramCore) AccountSaveSecureValue(request *tg.AccountSaveSecureValueRequest) (*tg.SecureValue, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28265,9 +25737,7 @@ func (t *TelegramCore) AccountSaveSecureValue(request *tg.AccountSaveSecureValue
 	return api.AccountSaveSecureValue(ctx, request)
 }
 
-// AccountSaveTheme saves a theme for later use.
 func (t *TelegramCore) AccountSaveTheme(request *tg.AccountSaveThemeRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28275,9 +25745,7 @@ func (t *TelegramCore) AccountSaveTheme(request *tg.AccountSaveThemeRequest) (bo
 	return api.AccountSaveTheme(ctx, request)
 }
 
-// AccountSaveWallPaper saves or unsaves a wallpaper.
 func (t *TelegramCore) AccountSaveWallPaper(request *tg.AccountSaveWallPaperRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28285,9 +25753,7 @@ func (t *TelegramCore) AccountSaveWallPaper(request *tg.AccountSaveWallPaperRequ
 	return api.AccountSaveWallPaper(ctx, request)
 }
 
-// AccountSendChangePhoneCode sends a verification code for changing the phone number.
 func (t *TelegramCore) AccountSendChangePhoneCode(request *tg.AccountSendChangePhoneCodeRequest) (tg.AuthSentCodeClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28295,9 +25761,7 @@ func (t *TelegramCore) AccountSendChangePhoneCode(request *tg.AccountSendChangeP
 	return api.AccountSendChangePhoneCode(ctx, request)
 }
 
-// AccountSendConfirmPhoneCode sends a confirmation code for phone verification.
 func (t *TelegramCore) AccountSendConfirmPhoneCode(request *tg.AccountSendConfirmPhoneCodeRequest) (tg.AuthSentCodeClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28305,9 +25769,7 @@ func (t *TelegramCore) AccountSendConfirmPhoneCode(request *tg.AccountSendConfir
 	return api.AccountSendConfirmPhoneCode(ctx, request)
 }
 
-// AccountSendVerifyEmailCode sends a verification code to an email address.
 func (t *TelegramCore) AccountSendVerifyEmailCode(request *tg.AccountSendVerifyEmailCodeRequest) (*tg.AccountSentEmailCode, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28315,9 +25777,7 @@ func (t *TelegramCore) AccountSendVerifyEmailCode(request *tg.AccountSendVerifyE
 	return api.AccountSendVerifyEmailCode(ctx, request)
 }
 
-// AccountSendVerifyPhoneCode sends a phone verification code.
 func (t *TelegramCore) AccountSendVerifyPhoneCode(request *tg.AccountSendVerifyPhoneCodeRequest) (tg.AuthSentCodeClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28325,9 +25785,7 @@ func (t *TelegramCore) AccountSendVerifyPhoneCode(request *tg.AccountSendVerifyP
 	return api.AccountSendVerifyPhoneCode(ctx, request)
 }
 
-// AccountSetAuthorizationTTL sets the inactivity timeout for sessions.
 func (t *TelegramCore) AccountSetAuthorizationTTL(authorizationttldays int) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28335,9 +25793,7 @@ func (t *TelegramCore) AccountSetAuthorizationTTL(authorizationttldays int) (boo
 	return api.AccountSetAuthorizationTTL(ctx, authorizationttldays)
 }
 
-// AccountSetContactSignUpNotification toggles contact sign-up notifications.
 func (t *TelegramCore) AccountSetContactSignUpNotification(silent bool) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28345,9 +25801,7 @@ func (t *TelegramCore) AccountSetContactSignUpNotification(silent bool) (bool, e
 	return api.AccountSetContactSignUpNotification(ctx, silent)
 }
 
-// AccountSetContentSettings configures content filtering settings.
 func (t *TelegramCore) AccountSetContentSettings(request *tg.AccountSetContentSettingsRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28355,9 +25809,7 @@ func (t *TelegramCore) AccountSetContentSettings(request *tg.AccountSetContentSe
 	return api.AccountSetContentSettings(ctx, request)
 }
 
-// AccountSetMainProfileTab sets the default tab on the user's profile.
 func (t *TelegramCore) AccountSetMainProfileTab(tab tg.ProfileTabClass) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28365,9 +25817,7 @@ func (t *TelegramCore) AccountSetMainProfileTab(tab tg.ProfileTabClass) (bool, e
 	return api.AccountSetMainProfileTab(ctx, tab)
 }
 
-// AccountSetReactionsNotifySettings configures reaction notification settings.
 func (t *TelegramCore) AccountSetReactionsNotifySettings(settings tg.ReactionsNotifySettings) (*tg.ReactionsNotifySettings, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28375,9 +25825,7 @@ func (t *TelegramCore) AccountSetReactionsNotifySettings(settings tg.ReactionsNo
 	return api.AccountSetReactionsNotifySettings(ctx, settings)
 }
 
-// AccountToggleConnectedBotPaused pauses or resumes a connected bot.
 func (t *TelegramCore) AccountToggleConnectedBotPaused(request *tg.AccountToggleConnectedBotPausedRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28385,9 +25833,7 @@ func (t *TelegramCore) AccountToggleConnectedBotPaused(request *tg.AccountToggle
 	return api.AccountToggleConnectedBotPaused(ctx, request)
 }
 
-// AccountToggleNoPaidMessagesException toggles paid message exception for a peer.
 func (t *TelegramCore) AccountToggleNoPaidMessagesException(request *tg.AccountToggleNoPaidMessagesExceptionRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28395,9 +25841,7 @@ func (t *TelegramCore) AccountToggleNoPaidMessagesException(request *tg.AccountT
 	return api.AccountToggleNoPaidMessagesException(ctx, request)
 }
 
-// AccountToggleSponsoredMessages enables or disables sponsored messages.
 func (t *TelegramCore) AccountToggleSponsoredMessages(enabled bool) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28405,9 +25849,7 @@ func (t *TelegramCore) AccountToggleSponsoredMessages(enabled bool) (bool, error
 	return api.AccountToggleSponsoredMessages(ctx, enabled)
 }
 
-// AccountToggleUsername activates or deactivates a username.
 func (t *TelegramCore) AccountToggleUsername(request *tg.AccountToggleUsernameRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28415,9 +25857,7 @@ func (t *TelegramCore) AccountToggleUsername(request *tg.AccountToggleUsernameRe
 	return api.AccountToggleUsername(ctx, request)
 }
 
-// AccountUnregisterDevice unregisters a device from push notifications.
 func (t *TelegramCore) AccountUnregisterDevice(request *tg.AccountUnregisterDeviceRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28425,9 +25865,7 @@ func (t *TelegramCore) AccountUnregisterDevice(request *tg.AccountUnregisterDevi
 	return api.AccountUnregisterDevice(ctx, request)
 }
 
-// AccountUpdateBusinessAwayMessage sets or clears the business away message.
 func (t *TelegramCore) AccountUpdateBusinessAwayMessage(request *tg.AccountUpdateBusinessAwayMessageRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28435,9 +25873,7 @@ func (t *TelegramCore) AccountUpdateBusinessAwayMessage(request *tg.AccountUpdat
 	return api.AccountUpdateBusinessAwayMessage(ctx, request)
 }
 
-// AccountUpdateBusinessGreetingMessage sets or clears the business greeting message.
 func (t *TelegramCore) AccountUpdateBusinessGreetingMessage(request *tg.AccountUpdateBusinessGreetingMessageRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28445,9 +25881,7 @@ func (t *TelegramCore) AccountUpdateBusinessGreetingMessage(request *tg.AccountU
 	return api.AccountUpdateBusinessGreetingMessage(ctx, request)
 }
 
-// AccountUpdateBusinessIntro sets or clears the business introduction.
 func (t *TelegramCore) AccountUpdateBusinessIntro(request *tg.AccountUpdateBusinessIntroRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28455,9 +25889,7 @@ func (t *TelegramCore) AccountUpdateBusinessIntro(request *tg.AccountUpdateBusin
 	return api.AccountUpdateBusinessIntro(ctx, request)
 }
 
-// AccountUpdateBusinessLocation sets or clears the business location.
 func (t *TelegramCore) AccountUpdateBusinessLocation(request *tg.AccountUpdateBusinessLocationRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28465,9 +25897,7 @@ func (t *TelegramCore) AccountUpdateBusinessLocation(request *tg.AccountUpdateBu
 	return api.AccountUpdateBusinessLocation(ctx, request)
 }
 
-// AccountUpdateBusinessWorkHours sets or clears the business work hours.
 func (t *TelegramCore) AccountUpdateBusinessWorkHours(request *tg.AccountUpdateBusinessWorkHoursRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28475,9 +25905,7 @@ func (t *TelegramCore) AccountUpdateBusinessWorkHours(request *tg.AccountUpdateB
 	return api.AccountUpdateBusinessWorkHours(ctx, request)
 }
 
-// AccountUpdateColor sets the accent color and background emoji for the profile.
 func (t *TelegramCore) AccountUpdateColor(request *tg.AccountUpdateColorRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28485,9 +25913,7 @@ func (t *TelegramCore) AccountUpdateColor(request *tg.AccountUpdateColorRequest)
 	return api.AccountUpdateColor(ctx, request)
 }
 
-// AccountUpdateConnectedBot updates settings for a connected bot.
 func (t *TelegramCore) AccountUpdateConnectedBot(request *tg.AccountUpdateConnectedBotRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28495,9 +25921,7 @@ func (t *TelegramCore) AccountUpdateConnectedBot(request *tg.AccountUpdateConnec
 	return api.AccountUpdateConnectedBot(ctx, request)
 }
 
-// AccountUpdateDeviceLocked updates the device lock period for the session.
 func (t *TelegramCore) AccountUpdateDeviceLocked(period int) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28505,9 +25929,7 @@ func (t *TelegramCore) AccountUpdateDeviceLocked(period int) (bool, error) {
 	return api.AccountUpdateDeviceLocked(ctx, period)
 }
 
-// AccountUpdateEmojiStatus sets or clears the user's emoji status.
 func (t *TelegramCore) AccountUpdateEmojiStatus(emojistatus tg.EmojiStatusClass) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28515,9 +25937,7 @@ func (t *TelegramCore) AccountUpdateEmojiStatus(emojistatus tg.EmojiStatusClass)
 	return api.AccountUpdateEmojiStatus(ctx, emojistatus)
 }
 
-// SetEmojiStatus sets the user's emoji status to a custom emoji document.
 func (t *TelegramCore) SetEmojiStatus(documentID int64, expiresIn int) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -28530,9 +25950,7 @@ func (t *TelegramCore) SetEmojiStatus(documentID int64, expiresIn int) error {
 	return err
 }
 
-// ClearEmojiStatus removes the user's emoji status.
 func (t *TelegramCore) ClearEmojiStatus() error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -28541,9 +25959,7 @@ func (t *TelegramCore) ClearEmojiStatus() error {
 	return err
 }
 
-// DeleteQuickReply deletes a quick reply shortcut by ID.
 func (t *TelegramCore) DeleteQuickReply(shortcutID int) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -28552,9 +25968,7 @@ func (t *TelegramCore) DeleteQuickReply(shortcutID int) error {
 	return err
 }
 
-// DeleteBusinessLink deletes a business chat link by slug.
 func (t *TelegramCore) DeleteBusinessLink(slug string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -28563,9 +25977,7 @@ func (t *TelegramCore) DeleteBusinessLink(slug string) error {
 	return err
 }
 
-// AccountUpdateNotifySettings configures notification settings for a chat or category.
 func (t *TelegramCore) AccountUpdateNotifySettings(request *tg.AccountUpdateNotifySettingsRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28573,9 +25985,7 @@ func (t *TelegramCore) AccountUpdateNotifySettings(request *tg.AccountUpdateNoti
 	return api.AccountUpdateNotifySettings(ctx, request)
 }
 
-// AccountUpdatePasswordSettings updates two-factor authentication settings.
 func (t *TelegramCore) AccountUpdatePasswordSettings(request *tg.AccountUpdatePasswordSettingsRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28583,9 +25993,7 @@ func (t *TelegramCore) AccountUpdatePasswordSettings(request *tg.AccountUpdatePa
 	return api.AccountUpdatePasswordSettings(ctx, request)
 }
 
-// AccountUpdatePersonalChannel sets or clears the personal channel on the profile.
 func (t *TelegramCore) AccountUpdatePersonalChannel(channel tg.InputChannelClass) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28618,7 +26026,6 @@ func (t *TelegramCore) SetPersonalChannel(channelUsername string) error {
 }
 
 func (t *TelegramCore) ClearPersonalChannel() error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -28627,9 +26034,7 @@ func (t *TelegramCore) ClearPersonalChannel() error {
 	return err
 }
 
-// AccountUpdateTheme modifies an existing custom theme.
 func (t *TelegramCore) AccountUpdateTheme(request *tg.AccountUpdateThemeRequest) (*tg.Theme, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28637,9 +26042,7 @@ func (t *TelegramCore) AccountUpdateTheme(request *tg.AccountUpdateThemeRequest)
 	return api.AccountUpdateTheme(ctx, request)
 }
 
-// AccountUploadRingtone uploads a custom notification ringtone.
 func (t *TelegramCore) AccountUploadRingtone(request *tg.AccountUploadRingtoneRequest) (tg.DocumentClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28647,9 +26050,7 @@ func (t *TelegramCore) AccountUploadRingtone(request *tg.AccountUploadRingtoneRe
 	return api.AccountUploadRingtone(ctx, request)
 }
 
-// AccountUploadTheme uploads a theme file to Telegram.
 func (t *TelegramCore) AccountUploadTheme(request *tg.AccountUploadThemeRequest) (tg.DocumentClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28657,9 +26058,7 @@ func (t *TelegramCore) AccountUploadTheme(request *tg.AccountUploadThemeRequest)
 	return api.AccountUploadTheme(ctx, request)
 }
 
-// AccountUploadWallPaper uploads a custom wallpaper image.
 func (t *TelegramCore) AccountUploadWallPaper(request *tg.AccountUploadWallPaperRequest) (tg.WallPaperClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28667,9 +26066,7 @@ func (t *TelegramCore) AccountUploadWallPaper(request *tg.AccountUploadWallPaper
 	return api.AccountUploadWallPaper(ctx, request)
 }
 
-// AccountVerifyEmail verifies an email address using the received code.
 func (t *TelegramCore) AccountVerifyEmail(request *tg.AccountVerifyEmailRequest) (tg.AccountEmailVerifiedClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28677,9 +26074,7 @@ func (t *TelegramCore) AccountVerifyEmail(request *tg.AccountVerifyEmailRequest)
 	return api.AccountVerifyEmail(ctx, request)
 }
 
-// AccountVerifyPhone verifies a phone number using the received code.
 func (t *TelegramCore) AccountVerifyPhone(request *tg.AccountVerifyPhoneRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28687,11 +26082,7 @@ func (t *TelegramCore) AccountVerifyPhone(request *tg.AccountVerifyPhoneRequest)
 	return api.AccountVerifyPhone(ctx, request)
 }
 
-// --- Auth (25 methods) ---
-
-// AuthAcceptLoginToken accepts a QR code login token from another device.
 func (t *TelegramCore) AuthAcceptLoginToken(token []byte) (*tg.Authorization, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28699,9 +26090,7 @@ func (t *TelegramCore) AuthAcceptLoginToken(token []byte) (*tg.Authorization, er
 	return api.AuthAcceptLoginToken(ctx, token)
 }
 
-// AuthBindTempAuthKey binds a temporary auth key to a permanent one.
 func (t *TelegramCore) AuthBindTempAuthKey(request *tg.AuthBindTempAuthKeyRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28709,9 +26098,7 @@ func (t *TelegramCore) AuthBindTempAuthKey(request *tg.AuthBindTempAuthKeyReques
 	return api.AuthBindTempAuthKey(ctx, request)
 }
 
-// AuthCancelCode cancels the authentication code sent to a phone number.
 func (t *TelegramCore) AuthCancelCode(request *tg.AuthCancelCodeRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28719,9 +26106,7 @@ func (t *TelegramCore) AuthCancelCode(request *tg.AuthCancelCodeRequest) (bool, 
 	return api.AuthCancelCode(ctx, request)
 }
 
-// AuthCheckPaidAuth checks whether paid authentication is available.
 func (t *TelegramCore) AuthCheckPaidAuth(request *tg.AuthCheckPaidAuthRequest) (tg.AuthSentCodeClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28729,9 +26114,7 @@ func (t *TelegramCore) AuthCheckPaidAuth(request *tg.AuthCheckPaidAuthRequest) (
 	return api.AuthCheckPaidAuth(ctx, request)
 }
 
-// AuthCheckPassword verifies the two-factor authentication password.
 func (t *TelegramCore) AuthCheckPassword(password tg.InputCheckPasswordSRPClass) (tg.AuthAuthorizationClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28739,9 +26122,7 @@ func (t *TelegramCore) AuthCheckPassword(password tg.InputCheckPasswordSRPClass)
 	return api.AuthCheckPassword(ctx, password)
 }
 
-// AuthCheckRecoveryPassword checks if a recovery password is valid.
 func (t *TelegramCore) AuthCheckRecoveryPassword(code string) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28749,9 +26130,7 @@ func (t *TelegramCore) AuthCheckRecoveryPassword(code string) (bool, error) {
 	return api.AuthCheckRecoveryPassword(ctx, code)
 }
 
-// AuthDropTempAuthKeys drops temporary auth keys except the specified ones.
 func (t *TelegramCore) AuthDropTempAuthKeys(exceptauthkeys []int64) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28759,9 +26138,7 @@ func (t *TelegramCore) AuthDropTempAuthKeys(exceptauthkeys []int64) (bool, error
 	return api.AuthDropTempAuthKeys(ctx, exceptauthkeys)
 }
 
-// AuthExportAuthorization exports an authorization token for another DC.
 func (t *TelegramCore) AuthExportAuthorization(dcid int) (*tg.AuthExportedAuthorization, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28769,9 +26146,7 @@ func (t *TelegramCore) AuthExportAuthorization(dcid int) (*tg.AuthExportedAuthor
 	return api.AuthExportAuthorization(ctx, dcid)
 }
 
-// AuthExportLoginToken generates a QR code login token.
 func (t *TelegramCore) AuthExportLoginToken(request *tg.AuthExportLoginTokenRequest) (tg.AuthLoginTokenClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28779,9 +26154,7 @@ func (t *TelegramCore) AuthExportLoginToken(request *tg.AuthExportLoginTokenRequ
 	return api.AuthExportLoginToken(ctx, request)
 }
 
-// AuthFinishPasskeyLogin completes passkey-based authentication.
 func (t *TelegramCore) AuthFinishPasskeyLogin(request *tg.AuthFinishPasskeyLoginRequest) (tg.AuthAuthorizationClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28789,9 +26162,7 @@ func (t *TelegramCore) AuthFinishPasskeyLogin(request *tg.AuthFinishPasskeyLogin
 	return api.AuthFinishPasskeyLogin(ctx, request)
 }
 
-// AuthImportAuthorization imports an authorization token from another DC.
 func (t *TelegramCore) AuthImportAuthorization(request *tg.AuthImportAuthorizationRequest) (tg.AuthAuthorizationClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28799,9 +26170,7 @@ func (t *TelegramCore) AuthImportAuthorization(request *tg.AuthImportAuthorizati
 	return api.AuthImportAuthorization(ctx, request)
 }
 
-// AuthImportBotAuthorization authenticates a bot using a bot token.
 func (t *TelegramCore) AuthImportBotAuthorization(request *tg.AuthImportBotAuthorizationRequest) (tg.AuthAuthorizationClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28809,9 +26178,7 @@ func (t *TelegramCore) AuthImportBotAuthorization(request *tg.AuthImportBotAutho
 	return api.AuthImportBotAuthorization(ctx, request)
 }
 
-// AuthImportLoginToken imports a login token for QR code authentication.
 func (t *TelegramCore) AuthImportLoginToken(token []byte) (tg.AuthLoginTokenClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28819,9 +26186,7 @@ func (t *TelegramCore) AuthImportLoginToken(token []byte) (tg.AuthLoginTokenClas
 	return api.AuthImportLoginToken(ctx, token)
 }
 
-// AuthImportWebTokenAuthorization authenticates using a web login token.
 func (t *TelegramCore) AuthImportWebTokenAuthorization(request *tg.AuthImportWebTokenAuthorizationRequest) (tg.AuthAuthorizationClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28829,9 +26194,7 @@ func (t *TelegramCore) AuthImportWebTokenAuthorization(request *tg.AuthImportWeb
 	return api.AuthImportWebTokenAuthorization(ctx, request)
 }
 
-// AuthInitPasskeyLogin initiates passkey-based authentication.
 func (t *TelegramCore) AuthInitPasskeyLogin(request *tg.AuthInitPasskeyLoginRequest) (*tg.AuthPasskeyLoginOptions, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28839,9 +26202,7 @@ func (t *TelegramCore) AuthInitPasskeyLogin(request *tg.AuthInitPasskeyLoginRequ
 	return api.AuthInitPasskeyLogin(ctx, request)
 }
 
-// AuthRecoverPassword recovers the account using a recovery email code.
 func (t *TelegramCore) AuthRecoverPassword(request *tg.AuthRecoverPasswordRequest) (tg.AuthAuthorizationClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28849,9 +26210,7 @@ func (t *TelegramCore) AuthRecoverPassword(request *tg.AuthRecoverPasswordReques
 	return api.AuthRecoverPassword(ctx, request)
 }
 
-// AuthReportMissingCode reports that an authentication code was not received.
 func (t *TelegramCore) AuthReportMissingCode(request *tg.AuthReportMissingCodeRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28859,9 +26218,7 @@ func (t *TelegramCore) AuthReportMissingCode(request *tg.AuthReportMissingCodeRe
 	return api.AuthReportMissingCode(ctx, request)
 }
 
-// AuthRequestFirebaseSMS requests an auth code via Firebase SMS.
 func (t *TelegramCore) AuthRequestFirebaseSMS(request *tg.AuthRequestFirebaseSMSRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28869,9 +26226,7 @@ func (t *TelegramCore) AuthRequestFirebaseSMS(request *tg.AuthRequestFirebaseSMS
 	return api.AuthRequestFirebaseSMS(ctx, request)
 }
 
-// AuthRequestPasswordRecovery sends a recovery code to the registered email.
 func (t *TelegramCore) AuthRequestPasswordRecovery() (*tg.AuthPasswordRecovery, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28879,9 +26234,7 @@ func (t *TelegramCore) AuthRequestPasswordRecovery() (*tg.AuthPasswordRecovery, 
 	return api.AuthRequestPasswordRecovery(ctx)
 }
 
-// AuthResendCode requests a new authentication code via an alternative method.
 func (t *TelegramCore) AuthResendCode(request *tg.AuthResendCodeRequest) (tg.AuthSentCodeClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28889,9 +26242,7 @@ func (t *TelegramCore) AuthResendCode(request *tg.AuthResendCodeRequest) (tg.Aut
 	return api.AuthResendCode(ctx, request)
 }
 
-// AuthResetAuthorizations terminates all other sessions.
 func (t *TelegramCore) AuthResetAuthorizations() (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28899,9 +26250,7 @@ func (t *TelegramCore) AuthResetAuthorizations() (bool, error) {
 	return api.AuthResetAuthorizations(ctx)
 }
 
-// AuthResetLoginEmail resets the login email for the account.
 func (t *TelegramCore) AuthResetLoginEmail(request *tg.AuthResetLoginEmailRequest) (tg.AuthSentCodeClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28909,9 +26258,7 @@ func (t *TelegramCore) AuthResetLoginEmail(request *tg.AuthResetLoginEmailReques
 	return api.AuthResetLoginEmail(ctx, request)
 }
 
-// AuthSendCode sends an authentication code to the specified phone number.
 func (t *TelegramCore) AuthSendCode(request *tg.AuthSendCodeRequest) (tg.AuthSentCodeClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28919,9 +26266,7 @@ func (t *TelegramCore) AuthSendCode(request *tg.AuthSendCodeRequest) (tg.AuthSen
 	return api.AuthSendCode(ctx, request)
 }
 
-// AuthSignIn completes sign-in using the phone code.
 func (t *TelegramCore) AuthSignIn(request *tg.AuthSignInRequest) (tg.AuthAuthorizationClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28929,9 +26274,7 @@ func (t *TelegramCore) AuthSignIn(request *tg.AuthSignInRequest) (tg.AuthAuthori
 	return api.AuthSignIn(ctx, request)
 }
 
-// AuthSignUp registers a new account after receiving an authentication code.
 func (t *TelegramCore) AuthSignUp(request *tg.AuthSignUpRequest) (tg.AuthAuthorizationClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28939,11 +26282,7 @@ func (t *TelegramCore) AuthSignUp(request *tg.AuthSignUpRequest) (tg.AuthAuthori
 	return api.AuthSignUp(ctx, request)
 }
 
-// --- Bots (35 methods) ---
-
-// BotsAddPreviewMedia adds a preview media item to a bot's profile.
 func (t *TelegramCore) BotsAddPreviewMedia(request *tg.BotsAddPreviewMediaRequest) (*tg.BotPreviewMedia, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28951,9 +26290,7 @@ func (t *TelegramCore) BotsAddPreviewMedia(request *tg.BotsAddPreviewMediaReques
 	return api.BotsAddPreviewMedia(ctx, request)
 }
 
-// BotsAllowSendMessage allows a bot to send messages to the user.
 func (t *TelegramCore) BotsAllowSendMessage(bot tg.InputUserClass) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -28961,9 +26298,7 @@ func (t *TelegramCore) BotsAllowSendMessage(bot tg.InputUserClass) (tg.UpdatesCl
 	return api.BotsAllowSendMessage(ctx, bot)
 }
 
-// BotsAnswerWebhookJSONQuery answers a webhook callback with JSON data.
 func (t *TelegramCore) BotsAnswerWebhookJSONQuery(request *tg.BotsAnswerWebhookJSONQueryRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28971,9 +26306,7 @@ func (t *TelegramCore) BotsAnswerWebhookJSONQuery(request *tg.BotsAnswerWebhookJ
 	return api.BotsAnswerWebhookJSONQuery(ctx, request)
 }
 
-// BotsCanSendMessage checks if a bot can send messages to the user.
 func (t *TelegramCore) BotsCanSendMessage(bot tg.InputUserClass) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28981,9 +26314,7 @@ func (t *TelegramCore) BotsCanSendMessage(bot tg.InputUserClass) (bool, error) {
 	return api.BotsCanSendMessage(ctx, bot)
 }
 
-// BotsCheckDownloadFileParams validates bot file download parameters.
 func (t *TelegramCore) BotsCheckDownloadFileParams(request *tg.BotsCheckDownloadFileParamsRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -28991,9 +26322,7 @@ func (t *TelegramCore) BotsCheckDownloadFileParams(request *tg.BotsCheckDownload
 	return api.BotsCheckDownloadFileParams(ctx, request)
 }
 
-// BotsCheckUsername checks if a username is available for a bot.
 func (t *TelegramCore) BotsCheckUsername(username string) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -29001,9 +26330,7 @@ func (t *TelegramCore) BotsCheckUsername(username string) (bool, error) {
 	return api.BotsCheckUsername(ctx, username)
 }
 
-// BotsCreateBot creates a new bot.
 func (t *TelegramCore) BotsCreateBot(request *tg.BotsCreateBotRequest) (tg.UserClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29011,9 +26338,7 @@ func (t *TelegramCore) BotsCreateBot(request *tg.BotsCreateBotRequest) (tg.UserC
 	return api.BotsCreateBot(ctx, request)
 }
 
-// BotsDeletePreviewMedia removes preview media from a bot's profile.
 func (t *TelegramCore) BotsDeletePreviewMedia(request *tg.BotsDeletePreviewMediaRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -29021,9 +26346,7 @@ func (t *TelegramCore) BotsDeletePreviewMedia(request *tg.BotsDeletePreviewMedia
 	return api.BotsDeletePreviewMedia(ctx, request)
 }
 
-// BotsEditPreviewMedia modifies a bot's preview media.
 func (t *TelegramCore) BotsEditPreviewMedia(request *tg.BotsEditPreviewMediaRequest) (*tg.BotPreviewMedia, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29031,9 +26354,7 @@ func (t *TelegramCore) BotsEditPreviewMedia(request *tg.BotsEditPreviewMediaRequ
 	return api.BotsEditPreviewMedia(ctx, request)
 }
 
-// BotsExportBotToken generates a new bot API token.
 func (t *TelegramCore) BotsExportBotToken(request *tg.BotsExportBotTokenRequest) (*tg.BotsExportedBotToken, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29041,9 +26362,7 @@ func (t *TelegramCore) BotsExportBotToken(request *tg.BotsExportBotTokenRequest)
 	return api.BotsExportBotToken(ctx, request)
 }
 
-// BotsGetAdminedBots returns bots owned by the user.
 func (t *TelegramCore) BotsGetAdminedBots() ([]tg.UserClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29051,9 +26370,7 @@ func (t *TelegramCore) BotsGetAdminedBots() ([]tg.UserClass, error) {
 	return api.BotsGetAdminedBots(ctx)
 }
 
-// BotsGetBotCommands returns a bot's command list.
 func (t *TelegramCore) BotsGetBotCommands(request *tg.BotsGetBotCommandsRequest) ([]tg.BotCommand, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29061,9 +26378,7 @@ func (t *TelegramCore) BotsGetBotCommands(request *tg.BotsGetBotCommandsRequest)
 	return api.BotsGetBotCommands(ctx, request)
 }
 
-// BotsGetBotInfo returns a bot's description and about text.
 func (t *TelegramCore) BotsGetBotInfo(request *tg.BotsGetBotInfoRequest) (*tg.BotsBotInfo, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29071,9 +26386,7 @@ func (t *TelegramCore) BotsGetBotInfo(request *tg.BotsGetBotInfoRequest) (*tg.Bo
 	return api.BotsGetBotInfo(ctx, request)
 }
 
-// BotsGetBotMenuButton returns a bot's menu button configuration.
 func (t *TelegramCore) BotsGetBotMenuButton(userid tg.InputUserClass) (tg.BotMenuButtonClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29081,9 +26394,7 @@ func (t *TelegramCore) BotsGetBotMenuButton(userid tg.InputUserClass) (tg.BotMen
 	return api.BotsGetBotMenuButton(ctx, userid)
 }
 
-// BotsGetBotRecommendations returns recommended similar bots.
 func (t *TelegramCore) BotsGetBotRecommendations(bot tg.InputUserClass) (tg.UsersUsersClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29091,9 +26402,7 @@ func (t *TelegramCore) BotsGetBotRecommendations(bot tg.InputUserClass) (tg.User
 	return api.BotsGetBotRecommendations(ctx, bot)
 }
 
-// BotsGetPopularAppBots returns popular bot mini apps.
 func (t *TelegramCore) BotsGetPopularAppBots(request *tg.BotsGetPopularAppBotsRequest) (*tg.BotsPopularAppBots, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29101,9 +26410,7 @@ func (t *TelegramCore) BotsGetPopularAppBots(request *tg.BotsGetPopularAppBotsRe
 	return api.BotsGetPopularAppBots(ctx, request)
 }
 
-// BotsGetPreviewInfo returns preview information for a bot.
 func (t *TelegramCore) BotsGetPreviewInfo(request *tg.BotsGetPreviewInfoRequest) (*tg.BotsPreviewInfo, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29111,9 +26418,7 @@ func (t *TelegramCore) BotsGetPreviewInfo(request *tg.BotsGetPreviewInfoRequest)
 	return api.BotsGetPreviewInfo(ctx, request)
 }
 
-// BotsGetPreviewMedias returns a bot's preview media items.
 func (t *TelegramCore) BotsGetPreviewMedias(bot tg.InputUserClass) ([]tg.BotPreviewMedia, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29121,9 +26426,7 @@ func (t *TelegramCore) BotsGetPreviewMedias(bot tg.InputUserClass) ([]tg.BotPrev
 	return api.BotsGetPreviewMedias(ctx, bot)
 }
 
-// BotsGetRequestedWebViewButton returns web view button request info.
 func (t *TelegramCore) BotsGetRequestedWebViewButton(request *tg.BotsGetRequestedWebViewButtonRequest) (tg.KeyboardButtonClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29131,9 +26434,7 @@ func (t *TelegramCore) BotsGetRequestedWebViewButton(request *tg.BotsGetRequeste
 	return api.BotsGetRequestedWebViewButton(ctx, request)
 }
 
-// BotsInvokeWebViewCustomMethod invokes a custom method in a web view.
 func (t *TelegramCore) BotsInvokeWebViewCustomMethod(request *tg.BotsInvokeWebViewCustomMethodRequest) (*tg.DataJSON, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29141,9 +26442,7 @@ func (t *TelegramCore) BotsInvokeWebViewCustomMethod(request *tg.BotsInvokeWebVi
 	return api.BotsInvokeWebViewCustomMethod(ctx, request)
 }
 
-// BotsReorderPreviewMedias reorders a bot's preview media.
 func (t *TelegramCore) BotsReorderPreviewMedias(request *tg.BotsReorderPreviewMediasRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -29151,9 +26450,7 @@ func (t *TelegramCore) BotsReorderPreviewMedias(request *tg.BotsReorderPreviewMe
 	return api.BotsReorderPreviewMedias(ctx, request)
 }
 
-// BotsReorderUsernames reorders a bot's usernames.
 func (t *TelegramCore) BotsReorderUsernames(request *tg.BotsReorderUsernamesRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -29161,9 +26458,7 @@ func (t *TelegramCore) BotsReorderUsernames(request *tg.BotsReorderUsernamesRequ
 	return api.BotsReorderUsernames(ctx, request)
 }
 
-// BotsRequestWebViewButton requests a web view button for a bot.
 func (t *TelegramCore) BotsRequestWebViewButton(request *tg.BotsRequestWebViewButtonRequest) (*tg.BotsRequestedButton, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29171,9 +26466,7 @@ func (t *TelegramCore) BotsRequestWebViewButton(request *tg.BotsRequestWebViewBu
 	return api.BotsRequestWebViewButton(ctx, request)
 }
 
-// BotsResetBotCommands clears a bot's command list.
 func (t *TelegramCore) BotsResetBotCommands(request *tg.BotsResetBotCommandsRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -29181,9 +26474,7 @@ func (t *TelegramCore) BotsResetBotCommands(request *tg.BotsResetBotCommandsRequ
 	return api.BotsResetBotCommands(ctx, request)
 }
 
-// BotsSendCustomRequest sends a custom request to the bot API.
 func (t *TelegramCore) BotsSendCustomRequest(request *tg.BotsSendCustomRequestRequest) (*tg.DataJSON, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29191,9 +26482,7 @@ func (t *TelegramCore) BotsSendCustomRequest(request *tg.BotsSendCustomRequestRe
 	return api.BotsSendCustomRequest(ctx, request)
 }
 
-// BotsSetBotBroadcastDefaultAdminRights sets default bot admin rights in channels.
 func (t *TelegramCore) BotsSetBotBroadcastDefaultAdminRights(adminrights tg.ChatAdminRights) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -29201,9 +26490,7 @@ func (t *TelegramCore) BotsSetBotBroadcastDefaultAdminRights(adminrights tg.Chat
 	return api.BotsSetBotBroadcastDefaultAdminRights(ctx, adminrights)
 }
 
-// BotsSetBotCommands sets a bot's command list.
 func (t *TelegramCore) BotsSetBotCommands(request *tg.BotsSetBotCommandsRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -29211,9 +26498,7 @@ func (t *TelegramCore) BotsSetBotCommands(request *tg.BotsSetBotCommandsRequest)
 	return api.BotsSetBotCommands(ctx, request)
 }
 
-// BotsSetBotGroupDefaultAdminRights sets default bot admin rights in groups.
 func (t *TelegramCore) BotsSetBotGroupDefaultAdminRights(adminrights tg.ChatAdminRights) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -29221,9 +26506,7 @@ func (t *TelegramCore) BotsSetBotGroupDefaultAdminRights(adminrights tg.ChatAdmi
 	return api.BotsSetBotGroupDefaultAdminRights(ctx, adminrights)
 }
 
-// BotsSetBotInfo sets a bot's description and about text.
 func (t *TelegramCore) BotsSetBotInfo(request *tg.BotsSetBotInfoRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -29231,9 +26514,7 @@ func (t *TelegramCore) BotsSetBotInfo(request *tg.BotsSetBotInfoRequest) (bool, 
 	return api.BotsSetBotInfo(ctx, request)
 }
 
-// BotsSetBotMenuButton sets a bot's menu button.
 func (t *TelegramCore) BotsSetBotMenuButton(request *tg.BotsSetBotMenuButtonRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -29241,9 +26522,7 @@ func (t *TelegramCore) BotsSetBotMenuButton(request *tg.BotsSetBotMenuButtonRequ
 	return api.BotsSetBotMenuButton(ctx, request)
 }
 
-// BotsSetCustomVerification sets a custom verification badge for a bot.
 func (t *TelegramCore) BotsSetCustomVerification(request *tg.BotsSetCustomVerificationRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -29251,9 +26530,7 @@ func (t *TelegramCore) BotsSetCustomVerification(request *tg.BotsSetCustomVerifi
 	return api.BotsSetCustomVerification(ctx, request)
 }
 
-// BotsToggleUserEmojiStatusPermission toggles bot emoji status permission.
 func (t *TelegramCore) BotsToggleUserEmojiStatusPermission(request *tg.BotsToggleUserEmojiStatusPermissionRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -29261,9 +26538,7 @@ func (t *TelegramCore) BotsToggleUserEmojiStatusPermission(request *tg.BotsToggl
 	return api.BotsToggleUserEmojiStatusPermission(ctx, request)
 }
 
-// BotsToggleUsername activates or deactivates a bot username.
 func (t *TelegramCore) BotsToggleUsername(request *tg.BotsToggleUsernameRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -29271,9 +26546,7 @@ func (t *TelegramCore) BotsToggleUsername(request *tg.BotsToggleUsernameRequest)
 	return api.BotsToggleUsername(ctx, request)
 }
 
-// BotsUpdateStarRefProgram updates a bot's star referral program.
 func (t *TelegramCore) BotsUpdateStarRefProgram(request *tg.BotsUpdateStarRefProgramRequest) (*tg.StarRefProgram, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29281,11 +26554,7 @@ func (t *TelegramCore) BotsUpdateStarRefProgram(request *tg.BotsUpdateStarRefPro
 	return api.BotsUpdateStarRefProgram(ctx, request)
 }
 
-// SetStarRefProgram creates/updates (or, with commissionPermille==0, ends) the
-// bot's affiliate program — the save target of the BotStarRef setup page
-// (info_bot_starref_setup_widget.cpp). durationMonths==0 means lifetime.
 func (t *TelegramCore) SetStarRefProgram(chatID string, commissionPermille, durationMonths int) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -29306,9 +26575,7 @@ func (t *TelegramCore) SetStarRefProgram(chatID string, commissionPermille, dura
 	return err
 }
 
-// BotsUpdateUserEmojiStatus sets a user's emoji status via a bot.
 func (t *TelegramCore) BotsUpdateUserEmojiStatus(request *tg.BotsUpdateUserEmojiStatusRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -29316,11 +26583,7 @@ func (t *TelegramCore) BotsUpdateUserEmojiStatus(request *tg.BotsUpdateUserEmoji
 	return api.BotsUpdateUserEmojiStatus(ctx, request)
 }
 
-// --- Channels (28 methods) ---
-
-// ChannelsCheckSearchPostsFlood checks whether the user is rate-limited for channel post searches.
 func (t *TelegramCore) ChannelsCheckSearchPostsFlood(request *tg.ChannelsCheckSearchPostsFloodRequest) (*tg.SearchPostsFlood, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29328,9 +26591,7 @@ func (t *TelegramCore) ChannelsCheckSearchPostsFlood(request *tg.ChannelsCheckSe
 	return api.ChannelsCheckSearchPostsFlood(ctx, request)
 }
 
-// ChannelsCheckUsername checks if a username is available for a channel.
 func (t *TelegramCore) ChannelsCheckUsername(request *tg.ChannelsCheckUsernameRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -29338,9 +26599,7 @@ func (t *TelegramCore) ChannelsCheckUsername(request *tg.ChannelsCheckUsernameRe
 	return api.ChannelsCheckUsername(ctx, request)
 }
 
-// ChannelsConvertToGigagroup converts a supergroup to a broadcast group.
 func (t *TelegramCore) ChannelsConvertToGigagroup(channel tg.InputChannelClass) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29348,9 +26607,7 @@ func (t *TelegramCore) ChannelsConvertToGigagroup(channel tg.InputChannelClass) 
 	return api.ChannelsConvertToGigagroup(ctx, channel)
 }
 
-// ChannelsDeactivateAllUsernames deactivates all channel usernames.
 func (t *TelegramCore) ChannelsDeactivateAllUsernames(channel tg.InputChannelClass) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -29358,9 +26615,7 @@ func (t *TelegramCore) ChannelsDeactivateAllUsernames(channel tg.InputChannelCla
 	return api.ChannelsDeactivateAllUsernames(ctx, channel)
 }
 
-// ChannelsDeleteHistory deletes channel history up to a given message.
 func (t *TelegramCore) ChannelsDeleteHistory(request *tg.ChannelsDeleteHistoryRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29368,9 +26623,7 @@ func (t *TelegramCore) ChannelsDeleteHistory(request *tg.ChannelsDeleteHistoryRe
 	return api.ChannelsDeleteHistory(ctx, request)
 }
 
-// ChannelsDeleteParticipantHistory deletes all messages from a participant.
 func (t *TelegramCore) ChannelsDeleteParticipantHistory(request *tg.ChannelsDeleteParticipantHistoryRequest) (*tg.MessagesAffectedHistory, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29378,9 +26631,7 @@ func (t *TelegramCore) ChannelsDeleteParticipantHistory(request *tg.ChannelsDele
 	return api.ChannelsDeleteParticipantHistory(ctx, request)
 }
 
-// ChannelsEditLocation sets or clears the geographic location of a channel.
 func (t *TelegramCore) ChannelsEditLocation(request *tg.ChannelsEditLocationRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -29388,9 +26639,7 @@ func (t *TelegramCore) ChannelsEditLocation(request *tg.ChannelsEditLocationRequ
 	return api.ChannelsEditLocation(ctx, request)
 }
 
-// ChannelsGetAdminedPublicChannels returns public channels where the user is admin.
 func (t *TelegramCore) ChannelsGetAdminedPublicChannels(request *tg.ChannelsGetAdminedPublicChannelsRequest) (tg.MessagesChatsClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29398,9 +26647,7 @@ func (t *TelegramCore) ChannelsGetAdminedPublicChannels(request *tg.ChannelsGetA
 	return api.ChannelsGetAdminedPublicChannels(ctx, request)
 }
 
-// GetAdminedPublicChannels returns a simplified list of public channels/groups the user admins.
 func (t *TelegramCore) GetAdminedPublicChannels() ([]Dialog, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29459,9 +26706,7 @@ func (t *TelegramCore) GetAdminedPublicChannels() ([]Dialog, error) {
 	return dialogs, nil
 }
 
-// GetAdminedPublicChannelsForPersonal returns channels eligible for personal channel use.
 func (t *TelegramCore) GetAdminedPublicChannelsForPersonal() ([]Dialog, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29522,9 +26767,7 @@ func (t *TelegramCore) GetAdminedPublicChannelsForPersonal() ([]Dialog, error) {
 	return dialogs, nil
 }
 
-// ChannelsGetChannelRecommendations returns recommended similar channels.
 func (t *TelegramCore) ChannelsGetChannelRecommendations(request *tg.ChannelsGetChannelRecommendationsRequest) (tg.MessagesChatsClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29532,9 +26775,7 @@ func (t *TelegramCore) ChannelsGetChannelRecommendations(request *tg.ChannelsGet
 	return api.ChannelsGetChannelRecommendations(ctx, request)
 }
 
-// ChannelsGetGroupsForDiscussion returns groups available as discussion groups.
 func (t *TelegramCore) ChannelsGetGroupsForDiscussion() (tg.MessagesChatsClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29542,9 +26783,7 @@ func (t *TelegramCore) ChannelsGetGroupsForDiscussion() (tg.MessagesChatsClass, 
 	return api.ChannelsGetGroupsForDiscussion(ctx)
 }
 
-// ChannelsGetInactiveChannels returns inactive channels and supergroups.
 func (t *TelegramCore) ChannelsGetInactiveChannels() (*tg.MessagesInactiveChats, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29552,9 +26791,7 @@ func (t *TelegramCore) ChannelsGetInactiveChannels() (*tg.MessagesInactiveChats,
 	return api.ChannelsGetInactiveChannels(ctx)
 }
 
-// ChannelsGetLeftChannels returns channels the user has left.
 func (t *TelegramCore) ChannelsGetLeftChannels(offset int) (tg.MessagesChatsClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29562,9 +26799,7 @@ func (t *TelegramCore) ChannelsGetLeftChannels(offset int) (tg.MessagesChatsClas
 	return api.ChannelsGetLeftChannels(ctx, offset)
 }
 
-// ChannelsGetMessageAuthor returns the author of an anonymous channel message.
 func (t *TelegramCore) ChannelsGetMessageAuthor(request *tg.ChannelsGetMessageAuthorRequest) (tg.UserClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29572,9 +26807,7 @@ func (t *TelegramCore) ChannelsGetMessageAuthor(request *tg.ChannelsGetMessageAu
 	return api.ChannelsGetMessageAuthor(ctx, request)
 }
 
-// ChannelsGetMessages returns channel messages by their IDs.
 func (t *TelegramCore) ChannelsGetMessages(request *tg.ChannelsGetMessagesRequest) (tg.MessagesMessagesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29582,9 +26815,7 @@ func (t *TelegramCore) ChannelsGetMessages(request *tg.ChannelsGetMessagesReques
 	return api.ChannelsGetMessages(ctx, request)
 }
 
-// ChannelsReadMessageContents marks channel message contents as read.
 func (t *TelegramCore) ChannelsReadMessageContents(request *tg.ChannelsReadMessageContentsRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -29592,9 +26823,7 @@ func (t *TelegramCore) ChannelsReadMessageContents(request *tg.ChannelsReadMessa
 	return api.ChannelsReadMessageContents(ctx, request)
 }
 
-// ChannelsReorderUsernames reorders a channel's usernames.
 func (t *TelegramCore) ChannelsReorderUsernames(request *tg.ChannelsReorderUsernamesRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -29602,9 +26831,7 @@ func (t *TelegramCore) ChannelsReorderUsernames(request *tg.ChannelsReorderUsern
 	return api.ChannelsReorderUsernames(ctx, request)
 }
 
-// ChannelsReportAntiSpamFalsePositive reports a false positive in anti-spam.
 func (t *TelegramCore) ChannelsReportAntiSpamFalsePositive(request *tg.ChannelsReportAntiSpamFalsePositiveRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -29612,9 +26839,7 @@ func (t *TelegramCore) ChannelsReportAntiSpamFalsePositive(request *tg.ChannelsR
 	return api.ChannelsReportAntiSpamFalsePositive(ctx, request)
 }
 
-// ChannelsReportSpam reports spam messages in a channel.
 func (t *TelegramCore) ChannelsReportSpam(request *tg.ChannelsReportSpamRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -29622,9 +26847,7 @@ func (t *TelegramCore) ChannelsReportSpam(request *tg.ChannelsReportSpamRequest)
 	return api.ChannelsReportSpam(ctx, request)
 }
 
-// ChannelsRestrictSponsoredMessages restricts sponsored messages.
 func (t *TelegramCore) ChannelsRestrictSponsoredMessages(request *tg.ChannelsRestrictSponsoredMessagesRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29632,9 +26855,7 @@ func (t *TelegramCore) ChannelsRestrictSponsoredMessages(request *tg.ChannelsRes
 	return api.ChannelsRestrictSponsoredMessages(ctx, request)
 }
 
-// ChannelsSearchPosts searches for public channel posts.
 func (t *TelegramCore) ChannelsSearchPosts(request *tg.ChannelsSearchPostsRequest) (tg.MessagesMessagesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29642,9 +26863,7 @@ func (t *TelegramCore) ChannelsSearchPosts(request *tg.ChannelsSearchPostsReques
 	return api.ChannelsSearchPosts(ctx, request)
 }
 
-// ChannelsSetBoostsToUnblockRestrictions sets the boost level to lift restrictions.
 func (t *TelegramCore) ChannelsSetBoostsToUnblockRestrictions(request *tg.ChannelsSetBoostsToUnblockRestrictionsRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29652,9 +26871,7 @@ func (t *TelegramCore) ChannelsSetBoostsToUnblockRestrictions(request *tg.Channe
 	return api.ChannelsSetBoostsToUnblockRestrictions(ctx, request)
 }
 
-// ChannelsSetDiscussionGroup links a discussion group to a channel.
 func (t *TelegramCore) ChannelsSetDiscussionGroup(request *tg.ChannelsSetDiscussionGroupRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -29662,9 +26879,7 @@ func (t *TelegramCore) ChannelsSetDiscussionGroup(request *tg.ChannelsSetDiscuss
 	return api.ChannelsSetDiscussionGroup(ctx, request)
 }
 
-// ChannelsSetEmojiStickers sets the custom emoji sticker set.
 func (t *TelegramCore) ChannelsSetEmojiStickers(request *tg.ChannelsSetEmojiStickersRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -29672,9 +26887,7 @@ func (t *TelegramCore) ChannelsSetEmojiStickers(request *tg.ChannelsSetEmojiStic
 	return api.ChannelsSetEmojiStickers(ctx, request)
 }
 
-// ChannelsSetMainProfileTab sets the default profile tab for a channel.
 func (t *TelegramCore) ChannelsSetMainProfileTab(request *tg.ChannelsSetMainProfileTabRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -29682,9 +26895,7 @@ func (t *TelegramCore) ChannelsSetMainProfileTab(request *tg.ChannelsSetMainProf
 	return api.ChannelsSetMainProfileTab(ctx, request)
 }
 
-// ChannelsSetStickers sets the sticker set for a supergroup.
 func (t *TelegramCore) ChannelsSetStickers(request *tg.ChannelsSetStickersRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -29692,9 +26903,7 @@ func (t *TelegramCore) ChannelsSetStickers(request *tg.ChannelsSetStickersReques
 	return api.ChannelsSetStickers(ctx, request)
 }
 
-// ChannelsToggleUsername activates or deactivates a channel username.
 func (t *TelegramCore) ChannelsToggleUsername(request *tg.ChannelsToggleUsernameRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -29702,9 +26911,7 @@ func (t *TelegramCore) ChannelsToggleUsername(request *tg.ChannelsToggleUsername
 	return api.ChannelsToggleUsername(ctx, request)
 }
 
-// ChannelsUpdateEmojiStatus sets or clears a channel's emoji status.
 func (t *TelegramCore) ChannelsUpdateEmojiStatus(request *tg.ChannelsUpdateEmojiStatusRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29712,9 +26919,7 @@ func (t *TelegramCore) ChannelsUpdateEmojiStatus(request *tg.ChannelsUpdateEmoji
 	return api.ChannelsUpdateEmojiStatus(ctx, request)
 }
 
-// ChannelsUpdatePaidMessagesPrice sets the price for paid messages.
 func (t *TelegramCore) ChannelsUpdatePaidMessagesPrice(request *tg.ChannelsUpdatePaidMessagesPriceRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29722,11 +26927,7 @@ func (t *TelegramCore) ChannelsUpdatePaidMessagesPrice(request *tg.ChannelsUpdat
 	return api.ChannelsUpdatePaidMessagesPrice(ctx, request)
 }
 
-// --- Chatlists (7 methods) ---
-
-// ChatlistsCheckChatlistInvite validates a chat folder invite link by its slug.
 func (t *TelegramCore) ChatlistsCheckChatlistInvite(slug string) (tg.ChatlistsChatlistInviteClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29734,9 +26935,7 @@ func (t *TelegramCore) ChatlistsCheckChatlistInvite(slug string) (tg.ChatlistsCh
 	return api.ChatlistsCheckChatlistInvite(ctx, slug)
 }
 
-// ChatlistsEditExportedInvite modifies a chat folder invite link.
 func (t *TelegramCore) ChatlistsEditExportedInvite(request *tg.ChatlistsEditExportedInviteRequest) (*tg.ExportedChatlistInvite, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29744,9 +26943,7 @@ func (t *TelegramCore) ChatlistsEditExportedInvite(request *tg.ChatlistsEditExpo
 	return api.ChatlistsEditExportedInvite(ctx, request)
 }
 
-// ChatlistsGetChatlistUpdates returns new chats in a shared folder.
 func (t *TelegramCore) ChatlistsGetChatlistUpdates(chatlist tg.InputChatlistDialogFilter) (*tg.ChatlistsChatlistUpdates, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29754,9 +26951,7 @@ func (t *TelegramCore) ChatlistsGetChatlistUpdates(chatlist tg.InputChatlistDial
 	return api.ChatlistsGetChatlistUpdates(ctx, chatlist)
 }
 
-// ChatlistsGetLeaveChatlistSuggestions returns chats to remove when leaving a folder.
 func (t *TelegramCore) ChatlistsGetLeaveChatlistSuggestions(chatlist tg.InputChatlistDialogFilter) ([]tg.PeerClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29764,9 +26959,7 @@ func (t *TelegramCore) ChatlistsGetLeaveChatlistSuggestions(chatlist tg.InputCha
 	return api.ChatlistsGetLeaveChatlistSuggestions(ctx, chatlist)
 }
 
-// ChatlistsHideChatlistUpdates hides shared folder update notifications.
 func (t *TelegramCore) ChatlistsHideChatlistUpdates(chatlist tg.InputChatlistDialogFilter) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -29774,9 +26967,7 @@ func (t *TelegramCore) ChatlistsHideChatlistUpdates(chatlist tg.InputChatlistDia
 	return api.ChatlistsHideChatlistUpdates(ctx, chatlist)
 }
 
-// ChatlistsJoinChatlistUpdates adds new chats from a shared folder.
 func (t *TelegramCore) ChatlistsJoinChatlistUpdates(request *tg.ChatlistsJoinChatlistUpdatesRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29784,9 +26975,7 @@ func (t *TelegramCore) ChatlistsJoinChatlistUpdates(request *tg.ChatlistsJoinCha
 	return api.ChatlistsJoinChatlistUpdates(ctx, request)
 }
 
-// ChatlistsLeaveChatlist leaves a shared chat folder.
 func (t *TelegramCore) ChatlistsLeaveChatlist(request *tg.ChatlistsLeaveChatlistRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29794,11 +26983,7 @@ func (t *TelegramCore) ChatlistsLeaveChatlist(request *tg.ChatlistsLeaveChatlist
 	return api.ChatlistsLeaveChatlist(ctx, request)
 }
 
-// --- Contacts (14 methods) ---
-
-// ContactsAcceptContact accepts a pending contact request from a user.
 func (t *TelegramCore) ContactsAcceptContact(id tg.InputUserClass) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29806,7 +26991,6 @@ func (t *TelegramCore) ContactsAcceptContact(id tg.InputUserClass) (tg.UpdatesCl
 	return api.ContactsAcceptContact(ctx, id)
 }
 
-// HidePeerSettingsBar hides the action bar (contact status bar) for a peer.
 func (t *TelegramCore) HidePeerSettingsBar(chatID string) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -29817,13 +27001,11 @@ func (t *TelegramCore) HidePeerSettingsBar(chatID string) error {
 	return err
 }
 
-// SharePhoneWithPeer shares the current user's phone number with a peer by accepting their contact request.
 func (t *TelegramCore) SharePhoneWithPeer(chatID string) error {
 	uid, err := tgUserID(chatID)
 	if err != nil {
 		return err
 	}
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -29833,9 +27015,7 @@ func (t *TelegramCore) SharePhoneWithPeer(chatID string) error {
 	return err
 }
 
-// ContactsBlockFromReplies blocks a user and deletes their reply messages.
 func (t *TelegramCore) ContactsBlockFromReplies(request *tg.ContactsBlockFromRepliesRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29843,9 +27023,7 @@ func (t *TelegramCore) ContactsBlockFromReplies(request *tg.ContactsBlockFromRep
 	return api.ContactsBlockFromReplies(ctx, request)
 }
 
-// ContactsDeleteByPhones removes contacts by phone numbers.
 func (t *TelegramCore) ContactsDeleteByPhones(phones []string) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -29853,9 +27031,7 @@ func (t *TelegramCore) ContactsDeleteByPhones(phones []string) (bool, error) {
 	return api.ContactsDeleteByPhones(ctx, phones)
 }
 
-// ContactsExportContactToken generates a token for adding the user as a contact.
 func (t *TelegramCore) ContactsExportContactToken() (*tg.ExportedContactToken, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29863,9 +27039,7 @@ func (t *TelegramCore) ContactsExportContactToken() (*tg.ExportedContactToken, e
 	return api.ContactsExportContactToken(ctx)
 }
 
-// ContactsGetLocated returns users and groups near a location.
 func (t *TelegramCore) ContactsGetLocated(request *tg.ContactsGetLocatedRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29873,9 +27047,7 @@ func (t *TelegramCore) ContactsGetLocated(request *tg.ContactsGetLocatedRequest)
 	return api.ContactsGetLocated(ctx, request)
 }
 
-// ContactsGetSaved returns all saved contacts.
 func (t *TelegramCore) ContactsGetSaved() ([]tg.SavedPhoneContact, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29883,9 +27055,7 @@ func (t *TelegramCore) ContactsGetSaved() ([]tg.SavedPhoneContact, error) {
 	return api.ContactsGetSaved(ctx)
 }
 
-// ContactsGetSponsoredPeers returns sponsored peers from contacts.
 func (t *TelegramCore) ContactsGetSponsoredPeers(q string) (tg.ContactsSponsoredPeersClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29893,9 +27063,7 @@ func (t *TelegramCore) ContactsGetSponsoredPeers(q string) (tg.ContactsSponsored
 	return api.ContactsGetSponsoredPeers(ctx, q)
 }
 
-// ContactsGetStatuses returns the online status of all contacts.
 func (t *TelegramCore) ContactsGetStatuses() ([]tg.ContactStatus, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29903,9 +27071,7 @@ func (t *TelegramCore) ContactsGetStatuses() ([]tg.ContactStatus, error) {
 	return api.ContactsGetStatuses(ctx)
 }
 
-// ContactsImportContactToken adds a user via their contact token.
 func (t *TelegramCore) ContactsImportContactToken(token string) (tg.UserClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -29913,9 +27079,7 @@ func (t *TelegramCore) ContactsImportContactToken(token string) (tg.UserClass, e
 	return api.ContactsImportContactToken(ctx, token)
 }
 
-// ContactsResetSaved deletes all saved contacts from the server.
 func (t *TelegramCore) ContactsResetSaved() (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -29923,9 +27087,7 @@ func (t *TelegramCore) ContactsResetSaved() (bool, error) {
 	return api.ContactsResetSaved(ctx)
 }
 
-// ContactsResetTopPeerRating resets a top peer's rating.
 func (t *TelegramCore) ContactsResetTopPeerRating(request *tg.ContactsResetTopPeerRatingRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -29933,9 +27095,7 @@ func (t *TelegramCore) ContactsResetTopPeerRating(request *tg.ContactsResetTopPe
 	return api.ContactsResetTopPeerRating(ctx, request)
 }
 
-// ContactsSetBlocked replaces the entire blocked user list.
 func (t *TelegramCore) ContactsSetBlocked(request *tg.ContactsSetBlockedRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -29943,9 +27103,7 @@ func (t *TelegramCore) ContactsSetBlocked(request *tg.ContactsSetBlockedRequest)
 	return api.ContactsSetBlocked(ctx, request)
 }
 
-// ContactsToggleTopPeers enables or disables top peers suggestions.
 func (t *TelegramCore) ContactsToggleTopPeers(enabled bool) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -29966,9 +27124,7 @@ func (t *TelegramCore) RemoveFromTopPeers(peerID string) error {
 	return err
 }
 
-// ContactsUpdateContactNote sets a personal note for a contact.
 func (t *TelegramCore) ContactsUpdateContactNote(request *tg.ContactsUpdateContactNoteRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -29976,9 +27132,7 @@ func (t *TelegramCore) ContactsUpdateContactNote(request *tg.ContactsUpdateConta
 	return api.ContactsUpdateContactNote(ctx, request)
 }
 
-// UpdateContactNote sets or clears a personal note for a contact (engine interface).
 func (t *TelegramCore) UpdateContactNote(userID, note string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -29995,11 +27149,7 @@ func (t *TelegramCore) UpdateContactNote(userID, note string) error {
 	return err
 }
 
-// --- Help (21 methods) ---
-
-// HelpAcceptTermsOfService confirms acceptance of the Telegram Terms of Service.
 func (t *TelegramCore) HelpAcceptTermsOfService(id tg.DataJSON) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -30007,9 +27157,7 @@ func (t *TelegramCore) HelpAcceptTermsOfService(id tg.DataJSON) (bool, error) {
 	return api.HelpAcceptTermsOfService(ctx, id)
 }
 
-// HelpDismissSuggestion dismisses a suggestion notification.
 func (t *TelegramCore) HelpDismissSuggestion(request *tg.HelpDismissSuggestionRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -30017,9 +27165,7 @@ func (t *TelegramCore) HelpDismissSuggestion(request *tg.HelpDismissSuggestionRe
 	return api.HelpDismissSuggestion(ctx, request)
 }
 
-// HelpEditUserInfo edits support info for a user (support agents only).
 func (t *TelegramCore) HelpEditUserInfo(request *tg.HelpEditUserInfoRequest) (tg.HelpUserInfoClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -30027,9 +27173,7 @@ func (t *TelegramCore) HelpEditUserInfo(request *tg.HelpEditUserInfoRequest) (tg
 	return api.HelpEditUserInfo(ctx, request)
 }
 
-// HelpGetAppUpdate checks for available app updates.
 func (t *TelegramCore) HelpGetAppUpdate(source string) (tg.HelpAppUpdateClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -30037,9 +27181,7 @@ func (t *TelegramCore) HelpGetAppUpdate(source string) (tg.HelpAppUpdateClass, e
 	return api.HelpGetAppUpdate(ctx, source)
 }
 
-// HelpGetCDNConfig returns the CDN configuration.
 func (t *TelegramCore) HelpGetCDNConfig() (*tg.CDNConfig, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -30047,9 +27189,7 @@ func (t *TelegramCore) HelpGetCDNConfig() (*tg.CDNConfig, error) {
 	return api.HelpGetCDNConfig(ctx)
 }
 
-// HelpGetDeepLinkInfo returns info about a deep link.
 func (t *TelegramCore) HelpGetDeepLinkInfo(path string) (tg.HelpDeepLinkInfoClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -30057,9 +27197,7 @@ func (t *TelegramCore) HelpGetDeepLinkInfo(path string) (tg.HelpDeepLinkInfoClas
 	return api.HelpGetDeepLinkInfo(ctx, path)
 }
 
-// HelpGetInviteText returns the localized invite text.
 func (t *TelegramCore) HelpGetInviteText() (*tg.HelpInviteText, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -30067,9 +27205,7 @@ func (t *TelegramCore) HelpGetInviteText() (*tg.HelpInviteText, error) {
 	return api.HelpGetInviteText(ctx)
 }
 
-// HelpGetPassportConfig returns the Passport country configuration.
 func (t *TelegramCore) HelpGetPassportConfig(hash int) (tg.HelpPassportConfigClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -30077,9 +27213,7 @@ func (t *TelegramCore) HelpGetPassportConfig(hash int) (tg.HelpPassportConfigCla
 	return api.HelpGetPassportConfig(ctx, hash)
 }
 
-// HelpGetPeerColors returns available name and reply accent colors.
 func (t *TelegramCore) HelpGetPeerColors(hash int) (tg.HelpPeerColorsClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -30087,17 +27221,13 @@ func (t *TelegramCore) HelpGetPeerColors(hash int) (tg.HelpPeerColorsClass, erro
 	return api.HelpGetPeerColors(ctx, hash)
 }
 
-// PeerColorEntry is a parsed peer color entry for the UI.
 type PeerColorEntry struct {
-	ColorID     int   `json:"color_id"`
-	DayColors   []int `json:"day_colors"`
-	NightColors []int `json:"night_colors"`
-	Hidden      bool  `json:"hidden"`
-	// Minimum boost level required to use this color, per peer kind. AyuGram's
-	// Apply() gates a non-self color change on CheckBoostLevel against these
-	// (edit_peer_color_box.cpp:666 → peerColors->requiredLevelFor).
-	ChannelMinLevel int `json:"channel_min_level"`
-	GroupMinLevel   int `json:"group_min_level"`
+	ColorID         int   `json:"color_id"`
+	DayColors       []int `json:"day_colors"`
+	NightColors     []int `json:"night_colors"`
+	Hidden          bool  `json:"hidden"`
+	ChannelMinLevel int   `json:"channel_min_level"`
+	GroupMinLevel   int   `json:"group_min_level"`
 }
 
 type CloudThemeInfo struct {
@@ -30114,8 +27244,6 @@ type CloudThemeInfo struct {
 	IsDark      bool   `json:"is_dark"`
 }
 
-// inflateStrippedThumb reconstructs a JPEG from Telegram's stripped thumbnail format.
-// Stripped thumbnails omit the standard JPEG header/footer; this restores them.
 func inflateStrippedThumb(stripped []byte) []byte {
 	if len(stripped) < 3 {
 		return stripped
@@ -30176,7 +27304,6 @@ func inflateStrippedThumb(stripped []byte) []byte {
 		0x00, 0x3F, 0x00,
 	}
 	footer := []byte{0xFF, 0xD9}
-	// Patch height/width from stripped data into the header's SOF0 segment.
 	header[164] = stripped[1]
 	header[166] = stripped[2]
 	result := make([]byte, 0, len(header)+len(stripped)-3+len(footer))
@@ -30187,20 +27314,17 @@ func inflateStrippedThumb(stripped []byte) []byte {
 }
 
 type WallpaperInfo struct {
-	ID       int64  `json:"id"`
-	Slug     string `json:"slug"`
-	Pattern  bool   `json:"pattern"`
-	Dark     bool   `json:"dark"`
-	Default  bool   `json:"default"`
-	Creator  bool   `json:"creator,omitempty"`
-	Colors   []int  `json:"colors,omitempty"`
-	Rotation int    `json:"rotation"`
-	Blurred  bool   `json:"blurred"`
-	Motion   bool   `json:"motion,omitempty"`
-	// Intensity is the pattern overlay strength (-100..100, pattern
-	// wallpapers only).
-	Intensity int `json:"intensity,omitempty"`
-	// AccessHash identifies the wallpaper itself in inputWallPaper.
+	ID         int64  `json:"id"`
+	Slug       string `json:"slug"`
+	Pattern    bool   `json:"pattern"`
+	Dark       bool   `json:"dark"`
+	Default    bool   `json:"default"`
+	Creator    bool   `json:"creator,omitempty"`
+	Colors     []int  `json:"colors,omitempty"`
+	Rotation   int    `json:"rotation"`
+	Blurred    bool   `json:"blurred"`
+	Motion     bool   `json:"motion,omitempty"`
+	Intensity  int    `json:"intensity,omitempty"`
 	AccessHash int64  `json:"access_hash,omitempty"`
 	ThumbB64   string `json:"thumb_b64,omitempty"`
 	IsPhoto    bool   `json:"is_photo,omitempty"`
@@ -30209,8 +27333,6 @@ type WallpaperInfo struct {
 	DocRef     string `json:"doc_ref,omitempty"`
 }
 
-// wallpaperFromWire normalizes a wire wallPaper constructor into
-// WallpaperInfo (document coords + settings). Pure — unit-tested.
 func (t *TelegramCore) wallpaperFromWire(wp tg.WallPaperClass) WallpaperInfo {
 	var info WallpaperInfo
 	w, ok := wp.(*tg.WallPaper)
@@ -30256,8 +27378,6 @@ func (t *TelegramCore) wallpaperFromWire(wp tg.WallPaperClass) WallpaperInfo {
 	return info
 }
 
-// wallpaperSettingsFromInfo maps WallpaperInfo back to the wire settings
-// (the set/install RPC payload). Pure — unit-tested.
 func wallpaperSettingsFromInfo(info WallpaperInfo) tg.WallPaperSettings {
 	s := tg.WallPaperSettings{Blur: info.Blurred, Motion: info.Motion, Rotation: info.Rotation}
 	if len(info.Colors) > 0 {
@@ -30279,7 +27399,6 @@ func wallpaperSettingsFromInfo(info WallpaperInfo) tg.WallPaperSettings {
 }
 
 func (t *TelegramCore) GetWallpapers() ([]WallpaperInfo, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -30407,11 +27526,10 @@ type ChatThemeInfo struct {
 	AccentColor      int    `json:"accent_color"`
 	MessageColors    []int  `json:"message_colors,omitempty"`
 	BgColors         []int  `json:"bg_colors,omitempty"`
-	PatternIntensity int    `json:"pattern_intensity,omitempty"` // wallpaper pattern intensity (0..100; wire sign flips with rotation — abs is the alpha)
+	PatternIntensity int    `json:"pattern_intensity,omitempty"`
 }
 
 func (t *TelegramCore) GetChatThemesList() ([]ChatThemeInfo, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -30474,7 +27592,6 @@ func (t *TelegramCore) GetChatThemesList() ([]ChatThemeInfo, error) {
 	return result, nil
 }
 
-// GetPeerColorPalette fetches and parses help.peerColors into a simple list.
 func (t *TelegramCore) GetPeerColorPalette() ([]PeerColorEntry, error) {
 	result, err := t.HelpGetPeerColors(0)
 	if err != nil {
@@ -30482,7 +27599,7 @@ func (t *TelegramCore) GetPeerColorPalette() ([]PeerColorEntry, error) {
 	}
 	colors, ok := result.(*tg.HelpPeerColors)
 	if !ok {
-		return nil, nil // NotModified or unexpected type
+		return nil, nil
 	}
 	entries := make([]PeerColorEntry, 0, len(colors.Colors))
 	for _, opt := range colors.Colors {
@@ -30507,12 +27624,6 @@ func (t *TelegramCore) GetPeerColorPalette() ([]PeerColorEntry, error) {
 	return entries, nil
 }
 
-// GetColorLevelRequirements returns the boost-level requirements for changing a
-// peer's name color / background emoji / emoji status, so the UI can pre-flight
-// the change and prompt to boost instead of hitting a server error — mirroring
-// AyuGram's Apply()→CheckBoostLevel for non-self peers (edit_peer_color_box.cpp:666).
-// The caller already knows the peer kind, so both per-color level maps are
-// returned (channel_levels / group_levels) and the UI picks the right one.
 func (t *TelegramCore) GetColorLevelRequirements() (map[string]interface{}, error) {
 	palette, err := t.GetPeerColorPalette()
 	if err != nil {
@@ -30537,9 +27648,7 @@ func (t *TelegramCore) GetColorLevelRequirements() (map[string]interface{}, erro
 	}, nil
 }
 
-// HelpGetPeerProfileColors returns available profile accent colors.
 func (t *TelegramCore) HelpGetPeerProfileColors(hash int) (tg.HelpPeerColorsClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -30547,8 +27656,6 @@ func (t *TelegramCore) HelpGetPeerProfileColors(hash int) (tg.HelpPeerColorsClas
 	return api.HelpGetPeerProfileColors(ctx, hash)
 }
 
-// premiumPlansFromPromo maps the help.getPremiumPromo payload onto the
-// display-ready premium state. Pure.
 func premiumPlansFromPromo(promo *tg.HelpPremiumPromo) PremiumPromo {
 	if promo == nil {
 		return PremiumPromo{}
@@ -30568,10 +27675,8 @@ func premiumPlansFromPromo(promo *tg.HelpPremiumPromo) PremiumPromo {
 	return out
 }
 
-// GetPremiumPromo returns the premium promotional state (subscription
-// status sentence + purchasable plans) for the account.
 func (t *TelegramCore) GetPremiumPromo() (PremiumPromo, error) {
-	api, ctx, err := t.withAPI() // withAPI rule: RPCs run unlocked
+	api, ctx, err := t.withAPI()
 	if err != nil {
 		return PremiumPromo{}, err
 	}
@@ -30582,9 +27687,7 @@ func (t *TelegramCore) GetPremiumPromo() (PremiumPromo, error) {
 	return premiumPlansFromPromo(promo), nil
 }
 
-// HelpGetPremiumPromo returns Premium promotional info.
 func (t *TelegramCore) HelpGetPremiumPromo() (*tg.HelpPremiumPromo, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -30592,9 +27695,7 @@ func (t *TelegramCore) HelpGetPremiumPromo() (*tg.HelpPremiumPromo, error) {
 	return api.HelpGetPremiumPromo(ctx)
 }
 
-// HelpGetPromoData returns current promotional data.
 func (t *TelegramCore) HelpGetPromoData() (tg.HelpPromoDataClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -30602,9 +27703,7 @@ func (t *TelegramCore) HelpGetPromoData() (tg.HelpPromoDataClass, error) {
 	return api.HelpGetPromoData(ctx)
 }
 
-// HelpGetRecentMeURLs returns recently used t.me links.
 func (t *TelegramCore) HelpGetRecentMeURLs(referer string) (*tg.HelpRecentMeURLs, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -30612,9 +27711,7 @@ func (t *TelegramCore) HelpGetRecentMeURLs(referer string) (*tg.HelpRecentMeURLs
 	return api.HelpGetRecentMeURLs(ctx, referer)
 }
 
-// HelpGetSupport returns the support user.
 func (t *TelegramCore) HelpGetSupport() (*tg.HelpSupport, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -30622,9 +27719,7 @@ func (t *TelegramCore) HelpGetSupport() (*tg.HelpSupport, error) {
 	return api.HelpGetSupport(ctx)
 }
 
-// HelpGetSupportName returns the support account name.
 func (t *TelegramCore) HelpGetSupportName() (*tg.HelpSupportName, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -30632,9 +27727,7 @@ func (t *TelegramCore) HelpGetSupportName() (*tg.HelpSupportName, error) {
 	return api.HelpGetSupportName(ctx)
 }
 
-// HelpGetTermsOfServiceUpdate checks for terms of service updates.
 func (t *TelegramCore) HelpGetTermsOfServiceUpdate() (tg.HelpTermsOfServiceUpdateClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -30642,9 +27735,7 @@ func (t *TelegramCore) HelpGetTermsOfServiceUpdate() (tg.HelpTermsOfServiceUpdat
 	return api.HelpGetTermsOfServiceUpdate(ctx)
 }
 
-// HelpGetTimezonesList returns supported timezones.
 func (t *TelegramCore) HelpGetTimezonesList(hash int) (tg.HelpTimezonesListClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -30652,10 +27743,6 @@ func (t *TelegramCore) HelpGetTimezonesList(hash int) (tg.HelpTimezonesListClass
 	return api.HelpGetTimezonesList(ctx, hash)
 }
 
-// timezoneOffsetNoLock returns the UTC offset (seconds) for a Telegram timezone
-// id, lazily fetching+caching help.getTimezonesList. The caller may already hold
-// t.mu (the business-hours emitter does), so this uses an independent mutex and
-// calls the api client directly. Returns (0,false) when the id is unknown.
 func (t *TelegramCore) timezoneOffsetNoLock(id string) (int, bool) {
 	if id == "" || t.api == nil {
 		return 0, false
@@ -30684,9 +27771,7 @@ func (t *TelegramCore) timezoneOffsetNoLock(id string) (int, bool) {
 	return off, ok
 }
 
-// HelpGetUserInfo returns support info about a user.
 func (t *TelegramCore) HelpGetUserInfo(userid tg.InputUserClass) (tg.HelpUserInfoClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -30694,9 +27779,7 @@ func (t *TelegramCore) HelpGetUserInfo(userid tg.InputUserClass) (tg.HelpUserInf
 	return api.HelpGetUserInfo(ctx, userid)
 }
 
-// HelpHidePromoData hides current promotional data.
 func (t *TelegramCore) HelpHidePromoData(peer tg.InputPeerClass) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -30704,9 +27787,7 @@ func (t *TelegramCore) HelpHidePromoData(peer tg.InputPeerClass) (bool, error) {
 	return api.HelpHidePromoData(ctx, peer)
 }
 
-// HelpSaveAppLog saves app event logs to the server.
 func (t *TelegramCore) HelpSaveAppLog(events []tg.InputAppEvent) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -30714,9 +27795,7 @@ func (t *TelegramCore) HelpSaveAppLog(events []tg.InputAppEvent) (bool, error) {
 	return api.HelpSaveAppLog(ctx, events)
 }
 
-// HelpSetBotUpdatesStatus reports bot update processing status.
 func (t *TelegramCore) HelpSetBotUpdatesStatus(request *tg.HelpSetBotUpdatesStatusRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -30724,11 +27803,7 @@ func (t *TelegramCore) HelpSetBotUpdatesStatus(request *tg.HelpSetBotUpdatesStat
 	return api.HelpSetBotUpdatesStatus(ctx, request)
 }
 
-// --- Invoke (2 methods) ---
-
-// InvokeJSON sends a raw JSON-encoded Telegram API request and returns the JSON response.
 func (t *TelegramCore) InvokeJSON(jsonData string, useSnakeCase bool) (string, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return "", err
@@ -30736,13 +27811,7 @@ func (t *TelegramCore) InvokeJSON(jsonData string, useSnakeCase bool) (string, e
 	return api.InvokeJSON(ctx, jsonData, useSnakeCase)
 }
 
-// SKIP: Invoker
-
-// --- Langpack (5 methods) ---
-
-// LangpackGetDifference fetches language pack string updates since a given version.
 func (t *TelegramCore) LangpackGetDifference(request *tg.LangpackGetDifferenceRequest) (*tg.LangPackDifference, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -30750,9 +27819,7 @@ func (t *TelegramCore) LangpackGetDifference(request *tg.LangpackGetDifferenceRe
 	return api.LangpackGetDifference(ctx, request)
 }
 
-// LangpackGetLangPack returns the full localization pack for a language.
 func (t *TelegramCore) LangpackGetLangPack(request *tg.LangpackGetLangPackRequest) (*tg.LangPackDifference, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -30760,9 +27827,7 @@ func (t *TelegramCore) LangpackGetLangPack(request *tg.LangpackGetLangPackReques
 	return api.LangpackGetLangPack(ctx, request)
 }
 
-// LangpackGetLanguage returns info about a specific language.
 func (t *TelegramCore) LangpackGetLanguage(request *tg.LangpackGetLanguageRequest) (*tg.LangPackLanguage, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -30770,27 +27835,6 @@ func (t *TelegramCore) LangpackGetLanguage(request *tg.LangpackGetLanguageReques
 	return api.LangpackGetLanguage(ctx, request)
 }
 
-// ensurePreAuthAPI returns an MTProto client + context suitable for the
-// unauthorized langpack methods (getLanguages / getStrings) that drive the intro
-// language switcher. Resolution order:
-//  1. t.api — a fully-authed connection: reuse it.
-//  2. t.preAuthAPI — an in-progress phone/QR attempt already brought up the
-//     connection: reuse it.
-//  3. neither — the user is sitting on the intro "choose method" step where no
-//     method has been picked and nothing has connected yet. Bring up a fresh
-//     *unauthorized* MTProto connection and park it on t.preAuthAPI. This mirrors
-//     AyuGram keeping an MTP instance alive from the very first intro step so the
-//     language switcher can always reach the cloud — its createLanguageLink()
-//     issues langpack.getStrings straight on the live intro _api
-//     (intro_widget.cpp:296-307). Without it, langpack.getLanguages can't reach
-//     Telegram pre-auth and the picker is stuck on its embedded fallback list.
-//
-// A connection created here is transparently torn down and replaced by the real
-// auth bootstrap: both Authenticate and StartQRAuth call teardownPriorAuthAttempt
-// first, which cancels this context, waits out the goroutine and clears
-// preAuthAPI; CancelAuth → Close() does the same on intro exit. preAuthConnectMu
-// serializes the bootstrap so two concurrent intro langpack queries can't each
-// spawn a duplicate client.Run.
 func (t *TelegramCore) ensurePreAuthAPI() (*tg.Client, context.Context, error) {
 	t.mu.RLock()
 	if t.api != nil {
@@ -30808,8 +27852,6 @@ func (t *TelegramCore) ensurePreAuthAPI() (*tg.Client, context.Context, error) {
 	t.preAuthConnectMu.Lock()
 	defer t.preAuthConnectMu.Unlock()
 
-	// Re-check under the serializing lock: another caller may have connected, or
-	// a real auth bootstrap may have started, while we waited.
 	t.mu.RLock()
 	if t.api != nil {
 		api, ctx := t.api, t.ctx
@@ -30823,8 +27865,6 @@ func (t *TelegramCore) ensurePreAuthAPI() (*tg.Client, context.Context, error) {
 	}
 	t.mu.RUnlock()
 
-	// Bring up an unauthorized connection — the same connect dance as
-	// StartQRAuth, but parked on preAuthAPI (no auth mode, no token export).
 	t.mu.Lock()
 	t.initClient()
 	t.ctx, t.cancel = context.WithCancel(context.Background())
@@ -30842,8 +27882,6 @@ func (t *TelegramCore) ensurePreAuthAPI() (*tg.Client, context.Context, error) {
 			t.preAuthAPI = api
 			t.mu.Unlock()
 			close(clientReady)
-			// Stay connected until the context is cancelled — by Close() on intro
-			// exit, or by the real auth bootstrap's teardownPriorAuthAttempt.
 			<-rctx.Done()
 			return rctx.Err()
 		})
@@ -30866,13 +27904,6 @@ func (t *TelegramCore) ensurePreAuthAPI() (*tg.Client, context.Context, error) {
 	return api, ctx, nil
 }
 
-// LangpackGetLanguages returns available languages. langpack.getLanguages is an
-// unauthorized MTProto method, so it works DURING the login flow too: it reuses
-// t.api / t.preAuthAPI when connected, and otherwise (the intro "choose method"
-// step, before any login method is picked) brings up a fresh unauthorized
-// connection via ensurePreAuthAPI. This lets the intro language switcher list
-// every cloud language pre-auth instead of an embedded fallback, mirroring
-// AyuGram building the intro switch link from the cloud (intro_widget.cpp:267-308).
 func (t *TelegramCore) LangpackGetLanguages(langpack string) ([]tg.LangPackLanguage, error) {
 	api, ctx, err := t.ensurePreAuthAPI()
 	if err != nil {
@@ -30881,9 +27912,7 @@ func (t *TelegramCore) LangpackGetLanguages(langpack string) ([]tg.LangPackLangu
 	return api.LangpackGetLanguages(ctx, langpack)
 }
 
-// LangpackGetStrings returns specific localization strings by key.
 func (t *TelegramCore) LangpackGetStrings(request *tg.LangpackGetStringsRequest) ([]tg.LangPackStringClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -30891,16 +27920,6 @@ func (t *TelegramCore) LangpackGetStrings(request *tg.LangpackGetStringsRequest)
 	return api.LangpackGetStrings(ctx, request)
 }
 
-// LangpackGetStringsMap fetches the given tdesktop lang-pack keys for langCode
-// and returns them as a key→value map. langpack.getStrings is an unauthorized
-// MTProto method, so this works DURING the login flow too: when the session is
-// not yet authed it falls back to the live preAuthAPI client. Used by the
-// intro/login screen so picking a language re-renders it in that language,
-// matching AyuGram building the intro from the cloud pack (intro_phone.cpp:92).
-// Pluralized strings are emitted per CLDR form under a "key#form" suffix
-// (zero/one/two/few/many/other) so the client can apply the active language's
-// plural rule (lang_tag.cpp ChoosePlural*); deleted keys are omitted so callers
-// fall back to their bundled English baseline.
 func (t *TelegramCore) LangpackGetStringsMap(langCode string, keys []string) (map[string]string, error) {
 	api, ctx, err := t.ensurePreAuthAPI()
 	if err != nil {
@@ -30920,14 +27939,6 @@ func (t *TelegramCore) LangpackGetStringsMap(langCode string, keys []string) (ma
 		case *tg.LangPackString:
 			out[v.Key] = v.Value
 		case *tg.LangPackStringPluralized:
-			// Emit every CLDR plural form the server sent under a
-			// "key#form" suffix so the client picks the grammatically
-			// correct one for the count via the active language's rule.
-			// Only other_value is guaranteed present (it is required in
-			// the TL schema); zero/one/two/few/many are flag-gated and
-			// stay "" when the language lacks that form. (Was: collapse
-			// to other_value only, which forced every count to the
-			// "other" form for non-English languages.)
 			if v.ZeroValue != "" {
 				out[v.Key+"#zero"] = v.ZeroValue
 			}
@@ -30951,9 +27962,7 @@ func (t *TelegramCore) LangpackGetStringsMap(langCode string, keys []string) (ma
 	return out, nil
 }
 
-// SetInterfaceLanguage switches the client's interface language by fetching the langpack.
 func (t *TelegramCore) SetInterfaceLanguage(langCode string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -30965,11 +27974,7 @@ func (t *TelegramCore) SetInterfaceLanguage(langCode string) error {
 	return err
 }
 
-// --- Messages (165 methods) ---
-
-// MessagesAcceptEncryption accepts an incoming secret chat encryption request.
 func (t *TelegramCore) MessagesAcceptEncryption(request *tg.MessagesAcceptEncryptionRequest) (tg.EncryptedChatClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -30977,9 +27982,7 @@ func (t *TelegramCore) MessagesAcceptEncryption(request *tg.MessagesAcceptEncryp
 	return api.MessagesAcceptEncryption(ctx, request)
 }
 
-// MessagesAcceptURLAuth authorizes a URL authentication request.
 func (t *TelegramCore) MessagesAcceptURLAuth(request *tg.MessagesAcceptURLAuthRequest) (tg.URLAuthResultClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -30987,9 +27990,7 @@ func (t *TelegramCore) MessagesAcceptURLAuth(request *tg.MessagesAcceptURLAuthRe
 	return api.MessagesAcceptURLAuth(ctx, request)
 }
 
-// MessagesAddPollAnswer adds a vote to a poll.
 func (t *TelegramCore) MessagesAddPollAnswer(request *tg.MessagesAddPollAnswerRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -30997,9 +27998,7 @@ func (t *TelegramCore) MessagesAddPollAnswer(request *tg.MessagesAddPollAnswerRe
 	return api.MessagesAddPollAnswer(ctx, request)
 }
 
-// MessagesAppendTodoList appends items to a to-do list message.
 func (t *TelegramCore) MessagesAppendTodoList(request *tg.MessagesAppendTodoListRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31007,9 +28006,7 @@ func (t *TelegramCore) MessagesAppendTodoList(request *tg.MessagesAppendTodoList
 	return api.MessagesAppendTodoList(ctx, request)
 }
 
-// MessagesCheckHistoryImport validates a chat history export file.
 func (t *TelegramCore) MessagesCheckHistoryImport(importhead string) (*tg.MessagesHistoryImportParsed, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31017,9 +28014,7 @@ func (t *TelegramCore) MessagesCheckHistoryImport(importhead string) (*tg.Messag
 	return api.MessagesCheckHistoryImport(ctx, importhead)
 }
 
-// MessagesCheckHistoryImportPeer checks if history import is allowed for a peer.
 func (t *TelegramCore) MessagesCheckHistoryImportPeer(peer tg.InputPeerClass) (*tg.MessagesCheckedHistoryImportPeer, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31027,9 +28022,7 @@ func (t *TelegramCore) MessagesCheckHistoryImportPeer(peer tg.InputPeerClass) (*
 	return api.MessagesCheckHistoryImportPeer(ctx, peer)
 }
 
-// MessagesCheckQuickReplyShortcut checks if a shortcut name is valid.
 func (t *TelegramCore) MessagesCheckQuickReplyShortcut(shortcut string) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -31037,9 +28030,7 @@ func (t *TelegramCore) MessagesCheckQuickReplyShortcut(shortcut string) (bool, e
 	return api.MessagesCheckQuickReplyShortcut(ctx, shortcut)
 }
 
-// MessagesCheckURLAuthMatchCode validates a URL authentication match code.
 func (t *TelegramCore) MessagesCheckURLAuthMatchCode(request *tg.MessagesCheckURLAuthMatchCodeRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -31047,9 +28038,7 @@ func (t *TelegramCore) MessagesCheckURLAuthMatchCode(request *tg.MessagesCheckUR
 	return api.MessagesCheckURLAuthMatchCode(ctx, request)
 }
 
-// MessagesClearAllDrafts deletes all message drafts.
 func (t *TelegramCore) MessagesClearAllDrafts() (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -31057,9 +28046,7 @@ func (t *TelegramCore) MessagesClearAllDrafts() (bool, error) {
 	return api.MessagesClearAllDrafts(ctx)
 }
 
-// MessagesClearRecentReactions clears recently used reactions.
 func (t *TelegramCore) MessagesClearRecentReactions() (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -31067,9 +28054,7 @@ func (t *TelegramCore) MessagesClearRecentReactions() (bool, error) {
 	return api.MessagesClearRecentReactions(ctx)
 }
 
-// MessagesClearRecentStickers clears recently used stickers.
 func (t *TelegramCore) MessagesClearRecentStickers(request *tg.MessagesClearRecentStickersRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -31077,9 +28062,7 @@ func (t *TelegramCore) MessagesClearRecentStickers(request *tg.MessagesClearRece
 	return api.MessagesClearRecentStickers(ctx, request)
 }
 
-// MessagesClickSponsoredMessage reports a click on a sponsored message.
 func (t *TelegramCore) MessagesClickSponsoredMessage(request *tg.MessagesClickSponsoredMessageRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -31087,9 +28070,7 @@ func (t *TelegramCore) MessagesClickSponsoredMessage(request *tg.MessagesClickSp
 	return api.MessagesClickSponsoredMessage(ctx, request)
 }
 
-// MessagesComposeMessageWithAI generates a message using Telegram's AI.
 func (t *TelegramCore) MessagesComposeMessageWithAI(request *tg.MessagesComposeMessageWithAIRequest) (*tg.MessagesComposedMessageWithAI, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31097,9 +28078,7 @@ func (t *TelegramCore) MessagesComposeMessageWithAI(request *tg.MessagesComposeM
 	return api.MessagesComposeMessageWithAI(ctx, request)
 }
 
-// MessagesDeclineURLAuth declines a URL authentication request.
 func (t *TelegramCore) MessagesDeclineURLAuth(url string) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -31107,9 +28086,7 @@ func (t *TelegramCore) MessagesDeclineURLAuth(url string) (bool, error) {
 	return api.MessagesDeclineURLAuth(ctx, url)
 }
 
-// MessagesDeleteChat deletes a basic group chat.
 func (t *TelegramCore) MessagesDeleteChat(chatid int64) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -31117,9 +28094,7 @@ func (t *TelegramCore) MessagesDeleteChat(chatid int64) (bool, error) {
 	return api.MessagesDeleteChat(ctx, chatid)
 }
 
-// MessagesDeleteFactCheck removes a fact-check label from a message.
 func (t *TelegramCore) MessagesDeleteFactCheck(request *tg.MessagesDeleteFactCheckRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31127,9 +28102,7 @@ func (t *TelegramCore) MessagesDeleteFactCheck(request *tg.MessagesDeleteFactChe
 	return api.MessagesDeleteFactCheck(ctx, request)
 }
 
-// MessagesDeletePhoneCallHistory deletes the phone call history.
 func (t *TelegramCore) MessagesDeletePhoneCallHistory(request *tg.MessagesDeletePhoneCallHistoryRequest) (*tg.MessagesAffectedFoundMessages, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31138,8 +28111,6 @@ func (t *TelegramCore) MessagesDeletePhoneCallHistory(request *tg.MessagesDelete
 }
 
 func (t *TelegramCore) ClearCallHistory(revoke bool) error {
-	// withAPI rule: never hold t.mu across the delete-phone-call-history
-	// RPC loop.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -31173,8 +28144,6 @@ type CallHistoryEntry struct {
 }
 
 func (t *TelegramCore) GetCallHistory(offsetID int, limit int) ([]CallHistoryEntry, error) {
-	// withAPI rule: never hold t.mu across the messages.search RPC (the
-	// calls box paginates this on scroll — slice 154).
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31260,9 +28229,7 @@ func (t *TelegramCore) GetCallHistory(offsetID int, limit int) ([]CallHistoryEnt
 	return entries, nil
 }
 
-// MessagesDeletePollAnswer removes a vote from a poll.
 func (t *TelegramCore) MessagesDeletePollAnswer(request *tg.MessagesDeletePollAnswerRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31270,9 +28237,7 @@ func (t *TelegramCore) MessagesDeletePollAnswer(request *tg.MessagesDeletePollAn
 	return api.MessagesDeletePollAnswer(ctx, request)
 }
 
-// MessagesDeleteQuickReplyMessages deletes messages from a quick reply shortcut.
 func (t *TelegramCore) MessagesDeleteQuickReplyMessages(request *tg.MessagesDeleteQuickReplyMessagesRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31280,9 +28245,7 @@ func (t *TelegramCore) MessagesDeleteQuickReplyMessages(request *tg.MessagesDele
 	return api.MessagesDeleteQuickReplyMessages(ctx, request)
 }
 
-// MessagesDeleteQuickReplyShortcut deletes a quick reply shortcut.
 func (t *TelegramCore) MessagesDeleteQuickReplyShortcut(shortcutid int) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -31290,9 +28253,7 @@ func (t *TelegramCore) MessagesDeleteQuickReplyShortcut(shortcutid int) (bool, e
 	return api.MessagesDeleteQuickReplyShortcut(ctx, shortcutid)
 }
 
-// MessagesDeleteRevokedExportedChatInvites deletes all revoked invite links by an admin.
 func (t *TelegramCore) MessagesDeleteRevokedExportedChatInvites(request *tg.MessagesDeleteRevokedExportedChatInvitesRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -31300,9 +28261,7 @@ func (t *TelegramCore) MessagesDeleteRevokedExportedChatInvites(request *tg.Mess
 	return api.MessagesDeleteRevokedExportedChatInvites(ctx, request)
 }
 
-// MessagesDeleteSavedHistory deletes saved messages for a peer.
 func (t *TelegramCore) MessagesDeleteSavedHistory(request *tg.MessagesDeleteSavedHistoryRequest) (*tg.MessagesAffectedHistory, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31310,9 +28269,7 @@ func (t *TelegramCore) MessagesDeleteSavedHistory(request *tg.MessagesDeleteSave
 	return api.MessagesDeleteSavedHistory(ctx, request)
 }
 
-// MessagesDiscardEncryption discards a secret chat.
 func (t *TelegramCore) MessagesDiscardEncryption(request *tg.MessagesDiscardEncryptionRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -31320,9 +28277,7 @@ func (t *TelegramCore) MessagesDiscardEncryption(request *tg.MessagesDiscardEncr
 	return api.MessagesDiscardEncryption(ctx, request)
 }
 
-// MessagesEditChatAbout changes a chat's description.
 func (t *TelegramCore) MessagesEditChatAbout(request *tg.MessagesEditChatAboutRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -31330,9 +28285,7 @@ func (t *TelegramCore) MessagesEditChatAbout(request *tg.MessagesEditChatAboutRe
 	return api.MessagesEditChatAbout(ctx, request)
 }
 
-// MessagesEditChatAdmin promotes or demotes a user in a basic group.
 func (t *TelegramCore) MessagesEditChatAdmin(request *tg.MessagesEditChatAdminRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -31340,9 +28293,7 @@ func (t *TelegramCore) MessagesEditChatAdmin(request *tg.MessagesEditChatAdminRe
 	return api.MessagesEditChatAdmin(ctx, request)
 }
 
-// MessagesEditChatCreator transfers basic group ownership.
 func (t *TelegramCore) MessagesEditChatCreator(request *tg.MessagesEditChatCreatorRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31350,9 +28301,7 @@ func (t *TelegramCore) MessagesEditChatCreator(request *tg.MessagesEditChatCreat
 	return api.MessagesEditChatCreator(ctx, request)
 }
 
-// MessagesEditChatParticipantRank sets a custom admin title.
 func (t *TelegramCore) MessagesEditChatParticipantRank(request *tg.MessagesEditChatParticipantRankRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31360,9 +28309,7 @@ func (t *TelegramCore) MessagesEditChatParticipantRank(request *tg.MessagesEditC
 	return api.MessagesEditChatParticipantRank(ctx, request)
 }
 
-// MessagesEditChatPhoto changes a basic group's photo.
 func (t *TelegramCore) MessagesEditChatPhoto(request *tg.MessagesEditChatPhotoRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31370,9 +28317,7 @@ func (t *TelegramCore) MessagesEditChatPhoto(request *tg.MessagesEditChatPhotoRe
 	return api.MessagesEditChatPhoto(ctx, request)
 }
 
-// MessagesEditChatTitle changes a basic group's title.
 func (t *TelegramCore) MessagesEditChatTitle(request *tg.MessagesEditChatTitleRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31380,9 +28325,7 @@ func (t *TelegramCore) MessagesEditChatTitle(request *tg.MessagesEditChatTitleRe
 	return api.MessagesEditChatTitle(ctx, request)
 }
 
-// MessagesEditFactCheck adds or modifies a fact-check label on a message.
 func (t *TelegramCore) MessagesEditFactCheck(request *tg.MessagesEditFactCheckRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31390,9 +28333,7 @@ func (t *TelegramCore) MessagesEditFactCheck(request *tg.MessagesEditFactCheckRe
 	return api.MessagesEditFactCheck(ctx, request)
 }
 
-// MessagesEditInlineBotMessage edits an inline bot message.
 func (t *TelegramCore) MessagesEditInlineBotMessage(request *tg.MessagesEditInlineBotMessageRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -31400,9 +28341,7 @@ func (t *TelegramCore) MessagesEditInlineBotMessage(request *tg.MessagesEditInli
 	return api.MessagesEditInlineBotMessage(ctx, request)
 }
 
-// MessagesEditQuickReplyShortcut renames a quick reply shortcut.
 func (t *TelegramCore) MessagesEditQuickReplyShortcut(request *tg.MessagesEditQuickReplyShortcutRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -31410,9 +28349,7 @@ func (t *TelegramCore) MessagesEditQuickReplyShortcut(request *tg.MessagesEditQu
 	return api.MessagesEditQuickReplyShortcut(ctx, request)
 }
 
-// MessagesGetAdminsWithInvites returns admins who created invite links.
 func (t *TelegramCore) MessagesGetAdminsWithInvites(peer tg.InputPeerClass) (*tg.MessagesChatAdminsWithInvites, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31420,9 +28357,7 @@ func (t *TelegramCore) MessagesGetAdminsWithInvites(peer tg.InputPeerClass) (*tg
 	return api.MessagesGetAdminsWithInvites(ctx, peer)
 }
 
-// MessagesGetArchivedStickers returns archived sticker sets.
 func (t *TelegramCore) MessagesGetArchivedStickers(request *tg.MessagesGetArchivedStickersRequest) (*tg.MessagesArchivedStickers, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31430,9 +28365,7 @@ func (t *TelegramCore) MessagesGetArchivedStickers(request *tg.MessagesGetArchiv
 	return api.MessagesGetArchivedStickers(ctx, request)
 }
 
-// MessagesGetAttachedStickers returns sticker sets attached to a media item.
 func (t *TelegramCore) MessagesGetAttachedStickers(media tg.InputStickeredMediaClass) ([]tg.StickerSetCoveredClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31440,9 +28373,7 @@ func (t *TelegramCore) MessagesGetAttachedStickers(media tg.InputStickeredMediaC
 	return api.MessagesGetAttachedStickers(ctx, media)
 }
 
-// MessagesGetAttachMenuBot returns a bot's attachment menu entry.
 func (t *TelegramCore) MessagesGetAttachMenuBot(bot tg.InputUserClass) (*tg.AttachMenuBotsBot, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31450,9 +28381,7 @@ func (t *TelegramCore) MessagesGetAttachMenuBot(bot tg.InputUserClass) (*tg.Atta
 	return api.MessagesGetAttachMenuBot(ctx, bot)
 }
 
-// MessagesGetAttachMenuBots returns all bots with attachment menu entries.
 func (t *TelegramCore) MessagesGetAttachMenuBots(hash int64) (tg.AttachMenuBotsClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31461,7 +28390,6 @@ func (t *TelegramCore) MessagesGetAttachMenuBots(hash int64) (tg.AttachMenuBotsC
 }
 
 func (t *TelegramCore) GetAttachMenuBots() ([]AttachMenuBotInfo, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31488,15 +28416,7 @@ func (t *TelegramCore) GetAttachMenuBots() ([]AttachMenuBotInfo, error) {
 	return out, nil
 }
 
-// GetMainMenuBots returns the bots that should appear in the hamburger/side
-// "drawer" menu. This mirrors AyuGram's HasDrawerBots gate
-// (bot_attach_web_view.cpp:41-51 / settings_appearance.cpp:291): a bot qualifies
-// when it has the show_in_side_menu flag (inMainMenu) AND a "default_static"
-// side-menu icon (the `media` field set by ParseAttachBot, :161/:170). The bot's
-// @username is resolved from the response's Users vector so the web-view panel can
-// title itself correctly.
 func (t *TelegramCore) GetMainMenuBots() ([]AttachMenuBotInfo, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31530,11 +28450,9 @@ func (t *TelegramCore) GetMainMenuBots() ([]AttachMenuBotInfo, error) {
 	}
 	var out []AttachMenuBotInfo
 	for _, b := range bots.Bots {
-		// inMainMenu == show_in_side_menu.
 		if !b.ShowInSideMenu {
 			continue
 		}
-		// media != nullptr == has a "default_static" side-menu icon.
 		hasMedia := false
 		for _, icon := range b.Icons {
 			if icon.Name == "default_static" {
@@ -31555,9 +28473,7 @@ func (t *TelegramCore) GetMainMenuBots() ([]AttachMenuBotInfo, error) {
 	return out, nil
 }
 
-// MessagesGetAvailableEffects returns available message effects.
 func (t *TelegramCore) MessagesGetAvailableEffects(hash int) (tg.MessagesAvailableEffectsClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31565,9 +28481,7 @@ func (t *TelegramCore) MessagesGetAvailableEffects(hash int) (tg.MessagesAvailab
 	return api.MessagesGetAvailableEffects(ctx, hash)
 }
 
-// MessagesGetAvailableReactions returns all available emoji reactions.
 func (t *TelegramCore) MessagesGetAvailableReactions(hash int) (tg.MessagesAvailableReactionsClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31575,9 +28489,7 @@ func (t *TelegramCore) MessagesGetAvailableReactions(hash int) (tg.MessagesAvail
 	return api.MessagesGetAvailableReactions(ctx, hash)
 }
 
-// MessagesGetBotApp returns information about a bot's mini app.
 func (t *TelegramCore) MessagesGetBotApp(request *tg.MessagesGetBotAppRequest) (*tg.MessagesBotApp, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31585,9 +28497,7 @@ func (t *TelegramCore) MessagesGetBotApp(request *tg.MessagesGetBotAppRequest) (
 	return api.MessagesGetBotApp(ctx, request)
 }
 
-// MessagesGetChats returns chat info for the specified chat IDs.
 func (t *TelegramCore) MessagesGetChats(id []int64) (tg.MessagesChatsClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31595,9 +28505,7 @@ func (t *TelegramCore) MessagesGetChats(id []int64) (tg.MessagesChatsClass, erro
 	return api.MessagesGetChats(ctx, id)
 }
 
-// MessagesGetCustomEmojiDocuments returns custom emoji documents by ID.
 func (t *TelegramCore) MessagesGetCustomEmojiDocuments(documentid []int64) ([]tg.DocumentClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31605,9 +28513,7 @@ func (t *TelegramCore) MessagesGetCustomEmojiDocuments(documentid []int64) ([]tg
 	return api.MessagesGetCustomEmojiDocuments(ctx, documentid)
 }
 
-// MessagesGetDefaultTagReactions returns default reactions for saved tags.
 func (t *TelegramCore) MessagesGetDefaultTagReactions(hash int64) (tg.MessagesReactionsClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31615,9 +28521,7 @@ func (t *TelegramCore) MessagesGetDefaultTagReactions(hash int64) (tg.MessagesRe
 	return api.MessagesGetDefaultTagReactions(ctx, hash)
 }
 
-// MessagesGetDiscussionMessage returns the discussion thread for a channel post.
 func (t *TelegramCore) MessagesGetDiscussionMessage(request *tg.MessagesGetDiscussionMessageRequest) (*tg.MessagesDiscussionMessage, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31625,9 +28529,7 @@ func (t *TelegramCore) MessagesGetDiscussionMessage(request *tg.MessagesGetDiscu
 	return api.MessagesGetDiscussionMessage(ctx, request)
 }
 
-// MessagesGetDocumentByHash finds a document by its SHA256 hash and size.
 func (t *TelegramCore) MessagesGetDocumentByHash(request *tg.MessagesGetDocumentByHashRequest) (tg.DocumentClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31635,9 +28537,7 @@ func (t *TelegramCore) MessagesGetDocumentByHash(request *tg.MessagesGetDocument
 	return api.MessagesGetDocumentByHash(ctx, request)
 }
 
-// MessagesGetEmojiGameInfo returns info about an emoji-based game.
 func (t *TelegramCore) MessagesGetEmojiGameInfo() (tg.MessagesEmojiGameInfoClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31645,9 +28545,7 @@ func (t *TelegramCore) MessagesGetEmojiGameInfo() (tg.MessagesEmojiGameInfoClass
 	return api.MessagesGetEmojiGameInfo(ctx)
 }
 
-// MessagesGetEmojiGroups returns categorized emoji groups.
 func (t *TelegramCore) MessagesGetEmojiGroups(hash int) (tg.MessagesEmojiGroupsClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31655,12 +28553,7 @@ func (t *TelegramCore) MessagesGetEmojiGroups(hash int) (tg.MessagesEmojiGroupsC
 	return api.MessagesGetEmojiGroups(ctx, hash)
 }
 
-// MessagesGetEmojiKeywords returns emoji search keywords for a language.
-// Returns interface{} so the engine's emojiKeywordsFetcher assertion (which
-// expects (interface{}, error)) matches — a typed *tg.EmojiKeywordsDifference
-// return silently failed that assertion, disabling the whole server keyword path.
 func (t *TelegramCore) MessagesGetEmojiKeywords(langcode string) (interface{}, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31668,10 +28561,6 @@ func (t *TelegramCore) MessagesGetEmojiKeywords(langcode string) (interface{}, e
 	return api.MessagesGetEmojiKeywords(ctx, langcode)
 }
 
-// emojiKeywordDiffEntry is a platform-neutral emoji-keyword diff row that
-// preserves the added/deleted distinction (MTP emojiKeyword vs
-// emojiKeywordDeleted). A plain JSON round-trip of the gotd interface slice
-// would lose it, since both constructors marshal to identical fields.
 type emojiKeywordDiffEntry struct {
 	Keyword   string
 	Emoticons []string
@@ -31684,9 +28573,7 @@ type emojiKeywordDiffResult struct {
 	Keywords []emojiKeywordDiffEntry
 }
 
-// MessagesGetEmojiKeywordsDifference returns updated emoji keywords since a version.
 func (t *TelegramCore) MessagesGetEmojiKeywordsDifference(langCode string, fromVersion int) (interface{}, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31717,9 +28604,7 @@ func (t *TelegramCore) MessagesGetEmojiKeywordsDifference(langCode string, fromV
 	return out, nil
 }
 
-// MessagesGetEmojiKeywordsLanguages returns available languages for emoji keywords.
 func (t *TelegramCore) MessagesGetEmojiKeywordsLanguages(langcodes []string) (interface{}, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31727,9 +28612,7 @@ func (t *TelegramCore) MessagesGetEmojiKeywordsLanguages(langcodes []string) (in
 	return api.MessagesGetEmojiKeywordsLanguages(ctx, langcodes)
 }
 
-// MessagesGetEmojiProfilePhotoGroups returns emoji groups for profile photos.
 func (t *TelegramCore) MessagesGetEmojiProfilePhotoGroups(hash int) (tg.MessagesEmojiGroupsClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31737,9 +28620,7 @@ func (t *TelegramCore) MessagesGetEmojiProfilePhotoGroups(hash int) (tg.Messages
 	return api.MessagesGetEmojiProfilePhotoGroups(ctx, hash)
 }
 
-// MessagesGetEmojiStatusGroups returns emoji groups for status selection.
 func (t *TelegramCore) MessagesGetEmojiStatusGroups(hash int) (tg.MessagesEmojiGroupsClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31747,9 +28628,7 @@ func (t *TelegramCore) MessagesGetEmojiStatusGroups(hash int) (tg.MessagesEmojiG
 	return api.MessagesGetEmojiStatusGroups(ctx, hash)
 }
 
-// MessagesGetEmojiStickerGroups returns emoji groups for sticker browsing.
 func (t *TelegramCore) MessagesGetEmojiStickerGroups(hash int) (tg.MessagesEmojiGroupsClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31757,9 +28636,7 @@ func (t *TelegramCore) MessagesGetEmojiStickerGroups(hash int) (tg.MessagesEmoji
 	return api.MessagesGetEmojiStickerGroups(ctx, hash)
 }
 
-// MessagesGetEmojiStickers returns custom emoji sticker sets.
 func (t *TelegramCore) MessagesGetEmojiStickers(hash int64) (tg.MessagesAllStickersClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31767,9 +28644,7 @@ func (t *TelegramCore) MessagesGetEmojiStickers(hash int64) (tg.MessagesAllStick
 	return api.MessagesGetEmojiStickers(ctx, hash)
 }
 
-// MessagesGetEmojiURL returns the URL for emoji suggestions for a language.
 func (t *TelegramCore) MessagesGetEmojiURL(langcode string) (*tg.EmojiURL, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31777,9 +28652,7 @@ func (t *TelegramCore) MessagesGetEmojiURL(langcode string) (*tg.EmojiURL, error
 	return api.MessagesGetEmojiURL(ctx, langcode)
 }
 
-// MessagesGetExportedChatInvite returns info about an exported invite link.
 func (t *TelegramCore) MessagesGetExportedChatInvite(request *tg.MessagesGetExportedChatInviteRequest) (tg.MessagesExportedChatInviteClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31787,9 +28660,7 @@ func (t *TelegramCore) MessagesGetExportedChatInvite(request *tg.MessagesGetExpo
 	return api.MessagesGetExportedChatInvite(ctx, request)
 }
 
-// MessagesGetExportedChatInvites returns all exported invite links for a chat.
 func (t *TelegramCore) MessagesGetExportedChatInvites(request *tg.MessagesGetExportedChatInvitesRequest) (*tg.MessagesExportedChatInvites, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31797,9 +28668,7 @@ func (t *TelegramCore) MessagesGetExportedChatInvites(request *tg.MessagesGetExp
 	return api.MessagesGetExportedChatInvites(ctx, request)
 }
 
-// MessagesGetExtendedMedia returns extended media info for messages.
 func (t *TelegramCore) MessagesGetExtendedMedia(request *tg.MessagesGetExtendedMediaRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31807,9 +28676,7 @@ func (t *TelegramCore) MessagesGetExtendedMedia(request *tg.MessagesGetExtendedM
 	return api.MessagesGetExtendedMedia(ctx, request)
 }
 
-// MessagesGetFactCheck returns fact-check labels on messages.
 func (t *TelegramCore) MessagesGetFactCheck(request *tg.MessagesGetFactCheckRequest) ([]tg.FactCheck, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31817,9 +28684,7 @@ func (t *TelegramCore) MessagesGetFactCheck(request *tg.MessagesGetFactCheckRequ
 	return api.MessagesGetFactCheck(ctx, request)
 }
 
-// MessagesGetFeaturedEmojiStickers returns featured custom emoji sticker sets.
 func (t *TelegramCore) MessagesGetFeaturedEmojiStickers(hash int64) (tg.MessagesFeaturedStickersClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31827,9 +28692,7 @@ func (t *TelegramCore) MessagesGetFeaturedEmojiStickers(hash int64) (tg.Messages
 	return api.MessagesGetFeaturedEmojiStickers(ctx, hash)
 }
 
-// MessagesGetForumTopicsByID returns forum topics by their IDs.
 func (t *TelegramCore) MessagesGetForumTopicsByID(request *tg.MessagesGetForumTopicsByIDRequest) (*tg.MessagesForumTopics, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31837,9 +28700,7 @@ func (t *TelegramCore) MessagesGetForumTopicsByID(request *tg.MessagesGetForumTo
 	return api.MessagesGetForumTopicsByID(ctx, request)
 }
 
-// MessagesGetFutureChatCreatorAfterLeave checks who becomes creator if current one leaves.
 func (t *TelegramCore) MessagesGetFutureChatCreatorAfterLeave(peer tg.InputPeerClass) (tg.UserClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31847,9 +28708,7 @@ func (t *TelegramCore) MessagesGetFutureChatCreatorAfterLeave(peer tg.InputPeerC
 	return api.MessagesGetFutureChatCreatorAfterLeave(ctx, peer)
 }
 
-// MessagesGetGameHighScores returns the high score table for a game.
 func (t *TelegramCore) MessagesGetGameHighScores(request *tg.MessagesGetGameHighScoresRequest) (*tg.MessagesHighScores, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31857,9 +28716,7 @@ func (t *TelegramCore) MessagesGetGameHighScores(request *tg.MessagesGetGameHigh
 	return api.MessagesGetGameHighScores(ctx, request)
 }
 
-// MessagesGetInlineGameHighScores returns game high scores for an inline message.
 func (t *TelegramCore) MessagesGetInlineGameHighScores(request *tg.MessagesGetInlineGameHighScoresRequest) (*tg.MessagesHighScores, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31867,9 +28724,7 @@ func (t *TelegramCore) MessagesGetInlineGameHighScores(request *tg.MessagesGetIn
 	return api.MessagesGetInlineGameHighScores(ctx, request)
 }
 
-// MessagesGetMaskStickers returns mask sticker sets.
 func (t *TelegramCore) MessagesGetMaskStickers(hash int64) (tg.MessagesAllStickersClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31877,9 +28732,7 @@ func (t *TelegramCore) MessagesGetMaskStickers(hash int64) (tg.MessagesAllSticke
 	return api.MessagesGetMaskStickers(ctx, hash)
 }
 
-// MessagesGetMessageEditData checks if a message can be edited.
 func (t *TelegramCore) MessagesGetMessageEditData(request *tg.MessagesGetMessageEditDataRequest) (*tg.MessagesMessageEditData, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31887,9 +28740,7 @@ func (t *TelegramCore) MessagesGetMessageEditData(request *tg.MessagesGetMessage
 	return api.MessagesGetMessageEditData(ctx, request)
 }
 
-// MessagesGetMessages returns messages by their IDs.
 func (t *TelegramCore) MessagesGetMessages(id []tg.InputMessageClass) (tg.MessagesMessagesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31897,9 +28748,7 @@ func (t *TelegramCore) MessagesGetMessages(id []tg.InputMessageClass) (tg.Messag
 	return api.MessagesGetMessages(ctx, id)
 }
 
-// MessagesGetMessagesReactions returns reactions on specified messages.
 func (t *TelegramCore) MessagesGetMessagesReactions(request *tg.MessagesGetMessagesReactionsRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31907,9 +28756,7 @@ func (t *TelegramCore) MessagesGetMessagesReactions(request *tg.MessagesGetMessa
 	return api.MessagesGetMessagesReactions(ctx, request)
 }
 
-// MessagesGetMyStickers returns sticker sets owned by the user.
 func (t *TelegramCore) MessagesGetMyStickers(request *tg.MessagesGetMyStickersRequest) (*tg.MessagesMyStickers, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31917,9 +28764,7 @@ func (t *TelegramCore) MessagesGetMyStickers(request *tg.MessagesGetMyStickersRe
 	return api.MessagesGetMyStickers(ctx, request)
 }
 
-// MessagesGetOldFeaturedStickers returns previously featured sticker sets.
 func (t *TelegramCore) MessagesGetOldFeaturedStickers(request *tg.MessagesGetOldFeaturedStickersRequest) (tg.MessagesFeaturedStickersClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31927,9 +28772,7 @@ func (t *TelegramCore) MessagesGetOldFeaturedStickers(request *tg.MessagesGetOld
 	return api.MessagesGetOldFeaturedStickers(ctx, request)
 }
 
-// MessagesGetPaidReactionPrivacy returns paid reaction privacy settings.
 func (t *TelegramCore) MessagesGetPaidReactionPrivacy() (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31937,9 +28780,7 @@ func (t *TelegramCore) MessagesGetPaidReactionPrivacy() (tg.UpdatesClass, error)
 	return api.MessagesGetPaidReactionPrivacy(ctx)
 }
 
-// MessagesGetPeerDialogs returns dialog info for specific peers.
 func (t *TelegramCore) MessagesGetPeerDialogs(peers []tg.InputDialogPeerClass) (*tg.MessagesPeerDialogs, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31947,9 +28788,7 @@ func (t *TelegramCore) MessagesGetPeerDialogs(peers []tg.InputDialogPeerClass) (
 	return api.MessagesGetPeerDialogs(ctx, peers)
 }
 
-// MessagesGetPinnedSavedDialogs returns pinned saved message dialogs.
 func (t *TelegramCore) MessagesGetPinnedSavedDialogs() (tg.MessagesSavedDialogsClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31957,9 +28796,7 @@ func (t *TelegramCore) MessagesGetPinnedSavedDialogs() (tg.MessagesSavedDialogsC
 	return api.MessagesGetPinnedSavedDialogs(ctx)
 }
 
-// MessagesGetPreparedInlineMessage returns a prepared inline message.
 func (t *TelegramCore) MessagesGetPreparedInlineMessage(request *tg.MessagesGetPreparedInlineMessageRequest) (*tg.MessagesPreparedInlineMessage, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31967,9 +28804,7 @@ func (t *TelegramCore) MessagesGetPreparedInlineMessage(request *tg.MessagesGetP
 	return api.MessagesGetPreparedInlineMessage(ctx, request)
 }
 
-// MessagesGetQuickReplies returns quick reply shortcuts.
 func (t *TelegramCore) MessagesGetQuickReplies(hash int64) (tg.MessagesQuickRepliesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31977,9 +28812,7 @@ func (t *TelegramCore) MessagesGetQuickReplies(hash int64) (tg.MessagesQuickRepl
 	return api.MessagesGetQuickReplies(ctx, hash)
 }
 
-// MessagesGetQuickReplyMessages returns messages in a quick reply shortcut.
 func (t *TelegramCore) MessagesGetQuickReplyMessages(request *tg.MessagesGetQuickReplyMessagesRequest) (tg.MessagesMessagesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31987,9 +28820,7 @@ func (t *TelegramCore) MessagesGetQuickReplyMessages(request *tg.MessagesGetQuic
 	return api.MessagesGetQuickReplyMessages(ctx, request)
 }
 
-// MessagesGetRecentLocations returns recently shared live locations.
 func (t *TelegramCore) MessagesGetRecentLocations(request *tg.MessagesGetRecentLocationsRequest) (tg.MessagesMessagesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -31997,9 +28828,7 @@ func (t *TelegramCore) MessagesGetRecentLocations(request *tg.MessagesGetRecentL
 	return api.MessagesGetRecentLocations(ctx, request)
 }
 
-// MessagesGetRecentReactions returns recently used reactions.
 func (t *TelegramCore) MessagesGetRecentReactions(request *tg.MessagesGetRecentReactionsRequest) (tg.MessagesReactionsClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32007,9 +28836,7 @@ func (t *TelegramCore) MessagesGetRecentReactions(request *tg.MessagesGetRecentR
 	return api.MessagesGetRecentReactions(ctx, request)
 }
 
-// MessagesGetReplies returns reply thread messages for a message.
 func (t *TelegramCore) MessagesGetReplies(request *tg.MessagesGetRepliesRequest) (tg.MessagesMessagesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32017,9 +28844,7 @@ func (t *TelegramCore) MessagesGetReplies(request *tg.MessagesGetRepliesRequest)
 	return api.MessagesGetReplies(ctx, request)
 }
 
-// MessagesGetSavedDialogs returns saved message dialogs.
 func (t *TelegramCore) MessagesGetSavedDialogs(request *tg.MessagesGetSavedDialogsRequest) (tg.MessagesSavedDialogsClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32027,9 +28852,7 @@ func (t *TelegramCore) MessagesGetSavedDialogs(request *tg.MessagesGetSavedDialo
 	return api.MessagesGetSavedDialogs(ctx, request)
 }
 
-// MessagesGetSavedDialogsByID returns saved dialogs by their peer IDs.
 func (t *TelegramCore) MessagesGetSavedDialogsByID(request *tg.MessagesGetSavedDialogsByIDRequest) (tg.MessagesSavedDialogsClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32037,9 +28860,7 @@ func (t *TelegramCore) MessagesGetSavedDialogsByID(request *tg.MessagesGetSavedD
 	return api.MessagesGetSavedDialogsByID(ctx, request)
 }
 
-// MessagesGetSavedGifs returns saved GIF animations.
 func (t *TelegramCore) MessagesGetSavedGifs(hash int64) (tg.MessagesSavedGifsClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32047,9 +28868,7 @@ func (t *TelegramCore) MessagesGetSavedGifs(hash int64) (tg.MessagesSavedGifsCla
 	return api.MessagesGetSavedGifs(ctx, hash)
 }
 
-// MessagesGetSavedHistory returns saved messages for a specific peer.
 func (t *TelegramCore) MessagesGetSavedHistory(request *tg.MessagesGetSavedHistoryRequest) (tg.MessagesMessagesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32057,9 +28876,7 @@ func (t *TelegramCore) MessagesGetSavedHistory(request *tg.MessagesGetSavedHisto
 	return api.MessagesGetSavedHistory(ctx, request)
 }
 
-// MessagesGetSavedReactionTags returns saved reaction tag labels.
 func (t *TelegramCore) MessagesGetSavedReactionTags(request *tg.MessagesGetSavedReactionTagsRequest) (tg.MessagesSavedReactionTagsClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32067,9 +28884,7 @@ func (t *TelegramCore) MessagesGetSavedReactionTags(request *tg.MessagesGetSaved
 	return api.MessagesGetSavedReactionTags(ctx, request)
 }
 
-// MessagesGetScheduledMessages returns scheduled messages in a chat.
 func (t *TelegramCore) MessagesGetScheduledMessages(request *tg.MessagesGetScheduledMessagesRequest) (tg.MessagesMessagesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32077,9 +28892,7 @@ func (t *TelegramCore) MessagesGetScheduledMessages(request *tg.MessagesGetSched
 	return api.MessagesGetScheduledMessages(ctx, request)
 }
 
-// MessagesGetSearchResultsPositions returns positions of search results.
 func (t *TelegramCore) MessagesGetSearchResultsPositions(request *tg.MessagesGetSearchResultsPositionsRequest) (*tg.MessagesSearchResultsPositions, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32087,9 +28900,7 @@ func (t *TelegramCore) MessagesGetSearchResultsPositions(request *tg.MessagesGet
 	return api.MessagesGetSearchResultsPositions(ctx, request)
 }
 
-// MessagesGetSplitRanges returns date ranges for message history split by DC.
 func (t *TelegramCore) MessagesGetSplitRanges() ([]tg.MessageRange, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32097,9 +28908,7 @@ func (t *TelegramCore) MessagesGetSplitRanges() ([]tg.MessageRange, error) {
 	return api.MessagesGetSplitRanges(ctx)
 }
 
-// MessagesGetSponsoredMessages returns sponsored messages for a channel.
 func (t *TelegramCore) MessagesGetSponsoredMessages(request *tg.MessagesGetSponsoredMessagesRequest) (tg.MessagesSponsoredMessagesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32107,9 +28916,7 @@ func (t *TelegramCore) MessagesGetSponsoredMessages(request *tg.MessagesGetSpons
 	return api.MessagesGetSponsoredMessages(ctx, request)
 }
 
-// MessagesGetStickers returns stickers matching an emoji.
 func (t *TelegramCore) MessagesGetStickers(request *tg.MessagesGetStickersRequest) (tg.MessagesStickersClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32117,9 +28924,7 @@ func (t *TelegramCore) MessagesGetStickers(request *tg.MessagesGetStickersReques
 	return api.MessagesGetStickers(ctx, request)
 }
 
-// MessagesGetTopReactions returns the most used reactions.
 func (t *TelegramCore) MessagesGetTopReactions(request *tg.MessagesGetTopReactionsRequest) (tg.MessagesReactionsClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32127,9 +28932,7 @@ func (t *TelegramCore) MessagesGetTopReactions(request *tg.MessagesGetTopReactio
 	return api.MessagesGetTopReactions(ctx, request)
 }
 
-// MessagesGetUnreadPollVotes returns unread poll votes in a chat.
 func (t *TelegramCore) MessagesGetUnreadPollVotes(request *tg.MessagesGetUnreadPollVotesRequest) (tg.MessagesMessagesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32137,9 +28940,7 @@ func (t *TelegramCore) MessagesGetUnreadPollVotes(request *tg.MessagesGetUnreadP
 	return api.MessagesGetUnreadPollVotes(ctx, request)
 }
 
-// MessagesGetWebPage returns a web page preview by URL.
 func (t *TelegramCore) MessagesGetWebPage(request *tg.MessagesGetWebPageRequest) (*tg.MessagesWebPage, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32147,9 +28948,7 @@ func (t *TelegramCore) MessagesGetWebPage(request *tg.MessagesGetWebPageRequest)
 	return api.MessagesGetWebPage(ctx, request)
 }
 
-// MessagesHideAllChatJoinRequests approves or dismisses all join requests.
 func (t *TelegramCore) MessagesHideAllChatJoinRequests(request *tg.MessagesHideAllChatJoinRequestsRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32157,9 +28956,7 @@ func (t *TelegramCore) MessagesHideAllChatJoinRequests(request *tg.MessagesHideA
 	return api.MessagesHideAllChatJoinRequests(ctx, request)
 }
 
-// MessagesHidePeerSettingsBar hides the action bar in a chat.
 func (t *TelegramCore) MessagesHidePeerSettingsBar(peer tg.InputPeerClass) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -32167,9 +28964,7 @@ func (t *TelegramCore) MessagesHidePeerSettingsBar(peer tg.InputPeerClass) (bool
 	return api.MessagesHidePeerSettingsBar(ctx, peer)
 }
 
-// MessagesInitHistoryImport starts a chat history import.
 func (t *TelegramCore) MessagesInitHistoryImport(request *tg.MessagesInitHistoryImportRequest) (*tg.MessagesHistoryImport, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32177,9 +28972,7 @@ func (t *TelegramCore) MessagesInitHistoryImport(request *tg.MessagesInitHistory
 	return api.MessagesInitHistoryImport(ctx, request)
 }
 
-// MessagesInstallStickerSet adds a sticker set to the user's collection.
 func (t *TelegramCore) MessagesInstallStickerSet(request *tg.MessagesInstallStickerSetRequest) (tg.MessagesStickerSetInstallResultClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32187,9 +28980,7 @@ func (t *TelegramCore) MessagesInstallStickerSet(request *tg.MessagesInstallStic
 	return api.MessagesInstallStickerSet(ctx, request)
 }
 
-// MessagesProlongWebView extends an open web view session.
 func (t *TelegramCore) MessagesProlongWebView(request *tg.MessagesProlongWebViewRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -32197,9 +28988,7 @@ func (t *TelegramCore) MessagesProlongWebView(request *tg.MessagesProlongWebView
 	return api.MessagesProlongWebView(ctx, request)
 }
 
-// MessagesRateTranscribedAudio rates an audio transcription's quality.
 func (t *TelegramCore) MessagesRateTranscribedAudio(request *tg.MessagesRateTranscribedAudioRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -32207,9 +28996,7 @@ func (t *TelegramCore) MessagesRateTranscribedAudio(request *tg.MessagesRateTran
 	return api.MessagesRateTranscribedAudio(ctx, request)
 }
 
-// MessagesReadDiscussion marks discussion thread messages as read.
 func (t *TelegramCore) MessagesReadDiscussion(request *tg.MessagesReadDiscussionRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -32217,9 +29004,7 @@ func (t *TelegramCore) MessagesReadDiscussion(request *tg.MessagesReadDiscussion
 	return api.MessagesReadDiscussion(ctx, request)
 }
 
-// MessagesReadEncryptedHistory marks secret chat messages as read.
 func (t *TelegramCore) MessagesReadEncryptedHistory(request *tg.MessagesReadEncryptedHistoryRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -32227,9 +29012,7 @@ func (t *TelegramCore) MessagesReadEncryptedHistory(request *tg.MessagesReadEncr
 	return api.MessagesReadEncryptedHistory(ctx, request)
 }
 
-// MessagesReadFeaturedStickers marks featured sticker sets as seen.
 func (t *TelegramCore) MessagesReadFeaturedStickers(id []int64) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -32237,9 +29020,7 @@ func (t *TelegramCore) MessagesReadFeaturedStickers(id []int64) (bool, error) {
 	return api.MessagesReadFeaturedStickers(ctx, id)
 }
 
-// MessagesReadMessageContents marks message contents as read.
 func (t *TelegramCore) MessagesReadMessageContents(id []int) (*tg.MessagesAffectedMessages, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32247,9 +29028,7 @@ func (t *TelegramCore) MessagesReadMessageContents(id []int) (*tg.MessagesAffect
 	return api.MessagesReadMessageContents(ctx, id)
 }
 
-// MessagesReadPollVotes marks poll votes as read.
 func (t *TelegramCore) MessagesReadPollVotes(request *tg.MessagesReadPollVotesRequest) (*tg.MessagesAffectedHistory, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32257,9 +29036,7 @@ func (t *TelegramCore) MessagesReadPollVotes(request *tg.MessagesReadPollVotesRe
 	return api.MessagesReadPollVotes(ctx, request)
 }
 
-// MessagesReadSavedHistory marks saved messages as read.
 func (t *TelegramCore) MessagesReadSavedHistory(request *tg.MessagesReadSavedHistoryRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -32267,9 +29044,7 @@ func (t *TelegramCore) MessagesReadSavedHistory(request *tg.MessagesReadSavedHis
 	return api.MessagesReadSavedHistory(ctx, request)
 }
 
-// MessagesReceivedMessages confirms message delivery up to a given ID.
 func (t *TelegramCore) MessagesReceivedMessages(maxid int) ([]tg.ReceivedNotifyMessage, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32277,9 +29052,7 @@ func (t *TelegramCore) MessagesReceivedMessages(maxid int) ([]tg.ReceivedNotifyM
 	return api.MessagesReceivedMessages(ctx, maxid)
 }
 
-// MessagesReceivedQueue confirms receipt of update queue messages.
 func (t *TelegramCore) MessagesReceivedQueue(maxqts int) ([]int64, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32287,9 +29060,7 @@ func (t *TelegramCore) MessagesReceivedQueue(maxqts int) ([]int64, error) {
 	return api.MessagesReceivedQueue(ctx, maxqts)
 }
 
-// MessagesReorderPinnedSavedDialogs reorders pinned saved dialogs.
 func (t *TelegramCore) MessagesReorderPinnedSavedDialogs(request *tg.MessagesReorderPinnedSavedDialogsRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -32297,9 +29068,7 @@ func (t *TelegramCore) MessagesReorderPinnedSavedDialogs(request *tg.MessagesReo
 	return api.MessagesReorderPinnedSavedDialogs(ctx, request)
 }
 
-// MessagesReorderQuickReplies reorders quick reply shortcuts.
 func (t *TelegramCore) MessagesReorderQuickReplies(order []int) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -32307,9 +29076,7 @@ func (t *TelegramCore) MessagesReorderQuickReplies(order []int) (bool, error) {
 	return api.MessagesReorderQuickReplies(ctx, order)
 }
 
-// MessagesReorderStickerSets reorders sticker sets.
 func (t *TelegramCore) MessagesReorderStickerSets(request *tg.MessagesReorderStickerSetsRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -32317,9 +29084,7 @@ func (t *TelegramCore) MessagesReorderStickerSets(request *tg.MessagesReorderSti
 	return api.MessagesReorderStickerSets(ctx, request)
 }
 
-// ReorderStickerSets reorders installed sticker packs by ID list.
 func (t *TelegramCore) ReorderStickerSets(order []int64) error {
-	// withAPI rule: never pin t.mu across RPCs.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -32330,9 +29095,7 @@ func (t *TelegramCore) ReorderStickerSets(order []int64) error {
 	return err
 }
 
-// MessagesReport reports messages for moderation.
 func (t *TelegramCore) MessagesReport(request *tg.MessagesReportRequest) (tg.ReportResultClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32340,9 +29103,7 @@ func (t *TelegramCore) MessagesReport(request *tg.MessagesReportRequest) (tg.Rep
 	return api.MessagesReport(ctx, request)
 }
 
-// MessagesReportEncryptedSpam reports a secret chat as spam.
 func (t *TelegramCore) MessagesReportEncryptedSpam(peer tg.InputEncryptedChat) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -32350,9 +29111,7 @@ func (t *TelegramCore) MessagesReportEncryptedSpam(peer tg.InputEncryptedChat) (
 	return api.MessagesReportEncryptedSpam(ctx, peer)
 }
 
-// MessagesReportMessagesDelivery reports message delivery status.
 func (t *TelegramCore) MessagesReportMessagesDelivery(request *tg.MessagesReportMessagesDeliveryRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -32360,9 +29119,7 @@ func (t *TelegramCore) MessagesReportMessagesDelivery(request *tg.MessagesReport
 	return api.MessagesReportMessagesDelivery(ctx, request)
 }
 
-// MessagesReportMusicListen reports a music listening event.
 func (t *TelegramCore) MessagesReportMusicListen(request *tg.MessagesReportMusicListenRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -32371,7 +29128,6 @@ func (t *TelegramCore) MessagesReportMusicListen(request *tg.MessagesReportMusic
 }
 
 func (t *TelegramCore) ReportMusicListen(docID int64, accessHash int64, fileRef []byte, durationSec int) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -32435,9 +29191,7 @@ func (t *TelegramCore) RefreshDocumentFileRef(docID int64, chatID string, msgID 
 	return nil, fmt.Errorf("document %d not found in message", docID)
 }
 
-// MessagesReportReaction reports an inappropriate reaction.
 func (t *TelegramCore) MessagesReportReaction(request *tg.MessagesReportReactionRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -32445,9 +29199,7 @@ func (t *TelegramCore) MessagesReportReaction(request *tg.MessagesReportReaction
 	return api.MessagesReportReaction(ctx, request)
 }
 
-// MessagesReportReadMetrics reports message read metrics.
 func (t *TelegramCore) MessagesReportReadMetrics(request *tg.MessagesReportReadMetricsRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -32455,9 +29207,7 @@ func (t *TelegramCore) MessagesReportReadMetrics(request *tg.MessagesReportReadM
 	return api.MessagesReportReadMetrics(ctx, request)
 }
 
-// MessagesReportSpam reports a peer as spam.
 func (t *TelegramCore) MessagesReportSpam(peer tg.InputPeerClass) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -32465,9 +29215,7 @@ func (t *TelegramCore) MessagesReportSpam(peer tg.InputPeerClass) (bool, error) 
 	return api.MessagesReportSpam(ctx, peer)
 }
 
-// MessagesReportSponsoredMessage reports a sponsored message.
 func (t *TelegramCore) MessagesReportSponsoredMessage(request *tg.MessagesReportSponsoredMessageRequest) (tg.ChannelsSponsoredMessageReportResultClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32475,9 +29223,7 @@ func (t *TelegramCore) MessagesReportSponsoredMessage(request *tg.MessagesReport
 	return api.MessagesReportSponsoredMessage(ctx, request)
 }
 
-// MessagesRequestAppWebView opens a bot's mini app view.
 func (t *TelegramCore) MessagesRequestAppWebView(request *tg.MessagesRequestAppWebViewRequest) (*tg.WebViewResultURL, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32485,9 +29231,7 @@ func (t *TelegramCore) MessagesRequestAppWebView(request *tg.MessagesRequestAppW
 	return api.MessagesRequestAppWebView(ctx, request)
 }
 
-// MessagesRequestEncryption initiates a secret chat with a user.
 func (t *TelegramCore) MessagesRequestEncryption(request *tg.MessagesRequestEncryptionRequest) (tg.EncryptedChatClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32495,9 +29239,7 @@ func (t *TelegramCore) MessagesRequestEncryption(request *tg.MessagesRequestEncr
 	return api.MessagesRequestEncryption(ctx, request)
 }
 
-// MessagesRequestMainWebView opens the main web view for a bot.
 func (t *TelegramCore) MessagesRequestMainWebView(request *tg.MessagesRequestMainWebViewRequest) (*tg.WebViewResultURL, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32505,9 +29247,7 @@ func (t *TelegramCore) MessagesRequestMainWebView(request *tg.MessagesRequestMai
 	return api.MessagesRequestMainWebView(ctx, request)
 }
 
-// MessagesRequestSimpleWebView opens a simple web view for a bot.
 func (t *TelegramCore) MessagesRequestSimpleWebView(request *tg.MessagesRequestSimpleWebViewRequest) (*tg.WebViewResultURL, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32515,9 +29255,7 @@ func (t *TelegramCore) MessagesRequestSimpleWebView(request *tg.MessagesRequestS
 	return api.MessagesRequestSimpleWebView(ctx, request)
 }
 
-// MessagesRequestURLAuth requests URL authentication info from a bot.
 func (t *TelegramCore) MessagesRequestURLAuth(request *tg.MessagesRequestURLAuthRequest) (tg.URLAuthResultClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32525,9 +29263,7 @@ func (t *TelegramCore) MessagesRequestURLAuth(request *tg.MessagesRequestURLAuth
 	return api.MessagesRequestURLAuth(ctx, request)
 }
 
-// MessagesRequestWebView opens a web view for a bot keyboard button.
 func (t *TelegramCore) MessagesRequestWebView(request *tg.MessagesRequestWebViewRequest) (*tg.WebViewResultURL, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32535,9 +29271,7 @@ func (t *TelegramCore) MessagesRequestWebView(request *tg.MessagesRequestWebView
 	return api.MessagesRequestWebView(ctx, request)
 }
 
-// MessagesSaveDefaultSendAs sets the default send-as peer for a chat.
 func (t *TelegramCore) MessagesSaveDefaultSendAs(request *tg.MessagesSaveDefaultSendAsRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -32545,9 +29279,7 @@ func (t *TelegramCore) MessagesSaveDefaultSendAs(request *tg.MessagesSaveDefault
 	return api.MessagesSaveDefaultSendAs(ctx, request)
 }
 
-// MessagesSaveGif saves or unsaves a GIF animation.
 func (t *TelegramCore) MessagesSaveGif(request *tg.MessagesSaveGifRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -32555,9 +29287,7 @@ func (t *TelegramCore) MessagesSaveGif(request *tg.MessagesSaveGifRequest) (bool
 	return api.MessagesSaveGif(ctx, request)
 }
 
-// MessagesSavePreparedInlineMessage saves a prepared inline message.
 func (t *TelegramCore) MessagesSavePreparedInlineMessage(request *tg.MessagesSavePreparedInlineMessageRequest) (*tg.MessagesBotPreparedInlineMessage, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32565,9 +29295,7 @@ func (t *TelegramCore) MessagesSavePreparedInlineMessage(request *tg.MessagesSav
 	return api.MessagesSavePreparedInlineMessage(ctx, request)
 }
 
-// MessagesSaveRecentSticker saves or unsaves a recent sticker.
 func (t *TelegramCore) MessagesSaveRecentSticker(request *tg.MessagesSaveRecentStickerRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -32575,9 +29303,7 @@ func (t *TelegramCore) MessagesSaveRecentSticker(request *tg.MessagesSaveRecentS
 	return api.MessagesSaveRecentSticker(ctx, request)
 }
 
-// MessagesSearchCustomEmoji searches for custom emoji.
 func (t *TelegramCore) MessagesSearchCustomEmoji(request *tg.MessagesSearchCustomEmojiRequest) (tg.EmojiListClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32585,9 +29311,7 @@ func (t *TelegramCore) MessagesSearchCustomEmoji(request *tg.MessagesSearchCusto
 	return api.MessagesSearchCustomEmoji(ctx, request)
 }
 
-// MessagesSearchEmojiStickerSets searches for emoji sticker sets.
 func (t *TelegramCore) MessagesSearchEmojiStickerSets(request *tg.MessagesSearchEmojiStickerSetsRequest) (tg.MessagesFoundStickerSetsClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32595,9 +29319,7 @@ func (t *TelegramCore) MessagesSearchEmojiStickerSets(request *tg.MessagesSearch
 	return api.MessagesSearchEmojiStickerSets(ctx, request)
 }
 
-// MessagesSearchSentMedia searches for sent media across all chats.
 func (t *TelegramCore) MessagesSearchSentMedia(request *tg.MessagesSearchSentMediaRequest) (tg.MessagesMessagesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32605,9 +29327,7 @@ func (t *TelegramCore) MessagesSearchSentMedia(request *tg.MessagesSearchSentMed
 	return api.MessagesSearchSentMedia(ctx, request)
 }
 
-// MessagesSearchStickers searches for stickers by emoji or keyword.
 func (t *TelegramCore) MessagesSearchStickers(request *tg.MessagesSearchStickersRequest) (tg.MessagesFoundStickersClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32615,9 +29335,7 @@ func (t *TelegramCore) MessagesSearchStickers(request *tg.MessagesSearchStickers
 	return api.MessagesSearchStickers(ctx, request)
 }
 
-// MessagesSendBotRequestedPeer sends a selected peer to a bot.
 func (t *TelegramCore) MessagesSendBotRequestedPeer(request *tg.MessagesSendBotRequestedPeerRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32625,9 +29343,7 @@ func (t *TelegramCore) MessagesSendBotRequestedPeer(request *tg.MessagesSendBotR
 	return api.MessagesSendBotRequestedPeer(ctx, request)
 }
 
-// MessagesSendEncrypted sends an encrypted message in a secret chat.
 func (t *TelegramCore) MessagesSendEncrypted(request *tg.MessagesSendEncryptedRequest) (tg.MessagesSentEncryptedMessageClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32635,9 +29351,7 @@ func (t *TelegramCore) MessagesSendEncrypted(request *tg.MessagesSendEncryptedRe
 	return api.MessagesSendEncrypted(ctx, request)
 }
 
-// MessagesSendEncryptedFile sends an encrypted file in a secret chat.
 func (t *TelegramCore) MessagesSendEncryptedFile(request *tg.MessagesSendEncryptedFileRequest) (tg.MessagesSentEncryptedMessageClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32645,9 +29359,7 @@ func (t *TelegramCore) MessagesSendEncryptedFile(request *tg.MessagesSendEncrypt
 	return api.MessagesSendEncryptedFile(ctx, request)
 }
 
-// MessagesSendEncryptedService sends a service message in a secret chat.
 func (t *TelegramCore) MessagesSendEncryptedService(request *tg.MessagesSendEncryptedServiceRequest) (tg.MessagesSentEncryptedMessageClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32655,9 +29367,7 @@ func (t *TelegramCore) MessagesSendEncryptedService(request *tg.MessagesSendEncr
 	return api.MessagesSendEncryptedService(ctx, request)
 }
 
-// MessagesSendPaidReaction sends a paid reaction on a message.
 func (t *TelegramCore) MessagesSendPaidReaction(request *tg.MessagesSendPaidReactionRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32665,9 +29375,7 @@ func (t *TelegramCore) MessagesSendPaidReaction(request *tg.MessagesSendPaidReac
 	return api.MessagesSendPaidReaction(ctx, request)
 }
 
-// MessagesSendQuickReplyMessages sends quick reply messages to a chat.
 func (t *TelegramCore) MessagesSendQuickReplyMessages(request *tg.MessagesSendQuickReplyMessagesRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32675,9 +29383,7 @@ func (t *TelegramCore) MessagesSendQuickReplyMessages(request *tg.MessagesSendQu
 	return api.MessagesSendQuickReplyMessages(ctx, request)
 }
 
-// MessagesSendScreenshotNotification notifies about a screenshot in a secret chat.
 func (t *TelegramCore) MessagesSendScreenshotNotification(request *tg.MessagesSendScreenshotNotificationRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32685,9 +29391,7 @@ func (t *TelegramCore) MessagesSendScreenshotNotification(request *tg.MessagesSe
 	return api.MessagesSendScreenshotNotification(ctx, request)
 }
 
-// MessagesSendWebViewData sends web view data to a bot.
 func (t *TelegramCore) MessagesSendWebViewData(request *tg.MessagesSendWebViewDataRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32695,9 +29399,7 @@ func (t *TelegramCore) MessagesSendWebViewData(request *tg.MessagesSendWebViewDa
 	return api.MessagesSendWebViewData(ctx, request)
 }
 
-// MessagesSendWebViewResultMessage sends a web view interaction result.
 func (t *TelegramCore) MessagesSendWebViewResultMessage(request *tg.MessagesSendWebViewResultMessageRequest) (*tg.WebViewMessageSent, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32705,9 +29407,7 @@ func (t *TelegramCore) MessagesSendWebViewResultMessage(request *tg.MessagesSend
 	return api.MessagesSendWebViewResultMessage(ctx, request)
 }
 
-// MessagesSetBotCallbackAnswer answers a callback query.
 func (t *TelegramCore) MessagesSetBotCallbackAnswer(request *tg.MessagesSetBotCallbackAnswerRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -32715,9 +29415,7 @@ func (t *TelegramCore) MessagesSetBotCallbackAnswer(request *tg.MessagesSetBotCa
 	return api.MessagesSetBotCallbackAnswer(ctx, request)
 }
 
-// MessagesSetBotPrecheckoutResults responds to a pre-checkout query.
 func (t *TelegramCore) MessagesSetBotPrecheckoutResults(request *tg.MessagesSetBotPrecheckoutResultsRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -32725,9 +29423,7 @@ func (t *TelegramCore) MessagesSetBotPrecheckoutResults(request *tg.MessagesSetB
 	return api.MessagesSetBotPrecheckoutResults(ctx, request)
 }
 
-// MessagesSetBotShippingResults responds to a shipping query.
 func (t *TelegramCore) MessagesSetBotShippingResults(request *tg.MessagesSetBotShippingResultsRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -32735,9 +29431,7 @@ func (t *TelegramCore) MessagesSetBotShippingResults(request *tg.MessagesSetBotS
 	return api.MessagesSetBotShippingResults(ctx, request)
 }
 
-// MessagesSetDefaultHistoryTTL sets the default auto-delete timer.
 func (t *TelegramCore) MessagesSetDefaultHistoryTTL(period int) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -32745,9 +29439,7 @@ func (t *TelegramCore) MessagesSetDefaultHistoryTTL(period int) (bool, error) {
 	return api.MessagesSetDefaultHistoryTTL(ctx, period)
 }
 
-// MessagesSetEncryptedTyping sends typing in a secret chat.
 func (t *TelegramCore) MessagesSetEncryptedTyping(request *tg.MessagesSetEncryptedTypingRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -32755,9 +29447,7 @@ func (t *TelegramCore) MessagesSetEncryptedTyping(request *tg.MessagesSetEncrypt
 	return api.MessagesSetEncryptedTyping(ctx, request)
 }
 
-// MessagesSetGameScore sets a game score for a user.
 func (t *TelegramCore) MessagesSetGameScore(request *tg.MessagesSetGameScoreRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32765,9 +29455,7 @@ func (t *TelegramCore) MessagesSetGameScore(request *tg.MessagesSetGameScoreRequ
 	return api.MessagesSetGameScore(ctx, request)
 }
 
-// MessagesSetInlineBotResults sets results for an inline query.
 func (t *TelegramCore) MessagesSetInlineBotResults(request *tg.MessagesSetInlineBotResultsRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -32775,9 +29463,7 @@ func (t *TelegramCore) MessagesSetInlineBotResults(request *tg.MessagesSetInline
 	return api.MessagesSetInlineBotResults(ctx, request)
 }
 
-// MessagesSetInlineGameScore sets a game score in an inline message.
 func (t *TelegramCore) MessagesSetInlineGameScore(request *tg.MessagesSetInlineGameScoreRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -32785,9 +29471,7 @@ func (t *TelegramCore) MessagesSetInlineGameScore(request *tg.MessagesSetInlineG
 	return api.MessagesSetInlineGameScore(ctx, request)
 }
 
-// MessagesStartHistoryImport begins processing a history import.
 func (t *TelegramCore) MessagesStartHistoryImport(request *tg.MessagesStartHistoryImportRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -32795,9 +29479,7 @@ func (t *TelegramCore) MessagesStartHistoryImport(request *tg.MessagesStartHisto
 	return api.MessagesStartHistoryImport(ctx, request)
 }
 
-// MessagesSummarizeText generates an AI summary of text.
 func (t *TelegramCore) MessagesSummarizeText(request *tg.MessagesSummarizeTextRequest) (*tg.TextWithEntities, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32805,9 +29487,7 @@ func (t *TelegramCore) MessagesSummarizeText(request *tg.MessagesSummarizeTextRe
 	return api.MessagesSummarizeText(ctx, request)
 }
 
-// MessagesToggleBotInAttachMenu adds or removes a bot from the attach menu.
 func (t *TelegramCore) MessagesToggleBotInAttachMenu(request *tg.MessagesToggleBotInAttachMenuRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -32815,10 +29495,7 @@ func (t *TelegramCore) MessagesToggleBotInAttachMenu(request *tg.MessagesToggleB
 	return api.MessagesToggleBotInAttachMenu(ctx, request)
 }
 
-// MarkAllStoriesRead fetches all active stories and sends read receipts for
-// each peer that has unread stories (stories.readStories per peer).
 func (t *TelegramCore) MarkAllStoriesRead() error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -32867,9 +29544,7 @@ func (t *TelegramCore) MarkAllStoriesRead() error {
 	return nil
 }
 
-// RemoveBotFromMenu removes a bot from the side/attach menu.
 func (t *TelegramCore) RemoveBotFromMenu(botID int64) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -32881,9 +29556,7 @@ func (t *TelegramCore) RemoveBotFromMenu(botID int64) error {
 	return err
 }
 
-// MessagesToggleDialogFilterTags toggles filter tags in dialog folders.
 func (t *TelegramCore) MessagesToggleDialogFilterTags(enabled bool) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -32891,9 +29564,7 @@ func (t *TelegramCore) MessagesToggleDialogFilterTags(enabled bool) (bool, error
 	return api.MessagesToggleDialogFilterTags(ctx, enabled)
 }
 
-// MessagesTogglePaidReactionPrivacy toggles paid reaction privacy.
 func (t *TelegramCore) MessagesTogglePaidReactionPrivacy(request *tg.MessagesTogglePaidReactionPrivacyRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -32901,9 +29572,7 @@ func (t *TelegramCore) MessagesTogglePaidReactionPrivacy(request *tg.MessagesTog
 	return api.MessagesTogglePaidReactionPrivacy(ctx, request)
 }
 
-// MessagesTogglePeerTranslations toggles auto-translation for a peer.
 func (t *TelegramCore) MessagesTogglePeerTranslations(request *tg.MessagesTogglePeerTranslationsRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -32911,9 +29580,7 @@ func (t *TelegramCore) MessagesTogglePeerTranslations(request *tg.MessagesToggle
 	return api.MessagesTogglePeerTranslations(ctx, request)
 }
 
-// MessagesToggleSavedDialogPin pins or unpins a saved dialog.
 func (t *TelegramCore) MessagesToggleSavedDialogPin(request *tg.MessagesToggleSavedDialogPinRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -32921,10 +29588,7 @@ func (t *TelegramCore) MessagesToggleSavedDialogPin(request *tg.MessagesToggleSa
 	return api.MessagesToggleSavedDialogPin(ctx, request)
 }
 
-// ToggleSavedDialogPin is a simple-parameter wrapper for the engine layer.
-// It resolves the peer from a string ID and calls MessagesToggleSavedDialogPin.
 func (t *TelegramCore) ToggleSavedDialogPin(peerID string, pinned bool) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -32941,10 +29605,7 @@ func (t *TelegramCore) ToggleSavedDialogPin(peerID string, pinned bool) error {
 	return err
 }
 
-// DeleteSavedHistory is a simple-parameter wrapper for the engine layer.
-// It resolves the peer from a string ID and calls MessagesDeleteSavedHistory.
 func (t *TelegramCore) DeleteSavedHistory(peerID string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -32960,9 +29621,7 @@ func (t *TelegramCore) DeleteSavedHistory(peerID string) error {
 	return err
 }
 
-// MessagesToggleStickerSets archives or unarchives sticker sets.
 func (t *TelegramCore) MessagesToggleStickerSets(request *tg.MessagesToggleStickerSetsRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -32970,9 +29629,7 @@ func (t *TelegramCore) MessagesToggleStickerSets(request *tg.MessagesToggleStick
 	return api.MessagesToggleStickerSets(ctx, request)
 }
 
-// MessagesToggleSuggestedPostApproval toggles suggested post approval.
 func (t *TelegramCore) MessagesToggleSuggestedPostApproval(request *tg.MessagesToggleSuggestedPostApprovalRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32980,9 +29637,7 @@ func (t *TelegramCore) MessagesToggleSuggestedPostApproval(request *tg.MessagesT
 	return api.MessagesToggleSuggestedPostApproval(ctx, request)
 }
 
-// MessagesToggleTodoCompleted marks to-do items as completed or not.
 func (t *TelegramCore) MessagesToggleTodoCompleted(request *tg.MessagesToggleTodoCompletedRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -32990,9 +29645,7 @@ func (t *TelegramCore) MessagesToggleTodoCompleted(request *tg.MessagesToggleTod
 	return api.MessagesToggleTodoCompleted(ctx, request)
 }
 
-// MessagesTranscribeAudio transcribes a voice message to text.
 func (t *TelegramCore) MessagesTranscribeAudio(request *tg.MessagesTranscribeAudioRequest) (*tg.MessagesTranscribedAudio, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -33022,9 +29675,7 @@ func (t *TelegramCore) TranscribeAudio(chatID, msgID string) (bool, int64, strin
 	return res.Pending, res.TranscriptionID, res.Text, nil
 }
 
-// MessagesUninstallStickerSet removes a sticker set from the collection.
 func (t *TelegramCore) MessagesUninstallStickerSet(stickerset tg.InputStickerSetClass) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -33032,9 +29683,7 @@ func (t *TelegramCore) MessagesUninstallStickerSet(stickerset tg.InputStickerSet
 	return api.MessagesUninstallStickerSet(ctx, stickerset)
 }
 
-// MessagesUpdateSavedReactionTag updates a saved reaction tag label.
 func (t *TelegramCore) MessagesUpdateSavedReactionTag(request *tg.MessagesUpdateSavedReactionTagRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -33042,9 +29691,7 @@ func (t *TelegramCore) MessagesUpdateSavedReactionTag(request *tg.MessagesUpdate
 	return api.MessagesUpdateSavedReactionTag(ctx, request)
 }
 
-// MessagesUploadEncryptedFile uploads an encrypted file for a secret chat.
 func (t *TelegramCore) MessagesUploadEncryptedFile(request *tg.MessagesUploadEncryptedFileRequest) (tg.EncryptedFileClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -33052,9 +29699,7 @@ func (t *TelegramCore) MessagesUploadEncryptedFile(request *tg.MessagesUploadEnc
 	return api.MessagesUploadEncryptedFile(ctx, request)
 }
 
-// MessagesUploadImportedMedia uploads media for a history import.
 func (t *TelegramCore) MessagesUploadImportedMedia(request *tg.MessagesUploadImportedMediaRequest) (tg.MessageMediaClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -33062,9 +29707,7 @@ func (t *TelegramCore) MessagesUploadImportedMedia(request *tg.MessagesUploadImp
 	return api.MessagesUploadImportedMedia(ctx, request)
 }
 
-// MessagesUploadMedia uploads media for later use in messages.
 func (t *TelegramCore) MessagesUploadMedia(request *tg.MessagesUploadMediaRequest) (tg.MessageMediaClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -33072,9 +29715,7 @@ func (t *TelegramCore) MessagesUploadMedia(request *tg.MessagesUploadMediaReques
 	return api.MessagesUploadMedia(ctx, request)
 }
 
-// MessagesViewSponsoredMessage reports a sponsored message view.
 func (t *TelegramCore) MessagesViewSponsoredMessage(randomid []byte) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -33082,11 +29723,7 @@ func (t *TelegramCore) MessagesViewSponsoredMessage(randomid []byte) (bool, erro
 	return api.MessagesViewSponsoredMessage(ctx, randomid)
 }
 
-// --- Phone (37 methods) ---
-
-// PhoneCheckGroupCall checks the availability or status of a group call.
 func (t *TelegramCore) PhoneCheckGroupCall(request *tg.PhoneCheckGroupCallRequest) ([]int, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -33094,9 +29731,7 @@ func (t *TelegramCore) PhoneCheckGroupCall(request *tg.PhoneCheckGroupCallReques
 	return api.PhoneCheckGroupCall(ctx, request)
 }
 
-// PhoneCreateConferenceCall creates a new conference call.
 func (t *TelegramCore) PhoneCreateConferenceCall(request *tg.PhoneCreateConferenceCallRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -33104,9 +29739,7 @@ func (t *TelegramCore) PhoneCreateConferenceCall(request *tg.PhoneCreateConferen
 	return api.PhoneCreateConferenceCall(ctx, request)
 }
 
-// CreateConferenceCall creates an empty conference call and returns (callID, inviteLink).
 func (t *TelegramCore) CreateConferenceCall() (string, string, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return "", "", err
@@ -33142,19 +29775,11 @@ func (t *TelegramCore) CreateConferenceCall() (string, string, error) {
 	return "", "", fmt.Errorf("conference call created but no GroupCall found in updates")
 }
 
-// confInviteEntry tracks one outgoing conference-call invite (AyuGram
-// Data::Session InviteToCall): whether the invitee is still being rung and the
-// IDs of the invite service messages we sent (needed to Stop ringing / Cancel
-// invite).
 type confInviteEntry struct {
 	calling bool
 	msgIDs  []int
 }
 
-// collectConfInviteMessageIDs pulls the IDs of any new (service) messages out of
-// an Updates response — the conference-invite message
-// phone.inviteConferenceCallParticipant just created, which we later decline or
-// delete.
 func collectConfInviteMessageIDs(updates tg.UpdatesClass) []int {
 	var list []tg.UpdateClass
 	switch u := updates.(type) {
@@ -33193,7 +29818,6 @@ func collectConfInviteMessageIDs(updates tg.UpdatesClass) []int {
 	return ids
 }
 
-// registerConfInvite records (or updates) a tracked outgoing conference invite.
 func (t *TelegramCore) registerConfInvite(callID, userID int64, calling bool, msgIDs []int) {
 	t.peerMu.Lock()
 	defer t.peerMu.Unlock()
@@ -33211,7 +29835,6 @@ func (t *TelegramCore) registerConfInvite(callID, userID int64, calling bool, ms
 	e.msgIDs = append(e.msgIDs, msgIDs...)
 }
 
-// takeConfInvite removes and returns a tracked invite (used when cancelling).
 func (t *TelegramCore) takeConfInvite(callID, userID int64) (*confInviteEntry, bool) {
 	t.peerMu.Lock()
 	defer t.peerMu.Unlock()
@@ -33230,8 +29853,6 @@ func (t *TelegramCore) takeConfInvite(callID, userID int64) (*confInviteEntry, b
 	return e, true
 }
 
-// mergeConfInvites appends tracked invited/calling users (not already joined) as
-// extra participant rows with State set — AyuGram setupInvitedUsers.
 func (t *TelegramCore) mergeConfInvites(callID int64, participants []CallParticipant) []CallParticipant {
 	t.peerMu.RLock()
 	m := t.confInvites[callID]
@@ -33254,7 +29875,7 @@ func (t *TelegramCore) mergeConfInvites(callID int64, participants []CallPartici
 	for _, iv := range list {
 		uidStr := strconv.FormatInt(iv.uid, 10)
 		if joined[uidStr] {
-			continue // they joined — show the real participant row instead
+			continue
 		}
 		state := "invited"
 		if iv.calling {
@@ -33269,9 +29890,6 @@ func (t *TelegramCore) mergeConfInvites(callID int64, participants []CallPartici
 	return participants
 }
 
-// fireConfCallParticipants re-emits the cached server snapshot merged with the
-// current conference invites, so invited/calling rows appear/disappear right
-// after Invite / Cancel without waiting for the next server push.
 func (t *TelegramCore) fireConfCallParticipants(callID int64) {
 	t.mu.RLock()
 	call := t.activeCalls[callID]
@@ -33295,12 +29913,6 @@ func (t *TelegramCore) fireConfCallParticipants(callID int64) {
 	})
 }
 
-// InviteToConferenceCall invites users to a conference call by call ID via
-// phone.inviteConferenceCallParticipant (AyuGram InviteToConferenceCall) — each
-// invite rings the user and produces a service message we track, so the invite
-// can later have its ring stopped (phone.declineConferenceCallInvite) or be
-// cancelled (the message deleted). The invited users surface as invited/calling
-// participant rows until they join.
 func (t *TelegramCore) InviteToConferenceCall(callID string, userIDs, videoUserIDs []string) error {
 	t.mu.RLock()
 	authed := t.authed && t.api != nil
@@ -33319,9 +29931,6 @@ func (t *TelegramCore) InviteToConferenceCall(callID string, userIDs, videoUserI
 		return fmt.Errorf("no access hash for conference call %s", callID)
 	}
 
-	// AyuGram carries the per-user video toggle into the invite via
-	// InviteRequest.video → phone.inviteConferenceCallParticipant `video:`
-	// (calls_group_invite_controller.cpp:498-507). Mirror it with a set lookup.
 	withVideo := make(map[string]bool, len(videoUserIDs))
 	for _, v := range videoUserIDs {
 		withVideo[v] = true
@@ -33358,11 +29967,6 @@ func (t *TelegramCore) InviteToConferenceCall(callID string, userIDs, videoUserI
 	return nil
 }
 
-// DeclineOutgoingConferenceInvite cancels an outgoing conference-call invite
-// (AyuGram Instance::declineOutgoingConferenceInvite). discard=false ("Stop
-// ringing") declines each invite message via phone.declineConferenceCallInvite
-// but keeps the user invited; discard=true ("Cancel invite") revokes the invite
-// by deleting its messages.
 func (t *TelegramCore) DeclineOutgoingConferenceInvite(callID, userID string, discard bool) error {
 	t.mu.RLock()
 	authed := t.authed && t.api != nil
@@ -33387,7 +29991,6 @@ func (t *TelegramCore) DeclineOutgoingConferenceInvite(callID, userID string, di
 
 	var firstErr error
 	if discard {
-		// Cancel invite: delete the invite messages (revoke on both sides).
 		if len(msgIDs) > 0 {
 			if _, derr := t.api.MessagesDeleteMessages(t.ctx, &tg.MessagesDeleteMessagesRequest{
 				ID:     msgIDs,
@@ -33397,8 +30000,6 @@ func (t *TelegramCore) DeclineOutgoingConferenceInvite(callID, userID string, di
 			}
 		}
 	} else {
-		// Stop ringing: decline each invite message; keep the user invited so a
-		// later Cancel can still revoke it (AyuGram re-registers as non-calling).
 		for _, mid := range msgIDs {
 			if _, derr := t.api.PhoneDeclineConferenceCallInvite(t.ctx, mid); derr != nil && firstErr == nil {
 				firstErr = derr
@@ -33413,9 +30014,7 @@ func (t *TelegramCore) DeclineOutgoingConferenceInvite(callID, userID string, di
 	return firstErr
 }
 
-// PhoneCreateGroupCall creates a new group call in a chat.
 func (t *TelegramCore) PhoneCreateGroupCall(request *tg.PhoneCreateGroupCallRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -33423,9 +30022,7 @@ func (t *TelegramCore) PhoneCreateGroupCall(request *tg.PhoneCreateGroupCallRequ
 	return api.PhoneCreateGroupCall(ctx, request)
 }
 
-// PhoneDeclineConferenceCallInvite declines a conference call invitation.
 func (t *TelegramCore) PhoneDeclineConferenceCallInvite(msgid int) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -33433,9 +30030,7 @@ func (t *TelegramCore) PhoneDeclineConferenceCallInvite(msgid int) (tg.UpdatesCl
 	return api.PhoneDeclineConferenceCallInvite(ctx, msgid)
 }
 
-// PhoneDeleteConferenceCallParticipants removes conference call participants.
 func (t *TelegramCore) PhoneDeleteConferenceCallParticipants(request *tg.PhoneDeleteConferenceCallParticipantsRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -33443,9 +30038,7 @@ func (t *TelegramCore) PhoneDeleteConferenceCallParticipants(request *tg.PhoneDe
 	return api.PhoneDeleteConferenceCallParticipants(ctx, request)
 }
 
-// PhoneDeleteGroupCallMessages deletes group call messages.
 func (t *TelegramCore) PhoneDeleteGroupCallMessages(request *tg.PhoneDeleteGroupCallMessagesRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -33453,9 +30046,7 @@ func (t *TelegramCore) PhoneDeleteGroupCallMessages(request *tg.PhoneDeleteGroup
 	return api.PhoneDeleteGroupCallMessages(ctx, request)
 }
 
-// PhoneDeleteGroupCallParticipantMessages deletes a participant's group call messages.
 func (t *TelegramCore) PhoneDeleteGroupCallParticipantMessages(request *tg.PhoneDeleteGroupCallParticipantMessagesRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -33463,9 +30054,7 @@ func (t *TelegramCore) PhoneDeleteGroupCallParticipantMessages(request *tg.Phone
 	return api.PhoneDeleteGroupCallParticipantMessages(ctx, request)
 }
 
-// PhoneDiscardGroupCall ends a group call.
 func (t *TelegramCore) PhoneDiscardGroupCall(call tg.InputGroupCallClass) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -33473,9 +30062,7 @@ func (t *TelegramCore) PhoneDiscardGroupCall(call tg.InputGroupCallClass) (tg.Up
 	return api.PhoneDiscardGroupCall(ctx, call)
 }
 
-// PhoneEditGroupCallParticipant modifies a participant's group call settings.
 func (t *TelegramCore) PhoneEditGroupCallParticipant(request *tg.PhoneEditGroupCallParticipantRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -33483,9 +30070,7 @@ func (t *TelegramCore) PhoneEditGroupCallParticipant(request *tg.PhoneEditGroupC
 	return api.PhoneEditGroupCallParticipant(ctx, request)
 }
 
-// PhoneEditGroupCallTitle changes a group call's title.
 func (t *TelegramCore) PhoneEditGroupCallTitle(request *tg.PhoneEditGroupCallTitleRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -33493,9 +30078,7 @@ func (t *TelegramCore) PhoneEditGroupCallTitle(request *tg.PhoneEditGroupCallTit
 	return api.PhoneEditGroupCallTitle(ctx, request)
 }
 
-// PhoneExportGroupCallInvite generates an invite link for a group call.
 func (t *TelegramCore) PhoneExportGroupCallInvite(request *tg.PhoneExportGroupCallInviteRequest) (*tg.PhoneExportedGroupCallInvite, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -33503,9 +30086,7 @@ func (t *TelegramCore) PhoneExportGroupCallInvite(request *tg.PhoneExportGroupCa
 	return api.PhoneExportGroupCallInvite(ctx, request)
 }
 
-// PhoneGetGroupCall returns group call information.
 func (t *TelegramCore) PhoneGetGroupCall(request *tg.PhoneGetGroupCallRequest) (*tg.PhoneGroupCall, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -33513,9 +30094,7 @@ func (t *TelegramCore) PhoneGetGroupCall(request *tg.PhoneGetGroupCallRequest) (
 	return api.PhoneGetGroupCall(ctx, request)
 }
 
-// PhoneGetGroupCallChainBlocks returns chain block data for a group call.
 func (t *TelegramCore) PhoneGetGroupCallChainBlocks(request *tg.PhoneGetGroupCallChainBlocksRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -33523,9 +30102,7 @@ func (t *TelegramCore) PhoneGetGroupCallChainBlocks(request *tg.PhoneGetGroupCal
 	return api.PhoneGetGroupCallChainBlocks(ctx, request)
 }
 
-// PhoneGetGroupCallJoinAs returns identities available for joining a group call.
 func (t *TelegramCore) PhoneGetGroupCallJoinAs(peer tg.InputPeerClass) (*tg.PhoneJoinAsPeers, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -33533,9 +30110,7 @@ func (t *TelegramCore) PhoneGetGroupCallJoinAs(peer tg.InputPeerClass) (*tg.Phon
 	return api.PhoneGetGroupCallJoinAs(ctx, peer)
 }
 
-// PhoneGetGroupCallStars returns star info for a group call.
 func (t *TelegramCore) PhoneGetGroupCallStars(call tg.InputGroupCallClass) (*tg.PhoneGroupCallStars, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -33543,9 +30118,7 @@ func (t *TelegramCore) PhoneGetGroupCallStars(call tg.InputGroupCallClass) (*tg.
 	return api.PhoneGetGroupCallStars(ctx, call)
 }
 
-// PhoneGetGroupCallStreamChannels returns stream channels for a group call.
 func (t *TelegramCore) PhoneGetGroupCallStreamChannels(call tg.InputGroupCallClass) (*tg.PhoneGroupCallStreamChannels, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -33553,9 +30126,7 @@ func (t *TelegramCore) PhoneGetGroupCallStreamChannels(call tg.InputGroupCallCla
 	return api.PhoneGetGroupCallStreamChannels(ctx, call)
 }
 
-// PhoneGetGroupCallStreamRtmpURL returns the RTMP URL for a group call.
 func (t *TelegramCore) PhoneGetGroupCallStreamRtmpURL(request *tg.PhoneGetGroupCallStreamRtmpURLRequest) (*tg.PhoneGroupCallStreamRtmpURL, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -33563,9 +30134,7 @@ func (t *TelegramCore) PhoneGetGroupCallStreamRtmpURL(request *tg.PhoneGetGroupC
 	return api.PhoneGetGroupCallStreamRtmpURL(ctx, request)
 }
 
-// PhoneGetGroupParticipants returns group call participants.
 func (t *TelegramCore) PhoneGetGroupParticipants(request *tg.PhoneGetGroupParticipantsRequest) (*tg.PhoneGroupParticipants, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -33573,9 +30142,7 @@ func (t *TelegramCore) PhoneGetGroupParticipants(request *tg.PhoneGetGroupPartic
 	return api.PhoneGetGroupParticipants(ctx, request)
 }
 
-// PhoneInviteConferenceCallParticipant invites a user to a conference call.
 func (t *TelegramCore) PhoneInviteConferenceCallParticipant(request *tg.PhoneInviteConferenceCallParticipantRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -33583,9 +30150,7 @@ func (t *TelegramCore) PhoneInviteConferenceCallParticipant(request *tg.PhoneInv
 	return api.PhoneInviteConferenceCallParticipant(ctx, request)
 }
 
-// PhoneInviteToGroupCall invites users to a group call.
 func (t *TelegramCore) PhoneInviteToGroupCall(request *tg.PhoneInviteToGroupCallRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -33593,9 +30158,7 @@ func (t *TelegramCore) PhoneInviteToGroupCall(request *tg.PhoneInviteToGroupCall
 	return api.PhoneInviteToGroupCall(ctx, request)
 }
 
-// PhoneJoinGroupCall joins a group call.
 func (t *TelegramCore) PhoneJoinGroupCall(request *tg.PhoneJoinGroupCallRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -33603,9 +30166,7 @@ func (t *TelegramCore) PhoneJoinGroupCall(request *tg.PhoneJoinGroupCallRequest)
 	return api.PhoneJoinGroupCall(ctx, request)
 }
 
-// PhoneJoinGroupCallPresentation starts screen sharing in a group call.
 func (t *TelegramCore) PhoneJoinGroupCallPresentation(request *tg.PhoneJoinGroupCallPresentationRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -33613,9 +30174,7 @@ func (t *TelegramCore) PhoneJoinGroupCallPresentation(request *tg.PhoneJoinGroup
 	return api.PhoneJoinGroupCallPresentation(ctx, request)
 }
 
-// PhoneLeaveGroupCall leaves a group call.
 func (t *TelegramCore) PhoneLeaveGroupCall(request *tg.PhoneLeaveGroupCallRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -33623,9 +30182,7 @@ func (t *TelegramCore) PhoneLeaveGroupCall(request *tg.PhoneLeaveGroupCallReques
 	return api.PhoneLeaveGroupCall(ctx, request)
 }
 
-// PhoneLeaveGroupCallPresentation stops screen sharing in a group call.
 func (t *TelegramCore) PhoneLeaveGroupCallPresentation(call tg.InputGroupCallClass) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -33633,9 +30190,7 @@ func (t *TelegramCore) PhoneLeaveGroupCallPresentation(call tg.InputGroupCallCla
 	return api.PhoneLeaveGroupCallPresentation(ctx, call)
 }
 
-// PhoneReceivedCall confirms receipt of an incoming call.
 func (t *TelegramCore) PhoneReceivedCall(peer tg.InputPhoneCall) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -33643,9 +30198,7 @@ func (t *TelegramCore) PhoneReceivedCall(peer tg.InputPhoneCall) (bool, error) {
 	return api.PhoneReceivedCall(ctx, peer)
 }
 
-// PhoneSaveCallDebug saves call debug information.
 func (t *TelegramCore) PhoneSaveCallDebug(request *tg.PhoneSaveCallDebugRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -33653,9 +30206,7 @@ func (t *TelegramCore) PhoneSaveCallDebug(request *tg.PhoneSaveCallDebugRequest)
 	return api.PhoneSaveCallDebug(ctx, request)
 }
 
-// PhoneSaveCallLog uploads a call log file.
 func (t *TelegramCore) PhoneSaveCallLog(request *tg.PhoneSaveCallLogRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -33663,9 +30214,7 @@ func (t *TelegramCore) PhoneSaveCallLog(request *tg.PhoneSaveCallLogRequest) (bo
 	return api.PhoneSaveCallLog(ctx, request)
 }
 
-// PhoneSaveDefaultGroupCallJoinAs sets the default group call identity.
 func (t *TelegramCore) PhoneSaveDefaultGroupCallJoinAs(request *tg.PhoneSaveDefaultGroupCallJoinAsRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -33673,9 +30222,7 @@ func (t *TelegramCore) PhoneSaveDefaultGroupCallJoinAs(request *tg.PhoneSaveDefa
 	return api.PhoneSaveDefaultGroupCallJoinAs(ctx, request)
 }
 
-// PhoneSaveDefaultSendAs sets the default send-as identity for calls.
 func (t *TelegramCore) PhoneSaveDefaultSendAs(request *tg.PhoneSaveDefaultSendAsRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -33683,9 +30230,7 @@ func (t *TelegramCore) PhoneSaveDefaultSendAs(request *tg.PhoneSaveDefaultSendAs
 	return api.PhoneSaveDefaultSendAs(ctx, request)
 }
 
-// PhoneSendConferenceCallBroadcast sends a broadcast in a conference call.
 func (t *TelegramCore) PhoneSendConferenceCallBroadcast(request *tg.PhoneSendConferenceCallBroadcastRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -33693,9 +30238,7 @@ func (t *TelegramCore) PhoneSendConferenceCallBroadcast(request *tg.PhoneSendCon
 	return api.PhoneSendConferenceCallBroadcast(ctx, request)
 }
 
-// PhoneSendGroupCallEncryptedMessage sends an encrypted group call message.
 func (t *TelegramCore) PhoneSendGroupCallEncryptedMessage(request *tg.PhoneSendGroupCallEncryptedMessageRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -33703,9 +30246,7 @@ func (t *TelegramCore) PhoneSendGroupCallEncryptedMessage(request *tg.PhoneSendG
 	return api.PhoneSendGroupCallEncryptedMessage(ctx, request)
 }
 
-// PhoneSendGroupCallMessage sends a message in a group call.
 func (t *TelegramCore) PhoneSendGroupCallMessage(request *tg.PhoneSendGroupCallMessageRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -33713,9 +30254,7 @@ func (t *TelegramCore) PhoneSendGroupCallMessage(request *tg.PhoneSendGroupCallM
 	return api.PhoneSendGroupCallMessage(ctx, request)
 }
 
-// PhoneSetCallRating submits a quality rating for a call.
 func (t *TelegramCore) PhoneSetCallRating(request *tg.PhoneSetCallRatingRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -33723,9 +30262,7 @@ func (t *TelegramCore) PhoneSetCallRating(request *tg.PhoneSetCallRatingRequest)
 	return api.PhoneSetCallRating(ctx, request)
 }
 
-// PhoneStartScheduledGroupCall starts a scheduled group call.
 func (t *TelegramCore) PhoneStartScheduledGroupCall(call tg.InputGroupCallClass) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -33733,9 +30270,7 @@ func (t *TelegramCore) PhoneStartScheduledGroupCall(call tg.InputGroupCallClass)
 	return api.PhoneStartScheduledGroupCall(ctx, call)
 }
 
-// PhoneToggleGroupCallRecord starts or stops group call recording.
 func (t *TelegramCore) PhoneToggleGroupCallRecord(request *tg.PhoneToggleGroupCallRecordRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -33743,9 +30278,7 @@ func (t *TelegramCore) PhoneToggleGroupCallRecord(request *tg.PhoneToggleGroupCa
 	return api.PhoneToggleGroupCallRecord(ctx, request)
 }
 
-// PhoneToggleGroupCallSettings modifies group call settings.
 func (t *TelegramCore) PhoneToggleGroupCallSettings(request *tg.PhoneToggleGroupCallSettingsRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -33753,9 +30286,7 @@ func (t *TelegramCore) PhoneToggleGroupCallSettings(request *tg.PhoneToggleGroup
 	return api.PhoneToggleGroupCallSettings(ctx, request)
 }
 
-// PhoneToggleGroupCallStartSubscription toggles group call start notifications.
 func (t *TelegramCore) PhoneToggleGroupCallStartSubscription(request *tg.PhoneToggleGroupCallStartSubscriptionRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -33763,11 +30294,7 @@ func (t *TelegramCore) PhoneToggleGroupCallStartSubscription(request *tg.PhoneTo
 	return api.PhoneToggleGroupCallStartSubscription(ctx, request)
 }
 
-// --- Photos (2 methods) ---
-
-// PhotosUpdateProfilePhoto updates the user's profile photo.
 func (t *TelegramCore) PhotosUpdateProfilePhoto(request *tg.PhotosUpdateProfilePhotoRequest) (*tg.PhotosPhoto, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -33775,9 +30302,7 @@ func (t *TelegramCore) PhotosUpdateProfilePhoto(request *tg.PhotosUpdateProfileP
 	return api.PhotosUpdateProfilePhoto(ctx, request)
 }
 
-// PhotosUploadContactProfilePhoto suggests a profile photo for a contact.
 func (t *TelegramCore) PhotosUploadContactProfilePhoto(request *tg.PhotosUploadContactProfilePhotoRequest) (*tg.PhotosPhoto, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -33785,11 +30310,7 @@ func (t *TelegramCore) PhotosUploadContactProfilePhoto(request *tg.PhotosUploadC
 	return api.PhotosUploadContactProfilePhoto(ctx, request)
 }
 
-// --- Stats (5 methods) ---
-
-// StatsGetMessagePublicForwards retrieves public forwards of a channel message for statistics.
 func (t *TelegramCore) StatsGetMessagePublicForwards(request *tg.StatsGetMessagePublicForwardsRequest) (*tg.StatsPublicForwards, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -33797,9 +30318,7 @@ func (t *TelegramCore) StatsGetMessagePublicForwards(request *tg.StatsGetMessage
 	return api.StatsGetMessagePublicForwards(ctx, request)
 }
 
-// StatsGetMessageStats returns view statistics for a channel message.
 func (t *TelegramCore) StatsGetMessageStats(request *tg.StatsGetMessageStatsRequest) (*tg.StatsMessageStats, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -33808,7 +30327,6 @@ func (t *TelegramCore) StatsGetMessageStats(request *tg.StatsGetMessageStatsRequ
 }
 
 func (t *TelegramCore) GetMessageStatsJSON(chatID string, msgID int) (map[string]interface{}, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -33884,9 +30402,6 @@ func (t *TelegramCore) GetMessageStatsJSON(chatID string, msgID int) (map[string
 					case *tg.Channel:
 						row["name"] = v.Title
 						row["peer_id"] = fmt.Sprintf("channel_%d", v.ID)
-						// Subscriber/member count for the forward status line
-						// ("<subscribers/members>, <views> views",
-						// info_statistics_list_controllers.cpp:421-434).
 						if pc, ok := v.GetParticipantsCount(); ok {
 							row["members"] = pc
 						}
@@ -33931,9 +30446,6 @@ func (t *TelegramCore) GetMessageStatsJSON(chatID string, msgID int) (map[string
 		}
 	}
 
-	// Re-fetch the live view / forward / reaction counters via channels.GetMessages
-	// so the overview shows fresh numbers, not a recent-post snapshot, and the
-	// cards render whenever the value is present (api_statistics.cpp:405).
 	if msgs, mErr := api.ChannelsGetMessages(ctx, &tg.ChannelsGetMessagesRequest{
 		Channel: inputCh,
 		ID:      []tg.InputMessageClass{&tg.InputMessageID{ID: msgID}},
@@ -33970,9 +30482,7 @@ func (t *TelegramCore) GetMessageStatsJSON(chatID string, msgID int) (map[string
 	return out, nil
 }
 
-// GetMessagePublicForwardsJSON returns a page of public forwards given an offset cursor.
 func (t *TelegramCore) GetMessagePublicForwardsJSON(chatID string, msgID int, offset string) (map[string]interface{}, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34065,9 +30575,7 @@ func (t *TelegramCore) GetMessagePublicForwardsJSON(chatID string, msgID int, of
 	return out, nil
 }
 
-// StatsGetStoryPublicForwards returns public forwards of a story.
 func (t *TelegramCore) StatsGetStoryPublicForwards(request *tg.StatsGetStoryPublicForwardsRequest) (*tg.StatsPublicForwards, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34075,9 +30583,7 @@ func (t *TelegramCore) StatsGetStoryPublicForwards(request *tg.StatsGetStoryPubl
 	return api.StatsGetStoryPublicForwards(ctx, request)
 }
 
-// StatsGetStoryStats returns view statistics for a story.
 func (t *TelegramCore) StatsGetStoryStats(request *tg.StatsGetStoryStatsRequest) (*tg.StatsStoryStats, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34085,9 +30591,7 @@ func (t *TelegramCore) StatsGetStoryStats(request *tg.StatsGetStoryStatsRequest)
 	return api.StatsGetStoryStats(ctx, request)
 }
 
-// StatsLoadAsyncGraph loads async statistical graph data by token.
 func (t *TelegramCore) StatsLoadAsyncGraph(request *tg.StatsLoadAsyncGraphRequest) (tg.StatsGraphClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34095,9 +30599,7 @@ func (t *TelegramCore) StatsLoadAsyncGraph(request *tg.StatsLoadAsyncGraphReques
 	return api.StatsLoadAsyncGraph(ctx, request)
 }
 
-// LoadStatsGraph loads a stats graph by zoom token and optional X timestamp.
 func (t *TelegramCore) LoadStatsGraph(token string, x int64) (map[string]interface{}, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34117,11 +30619,7 @@ func (t *TelegramCore) LoadStatsGraph(token string, x int64) (map[string]interfa
 	return m, nil
 }
 
-// --- Stickers (11 methods) ---
-
-// StickersAddStickerToSet adds a new sticker to an existing sticker set.
 func (t *TelegramCore) StickersAddStickerToSet(request *tg.StickersAddStickerToSetRequest) (tg.MessagesStickerSetClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34129,9 +30627,7 @@ func (t *TelegramCore) StickersAddStickerToSet(request *tg.StickersAddStickerToS
 	return api.StickersAddStickerToSet(ctx, request)
 }
 
-// StickersChangeSticker modifies properties of a sticker.
 func (t *TelegramCore) StickersChangeSticker(request *tg.StickersChangeStickerRequest) (tg.MessagesStickerSetClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34139,9 +30635,7 @@ func (t *TelegramCore) StickersChangeSticker(request *tg.StickersChangeStickerRe
 	return api.StickersChangeSticker(ctx, request)
 }
 
-// StickersChangeStickerPosition changes a sticker's position in its set.
 func (t *TelegramCore) StickersChangeStickerPosition(request *tg.StickersChangeStickerPositionRequest) (tg.MessagesStickerSetClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34149,9 +30643,7 @@ func (t *TelegramCore) StickersChangeStickerPosition(request *tg.StickersChangeS
 	return api.StickersChangeStickerPosition(ctx, request)
 }
 
-// StickersCheckShortName checks if a sticker set short name is available.
 func (t *TelegramCore) StickersCheckShortName(shortname string) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -34159,9 +30651,7 @@ func (t *TelegramCore) StickersCheckShortName(shortname string) (bool, error) {
 	return api.StickersCheckShortName(ctx, shortname)
 }
 
-// StickersCreateStickerSet creates a new sticker set.
 func (t *TelegramCore) StickersCreateStickerSet(request *tg.StickersCreateStickerSetRequest) (tg.MessagesStickerSetClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34169,9 +30659,7 @@ func (t *TelegramCore) StickersCreateStickerSet(request *tg.StickersCreateSticke
 	return api.StickersCreateStickerSet(ctx, request)
 }
 
-// StickersDeleteStickerSet permanently deletes a sticker set.
 func (t *TelegramCore) StickersDeleteStickerSet(stickerset tg.InputStickerSetClass) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -34179,9 +30667,7 @@ func (t *TelegramCore) StickersDeleteStickerSet(stickerset tg.InputStickerSetCla
 	return api.StickersDeleteStickerSet(ctx, stickerset)
 }
 
-// StickersRemoveStickerFromSet removes a sticker from its set.
 func (t *TelegramCore) StickersRemoveStickerFromSet(sticker tg.InputDocumentClass) (tg.MessagesStickerSetClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34189,9 +30675,7 @@ func (t *TelegramCore) StickersRemoveStickerFromSet(sticker tg.InputDocumentClas
 	return api.StickersRemoveStickerFromSet(ctx, sticker)
 }
 
-// StickersRenameStickerSet changes a sticker set's title.
 func (t *TelegramCore) StickersRenameStickerSet(request *tg.StickersRenameStickerSetRequest) (tg.MessagesStickerSetClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34199,9 +30683,7 @@ func (t *TelegramCore) StickersRenameStickerSet(request *tg.StickersRenameSticke
 	return api.StickersRenameStickerSet(ctx, request)
 }
 
-// StickersReplaceSticker replaces a sticker with a new one.
 func (t *TelegramCore) StickersReplaceSticker(request *tg.StickersReplaceStickerRequest) (tg.MessagesStickerSetClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34209,9 +30691,7 @@ func (t *TelegramCore) StickersReplaceSticker(request *tg.StickersReplaceSticker
 	return api.StickersReplaceSticker(ctx, request)
 }
 
-// StickersSetStickerSetThumb sets the thumbnail for a sticker set.
 func (t *TelegramCore) StickersSetStickerSetThumb(request *tg.StickersSetStickerSetThumbRequest) (tg.MessagesStickerSetClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34219,9 +30699,7 @@ func (t *TelegramCore) StickersSetStickerSetThumb(request *tg.StickersSetSticker
 	return api.StickersSetStickerSetThumb(ctx, request)
 }
 
-// StickersSuggestShortName suggests a short name for a sticker set.
 func (t *TelegramCore) StickersSuggestShortName(title string) (*tg.StickersSuggestedShortName, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34229,11 +30707,7 @@ func (t *TelegramCore) StickersSuggestShortName(title string) (*tg.StickersSugge
 	return api.StickersSuggestShortName(ctx, title)
 }
 
-// --- Stories (26 methods) ---
-
-// StoriesActivateStealthMode activates stealth mode to hide story view activity.
 func (t *TelegramCore) StoriesActivateStealthMode(request *tg.StoriesActivateStealthModeRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34241,9 +30715,7 @@ func (t *TelegramCore) StoriesActivateStealthMode(request *tg.StoriesActivateSte
 	return api.StoriesActivateStealthMode(ctx, request)
 }
 
-// ActivateStealthMode activates stealth mode (past+future) via the engine interface.
 func (t *TelegramCore) ActivateStealthMode() error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -34255,9 +30727,7 @@ func (t *TelegramCore) ActivateStealthMode() error {
 	return err
 }
 
-// StoriesCanSendStory checks if the user can post a story to a peer.
 func (t *TelegramCore) StoriesCanSendStory(peer tg.InputPeerClass) (*tg.StoriesCanSendStoryCount, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34265,9 +30735,7 @@ func (t *TelegramCore) StoriesCanSendStory(peer tg.InputPeerClass) (*tg.StoriesC
 	return api.StoriesCanSendStory(ctx, peer)
 }
 
-// StoriesCreateAlbum creates a new story album.
 func (t *TelegramCore) StoriesCreateAlbum(request *tg.StoriesCreateAlbumRequest) (*tg.StoryAlbum, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34275,9 +30743,7 @@ func (t *TelegramCore) StoriesCreateAlbum(request *tg.StoriesCreateAlbumRequest)
 	return api.StoriesCreateAlbum(ctx, request)
 }
 
-// StoriesDeleteAlbum deletes a story album.
 func (t *TelegramCore) StoriesDeleteAlbum(request *tg.StoriesDeleteAlbumRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -34285,9 +30751,7 @@ func (t *TelegramCore) StoriesDeleteAlbum(request *tg.StoriesDeleteAlbumRequest)
 	return api.StoriesDeleteAlbum(ctx, request)
 }
 
-// StoriesEditStory modifies a published story.
 func (t *TelegramCore) StoriesEditStory(request *tg.StoriesEditStoryRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34295,9 +30759,7 @@ func (t *TelegramCore) StoriesEditStory(request *tg.StoriesEditStoryRequest) (tg
 	return api.StoriesEditStory(ctx, request)
 }
 
-// StoriesExportStoryLink generates a public link to a story.
 func (t *TelegramCore) StoriesExportStoryLink(request *tg.StoriesExportStoryLinkRequest) (*tg.ExportedStoryLink, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34305,9 +30767,7 @@ func (t *TelegramCore) StoriesExportStoryLink(request *tg.StoriesExportStoryLink
 	return api.StoriesExportStoryLink(ctx, request)
 }
 
-// StoriesGetAlbums returns the user's story albums.
 func (t *TelegramCore) StoriesGetAlbums(request *tg.StoriesGetAlbumsRequest) (tg.StoriesAlbumsClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34315,9 +30775,7 @@ func (t *TelegramCore) StoriesGetAlbums(request *tg.StoriesGetAlbumsRequest) (tg
 	return api.StoriesGetAlbums(ctx, request)
 }
 
-// StoriesGetAlbumStories returns stories in a specific album.
 func (t *TelegramCore) StoriesGetAlbumStories(request *tg.StoriesGetAlbumStoriesRequest) (*tg.StoriesStories, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34325,9 +30783,7 @@ func (t *TelegramCore) StoriesGetAlbumStories(request *tg.StoriesGetAlbumStories
 	return api.StoriesGetAlbumStories(ctx, request)
 }
 
-// StoriesGetAllReadPeerStories returns the read state of all peer stories.
 func (t *TelegramCore) StoriesGetAllReadPeerStories() (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34335,9 +30791,7 @@ func (t *TelegramCore) StoriesGetAllReadPeerStories() (tg.UpdatesClass, error) {
 	return api.StoriesGetAllReadPeerStories(ctx)
 }
 
-// StoriesGetChatsToSend returns chats where stories can be posted.
 func (t *TelegramCore) StoriesGetChatsToSend() (tg.MessagesChatsClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34345,9 +30799,7 @@ func (t *TelegramCore) StoriesGetChatsToSend() (tg.MessagesChatsClass, error) {
 	return api.StoriesGetChatsToSend(ctx)
 }
 
-// StoriesGetPeerMaxIDs returns the latest story IDs for peers.
 func (t *TelegramCore) StoriesGetPeerMaxIDs(id []tg.InputPeerClass) ([]tg.RecentStory, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34355,9 +30807,7 @@ func (t *TelegramCore) StoriesGetPeerMaxIDs(id []tg.InputPeerClass) ([]tg.Recent
 	return api.StoriesGetPeerMaxIDs(ctx, id)
 }
 
-// StoriesGetStoriesArchive returns archived stories for a peer.
 func (t *TelegramCore) StoriesGetStoriesArchive(request *tg.StoriesGetStoriesArchiveRequest) (*tg.StoriesStories, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34365,9 +30815,7 @@ func (t *TelegramCore) StoriesGetStoriesArchive(request *tg.StoriesGetStoriesArc
 	return api.StoriesGetStoriesArchive(ctx, request)
 }
 
-// StoriesGetStoriesByID returns stories by their IDs.
 func (t *TelegramCore) StoriesGetStoriesByID(request *tg.StoriesGetStoriesByIDRequest) (*tg.StoriesStories, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34375,9 +30823,7 @@ func (t *TelegramCore) StoriesGetStoriesByID(request *tg.StoriesGetStoriesByIDRe
 	return api.StoriesGetStoriesByID(ctx, request)
 }
 
-// StoriesGetStoryReactionsList returns reactions on a story.
 func (t *TelegramCore) StoriesGetStoryReactionsList(request *tg.StoriesGetStoryReactionsListRequest) (*tg.StoriesStoryReactionsList, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34385,9 +30831,7 @@ func (t *TelegramCore) StoriesGetStoryReactionsList(request *tg.StoriesGetStoryR
 	return api.StoriesGetStoryReactionsList(ctx, request)
 }
 
-// StoriesGetStoryViewsList returns users who viewed a story.
 func (t *TelegramCore) StoriesGetStoryViewsList(request *tg.StoriesGetStoryViewsListRequest) (*tg.StoriesStoryViewsList, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34395,9 +30839,7 @@ func (t *TelegramCore) StoriesGetStoryViewsList(request *tg.StoriesGetStoryViews
 	return api.StoriesGetStoryViewsList(ctx, request)
 }
 
-// StoriesIncrementStoryViews increments the view counter for stories.
 func (t *TelegramCore) StoriesIncrementStoryViews(request *tg.StoriesIncrementStoryViewsRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -34405,9 +30847,7 @@ func (t *TelegramCore) StoriesIncrementStoryViews(request *tg.StoriesIncrementSt
 	return api.StoriesIncrementStoryViews(ctx, request)
 }
 
-// StoriesReadStories marks stories as read up to a given ID.
 func (t *TelegramCore) StoriesReadStories(request *tg.StoriesReadStoriesRequest) ([]int, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34415,9 +30855,7 @@ func (t *TelegramCore) StoriesReadStories(request *tg.StoriesReadStoriesRequest)
 	return api.StoriesReadStories(ctx, request)
 }
 
-// StoriesReorderAlbums reorders story albums.
 func (t *TelegramCore) StoriesReorderAlbums(request *tg.StoriesReorderAlbumsRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -34425,9 +30863,7 @@ func (t *TelegramCore) StoriesReorderAlbums(request *tg.StoriesReorderAlbumsRequ
 	return api.StoriesReorderAlbums(ctx, request)
 }
 
-// StoriesReport reports a story for terms of service violation.
 func (t *TelegramCore) StoriesReport(request *tg.StoriesReportRequest) (tg.ReportResultClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34435,9 +30871,7 @@ func (t *TelegramCore) StoriesReport(request *tg.StoriesReportRequest) (tg.Repor
 	return api.StoriesReport(ctx, request)
 }
 
-// StoriesSearchPosts searches for public story posts.
 func (t *TelegramCore) StoriesSearchPosts(request *tg.StoriesSearchPostsRequest) (*tg.StoriesFoundStories, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34445,9 +30879,7 @@ func (t *TelegramCore) StoriesSearchPosts(request *tg.StoriesSearchPostsRequest)
 	return api.StoriesSearchPosts(ctx, request)
 }
 
-// StoriesStartLive starts a live story broadcast.
 func (t *TelegramCore) StoriesStartLive(request *tg.StoriesStartLiveRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34455,9 +30887,7 @@ func (t *TelegramCore) StoriesStartLive(request *tg.StoriesStartLiveRequest) (tg
 	return api.StoriesStartLive(ctx, request)
 }
 
-// StoriesToggleAllStoriesHidden hides or shows the stories bar.
 func (t *TelegramCore) StoriesToggleAllStoriesHidden(hidden bool) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -34465,9 +30895,7 @@ func (t *TelegramCore) StoriesToggleAllStoriesHidden(hidden bool) (bool, error) 
 	return api.StoriesToggleAllStoriesHidden(ctx, hidden)
 }
 
-// StoriesTogglePeerStoriesHidden hides or shows stories from a peer.
 func (t *TelegramCore) StoriesTogglePeerStoriesHidden(request *tg.StoriesTogglePeerStoriesHiddenRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -34475,9 +30903,7 @@ func (t *TelegramCore) StoriesTogglePeerStoriesHidden(request *tg.StoriesToggleP
 	return api.StoriesTogglePeerStoriesHidden(ctx, request)
 }
 
-// StoriesTogglePinned pins or unpins stories on the profile.
 func (t *TelegramCore) StoriesTogglePinned(request *tg.StoriesTogglePinnedRequest) ([]int, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34485,9 +30911,7 @@ func (t *TelegramCore) StoriesTogglePinned(request *tg.StoriesTogglePinnedReques
 	return api.StoriesTogglePinned(ctx, request)
 }
 
-// StoriesTogglePinnedToTop pins stories to the top of the profile.
 func (t *TelegramCore) StoriesTogglePinnedToTop(request *tg.StoriesTogglePinnedToTopRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -34495,9 +30919,7 @@ func (t *TelegramCore) StoriesTogglePinnedToTop(request *tg.StoriesTogglePinnedT
 	return api.StoriesTogglePinnedToTop(ctx, request)
 }
 
-// StoriesUpdateAlbum modifies a story album.
 func (t *TelegramCore) StoriesUpdateAlbum(request *tg.StoriesUpdateAlbumRequest) (*tg.StoryAlbum, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34505,11 +30927,7 @@ func (t *TelegramCore) StoriesUpdateAlbum(request *tg.StoriesUpdateAlbumRequest)
 	return api.StoriesUpdateAlbum(ctx, request)
 }
 
-// --- Upload (8 methods) ---
-
-// UploadGetCDNFile downloads a file chunk from a Telegram CDN node.
 func (t *TelegramCore) UploadGetCDNFile(request *tg.UploadGetCDNFileRequest) (tg.UploadCDNFileClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34517,9 +30935,7 @@ func (t *TelegramCore) UploadGetCDNFile(request *tg.UploadGetCDNFileRequest) (tg
 	return api.UploadGetCDNFile(ctx, request)
 }
 
-// UploadGetCDNFileHashes returns file hashes for CDN download verification.
 func (t *TelegramCore) UploadGetCDNFileHashes(request *tg.UploadGetCDNFileHashesRequest) ([]tg.FileHash, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34527,9 +30943,7 @@ func (t *TelegramCore) UploadGetCDNFileHashes(request *tg.UploadGetCDNFileHashes
 	return api.UploadGetCDNFileHashes(ctx, request)
 }
 
-// UploadGetFile downloads a file chunk from Telegram servers.
 func (t *TelegramCore) UploadGetFile(request *tg.UploadGetFileRequest) (tg.UploadFileClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34537,9 +30951,7 @@ func (t *TelegramCore) UploadGetFile(request *tg.UploadGetFileRequest) (tg.Uploa
 	return api.UploadGetFile(ctx, request)
 }
 
-// UploadGetFileHashes returns file hashes for download verification.
 func (t *TelegramCore) UploadGetFileHashes(request *tg.UploadGetFileHashesRequest) ([]tg.FileHash, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34547,9 +30959,7 @@ func (t *TelegramCore) UploadGetFileHashes(request *tg.UploadGetFileHashesReques
 	return api.UploadGetFileHashes(ctx, request)
 }
 
-// UploadGetWebFile downloads a web file from Telegram.
 func (t *TelegramCore) UploadGetWebFile(request *tg.UploadGetWebFileRequest) (*tg.UploadWebFile, error) {
-	// withAPI rule: map-tile web files can be slow; never pin t.mu.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34557,9 +30967,7 @@ func (t *TelegramCore) UploadGetWebFile(request *tg.UploadGetWebFileRequest) (*t
 	return api.UploadGetWebFile(ctx, request)
 }
 
-// UploadReuploadCDNFile re-uploads a file to the CDN.
 func (t *TelegramCore) UploadReuploadCDNFile(request *tg.UploadReuploadCDNFileRequest) ([]tg.FileHash, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34567,9 +30975,7 @@ func (t *TelegramCore) UploadReuploadCDNFile(request *tg.UploadReuploadCDNFileRe
 	return api.UploadReuploadCDNFile(ctx, request)
 }
 
-// UploadSaveBigFilePart uploads a part of a large file.
 func (t *TelegramCore) UploadSaveBigFilePart(request *tg.UploadSaveBigFilePartRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -34577,9 +30983,7 @@ func (t *TelegramCore) UploadSaveBigFilePart(request *tg.UploadSaveBigFilePartRe
 	return api.UploadSaveBigFilePart(ctx, request)
 }
 
-// UploadSaveFilePart uploads a part of a file.
 func (t *TelegramCore) UploadSaveFilePart(request *tg.UploadSaveFilePartRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -34587,11 +30991,7 @@ func (t *TelegramCore) UploadSaveFilePart(request *tg.UploadSaveFilePartRequest)
 	return api.UploadSaveFilePart(ctx, request)
 }
 
-// --- Users (5 methods) ---
-
-// UsersGetRequirementsToContact retrieves the requirements needed to contact the specified users.
 func (t *TelegramCore) UsersGetRequirementsToContact(id []tg.InputUserClass) ([]tg.RequirementToContactClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34599,9 +30999,7 @@ func (t *TelegramCore) UsersGetRequirementsToContact(id []tg.InputUserClass) ([]
 	return api.UsersGetRequirementsToContact(ctx, id)
 }
 
-// UsersGetSavedMusic returns saved music tracks.
 func (t *TelegramCore) UsersGetSavedMusic(request *tg.UsersGetSavedMusicRequest) (tg.UsersSavedMusicClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34609,9 +31007,7 @@ func (t *TelegramCore) UsersGetSavedMusic(request *tg.UsersGetSavedMusicRequest)
 	return api.UsersGetSavedMusic(ctx, request)
 }
 
-// UsersGetSavedMusicByID returns saved music tracks by ID.
 func (t *TelegramCore) UsersGetSavedMusicByID(request *tg.UsersGetSavedMusicByIDRequest) (tg.UsersSavedMusicClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34619,9 +31015,7 @@ func (t *TelegramCore) UsersGetSavedMusicByID(request *tg.UsersGetSavedMusicByID
 	return api.UsersGetSavedMusicByID(ctx, request)
 }
 
-// UsersSetSecureValueErrors notifies about Passport data errors.
 func (t *TelegramCore) UsersSetSecureValueErrors(request *tg.UsersSetSecureValueErrorsRequest) (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -34629,9 +31023,7 @@ func (t *TelegramCore) UsersSetSecureValueErrors(request *tg.UsersSetSecureValue
 	return api.UsersSetSecureValueErrors(ctx, request)
 }
 
-// UsersSuggestBirthday suggests a birthday for a user.
 func (t *TelegramCore) UsersSuggestBirthday(request *tg.UsersSuggestBirthdayRequest) (tg.UpdatesClass, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -34639,9 +31031,7 @@ func (t *TelegramCore) UsersSuggestBirthday(request *tg.UsersSuggestBirthdayRequ
 	return api.UsersSuggestBirthday(ctx, request)
 }
 
-// SuggestBirthday is a simplified wrapper for the engine interface.
 func (t *TelegramCore) SuggestBirthday(userID string, day, month, year int) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -34662,9 +31052,6 @@ func (t *TelegramCore) SuggestBirthday(userID string, day, month, year int) erro
 	return err
 }
 
-// --- Test helper methods (for ntgcalls harness and other test automation) ---
-
-// CallInfo holds raw call state for test harnesses.
 type CallInfo struct {
 	ID          int64
 	AccessHash  int64
@@ -34676,7 +31063,6 @@ type CallInfo struct {
 	Protocol    *tg.PhoneCallProtocol
 }
 
-// TestSetSignalingInInterceptor intercepts incoming encrypted signaling (from handleSignalingData).
 func (t *TelegramCore) TestSetSignalingInInterceptor(callID int64, handler func([]byte)) {
 	t.rawSigInterceptorsMu.Lock()
 	defer t.rawSigInterceptorsMu.Unlock()
@@ -34687,7 +31073,6 @@ func (t *TelegramCore) TestSetSignalingInInterceptor(callID int64, handler func(
 	}
 }
 
-// TestSetSignalingOutInterceptor intercepts outgoing encrypted signaling (from sendCallSignaling).
 func (t *TelegramCore) TestSetSignalingOutInterceptor(callID int64, handler func([]byte)) {
 	t.rawSigInterceptorsMu.Lock()
 	defer t.rawSigInterceptorsMu.Unlock()
@@ -34698,7 +31083,6 @@ func (t *TelegramCore) TestSetSignalingOutInterceptor(callID int64, handler func
 	}
 }
 
-// TestSendRawSignaling sends raw encrypted signaling bytes via MTProto.
 func (t *TelegramCore) TestSendRawSignaling(callID, accessHash int64, data []byte) error {
 	t.mu.RLock()
 	api := t.api
@@ -34714,9 +31098,6 @@ func (t *TelegramCore) TestSendRawSignaling(callID, accessHash int64, data []byt
 	return err
 }
 
-// TestAcceptCallRaw accepts an incoming call with skipWebRTC=true.
-// DH completes normally, but no PeerConnection is created.
-// After this returns, call TestGetCallInfo to get auth key and connections.
 func (t *TelegramCore) TestAcceptCallRaw(callIDStr string) error {
 	cid, err := strconv.ParseInt(callIDStr, 10, 64)
 	if err != nil {
@@ -34733,13 +31114,11 @@ func (t *TelegramCore) TestAcceptCallRaw(callIDStr string) error {
 	call.dhDone = make(chan struct{})
 	t.mu.Unlock()
 
-	// Do normal AcceptCall DH (AcceptCall handles the rest)
 	_, err = t.AcceptCall(callIDStr)
 	if err != nil {
 		return err
 	}
 
-	// Wait for DH to complete
 	select {
 	case <-call.dhDone:
 		return nil
@@ -34748,9 +31127,6 @@ func (t *TelegramCore) TestAcceptCallRaw(callIDStr string) error {
 	}
 }
 
-// TestStartCallRaw initiates a call with skipWebRTC=true.
-// DH + confirmCall complete normally, but no PeerConnection is created.
-// After this returns, call TestGetCallInfo to get auth key and connections.
 func (t *TelegramCore) TestStartCallRaw(chatID string, video bool) (*CallSession, error) {
 	cs, err := t.StartCall(chatID, video)
 	if err != nil {
@@ -34772,7 +31148,6 @@ func (t *TelegramCore) TestStartCallRaw(chatID string, video bool) (*CallSession
 		return nil, fmt.Errorf("call not found after StartCall")
 	}
 
-	// Wait for DH to complete (triggered by handleCallAccepted when callee answers)
 	select {
 	case <-call.dhDone:
 		return cs, nil
@@ -34781,12 +31156,10 @@ func (t *TelegramCore) TestStartCallRaw(chatID string, video bool) (*CallSession
 	}
 }
 
-// TestHandleSignalingData injects raw signaling data as if received from MTProto.
 func (t *TelegramCore) TestHandleSignalingData(callID int64, data []byte) {
 	t.handleSignalingData(callID, data)
 }
 
-// TestGetCallInfo returns raw call state including auth key and connections.
 func (t *TelegramCore) TestGetCallInfo(callIDStr string) *CallInfo {
 	cid, err := strconv.ParseInt(callIDStr, 10, 64)
 	if err != nil {
@@ -34810,7 +31183,6 @@ func (t *TelegramCore) TestGetCallInfo(callIDStr string) *CallInfo {
 	}
 }
 
-// TestGetGroupCallAccessHash returns the access hash for a group call stored in activeCalls.
 func (t *TelegramCore) TestGetGroupCallAccessHash(gcID int64) int64 {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -34821,7 +31193,6 @@ func (t *TelegramCore) TestGetGroupCallAccessHash(gcID int64) int64 {
 	return call.accessHash
 }
 
-// TestGetSenderSSRCs returns the SSRCs from pion's RTP senders.
 func (t *TelegramCore) TestGetSenderSSRCs(callID string) string {
 	cid, err := strconv.ParseInt(callID, 10, 64)
 	if err != nil {
@@ -34843,7 +31214,6 @@ func (t *TelegramCore) TestGetSenderSSRCs(callID string) string {
 	return out.String()
 }
 
-// TestGetCallStats returns PC stats (outbound RTP packets sent, bytes sent, etc.)
 func (t *TelegramCore) TestGetCallStats(callID string) string {
 	cid, err := strconv.ParseInt(callID, 10, 64)
 	if err != nil {
@@ -34872,7 +31242,6 @@ func (t *TelegramCore) TestGetCallStats(callID string) string {
 	return out.String()
 }
 
-// TestGetCallAudioSSRC returns the audio SSRC for a call.
 func (t *TelegramCore) TestGetCallAudioSSRC(callID string) uint32 {
 	cid, err := strconv.ParseInt(callID, 10, 64)
 	if err != nil {
@@ -34887,7 +31256,6 @@ func (t *TelegramCore) TestGetCallAudioSSRC(callID string) uint32 {
 	return call.audioSSRC
 }
 
-// TestGetCallPCState returns the PeerConnection state as a string.
 func (t *TelegramCore) TestGetCallPCState(callID string) string {
 	cid, err := strconv.ParseInt(callID, 10, 64)
 	if err != nil {
@@ -34905,12 +31273,7 @@ func (t *TelegramCore) TestGetCallPCState(callID string) string {
 	return fmt.Sprintf("pc=%s ice=%s", call.pc.ConnectionState(), call.pc.ICEConnectionState())
 }
 
-// --- Unified Core interface adapters ---
-// These methods satisfy the expanded Core interface by delegating to existing platform-specific methods.
-
-// GetChatInfo returns detailed information about a chat by its ID.
 func (t *TelegramCore) GetChatInfo(chatID string) (*Dialog, error) {
-	// Try channel first (supergroup/channel), fall back to basic chat
 	d, err := t.GetFullChannel(chatID)
 	if err == nil {
 		return d, nil
@@ -34918,9 +31281,7 @@ func (t *TelegramCore) GetChatInfo(chatID string) (*Dialog, error) {
 	return t.GetFullChat(chatID)
 }
 
-// EditChatTitle changes the title of a group or channel.
 func (t *TelegramCore) EditChatTitle(chatID string, title string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -34945,7 +31306,6 @@ func (t *TelegramCore) EditChatTitle(chatID string, title string) error {
 	return fmt.Errorf("telegram: cannot edit title for this chat type: %w", ErrNotSupported)
 }
 
-// EditChatDescription changes the description of a group or channel.
 func (t *TelegramCore) EditChatDescription(chatID string, description string) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -34958,9 +31318,7 @@ func (t *TelegramCore) EditChatDescription(chatID string, description string) er
 	return err
 }
 
-// LeaveChat leaves a basic group chat.
 func (t *TelegramCore) LeaveChat(chatID string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -34975,7 +31333,6 @@ func (t *TelegramCore) LeaveChat(chatID string) error {
 		_, err = api.ChannelsLeaveChannel(ctx, &tg.InputChannel{ChannelID: p.ChannelID, AccessHash: hash})
 		return err
 	case *tg.PeerChat:
-		// Leave basic group by removing self
 		me, _ := api.UsersGetUsers(ctx, []tg.InputUserClass{&tg.InputUserSelf{}})
 		if len(me) > 0 {
 			if u, ok := me[0].(*tg.User); ok {
@@ -34990,7 +31347,6 @@ func (t *TelegramCore) LeaveChat(chatID string) error {
 	return fmt.Errorf("telegram: cannot leave this chat type: %w", ErrNotSupported)
 }
 
-// GetInviteLink returns the primary invite link for a chat.
 func (t *TelegramCore) GetInviteLink(chatID string) (string, error) {
 	return t.ExportChatInvite(chatID)
 }
@@ -35035,8 +31391,6 @@ func (t *TelegramCore) GetExportedChatInvites(chatID string, revoked bool, admin
 		Revoked: revoked,
 		Limit:   100,
 	}
-	// Pagination cursor: last link's (date, url) from the previous slice
-	// (inviteLinks().requestMoreLinks, edit_peer_invite_links.cpp:511-517).
 	if offsetDate > 0 {
 		req.SetOffsetDate(offsetDate)
 	}
@@ -35047,8 +31401,6 @@ func (t *TelegramCore) GetExportedChatInvites(chatID string, revoked bool, admin
 	if err != nil {
 		return nil, err
 	}
-	// Map admin users so the UI can suppress Edit/Revoke for bot-created links
-	// (edit_peer_invite_link.cpp:484 hides them when admin->isBot()).
 	botByID := map[int64]bool{}
 	for _, u := range result.Users {
 		if uu, ok := u.(*tg.User); ok {
@@ -35235,9 +31587,7 @@ func (t *TelegramCore) GetAdminsWithInvites(chatID string) ([]map[string]interfa
 	return admins, nil
 }
 
-// AddMembers adds one or more users to a group or channel.
 func (t *TelegramCore) AddMembers(chatID string, userIDs []string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -35281,9 +31631,7 @@ func (t *TelegramCore) AddMembers(chatID string, userIDs []string) error {
 	return fmt.Errorf("telegram: cannot add members to this chat type: %w", ErrNotSupported)
 }
 
-// RemoveMember removes a user from a group or channel.
 func (t *TelegramCore) RemoveMember(chatID string, userID string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -35315,9 +31663,7 @@ func (t *TelegramCore) RemoveMember(chatID string, userID string) error {
 	return fmt.Errorf("telegram: cannot remove member from this chat type: %w", ErrNotSupported)
 }
 
-// BanMember bans a user from a channel or supergroup.
 func (t *TelegramCore) BanMember(chatID string, userID string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -35344,9 +31690,6 @@ func (t *TelegramCore) BanMember(chatID string, userID string) error {
 	return err
 }
 
-// BanMemberUntil bans a participant until the given unix timestamp (0 =
-// forever — Telegram semantics). Mirrors tdesktop's ban box with a
-// duration: channels.editBannedParticipant with ViewMessages + UntilDate.
 func (t *TelegramCore) BanMemberUntil(chatID, userID string, untilDate int) error {
 	return t.RestrictUser(chatID, userID, tg.ChatBannedRights{
 		ViewMessages: true,
@@ -35354,11 +31697,7 @@ func (t *TelegramCore) BanMemberUntil(chatID, userID string, untilDate int) erro
 	})
 }
 
-// DeleteParticipantHistory deletes all messages sent by a participant in a
-// channel/supergroup. Mirrors AyuGram's api().deleteAllFromParticipant
-// (channels.deleteParticipantHistory).
 func (t *TelegramCore) DeleteParticipantHistory(chatID string, userID string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -35384,11 +31723,7 @@ func (t *TelegramCore) DeleteParticipantHistory(chatID string, userID string) er
 	return err
 }
 
-// ReportChannelSpam reports a participant's messages as spam in a
-// channel/supergroup. Mirrors AyuGram's Api::ReportSpam(participant, ids)
-// (channels.reportSpam).
 func (t *TelegramCore) ReportChannelSpam(chatID string, userID string, msgIDs []int) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -35415,9 +31750,7 @@ func (t *TelegramCore) ReportChannelSpam(chatID string, userID string, msgIDs []
 	return err
 }
 
-// UnbanMember lifts a ban on a user in a channel or supergroup.
 func (t *TelegramCore) UnbanMember(chatID string, userID string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -35439,25 +31772,20 @@ func (t *TelegramCore) UnbanMember(chatID string, userID string) error {
 	_, err = api.ChannelsEditBanned(ctx, &tg.ChannelsEditBannedRequest{
 		Channel:      &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash},
 		Participant:  &tg.InputPeerUser{UserID: uid, AccessHash: uhash},
-		BannedRights: tg.ChatBannedRights{}, // empty = unban
+		BannedRights: tg.ChatBannedRights{},
 	})
 	return err
 }
 
-// GetMembers returns the list of members in a group, supergroup, or channel.
-// Handles both basic groups (via MessagesGetFullChat) and supergroups/channels (via ChannelsGetParticipants).
 func (t *TelegramCore) GetMembers(chatID string, opts PaginationOpts) ([]User, error) {
 	limit := opts.Limit
 	if limit <= 0 {
 		limit = 50
 	}
-	// Try channel participants first (supergroups/channels).
 	users, err := t.GetParticipants(chatID, limit)
 	if err == nil {
 		return users, nil
 	}
-	// Fallback: basic group — use MessagesGetFullChat which includes participants.
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -35468,7 +31796,7 @@ func (t *TelegramCore) GetMembers(chatID string, opts PaginationOpts) ([]User, e
 	}
 	chat, ok := peer.(*tg.PeerChat)
 	if !ok {
-		return nil, err // return original error if not a basic chat either
+		return nil, err
 	}
 	result, fullErr := api.MessagesGetFullChat(ctx, chat.ChatID)
 	if fullErr != nil {
@@ -35501,7 +31829,6 @@ func (t *TelegramCore) GetMembers(chatID string, opts PaginationOpts) ([]User, e
 	return members, nil
 }
 
-// SetAdmin grants or modifies admin rights for a user in a chat.
 func (t *TelegramCore) SetAdmin(chatID string, userID string, admin bool) error {
 	if admin {
 		return t.PromoteAdmin(chatID, userID, tg.ChatAdminRights{
@@ -35515,20 +31842,12 @@ func (t *TelegramCore) SetAdmin(chatID string, userID string, admin bool) error 
 	return t.DemoteAdmin(chatID, userID)
 }
 
-// GetContacts is already defined with the correct unified signature.
-// BlockUser is already defined with the correct unified signature.
-// UnblockUser is already defined with the correct unified signature.
-
-// AddContact adds a new contact by phone number with the given first and last name.
 func (t *TelegramCore) AddContact(phone string, firstName string, lastName string) error {
 	_, err := t.AddContactReturnUserID(phone, firstName, lastName)
 	return err
 }
 
-// AddContactReturnUserID imports a contact and returns the Telegram user ID
-// from the response (matching AyuGram's add_contact_box.cpp:456-484).
 func (t *TelegramCore) AddContactReturnUserID(phone string, firstName string, lastName string) (string, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return "", err
@@ -35550,9 +31869,7 @@ func (t *TelegramCore) AddContactReturnUserID(phone string, firstName string, la
 	return "", nil
 }
 
-// AddContactWithNote adds a contact with a note field using contacts.addContact.
 func (t *TelegramCore) AddContactWithNote(phone, firstName, lastName, note string, sharePhone bool) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -35569,9 +31886,6 @@ func (t *TelegramCore) AddContactWithNote(phone, firstName, lastName, note strin
 	return err
 }
 
-// parseNoteEntities converts a JSON array of TextEntity (the host RichText
-// compose-entities format) into Telegram message entities, so a contact note's
-// markdown/custom-emoji formatting survives as TextWithEntities.Entities.
 func parseNoteEntities(entitiesJSON string) []tg.MessageEntityClass {
 	if entitiesJSON == "" {
 		return nil
@@ -35628,9 +31942,7 @@ func parseNoteEntities(entitiesJSON string) []tg.MessageEntityClass {
 	return out
 }
 
-// AddContactByUserID adds a contact using their user ID instead of phone number.
 func (t *TelegramCore) AddContactByUserID(userID, firstName, lastName, note, noteEntitiesJSON string, sharePhone bool) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -35657,9 +31969,7 @@ func (t *TelegramCore) AddContactByUserID(userID, firstName, lastName, note, not
 	return err
 }
 
-// SuggestContactPhoto suggests a profile photo for a contact.
 func (t *TelegramCore) SuggestContactPhoto(userID string, photoData []byte) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -35682,9 +31992,7 @@ func (t *TelegramCore) SuggestContactPhoto(userID string, photoData []byte) erro
 	return err
 }
 
-// SetPersonalContactPhoto sets a personal profile photo for a contact (only visible to you).
 func (t *TelegramCore) SetPersonalContactPhoto(userID string, photoData []byte) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -35706,9 +32014,7 @@ func (t *TelegramCore) SetPersonalContactPhoto(userID string, photoData []byte) 
 	return err
 }
 
-// ClearPersonalContactPhoto removes a previously set personal profile photo for a contact.
 func (t *TelegramCore) ClearPersonalContactPhoto(userID string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -35725,14 +32031,11 @@ func (t *TelegramCore) ClearPersonalContactPhoto(userID string) error {
 	return err
 }
 
-// DeleteContact removes a user from the contact list.
 func (t *TelegramCore) DeleteContact(userID string) error {
 	return t.DeleteContacts([]string{userID})
 }
 
-// GetBlockedUsers returns the list of blocked users.
 func (t *TelegramCore) GetBlockedUsers() ([]User, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -35761,9 +32064,7 @@ func (t *TelegramCore) GetBlockedUsers() ([]User, error) {
 	return users, nil
 }
 
-// GetBlockedUsersPaged returns a paginated slice of blocked users and the total count.
 func (t *TelegramCore) GetBlockedUsersPaged(offset, limit int) ([]User, int, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, 0, err
@@ -35801,7 +32102,6 @@ func (t *TelegramCore) GetBlockedUsersPaged(offset, limit int) ([]User, int, err
 	return users, total, nil
 }
 
-// SearchMessages searches for messages in a chat matching a query.
 func (t *TelegramCore) SearchMessages(chatID string, query string, opts PaginationOpts) ([]Message, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -35821,9 +32121,6 @@ func (t *TelegramCore) SearchMessages(chatID string, query string, opts Paginati
 	return t.convertMessages(result), nil
 }
 
-// parseSavedReaction maps a uniclient reaction string ("custom_<docID>" for a
-// custom emoji, otherwise a raw emoticon) to a tg.ReactionClass — the same
-// convention used by SendReaction (telegram.go) and GetSavedReactionTags.
 func parseSavedReaction(s string) tg.ReactionClass {
 	if strings.HasPrefix(s, "custom_") {
 		if docID, err := strconv.ParseInt(s[len("custom_"):], 10, 64); err == nil {
@@ -35833,15 +32130,7 @@ func parseSavedReaction(s string) tg.ReactionClass {
 	return &tg.ReactionEmoji{Emoticon: s}
 }
 
-// SearchSavedMessagesByReaction performs a SERVER-SIDE search of the user's
-// Saved Messages for messages tagged with the given reaction(s), optionally
-// restricted to a single saved sublist peer. Mirrors Telegram Desktop /
-// AyuGram reaction-tag filtering (SearchTagFromQuery → searchMessages →
-// messages.search with saved_reaction + saved_peer_id, history_view_chat_section.cpp:3245),
-// returning only tagged messages, properly paginated — instead of paging the
-// entire Saved Messages history and filtering client-side.
 func (t *TelegramCore) SearchSavedMessagesByReaction(savedPeerID string, reactions []string, offsetID, limit int) ([]Message, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -35851,7 +32140,7 @@ func (t *TelegramCore) SearchSavedMessagesByReaction(savedPeerID string, reactio
 	}
 
 	req := &tg.MessagesSearchRequest{
-		Peer:     &tg.InputPeerSelf{}, // Saved Messages live in the self peer.
+		Peer:     &tg.InputPeerSelf{},
 		Q:        "",
 		Filter:   &tg.InputMessagesFilterEmpty{},
 		Limit:    limit,
@@ -35869,7 +32158,6 @@ func (t *TelegramCore) SearchSavedMessagesByReaction(savedPeerID string, reactio
 		req.SetSavedReaction(savedReactions)
 	}
 
-	// Restrict to a specific saved sublist peer when one is open.
 	if savedPeerID != "" {
 		if peer, err := t.resolvePeer(savedPeerID); err == nil {
 			if inputPeer, err := t.toInputPeer(peer); err == nil {
@@ -35885,8 +32173,6 @@ func (t *TelegramCore) SearchSavedMessagesByReaction(savedPeerID string, reactio
 	return t.convertMessages(result), nil
 }
 
-// SearchMessagesFromCount returns the server-side total count of messages
-// sent by a specific user in a chat. Uses messages.search with from_id filter.
 func (t *TelegramCore) SearchMessagesFromCount(chatID string, senderID string) (int, error) {
 	chatPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -35928,9 +32214,7 @@ func (t *TelegramCore) SearchMessagesFromCount(chatID string, senderID string) (
 	}
 }
 
-// SearchGlobal searches for messages across all chats matching a query.
 func (t *TelegramCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -35974,13 +32258,7 @@ func (t *TelegramCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog
 	return dialogs, nil
 }
 
-// SearchGlobalUsers runs contacts.Search and returns every matching USER (by
-// name or username) — the people-search the member picker needs, mirroring
-// AddSpecialBoxSearchController::requestGlobal which appends all contacts.Search
-// user results rather than a single exact-username resolve
-// (add_participants_box.cpp:1894).
 func (t *TelegramCore) SearchGlobalUsers(query string, limit int) ([]map[string]interface{}, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -36010,9 +32288,7 @@ func (t *TelegramCore) SearchGlobalUsers(query string, limit int) ([]map[string]
 	return out, nil
 }
 
-// SearchGlobalPosts searches for public channel posts matching a query.
 func (t *TelegramCore) SearchGlobalPosts(query string, opts PaginationOpts) ([]Dialog, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -36042,7 +32318,6 @@ func (t *TelegramCore) SearchGlobalPosts(query string, opts PaginationOpts) ([]D
 	return t.convertMessagesToDialogs(result), nil
 }
 
-// SearchGlobalPostMessages searches public channel posts and returns individual messages.
 func (t *TelegramCore) SearchGlobalPostMessages(query string, limit int) ([]Message, error) {
 	api, ctx, err := t.withAPI()
 	if err != nil {
@@ -36108,12 +32383,10 @@ func (t *TelegramCore) convertMessagesToDialogs(msgs tg.MessagesMessagesClass) [
 	return dialogs
 }
 
-// SendTyping sends a typing indicator to a chat.
 func (t *TelegramCore) SendTyping(chatID string) error {
 	return t.SetTyping(chatID, &tg.SendMessageTypingAction{})
 }
 
-// CreatePoll creates and sends a poll with the given options to a chat.
 func (t *TelegramCore) CreatePoll(chatID string, question string, options []string) (*Message, error) {
 	return t.SendPoll(chatID, question, options)
 }
@@ -36252,17 +32525,14 @@ func (t *TelegramCore) CreatePollWithMedia(chatID string, question string, answe
 	return t.extractMessageFromUpdates(result, chatID), nil
 }
 
-// VotePoll submits a vote for specific options on a poll.
 func (t *TelegramCore) VotePoll(chatID string, msgID string, optionIndex int) error {
 	return t.VoteInPoll(chatID, msgID, optionIndex)
 }
 
-// SendSticker sends a sticker to a chat.
 func (t *TelegramCore) SendSticker(chatID string, stickerID string) (*Message, error) {
 	return t.SendStickerWithOpts(chatID, stickerID, false, 0)
 }
 
-// SendStickerWithOpts sends a sticker with optional silent/schedule flags.
 func (t *TelegramCore) SendStickerWithOpts(chatID string, stickerID string, silent bool, scheduleDate int) (*Message, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -36294,8 +32564,6 @@ func (t *TelegramCore) SendStickerWithOpts(chatID string, stickerID string, sile
 	return t.extractMessageFromUpdates(result, chatID), nil
 }
 
-// SendStickerWithCaption sends a sticker/GIF document with a text caption.
-// Backs the GIF panel's "Send GIF with caption" action — gifs_list_widget.cpp:430.
 func (t *TelegramCore) SendStickerWithCaption(chatID string, stickerID string, caption string, silent bool, scheduleDate int) (*Message, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -36328,19 +32596,12 @@ func (t *TelegramCore) SendStickerWithCaption(chatID string, stickerID string, c
 	return t.extractMessageFromUpdates(result, chatID), nil
 }
 
-// GetSessions returns active sessions for the authenticated account.
-// Telegram api-ids that AyuGram's Api::ParseEntry treats as the desktop
-// client (api_authorizations.cpp:23-25). Desktop sessions get a synthetic
-// "Telegram Desktop" app name and a packed-integer version display.
 const (
 	tgTestApiID    = 17349
 	tgSnapApiID    = 611335
 	tgDesktopApiID = 2040
 )
 
-// formatVersionDisplay mirrors AyuGram's Core::FormatVersionDisplay
-// (changelogs.cpp:150-156): a packed integer build id (e.g. 4017004) becomes a
-// dotted version string ("4.17.4"); the patch component is dropped when zero.
 func formatVersionDisplay(version int) string {
 	s := strconv.Itoa(version/1000000) + "." + strconv.Itoa((version%1000000)/1000)
 	if version%1000 != 0 {
@@ -36349,11 +32610,6 @@ func formatVersionDisplay(version int) string {
 	return s
 }
 
-// normalizeSessionApp mirrors the app-name/version normalization in AyuGram's
-// Api::ParseEntry (api_authorizations.cpp:41-57). Desktop api-ids render as
-// "Telegram Desktop" (plus " (GitHub)" for the test build) with a packed
-// integer version expanded via FormatVersionDisplay; other apps keep their
-// name but have any parenthesized build trimmed down to just "(build)".
 func normalizeSessionApp(apiID int, appName, appVersion string) (string, string) {
 	isTest := apiID == tgTestApiID
 	isDesktop := apiID == tgDesktopApiID || apiID == tgSnapApiID || isTest
@@ -36368,8 +32624,6 @@ func normalizeSessionApp(apiID int, appName, appVersion string) (string, string)
 
 	ver := appVersion
 	if isDesktop {
-		// Only expand when the whole string is a canonical decimal integer,
-		// matching Qt's `version == QString::number(version.toInt())` guard.
 		if n, err := strconv.Atoi(appVersion); err == nil && strconv.Itoa(n) == appVersion {
 			ver = formatVersionDisplay(n)
 		}
@@ -36387,9 +32641,6 @@ func (t *TelegramCore) GetSessions() ([]Session, error) {
 	var result []Session
 	for _, s := range sessions {
 		appName, appVersion := normalizeSessionApp(s.ApiID, s.AppName, s.AppVersion)
-		// Fall back to date_created when date_active is 0 (incomplete login
-		// attempts), so the UI shows the creation time instead of the Unix
-		// epoch — mirrors AyuGram ParseEntry (api_authorizations.cpp:72-74).
 		activeTime := s.DateActive
 		if activeTime == 0 {
 			activeTime = s.DateCreated
@@ -36413,9 +32664,7 @@ func (t *TelegramCore) GetSessions() ([]Session, error) {
 	return result, nil
 }
 
-// MuteChat enables or disables notifications for a chat.
 func (t *TelegramCore) MuteChat(chatID string, muted bool) error {
-	// withAPI rule: never hold t.mu across the notify-settings RPC.
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
 		return err
@@ -36428,9 +32677,9 @@ func (t *TelegramCore) MuteChat(chatID string, muted bool) error {
 
 	settings := tg.InputPeerNotifySettings{}
 	if muted {
-		settings.SetMuteUntil(2147483647) // max int32 — mute forever
+		settings.SetMuteUntil(2147483647)
 	} else {
-		settings.SetMuteUntil(0) // unmute
+		settings.SetMuteUntil(0)
 	}
 
 	_, err = api.AccountUpdateNotifySettings(ctx, &tg.AccountUpdateNotifySettingsRequest{
@@ -36440,9 +32689,7 @@ func (t *TelegramCore) MuteChat(chatID string, muted bool) error {
 	return err
 }
 
-// MuteChatFor mutes a chat for a specific duration in seconds.
 func (t *TelegramCore) MuteChatFor(chatID string, durationSeconds int32) error {
-	// withAPI rule: never hold t.mu across the notify-settings RPC.
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
 		return err
@@ -36463,8 +32710,6 @@ func (t *TelegramCore) MuteChatFor(chatID string, durationSeconds int32) error {
 	return err
 }
 
-// ChatNotifySettings is a chat's notification-exception state (slice 174,
-// tdesktop notify exceptions): mute, sound, message previews.
 type ChatNotifySettings struct {
 	Muted        bool
 	MuteUntil    int32
@@ -36472,8 +32717,6 @@ type ChatNotifySettings struct {
 	ShowPreviews bool
 }
 
-// notifySoundOn decodes the ternary OtherSound field: unset = default =
-// on; NotificationSoundNone = off; anything else = on.
 func notifySoundOn(s tg.NotificationSoundClass) bool {
 	if _, is := s.(*tg.NotificationSoundNone); is {
 		return false
@@ -36481,8 +32724,6 @@ func notifySoundOn(s tg.NotificationSoundClass) bool {
 	return true
 }
 
-// notifyPreviewsOf decodes the ternary ShowPreviews: unset = default =
-// shown; an explicit false hides.
 func notifyPreviewsOf(s *tg.PeerNotifySettings) bool {
 	if v, ok := s.GetShowPreviews(); ok {
 		return v
@@ -36490,15 +32731,12 @@ func notifyPreviewsOf(s *tg.PeerNotifySettings) bool {
 	return true
 }
 
-// chatNotifySettingsFromWire maps PeerNotifySettings → ChatNotifySettings.
 func chatNotifySettingsFromWire(s *tg.PeerNotifySettings) ChatNotifySettings {
 	if s == nil {
 		return ChatNotifySettings{SoundOn: true, ShowPreviews: true}
 	}
 	muteUntil := int32(0)
 	if s.MuteUntil > 0 && s.MuteUntil < 2000000000 {
-		// int32-max sentinel (2147483647) = forever: our encoding keeps
-		// Muted with MuteUntil 0 (mirror of the push handler).
 		muteUntil = int32(s.MuteUntil)
 	}
 	return ChatNotifySettings{
@@ -36509,9 +32747,6 @@ func chatNotifySettingsFromWire(s *tg.PeerNotifySettings) ChatNotifySettings {
 	}
 }
 
-// notifySettingsInput builds the write-side settings (slice 174):
-// mute_until always rides; sound + previews ride only when provided
-// (nil = leave to the server default).
 func notifySettingsInput(muteUntil int32, soundOn, showPreviews *bool) tg.InputPeerNotifySettings {
 	settings := tg.InputPeerNotifySettings{}
 	settings.SetMuteUntil(int(muteUntil))
@@ -36528,11 +32763,7 @@ func notifySettingsInput(muteUntil int32, soundOn, showPreviews *bool) tg.InputP
 	return settings
 }
 
-// GetChatNotifySettings reads a chat's notification exception state
-// (account.getNotifySettings for the peer; sound = OtherSound ternary,
-// previews = ShowPreviews ternary — unset values fall back to on/shown).
 func (t *TelegramCore) GetChatNotifySettings(chatID string) (*ChatNotifySettings, error) {
-	// withAPI rule: never hold t.mu across the notify-settings RPC.
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
 		return nil, err
@@ -36550,11 +32781,7 @@ func (t *TelegramCore) GetChatNotifySettings(chatID string) (*ChatNotifySettings
 	return &s, nil
 }
 
-// SetChatNotifySettings writes a chat's notification exception (slice
-// 174, tdesktop notify exceptions): mute_until always; sound/previews
-// only when a non-nil pointer is provided.
 func (t *TelegramCore) SetChatNotifySettings(chatID string, muteUntil int32, soundOn, showPreviews *bool) error {
-	// withAPI rule: never hold t.mu across the notify-settings RPC.
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
 		return err
@@ -36571,9 +32798,7 @@ func (t *TelegramCore) SetChatNotifySettings(chatID string, muteUntil int32, sou
 	return err
 }
 
-// GetCallsDisabledHere returns whether calls are disabled on this device/session.
 func (t *TelegramCore) GetCallsDisabledHere() (bool, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return false, err
@@ -36590,7 +32815,6 @@ func (t *TelegramCore) GetCallsDisabledHere() (bool, error) {
 	return false, nil
 }
 
-// ResetPeerNotifySettings resets a peer's notification settings to default.
 func (t *TelegramCore) ResetPeerNotifySettings(chatID string) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -36605,9 +32829,7 @@ func (t *TelegramCore) ResetPeerNotifySettings(chatID string) error {
 	return err
 }
 
-// ToggleCallsDisabledHere toggles whether calls are disabled on this device/session.
 func (t *TelegramCore) ToggleCallsDisabledHere(disabled bool) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -36620,9 +32842,7 @@ func (t *TelegramCore) ToggleCallsDisabledHere(disabled bool) error {
 	return err
 }
 
-// UpdateDefaultNotifySettings updates the default notification settings for a peer type.
 func (t *TelegramCore) UpdateDefaultNotifySettings(peerType string, enabled bool, silent *bool) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -36657,9 +32877,7 @@ func (t *TelegramCore) UpdateDefaultNotifySettings(peerType string, enabled bool
 	return err
 }
 
-// MuteDefaultNotifyForDuration mutes default notifications for a peer type for a specific duration.
 func (t *TelegramCore) MuteDefaultNotifyForDuration(peerType string, seconds int) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -36687,9 +32905,7 @@ func (t *TelegramCore) MuteDefaultNotifyForDuration(peerType string, seconds int
 	return err
 }
 
-// GetDefaultNotifySettings returns default notification settings for a peer type.
 func (t *TelegramCore) GetDefaultNotifySettings(peerType string) (map[string]interface{}, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -36738,9 +32954,7 @@ func (t *TelegramCore) GetDefaultNotifySettings(peerType string) (map[string]int
 	return result, nil
 }
 
-// GetReactionsNotifySettings returns reactions notification settings as a simple map.
 func (t *TelegramCore) GetReactionsNotifySettings() (map[string]interface{}, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -36776,9 +32990,7 @@ func (t *TelegramCore) GetReactionsNotifySettings() (map[string]interface{}, err
 	return result, nil
 }
 
-// SetReactionsNotifySettings updates reaction notification settings on the server.
 func (t *TelegramCore) SetReactionsNotifySettings(reactionsEnabled bool, reactionsFrom string, pollVotesEnabled bool, pollVotesFrom string, showSenderName bool) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -36806,9 +33018,7 @@ func (t *TelegramCore) SetReactionsNotifySettings(reactionsEnabled bool, reactio
 	return err
 }
 
-// GetSavedRingtones returns a simplified list of saved ringtones.
 func (t *TelegramCore) GetSavedRingtones() ([]map[string]interface{}, error) {
-	// withAPI rule: ringtone downloads stream — never pin t.mu.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -36842,11 +33052,6 @@ func (t *TelegramCore) GetSavedRingtones() ([]map[string]interface{}, error) {
 			"id":   d.ID,
 			"name": name,
 		}
-		// Download the ringtone to a local cache file so the client can play it
-		// as a per-chat notification sound (AyuGram caches saved ringtones; the
-		// notification sound player needs a real file path). Ringtones are tiny
-		// (Telegram caps them at ~5s / a few hundred KB), so a small download is
-		// cheap and the result is cached on disk between calls.
 		if path := t.cachedRingtonePath(api, ctx, d); path != "" {
 			tone["file_path"] = path
 		}
@@ -36855,11 +33060,6 @@ func (t *TelegramCore) GetSavedRingtones() ([]map[string]interface{}, error) {
 	return tones, nil
 }
 
-// cachedRingtonePath returns a local file path for a saved-ringtone document,
-// downloading it to the OS temp dir on first use (skipped if already cached).
-// Returns "" on any failure so callers fall back to the default sound — the
-// same graceful degradation AyuGram's lookupSound() applies for an unavailable
-// ringtone. Runs on the caller's withAPI snapshot (never under t.mu).
 func (t *TelegramCore) cachedRingtonePath(api *tg.Client, ctx context.Context, d *tg.Document) string {
 	ext := ".ogg"
 	switch d.MimeType {
@@ -36874,7 +33074,7 @@ func (t *TelegramCore) cachedRingtonePath(api *tg.Client, ctx context.Context, d
 	}
 	dir, err := utils.PrivateCacheDir("telegram-ringtones")
 	if err != nil {
-		return "" // best effort: skip caching rather than use a plantable path (F-73)
+		return ""
 	}
 	path := filepath.Join(dir, fmt.Sprintf("uniclient_ringtone_%d%s", d.ID, ext))
 	if fi, err := os.Stat(path); err == nil && fi.Size() > 0 {
@@ -36885,8 +33085,6 @@ func (t *TelegramCore) cachedRingtonePath(api *tg.Client, ctx context.Context, d
 		AccessHash:    d.AccessHash,
 		FileReference: d.FileReference,
 	}
-	// 4 MB cap comfortably exceeds Telegram's ringtone size limit without
-	// risking a truncated (corrupt) file.
 	data, err := t.downloadSmallFile(api, ctx, loc, 4*1024*1024)
 	if err != nil || len(data) == 0 {
 		return ""
@@ -36897,9 +33095,7 @@ func (t *TelegramCore) cachedRingtonePath(api *tg.Client, ctx context.Context, d
 	return path
 }
 
-// UploadRingtone uploads a custom notification ringtone and saves it.
 func (t *TelegramCore) UploadRingtone(fileName, mimeType string, data []byte) (map[string]interface{}, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -36946,9 +33142,7 @@ func (t *TelegramCore) UploadRingtone(fileName, mimeType string, data []byte) (m
 	}, nil
 }
 
-// DeleteRingtone unsaves a notification ringtone by document ID.
 func (t *TelegramCore) DeleteRingtone(documentID int64) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -36977,9 +33171,7 @@ func (t *TelegramCore) DeleteRingtone(documentID int64) error {
 	return fmt.Errorf("ringtone %d not found", documentID)
 }
 
-// GetNotificationExceptions returns chats with custom notification settings for a peer type.
 func (t *TelegramCore) GetNotificationExceptions(peerType string) ([]map[string]interface{}, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -37057,14 +33249,11 @@ func (t *TelegramCore) GetNotificationExceptions(peerType string) ([]map[string]
 	return exceptions, nil
 }
 
-// MarkUnread marks a dialog as unread.
 func (t *TelegramCore) MarkUnread(chatID string, unread bool) error {
 	return t.MarkDialogUnread(chatID, unread)
 }
 
-// SendLocation sends a geographic location to a chat.
 func (t *TelegramCore) SendLocation(chatID string, lat float64, lon float64) (*Message, error) {
-	// withAPI rule: never hold t.mu across the send RPC.
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
 		return nil, err
@@ -37093,8 +33282,6 @@ func (t *TelegramCore) SendLocation(chatID string, lat float64, lon float64) (*M
 	return t.extractMessageFromUpdates(result, chatID), nil
 }
 
-// liveLocationMedia builds the live-location share media (pure —
-// unit-tested): InputMediaGeoLive with the point and validity period.
 func liveLocationMedia(lat, lon float64, period int) tg.InputMediaClass {
 	m := &tg.InputMediaGeoLive{
 		GeoPoint: &tg.InputGeoPoint{Lat: lat, Long: lon},
@@ -37103,19 +33290,13 @@ func liveLocationMedia(lat, lon float64, period int) tg.InputMediaClass {
 	return m
 }
 
-// liveStopMedia builds the stop-sharing edit media (pure — unit-tested):
-// InputMediaGeoLive with the stopped flag and no coordinates
-// (core.telegram.org/api/live-location).
 func liveStopMedia() tg.InputMediaClass {
 	m := &tg.InputMediaGeoLive{}
 	m.SetStopped(true)
 	return m
 }
 
-// SendLiveLocation shares a live location valid for period seconds
-// (Telegram presets: 900 / 3600 / 28800).
 func (t *TelegramCore) SendLiveLocation(chatID string, lat float64, lon float64, period int) (*Message, error) {
-	// withAPI rule: never hold t.mu across the send RPC.
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
 		return nil, err
@@ -37139,10 +33320,7 @@ func (t *TelegramCore) SendLiveLocation(chatID string, lat float64, lon float64,
 	return t.extractMessageFromUpdates(result, chatID), nil
 }
 
-// StopLiveLocation stops an outgoing live-location share
-// (messages.editMessage with InputMediaGeoLive{Stopped}).
 func (t *TelegramCore) StopLiveLocation(chatID, msgID string) error {
-	// withAPI rule: never hold t.mu across the edit RPC.
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
 		return err
@@ -37168,13 +33346,11 @@ func (t *TelegramCore) StopLiveLocation(chatID, msgID string) error {
 	return nil
 }
 
-// TerminateSession terminates a specific active session by its hash.
 func (t *TelegramCore) TerminateSession(sessionID string) error {
 	hash, err := strconv.ParseInt(sessionID, 10, 64)
 	if err != nil {
 		return fmt.Errorf("invalid session ID: %w", err)
 	}
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -37184,7 +33360,6 @@ func (t *TelegramCore) TerminateSession(sessionID string) error {
 }
 
 func (t *TelegramCore) ClearPaymentInfo(clearCredentials, clearShipping bool) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -37200,7 +33375,6 @@ func (t *TelegramCore) ClearPaymentInfo(clearCredentials, clearShipping bool) er
 	return err
 }
 
-// GetPaymentForm fetches the payment form for an invoice message.
 func (t *TelegramCore) GetPaymentForm(chatID, msgID string) (map[string]interface{}, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -37325,7 +33499,6 @@ func (t *TelegramCore) GetPaymentForm(chatID, msgID string) (map[string]interfac
 	return form, nil
 }
 
-// GetPaymentReceipt fetches a payment receipt for a completed purchase.
 func (t *TelegramCore) GetPaymentReceipt(chatID, msgID string) (map[string]interface{}, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -37404,7 +33577,6 @@ func (t *TelegramCore) GetPaymentReceipt(chatID, msgID string) (map[string]inter
 	return receipt, nil
 }
 
-// SendPaymentForm submits a payment form.
 func (t *TelegramCore) SendPaymentForm(chatID, msgID string, formData map[string]interface{}) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -37451,8 +33623,6 @@ func (t *TelegramCore) SendPaymentForm(chatID, msgID string, formData map[string
 	return nil
 }
 
-// ValidatePaymentInfo validates the user's payment information (name, phone, email, shipping address)
-// and returns a requested_info_id and available shipping options.
 func (t *TelegramCore) ValidatePaymentInfo(chatID, msgID string, info map[string]interface{}, save bool) (map[string]interface{}, error) {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
@@ -37533,9 +33703,7 @@ func (t *TelegramCore) ValidatePaymentInfo(chatID, msgID string, info map[string
 	return resp, nil
 }
 
-// GetConnectedBots returns business bots connected to this account as simplified maps.
 func (t *TelegramCore) GetConnectedBots() ([]map[string]interface{}, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -37578,10 +33746,7 @@ func (t *TelegramCore) GetConnectedBots() ([]map[string]interface{}, error) {
 	return bots, nil
 }
 
-// ToggleConnectedBotPaused pauses or resumes a connected bot for a specific peer.
 func (t *TelegramCore) ToggleConnectedBotPaused(chatID string, paused bool) error {
-	// withAPI rule: never hold t.mu across the RPC (peer resolved under
-	// withPeer's own short lock, released before the call).
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -37590,7 +33755,7 @@ func (t *TelegramCore) ToggleConnectedBotPaused(chatID string, paused bool) erro
 	if err != nil {
 		return err
 	}
-	unlock() // peer snapshot in hand — release before the RPC
+	unlock()
 	_, err = api.AccountToggleConnectedBotPaused(ctx, &tg.AccountToggleConnectedBotPausedRequest{
 		Peer:   inputPeer,
 		Paused: paused,
@@ -37598,10 +33763,7 @@ func (t *TelegramCore) ToggleConnectedBotPaused(chatID string, paused bool) erro
 	return err
 }
 
-// DisablePeerConnectedBot removes a connected bot from a specific peer.
 func (t *TelegramCore) DisablePeerConnectedBot(chatID string) error {
-	// withAPI rule: never hold t.mu across the RPC (peer resolved under
-	// withPeer's own short lock, released before the call).
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -37610,13 +33772,12 @@ func (t *TelegramCore) DisablePeerConnectedBot(chatID string) error {
 	if err != nil {
 		return err
 	}
-	unlock() // peer snapshot in hand — release before the RPC
+	unlock()
 	_, err = api.AccountDisablePeerConnectedBot(ctx, inputPeer)
 	return err
 }
 
 func (t *TelegramCore) GetSavedSublists(limit, offsetDate, offsetID int, excludePinned bool) ([]SavedSublistInfo, int, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, 0, err
@@ -37711,7 +33872,7 @@ func (t *TelegramCore) GetSavedSublists(limit, offsetDate, offsetID int, exclude
 		switch p := sd.Peer.(type) {
 		case *tg.PeerUser:
 			info.PeerID = strconv.FormatInt(p.UserID, 10)
-			info.Type = 1 // DM
+			info.Type = 1
 			if p.UserID == t.selfID {
 				info.IsSelf = true
 				info.PeerName = "My Notes"
@@ -37720,7 +33881,7 @@ func (t *TelegramCore) GetSavedSublists(limit, offsetDate, offsetID int, exclude
 			}
 		case *tg.PeerChat:
 			info.PeerID = strconv.FormatInt(p.ChatID, 10)
-			info.Type = 2 // Group
+			info.Type = 2
 			if ch, ok := chatMap[p.ChatID]; ok {
 				if chat, ok := ch.(*tg.Chat); ok {
 					info.PeerName = chat.Title
@@ -37728,7 +33889,7 @@ func (t *TelegramCore) GetSavedSublists(limit, offsetDate, offsetID int, exclude
 			}
 		case *tg.PeerChannel:
 			info.PeerID = strconv.FormatInt(p.ChannelID, 10)
-			info.Type = 3 // Channel
+			info.Type = 3
 			if ch, ok := chatMap[p.ChannelID]; ok {
 				if channel, ok := ch.(*tg.Channel); ok {
 					info.PeerName = channel.Title
@@ -37746,7 +33907,6 @@ func (t *TelegramCore) GetSavedSublists(limit, offsetDate, offsetID int, exclude
 }
 
 func (t *TelegramCore) GetPinnedSavedSublists() ([]SavedSublistInfo, int, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, 0, err
@@ -37862,7 +34022,6 @@ func (t *TelegramCore) GetPinnedSavedSublists() ([]SavedSublistInfo, int, error)
 }
 
 func (t *TelegramCore) GetSavedReactionTags(sublistPeerID string) ([]SavedReactionTagInfo, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -37910,7 +34069,6 @@ func (t *TelegramCore) GetSavedReactionTags(sublistPeerID string) ([]SavedReacti
 }
 
 func (t *TelegramCore) RenameSavedReactionTag(emoji string, customID int64, title string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -37932,9 +34090,7 @@ func (t *TelegramCore) RenameSavedReactionTag(emoji string, customID int64, titl
 	return err
 }
 
-// GetThemeBySlug resolves a cloud theme by its URL slug and returns its info.
 func (t *TelegramCore) GetThemeBySlug(slug string, isDark bool) (*CloudThemeInfo, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -37974,9 +34130,7 @@ func (t *TelegramCore) GetThemeBySlug(slug string, isDark bool) (*CloudThemeInfo
 	return info, nil
 }
 
-// CheckGiftCode returns information about a Telegram Premium gift code.
 func (t *TelegramCore) CheckGiftCode(slug string) (map[string]interface{}, error) {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return nil, err
@@ -37998,9 +34152,7 @@ func (t *TelegramCore) CheckGiftCode(slug string) (map[string]interface{}, error
 	return info, nil
 }
 
-// ApplyGiftCode redeems a Telegram Premium gift code.
 func (t *TelegramCore) ApplyGiftCode(slug string) error {
-	// withAPI rule: never hold t.mu across the RPC.
 	api, ctx, err := t.withAPI()
 	if err != nil {
 		return err
@@ -38009,19 +34161,6 @@ func (t *TelegramCore) ApplyGiftCode(slug string) error {
 	return err
 }
 
-// ── Suggestions (help.getPromoData family, slice 171) ─────────────────────
-//
-// tdesktop dialogs/suggestions parity: the server drives a set of
-// pending suggestion KEYS (help.getPromoData → pending_suggestions,
-// refreshed hourly) plus one optional custom card
-// (custom_pending_suggestion: title/description/url). Known keys get
-// local renderers (birthday contacts, birthday setup, premium offer,
-// userpic setup); unknown keys stay hidden — tdesktop behavior. The
-// birthday-contacts card is local data: contacts whose user.birthday is
-// today. Dismissal rides help.dismissSuggestion (async on the server;
-// the GUI keeps the local dismissal regardless).
-
-// GetPromoSuggestions fetches the server's pending-suggestion state.
 func (t *TelegramCore) GetPromoSuggestions() (PromoSuggestionsSnapshot, error) {
 	api, ctx, err := t.withAPI()
 	if err != nil {
@@ -38033,7 +34172,7 @@ func (t *TelegramCore) GetPromoSuggestions() (PromoSuggestionsSnapshot, error) {
 	}
 	result, ok := res.(*tg.HelpPromoData)
 	if !ok {
-		return PromoSuggestionsSnapshot{}, nil // promoEmpty → no suggestions
+		return PromoSuggestionsSnapshot{}, nil
 	}
 	snap := PromoSuggestionsSnapshot{Pending: result.GetPendingSuggestions()}
 	if custom, ok := result.GetCustomPendingSuggestion(); ok {
@@ -38047,8 +34186,6 @@ func (t *TelegramCore) GetPromoSuggestions() (PromoSuggestionsSnapshot, error) {
 	return snap, nil
 }
 
-// DismissSuggestion hides a suggestion server-side
-// (help.dismissSuggestion with inputPeerEmpty, the tdesktop form).
 func (t *TelegramCore) DismissSuggestion(key string) error {
 	api, ctx, err := t.withAPI()
 	if err != nil {
@@ -38061,9 +34198,6 @@ func (t *TelegramCore) DismissSuggestion(key string) error {
 	return err
 }
 
-// GetTodayBirthdayContacts lists contacts whose birthday is today
-// (contacts.getBirthdays — the dedicated RPC tdesktop's
-// promo_suggestions refreshes daily).
 func (t *TelegramCore) GetTodayBirthdayContacts() ([]BirthdayContact, error) {
 	api, ctx, err := t.withAPI()
 	if err != nil {
@@ -38089,8 +34223,6 @@ func (t *TelegramCore) GetTodayBirthdayContacts() ([]BirthdayContact, error) {
 	return out, nil
 }
 
-// GetSelfSuggestionState reports the own-user gating state for the
-// setup suggestions (photo set, birthday set, birthday is today).
 func (t *TelegramCore) GetSelfSuggestionState() (SelfSuggestionState, error) {
 	api, ctx, err := t.withAPI()
 	if err != nil {
@@ -38116,7 +34248,6 @@ func (t *TelegramCore) GetSelfSuggestionState() (SelfSuggestionState, error) {
 	return st, nil
 }
 
-// plainText flattens a TextWithEntities to its text content.
 func plainText(twe tg.TextWithEntities) string {
 	return twe.Text
 }

@@ -10,12 +10,6 @@ import (
 	"maunium.net/go/mautrix/id"
 )
 
-// Matrix core state-level tests: the core had ZERO test files before
-// slice 248. Everything here runs against pure state seams —
-// eventToMessage / roomToDialog / generateRoomName / isSpace /
-// applyStateEvent / handleMessageEvent / GetDialogs / getPinnedEvents —
-// with scripted mautrix events, no network.
-
 func newTestMatrix() *MatrixCore {
 	m := NewMatrixCore(nil)
 	m.userID = id.UserID("@me:test")
@@ -24,9 +18,6 @@ func newTestMatrix() *MatrixCore {
 
 func mxStr(s string) *string { return &s }
 
-// mxMessageEvt builds a real m.room.message event by unmarshalling full
-// event JSON — exactly how sync events arrive (Content.Raw as a map,
-// ParseRaw runs inside the production call paths).
 func mxMessageEvt(t *testing.T, contentJSON string) *event.Event {
 	t.Helper()
 	full := `{"event_id":"$ev:server","room_id":"!room:server","sender":"@alice:server","origin_server_ts":1700000000123,"type":"m.room.message","content":` + contentJSON + `}`
@@ -265,8 +256,6 @@ func TestMatrixGenerateRoomName(t *testing.T) {
 		t.Errorf("empty display name = %q, want the user ID as fallback", got)
 	}
 
-	// Four OTHERS with identical display names: deterministic despite
-	// map iteration order, pinning the "A, B and N others" shape.
 	many := &matrixRoomState{ID: id.RoomID("!r:s"), Members: map[id.UserID]*matrixMember{
 		"@me:test": {UserID: "@me:test", DisplayName: "Me", Membership: event.MembershipJoin},
 		"@1:s":     {UserID: "@1:s", DisplayName: "Same", Membership: event.MembershipJoin},
@@ -362,18 +351,13 @@ func TestMatrixApplyStateEventMember(t *testing.T) {
 	}
 }
 
-// TestMatrixApplyStateEventNilStateKeyDoesNotPanic: BUGS B-27 — the
-// StateMember branch dereferenced *evt.StateKey with no nil guard while
-// BOTH sibling handlers (handleMemberEvent and the sync room loop) check
-// it first. A state event without state_key (malicious/buggy homeserver)
-// crashed the core. RED before the fix.
 func TestMatrixApplyStateEventNilStateKeyDoesNotPanic(t *testing.T) {
 	m := newTestMatrix()
 	rs := &matrixRoomState{ID: id.RoomID("!r:s"), Members: map[id.UserID]*matrixMember{}}
 
 	evt := &event.Event{
 		Type:     event.StateMember,
-		StateKey: nil, // malformed state event
+		StateKey: nil,
 		Content:  event.Content{Parsed: &event.MemberEventContent{Membership: event.MembershipJoin}},
 	}
 	defer func() {
@@ -408,9 +392,6 @@ func TestMatrixHandleMessageEventFiresNewMessage(t *testing.T) {
 	}
 }
 
-// TestMatrixHandleMessageEventEditRewritesID: an edit must fire
-// UpdateEditMessage whose Message.ID is the ORIGINAL event id (the id
-// consumers use to replace the row), not the edit event's own id.
 func TestMatrixHandleMessageEventEditRewritesID(t *testing.T) {
 	m := newTestMatrix()
 	var got []Update

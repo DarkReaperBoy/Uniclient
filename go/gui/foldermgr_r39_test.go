@@ -7,16 +7,9 @@ import (
 	"uniclient/engine"
 )
 
-// TestFolderMgrStateIsCopyOnWrite pins R39 (the third R34 sibling sweep):
-// folderMgrState was mutated IN PLACE by loadFolderMgr's completion
-// (loading/err/loaded/folders/suggested under a.mu, from the background
-// load goroutine) while the GUI loop read the same fields through the
-// frame pointer under frameMu only — R34's class (RED-proven at R34 with
-// the dependency-free scratch repro). updateFolderMgr now installs copies.
 func TestFolderMgrStateIsCopyOnWrite(t *testing.T) {
 	a := &App{}
 	a.folderMgr = &folderMgrState{accountID: "acc", loading: true}
-	// The frame's pointer, taken the way snapshot() takes it.
 	a.mu.Lock()
 	frameSt := a.folderMgr
 	a.mu.Unlock()
@@ -27,7 +20,6 @@ func TestFolderMgrStateIsCopyOnWrite(t *testing.T) {
 		go func(i int) {
 			defer wg.Done()
 			for j := 0; j < 1500; j++ {
-				// The load tail's fields, through the real installer.
 				a.updateFolderMgr(func(n *folderMgrState) bool {
 					if n.accountID != "acc" {
 						return false
@@ -45,7 +37,6 @@ func TestFolderMgrStateIsCopyOnWrite(t *testing.T) {
 					}
 					return true
 				})
-				// The reload path's field.
 				a.updateFolderMgr(func(n *folderMgrState) bool {
 					n.loading = true
 					return true
@@ -54,8 +45,6 @@ func TestFolderMgrStateIsCopyOnWrite(t *testing.T) {
 		}(i)
 	}
 
-	// The layout reader: the HELD pointer, no lock — what layoutFolderMgr
-	// does under frameMu.
 	readDone := make(chan struct{})
 	go func() {
 		defer close(readDone)
@@ -91,9 +80,6 @@ func TestFolderMgrStateIsCopyOnWrite(t *testing.T) {
 	}
 }
 
-// TestUpdateFolderMgrContract pins the installer: closed page → nil; fn=false
-// → nil with the head untouched; fn=true → a NEW struct installed (untouched
-// fields carried, mutations visible, previous head frozen).
 func TestUpdateFolderMgrContract(t *testing.T) {
 	a := &App{}
 	if got := a.updateFolderMgr(func(n *folderMgrState) bool { return true }); got != nil {
@@ -112,7 +98,7 @@ func TestUpdateFolderMgrContract(t *testing.T) {
 
 	got := a.updateFolderMgr(func(n *folderMgrState) bool {
 		if n.accountID != "acc" {
-			return false // the staleness guard the load tail relies on
+			return false
 		}
 		n.loading = true
 		return true
@@ -131,17 +117,9 @@ func TestUpdateFolderMgrContract(t *testing.T) {
 	}
 }
 
-// TestSettingsSubPagesAreExclusive pins R39's matrix completion: every
-// open<Page> nils every sibling. The gap was reachable in one direction
-// (suggestionbar's premium upsell opens Premium while another sub-page is
-// open); the settings shell's shadow order made it benign, but closing the
-// shadowing page resurrected the stale one. The assertion covers the
-// synchronous install under a.mu — the spawned load goroutine touches only
-// the page's own state (and fails fast on the bare harness).
 func TestSettingsSubPagesAreExclusive(t *testing.T) {
 	a := &App{eng: &engine.Engine{}}
 
-	// openFolderMgr clears ALL five siblings (the R39 fix).
 	a.mu.Lock()
 	a.profileEdit = &profileEditState{}
 	a.stickerMgr = &stickerMgrState{}
@@ -160,7 +138,6 @@ func TestSettingsSubPagesAreExclusive(t *testing.T) {
 	}
 	a.mu.Unlock()
 
-	// openPremiumPage clears starsPage (the R39 completion).
 	a.mu.Lock()
 	a.starsPage = &starsPageState{}
 	a.mu.Unlock()

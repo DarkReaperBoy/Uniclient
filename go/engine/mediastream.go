@@ -1,21 +1,3 @@
-// Ranged media streaming — the engine half of parity row 281 ("Playback
-// without full download"), slice 228.
-//
-// The shape: a sparse file at the SAME canonical path executeDownload
-// writes, backed by a fetch-on-read bitmap. A read first makes sure the
-// chunks covering its range have arrived (chunked upload.getFile through
-// the account core), then reads from disk — so playback starts after the
-// first chunks instead of after the whole file, seeking fetches around
-// the target only, and when the last chunk lands the row is promoted to
-// DownloadComplete at that path, merging into the existing cache
-// accounting instead of inventing a second one.
-//
-// Two rules the tests pin (mediastream_test.go):
-//   - fetch only what is touched: reading the head of a 1 MiB file must
-//     cost KiBs, or "streaming" is a download with extra steps;
-//   - never serve an unfetched region as silent zeros: a failed fetch
-//     errors the read (§1.10 — zeros would decode as a corrupt frame,
-//     which is fake playback).
 package engine
 
 import (
@@ -30,36 +12,18 @@ import (
 	"uniclient/cores"
 )
 
-// ErrNoRangedRead: the account's core cannot fetch byte ranges, so the
-// caller must keep the download-then-play path (honest capability gate,
-// not a fake stream).
 var ErrNoRangedRead = errors.New("streaming: core cannot read byte ranges")
 
-// ErrStreamBusy: a download worker already holds this file (Cancel can
-// only dequeue QUEUED jobs), so no stream may open on it — the caller
-// keeps download-then-play, which is already happening.
 var ErrStreamBusy = errors.New("streaming: download already in progress")
 
-// ErrStreamActive: an open fetch-on-read stream owns this file — it IS
-// the download for that file, so a second writer must not enqueue.
 var ErrStreamActive = errors.New("streaming: file is being saved by playback")
 
-// streamChunk is the fetch unit: 512 KiB — divisible by 4096 (the
-// upload.getFile offset rule) and well under its 1 MiB limit, so a
-// mid-playback stall costs one RPC per half-megabyte.
 const streamChunk = 512 << 10
 
-// partSource is the ranged-read half a core must offer for streaming
-// (Telegram: chunked upload.getFile). Cores without it keep the
-// download-then-play path — see resolveStreamSource.
 type partSource interface {
 	ReadFilePart(fileRef cores.FileRef, offset, limit int64) ([]byte, error)
 }
 
-// resolveStreamSource extracts ranged-read capability from an account's
-// core (passed as any so tests can hand it a fake without standing up
-// the full Core surface). Absent capability is ErrNoRangedRead, never a
-// failed-assertion panic.
 func resolveStreamSource(core any) (partSource, error) {
 	if core == nil {
 		return nil, ErrNoRangedRead
@@ -70,40 +34,26 @@ func resolveStreamSource(core any) (partSource, error) {
 	return nil, ErrNoRangedRead
 }
 
-// MediaReader is what viewers get back: random access, and Close for the
-// streaming case (the fast path returns the open file itself).
 type MediaReader interface {
 	io.ReaderAt
 	io.Closer
 }
 
-// mediaStream is a fetch-on-read sparse file: ReaderAt over a chunk
-// bitmap. Once have[c] is true it stays true, so after ensure returns
-// the disk read needs no lock (os.File.ReadAt is concurrency-safe).
 type mediaStream struct {
-	mu     sync.Mutex
-	f      *os.File
-	size   int64
-	chunk  int64
-	have   []bool // per-chunk arrival bitmap
-	src    partSource
-	ref    cores.FileRef
-	got    int64 // bytes fetched so far (the measurement)
-	done   bool  // every chunk arrived
-	onDone func()
-	// fetching = per-chunk single-flight (BUGS.md B-3): one in-flight
-	// RPC per chunk; every other reader waits on the channel instead of
-	// issuing its own fetch. Entries exist only while a fetch runs —
-	// results are never cached here, only coalesced.
+	mu       sync.Mutex
+	f        *os.File
+	size     int64
+	chunk    int64
+	have     []bool
+	src      partSource
+	ref      cores.FileRef
+	got      int64
+	done     bool
+	onDone   func()
 	fetching map[int64]chan struct{}
-	// onClose fires exactly once on Close — the engine releases its file
-	// guard there (slice 230), so a dropped reader can never wedge the
-	// key shut.
-	onClose func()
+	onClose  func()
 }
 
-// newMediaStream truncates f to size (sparse) and wraps it for ranged
-// fetching. onDone fires exactly once, when the last chunk lands.
 func newMediaStream(f *os.File, size, chunk int64, src partSource, ref cores.FileRef, onDone func()) (*mediaStream, error) {
 	if f == nil {
 		return nil, errors.New("stream: nil file")
@@ -131,11 +81,8 @@ func newMediaStream(f *os.File, size, chunk int64, src partSource, ref cores.Fil
 	}, nil
 }
 
-// Size is the total byte length the reader presents.
 func (s *mediaStream) Size() int64 { return s.size }
 
-// Fetched counts bytes actually downloaded — tests use it to prove the
-// row; a future progress UI could too.
 func (s *mediaStream) Fetched() int64 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -148,11 +95,6 @@ func (s *mediaStream) complete() bool {
 	return s.done
 }
 
-// finishFetchLocked drops the in-flight entry for c and wakes every
-// waiter; callers hold s.mu. Order matters: success closes only AFTER
-// have[c] is set, so a woken reader either returns on the bitmap or —
-// on failure — takes over the chunk and retries serially instead of a
-// herd re-fetching at once.
 func (s *mediaStream) finishFetchLocked(c int64) {
 	if ch, ok := s.fetching[c]; ok {
 		delete(s.fetching, c)
@@ -160,14 +102,6 @@ func (s *mediaStream) finishFetchLocked(c int64) {
 	}
 }
 
-// ensureChunk makes chunk c present, fetching it if needed. A miss
-// claims the chunk (per-chunk single-flight, BUGS.md B-3): every other
-// reader of the SAME chunk waits for that one RPC instead of issuing
-// its own — measured pre-patch as 8 RPCs for 8 readers of one chunk and
-// 126 RPCs (3.9× the bytes) for 4 concurrent whole-file readers. The
-// bookkeeping lock is still never held across the RPC (a Close or
-// completion check must not wait on the network); waiters re-check
-// under the lock when the fetch completes.
 func (s *mediaStream) ensureChunk(c int64) error {
 	var (
 		off, want int64
@@ -185,8 +119,6 @@ func (s *mediaStream) ensureChunk(c int64) error {
 			return nil
 		}
 		if busy, ok := s.fetching[c]; ok {
-			// Someone else is fetching this chunk: wait for their RPC,
-			// then re-check the bitmap (landed) or take over (failed).
 			s.mu.Unlock()
 			<-busy
 			continue
@@ -202,8 +134,6 @@ func (s *mediaStream) ensureChunk(c int64) error {
 		break
 	}
 
-	// Exactly one goroutine is past the claim for chunk c — the fetch
-	// runs outside the lock, but no second fetch of this chunk can start.
 	data, err := src.ReadFilePart(ref, off, want)
 	if err != nil {
 		s.mu.Lock()
@@ -212,8 +142,6 @@ func (s *mediaStream) ensureChunk(c int64) error {
 		return fmt.Errorf("stream: fetch chunk %d: %w", c, err)
 	}
 	if int64(len(data)) != want {
-		// A short/long range is a protocol violation; serving it would
-		// silently shift every later byte (§1.10: fail, don't fudge).
 		s.mu.Lock()
 		s.finishFetchLocked(c)
 		s.mu.Unlock()
@@ -236,10 +164,6 @@ func (s *mediaStream) ensureChunk(c int64) error {
 	}
 	justDone := false
 	if !s.done {
-		// Completion = EVERY chunk present, not just the first slot
-		// (B-10: the old loop broke on the first `ok`, so a 3-chunk
-		// stream promoted itself complete after chunk 0 — onDone ran
-		// the DB promotion + event over unfetched holes).
 		allPresent := true
 		for _, ok := range s.have {
 			if !ok {
@@ -252,21 +176,19 @@ func (s *mediaStream) ensureChunk(c int64) error {
 			justDone = true
 		}
 	}
-	// Bitmap first, THEN wake: waiters must see have[c] on re-check.
 	s.finishFetchLocked(c)
 	cb := s.onDone
 	if justDone {
-		s.onDone = nil // exactly-once, enforced under the lock
+		s.onDone = nil
 	}
 	s.mu.Unlock()
 
 	if justDone && cb != nil {
-		cb() // DB promotion + event; does not re-enter the stream
+		cb()
 	}
 	return nil
 }
 
-// ensure makes every chunk covering [off, off+n) present.
 func (s *mediaStream) ensure(off, n int64) error {
 	if n <= 0 {
 		return nil
@@ -281,8 +203,6 @@ func (s *mediaStream) ensure(off, n int64) error {
 	return nil
 }
 
-// ReadAt fetches the covering chunks first, then reads from disk.
-// Unfetchable ranges error — never zeros.
 func (s *mediaStream) ReadAt(p []byte, off int64) (int, error) {
 	if off < 0 {
 		return 0, errors.New("stream: negative offset")
@@ -292,23 +212,21 @@ func (s *mediaStream) ReadAt(p []byte, off int64) (int, error) {
 	}
 	need := int64(len(p))
 	if remain := s.size - off; need > remain {
-		need = remain // clamp: the tail read stops at EOF
+		need = remain
 	}
 	if err := s.ensure(off, need); err != nil {
-		return 0, err // no partial zeros served
+		return 0, err
 	}
 	n, err := s.f.ReadAt(p[:need], off)
 	if err != nil {
 		return n, err
 	}
 	if int64(n) < int64(len(p)) {
-		return n, io.EOF // asked past the end of the media
+		return n, io.EOF
 	}
 	return n, nil
 }
 
-// Close releases the file handle. The sparse file itself stays on disk
-// (it is either mid-download cache or the promoted completed file).
 func (s *mediaStream) Close() error {
 	s.mu.Lock()
 	f := s.f
@@ -317,7 +235,7 @@ func (s *mediaStream) Close() error {
 	s.onClose = nil
 	s.mu.Unlock()
 	if cb != nil {
-		cb() // file guard released exactly once, even on double Close
+		cb()
 	}
 	if f == nil {
 		return nil
@@ -325,7 +243,6 @@ func (s *mediaStream) Close() error {
 	return f.Close()
 }
 
-// mediaRow is the subset of the media table streaming needs.
 type mediaRow struct {
 	fileName   string
 	remoteRef  string
@@ -350,12 +267,6 @@ func (e *Engine) loadMediaRow(accountID, chatID, msgID string, seq int) (*mediaR
 	return &r, nil
 }
 
-// openMediaStream builds the streaming reader for an already-resolved
-// source: canonical path (executeDownload's), completion promotion into
-// the row, and the download_complete event — so the rest of the cache
-// system cannot tell how the file arrived. The canonical path is
-// returned so the GUI can key its player cache by the SAME path the
-// completion event will carry (no re-parse when the bytes land).
 func (e *Engine) openMediaStream(accountID, chatID, msgID string, seq int, src partSource) (*mediaStream, string, int64, error) {
 	r, err := e.loadMediaRow(accountID, chatID, msgID, seq)
 	if err != nil {
@@ -368,7 +279,6 @@ func (e *Engine) openMediaStream(accountID, chatID, msgID string, seq int, src p
 		return nil, "", 0, ErrNoRangedRead
 	}
 
-	// Same canonical path executeDownload writes (media.go executeDownload).
 	dir := filepath.Join(e.mediaDir, safePathSegment(accountID), "full")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, "", 0, err
@@ -379,10 +289,6 @@ func (e *Engine) openMediaStream(accountID, chatID, msgID string, seq int, src p
 	}
 	path := filepath.Join(dir, safePathSegment(msgID)+"_"+fmt.Sprint(seq)+ext)
 
-	// Claim the file before opening: a download worker already inside
-	// executeDownload holds this key (os.Create = O_TRUNC), and Cancel
-	// cannot reach it — refusing here is what keeps the sparse file
-	// intact under the player (slice 230).
 	key := mediaGuardKey(accountID, chatID, msgID, seq)
 	if !e.claimStream(key) {
 		return nil, "", 0, ErrStreamBusy
@@ -415,20 +321,13 @@ func (e *Engine) openMediaStream(accountID, chatID, msgID string, seq int, src p
 	}
 	s, err := newMediaStream(f, size, streamChunk, src, ref, onDone)
 	if err != nil {
-		e.releaseStream(key) // newMediaStream already closed f itself
+		e.releaseStream(key)
 		return nil, "", 0, err
 	}
 	s.onClose = func() { e.releaseStream(key) }
 	return s, path, size, nil
 }
 
-// OpenMediaStream returns a reader over the media, its byte length and
-// the canonical path its bytes land at: the completed file straight
-// from disk when it exists (fast path — no core needed), or a
-// fetch-on-read stream that downloads only what the reader touches and
-// promotes itself to a completed download at that same path.
-// ErrNoRangedRead means the caller should keep the download-then-play
-// path.
 func (e *Engine) OpenMediaStream(accountID, chatID, msgID string, seq int) (MediaReader, int64, string, error) {
 	r, err := e.loadMediaRow(accountID, chatID, msgID, seq)
 	if err != nil {
@@ -438,8 +337,6 @@ func (e *Engine) OpenMediaStream(accountID, chatID, msgID string, seq int) (Medi
 		if f, oerr := os.Open(r.localPath); oerr == nil {
 			return f, r.fileSize, r.localPath, nil
 		}
-		// Row says complete but the file was evicted: fall through and
-		// refetch — honest recovery, not a phantom path.
 	}
 
 	acc, ok := e.getAccount(accountID)
@@ -450,10 +347,6 @@ func (e *Engine) OpenMediaStream(accountID, chatID, msgID string, seq int) (Medi
 	if err != nil {
 		return nil, 0, "", err
 	}
-	// Streaming takes over this file's write path: cancel any QUEUED
-	// full download. A job a worker already dequeued is handled inside
-	// openMediaStream — it holds the file guard, so the stream refuses
-	// with ErrStreamBusy and the honest download-then-play path stands.
 	if e.media != nil {
 		e.media.Cancel(accountID, chatID, msgID, seq)
 	}

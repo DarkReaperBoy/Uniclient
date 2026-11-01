@@ -1,13 +1,5 @@
 package gui
 
-// settingspremium.go — slice 143: the Telegram Premium settings page
-// (tdesktop's Premium box). Subscription status (the server's own
-// sentence from help.getPremiumPromo + the account's premium badge),
-// the purchasable plans with Subscribe through the payment deep link,
-// and the free-vs-premium limits comparison. Everything is
-// engine-backed; cores without premium support hide the section
-// honestly (§1.10).
-
 import (
 	"fmt"
 
@@ -21,12 +13,6 @@ import (
 	"uniclient/engine"
 )
 
-// ── pure helpers (unit-tested) ─────────────────────────────────────────────
-
-// currencyExponent returns the number of smallest-unit digits for an
-// ISO 4217 code (the Telegram currencies table): 2 for the vast
-// majority, 0 for the zero-decimal currencies, 3 for the triple ones.
-// Unknown codes take the majority rule. Pure.
 func currencyExponent(cur string) int {
 	switch cur {
 	case "JPY", "KRW", "VND", "CLP", "DJF", "GNF", "PYG", "UGX":
@@ -37,10 +23,6 @@ func currencyExponent(cur string) int {
 	return 2
 }
 
-// formatPremiumPrice renders a wire amount (smallest units) as a human
-// price with the currency code — whole units without decimals, fractional
-// amounts with the currency's full decimal count (2 for USD/EUR, 3 for
-// BHD, none for JPY). Pure.
 func formatPremiumPrice(cur string, amount int64) string {
 	exp := currencyExponent(cur)
 	if exp == 0 {
@@ -58,7 +40,6 @@ func formatPremiumPrice(cur string, amount int64) string {
 	return fmt.Sprintf("%d.%0*d %s", whole, exp, frac, cur)
 }
 
-// premiumPlanLabel: the plan row's duration label. Pure.
 func premiumPlanLabel(months int) string {
 	if months == 1 {
 		return "1 month"
@@ -66,21 +47,16 @@ func premiumPlanLabel(months int) string {
 	return itoa(months) + " months"
 }
 
-// premiumPlanSubtitle: the plan row's price line. Pure.
 func premiumPlanSubtitle(p cores.PremiumPlanOption) string {
 	return formatPremiumPrice(p.Currency, p.Amount)
 }
 
-// premiumLimitRow is one free-vs-premium limits comparison row.
 type premiumLimitRow struct {
 	label   string
 	free    int
 	premium int
 }
 
-// premiumLimitRows builds the limits comparison from the engine's
-// folder-limits map — known keys in a fixed display order, unknown keys
-// skipped, missing keys zero-valued. Pure.
 func premiumLimitRows(limits map[string]int) []premiumLimitRow {
 	return []premiumLimitRow{
 		{"Chat folders", limits["free_limit"], limits["premium_limit"]},
@@ -90,9 +66,6 @@ func premiumLimitRows(limits map[string]int) []premiumLimitRow {
 	}
 }
 
-// ── state ──────────────────────────────────────────────────────────────────
-
-// premiumPageState is the open Premium sub-page.
 type premiumPageState struct {
 	accountID string
 	loading   bool
@@ -104,27 +77,15 @@ type premiumPageState struct {
 }
 
 var (
-	premiumOpenBtn  widget.Clickable // Settings → Main entry card
+	premiumOpenBtn  widget.Clickable
 	premiumBackBtn  widget.Clickable
 	premiumReloadBt widget.Clickable
-	premiumSubBtns  []widget.Clickable // plan subscribe buttons
+	premiumSubBtns  []widget.Clickable
 	premiumAcctBtns []widget.Clickable
 
-	// noAdsRevert: failed no-ads toggles revert their switch on the next
-	// layout pass (GUI-thread drain; key → revert flag).
 	noAdsRevert map[string]bool
 )
 
-// updatePremiumPage applies fn to a COPY of the live Premium page state
-// and installs the copy under a.mu — R34's copy-on-write contract for
-// frame-carried sub-page structs (R37, the first sibling swept after
-// business.go): the struct a frame holds stays immutable for that frame's
-// life, so the load tail cannot write-race the layout's field reads
-// (snapshot() at state.go:2362 installs the live pointer; its own
-// contract says "only replaced, never mutated in place"). fn re-validates
-// staleness itself (accountID match); returning false aborts the install,
-// leaving the head alone. Returns the installed copy, or nil when the
-// page is closed / fn aborted.
 func (a *App) updatePremiumPage(fn func(st *premiumPageState) bool) *premiumPageState {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -139,21 +100,19 @@ func (a *App) updatePremiumPage(fn func(st *premiumPageState) bool) *premiumPage
 	return &next
 }
 
-// openPremiumPage starts the page for an account and loads its data.
 func (a *App) openPremiumPage(accountID string) {
 	a.mu.Lock()
 	a.premiumPage = &premiumPageState{accountID: accountID, loading: true}
-	a.profileEdit = nil  // one sub-page at a time (settings shell) — the
-	a.stickerMgr = nil   // exclusivity matrix: every open<Page> nils every
-	a.folderMgr = nil    // sibling (R39 completed this one — starsPage was
-	a.businessPage = nil // missing; suggestionbar's premium opener made the
-	a.starsPage = nil    // gap reachable, the shell's shadow order benign)
+	a.profileEdit = nil
+	a.stickerMgr = nil
+	a.folderMgr = nil
+	a.businessPage = nil
+	a.starsPage = nil
 	a.mu.Unlock()
 	go a.loadPremiumPage(accountID)
 	a.invalidate()
 }
 
-// closePremiumPage dismisses the page.
 func (a *App) closePremiumPage() {
 	a.mu.Lock()
 	a.premiumPage = nil
@@ -161,13 +120,12 @@ func (a *App) closePremiumPage() {
 	a.invalidate()
 }
 
-// loadPremiumPage fetches the promo + limits.
 func (a *App) loadPremiumPage(accountID string) {
 	promo, errP := a.eng.GetPremiumPromo(accountID)
 	limits, errL := a.eng.GetAllFolderLimits(accountID)
 	a.updatePremiumPage(func(n *premiumPageState) bool {
 		if n.accountID != accountID {
-			return false // closed or switched mid-fetch
+			return false
 		}
 		n.loading = false
 		if errP != nil {
@@ -185,7 +143,6 @@ func (a *App) loadPremiumPage(accountID string) {
 	a.invalidate()
 }
 
-// reloadPremiumPage re-pulls after a mutation or manual reload.
 func (a *App) reloadPremiumPage() {
 	acc := ""
 	a.updatePremiumPage(func(n *premiumPageState) bool {
@@ -198,9 +155,6 @@ func (a *App) reloadPremiumPage() {
 	}
 }
 
-// openPremiumSubscribe opens a plan's payment deep link through the
-// standard external-open pipeline (the browser handles the purchase —
-// tdesktop's flow).
 func (a *App) openPremiumSubscribe(p cores.PremiumPlanOption) {
 	if p.BotURL == "" {
 		a.setToast("No payment link for this plan")
@@ -209,9 +163,6 @@ func (a *App) openPremiumSubscribe(p cores.PremiumPlanOption) {
 	go a.openLinkExternal(p.BotURL)
 }
 
-// ── layout ─────────────────────────────────────────────────────────────────
-
-// layoutPremiumPage renders the Premium sub-page inside the settings shell.
 func (a *App) layoutPremiumPage(gtx layout.Context, f frame) layout.Dimensions {
 	st := f.premiumPage
 	if st == nil {
@@ -226,7 +177,6 @@ func (a *App) layoutPremiumPage(gtx layout.Context, f frame) layout.Dimensions {
 
 	var children []layout.FlexChild
 
-	// header: back + title + reload
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return layout.Inset{Bottom: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Horizontal, Alignment: layout.Middle}.Layout(gtx,
@@ -247,7 +197,6 @@ func (a *App) layoutPremiumPage(gtx layout.Context, f frame) layout.Dimensions {
 		})
 	}))
 
-	// account switcher chips (multiple accounts only)
 	if len(f.accounts) > 1 {
 		growClickables(&premiumAcctBtns, len(f.accounts))
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -257,7 +206,6 @@ func (a *App) layoutPremiumPage(gtx layout.Context, f frame) layout.Dimensions {
 		}))
 	}
 
-	// body
 	if st.loading && !st.loaded {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.loadingNote(gtx)
@@ -272,22 +220,16 @@ func (a *App) layoutPremiumPage(gtx layout.Context, f frame) layout.Dimensions {
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 	}
 
-	// status card
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 		return a.premiumStatusCard(gtx, f, st)
 	}))
 
-	// No-ads lever (slice 163): account.toggleSponsoredMessages — the
-	// Premium perk that turns sponsored messages off account-wide. Only
-	// server-premium accounts see it (local premium does not grant
-	// server-side perks, §1.10 honesty).
 	if serverPremium(f, st.accountID) {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.premiumNoAdsRow(gtx, st)
 		}))
 	}
 
-	// plans (the server's own order)
 	if st.promo != nil {
 		growClickables(&premiumSubBtns, len(st.promo.Options))
 		for i, p := range st.promo.Options {
@@ -301,7 +243,6 @@ func (a *App) layoutPremiumPage(gtx layout.Context, f frame) layout.Dimensions {
 		}
 	}
 
-	// limits comparison
 	if st.limits != nil {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.subHeader(gtx, "Limits with Premium")
@@ -317,8 +258,6 @@ func (a *App) layoutPremiumPage(gtx layout.Context, f frame) layout.Dimensions {
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-// premiumStatusCard: the account's premium state — Active badge when
-// subscribed, the server's status sentence otherwise.
 func (a *App) premiumStatusCard(gtx layout.Context, f frame, st *premiumPageState) layout.Dimensions {
 	premium := false
 	for _, acc := range f.accounts {
@@ -327,14 +266,10 @@ func (a *App) premiumStatusCard(gtx layout.Context, f frame, st *premiumPageStat
 			break
 		}
 	}
-	// AyuGram local premium: client-side view only — the status line
-	// stays honest about what is local vs server-granted.
 	localOn := f.cfg.LocalPremium[st.accountID]
 	if localOn {
 		premium = true
 	}
-	// The switch mirrors the effective flag until toggled (the
-	// settingsSwitch + settingsSynced idiom from toggleRow).
 	localPremBtn := settingsSwitch("local_premium:" + st.accountID)
 	if !settingsSynced["local_premium:"+st.accountID] {
 		localPremBtn.Value = localOn
@@ -391,9 +326,6 @@ func (a *App) premiumStatusCard(gtx layout.Context, f frame, st *premiumPageStat
 							})
 						})
 					}),
-					// AyuGram local premium toggle: client-side premium
-					// view (star badge, presence, premium affordances);
-					// server-side perks stay server-truth.
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Inset{Left: unit.Dp(8)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							b := material.Switch(a.ui.Theme, localPremBtn, "Local premium")
@@ -418,8 +350,6 @@ func (a *App) premiumStatusCard(gtx layout.Context, f frame, st *premiumPageStat
 	return dims
 }
 
-// premiumPlanRow: one subscription option — duration, price, Subscribe
-// (the current plan gets a badge instead of a button).
 func (a *App) premiumPlanRow(gtx layout.Context, p cores.PremiumPlanOption, btn *widget.Clickable) layout.Dimensions {
 	return layout.Inset{Top: unit.Dp(3), Bottom: unit.Dp(3)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return roundedFill(gtx, a.ui.p.Surface, 10, func(gtx layout.Context) layout.Dimensions {
@@ -456,7 +386,6 @@ func (a *App) premiumPlanRow(gtx layout.Context, p cores.PremiumPlanOption, btn 
 	})
 }
 
-// premiumLimitRowLayout: one free-vs-premium comparison row.
 func (a *App) premiumLimitRowLayout(gtx layout.Context, row premiumLimitRow) layout.Dimensions {
 	return layout.Inset{Top: unit.Dp(3), Bottom: unit.Dp(3)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return roundedFill(gtx, a.ui.p.Surface, 10, func(gtx layout.Context) layout.Dimensions {
@@ -487,7 +416,6 @@ func (a *App) premiumLimitRowLayout(gtx layout.Context, row premiumLimitRow) lay
 	})
 }
 
-// premiumAcctChips builds the account chip row for the page.
 func (a *App) premiumAcctChips(gtx layout.Context, f frame, st *premiumPageState) []layout.FlexChild {
 	var children []layout.FlexChild
 	for i, acc := range f.accounts {
@@ -520,7 +448,6 @@ func (a *App) premiumAcctChips(gtx layout.Context, f frame, st *premiumPageState
 	return children
 }
 
-// premiumEntryRow renders the Settings → Main entry card.
 func (a *App) premiumEntryRow(gtx layout.Context, f frame) layout.Dimensions {
 	if premiumOpenBtn.Clicked(gtx) {
 		a.openPremiumPage(mgrAccountID(f))
@@ -555,8 +482,6 @@ func (a *App) premiumEntryRow(gtx layout.Context, f frame) layout.Dimensions {
 	})
 }
 
-// premiumEntryVisible: only Telegram-platform accounts have Premium —
-// the entry card hides when the account list has none (§1.10).
 func premiumEntryVisible(accounts []engine.AccountInfo) bool {
 	for _, acc := range accounts {
 		if acc.Platform == "telegram" || acc.Platform == "Telegram" {
@@ -566,8 +491,6 @@ func premiumEntryVisible(accounts []engine.AccountInfo) bool {
 	return false
 }
 
-// serverPremium: the account's SERVER-granted premium flag (the local
-// premium view does not count — server perks need a subscription).
 func serverPremium(f frame, accountID string) bool {
 	for _, acc := range f.accounts {
 		if acc.ID == accountID {
@@ -577,14 +500,9 @@ func serverPremium(f frame, accountID string) bool {
 	return false
 }
 
-// premiumNoAdsRow: the Premium "No ads" lever —
-// account.toggleSponsoredMessages(false) hides sponsored messages
-// account-wide. The switch defaults to ON (ads shown, the account
-// default); flipping it OFF is a Premium perk, errors revert the switch.
 func (a *App) premiumNoAdsRow(gtx layout.Context, st *premiumPageState) layout.Dimensions {
 	key := "no_ads:" + st.accountID
 	sw := settingsSwitch(key)
-	// Drain a queued revert (failed toggle) on the GUI thread.
 	a.mu.Lock()
 	if noAdsRevert[key] {
 		delete(noAdsRevert, key)
@@ -592,7 +510,7 @@ func (a *App) premiumNoAdsRow(gtx layout.Context, st *premiumPageState) layout.D
 	}
 	a.mu.Unlock()
 	if !settingsSynced[key] {
-		sw.Value = true // ads shown is the account default
+		sw.Value = true
 		settingsSynced[key] = true
 	}
 	prev := sw.Value
@@ -635,8 +553,6 @@ func (a *App) premiumNoAdsRow(gtx layout.Context, st *premiumPageState) layout.D
 		go func() {
 			if err := a.eng.ToggleSponsoredMessages(acc, enabled); err != nil {
 				a.setToast("Sponsored messages: " + err.Error())
-				// Revert the switch on failure — queued and drained on the
-				// GUI thread (the switch widget is frame-thread state).
 				a.mu.Lock()
 				if noAdsRevert == nil {
 					noAdsRevert = map[string]bool{}

@@ -27,20 +27,8 @@ import (
 	"uniclient/engine"
 )
 
-// Instant View reader (slice 176, parity row "Instant View pages" —
-// tdesktop's IV panel): messages whose link preview carries an IV page
-// (wp_has_iv) open the article in an in-app reader overlay instead of the
-// browser; telegra.ph / graph.org text links do the same (the core's
-// isKnownIVDomain gate mirrored GUI-side). Related articles navigate
-// inside the reader with a back stack. The reader renders every IV block
-// the telegram core emits (ivBlockToMap's shapes); video/audio blocks
-// download via the engine's IV document downloader and hand off to the
-// system player (the slice-86 pattern — no in-app video decode, §1.10).
-
-// ivHistMax caps the related-article back stack.
 const ivHistMax = 16
 
-// ivPage is one parsed Instant View page.
 type ivPage struct {
 	URL      string
 	Title    string
@@ -50,20 +38,19 @@ type ivPage struct {
 	Blocks   []ivBlock
 }
 
-// ivBlock is one rendered block (the core's JSON map per block).
 type ivBlock struct {
 	Type string
 
-	Text    ivRich // title/subtitle/header/subheader/paragraph/preformatted/footer/kicker + quote/pull text + details/related/table titles
-	Caption ivRich // quote/pull/photo/video/audio/embed captions
-	Lang    string // preformatted
-	Name    string // anchor
-	Date    int64  // author_date / embed_post
-	Author  ivRich // author_date author
+	Text    ivRich
+	Caption ivRich
+	Lang    string
+	Name    string
+	Date    int64
+	Author  ivRich
 
-	URL  string // photo permalink / embed url / embed_post url
-	HTML string // embed html
-	W, H int    // photo/video/embed dims
+	URL  string
+	HTML string
+	W, H int
 
 	PhotoID  int64
 	VideoID  int64
@@ -77,15 +64,15 @@ type ivBlock struct {
 	Autoplay bool
 	Loop     bool
 
-	Open     bool // details default-open
-	Bordered bool // table
-	Striped  bool // table
+	Open     bool
+	Bordered bool
+	Striped  bool
 
 	ChannelTitle string
 	Username     string
 	ChannelID    int64
 
-	AuthorName string // embed_post
+	AuthorName string
 	Items      []ivBlock
 
 	ListItems []ivListItem
@@ -93,7 +80,6 @@ type ivBlock struct {
 	Rows      [][]ivTableCell
 }
 
-// ivListItem is one list / ordered-list entry (text or nested blocks).
 type ivListItem struct {
 	Num       int
 	Text      ivRich
@@ -101,7 +87,6 @@ type ivListItem struct {
 	HasBlocks bool
 }
 
-// ivArticle is one related-article row.
 type ivArticle struct {
 	URL    string
 	Title  string
@@ -109,7 +94,6 @@ type ivArticle struct {
 	Author string
 }
 
-// ivTableCell is one table cell.
 type ivTableCell struct {
 	Text                       ivRich
 	Header                     bool
@@ -118,16 +102,14 @@ type ivTableCell struct {
 	ValignMiddle, ValignBottom bool
 }
 
-// ivRich is the IV rich-text tree (tg.RichTextClass mapped by the core).
 type ivRich struct {
-	Kind     string // plain/bold/italic/underline/strike/fixed/url/email/concat
+	Kind     string
 	Text     string
 	Href     string
 	Email    string
 	Children []ivRich
 }
 
-// ivSpan is one flattened styled run of the rich-text tree.
 type ivSpan struct {
 	Text              string
 	Bold, Italic      bool
@@ -136,8 +118,6 @@ type ivSpan struct {
 	Href, Email       string
 }
 
-// ivRichSpans flattens the rich-text tree into styled spans, propagating
-// the enclosing styles down. Pure — unit-tested.
 func ivRichSpans(root ivRich) []ivSpan {
 	var out []ivSpan
 	var walk func(n ivRich, st ivSpan)
@@ -173,9 +153,6 @@ func ivRichSpans(root ivRich) []ivSpan {
 	return out
 }
 
-// ivSpanEntities renders spans as plain text + Telegram-style entities so
-// the existing flowRich renderer (wrapping, link taps, mono pills) can
-// paint them. Offsets are UTF-16 code units (parseRichSegments contract).
 func ivSpanEntities(spans []ivSpan) (string, []cores.TextEntity) {
 	var sb strings.Builder
 	var ents []cores.TextEntity
@@ -209,8 +186,6 @@ func ivSpanEntities(spans []ivSpan) (string, []cores.TextEntity) {
 	return sb.String(), ents
 }
 
-// ivKnownHost mirrors the core's isKnownIVDomain gate: telegra.ph and
-// graph.org hosts (subdomains included) always have an IV page. Pure.
 func ivKnownHost(rawURL string) bool {
 	u, err := url.Parse(rawURL)
 	if err != nil {
@@ -225,8 +200,6 @@ func ivKnownHost(rawURL string) bool {
 	return false
 }
 
-// ivRichFromMap converts the core's rich-text JSON (map form) into the
-// ivRich tree. Unknown kinds keep their children (honest passthrough).
 func ivRichFromMap(v interface{}) ivRich {
 	var rt ivRich
 	m, ok := v.(map[string]interface{})
@@ -276,7 +249,6 @@ func ivBool(m map[string]interface{}, k string) bool {
 	return b
 }
 
-// ivBlocksFromAny converts raw JSON block maps into ivBlock values.
 func ivBlocksFromAny(raw interface{}) []ivBlock {
 	arr, ok := raw.([]interface{})
 	if !ok {
@@ -423,8 +395,6 @@ func ivBlocksFromAny(raw interface{}) []ivBlock {
 	return out
 }
 
-// parseIVPage decodes the core's GetInstantViewPage JSON. Nil when the
-// payload is not a usable page (empty / garbage). Pure — unit-tested.
 func parseIVPage(data []byte) *ivPage {
 	var env struct {
 		URL      string        `json:"url"`
@@ -454,39 +424,25 @@ func parseIVPage(data []byte) *ivPage {
 	return p
 }
 
-// ivState is the reader overlay's live state (App-owned, mirrored to the
-// frame like the media viewer).
 type ivState struct {
 	accountID string
 	url       string
 	loading   bool
 	err       string
 	page      *ivPage
-	hist      []*ivPage // back stack for related-article navigation
+	hist      []*ivPage
 
-	// gen is the fetch generation (a.mu-guarded): every navigation or
-	// back bumps it, and a landing fetch must match the generation it
-	// captured or it is dropped whole (R26).
 	gen uint64
 
-	// openID (R46, install-immutable): identifies THIS reader session
-	// across copy-on-write installs — assigned at open, copied into every
-	// head. Tails guard on it because pointer identity breaks under
-	// copy-on-write (every install swaps the pointer); gen still retires
-	// in-flight navigations within the session.
 	openID uint64
 
-	detailsOpen map[string]bool // block idx → override
-	slideIdx    map[string]int  // slideshow block idx → item index
-	docBusy     map[string]bool // video/audio doc key → download in flight
+	detailsOpen map[string]bool
+	slideIdx    map[string]int
+	docBusy     map[string]bool
 }
 
-// pushHistory replaces the shown page, pushing the current one onto the
-// back stack (capped at ivHistMax).
 func (s *ivState) pushHistory(next *ivPage) {
 	if s.page != nil {
-		// R46/R38: build a FRESH slice — never append into a backing array a
-		// previous head still holds.
 		h := make([]*ivPage, 0, len(s.hist)+1)
 		h = append(h, s.hist...)
 		h = append(h, s.page)
@@ -503,8 +459,6 @@ func (s *ivState) pushHistory(next *ivPage) {
 	}
 }
 
-// back pops the history; false when already at the root (the overlay
-// closes then).
 func (s *ivState) back() bool {
 	if len(s.hist) == 0 {
 		return false
@@ -517,7 +471,6 @@ func (s *ivState) back() bool {
 	return true
 }
 
-// detailsOpenAt resolves a details block's open state (override wins).
 func (s *ivState) detailsOpenAt(idx int, def bool) bool {
 	if s.detailsOpen == nil {
 		return def
@@ -528,7 +481,6 @@ func (s *ivState) detailsOpenAt(idx int, def bool) bool {
 	return def
 }
 
-// setDetailsOpen records an override.
 func (s *ivState) setDetailsOpen(idx int, v bool) {
 	if s.detailsOpen == nil {
 		s.detailsOpen = map[string]bool{}
@@ -536,7 +488,6 @@ func (s *ivState) setDetailsOpen(idx int, v bool) {
 	s.detailsOpen[strconv.Itoa(idx)] = v
 }
 
-// slideAt returns the slideshow item index for a block idx.
 func (s *ivState) slideAt(path string) int {
 	if s.slideIdx == nil {
 		return 0
@@ -544,7 +495,6 @@ func (s *ivState) slideAt(path string) int {
 	return s.slideIdx[path]
 }
 
-// setSlideAt records the slideshow item index.
 func (s *ivState) setSlideAt(path string, i int) {
 	if s.slideIdx == nil {
 		s.slideIdx = map[string]int{}
@@ -552,10 +502,6 @@ func (s *ivState) setSlideAt(path string, i int) {
 	s.slideIdx[path] = i
 }
 
-// openInstantView opens the reader on url (async fetch). On fetch error
-// it toasts and falls back to the browser — never a dead overlay (§1.10).
-// The goroutine captures the state pointer: any replacement (reopen,
-// close) retires it, and only the current state is written.
 func (a *App) openInstantView(accountID, pageURL string) {
 	if accountID == "" || pageURL == "" {
 		return
@@ -574,7 +520,7 @@ func (a *App) openInstantView(accountID, pageURL string) {
 		}
 		head := a.updateIV(func(cur *ivState) bool {
 			if cur.openID != openID {
-				return false // a different reader session is open now
+				return false
 			}
 			if err != nil {
 				cur.loading = false
@@ -593,7 +539,7 @@ func (a *App) openInstantView(accountID, pageURL string) {
 		})
 		a.invalidate()
 		if head == nil {
-			return // user moved on — no toast, no fallback
+			return
 		}
 		if err != nil {
 			a.setToast("Instant View unavailable: " + err.Error())
@@ -607,15 +553,6 @@ func (a *App) openInstantView(accountID, pageURL string) {
 	}()
 }
 
-// updateIV (R46): copy-on-write installer — the R34 discipline. fn
-// mutates a COPY of the reader state (returning false leaves the head
-// alone); the copy is installed under a.mu, never an in-place mutation,
-// so a frame that captured the old pointer keeps a frozen view while the
-// open and related-fetch tails swap the head. Returns the installed head
-// (nil when aborted). Guards inside fns are openID/gen-based — pointer
-// identity breaks under copy-on-write. The detailsOpen/slideIdx/docBusy
-// maps stay shared across heads by design (GUI-loop-only writers for the
-// first two, ivDocMu for the third).
 func (a *App) updateIV(fn func(st *ivState) bool) *ivState {
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -630,10 +567,6 @@ func (a *App) updateIV(fn func(st *ivState) bool) *ivState {
 	return &next
 }
 
-// ivOpenRelated navigates inside the reader (related-article row):
-// fetches the next page, pushing history. The fetch captures the state
-// pointer AND its generation, so backing out or navigating again while it
-// is in flight retires it (R26).
 func (a *App) ivOpenRelated(accountID, pageURL string) {
 	if accountID == "" || pageURL == "" {
 		return
@@ -641,7 +574,7 @@ func (a *App) ivOpenRelated(accountID, pageURL string) {
 	openID, gen := uint64(0), uint64(0)
 	a.mu.Lock()
 	if cur := a.iv; cur != nil && cur.accountID == accountID {
-		next := *cur // R46: copy-on-write — never mutate the head in place
+		next := *cur
 		next.loading = true
 		next.err = ""
 		next.gen++
@@ -673,12 +606,6 @@ func (a *App) ivOpenRelated(accountID, pageURL string) {
 	}()
 }
 
-// ivLandRelated applies a completed related-article fetch. Not landed
-// when the fetch is stale — the reader was closed or reopened
-// (openID mismatch), or the user backed out / navigated again while it
-// was in flight (generation mismatch): a straggler page must never enter
-// the history (R26). R46: copy-on-write through updateIV — the
-// frame-held state is never mutated in place.
 func (a *App) ivLandRelated(openID, gen uint64, data []byte, err error) (landed, browserFallback bool) {
 	fallback := false
 	head := a.updateIV(func(cur *ivState) bool {
@@ -703,13 +630,11 @@ func (a *App) ivLandRelated(openID, gen uint64, data []byte, err error) (landed,
 	return head != nil, fallback
 }
 
-// ivBack: history pop, or close at the root. Bumps the generation so a
-// related fetch still in flight cannot land on the popped state (R26).
 func (a *App) ivBack() {
 	a.mu.Lock()
 	st := a.iv
 	if st != nil {
-		next := *st // R46: copy-on-write — never mutate the head in place
+		next := *st
 		next.gen++
 		if !next.back() {
 			a.iv = nil
@@ -721,13 +646,10 @@ func (a *App) ivBack() {
 	a.invalidate()
 }
 
-// layoutInstantView: full-window reader overlay (above the media viewer,
-// below the call overlay). Full surface like tdesktop's panel.
 func (a *App) layoutInstantView(gtx layout.Context, f frame) layout.Dimensions {
 	st := f.iv
 	gtx.Execute(key.FocusCmd{Tag: nil})
 
-	// Esc: back/close.
 	{
 		stack := clip.Rect{Max: gtx.Constraints.Max}.Push(gtx.Ops)
 		event.Op(gtx.Ops, ivKeyTag)
@@ -769,7 +691,6 @@ func (a *App) layoutInstantView(gtx layout.Context, f frame) layout.Dimensions {
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, header, body)
 }
 
-// ivTopBar: back chevron, site + title, open-in-browser action.
 func (a *App) ivTopBar(gtx layout.Context, f frame, st *ivState) layout.Dimensions {
 	back := &a.wid.ivBackBtn
 	if back.Clicked(gtx) {
@@ -820,7 +741,6 @@ func (a *App) ivTopBar(gtx layout.Context, f frame, st *ivState) layout.Dimensio
 	})
 }
 
-// ivBody: the scrollable block column (centered, capped width).
 func (a *App) ivBody(gtx layout.Context, f frame, st *ivState) layout.Dimensions {
 	maxW := gtx.Dp(unit.Dp(720))
 	inner := gtx.Constraints.Max.X
@@ -839,7 +759,6 @@ func (a *App) ivBody(gtx layout.Context, f frame, st *ivState) layout.Dimensions
 	})
 }
 
-// ivBlockWidget dispatches one block renderer.
 func (a *App) ivBlockWidget(gtx layout.Context, f frame, st *ivState, b *ivBlock, idx int) layout.Dimensions {
 	switch b.Type {
 	case "title":
@@ -903,15 +822,12 @@ func (a *App) ivBlockWidget(gtx layout.Context, f frame, st *ivState, b *ivBlock
 	case "map":
 		return a.ivMapBlock(gtx, st, b)
 	}
-	// cover wraps one inner block; render it directly.
 	if b.Type == "cover" && len(b.Items) > 0 {
 		return a.ivBlockWidget(gtx, f, st, &b.Items[0], idx)
 	}
 	return layout.Dimensions{}
 }
 
-// ivRichBlock renders a rich-text block through the message renderer
-// (wrapping + link taps + mono pills).
 func (a *App) ivRichBlock(gtx layout.Context, f frame, st *ivState, b *ivBlock, idx int, size unit.Sp, bold bool, col color.NRGBA) layout.Dimensions {
 	text, ents := ivSpanEntities(ivRichSpans(b.Text))
 	if text == "" {
@@ -943,7 +859,6 @@ func (a *App) ivRichBlock(gtx layout.Context, f frame, st *ivState, b *ivBlock, 
 	return a.flowRich(gtx, m, size, col, a.ui.p.Background, segs, true)
 }
 
-// ivPreBlock: mono panel (SurfaceHi rounded, Go Mono).
 func (a *App) ivPreBlock(gtx layout.Context, b *ivBlock) layout.Dimensions {
 	spans := ivRichSpans(b.Text)
 	var sb strings.Builder
@@ -962,7 +877,6 @@ func (a *App) ivPreBlock(gtx layout.Context, b *ivBlock) layout.Dimensions {
 	})
 }
 
-// ivAuthorDate: "Author · Sep 13, 2026" dim row.
 func (a *App) ivAuthorDate(gtx layout.Context, st *ivState, b *ivBlock) layout.Dimensions {
 	var spans []ivSpan
 	spans = append(spans, ivRichSpans(b.Author)...)
@@ -995,7 +909,6 @@ func (a *App) ivAuthorDate(gtx layout.Context, st *ivState, b *ivBlock) layout.D
 	return lbl.Layout(gtx)
 }
 
-// ivQuoteBlock: accent left bar + indented text + caption.
 func (a *App) ivQuoteBlock(gtx layout.Context, f frame, st *ivState, b *ivBlock, idx int) layout.Dimensions {
 	children := []layout.FlexChild{}
 	if t, _ := ivSpanEntities(ivRichSpans(b.Text)); t != "" {
@@ -1027,7 +940,6 @@ func (a *App) ivQuoteBlock(gtx layout.Context, f frame, st *ivState, b *ivBlock,
 	})
 }
 
-// ivPullQuoteBlock: centered large quote + attribution.
 func (a *App) ivPullQuoteBlock(gtx layout.Context, f frame, st *ivState, b *ivBlock, idx int) layout.Dimensions {
 	children := []layout.FlexChild{}
 	children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -1047,7 +959,6 @@ func (a *App) ivPullQuoteBlock(gtx layout.Context, f frame, st *ivState, b *ivBl
 	return layout.Flex{Axis: layout.Vertical, Alignment: layout.Middle}.Layout(gtx, children...)
 }
 
-// ivListBlock: bullet rows (text or nested blocks).
 func (a *App) ivListBlock(gtx layout.Context, f frame, st *ivState, b *ivBlock, idx int) layout.Dimensions {
 	var rows []layout.FlexChild
 	for _, li := range b.ListItems {
@@ -1058,7 +969,6 @@ func (a *App) ivListBlock(gtx layout.Context, f frame, st *ivState, b *ivBlock, 
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, rows...)
 }
 
-// ivOrderedListBlock: numbered rows.
 func (a *App) ivOrderedListBlock(gtx layout.Context, f frame, st *ivState, b *ivBlock, idx int) layout.Dimensions {
 	var rows []layout.FlexChild
 	for i, li := range b.ListItems {
@@ -1073,7 +983,6 @@ func (a *App) ivOrderedListBlock(gtx layout.Context, f frame, st *ivState, b *iv
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, rows...)
 }
 
-// ivListRow: marker column + content column.
 func (a *App) ivListRow(gtx layout.Context, f frame, st *ivState, li ivListItem, mark string) layout.Dimensions {
 	return layout.Inset{Bottom: unit.Dp(4)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
@@ -1101,18 +1010,15 @@ func (a *App) ivListRow(gtx layout.Context, f frame, st *ivState, li ivListItem,
 	})
 }
 
-// ivPhotoKey builds the media-image cache key for an IV photo.
 func ivPhotoKey(photoID int64) string {
 	return "ivphoto:" + strconv.FormatInt(photoID, 10)
 }
 
-// ivPhotoBlock: full-width image (thumb first, async full decode).
 func (a *App) ivPhotoBlock(gtx layout.Context, st *ivState, b *ivBlock) layout.Dimensions {
 	maxW := gtx.Constraints.Max.X
 	if maxW <= 0 {
 		return layout.Dimensions{}
 	}
-	// Aspect-true height from the reported dims (cap 420dp).
 	h := maxW
 	if b.W > 0 && b.H > 0 {
 		h = maxW * b.H / b.W
@@ -1125,7 +1031,7 @@ func (a *App) ivPhotoBlock(gtx layout.Context, st *ivState, b *ivBlock) layout.D
 	if img != nil {
 		d = drawImageScaled(gtx, img, maxW, h, gtx.Dp(unit.Dp(8)))
 	} else if b.ThumbB64 != "" || (b.Extra != "" && b.PhotoID != 0) {
-		d = layout.Dimensions{Size: image.Pt(maxW, h)} // decode in flight
+		d = layout.Dimensions{Size: image.Pt(maxW, h)}
 	} else {
 		return layout.Dimensions{}
 	}
@@ -1146,8 +1052,6 @@ func (a *App) ivPhotoBlock(gtx layout.Context, st *ivState, b *ivBlock) layout.D
 	return d
 }
 
-// ivPhotoImage resolves the photo bitmap: full file when downloaded, the
-// stripped thumb meanwhile; kicks the async chains.
 func (a *App) ivPhotoImage(st *ivState, b *ivBlock) *image.RGBA {
 	if b.PhotoID == 0 {
 		return nil
@@ -1162,11 +1066,6 @@ func (a *App) ivPhotoImage(st *ivState, b *ivBlock) *image.RGBA {
 		}
 		a.decodeThumbAsync("thumb:"+b.ThumbB64, b.ThumbB64)
 	}
-	// Async full download + decode, one chain in flight per photo. The
-	// claim spans the whole chain and is released on every exit — success
-	// or failure — so a transient error never latches the photo (R25: a
-	// failure does not invalidate; the retry rides the next natural frame,
-	// which keeps an instantly-failing fetch from spinning).
 	if !ivPhotoClaim(key) {
 		return nil
 	}
@@ -1196,9 +1095,6 @@ func (a *App) ivPhotoImage(st *ivState, b *ivBlock) *image.RGBA {
 	return nil
 }
 
-// ivVideoBlock: video card — tap downloads via the engine's IV document
-// downloader and hands off to the system player (slice-86 pattern; no
-// in-app decode, §1.10).
 func (a *App) ivVideoBlock(gtx layout.Context, st *ivState, b *ivBlock) layout.Dimensions {
 	if b.VideoID == 0 {
 		return layout.Dimensions{}
@@ -1247,7 +1143,6 @@ func (a *App) ivVideoBlock(gtx layout.Context, st *ivState, b *ivBlock) layout.D
 	})
 }
 
-// ivAudioBlock: audio card — same handoff pattern.
 func (a *App) ivAudioBlock(gtx layout.Context, st *ivState, b *ivBlock) layout.Dimensions {
 	if b.AudioID == 0 {
 		return layout.Dimensions{}
@@ -1294,7 +1189,6 @@ func (a *App) ivAudioBlock(gtx layout.Context, st *ivState, b *ivBlock) layout.D
 	})
 }
 
-// ivDocIcon: the media glyph, dimmed while its download runs.
 func (a *App) ivDocIcon(gtx layout.Context, st *ivState, key string, icon *widget.Icon) layout.Dimensions {
 	ivDocMu.Lock()
 	busy := st.docBusy[key]
@@ -1310,7 +1204,6 @@ func (a *App) ivDocIcon(gtx layout.Context, st *ivState, key string, icon *widge
 	})
 }
 
-// ivDownloadDoc: async download + system-player handoff, once at a time.
 func (a *App) ivDownloadDoc(st *ivState, key string, docID int64, extra, mime string) {
 	ivDocMu.Lock()
 	if st.docBusy == nil {
@@ -1348,7 +1241,6 @@ func (a *App) ivDownloadDoc(st *ivState, key string, docID int64, extra, mime st
 	}()
 }
 
-// ivEmbedBlock: embed card → browser (no webview, §1.10 honest scope).
 func (a *App) ivEmbedBlock(gtx layout.Context, st *ivState, b *ivBlock) layout.Dimensions {
 	if b.URL == "" && b.HTML == "" {
 		return layout.Dimensions{}
@@ -1400,8 +1292,6 @@ func (a *App) ivEmbedBlock(gtx layout.Context, st *ivState, b *ivBlock) layout.D
 	})
 }
 
-// ivMapBlock: the IV map card — location glyph + zoom label, opens the
-// original page in the browser (no tile fetch for IV maps).
 func (a *App) ivMapBlock(gtx layout.Context, st *ivState, b *ivBlock) layout.Dimensions {
 	btn := a.ivDocClickable("ivmap:" + st.url)
 	if btn.Clicked(gtx) {
@@ -1432,7 +1322,6 @@ func (a *App) ivMapBlock(gtx layout.Context, st *ivState, b *ivBlock) layout.Dim
 	})
 }
 
-// ivEmbedPostBlock: author + date header + nested blocks + caption.
 func (a *App) ivEmbedPostBlock(gtx layout.Context, f frame, st *ivState, b *ivBlock) layout.Dimensions {
 	var rows []layout.FlexChild
 	if b.AuthorName != "" || b.Date > 0 {
@@ -1474,7 +1363,6 @@ func (a *App) ivEmbedPostBlock(gtx layout.Context, f frame, st *ivState, b *ivBl
 	})
 }
 
-// ivCollageBlock: 2-column photo grid.
 func (a *App) ivCollageBlock(gtx layout.Context, f frame, st *ivState, b *ivBlock) layout.Dimensions {
 	var items []*ivBlock
 	for i := range b.Items {
@@ -1504,7 +1392,6 @@ func (a *App) ivCollageBlock(gtx layout.Context, f frame, st *ivState, b *ivBloc
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, rows...)
 }
 
-// ivSlideshowBlock: one item at a time + prev/next chevrons + counter.
 func (a *App) ivSlideshowBlock(gtx layout.Context, f frame, st *ivState, b *ivBlock, idx int) layout.Dimensions {
 	if len(b.Items) == 0 {
 		return layout.Dimensions{}
@@ -1546,7 +1433,6 @@ func (a *App) ivSlideshowBlock(gtx layout.Context, f frame, st *ivState, b *ivBl
 	)
 }
 
-// ivDetailsBlock: collapsible section (chevron + title; blocks when open).
 func (a *App) ivDetailsBlock(gtx layout.Context, f frame, st *ivState, b *ivBlock, idx int) layout.Dimensions {
 	title, _ := ivSpanEntities(ivRichSpans(b.Text))
 	btn := a.ivDocClickable("ivdet:" + strconv.Itoa(idx))
@@ -1585,7 +1471,6 @@ func (a *App) ivDetailsBlock(gtx layout.Context, f frame, st *ivState, b *ivBloc
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, rows...)
 }
 
-// ivRelatedBlock: related-article rows — tap navigates inside the reader.
 func (a *App) ivRelatedBlock(gtx layout.Context, f frame, st *ivState, b *ivBlock, idx int) layout.Dimensions {
 	if len(b.Articles) == 0 {
 		return layout.Dimensions{}
@@ -1649,12 +1534,10 @@ func (a *App) ivRelatedBlock(gtx layout.Context, f frame, st *ivState, b *ivBloc
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, rows...)
 }
 
-// ivTableBlock: row grid — header bold, striped zebra, hairline borders.
 func (a *App) ivTableBlock(gtx layout.Context, b *ivBlock) layout.Dimensions {
 	if len(b.Rows) == 0 {
 		return layout.Dimensions{}
 	}
-	// Column count = max cells-per-row (colspan aware).
 	ncols := 1
 	for _, r := range b.Rows {
 		w := 0
@@ -1726,8 +1609,6 @@ func (a *App) ivTableBlock(gtx layout.Context, b *ivBlock) layout.Dimensions {
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, rows...)
 }
 
-// ivChannelBlock: channel reference card → the t.me deep link (the
-// in-app resolver opens the chat).
 func (a *App) ivChannelBlock(gtx layout.Context, b *ivBlock) layout.Dimensions {
 	if b.ChannelTitle == "" && b.Username == "" {
 		return layout.Dimensions{}
@@ -1777,7 +1658,6 @@ func (a *App) ivChannelBlock(gtx layout.Context, b *ivBlock) layout.Dimensions {
 	})
 }
 
-// ivDocClickable pools the reader's clickables per key.
 func (a *App) ivDocClickable(key string) *widget.Clickable {
 	if c, ok := a.wid.ivClickables[key]; ok {
 		return c
@@ -1790,7 +1670,6 @@ func (a *App) ivDocClickable(key string) *widget.Clickable {
 	return c
 }
 
-// ivHostOf: the URL's host (fallback: the URL itself).
 func ivHostOf(raw string) string {
 	if u, err := url.Parse(raw); err == nil && u.Hostname() != "" {
 		return u.Hostname()
@@ -1798,7 +1677,6 @@ func ivHostOf(raw string) string {
 	return raw
 }
 
-// blendSurface mixes a surface color toward the background by alpha.
 func blendSurface(c color.NRGBA, alpha float32) color.NRGBA {
 	return color.NRGBA{
 		R: uint8(float32(c.R) * alpha),
@@ -1808,22 +1686,12 @@ func blendSurface(c color.NRGBA, alpha float32) color.NRGBA {
 	}
 }
 
-// ivDocMu guards the reader's package-level photo map and the per-state
-// docBusy flags (download goroutines are not frames — frameMu does not
-// cover them).
-// ivOpenSeq assigns each reader session its openID (R46).
 var ivOpenSeq atomic.Uint64
 
 var ivDocMu sync.Mutex
 
-// ivPhotoBusy is the in-flight claim set for IV photo downloads (keyed by
-// ivPhotoKey): one download chain per photo at a time. Claims are released
-// when the chain ends, success or failure — the decoded image itself is
-// memoized in mediaImgs, whose early get short-circuits before the claim
-// is ever consulted.
 var ivPhotoBusy = map[string]bool{}
 
-// ivPhotoClaim marks a photo download in flight; false when one already is.
 func ivPhotoClaim(key string) bool {
 	ivDocMu.Lock()
 	defer ivDocMu.Unlock()
@@ -1834,12 +1702,10 @@ func ivPhotoClaim(key string) bool {
 	return true
 }
 
-// ivPhotoRelease frees a photo's in-flight claim (retryable afterwards).
 func ivPhotoRelease(key string) {
 	ivDocMu.Lock()
 	delete(ivPhotoBusy, key)
 	ivDocMu.Unlock()
 }
 
-// ivKeyTag is the reader's keyboard-event tag.
 var ivKeyTag = new(bool)

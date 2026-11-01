@@ -15,20 +15,11 @@ import (
 	"time"
 )
 
-// End-to-end proof of the F-57 refusal path: slice 286 unit-tested the
-// decision function and source-scanned the wiring, but never drove the
-// REAL connect() against a real TLS peer. These three cases pin:
-// mismatched pin → refuse BEFORE a single mumble byte leaves; matching
-// pin → handshake proceeds; UNICLIENT_MUMBLE_RESET_PIN=1 → re-pins and
-// proceeds. (Coverage strengthening — the refusal logic itself was
-// RED-proven in slice 286.)
-
 type tofuReadResult struct {
 	n   int
 	err error
 }
 
-// newTestTLSCert makes a throwaway self-signed cert for the probe.
 func newTestTLSCert(t *testing.T) tls.Certificate {
 	t.Helper()
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -61,8 +52,6 @@ func newTestTLSCert(t *testing.T) tls.Certificate {
 	return pair
 }
 
-// startTofuProbe listens with the given cert, completes the handshake,
-// and reports the FIRST client read (n bytes / error) on the channel.
 func startTofuProbe(t *testing.T, cert tls.Certificate) (addr string, firstRead chan tofuReadResult) {
 	t.Helper()
 	ln, err := tls.Listen("tcp", "127.0.0.1:0", &tls.Config{Certificates: []tls.Certificate{cert}})
@@ -87,8 +76,6 @@ func startTofuProbe(t *testing.T, cert tls.Certificate) (addr string, firstRead 
 		_ = tc.SetReadDeadline(time.Now().Add(5 * time.Second))
 		n, err := tc.Read(buf)
 		firstRead <- tofuReadResult{n, err}
-		// Keep the socket open briefly so the client's error surfaces
-		// as a clean context-cancel in the proceed cases.
 		time.Sleep(300 * time.Millisecond)
 	}()
 	return ln.Addr().String(), firstRead
@@ -103,9 +90,6 @@ func fpOf(t *testing.T, cert tls.Certificate) string {
 	return mumblePeerCertHash(leaf)
 }
 
-// TestConnectRefusesPinnedMismatchBeforeSending: the TOFU refusal must
-// happen BEFORE any mumble protocol byte — the probe reads EOF with
-// zero payload bytes.
 func TestConnectRefusesPinnedMismatchBeforeSending(t *testing.T) {
 	cert := newTestTLSCert(t)
 	addr, firstRead := startTofuProbe(t, cert)
@@ -128,8 +112,6 @@ func TestConnectRefusesPinnedMismatchBeforeSending(t *testing.T) {
 	}
 }
 
-// TestConnectProceedsOnMatchingPin: same server, correct pin → the
-// Version message must reach the wire.
 func TestConnectProceedsOnMatchingPin(t *testing.T) {
 	cert := newTestTLSCert(t)
 	addr, firstRead := startTofuProbe(t, cert)
@@ -146,7 +128,6 @@ func TestConnectProceedsOnMatchingPin(t *testing.T) {
 	case <-time.After(6 * time.Second):
 		t.Fatal("probe never saw the client's Version bytes")
 	}
-	// Stop the handshake wait promptly.
 	if core.cancel != nil {
 		core.cancel()
 	}
@@ -157,8 +138,6 @@ func TestConnectProceedsOnMatchingPin(t *testing.T) {
 	}
 }
 
-// TestConnectResetEnvRepins: a WRONG pin with the reset env set must
-// proceed (and the refusal message documents exactly this).
 func TestConnectResetEnvRepins(t *testing.T) {
 	t.Setenv("UNICLIENT_MUMBLE_RESET_PIN", "1")
 	cert := newTestTLSCert(t)
@@ -184,7 +163,6 @@ func TestConnectResetEnvRepins(t *testing.T) {
 	case <-time.After(6 * time.Second):
 		t.Fatal("connect did not return after cancel")
 	}
-	// The re-pin must have overwritten the wrong fingerprint.
 	if got := core.serverPins[addr]; got == "pre-seeded-wrong-fp" || got == "" {
 		t.Fatalf("pin not re-pinned after reset: %q", got)
 	}

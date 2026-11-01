@@ -2,11 +2,6 @@
 
 package gui
 
-// Desktop opener (linux/darwin/windows): spawn the platform command and
-// reap it — Run waits for the child, so no zombie openers accumulate.
-// xdg-open / open / rundll32 all return after delegating to the real
-// handler, so the wait is short.
-
 import (
 	"os/exec"
 	"runtime"

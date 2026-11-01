@@ -15,20 +15,6 @@ import (
 	"uniclient/engine"
 )
 
-// Chat-view chrome (AyuGram parity, matrix §3 "chat view chrome" / top-gap
-// #16): the pinned-message bar under the header (tap jumps to the message,
-// chevron cycles multiples), the "Unread messages" separator at the position
-// the chat was opened at, and the empty-chat intro bubble. All data comes
-// from the engine (GetPinnedMessages, ChatInfo.UnreadCount); nothing is
-// faked (§1.10).
-
-// chrome button pool.
-
-// ── pure helpers (unit-tested) ────────────────────────────────────────────
-
-// unreadSepIndex returns the message index the "Unread messages" separator
-// is inserted BEFORE (chronological order: the last `unread` are unread).
-// Returns -1 when there is nothing to mark.
 func unreadSepIndex(n, unread int) int {
 	if unread <= 0 || n <= 0 {
 		return -1
@@ -40,25 +26,17 @@ func unreadSepIndex(n, unread int) int {
 	return i
 }
 
-// chatRow is one messageList row: a day divider, the unread separator, a
-// message, an album group (msgIdx = first member, album = member
-// indices), or a sponsored row (spHead caption / spIdx 1-based ad index,
-// slice 163 — appended after all message rows).
 type chatRow struct {
 	day          string
-	msgIdx       int // -1 for dividers/separator
+	msgIdx       int
 	unread       bool
-	album        []int // nil unless an album row (indices into messages)
-	spHead       bool  // the "Sponsored" caption row
-	spIdx        int   // 0 = not sponsored; N = sponsored item N-1
-	simBlock     bool  // the similar-channels block, expanded (slice 167)
-	simCollapsed bool  // the similar-channels compact bar (slice 169)
+	album        []int
+	spHead       bool
+	spIdx        int
+	simBlock     bool
+	simCollapsed bool
 }
 
-// buildChatRows builds the messageList row model: day dividers + messages,
-// consecutive same-GroupedID media collapsed into album rows, and the
-// unread separator anchored to its boundary message ID (so the separator
-// travels with the message across window reloads/jumps, AyuGram behavior).
 func buildChatRows(messages []engine.CachedMessage, sepMsgID string) []chatRow {
 	rows := make([]chatRow, 0, len(messages)+5)
 	var lastDay string
@@ -89,9 +67,6 @@ func buildChatRows(messages []engine.CachedMessage, sepMsgID string) []chatRow {
 	return rows
 }
 
-// rowIndexOf returns the ROW index of msgID in the model built by
-// buildChatRows (same parameters), or -1 when absent. Album members resolve
-// to their album row. Jumps land exactly.
 func rowIndexOf(messages []engine.CachedMessage, msgID, sepMsgID string) int {
 	for i, r := range buildChatRows(messages, sepMsgID) {
 		if r.album != nil {
@@ -109,9 +84,6 @@ func rowIndexOf(messages []engine.CachedMessage, msgID, sepMsgID string) int {
 	return -1
 }
 
-// pinnedPreview is the pinned-bar preview line: the message text, or the
-// media label for media-only messages (AyuGram shows "Photo"/"Voice
-// message" there).
 func pinnedPreview(m *engine.CachedMessage) string {
 	if s := quotePreview(m.ContentText, 48); s != "" {
 		return s
@@ -122,7 +94,6 @@ func pinnedPreview(m *engine.CachedMessage) string {
 	return ""
 }
 
-// pinnedTitle labels the bar: singular, or the counter for multiples.
 func pinnedTitle(n int) string {
 	if n <= 1 {
 		return "Pinned message"
@@ -130,9 +101,6 @@ func pinnedTitle(n int) string {
 	return "Pinned messages (" + itoa(n) + ")"
 }
 
-// ── pinned state ──────────────────────────────────────────────────────────
-
-// loadPinned fetches the chat's pinned messages (async, cached engine call).
 func (a *App) loadPinned(k chatKey) {
 	go func() {
 		pinned, err := a.eng.GetPinnedMessages(k.AccountID, k.ChatID)
@@ -151,9 +119,6 @@ func (a *App) loadPinned(k chatKey) {
 	}()
 }
 
-// captureUnread is inlined in openChat's locked section (state.go).
-
-// cyclePinned advances the shown pinned message (wrap-around).
 func (a *App) cyclePinned() {
 	a.mu.Lock()
 	if a.pinned != nil && len(a.pinned) > 1 {
@@ -163,10 +128,6 @@ func (a *App) cyclePinned() {
 	a.invalidate()
 }
 
-// jumpToMessageAt scrolls the message list to a message: in-window messages
-// scroll instantly; anything else loads a window around tsFallback (engine
-// GetMessages beforeMs/afterMs — the jump path the pagination API was built
-// for; used by the pinned bar and search results). Runs on the GUI goroutine.
 func (a *App) jumpToMessageAt(msgID string, tsFallback int64) {
 	if msgID == "" {
 		return
@@ -175,7 +136,7 @@ func (a *App) jumpToMessageAt(msgID string, tsFallback int64) {
 	k := a.selected
 	msgs := a.messages
 	sepMsgID := a.unreadSepMsgID
-	gen := a.uiGen // R31: drop the jump window if the view moves on mid-fetch
+	gen := a.uiGen
 	a.mu.Unlock()
 	if k == nil {
 		return
@@ -189,8 +150,6 @@ func (a *App) jumpToMessageAt(msgID string, tsFallback int64) {
 		return
 	}
 
-	// Not in the window: prefer the pinned metadata, else the caller's
-	// timestamp (search results carry it), and load a window around it.
 	a.mu.Lock()
 	pinned := a.pinned
 	a.mu.Unlock()
@@ -211,9 +170,6 @@ func (a *App) jumpToMessageAt(msgID string, tsFallback int64) {
 			log.Printf("gui: jump window: %v / %v", errO, errN)
 			return
 		}
-		// older/newer are newest-first; assemble a chronological window:
-		// reverse(older) + [target] + newer — target excluded from both
-		// (beforeMs/afterMs are strict).
 		win := make([]engine.CachedMessage, 0, len(older)+1+len(newer))
 		for i, j := 0, len(older)-1; i < j; i, j = i+1, j-1 {
 			older[i], older[j] = older[j], older[i]
@@ -236,11 +192,6 @@ func (a *App) jumpToMessageAt(msgID string, tsFallback int64) {
 	}()
 }
 
-// ── layouts ────────────────────────────────────────────────────────────────
-
-// pinnedBar: the bar under the chat header (AyuGram pinned-message bar):
-// pin glyph, title + preview line, cycle chevron for multiple pins; tapping
-// the bar jumps to the shown message.
 func (a *App) pinnedBar(gtx layout.Context, f frame) layout.Dimensions {
 	if len(f.pinned) == 0 {
 		return layout.Dimensions{}
@@ -311,8 +262,6 @@ func (a *App) pinnedBar(gtx layout.Context, f frame) layout.Dimensions {
 	})
 }
 
-// unreadDivider: the "Unread messages" separator — a hairline with a
-// centered pill label (AyuGram style).
 func (a *App) unreadDivider(gtx layout.Context) layout.Dimensions {
 	const inset = unit.Dp(14)
 	return layout.Inset{Top: inset, Bottom: inset, Left: unit.Dp(16), Right: unit.Dp(16)}.Layout(gtx,
@@ -345,7 +294,6 @@ func (a *App) unreadDivider(gtx layout.Context) layout.Dimensions {
 		})
 }
 
-// emptyIntro: the "No messages here yet…" bubble (AyuGram empty chat view).
 func (a *App) emptyIntro(gtx layout.Context, _ frame) layout.Dimensions {
 	return centerLayout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return roundedFill(gtx, a.ui.p.Surface, 14, func(gtx layout.Context) layout.Dimensions {

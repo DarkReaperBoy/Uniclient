@@ -1,9 +1,5 @@
 package gui
 
-// Save-to-Downloads GUI half (slice 99, matrix row 158): the context-menu
-// gate, the viewer save plan, and the saveOnDone one-shot marks that turn
-// a download completion into a Downloads copy.
-
 import (
 	"testing"
 
@@ -54,7 +50,6 @@ func TestMenuActionsSaveToDownloads(t *testing.T) {
 	if !found {
 		t.Error("\"Save to Downloads\" missing for a media message")
 	}
-	// Text message → no item.
 	m2 := engine.CachedMessage{AccountID: "a", ChatID: "c", MsgID: "m2"}
 	f2 := frame{menu: &menuTarget{msg: m2}}
 	for _, it := range a.menuActionsFor(f2, m2) {
@@ -73,7 +68,6 @@ func TestSaveOnDoneMarks(t *testing.T) {
 	if a.consumeSaveOnDoneLocked("acct", "chat", "42", 0) {
 		t.Error("second consume = true, want false (one-shot)")
 	}
-	// Independent of the open mark.
 	a.setOpenOnDone("acct", "chat", "42", 0)
 	a.setSaveOnDone("acct", "chat", "42", 0)
 	if !a.consumeOpenOnDoneLocked("acct", "chat", "42", 0) {

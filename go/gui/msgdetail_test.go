@@ -1,12 +1,5 @@
 package gui
 
-// Message details (AyuGram parity slice 105): the message context menu
-// gains Ayu's "Message details" — a dialog of key/value rows derived from
-// what the engine actually caches (dates, sender, delivery, media
-// metadata, forward origin, flags). Rows the engine does not have (DC,
-// views for non-channel messages) are simply absent — honest, never
-// fabricated (§1.10). Pure derivation locked here.
-
 import (
 	"testing"
 	"time"
@@ -58,7 +51,6 @@ func TestMsgDetailRowsSenderFallback(t *testing.T) {
 	if v["Sender"] != "user 42" {
 		t.Fatalf("id-only sender = %q", v["Sender"])
 	}
-	// Service messages have no sender row at all.
 	m.IsService = true
 	v = detailValues(msgDetailRows(m, now, ""))
 	if _, ok := v["Sender"]; ok {
@@ -108,7 +100,6 @@ func TestMsgDetailRowsMedia(t *testing.T) {
 	if _, ok := v["Duration"]; ok {
 		t.Fatal("zero duration must be omitted")
 	}
-	// Voice message: duration row appears.
 	m.MediaDuration = 95
 	m.MediaMimeType = "audio/ogg"
 	v = detailValues(msgDetailRows(m, now, ""))
@@ -152,7 +143,6 @@ func TestMsgDetailRowsDeleted(t *testing.T) {
 }
 
 func TestMsgDetailMenuGate(t *testing.T) {
-	// Service messages have no details; everything real does.
 	if msgDetailMenuGate(engine.CachedMessage{IsService: true}) {
 		t.Fatal("service messages get no details item")
 	}
@@ -191,7 +181,6 @@ func TestMsgDetailRowsDatacenter(t *testing.T) {
 	if v["Datacenter"] != "DC4, Amsterdam, NL" {
 		t.Fatalf("datacenter = %q, want DC4, Amsterdam, NL", v["Datacenter"])
 	}
-	// No DC (0 / non-Telegram platforms) → no row (§1.10).
 	m2 := engine.CachedMessage{MsgID: "2", Timestamp: now.Unix(), HasMedia: true}
 	if v2 := detailValues(msgDetailRows(m2, now, "")); v2["Datacenter"] != "" {
 		t.Fatalf("absent DC must hide the row, got %q", v2["Datacenter"])
@@ -200,8 +189,7 @@ func TestMsgDetailRowsDatacenter(t *testing.T) {
 
 func TestMsgDetailRowsStickerAuthor(t *testing.T) {
 	now := time.Unix(1700000000, 0)
-	// A sticker message: pack 0x0000000A00000021 → author user 10.
-	raw := `{"extra":{"sticker_set_id":"42949673233"}}` // 0xA00000021
+	raw := `{"extra":{"sticker_set_id":"42949673233"}}`
 	m := engine.CachedMessage{MsgID: "9", Timestamp: now.Unix(), ContentRaw: []byte(raw)}
 	if authorID := engine.StickerPackAuthorID(m.StickerSetID()); authorID != 10 {
 		t.Fatalf("pack author = %d, want 10", authorID)
@@ -222,14 +210,12 @@ func TestMsgDetailRowsStickerAuthor(t *testing.T) {
 	if !found {
 		t.Fatal("sticker author row missing")
 	}
-	// Resolved name replaces the fallback.
 	rows = msgDetailRows(m, now, "Jane Packmaker")
 	for _, r := range rows {
 		if r.label == "Sticker author" && r.value != "Jane Packmaker" {
 			t.Errorf("resolved author value = %q, want Jane Packmaker", r.value)
 		}
 	}
-	// Non-sticker messages get no author row.
 	plain := engine.CachedMessage{MsgID: "10", Timestamp: now.Unix()}
 	for _, r := range msgDetailRows(plain, now, "") {
 		if r.label == "Sticker author" {

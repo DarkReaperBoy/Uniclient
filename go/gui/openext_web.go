@@ -2,11 +2,6 @@
 
 package gui
 
-// Web opener: tapped links open a new browser tab via window.open (the
-// js call runs synchronously so the user-activation context is kept for
-// popup blocking). Local paths have no web equivalent — the engine never
-// materializes media files under js anyway.
-
 import (
 	"syscall/js"
 )

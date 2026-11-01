@@ -1,13 +1,5 @@
 package vp9anim
 
-// vp9anim_test.go — tests-first pins for the animation pipeline. The
-// hand-built WebM fixtures live in the webm package tests; here we pin:
-//   - the timeline math (frame lookup, durations, loop wrap);
-//   - YUV→RGBA colorimetry (BT.601 studio vs full range, per the VP9
-//     header signaling, with alpha pairing);
-//   - the decode-through + profile rejection against REAL official VP9
-//     test vectors committed under testdata/ (webmproject.org).
-
 import (
 	"image"
 	"image/color"
@@ -22,11 +14,7 @@ import (
 	"uniclient/webm"
 )
 
-// ── timeline math ─────────────────────────────────────────────────────────
-
 func TestTimelineFromTimecodes(t *testing.T) {
-	// 3 frames at 0/33/66ms; container duration 100ms → last frame spans
-	// 34ms. Default duration 40ms when the container duration is absent.
 	an := &Animation{
 		Width:  64,
 		Height: 64,
@@ -47,14 +35,12 @@ func TestTimelineFromTimecodes(t *testing.T) {
 }
 
 func TestTimelineFallbacks(t *testing.T) {
-	// No container duration: DefaultDuration wins for the last frame.
 	an := &Animation{Width: 64, Height: 64}
 	an.frames = []frameSlot{{start: 0}, {start: 40 * time.Millisecond}}
 	an.buildTimeline(0, 41_708_333)
 	if an.frames[1].dur != 41_708_333 {
 		t.Fatalf("last dur = %v, want DefaultDuration", an.frames[1].dur)
 	}
-	// Neither: 40ms fallback.
 	an2 := &Animation{Width: 64, Height: 64}
 	an2.frames = []frameSlot{{start: 0}}
 	an2.buildTimeline(0, 0)
@@ -83,9 +69,9 @@ func TestFrameIndexAtLoops(t *testing.T) {
 		{65 * time.Millisecond, 1},
 		{66 * time.Millisecond, 2},
 		{99 * time.Millisecond, 2},
-		{100 * time.Millisecond, 0}, // loop wrap
-		{133 * time.Millisecond, 1}, // 33ms into the second loop
-		{250 * time.Millisecond, 1}, // 50ms into the third loop → frame 1
+		{100 * time.Millisecond, 0},
+		{133 * time.Millisecond, 1},
+		{250 * time.Millisecond, 1},
 	}
 	for _, c := range cases {
 		if got := an.frameIndexAt(c.elapsed); got != c.want {
@@ -100,15 +86,12 @@ func TestFrameIndexAtDegenerate(t *testing.T) {
 		t.Fatalf("empty animation frameIndexAt = %d, want 0", got)
 	}
 	an.Total = 10 * time.Millisecond
-	an.frames = []frameSlot{{start: 0, dur: 0}} // zero duration slot
+	an.frames = []frameSlot{{start: 0, dur: 0}}
 	if got := an.frameIndexAt(5 * time.Millisecond); got != 0 {
 		t.Fatalf("zero-dur slot frameIndexAt = %d, want 0", got)
 	}
 }
 
-// ── colorimetry ───────────────────────────────────────────────────────────
-
-// yuvImage builds an I420 planar image with the given luma/chroma fills.
 func yuvImage(w, h int, y, u, v byte) (govpx.Image, *image.RGBA) {
 	src := govpx.Image{
 		Width: w, Height: h,
@@ -126,7 +109,7 @@ func yuvImage(w, h int, y, u, v byte) (govpx.Image, *image.RGBA) {
 	for i := range src.V {
 		src.V[i] = v
 	}
-	alpha := make([]byte, w*h) // 255 = opaque
+	alpha := make([]byte, w*h)
 	for i := range alpha {
 		alpha[i] = 255
 	}
@@ -135,13 +118,11 @@ func yuvImage(w, h int, y, u, v byte) (govpx.Image, *image.RGBA) {
 }
 
 func TestYUVToRGBABT601Studio(t *testing.T) {
-	// BT.601 studio range: black = Y16/U128/V128 → (0,0,0).
 	src, dst := yuvImage(4, 4, 16, 128, 128)
 	yuvToRGBA(&src, nil, dst, false)
 	if got := dst.At(1, 1); got != (color.RGBA{0, 0, 0, 255}) {
 		t.Fatalf("black = %v, want (0,0,0,255)", got)
 	}
-	// White = Y235 → (255,255,255).
 	src2, dst2 := yuvImage(4, 4, 235, 128, 128)
 	yuvToRGBA(&src2, nil, dst2, false)
 	if got := dst2.At(1, 1); got != (color.RGBA{255, 255, 255, 255}) {
@@ -150,7 +131,6 @@ func TestYUVToRGBABT601Studio(t *testing.T) {
 }
 
 func TestYUVToRGBAFullRange(t *testing.T) {
-	// Full range: Y0 = black, Y255 = white.
 	src, dst := yuvImage(4, 4, 0, 128, 128)
 	yuvToRGBA(&src, nil, dst, true)
 	if got := dst.At(1, 1); got != (color.RGBA{0, 0, 0, 255}) {
@@ -164,8 +144,6 @@ func TestYUVToRGBAFullRange(t *testing.T) {
 }
 
 func TestYUVToRGBAChroma(t *testing.T) {
-	// Full-range red: Y81 U90 V240 converts to ≈ (238, 14, 14) under the
-	// JFIF matrix (the canonical red test vector values).
 	src, dst := yuvImage(4, 4, 81, 90, 240)
 	yuvToRGBA(&src, nil, dst, true)
 	r, g, b, a := dst.At(2, 2).RGBA()
@@ -175,7 +153,6 @@ func TestYUVToRGBAChroma(t *testing.T) {
 }
 
 func TestYUVToRGBAAlpha(t *testing.T) {
-	// Alpha plane: 0 = fully transparent, 255 = opaque (WebM alpha spec).
 	src, dst := yuvImage(4, 4, 128, 128, 128)
 	alpha := govpx.Image{
 		Width: 4, Height: 4, YStride: 4, UStride: 2, VStride: 2,
@@ -196,7 +173,6 @@ func TestYUVToRGBAAlpha(t *testing.T) {
 }
 
 func TestYUVToRGBAStrides(t *testing.T) {
-	// Padded strides (larger than visible width) must be honored.
 	w, h := 4, 4
 	src := govpx.Image{
 		Width: w, Height: h,
@@ -227,8 +203,6 @@ func TestYUVToRGBAStrides(t *testing.T) {
 	}
 }
 
-// ── real vectors (official webmproject test data) ─────────────────────────
-
 func TestParseRealVector(t *testing.T) {
 	data, err := os.ReadFile("testdata/vp90-2-03-size-196x196.webm")
 	if err != nil {
@@ -250,8 +224,6 @@ func TestParseRealVector(t *testing.T) {
 }
 
 func TestDecodeThroughRealVector(t *testing.T) {
-	// The acceptance rung (AGENTS.md §9): every frame of a real official
-	// VP9 stream decodes without error through the public player path.
 	data, err := os.ReadFile("testdata/vp90-2-03-size-196x196.webm")
 	if err != nil {
 		t.Skipf("testdata missing: %v", err)
@@ -273,12 +245,7 @@ func TestDecodeThroughRealVector(t *testing.T) {
 }
 
 func TestParseRejectsHighBitDepth(t *testing.T) {
-	// Profile 2 (10-bit) is out of the 8-bit scope: honest error, no
-	// partial animation.
 	data, err := os.ReadFile("testdata/vp92-10bit.webm")
-	// The committed fixture is named vp92-10bit.webm; the old name
-	// (vp92-2-20-10bit-yuv420.webm) matched no file, so this test
-	// SILENTLY SKIPPED in every run (slice-280 skip inventory).
 	if err != nil {
 		t.Skipf("testdata missing: %v", err)
 	}
@@ -288,9 +255,6 @@ func TestParseRejectsHighBitDepth(t *testing.T) {
 }
 
 func TestFirstFramePixelsPinned(t *testing.T) {
-	// Pinned end-to-end: demux → decode → RGBA. The exact bytes of the
-	// first frame of the committed official vector are checked via a
-	// stable checksum so any decoder/container regression trips.
 	data, err := os.ReadFile("testdata/vp90-2-03-size-196x196.webm")
 	if err != nil {
 		t.Skipf("testdata missing: %v", err)
@@ -312,7 +276,6 @@ func TestFirstFramePixelsPinned(t *testing.T) {
 	}
 }
 
-// frameChecksum is a simple stable sum over the RGBA bytes (FNV-1a).
 func frameChecksum(img *image.RGBA) uint64 {
 	var h uint64 = 14695981039346656037
 	for _, b := range img.Pix {
@@ -322,9 +285,6 @@ func frameChecksum(img *image.RGBA) uint64 {
 	return h
 }
 
-// The expected checksum is pinned from the committed vector once; if the
-// testdata file or the decode path changes intentionally, re-pin it by
-// running: UNICLIENT_PIN=1 go test ./vp9anim/ -run TestFirstFramePixelsPinned -v
 var firstFrameChecksum196 = uint64(16149418980420066017)
 
 func TestPrintChecksum(t *testing.T) {
@@ -349,8 +309,6 @@ func TestPrintChecksum(t *testing.T) {
 	}
 }
 
-// ── Parse input validation ────────────────────────────────────────────────
-
 func TestParseRejectsGarbage(t *testing.T) {
 	if _, err := Parse([]byte("not a webm")); err == nil {
 		t.Fatal("Parse accepted garbage")
@@ -361,8 +319,6 @@ func TestParseRejectsGarbage(t *testing.T) {
 }
 
 func TestParseAlphaDocument(t *testing.T) {
-	// A real VP9 stream where every frame also carries an alpha payload:
-	// parseDoc must expose it and the decode pair must decode both planes.
 	data, err := os.ReadFile("testdata/vp90-2-03-size-196x196.webm")
 	if err != nil {
 		t.Skipf("testdata missing: %v", err)
@@ -371,8 +327,6 @@ func TestParseAlphaDocument(t *testing.T) {
 	if err != nil {
 		t.Fatalf("webm.Parse: %v", err)
 	}
-	// Duplicate each frame payload as its own alpha side stream (a legal
-	// alpha layout per the WebM spec: same dims, same VP9 profile).
 	for i := range doc.Frames {
 		doc.Frames[i].Alpha = doc.Frames[i].Payload
 	}
@@ -388,8 +342,6 @@ func TestParseAlphaDocument(t *testing.T) {
 			t.Fatalf("frame %d has no alpha payload", i)
 		}
 	}
-	// Decode pair path: the alpha decode yields the same luma plane → the
-	// RGBA alpha channel carries real values (not all-zero).
 	dec := newDecodePair(an.Width, an.Height, an.fullRange, an.bt709)
 	img, err := dec.decode(an.frames[0].payload, an.frames[0].alpha)
 	if err != nil {
@@ -405,11 +357,6 @@ func TestParseAlphaDocument(t *testing.T) {
 }
 
 func TestSemaphorePermitsAllPlayers(t *testing.T) {
-	// Regression pin (CI 2026-09-16 failure): the decode semaphore must
-	// QUEUE excess producers, never deadlock them. More concurrent
-	// players than permits — every one must still make progress within
-	// the deadline. (The inverted acquire/release this test guards
-	// against deadlocks the moment the permit buffer is full.)
 	data, err := os.ReadFile("testdata/vp90-2-03-size-196x196.webm")
 	if err != nil {
 		t.Skipf("testdata missing: %v", err)
@@ -418,11 +365,6 @@ func TestSemaphorePermitsAllPlayers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parse: %v", err)
 	}
-	// Prime the permit pool to CAPACITY first: the inverted acquire
-	// (a send instead of a receive) deadlocks instantly against a full
-	// pool — without this, spare capacity on small machines masks the
-	// bug exactly the way the 2-core dev VM did. The pool now lives in
-	// vcodec (shared with h264vid), so prime it through its API.
 	vcodec.PrimeToCapacity()
 	const players = 6
 	var wg sync.WaitGroup

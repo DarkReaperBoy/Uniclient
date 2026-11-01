@@ -1,15 +1,5 @@
 //go:build live
 
-// Live VOICE round-trip tests for the Mumble core against a REAL public
-// server: two guests join the same channel, client A streams 1.5 s of
-// Opus-encoded audio (440 Hz sine) via the voice data plane, client B
-// receives the packets, decodes them and the tone must survive — proving
-// the full voice path 1:1: voice packet format (protobuf Audio for 1.5+
-// servers), OCB2 UDP encryption (or the TCP tunnel fallback), sequence
-// numbers, channel routing and Opus payload integrity.
-//
-// Run: cd go && go test -tags goolm,live ./tests/ -run TestMumbleLiveVoice -v -timeout 180s
-// Env: MUMBLE_LIVE_SERVER (default "murmur.libresilicon.com:64738").
 package tests
 
 import (
@@ -23,8 +13,6 @@ import (
 	"uniclient/voice"
 )
 
-// genToneFrames renders `seconds` of a sine at freq/amp as 20 ms s16le
-// mono frames.
 func genToneFrames(freq, amp float64, seconds float64) [][]byte {
 	nFrames := int(seconds * 50)
 	frames := make([][]byte, nFrames)
@@ -42,8 +30,6 @@ func genToneFrames(freq, amp float64, seconds float64) [][]byte {
 	return frames
 }
 
-// goertzelMag returns the normalized Goertzel magnitude of freq in the
-// decoded sample stream.
 func goertzelMag(samples []int16, freq int) float64 {
 	if len(samples) == 0 {
 		return 0
@@ -77,18 +63,12 @@ func rms16(samples []int16) float64 {
 	return math.Sqrt(acc / float64(len(samples)))
 }
 
-// TestMumbleLiveVoiceRoundTrip: the voice data plane over a public
-// server. A streams, B decodes — both transports are covered (whatever
-// the NAT situation selects: encrypted UDP when reachable, TCP tunnel
-// otherwise).
 func TestMumbleLiveVoiceRoundTrip(t *testing.T) {
 	server := osGetenvDefault("MUMBLE_LIVE_SERVER", "murmur.libresilicon.com:64738")
 	usernameA := fmt.Sprintf("uc-voice-%d", rand.Intn(100000))
 	coreA := mumbleLiveGuest(t, server, usernameA)
 	coreB := mumbleLiveGuest(t, server, usernameA+"-b")
 
-	// Pick the channel with the fewest users (politeness on public
-	// servers) that allows joining.
 	dialogs, err := coreA.GetDialogs(cores.PaginationOpts{Limit: 100})
 	if err != nil {
 		t.Fatalf("GetDialogs: %v", err)
@@ -112,7 +92,6 @@ func TestMumbleLiveVoiceRoundTrip(t *testing.T) {
 	}
 	time.Sleep(700 * time.Millisecond)
 
-	// B collects incoming voice packets.
 	type vpkt struct {
 		sender uint32
 		codec  int
@@ -127,7 +106,6 @@ func TestMumbleLiveVoiceRoundTrip(t *testing.T) {
 		recv <- vpkt{sender: p.SenderSession, codec: p.Codec, opus: p.AudioData, seq: p.SequenceNum}
 	})
 
-	// A streams 1.5 s of 440 Hz.
 	enc, err := voice.NewEncoder(24000)
 	if err != nil {
 		t.Fatalf("encoder: %v", err)
@@ -149,7 +127,6 @@ func TestMumbleLiveVoiceRoundTrip(t *testing.T) {
 		_ = coreA.SendVoiceTerminator()
 	}()
 
-	// B drains the receiver for up to 8 s.
 	deadline := time.After(8 * time.Second)
 	var got []vpkt
 collect:
@@ -169,10 +146,8 @@ collect:
 		t.Fatalf("too few voice packets received: %d", len(got))
 	}
 
-	// Packets must be Opus and attributed to A's session.
 	for _, p := range got {
-		if p.codec != 4 { // mumbleUDPOpus (legacy codec id 4; protobuf
-			// voice is always Opus and reuses the constant)
+		if p.codec != 4 {
 			t.Fatalf("unexpected codec %d", p.codec)
 		}
 	}
@@ -184,7 +159,6 @@ collect:
 		t.Fatalf("expected exactly one voice sender, got %d", len(senders))
 	}
 
-	// Decode the stream and verify the tone survived.
 	dec := voice.NewDecoder()
 	var stream []int16
 	for _, p := range got {
@@ -210,15 +184,6 @@ collect:
 	}
 	t.Log("VOICE ROUND-TRIP OK: opus payload decoded with the tone intact")
 
-	// Report which transport carried the audio (encrypted UDP when the
-	// network allows it; the TCP tunnel fallback otherwise) and why:
-	// pathSeen=true + udp=false means the socket path works but the
-	// crypto bootstrap could not complete — on NAT pools that egress
-	// TCP and UDP from different source IPs, murmur's unknown-peer
-	// match cannot associate the two and silently drops our encrypted
-	// pings (verified on this very sandbox: TCP 47.57.242.119 vs UDP
-	// 8.212.10.159/47.57.232.232). The TCP tunnel is then the honest
-	// degraded mode — exactly the upstream client's fallback.
 	us, _, pathA, udpOK := coreA.MumbleUDPStats()
 	_, urB, pathB, udpOKB := coreB.MumbleUDPStats()
 	t.Logf("transport: A udp=%v (path=%v, %d pkts sent), B udp=%v (path=%v, %d UDP pkts received)",

@@ -16,14 +16,6 @@ import (
 	"uniclient/engine"
 )
 
-// Folder invite links (AyuGram parity, matrix "Folder tabs above list":
-// invite links row): the chatlist-share dialog for a server folder —
-// lists the folder's exported invite links (engine
-// GetFolderInviteLinks), tapping a link copies it (clipboard hop, like
-// copy-message-link), and "Create link" exports a fresh one for the
-// folder's current chats (engine CreateFolderInviteLink).
-
-// folderInvitesState is the open invite-links dialog.
 type folderInvitesState struct {
 	accountID string
 	folder    engine.FolderInfo
@@ -38,10 +30,8 @@ var (
 	folderInvitesRowBtns   []widget.Clickable
 )
 
-// folderInvitesKeyTag receives key events across the dialog.
 var folderInvitesKeyTag = new(struct{})
 
-// openFolderInvites opens the dialog and loads the links (async).
 func (a *App) openFolderInvites(folder engine.FolderInfo, accountID string) {
 	st := &folderInvitesState{accountID: accountID, folder: folder}
 	a.mu.Lock()
@@ -53,7 +43,7 @@ func (a *App) openFolderInvites(folder engine.FolderInfo, accountID string) {
 		a.mu.Lock()
 		if a.folderInvites != st {
 			a.mu.Unlock()
-			return // dialog was closed meanwhile
+			return
 		}
 		if err != nil {
 			st.err = err.Error()
@@ -65,7 +55,6 @@ func (a *App) openFolderInvites(folder engine.FolderInfo, accountID string) {
 	}()
 }
 
-// closeFolderInvites dismisses the dialog.
 func (a *App) closeFolderInvites() {
 	a.mu.Lock()
 	a.folderInvites = nil
@@ -73,7 +62,6 @@ func (a *App) closeFolderInvites() {
 	a.invalidate()
 }
 
-// createFolderInvite exports a new link for the folder's current chats.
 func (a *App) createFolderInvite(st *folderInvitesState) {
 	accountID, folder := st.accountID, st.folder
 	go func() {
@@ -83,7 +71,6 @@ func (a *App) createFolderInvite(st *folderInvitesState) {
 			return
 		}
 		a.setToast("Link created")
-		// Reload so the new link shows up in the list.
 		links, err := a.eng.GetFolderInviteLinks(accountID, folderIDInt(folder.ID))
 		a.mu.Lock()
 		if a.folderInvites == st && err == nil {
@@ -94,7 +81,6 @@ func (a *App) createFolderInvite(st *folderInvitesState) {
 	}()
 }
 
-// folderIDInt parses a FolderInfo.ID ("1", "2", …) — 0 when malformed.
 func folderIDInt(id string) int {
 	n := 0
 	for _, c := range strings.TrimSpace(id) {
@@ -109,14 +95,10 @@ func folderIDInt(id string) int {
 	return n
 }
 
-// layoutFolderInvites renders the dialog (content-pane replacement, same
-// placement as the folder dialog): centered card with the link list,
-// create button, and close.
 func (a *App) layoutFolderInvites(gtx layout.Context, f frame) layout.Dimensions {
 	st := f.folderInvites
 	growClickables(&folderInvitesRowBtns, len(st.links))
 
-	// Esc closes the dialog (self-handled, mirrors the folder dialog).
 	{
 		stack := clip.Rect{Max: image.Pt(gtx.Constraints.Max.X, gtx.Constraints.Max.Y)}.Push(gtx.Ops)
 		event.Op(gtx.Ops, folderInvitesKeyTag)
@@ -151,7 +133,6 @@ func (a *App) layoutFolderInvites(gtx layout.Context, f frame) layout.Dimensions
 		return roundedFill(gtx, a.ui.p.Surface, 12, func(gtx layout.Context) layout.Dimensions {
 			return layout.UniformInset(unit.Dp(16)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-					// Title
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						title := "Invite links"
 						if st.folder.Name != "" {
@@ -160,17 +141,14 @@ func (a *App) layoutFolderInvites(gtx layout.Context, f frame) layout.Dimensions
 						lbl := a.ui.H3(title)
 						return lbl.Layout(gtx)
 					}),
-					// Subtitle
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						lbl := a.ui.Dim(unit.Sp(12), "Share this folder's chats with one link")
 						lbl.Color = a.ui.p.TextFaint
 						return layout.Inset{Top: unit.Dp(4), Bottom: unit.Dp(10)}.Layout(gtx, lbl.Layout)
 					}),
-					// Link list
 					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 						return a.folderInvitesList(gtx, st)
 					}),
-					// Create + Close row
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Inset{Top: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
@@ -199,7 +177,6 @@ func (a *App) layoutFolderInvites(gtx layout.Context, f frame) layout.Dimensions
 	})
 }
 
-// folderInvitesList renders the link rows (or loading/empty/error states).
 func (a *App) folderInvitesList(gtx layout.Context, st *folderInvitesState) layout.Dimensions {
 	if st.err != "" && !st.loaded {
 		return a.centeredStateLabel(gtx, "Failed to load links")
@@ -254,7 +231,6 @@ func (a *App) folderInvitesList(gtx layout.Context, st *folderInvitesState) layo
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-// centeredStateLabel is a centered one-line state text for list areas.
 func (a *App) centeredStateLabel(gtx layout.Context, text string) layout.Dimensions {
 	lbl := a.ui.Dim(unit.Sp(13), text)
 	lbl.Color = a.ui.p.TextFaint

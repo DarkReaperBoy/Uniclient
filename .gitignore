@@ -43,3 +43,6 @@ devroot.env
 scripts/web-test/fixtures/
 scripts/web-test/artifacts/
 scripts/web-test/node_modules/
+
+# Python bytecode from scripts/ tooling
+__pycache__/

@@ -20,9 +20,6 @@ func (tpFakeCore) GetGroupCall(string) (*cores.CallSession, error) {
 	}, nil
 }
 
-// TestGroupCallInfoMapsTalkPowerBlocked: BUGS B-26 — the core's
-// GetGroupCall Meta["talk_power"] must reach GroupCallInfo so the
-// polled call bar can tell the user their mic is dead server-side.
 func TestGroupCallInfoMapsTalkPowerBlocked(t *testing.T) {
 	e := &Engine{}
 	e.accounts = map[string]*Account{"a1": {ID: "a1", Core: tpFakeCore{}}}

@@ -15,21 +15,14 @@ import (
 	"uniclient/engine"
 )
 
-// In-chat search (AyuGram parity, matrix #256): the header search toggle
-// opens a search bar under the chat header with live FTS results for THIS
-// chat (engine.SearchMessages scoped by chatID), prev/next hit navigation,
-// and jump-to-message. Escape closes.
-
 var (
 	inSearchKeyTag = new(struct{})
 )
 
-// inChatSearchKey: the staleness guard key for async result writes.
 func inChatSearchKey(q string, k chatKey) string {
 	return q + "@" + k.String()
 }
 
-// searchSenders (pure, testable): distinct senders in message order.
 func searchSenders(msgs []engine.CachedMessage) []engine.MemberInfo {
 	var out []engine.MemberInfo
 	seen := map[string]bool{}
@@ -47,7 +40,6 @@ func searchSenders(msgs []engine.CachedMessage) []engine.MemberInfo {
 	return out
 }
 
-// toggleInChatSearch opens/closes the in-chat search bar.
 func (a *App) toggleInChatSearch() {
 	a.mu.Lock()
 	opening := !a.inSearch
@@ -65,7 +57,6 @@ func (a *App) toggleInChatSearch() {
 	a.invalidate()
 }
 
-// closeInChatSearch dismisses the bar (chat switches call this too).
 func (a *App) closeInChatSearch() {
 	a.mu.Lock()
 	if !a.inSearch {
@@ -82,16 +73,12 @@ func (a *App) closeInChatSearch() {
 	a.invalidate()
 }
 
-// onInChatSearchChanged (GUI goroutine, editor ChangeEvents) launches the
-// async scoped search; stale writes are dropped by key.
 func (a *App) onInChatSearchChanged(q string, k chatKey) {
 	q = strings.TrimSpace(q)
 	a.mu.Lock()
 	from := a.inSearchFrom
 	a.mu.Unlock()
 	key := inChatSearchKey(q, k) + "|from:" + from
-	// Hashtag queries (slice 92, matrix row 259) switch to tag search:
-	// "#news" matches the tagged token only. Same 2-rune minimum.
 	tagMode := isHashtagQuery(q)
 	a.mu.Lock()
 	a.inSearchQ = q
@@ -132,14 +119,10 @@ func (a *App) onInChatSearchChanged(q string, k chatKey) {
 	}()
 }
 
-// isHashtagQuery (pure): a tag-mode query — starts with '#' and carries
-// at least one more rune ("#n…" as-you-type).
 func isHashtagQuery(q string) bool {
 	return strings.HasPrefix(q, "#") && len([]rune(q)) >= 2
 }
 
-// openInChatSearchWithQuery opens the in-chat search seeded with a query
-// (hashtag taps, slice 92). GUI-loop only (SetText).
 func (a *App) openInChatSearchWithQuery(q string, k chatKey) {
 	a.mu.Lock()
 	wasOpen := a.inSearch
@@ -160,7 +143,6 @@ func (a *App) openInChatSearchWithQuery(q string, k chatKey) {
 	a.invalidate()
 }
 
-// inChatSearchStep moves to the prev (newer) / next (older) hit and jumps.
 func (a *App) inChatSearchStep(delta int) {
 	a.mu.Lock()
 	hits := a.inChatHits
@@ -182,10 +164,7 @@ func (a *App) inChatSearchStep(delta int) {
 	a.jumpToMessageAt(r.MsgID, r.Timestamp)
 }
 
-// layoutInChatSearch renders the search bar + result rows below the chat
-// header. Returns the block height for listTop accounting.
 func (a *App) layoutInChatSearch(gtx layout.Context, f frame, k chatKey) layout.Dimensions {
-	// Escape closes (registered within the pane; the a.wid.composer keeps focus).
 	{
 		stack := clip.Rect{Max: gtx.Constraints.Max}.Push(gtx.Ops)
 		event.Op(gtx.Ops, inSearchKeyTag)
@@ -201,7 +180,6 @@ func (a *App) layoutInChatSearch(gtx layout.Context, f frame, k chatKey) layout.
 		}
 	}
 
-	// Editor change events.
 	for {
 		ev, ok := a.wid.inSearchEd.Update(gtx)
 		if !ok {
@@ -245,14 +223,11 @@ func (a *App) layoutInChatSearch(gtx layout.Context, f frame, k chatKey) layout.
 			return a.inChatSearchBar(gtx, f)
 		}),
 	}
-	// From-user picker (AyuGram "search from [user]", slice 26). Per-window
-	// state on the frame (R14) — never a package read.
 	if f.inSearchFromPanel {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.inChatFromPicker(gtx, f, k)
 		}))
 	}
-	// Results (only while a query is active; caps at 45% of the pane).
 	if q := strings.TrimSpace(f.inSearchQ); len([]rune(q)) >= 2 {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			maxH := gtx.Dp(unit.Dp(300))
@@ -272,8 +247,6 @@ func (a *App) layoutInChatSearch(gtx layout.Context, f frame, k chatKey) layout.
 }
 
 func (a *App) inChatSearchBar(gtx layout.Context, f frame) layout.Dimensions {
-	// Keep the keyboard in the search editor while the bar is open (the
-	// router dedups unchanged focus, so this is cheap).
 	gtx.Execute(key.FocusCmd{Tag: &a.wid.inSearchEd})
 	return insetAll(gtx, unit.Dp(8), 4, 4, 4, func(gtx layout.Context) layout.Dimensions {
 		return roundedFill(gtx, a.ui.p.SurfaceHi, 10, func(gtx layout.Context) layout.Dimensions {
@@ -288,7 +261,6 @@ func (a *App) inChatSearchBar(gtx layout.Context, f frame) layout.Dimensions {
 						ed := a.ui.Editor(&a.wid.inSearchEd, "Search in this chat")
 						return ed.Layout(gtx)
 					}),
-					// Position counter.
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layout.Inset{Left: unit.Dp(8), Right: unit.Dp(6)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 							var txt string
@@ -384,7 +356,6 @@ func (a *App) inChatSearchRow(gtx layout.Context, r engine.SearchResult, btn *wi
 		})
 }
 
-// searchSnippet clamps a hit's text for the row (pure, testable).
 func searchSnippet(text string) string {
 	const max = 96
 	r := []rune(text)
@@ -397,11 +368,9 @@ func searchSnippet(text string) string {
 	return text
 }
 
-// inChatFromPicker: sender list derived from the loaded window.
 func (a *App) inChatFromPicker(gtx layout.Context, f frame, k chatKey) layout.Dimensions {
 	senders := searchSenders(f.messages)
 	growClickables(&a.wid.inSearchFromRows, len(senders)+1)
-	// "Everyone" clears the filter.
 	if a.wid.inSearchFromRows[0].Clicked(gtx) {
 		a.setInSearchFrom(k, "", "")
 	}
@@ -433,7 +402,6 @@ func (a *App) inChatFromPicker(gtx layout.Context, f frame, k chatKey) layout.Di
 }
 
 func (a *App) inChatFromRow(gtx layout.Context, i int, senders []engine.MemberInfo, f frame) layout.Dimensions {
-	// Row 0: Everyone.
 	if i == 0 {
 		active := f.inSearchFrom == ""
 		return a.inChatFromCell(gtx, &a.wid.inSearchFromRows[0], "Everyone", active)
@@ -465,12 +433,11 @@ func (a *App) inChatFromCell(gtx layout.Context, btn *widget.Clickable, label st
 		})
 }
 
-// setInSearchFrom applies the from-user filter and re-runs the search.
 func (a *App) setInSearchFrom(k chatKey, id, name string) {
 	a.mu.Lock()
 	a.inSearchFrom = id
 	a.inSearchFromName = name
-	a.inSearchFromPanel = false // R14: per-window picker closes on pick
+	a.inSearchFromPanel = false
 	a.mu.Unlock()
 	a.invalidate()
 	q := a.wid.inSearchEd.Text()

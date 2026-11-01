@@ -9,12 +9,6 @@ import (
 
 var errFavBoom = errors.New("fav boom")
 
-// Slice 172 — favorite-reaction session cache: the corner reaction pill
-// reads the favorite in the layout path, so the engine must serve it from
-// a per-session cache (one core RPC per account) instead of re-fetching
-// help.getConfig on every read; a server-side empty result caches too (the
-// GUI 👍 fallback then sticks without RPC churn), errors do not cache.
-
 type favReactStub struct {
 	cores.StubCore
 	fav     string
@@ -84,7 +78,6 @@ func TestGetDefaultReactionErrorDoesNotCache(t *testing.T) {
 	if _, err := e.GetDefaultReaction("a1"); err == nil {
 		t.Fatal("core error should propagate")
 	}
-	// Recovery: a later call must retry (errors are transient).
 	st.err, st.fav = nil, "🎉"
 	if got, err := e.GetDefaultReaction("a1"); err != nil || got != "🎉" {
 		t.Fatalf("recovered get = (%q,%v), want (🎉,nil)", got, err)
@@ -104,7 +97,6 @@ func TestSetDefaultReactionWritesCache(t *testing.T) {
 	if st.setTo != "custom_9" || st.setCall != 1 {
 		t.Fatalf("core set = (%q,%d), want (custom_9,1)", st.setTo, st.setCall)
 	}
-	// Write-through: the next read must not re-fetch.
 	if got, err := e.GetDefaultReaction("a1"); err != nil || got != "custom_9" {
 		t.Fatalf("post-set get = (%q,%v), want (custom_9,nil)", got, err)
 	}

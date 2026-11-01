@@ -6,8 +6,6 @@ import (
 	"uniclient/cores"
 )
 
-// Sticker pack tabs (slice 58): Recent leads when present, empty packs
-// drop, and the selected index clamps into range.
 func TestStickerTabs(t *testing.T) {
 	packs := []cores.StickerPackSummary{
 		{Title: "Empty", Stickers: nil},
@@ -27,7 +25,6 @@ func TestStickerTabs(t *testing.T) {
 		t.Fatalf("clamped sel = %d, tabs[1] = %+v", sel, tabs[1])
 	}
 
-	// out-of-range selection clamps to the last tab
 	tabs, sel = stickerTabs(packs, recent, 99)
 	if sel != len(tabs)-1 {
 		t.Fatalf("overflow sel = %d, want %d", sel, len(tabs)-1)
@@ -37,15 +34,11 @@ func TestStickerTabs(t *testing.T) {
 		t.Fatalf("negative sel = %d, want %d", sel, len(tabs)-1)
 	}
 
-	// no recent: packs only — and the in-range input selection survives
-	// (the old case reassigned sel and never checked it: an assertion
-	// that could not fail, B-20).
 	tabs, sel = stickerTabs(packs, nil, 0)
 	if len(tabs) != 2 || tabs[0].title != "Cats" || sel != 0 {
 		t.Fatalf("no-recent tabs = %+v sel = %d, want 2 tabs (Cats…) with sel 0", tabs, sel)
 	}
 
-	// nothing at all: zero tabs, sel clamps to -1
 	tabs, sel = stickerTabs(nil, nil, 3)
 	if len(tabs) != 0 || sel != -1 {
 		t.Fatalf("empty = %d tabs, sel %d", len(tabs), sel)

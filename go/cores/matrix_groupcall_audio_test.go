@@ -10,13 +10,6 @@ import (
 	"maunium.net/go/mautrix/id"
 )
 
-// B-6 → F-62, slice 298: mesh AUDIO + engine surface.
-//
-// Compile-time truth for the engine's RUNTIME type assertions
-// (engine/cache_chats.go: `acc.Core.(groupCaller)` and
-// `acc.Core.(cores.VoiceCore)`): if either method ever drifts, the
-// join flow would silently stop starting the voice pipeline or the
-// group bar — this line turns that into a build failure.
 var (
 	_ VoiceCore = (*MatrixCore)(nil)
 	_ interface {
@@ -24,18 +17,8 @@ var (
 	} = (*MatrixCore)(nil)
 )
 
-//
-// The loopback test is the milestone: two MatrixCores, two scripted
-// homeservers, a manual event relay (no sync loop) — a real pion mesh
-// forms on host candidates and A.SendVoiceFrame must arrive at
-// B.OnVoiceFrame tagged with A's MXID.
-//
-// Seam-RED (WORKLOG 298): undefined: core.SendVoiceFrame / GetGroupCall.
-
-// meshRelay pumps PUTs from one core's mini-server into the other
-// core's handlers, tagging the sender.
 type meshRelay struct {
-	from   *meshPuts // race-safe snapshot store
+	from   *meshPuts
 	sender id.UserID
 	to     *MatrixCore
 	stop   chan struct{}
@@ -89,7 +72,7 @@ func seedJoinedPair(t *testing.T) (a, b *MatrixCore) {
 	srvB, putsB := newMeshHomeserver(t)
 	a = newMeshTestCore(t, srvA.URL)
 	b = newMeshTestCore(t, srvB.URL)
-	b.deviceID = "DEV2" // second device for distinct peer keys
+	b.deviceID = "DEV2"
 
 	const conf = "conf_loop"
 	for _, c := range []*MatrixCore{a, b} {
@@ -118,10 +101,6 @@ func seedJoinedPair(t *testing.T) (a, b *MatrixCore) {
 	return a, b
 }
 
-// TestMeshAudioLoopback: A offers (alice < bob), the relay carries
-// invite/answer/candidates both ways, ICE connects on host candidates,
-// then a driven frame must land on B's OnVoiceFrame with A's MXID as
-// the sender.
 func TestMeshAudioLoopback(t *testing.T) {
 	a, b := seedJoinedPair(t)
 
@@ -154,8 +133,6 @@ func TestMeshAudioLoopback(t *testing.T) {
 	}
 }
 
-// TestMeshVoiceMuteStopsFrames: muting drops outgoing frames, unmuting
-// restores them (the flag must actually flip, not just drop once).
 func TestMeshVoiceMuteStopsFrames(t *testing.T) {
 	a, b := seedJoinedPair(t)
 	received := make(chan []byte, 8)
@@ -168,7 +145,6 @@ func TestMeshVoiceMuteStopsFrames(t *testing.T) {
 		t.Fatalf("A reconcile: %v", err)
 	}
 
-	// Wait for the connection first (unmuted).
 	connectDeadline := time.Now().Add(12 * time.Second)
 	connected := false
 	for time.Now().Before(connectDeadline) && !connected {
@@ -204,7 +180,7 @@ func TestMeshVoiceMuteStopsFrames(t *testing.T) {
 		select {
 		case f := <-received:
 			if reflect.DeepEqual(f, []byte{0xbe, 0xef}) {
-				return // GREEN
+				return
 			}
 		case <-time.After(150 * time.Millisecond):
 		}
@@ -212,8 +188,6 @@ func TestMeshVoiceMuteStopsFrames(t *testing.T) {
 	t.Fatal("no frame after unmute")
 }
 
-// TestMatrixGetGroupCall: the engine's groupCaller contract — joined →
-// an ACTIVE IsGroup session with participants; not joined → (nil, nil).
 func TestMatrixGetGroupCall(t *testing.T) {
 	srv, _ := newMeshHomeserver(t)
 	core := newMeshTestCore(t, srv.URL)
@@ -246,14 +220,13 @@ func TestMatrixGetGroupCall(t *testing.T) {
 	if cs == nil || !cs.IsGroup || cs.State != CallStateActive || cs.ID != "conf_x" {
 		t.Fatalf("session = %+v", cs)
 	}
-	if cs.Meta["participants_count"] != "2" { // alice+bob live, carol expired
+	if cs.Meta["participants_count"] != "2" {
 		t.Fatalf("participants_count = %q, want 2 (expired filtered)", cs.Meta["participants_count"])
 	}
 	if len(cs.Participants) != 2 {
 		t.Fatalf("participants = %+v", cs.Participants)
 	}
 
-	// Wrong room → no call.
 	if cs, err := core.GetGroupCall("!other:test"); err != nil || cs != nil {
 		t.Fatalf("wrong room: cs=%v err=%v", cs, err)
 	}

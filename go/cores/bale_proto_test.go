@@ -4,19 +4,7 @@ import (
 	"testing"
 )
 
-// The Bale core speaks a protobuf-ish wire format (pbEncode/pbDecode) where
-// field numbers arrive as STRING keys ("1", "2", …) in maps. These tests pin
-// the encoding contract used by wsConnect and every RPC helper:
-//
-//   - varint fields decode to int64
-//   - length-delimited payloads are first parsed as nested messages; when the
-//     payload parses, the value is a map and the raw bytes are kept under
-//     "__raw_<field>" (wire type 2 is ambiguous between string and message)
-//   - payloads that cannot parse as messages decode to string
-//   - repeated fields accumulate into []interface{}
-
 func TestPbEncodeDecodeVarints(t *testing.T) {
-	// Values crossing single/multi-byte varint boundaries.
 	for _, v := range []uint64{0, 1, 127, 128, 300, 16383, 16384, 1<<32 - 1, 1 << 32} {
 		enc := pbEncode(map[string]interface{}{"1": int64(v)})
 		dec := pbDecode(enc)
@@ -48,19 +36,15 @@ func TestPbEncodeDecodeNested(t *testing.T) {
 	if !ok {
 		t.Fatalf("nested field not decoded as map: %#v", dec["3"])
 	}
-	// Nested varints decode to int64.
 	if nested["1"] != int64(1) || nested["2"] != int64(2) {
 		t.Fatalf("nested values: %#v", nested)
 	}
-	// Raw bytes are preserved for ambiguous type-2 recovery.
 	if raw, ok := dec["__raw_3"].([]byte); !ok || len(raw) == 0 {
 		t.Fatalf("__raw_3 missing: %#v", dec["__raw_3"])
 	}
 }
 
 func TestPbEncodeDecodeOpaqueBytes(t *testing.T) {
-	// 0xDE has wire type 6 (invalid) — cannot parse as a nested message, so
-	// the decoder must fall back to string.
 	payload := []byte{0xDE, 0xAD, 0xBE, 0xEF}
 	enc := pbEncode(map[string]interface{}{"4": payload})
 	dec := pbDecode(enc)
@@ -74,7 +58,6 @@ func TestPbEncodeDecodeOpaqueBytes(t *testing.T) {
 }
 
 func TestPbEncodeDecodePlainString(t *testing.T) {
-	// A string whose bytes are not a valid protobuf message decodes to itself.
 	s := "?? not protobuf ??"
 	enc := pbEncode(map[string]interface{}{"5": s})
 	dec := pbDecode(enc)
@@ -96,8 +79,6 @@ func TestPbEncodeDecodeRepeatedVarint(t *testing.T) {
 }
 
 func TestPbEncodeDecodeHandshake(t *testing.T) {
-	// The actual wsConnect handshake frame:
-	// ClientFrame{3: HandshakeRequest{1: mkprotoVersion, 2: apiVersion}}
 	enc := pbEncode(map[string]interface{}{
 		"3": map[string]interface{}{
 			"1": int64(1),
@@ -122,8 +103,6 @@ func TestPbDecodeEmpty(t *testing.T) {
 }
 
 func TestPbEncodeDeterministicFieldOrder(t *testing.T) {
-	// Fields must be encoded in ascending field-number order regardless of
-	// map iteration order (Go map order is randomized).
 	one := pbEncode(map[string]interface{}{"1": int64(1), "5": int64(5), "9": int64(9)})
 	other := pbEncode(map[string]interface{}{"9": int64(9), "1": int64(1), "5": int64(5)})
 	if string(one) != string(other) {
@@ -131,10 +110,6 @@ func TestPbEncodeDeterministicFieldOrder(t *testing.T) {
 	}
 }
 
-// TestBaleExportedPbWrappers activates the exported Pb* helpers
-// (deadcode: unreachable even with tests — documented "for
-// debugging/testing" but never referenced). Round-trips through the
-// LIVE wire codec the RPCs actually use.
 func TestBaleExportedPbWrappers(t *testing.T) {
 	enc := PbEncode(map[string]interface{}{"1": "hello", "2": int64(42)})
 	m := PbDecode(enc)
