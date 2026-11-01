@@ -34,8 +34,13 @@ This is not history — stale lines are lies.
   mutated the frame-carried *storyViewerState in place, the react
   revert through the items backing array included; updateStoryView
   CoW + storyViewGen session key + the reply-draft clear on close;
-  TRUE -race RED via the stage-1 extraction build), location.go 941
-  next.** Tab-exact python-heredoc edits dodge the
+  TRUE -race RED via the stage-1 extraction build), location.go 941 DONE (**R56** + **R57**, iteration 35 — the
+  GetContacts tail wrote the frame-carried *attachDlgState in
+  place; attachDlgLiveOn/liveDurationSelected were PACKAGE vars
+  (the R14/R22 class); updateAttachDlg CoW + per-App
+  attachLiveOn/attachLiveSel; TRUE -race RED via the stage-1
+  extraction build; mapTiles P4 watch: no eviction),
+  savedsublists.go 883 next.** Tab-exact python-heredoc edits dodge the
   Edit-tool gofmt trap.
 - **CI proofs**: ALL CLOSED — R32/R33 **41222152669 (be7541e4)**, R34-R36
   **41236970838 (f14028a6)**, R37 **41237343094 (e6de37fc)**, R38
@@ -51,8 +56,9 @@ This is not history — stale lines are lies.
   verified at job AND step level, all 5 jobs each, Race green; the
   race leg now carries R34×2 + R37×2 + R38×3 +
   R39×3 + R40×3 + R41×3 + R42/R43×5 + R44/R45×5 + R46×5 + R47/R48×6 +
-  R49/R50×5 + R51/R52×4 + R53-R55×7 pins). Pending: R53/R54/R55
-  **41282402414 (40089c8b)** — verify at job AND step level.
+  R49/R50×5 + R51/R52×4 + R53-R55×7 + R56/R57×4 pins). Pending: R53/R54/R55
+  **41282402414 (40089c8b)** + R56/R57 **41282912766 (1f8bf2c8)**
+  — verify EACH at job AND step level.
   Local -race on the gui
   package fits the box (proven 337/338/339 — use it before falling
   back to CI).
