@@ -7,10 +7,10 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: 2026-11-01 owner redirect #2 EXECUTED — GUI removed entirely, tests moved to go/tests/, AGENTS.md v4.1 written (commits bcead437 + 27faa5a4 + this)
-- next: dispatch flake.yml (vendorHash repin after the dep purge), then verify.yml on HEAD as the gate of record; then standby for the owner's next instruction
+- front: 2026-11-01 owner redirect #2 FULLY EXECUTED + CI-GATED — GUI removed, tests in go/tests/, AGENTS.md v4.1 (commits bcead437, 27faa5a4, f80f9b2d + flake pin a05066c8)
+- next: standby for the owner's next instruction; treat it as the new front and execute it completely (never ask, never wait)
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop, Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: LOCAL full gate green this session: 7/7 test pkgs, vet ./... + live, gofmt, comment-ban, race subset (tests/cores 8.05s), js audio leg, windows+js builds
+- last-gate: CI verify **41317140352 = SUCCESS on a05066c8** — all 3 jobs, all steps (comment-ban, gofmt, vet, vet-live, test, race tests/cores subset, headless smoke, nix build + nix run smoke, windows exe, js/wasm check); flake.yml 41316797193 pinned the new vendorHash first
 
 ## Open items
 
