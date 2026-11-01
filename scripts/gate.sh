@@ -1,20 +1,18 @@
 #!/bin/sh
 # The executable gate (AGENTS.md §7) — enforcement is code, not memory.
 #
-# Usage: scripts/gate.sh quick|full|web [base-ref]
+# Usage: scripts/gate.sh quick|full [base-ref]
 #   quick [base] — gofmt + vet + tests on the packages changed since <base>
 #          (default origin/main) AND every package that imports them (test
 #          imports count as edges). Run after every commit; mid-work it also
 #          covers staged + unstaged edits (working tree vs base).
 #   full  — every §7 tier except live/owner rungs: gofmt everywhere, vet +
-#          tests for ALL packages (native leg + js/wasm leg), cross-builds
-#          (windows + wasm), web E2E when node + node_modules are present
-#          (an explicit SKIP line otherwise — never silent). The native Xvfb
-#          GUI smoke lives in CI verify.yml.
-#   web  — wasm build + the Puppeteer E2E suite (scripts/web-test).
+#          tests for ALL packages (native leg + js/wasm leg for audio),
+#          cross-build (windows). The web E2E + Xvfb GUI tiers return with
+#          the rebuilt GUI (AGENTS.md §6).
 #
-# Recipes mirror scripts/dev-test.sh: gui/audio/cmd verify under GOOS=js
-# (linux cgo headers not needed); everything else runs natively.
+# Recipes mirror scripts/dev-test.sh: audio verifies under GOOS=js (its
+# WebAudio half only compiles there); everything else runs natively.
 
 set -eu
 
@@ -30,7 +28,7 @@ cd "$ROOT/go"
 export GOFLAGS=-p=1
 export GOMEMLIMIT=3GiB GOGC=20
 TAGS=goolm
-# Small-machine recipe (scripts/devroot-setup.sh hint): gotd's tg package
+# Small-machine recipe: gotd's tg package
 # OOM-kills under default compile concurrency on <4GB-free boxes.
 GCFLAGS="all=-c=1"
 RUNNER="$ROOT/scripts/wasm-test-runner.sh"
@@ -116,16 +114,6 @@ run_js() {
         GOOS=js GOARCH=wasm CGO_ENABLED=0 go test -tags "$TAGS" -count=1 -exec "$RUNNER" "$@"
 }
 
-web_e2e() {
-        command -v node >/dev/null 2>&1 || { echo "web E2E: SKIP — node not on PATH"; return 0; }
-        [ -d "$ROOT/scripts/web-test/node_modules" ] || {
-                echo "web E2E: SKIP — scripts/web-test/node_modules missing (run npm ci there)"
-                return 0
-        }
-        echo "== web E2E: Puppeteer suite =="
-        (cd "$ROOT/scripts/web-test" && node run.mjs)
-}
-
 quick() {
         changed_go=$( {
                 git -C "$ROOT" diff --name-only "$BASE" -- go/
@@ -145,7 +133,7 @@ quick() {
         nat=""; js=""
         for p in $pkgs; do
                 case "$p" in
-                        */gui|*/gui/*|*/audio|*/audio/*|*/cmd|*/cmd/*) js="$js $p" ;;
+                        */audio|*/audio/*) js="$js $p" ;;
                         *) nat="$nat $p" ;;
                 esac
         done
@@ -169,37 +157,24 @@ full() {
         [ -z "$bad" ] || { echo "$bad"; fail "gofmt needed"; }
         echo "== native test: all =="
         go_run env CGO_ENABLED=1 go test -tags "$TAGS" -count=1 -gcflags="$GCFLAGS" ./...
-        echo "== js test: gui audio cmd =="
+        echo "== js test: audio =="
         "$ROOT/scripts/test-wasm-runner.sh"
         GOOS=js GOARCH=wasm CGO_ENABLED=0 go test -tags "$TAGS" -count=1 \
-                -exec "$RUNNER" ./gui/... ./audio/... ./cmd/...
+                -exec "$RUNNER" ./audio/...
         echo "== vet: native + js split =="
-        nat=$(go list ./... | grep -vE '/(gui|audio|cmd)(/|$)' | tr '\n' ' ')
+        nat=$(go list ./... | grep -vE '/(audio)(/|$)' | tr '\n' ' ')
         # shellcheck disable=SC2086
         go_run env CGO_ENABLED=0 go vet -tags "$TAGS" -gcflags="$GCFLAGS" $nat
-        GOOS=js GOARCH=wasm CGO_ENABLED=0 go vet -tags "$TAGS" ./gui/... ./audio/... ./cmd/...
-        echo "== cross-builds: windows + wasm =="
+        GOOS=js GOARCH=wasm CGO_ENABLED=0 go vet -tags "$TAGS" ./audio/...
+        echo "== cross-build: windows =="
         mkdir -p "$ROOT/dist"
         go_run env GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -tags "$TAGS" -gcflags="$GCFLAGS" \
                 -trimpath -ldflags "-s -w" -o "$ROOT/dist/uniclient-windows-amd64.exe" ./cmd/uniclient
-        go_run env GOOS=js GOARCH=wasm CGO_ENABLED=0 go build -tags "$TAGS" -gcflags="$GCFLAGS" \
-                -trimpath -ldflags "-s -w" -o "$ROOT/dist/uniclient.wasm" ./cmd/uniclient
-        web_e2e
         echo "full gate GREEN"
-}
-
-web() {
-        echo "== wasm build =="
-        mkdir -p "$ROOT/dist"
-        GOOS=js GOARCH=wasm CGO_ENABLED=0 go build -tags "$TAGS" -gcflags="$GCFLAGS" \
-                -trimpath -ldflags "-s -w" -o "$ROOT/dist/uniclient.wasm" ./cmd/uniclient
-        web_e2e
-        echo "web gate GREEN"
 }
 
 case "$GATE" in
         quick) quick ;;
         full) full ;;
-        web) web ;;
-        *) echo "usage: scripts/gate.sh quick|full|web [base-ref]" >&2; exit 2 ;;
+        *) echo "usage: scripts/gate.sh quick|full [base-ref]" >&2; exit 2 ;;
 esac

@@ -3,9 +3,9 @@
 # Dispatch-only (never runs on push — AGENTS.md §1.5). Use it to verify any
 # commit without cutting a release:
 #   GitHub → Actions → Verify → Run workflow (branch/ref)
-# Runs the full quality gate + cross-builds + a real Xvfb GUI smoke with
-# screenshots uploaded as artifacts, so the GUI can be reviewed without a
-# local toolchain (useful on small machines that cannot compile gotd/td).
+# Runs the full quality gate + cross-builds + a real headless-engine smoke.
+# The Xvfb GUI smoke + android + wasm artifact legs return with the rebuilt
+# GUI (AGENTS.md).
 
 name: Verify
 
@@ -20,7 +20,7 @@ env:
 
 jobs:
   test:
-    name: Test & vet & gofmt
+    name: Test & vet & gofmt & smoke
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -31,13 +31,6 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: go/go.sum
-      - name: Install Gio Linux headers (cgo)
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq pkg-config libegl1-mesa-dev libgles-dev \
-            libx11-dev libx11-xcb-dev libxkbcommon-dev libxkbcommon-x11-dev \
-            libxcursor-dev libxfixes-dev libwayland-dev \
-            libwayland-egl-backend-dev libvulkan-dev
       - name: gofmt gate
         run: cd go && test -z "$(gofmt -l .)" || (echo "gofmt needed:"; gofmt -l .; exit 1)
       - name: Vet
@@ -51,19 +44,29 @@ jobs:
         env:
           GOMEMLIMIT: 900MiB
           GOGC: "30"
-      - name: Race (parser crasher regressions + core subsets)
+      - name: Race (core subsets)
         # same legs the local gate races, memory-capped for the runner
         # (the race detector is not optional on any gate).
         run: |
           cd go
-          CGO_ENABLED=1 go test -p 1 -tags goolm -count=1 -race ./webm/ ./vp9anim/
           CGO_ENABLED=1 go test -p 1 -tags goolm -count=1 -race ./cores/ \
             -run 'TestHandshake|TestMyChannelID|TestTSExec|TestTS3|TestTeamSpeak|TestTSCommandQueue|TestSendVoice|TestGetGroupCall|TestMatrix|TestTruncate|TestParseRawHeaders|TestAutocrypt|TestDeltaChat|TestGitHub|TestLockOrder'
-          # the gui package's cross-goroutine tests need the race
-          # detector too (the js leg has none). Filtered to the concurrency
-          # pins so the memory cap holds.
-          CGO_ENABLED=1 go test -p 1 -tags goolm -count=1 -race ./gui/ \
-            -run 'TestSuggestionMapsAreGuarded|TestRubberBandGestureIsPerWindow|TestViewerShareCompletes|TestIVPhotoClaimGuarded|TestShotRenderPipelineIsSerialized|TestAvatarCornersCrossGoroutineIsAtomic|TestBusinessPageStateIsCopyOnWrite|TestUpdateBusinessPageContract|TestPremiumPageStateIsCopyOnWrite|TestUpdatePremiumPageContract|TestStarsPageStateIsCopyOnWrite|TestStarsAppendBuildsFreshSlice|TestUpdateStarsPageContract|TestFolderMgrStateIsCopyOnWrite|TestUpdateFolderMgrContract|TestSettingsSubPagesAreExclusive|TestStickerMgrStateIsCopyOnWrite|TestUpdateStickerMgrContract|TestStickerMgrOpenClearsSiblings|TestProfileEdSyncedIsAtomic|TestProfileEditLoadReplacesState|TestProfileEditOpenClearsSiblings|TestExportDlgStateIsCopyOnWrite|TestUpdateExportDlgContract|TestExportDlgForeignAccountGuarded|TestStartExportReplacesStateAndTailLands|TestExportOptsSyncedResetsOnOpenClose|TestTwoFADlgStateIsCopyOnWrite|TestUpdateTwoFADlgContract|TestTwoFALoadTailLandsCopyOnWrite|TestTwoFAFinishTailLandsCopyOnWrite|TestTwoFARowMapRefreshIsCopyOnWrite|TestIVStateIsCopyOnWrite|TestUpdateIVContract|TestIVOpenTailLandsCopyOnWrite|TestIVOpenIDsRetireStragglers|TestIVPushHistoryBuildsFreshSlice|TestGiveawayStateIsCopyOnWrite|TestUpdateGiveawayContract|TestGiveawayLoadTailLandsCopyOnWrite|TestGiveawaySendTailLandsCopyOnWrite|TestGiveawayClampLandsOnLiveHead|TestGiveawayPrepaidPeriodMaxGuarded|TestCallsBoxPageMergeBuildsFreshSlice|TestCallsBoxLoadTailSessionGuarded|TestCallsBoxPageMergeDedupeGuard|TestCallsBoxSessionGenBumps|TestCallsBoxClearFailedRecovers|TestUpdatePollDlgContract|TestPollDlgStateIsCopyOnWrite|TestPollSendTailSessionGuarded|TestPollSubmitCapturesSwitchStateOnGuiLoop|TestUpdateStoryViewContract|TestStoryViewerSnapshotImmutableUnderTails|TestStoryFetchTailSessionGuarded|TestStoryReactFlipContract|TestStoryReactRevertTailGuarded|TestStoryAdvanceInstallsFreshHead|TestStoryReplyDraftLifecycle|TestUpdateAttachDlgContract|TestAttachDlgSnapshotImmutableUnderTails|TestAttachContactsTailGuarded|TestAttachLiveStateIsPerWindow'
+        env:
+          GOMEMLIMIT: 900MiB
+          GOGC: "30"
+      - name: Headless engine smoke (AGENTS.md §4 — real interface)
+        run: |
+          cd go
+          CGO_ENABLED=1 go build -p 1 -tags goolm -o ../uniclient ./cmd/uniclient
+          cd ..
+          rm -rf /tmp/uc-home
+          timeout --preserve-status -s TERM 15 ./uniclient -dir /tmp/uc-home -events > /tmp/uc.log 2>&1
+          rc=$?
+          cat /tmp/uc.log
+          [ "$rc" -eq 0 ] || { echo "engine exited $rc on SIGTERM (want 0)"; exit 1; }
+          grep -q "engine ready" /tmp/uc.log || { echo "no 'engine ready' line"; exit 1; }
+          test -f /tmp/uc-home/uniclient.vault || { echo "vault not created"; exit 1; }
+          echo "headless smoke OK: booted, vault created, clean SIGTERM exit"
         env:
           GOMEMLIMIT: 900MiB
           GOGC: "30"
@@ -103,7 +106,7 @@ jobs:
         run: nix build .#uniclient -L
 
   cross-builds:
-    name: Cross-builds (windows + wasm)
+    name: Cross-builds (windows + js/wasm)
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -120,121 +123,19 @@ jobs:
         env:
           GOMEMLIMIT: 900MiB
           GOGC: "30"
-      - name: Web (wasm)
+      - name: js/wasm compile check (web target foundation)
+        # no wasm artifact ships until the rebuilt GUI lands — but the
+        # engine/audio/js halves must keep compiling (AGENTS.md §1.4).
         run: |
           cd go
+          mkdir -p ../dist/jscheck
           GOOS=js GOARCH=wasm CGO_ENABLED=0 go build -p 1 -tags goolm \
-            -trimpath -ldflags "-s -w" -o ../dist/uniclient.wasm ./cmd/uniclient
+            -o ../dist/jscheck ./...
         env:
           GOMEMLIMIT: 900MiB
           GOGC: "30"
       - uses: actions/upload-artifact@v4
         with:
           name: cross-builds
-          path: dist/
-          if-no-files-found: error
-
-  android:
-    name: Android arm64 (APK compile check)
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache-dependency-path: go/go.sum
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "21"
-      - name: Install gogio
-        run: go install gioui.org/cmd/gogio@v0.10.0
-      - name: Set up Android SDK + NDK
-        run: |
-          SDKMGR="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
-          yes | "$SDKMGR" --licenses >/dev/null || true
-          "$SDKMGR" --install "build-tools;35.0.0" "platforms;android-34" "ndk;27.0.12077973" > /dev/null
-          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
-          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
-      - name: Build APK (gogio, CGO_ENABLED=1)
-        run: |
-          mkdir -p dist
-          cd go
-          ~/go/bin/gogio -target android -arch arm64 -minsdk 24 -tags goolm \
-            -o ../dist/uniclient.apk ./cmd/uniclient
-        env:
-          GOMEMLIMIT: 900MiB
-          GOGC: "30"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: android-apk
-          path: dist/uniclient.apk
-          if-no-files-found: error
-
-  gui-smoke:
-    name: GUI smoke (Xvfb + screenshots)
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache-dependency-path: go/go.sum
-      - name: Install Gio headers + X11 tooling
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq pkg-config libegl1-mesa-dev libgles-dev \
-            libx11-dev libx11-xcb-dev libxkbcommon-dev libxkbcommon-x11-dev \
-            libxcursor-dev libxfixes-dev libwayland-dev \
-            libwayland-egl-backend-dev libvulkan-dev \
-            xvfb xdotool imagemagick libgl1-mesa-dri
-      - name: Build linux binary
-        run: |
-          cd go
-          CGO_ENABLED=1 go build -p 1 -tags goolm -o ../uniclient ./cmd/uniclient
-        env:
-          GOMEMLIMIT: 900MiB
-          GOGC: "30"
-      - name: Boot under Xvfb, screenshot welcome + picker
-        run: |
-          Xvfb :99 -screen 0 1280x800x24 &
-          sleep 2
-          export DISPLAY=:99
-          export LIBGL_ALWAYS_SOFTWARE=1
-          export GALLIUM_DRIVER=llvmpipe
-          mkdir -p /tmp/uc-home
-          ./uniclient -dir /tmp/uc-home > /tmp/uc.log 2>&1 &
-          APP_PID=$!
-          sleep 12
-
-          # Window sanity: the Gio window must exist.
-          xdotool search --name "Uniclient" || echo "WARN: window not found"
-          import -window root /tmp/shot-1-welcome.png
-
-          # Click the "Add an account" CTA ONCE. Pixel-derived: the
-          # Material-blue button centers at ~(559, 445) on the 1280x800
-          # Xvfb screen. Screenshot the picker grid immediately.
-          xdotool mousemove 559 445 click 1
-          sleep 3
-          import -window root /tmp/shot-2-picker.png
-
-          # Then click the first backend card (Telegram, top-left of the
-          # grid) to capture the real auth flow UI as well.
-          xdotool mousemove 560 470 click 1
-          sleep 3
-          import -window root /tmp/shot-3-authflow.png
-
-          kill -TERM $APP_PID || true
-          sleep 2
-          echo "--- app log ---"
-          cat /tmp/uc.log || true
-          ls -la /tmp/shot-*.png
-      - uses: actions/upload-artifact@v4
-        with:
-          name: gui-smoke
-          path: |
-            /tmp/shot-*.png
-            /tmp/uc.log
+          path: dist/uniclient-windows-amd64.exe
           if-no-files-found: error

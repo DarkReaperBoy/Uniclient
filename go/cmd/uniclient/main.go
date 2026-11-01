@@ -2,77 +2,51 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime"
-
-	"gioui.org/app"
-	"gioui.org/op"
-	"gioui.org/unit"
+	"syscall"
 
 	"uniclient/bootstrap"
-	"uniclient/gui"
 )
 
 func main() {
 	home := defaultHome()
 	dir := flag.String("dir", home, "config directory (vault + cache + downloads)")
 	password := flag.String("password", defaultVaultPassword(), "vault password")
+	events := flag.Bool("events", false, "print engine events as JSON lines on stdout")
 	flag.Parse()
 
-	if gui.HandleLaunchURI(flag.Args(), *dir) {
-		return
-	}
-
-	w := new(app.Window)
-	w.Option(
-		app.Title("Uniclient"),
-		app.Size(unit.Dp(1120), unit.Dp(760)),
-		app.MinSize(unit.Dp(360), unit.Dp(480)),
-	)
-
-	go func() {
-		if err := run(w, *dir, *password); err != nil {
-			log.Fatal(err)
-		}
-	}()
-	app.Main()
-}
-
-func run(w *app.Window, dir, password string) error {
 	eng, err := bootstrap.Init(
-		dir,
-		filepath.Join(dir, "cache"),
-		filepath.Join(dir, "downloads"),
-		password,
+		*dir,
+		filepath.Join(*dir, "cache"),
+		filepath.Join(*dir, "downloads"),
+		*password,
 		nil,
 	)
 	if err != nil {
-		return fmt.Errorf("engine init: %w", err)
+		log.Fatalf("engine init: %v", err)
 	}
-	defer bootstrap.Shutdown()
-
-	ui := gui.New(w, eng)
-	ui.Start()
-	ui.ServeInstanceCommands(dir)
-	defer ui.Shutdown()
-
-	var ops op.Ops
-	for {
-		e := w.Event()
-		ui.ListenEvents(e)
-		switch e := e.(type) {
-		case app.DestroyEvent:
-			gui.CloseSeparateWindowsAndWait()
-			return e.Err
-		case app.FrameEvent:
-			gtx := app.NewContext(&ops, e)
-			ui.Root(gtx)
-			e.Frame(&ops)
+	defer func() {
+		if err := bootstrap.Shutdown(); err != nil {
+			log.Printf("engine shutdown: %v", err)
 		}
+	}()
+
+	if *events {
+		sub := eng.Subscribe(func(data []byte) {
+			os.Stdout.Write(append(data, '\n'))
+		})
+		defer sub.Unsubscribe()
 	}
+
+	log.Printf("uniclient engine ready (dir %s)", *dir)
+
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+	<-sig
 }
 
 func defaultHome() string {

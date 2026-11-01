@@ -10,8 +10,8 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs { inherit system; };
-        # cgo is required by Gio on Linux (X11/Wayland/EGL); everything links
-        # against Nix libraries, so the binary is fully native on NixOS.
+        # Pure Go: no cgo, no system libraries — the tree is engine + cores
+        # only (the GUI is parked for a from-scratch rebuild, AGENTS.md).
         # Go 1.27: go.mod requires >= 1.27 and buildGoModule hardcodes
         # GOTOOLCHAIN="local", so nixpkgs' default Go 1.26 toolchain
         # (buildGoModule = buildGo126Module) can never build this. The 1.27
@@ -34,30 +34,6 @@
           # Reported by the first real build (the placeholder hash fails
           # the go-modules fixed-output derivation with the correct one).
           vendorHash = "sha256-CN1oPB3pJmbg/UJpdQZVSkXTvlcSSiKIdZIYKYnu6hc=";
-          buildInputs = with pkgs; [
-            libX11 libXcursor libXfixes
-            libxkbcommon
-            wayland
-            mesa
-            # gioui.org/internal/vk/vulkan_{x11,wayland}.go #include
-            # <vulkan/vulkan.h> on every Linux build — without these headers
-            # the build dies in gioui.org/internal/vk.
-            vulkan-headers
-            # gio's pkg-config line is `egl wayland-egl wayland-client
-            # wayland-cursor x11 xkbcommon xkbcommon-x11 x11-xcb xcursor
-            # xfixes`: x11-xcb.pc Requires: xcb, and egl.pc ships in libglvnd.
-            libxcb
-            libglvnd
-          ];
-          nativeBuildInputs = with pkgs; [ pkg-config ];
-          # Gio's Linux GPU/X11 access is cgo, so cgo is mandatory (§4).
-          # This MUST live under `env`: mkGoDerivation always writes
-          # env.CGO_ENABLED itself (nixpkgs pkgs/build-support/go/module.nix:
-          # `CGO_ENABLED = args.env.CGO_ENABLED or go.CGO_ENABLED`), and a
-          # top-level CGO_ENABLED collides with it — `nix build` died with
-          # "The `env` attribute set cannot contain any attributes passed to
-          # derivation" and the owner's `nix run` was broken.
-          env.CGO_ENABLED = 1;
           # -trimpath belongs to `go build`, NOT to the linker: `go tool link`
           # dies with "flag provided but not defined: -trimpath". nixpkgs
           # already injects -trimpath through GOFLAGS (module.nix adds it when
@@ -84,25 +60,6 @@
           packages = with pkgs; [
             # 1.27 to match go.mod (see buildGoLatestModule above).
             go_1_27
-            pkg-config
-            libX11.dev libXcursor.dev libXfixes.dev
-            libxkbcommon.dev
-            # gio's pkg-config line asks for egl wayland-* x11 xkbcommon
-            # xkbcommon-x11 x11-xcb xcursor xfixes — x11-xcb needs xcb.pc
-            # (xkbcommon-x11.pc itself ships in libxkbcommon.dev above).
-            libxcb
-            libxcb-util
-            libxcb-image
-            libxcb-keysyms
-            libxcb-wm
-            wayland.dev
-            # nixpkgs' mesa exposes no .dev output anymore; the EGL/GL/Vulkan
-            # headers pkg-config needs live in libglvnd.dev.
-            libglvnd.dev
-            mesa
-            # gioui.org/internal/vk #includes <vulkan/vulkan.h> on every build.
-            vulkan-headers
-            vulkan-loader
             upx
           ];
           shellHook = ''

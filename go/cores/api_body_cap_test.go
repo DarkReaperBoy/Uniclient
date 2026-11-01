@@ -93,7 +93,7 @@ func TestBareBodyReadsAndUntimedFetchesGone(t *testing.T) {
 		"io.ReadAll(bodySection.Literal)",
 		"io.ReadAll(rc)",
 	}
-	dirs := []string{".", "../engine", "../gui", "../utils"}
+	dirs := []string{".", "../engine", "../utils"}
 	for _, dir := range dirs {
 		entries, err := os.ReadDir(dir)
 		if err != nil {

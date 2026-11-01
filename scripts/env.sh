@@ -5,15 +5,10 @@
 # Full-wipe recovery, proven 2026-10-31 (survived wipe #2):
 #   1. TOOLCHAIN=<somewhere persistent>; mkdir -p "$TOOLCHAIN"
 #   2. curl -L https://go.dev/dl/go1.27.1.linux-amd64.tar.gz | tar -C "$TOOLCHAIN" -xz
-#      (keep the patch version in lockstep with scripts/devroot-setup.sh —
-#      two different go builds sharing one GOCACHE poison it with
-#      "version does not match" compile errors; after devroot-setup just
-#      source devroot.env instead and point GOMODCACHE/GOCACHE here)
+#      (one go build per GOCACHE — two different versions sharing one
+#      cache poison it with "version does not match" compile errors)
 #   3. . scripts/env.sh            # sets GOROOT/GOMODCACHE/GOCACHE/PATH (below)
 #   4. (cd go && go mod download)  # refill the module cache (~1.2G)
-#   5. cd scripts/web-test && npm ci && npx puppeteer browsers install chrome
-#      (npm postinstall may be policy-blocked; the explicit install covers it)
-#   6. CGO sysroot needs (native gui builds only): scripts/devroot-setup.sh
 #
 # Machine truths: 4GiB cgroup — gotd native compiles OOM here, so gate.sh falls
 # back to CI dispatch (verify.yml; AGENTS.md §7). Long processes are reaped between tool
@@ -32,4 +27,3 @@ export GOCACHE="$TOOLCHAIN/gocache"
 export GOFLAGS=-p=1
 export GOMEMLIMIT=3GiB
 export GOGC=20
-export PUPPETEER_CACHE_DIR="$TOOLCHAIN/puppeteer-cache"

@@ -4,9 +4,6 @@ go 1.27
 
 require (
 	filippo.io/edwards25519 v1.2.0
-	gioui.org v0.10.2
-	gioui.org/x v0.10.2
-	github.com/Eyevinn/mp4ff v0.51.0
 	github.com/ProtonMail/go-crypto v1.4.1
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/coder/websocket v1.8.15
@@ -15,15 +12,10 @@ require (
 	github.com/emersion/go-message v0.18.2
 	github.com/emersion/go-sasl v0.0.0-20241020182733-b788ff22d5a6
 	github.com/emersion/go-smtp v0.25.0
-	github.com/godbus/dbus/v5 v5.2.2
-	github.com/gogpu/systray v0.3.0
 	github.com/gotd/td v0.161.0
 	github.com/hajimehoshi/go-mp3 v0.3.0
-	github.com/jezek/xgb v1.3.1
 	github.com/jfreymuth/pulse v0.1.3
-	github.com/liqmix/govid v0.0.0-20260726214734-844820719b99
 	github.com/livekit/server-sdk-go/v2 v2.18.1
-	github.com/makiuchi-d/gozxing v0.1.1
 	github.com/pion/ice/v4 v4.4.2
 	github.com/pion/interceptor v0.1.48
 	github.com/pion/logging v0.2.4
@@ -34,16 +26,12 @@ require (
 	github.com/pion/stun/v4 v4.0.0
 	github.com/pion/webrtc/v4 v4.2.20
 	github.com/rs/zerolog v1.35.1
-	github.com/thesyncim/govpx v0.0.0-20260716224042-691cd0512c48
 	github.com/tphakala/go-aac v0.7.0
 	golang.org/x/crypto v0.56.0
-	golang.org/x/exp/shiny v0.0.0-20260824195058-e88cd73687aa
-	golang.org/x/image v0.45.0
 	golang.org/x/net v0.58.0
 	golang.org/x/sys v0.47.0
 	maunium.net/go/mautrix v0.30.0
 	modernc.org/sqlite v1.58.0
-	rsc.io/qr v0.2.0
 )
 
 require (
@@ -51,8 +39,6 @@ require (
 	buf.build/go/protovalidate v1.2.0 // indirect
 	buf.build/go/protoyaml v0.7.0 // indirect
 	cel.dev/expr v0.25.2 // indirect
-	gioui.org/shader v1.0.9 // indirect
-	git.wow.st/gmp/jni v0.0.0-20210610011705-34026c7e22d0 // indirect
 	github.com/andybalholm/brotli v1.2.1 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect
@@ -74,8 +60,6 @@ require (
 	github.com/go-faster/yaml v0.4.6 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
-	github.com/go-text/typesetting v0.3.4 // indirect
-	github.com/go-webgpu/goffi v0.6.3 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/google/cel-go v0.30.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
@@ -143,7 +127,6 @@ require (
 	golang.org/x/text v0.41.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	golang.org/x/tools v0.49.0 // indirect
-	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/grpc v1.83.2 // indirect
@@ -153,6 +136,7 @@ require (
 	modernc.org/libc v1.75.6 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
+	rsc.io/qr v0.2.0 // indirect
 )
 
 // Patched fork: upstream anet v0.0.5 uses //go:linkname into net.zoneCache,

@@ -10,7 +10,6 @@ import (
 	"time"
 	"unsafe"
 
-	_ "gioui.org/app/permission/microphone"
 	"github.com/ebitengine/purego"
 )
 

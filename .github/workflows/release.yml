@@ -2,15 +2,13 @@
 #
 # Triggered ONLY by release tags (v*) or manual dispatch — never on every
 # commit (owner's requirement). Produces:
-#   - linux/amd64 + linux/arm64 (cgo, stripped, UPX)
+#   - linux/amd64 + linux/arm64 (stripped, UPX)
 #   - windows/amd64 (pure Go, stripped, UPX)
-#   - android arm64 APK (gogio)
-#   - web WASM → deployed to gh-pages (https://darkreaperboy.github.io/Uniclient/)
-#     The page shell self-updates from its own same-origin assets with a
-#     status bar / progress indicator (no API calls — see index.html below).
 #   - a Nix gate: `nix build .#uniclient` + binary smoke run, so
 #     `nix run github:DarkReaperBoy/Uniclient` is proven for this exact
 #     commit on every release (v* tags must also match flake.nix version).
+# The android APK + web (gh-pages wasm) legs return with the rebuilt GUI
+# (AGENTS.md) — until then the binary is the headless engine host.
 # All releases are marked PRE-RELEASE until the owner says otherwise.
 
 name: Release
@@ -37,13 +35,6 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: go/go.sum
-      - name: Install Gio Linux headers (cgo)
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq pkg-config libegl1-mesa-dev libgles-dev \
-            libx11-dev libx11-xcb-dev libxkbcommon-dev libxkbcommon-x11-dev \
-            libxcursor-dev libxfixes-dev libwayland-dev \
-            libwayland-egl-backend-dev libvulkan-dev
       - name: gofmt gate
         run: cd go && test -z "$(gofmt -l .)" || (echo "gofmt needed:"; gofmt -l .; exit 1)
       - name: Vet
@@ -57,12 +48,11 @@ jobs:
         env:
           GOMEMLIMIT: 900MiB
           GOGC: "30"
-      - name: Race (parser crasher regressions + core subsets)
+      - name: Race (core subsets)
         # a tag push must not release on a weaker gate than
         # verify.yml — same legs, same runner caps.
         run: |
           cd go
-          CGO_ENABLED=1 go test -p 1 -tags goolm -count=1 -race ./webm/ ./vp9anim/
           CGO_ENABLED=1 go test -p 1 -tags goolm -count=1 -race ./cores/ \
             -run 'TestHandshake|TestMyChannelID|TestTSExec|TestTS3|TestTeamSpeak|TestTSCommandQueue|TestSendVoice|TestGetGroupCall|TestMatrix|TestTruncate|TestParseRawHeaders|TestAutocrypt|TestDeltaChat|TestGitHub|TestLockOrder'
         env:
@@ -126,13 +116,6 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: go/go.sum
-      - name: Install Gio Linux headers (cgo)
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq pkg-config libegl1-mesa-dev libgles-dev \
-            libx11-dev libx11-xcb-dev libxkbcommon-dev libxkbcommon-x11-dev \
-            libxcursor-dev libxfixes-dev libwayland-dev \
-            libwayland-egl-backend-dev libvulkan-dev upx-ucl
       - name: Build
         run: |
           cd go
@@ -143,6 +126,7 @@ jobs:
           GOGC: "30"
       - name: Compress (UPX)
         run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq upx-ucl
           upx --best --lzma dist/uniclient-linux-${{ matrix.arch }} \
             || echo "upx failed — keeping uncompressed"
       - uses: actions/upload-artifact@v4
@@ -180,287 +164,9 @@ jobs:
           path: dist/uniclient-windows-amd64.exe
           if-no-files-found: error
 
-  android:
-    name: Android arm64 (APK)
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache-dependency-path: go/go.sum
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "21"
-      - name: Install gogio
-        run: go install gioui.org/cmd/gogio@v0.10.0
-      - name: Set up Android SDK + NDK
-        run: |
-          SDKMGR="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
-          yes | "$SDKMGR" --licenses >/dev/null || true
-          "$SDKMGR" --install "build-tools;35.0.0" "platforms;android-34" "ndk;27.0.12077973" > /dev/null
-          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
-          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
-      - name: Build APK
-        run: |
-          mkdir -p dist
-          cd go
-          ~/go/bin/gogio -target android -arch arm64 -minsdk 24 -tags goolm \
-            -o ../dist/uniclient.apk ./cmd/uniclient
-        env:
-          GOMEMLIMIT: 900MiB
-          GOGC: "30"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: uniclient-android
-          path: dist/uniclient.apk
-          if-no-files-found: error
-
-  web:
-    name: Web (WASM → GitHub Pages)
-    # Never publish pages from code that failed the test gate.
-    needs: [test]
-    runs-on: ubuntu-latest
-    timeout-minutes: 40
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache-dependency-path: go/go.sum
-      - name: Build wasm
-        run: |
-          cd go
-          GOOS=js GOARCH=wasm CGO_ENABLED=0 go build -p 1 -tags goolm \
-            -trimpath -ldflags "-s -w" -o ../web-build/uniclient.wasm ./cmd/uniclient
-        env:
-          GOMEMLIMIT: 900MiB
-          GOGC: "30"
-      - name: Assemble web shell
-        run: |
-          cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" web-build/wasm_exec.js
-          cat > web-build/index.html <<'HTML'
-          <!doctype html>
-          <html lang="en">
-          <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1">
-          <meta name="theme-color" content="#17212B">
-          <title>Uniclient</title>
-          <link rel="icon" href="data:,">
-          <style>
-            html, body { margin:0; height:100%; background:#17212B; color:#e7ecf1;
-              font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
-            #boot { position:fixed; inset:0; z-index:10; display:flex; flex-direction:column;
-              align-items:center; justify-content:center; gap:14px; padding:24px;
-              box-sizing:border-box; text-align:center; background:#17212B; }
-            #boot .logo { font-size:22px; font-weight:600; letter-spacing:.04em; }
-            #status { min-height:1.4em; opacity:.9; font-size:14px; }
-            #detail { min-height:1.2em; opacity:.55; font-size:12px; font-variant-numeric:tabular-nums; }
-            #bar { width:min(340px,80vw); height:8px; border-radius:99px; background:#26333f;
-              overflow:hidden; }
-            #fill { height:100%; width:0%; border-radius:99px;
-              background:linear-gradient(90deg,#3aa0ff,#61d4ff); transition:width .2s ease; }
-            #fill.indet { width:38%; animation:slide 1.2s ease-in-out infinite; }
-            @keyframes slide { 0% { margin-left:-40%; } 100% { margin-left:105%; } }
-            #retry { display:none; padding:8px 20px; border-radius:8px; border:1px solid #3aa0ff;
-              background:transparent; color:#61d4ff; font-size:14px; cursor:pointer; }
-            canvas { display:block; width:100vw; height:100vh; touch-action:none; }
-          </style>
-          </head>
-          <body>
-            <div id="boot">
-              <div class="logo">Uniclient</div>
-              <div id="status" role="status" aria-live="polite">Starting…</div>
-              <div id="bar"><div id="fill" class="indet"></div></div>
-              <div id="detail"></div>
-              <button id="retry">Retry</button>
-            </div>
-            <noscript>Uniclient needs JavaScript and WebAssembly to run — please enable JavaScript and reload.</noscript>
-            <script src="wasm_exec.js"></script>
-            <script>
-            "use strict";
-            (function () {
-              var REV_JS = "uniclient.js.rev";
-              var REV_WASM = "uniclient.wasm.rev";
-          
-              function $(id) { return document.getElementById(id); }
-              function fmtMB(n) { return (n / 1048576).toFixed(1) + " MB"; }
-              function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
-              function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
-              function revOf(resp) {
-                return resp.headers.get("etag") || resp.headers.get("last-modified") || "";
-              }
-          
-              // Status text + progress bar. pct=null -> indeterminate animation.
-              function setStatus(text, pct, detail) {
-                $("status").textContent = text;
-                var fill = $("fill");
-                if (pct == null) {
-                  fill.className = "indet";
-                  fill.style.width = "";
-                } else {
-                  fill.className = "";
-                  fill.style.width = Math.max(0, Math.min(100, pct * 100)).toFixed(1) + "%";
-                }
-                $("detail").textContent = detail || "";
-              }
-          
-              // One same-origin asset, streamed so the bar shows real bytes.
-              // cache:"no-cache" always revalidates: unchanged file -> cheap 304
-              // answered from the HTTP cache (no redownload), changed file (every
-              // gh-pages deploy) -> the new bytes. No API calls, ever.
-              async function stream(url, label) {
-                var resp = await fetch(url, { cache: "no-cache" });
-                if (!resp.ok) throw new Error(label + " — HTTP " + resp.status);
-                var rev = revOf(resp);
-                var total = Number(resp.headers.get("content-length")) || 0;
-                // Assemble in place when the size is known up front: the
-                // module is ~88 MB, so a chunks-array + final-copy design
-                // held TWO copies at peak (measured 170 MB of JS heap on a
-                // low-RAM budget). With content-length the peak is the
-                // output buffer alone.
-                var out = total ? new Uint8Array(total) : null;
-                var chunks = [], got = 0;
-                if (resp.body) {
-                  var reader = resp.body.getReader();
-                  for (;;) {
-                    var step = await reader.read();
-                    if (step.done) break;
-                    if (out && got + step.value.length <= out.length) {
-                      out.set(step.value, got);
-                    } else {
-                      chunks.push(step.value);
-                    }
-                    got += step.value.length;
-                    setStatus(label, total ? got / total : null,
-                      total ? fmtMB(got) + " / " + fmtMB(total) : fmtMB(got));
-                  }
-                } else {
-                  var all = new Uint8Array(await resp.arrayBuffer());
-                  out = all; got = all.length;
-                }
-                if (!out) {
-                  out = new Uint8Array(got);
-                }
-                var off = 0;
-                for (var i = 0; i < chunks.length; i++) { out.set(chunks[i], off); off += chunks[i].length; }
-                return { bytes: out, rev: rev };
-              }
-          
-              // updated | up to date | downloaded (first visit), from the ETag we
-              // stored last time — proof on screen that the page really refreshed.
-              function compareRev(key, rev) {
-                var prev = lsGet(key);
-                if (rev) lsSet(key, rev);
-                if (!rev) return prev ? "up to date" : "downloaded";
-                if (prev === null) return "downloaded";
-                return prev === rev ? "up to date" : "updated";
-              }
-          
-              // Crash surface (risk R5): after the overlay hides, a wasm panic or
-          // any other uncaught script error would leave a dead silent page.
-          // Surface it — overlay back with the error and the Retry button.
-          function crash(text) {
-            running = false;
-            setStatus("Uniclient stopped", null, String(text));
-            $("retry").style.display = "inline-block";
-          }
-          window.addEventListener("error", function (e) {
-            crash((e && e.message) || "script error");
-          });
-          window.addEventListener("unhandledrejection", function (e) {
-            crash((e && e.reason && (e.reason.message || e.reason)) || "unhandled rejection");
-          });
-
-          var running = false;
-          var bootObs = null;
-              async function boot() {
-                if (running) return;
-                running = true;
-                $("retry").style.display = "none";
-                try {
-                  if (typeof Go === "undefined") throw new Error("wasm_exec.js failed to load");
-                  // wasm_exec.js (small): refresh it too so it always matches the
-                  // wasm built by the same deploy; the static tag above is the
-                  // fallback when this fetch fails.
-                  var jsState = "";
-                  try {
-                    var js = await stream("wasm_exec.js", "Loading wasm_exec.js…");
-                    jsState = compareRev(REV_JS, js.rev);
-                    if (jsState === "updated") {
-                      var s = document.createElement("script");
-                      s.textContent = new TextDecoder().decode(js.bytes);
-                      document.head.appendChild(s); // overrides the static copy
-                    }
-                  } catch (e) { jsState = "bundled"; } // static wasm_exec.js stays
-                  // The wasm itself — the big one the bar is for.
-                  var wasm;
-                  try {
-                    wasm = await stream("uniclient.wasm", "Updating uniclient.wasm…");
-                  } catch (e) {
-                    // Offline: take whatever the HTTP cache still holds.
-                    setStatus("Updating uniclient.wasm…", null, "offline — using cached copy");
-                    var cached = await fetch("uniclient.wasm", { cache: "force-cache" });
-                    if (!cached.ok) throw e;
-                    wasm = { bytes: new Uint8Array(await cached.arrayBuffer()), rev: revOf(cached) };
-                  }
-                  var wasmState = compareRev(REV_WASM, wasm.rev);
-                  setStatus("Starting Uniclient…", 1,
-                    "wasm: " + fmtMB(wasm.bytes.length) + " — " + wasmState + " · js: " + jsState);
-                  // Drop the overlay the moment Gio attaches its real canvas.
-                  // One observer per page, not per boot: a failed boot used
-                  // to leave its observer connected forever (risk R6).
-                  if (bootObs) {
-                    bootObs.disconnect();
-                  }
-                  bootObs = new MutationObserver(function () {
-                    if (document.querySelector("canvas")) {
-                      $("boot").style.display = "none";
-                      bootObs.disconnect();
-                      bootObs = null;
-                    }
-                  });
-                  bootObs.observe(document.body, { childList: true, subtree: true });
-                  var go = new Go();
-                  var built = await WebAssembly.instantiate(wasm.bytes, go.importObject);
-                  // The raw module bytes are ~88 MB of JS heap that stay
-                  // reachable for the whole app lifetime via this closure
-                  // (go.run never resolves while the app runs). The
-                  // compiled code is resident — release the bytes.
-                  wasm.bytes = null;
-                  await go.run(built.instance);
-                  throw new Error("Uniclient exited"); // app closed -> offer relaunch
-                } catch (e) {
-                  running = false;
-                  setStatus("Uniclient stopped", null, String((e && e.message) || e));
-                  $("retry").style.display = "inline-block";
-                }
-              }
-          
-              $("retry").addEventListener("click", function () { boot(); });
-              boot();
-            })();
-            </script>
-          </body>
-          </html>
-          HTML
-          echo "Uniclient web (WASM)" > web-build/.nojekyll
-      - name: Deploy to gh-pages
-        run: |
-          cd web-build
-          git init -q
-          git config user.name "uniclient-ci"
-          git config user.email "ci@uniclient.local"
-          git add -A
-          git commit -qm "Web build for ${{ github.ref_name }}"
-          git push -qf "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" HEAD:gh-pages
-
   release:
     name: Publish pre-release
-    needs: [test, nix, linux, windows, android]
+    needs: [test, nix, linux, windows]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -493,5 +199,4 @@ jobs:
             dist/uniclient-linux-amd64
             dist/uniclient-linux-arm64
             dist/uniclient-windows-amd64.exe
-            dist/uniclient.apk
             dist/checksums.txt

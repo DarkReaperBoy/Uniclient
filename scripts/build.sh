@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
 # build.sh — cross-platform release builds for Uniclient.
 #
-# Usage: ./scripts/build.sh [linux|windows|web|all]
+# Usage: ./scripts/build.sh [linux|windows|all]
 #
 # Notes:
-#   - linux needs cgo (Gio GPU access) + X11/Wayland/EGL dev headers.
-#   - windows/web are pure Go (CGO_ENABLED=0) — no cross toolchain needed.
+#   - pure Go everywhere (CGO_ENABLED=0) — no cross toolchain needed.
 #   - binaries are stripped (-trimpath -ldflags "-s -w"); UPX if available
 #     and not disabled (UNICLIENT_NO_UPX=1).
 set -euo pipefail
@@ -29,17 +28,10 @@ upx_compress() {
 }
 
 build_linux() {
-	echo "==> linux/amd64 (cgo)"
+	echo "==> linux/amd64"
 	CGO_ENABLED=1 go build -p 1 -tags "$TAGS" "${strip_flags[@]}" \
 		-o "$DIST/uniclient-linux-amd64" ./cmd/uniclient
 	upx_compress "$DIST/uniclient-linux-amd64"
-	if [ "${UNICLIENT_ARM64:-0}" = "1" ]; then
-		echo "==> linux/arm64 (cgo cross — needs aarch64 pkg-config libs)"
-		CGO_ENABLED=1 CC=aarch64-linux-gnu-gcc \
-			PKG_CONFIG_LIBDIR="$PKG_CONFIG_PATH64" \
-			go build -p 1 -tags "$TAGS" "${strip_flags[@]}" \
-			-o "$DIST/uniclient-linux-arm64" ./cmd/uniclient || echo "arm64 skipped"
-	fi
 }
 
 build_windows() {
@@ -49,21 +41,12 @@ build_windows() {
 	upx_compress "$DIST/uniclient-windows-amd64.exe"
 }
 
-build_web() {
-	echo "==> web/wasm (pure Go)"
-	GOOS=js GOARCH=wasm CGO_ENABLED=0 go build -p 1 -tags "$TAGS" \
-		-trimpath -ldflags "-s -w" -o "$DIST/uniclient.wasm" ./cmd/uniclient
-	# The web shell (wasm_exec.js + index.html) is generated in CI into gh-pages;
-	# locally you can run scripts/web.sh to serve it on :8080.
-}
-
 case "${1:-all}" in
 linux) build_linux ;;
 windows) build_windows ;;
-web) build_web ;;
-all) build_linux && build_windows && build_web ;;
+all) build_linux && build_windows ;;
 *)
-	echo "usage: $0 [linux|windows|web|all]" >&2
+	echo "usage: $0 [linux|windows|all]" >&2
 	exit 1
 	;;
 esac

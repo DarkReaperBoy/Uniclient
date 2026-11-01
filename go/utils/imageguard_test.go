@@ -7,8 +7,6 @@ import (
 	"image"
 	"image/color"
 	"image/png"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -66,33 +64,5 @@ func TestImageWithinBudget(t *testing.T) {
 	}
 	if ImageWithinBudget(0, 100, 40_000_000) {
 		t.Error("zero width accepted")
-	}
-}
-
-func TestDimensionBombWiringGone(t *testing.T) {
-	for _, dir := range []string{"../gui", "../qrscan"} {
-		entries, err := os.ReadDir(dir)
-		if err != nil {
-			t.Fatalf("read %s: %v", dir, err)
-		}
-		for _, e := range entries {
-			name := e.Name()
-			if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
-				continue
-			}
-			src, err := os.ReadFile(filepath.Join(dir, name))
-			if err != nil {
-				t.Fatalf("read %s/%s: %v", dir, name, err)
-			}
-			for _, line := range strings.Split(string(src), "\n") {
-				trimmed := strings.TrimSpace(line)
-				if strings.HasPrefix(trimmed, "//") {
-					continue
-				}
-				if strings.Contains(line, "image.Decode(") && !strings.Contains(line, "DecodeConfig") {
-					t.Errorf("%s/%s still decodes unguarded: %s", dir, name, trimmed)
-				}
-			}
-		}
 	}
 }

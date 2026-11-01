@@ -1,14 +1,18 @@
 # Uniclient
 
-One pure-Go, cross-platform messenger. One native GUI, many chat and voice
+One pure-Go, cross-platform messenger. One frontend, many chat and voice
 backends — Telegram, Matrix, IRC, GitHub, XMPP, Delta Chat, Bale,
 TeamSpeak, Mumble — each added and switched as easily as an account.
-Built with [Gio](https://gioui.org), Material Design visuals.
 
-**Status: pre-release.** Everything you see in the app works against real
-backends with real accounts — no demo data, no placeholder screens. What a
-backend cannot do yet is hidden, not faked. See `AGENTS.md` for the project
-constitution.
+**Status: pre-release, GUI rebuild in progress.** The previous GUI was
+removed (2026-11-01) and is being rebuilt from scratch with
+[Gio](https://gioui.org), taking **Telegram Desktop / Telegram Web /
+Telegram Android** as the design references. Until it lands, the shipped
+binary is the **headless engine host** (`uniclient` boots the engine,
+serves accounts, and — with `-events` — prints the engine event stream to
+stdout). Everything under the hood works against real backends with real
+accounts — no demo data, no placeholder screens. What a backend cannot do
+yet is hidden, not faked. See `AGENTS.md` for the project constitution.
 
 ## Run it
 
@@ -23,43 +27,31 @@ page for every release tag (all marked pre-release for now):
   built against glibc CI runners and won't start under Nix's loader — the
   flake is the supported path there).
 - **Windows** — `uniclient-windows-amd64.exe` (pure Go, no runtime deps).
-- **Android** — `uniclient.apk` (arm64).
-- **Web** — a WASM build of the same GUI, deployed to
-  `https://darkreaperboy.github.io/Uniclient/`. Opening the page revalidates
-  its own assets: a status bar shows download progress while the newest
-  `uniclient.wasm` is pulled (instant when already up to date), then the
-  app boots.
 
-One single binary per platform — the GUI, the engine host, and every core
-compile into it. Headless/CLI behavior (when present) is a flag on the same
-binary, never a second executable.
+Headless engine host usage:
+
+```sh
+uniclient -dir ~/.uniclient -password <vault-password> [-events]
+```
+
+`Ctrl-C` / `SIGTERM` shuts the engine down cleanly. The Android APK and the
+web (WASM) builds return with the rebuilt GUI.
 
 ## Build from source
 
-Requirements: Go 1.27+, and on Linux the Gio cgo headers
-(`libegl1-mesa-dev libgles-dev libx11-dev libx11-xcb-dev libxkbcommon-dev
-libxkbcommon-x11-dev libxcursor-dev libxfixes-dev libwayland-dev
-libwayland-egl-backend-dev libvulkan-dev`).
+Requirements: Go 1.27+. Pure Go — no cgo, no system dev headers.
 
 ```sh
 cd go
+go build -tags goolm -o uniclient ./cmd/uniclient
 
-# Linux (cgo for the GPU/window backends)
-CGO_ENABLED=1 go build -tags goolm -o uniclient ./cmd/uniclient
-
-# Windows (pure Go, cross-builds from Linux)
+# Windows (cross-builds from Linux)
 GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -tags goolm \
     -o uniclient.exe ./cmd/uniclient
-
-# Web (WASM, same GUI code)
-GOOS=js GOARCH=wasm CGO_ENABLED=0 go build -tags goolm \
-    -o uniclient.wasm ./cmd/uniclient
 ```
 
 The **`-tags goolm`** flag is mandatory everywhere: it selects mautrix's
-pure-Go Olm implementation so Matrix E2EE works without cgo. The only cgo
-in the tree is inside Gio's own Linux GPU shims — everything else compiles
-`CGO_ENABLED=0`.
+pure-Go Olm implementation so Matrix E2EE works without cgo.
 
 **Low-RAM machines**: gotd's generated `tg` package needs ~2 GB+ to compile.
 The verified recipe (`-p 1 GOMEMLIMIT=900MiB GOGC=30`) is used by CI and
@@ -73,9 +65,8 @@ go test -p 1 -tags goolm -count=1 ./...   # with GOMEMLIMIT=900MiB GOGC=30
 
 ```
 go/
-  cmd/uniclient/   ONE binary. Flag-based modes. Gio window + engine host.
-  gui/             The Gio app (AyuGram layout, Material visuals). Pure UI,
-                   talks to the engine only.
+  cmd/uniclient/   ONE binary. Flag-based modes; headless engine host
+                   (the rebuilt Gio window returns here too).
   bootstrap/       Engine wiring: engine.Init + core factory + session store.
   engine/          Accounts, vault, SQLite cache, auth state machine, events,
                    media, pending queue + the shared voice pipeline
@@ -89,9 +80,9 @@ go/
   tests/           Live protocol tests (env-gated, run on demand, not CI).
 ```
 
-Every backend renders through the same GUI. A core that lacks a feature
-returns `ErrNotSupported` and the GUI hides the action — cores are grown to
-fit the GUI, never the other way around.
+Every backend renders through the same frontend. A core that lacks a feature
+returns `ErrNotSupported` and the UI hides the action — cores are grown to
+fit the frontend, never the other way around.
 
 ## Backends
 
