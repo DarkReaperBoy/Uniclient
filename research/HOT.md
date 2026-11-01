@@ -51,7 +51,9 @@ This is not history — stale lines are lies.
   verified at job AND step level, all 5 jobs each, Race green; the
   race leg now carries R34×2 + R37×2 + R38×3 +
   R39×3 + R40×3 + R41×3 + R42/R43×5 + R44/R45×5 + R46×5 + R47/R48×6 +
-  R49/R50×5 + R51/R52×4 + R53-R55×7 pins). Local -race on the gui
+  R49/R50×5 + R51/R52×4 + R53-R55×7 pins). Pending: R53/R54/R55
+  **41282402414 (40089c8b)** — verify at job AND step level.
+  Local -race on the gui
   package fits the box (proven 337/338/339 — use it before falling
   back to CI).
 - **Fresh-cache -race build OOM (session 339)**: after a wipe, the gui
@@ -66,6 +68,14 @@ This is not history — stale lines are lies.
   iteration 2; actual = chunk 3 iteration 33 done, stories.go next).
   If a verify.yml dispatch is redundant (an earlier run for the same
   SHA already succeeded), cancel it — CI minutes are not free.
+- **OWNER ACTIONS IN FLIGHT (session 341, do not touch)**: the owner
+  dispatched release.yml by hand — run **41282149076** on da6c7bfe
+  (2026-11-01T06:46Z, newest tag v0.10.3 → this is the v0.10.4 cut;
+  NOTE it predates the stories fix 40089c8b by minutes). Pages is
+  RE-ENABLED by the owner — status built, serving
+  https://darkreaperboy.github.io/Uniclient/ from gh-pages. Verify the
+  release run's outcome next session; do not cancel or re-dispatch
+  without cause.
 - **Edit-tool + gofmt trap (hit THREE times in 338 — and it bites on
   FAILED edits too: a MultiEdit whose old_str mismatched still left the
   file tab→space normalized, breaking gofmt with no obvious cause)**:
