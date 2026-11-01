@@ -156,7 +156,9 @@ type App struct {
 	devPickers map[string]*devPickerState
 
 	// story viewer (slice 104): the open stories overlay.
-	storyView *storyViewerState
+	// storyViewGen is its session key (R54).
+	storyView    *storyViewerState
+	storyViewGen int
 
 	// slow-mode countdown redraw guard (slice 69).
 	slowTickPending bool

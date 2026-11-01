@@ -141,55 +141,116 @@ func (a *App) openStoryViewer(c engine.ChatInfo) {
 		title:     c.Title,
 		loading:   true,
 	}
+	a.storyViewGen++ // R54: new viewer session — in-flight fetch tails retire
+	gen := a.storyViewGen
 	a.mu.Unlock()
 	a.invalidate()
 	go func() {
 		raw, err := a.eng.FetchPeerStories(c.AccountID, c.ChatID)
-		a.mu.Lock()
-		sv := a.storyView
-		if sv == nil || sv.chatID != c.ChatID || sv.accountID != c.AccountID {
-			a.mu.Unlock()
-			return // a different viewer opened meanwhile
+		a.storyFetchDone(gen, c.AccountID, c.ChatID, raw, err)
+	}()
+}
+
+// storyFetchDone installs the fetch result (extracted from the open
+// goroutine; stage-1 body is the original in-place tail — the shape
+// the R53 pin proves racy).
+func (a *App) storyFetchDone(gen int, accountID, chatID, raw string, err error) {
+	if !a.updateStoryView(func(sv *storyViewerState) bool {
+		if a.storyViewGen != gen || sv.accountID != accountID || sv.chatID != chatID {
+			return false
 		}
 		sv.loading = false
 		if err != nil {
 			sv.err = err.Error()
-		} else {
-			sv.items, err = parseStories(raw)
-			if err != nil {
-				sv.err = err.Error()
-			}
+			return true
 		}
-		a.mu.Unlock()
-		a.invalidate()
-	}()
+		items, perr := parseStories(raw)
+		if perr != nil {
+			sv.err = perr.Error()
+			return true
+		}
+		sv.items = items
+		return true
+	}) {
+		return
+	}
+	a.invalidate()
 }
 
-// closeStoryViewer dismisses the overlay.
+// closeStoryViewer dismisses the overlay. R55: the reply draft is
+// viewer-session state — cleared on close so the next open (any chat)
+// starts empty, never showing another story's half-written reply.
+// GUI-loop-only (storyReplyEd); every caller is a viewer key, click or
+// tap.
 func (a *App) closeStoryViewer() {
 	a.mu.Lock()
 	a.storyView = nil
+	a.storyViewGen++
 	a.mu.Unlock()
+	a.wid.storyReplyEd.SetText("")
 	a.invalidate()
 }
 
 // storyAdvance steps the viewer; stepping past the last story closes it
 // (AyuGram behavior).
 func (a *App) storyAdvance(delta int) {
-	a.mu.Lock()
-	sv := a.storyView
-	if sv == nil {
-		a.mu.Unlock()
+	last := false
+	if !a.updateStoryView(func(sv *storyViewerState) bool {
+		sv.cur = storyStep(sv.cur, delta, len(sv.items))
+		last = sv.cur >= len(sv.items)-1
+		return true
+	}) {
 		return
 	}
-	sv.cur = storyStep(sv.cur, delta, len(sv.items))
-	last := sv.cur >= len(sv.items)-1
-	a.mu.Unlock()
 	if delta > 0 && last {
 		a.closeStoryViewer()
 		return
 	}
 	a.invalidate()
+}
+
+// updateStoryView copy-on-write installs a mutated story-viewer head.
+// R53: storyViewerState is frame-carried as a POINTER, so the frame and
+// the head share the struct — every writer goes through here so a
+// frame's snapshot stays immutable while background tails run.
+func (a *App) updateStoryView(fn func(sv *storyViewerState) bool) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.storyView == nil {
+		return false
+	}
+	sv := *a.storyView
+	if !fn(&sv) {
+		return false
+	}
+	a.storyView = &sv
+	return true
+}
+
+// flipStoryReaction installs SentReaction=to on the story currently
+// showing `from` (deep item copy — the frame's items slice stays
+// untouched, the R38 rule). False when the viewer moved on, the story
+// is gone, or a newer reaction already replaced ours.
+func (a *App) flipStoryReaction(accountID, chatID string, storyID int, from, to string) bool {
+	return a.updateStoryView(func(sv *storyViewerState) bool {
+		if sv.accountID != accountID || sv.chatID != chatID {
+			return false
+		}
+		for i := range sv.items {
+			if sv.items[i].ID != storyID {
+				continue
+			}
+			if sv.items[i].SentReaction != from {
+				return false
+			}
+			items := make([]storyItem, len(sv.items))
+			copy(items, sv.items)
+			items[i].SentReaction = to
+			sv.items = items
+			return true
+		}
+		return false
+	})
 }
 
 // ── strip layout ──────────────────────────────────────────────────────────
@@ -211,7 +272,7 @@ func (a *App) layoutStoryStrip(gtx layout.Context, f frame) layout.Dimensions {
 				if f.cfg.Streamer {
 					a.setToast("Stories hidden in streamer mode")
 				} else {
-					go a.openStoryViewer(c) // GUI-safe: state set under lock
+					a.openStoryViewer(c)
 				}
 			}
 			return layout.Inset{Right: unit.Dp(12)}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -537,23 +598,28 @@ func (a *App) storyActionRow(gtx layout.Context, f frame, sv *storyViewerState, 
 	if it == nil {
 		return layout.Dimensions{}
 	}
-	own := sv.chatID != "" && sv.chatID == accountByID(f, sv.accountID).SelfUserID
+	own := storyViewerOwn(f, sv)
 
 	if a.wid.storyReactBtn.Clicked(gtx) {
 		emoji, open := storyHeartAction(it.SentReaction)
 		if open {
-			sv.reactOpen = !sv.reactOpen
+			a.updateStoryView(func(s *storyViewerState) bool { s.reactOpen = !s.reactOpen; return true })
 			a.loadAvailEmojis(sv.accountID)
 		} else {
 			a.storyReact(sv, it, emoji)
-			sv.reactOpen = false
+			a.updateStoryView(func(s *storyViewerState) bool { s.reactOpen = false; return true })
 		}
 		a.invalidate()
 	}
 	if a.wid.storyReplyBtn.Clicked(gtx) {
-		sv.replyOn = !sv.replyOn
-		sv.reactOpen = false
-		if sv.replyOn {
+		replyOn := false
+		a.updateStoryView(func(s *storyViewerState) bool {
+			s.replyOn = !s.replyOn
+			s.reactOpen = false
+			replyOn = s.replyOn
+			return true
+		})
+		if replyOn {
 			gtx.Execute(key.FocusCmd{Tag: &a.wid.storyReplyEd})
 		}
 		a.invalidate()
@@ -565,7 +631,7 @@ func (a *App) storyActionRow(gtx layout.Context, f frame, sv *storyViewerState, 
 		a.storySendReply(sv, it)
 	}
 	if a.wid.storyReplyXBtn.Clicked(gtx) {
-		sv.replyOn = false
+		a.updateStoryView(func(s *storyViewerState) bool { s.replyOn = false; return true })
 		a.invalidate()
 	}
 	// Enter submits the reply (Shift+Enter newline — the a.wid.composer idiom).
@@ -677,9 +743,7 @@ func (a *App) storyReactStrip(gtx layout.Context, f frame, sv *storyViewerState,
 	for i, e := range emojis {
 		if a.wid.storyReactEmojiBtn[i].Clicked(gtx) {
 			a.storyReact(sv, it, e)
-			a.mu.Lock()
-			sv.reactOpen = false
-			a.mu.Unlock()
+			a.updateStoryView(func(s *storyViewerState) bool { s.reactOpen = false; return true })
 			a.invalidate()
 			break
 		}
@@ -753,18 +817,27 @@ func (a *App) storyReplyComposer(gtx layout.Context) layout.Dimensions {
 // storyReact sends (or removes) the story reaction — optimistic local
 // flip, revert + toast on error.
 func (a *App) storyReact(sv *storyViewerState, it *storyItem, emoji string) {
-	prev := it.SentReaction
-	it.SentReaction = emoji
+	accountID, chatID, storyID, prev := sv.accountID, sv.chatID, it.ID, it.SentReaction
+	if !a.flipStoryReaction(accountID, chatID, storyID, prev, emoji) {
+		return
+	}
 	a.invalidate()
 	go func() {
-		if err := a.eng.ReactToStory(sv.accountID, sv.chatID, it.ID, emoji); err != nil {
-			a.mu.Lock()
-			it.SentReaction = prev
-			a.mu.Unlock()
-			a.setToast("React: " + err.Error())
-			a.invalidate()
-		}
+		a.storyReactDone(accountID, chatID, storyID, emoji,
+			a.eng.ReactToStory(accountID, chatID, storyID, emoji))
 	}()
+}
+
+// storyReactDone reverts the optimistic flip when the engine call
+// failed. R53: only while the same viewer still shows OUR emoji — a
+// newer reaction must not be stomped, and a closed/reopened viewer is
+// not touched (the error still toasts — the react really was sent).
+func (a *App) storyReactDone(accountID, chatID string, storyID int, emoji string, err error) {
+	if err != nil {
+		a.flipStoryReaction(accountID, chatID, storyID, emoji, "")
+		a.setToast("React: " + err.Error())
+		a.invalidate()
+	}
 }
 
 // storySendReply sends the a.wid.composer text as a reply to the current story
@@ -775,10 +848,11 @@ func (a *App) storySendReply(sv *storyViewerState, it *storyItem) {
 		return
 	}
 	a.wid.storyReplyEd.SetText("")
-	sv.replyOn = false
+	a.updateStoryView(func(s *storyViewerState) bool { s.replyOn = false; return true })
 	a.invalidate()
+	accountID, chatID, storyID := sv.accountID, sv.chatID, it.ID
 	go func() {
-		_, err := a.eng.SendMessage(sv.accountID, sv.chatID, text, storyReplyID(it.ID), nil, false, 0, "", "", false, false, false, false, false)
+		_, err := a.eng.SendMessage(accountID, chatID, text, storyReplyID(storyID), nil, false, 0, "", "", false, false, false, false, false)
 		if err != nil {
 			a.setToast("Reply failed: " + err.Error())
 			return

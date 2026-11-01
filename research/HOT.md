@@ -29,7 +29,13 @@ This is not history — stale lines are lies.
   poll.go 972 DONE (**R51** + **R52**, iteration 33 — five in-place
   writers on the frame-carried *pollDlgState incl. the background send
   tail + the send goroutine reading a.wid switches; updatePollDlg CoW +
-  pollDlgGen; TRUE -race RED proven for R52), stories.go 960 next.** Tab-exact python-heredoc edits dodge the
+  pollDlgGen; TRUE -race RED proven for R52), stories.go 960→1,034
+  DONE (**R53** + **R54** + **R55**, iteration 34 — every writer
+  mutated the frame-carried *storyViewerState in place, the react
+  revert through the items backing array included; updateStoryView
+  CoW + storyViewGen session key + the reply-draft clear on close;
+  TRUE -race RED via the stage-1 extraction build), location.go 941
+  next.** Tab-exact python-heredoc edits dodge the
   Edit-tool gofmt trap.
 - **CI proofs**: ALL CLOSED — R32/R33 **41222152669 (be7541e4)**, R34-R36
   **41236970838 (f14028a6)**, R37 **41237343094 (e6de37fc)**, R38
@@ -45,7 +51,7 @@ This is not history — stale lines are lies.
   verified at job AND step level, all 5 jobs each, Race green; the
   race leg now carries R34×2 + R37×2 + R38×3 +
   R39×3 + R40×3 + R41×3 + R42/R43×5 + R44/R45×5 + R46×5 + R47/R48×6 +
-  R49/R50×5 + R51/R52×4 pins). NO CI pending. Local -race on the gui
+  R49/R50×5 + R51/R52×4 + R53-R55×7 pins). Local -race on the gui
   package fits the box (proven 337/338/339 — use it before falling
   back to CI).
 - **Fresh-cache -race build OOM (session 339)**: after a wipe, the gui

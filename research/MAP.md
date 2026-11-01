@@ -706,6 +706,51 @@ music, slice 206; iteration 17, VERDICT: R29 fixed, rest CLEAN)
 
 
 
+### stories.go (960→1,034 lines — session 341, read in full: the Stories surface, AyuGram parity slice 104 + slices 164/215 — the chat-list story-circles strip (unread-first, accent/dim rings, forum-native corner rounding) and the fullscreen viewer overlay (progress segments, tap zones, keyboard layer, caption/views meta, reaction heart + emoji strip, inline reply composer, share-link copy, video handoff to the system player); chunk 3 iteration 34, the unscanned queue by size #5, VERDICT: R53 + R54 + R55 fixed, rest CLEAN)
+- Scope: storyItem (the engine FetchPeerStories JSON contract) +
+  storyViewerState (accountID/chatID/title/items/cur/loading/err/
+  reactOpen/replyOn); pure helpers (storyStripChats — unread first,
+  zero-count hidden even with a dangling unread flag; storyRingUnread;
+  parseStories; isVideoStory — mp4 suffix fallback; storyStep — clamps,
+  caller closes past the end; storyMetaLine — same-day time vs date;
+  storyStripName — 9-rune clip; storyHeartAction — heart-tap semantics;
+  storyReplyID — the "story:<id>" InputReplyToStory convention;
+  storyViewerOwn; storyChatAvatarPath).
+- State flow: openStoryViewer installs a loading head + spawns the
+  FetchPeerStories tail; closeStoryViewer nils the head; storyAdvance
+  steps and closes past the end; the frame carries the head as a
+  POINTER (state.go snapshot) — pre-fix every writer mutated it in
+  place (R53); layout reads (layoutStoryViewer/storyActionRow/
+  storyProgress/storyMedia/current) are lock-free GUI-loop reads.
+- R53 (write-races-layout, R34's exact pre-fix shape): the fetch tail,
+  storyAdvance, and storyReact's optimistic flip + background revert
+  wrote the head (and, through `it *storyItem`, the frame-shared items
+  backing array) in place; the react/reply strip toggles wrote the
+  frozen snapshot mid-frame; the revert also stomped a newer reaction
+  (failed old react overwriting a successful new one). Fix:
+  updateStoryView copy-on-write installer + flipStoryReaction (deep
+  item copy) + extracted storyReactDone with a from-match guard.
+- R54 (weak tail guard): identity-only (chatID+accountID) let a slow
+  fetch for chat X land stale data over a reopened viewer for X.
+  Fix: storyViewGen session key (open/close bump; storyFetchDone
+  installs only while its gen is current).
+- R55 (stale draft): the reply editor kept its text across closes —
+  cross-conversation draft leak. Fix: closeStoryViewer clears it
+  (GUI-loop-only; all callers verified viewer key/click/tap).
+- Also: the strip's `go a.openStoryViewer(c)` goroutine dropped
+  (state-set-under-lock is GUI-safe directly); the duplicated `own`
+  computation replaced by storyViewerOwn; loadAvailEmojis/
+  availEmojisFor are properly locked (no finding); storyStripBtns
+  pool resets via a fresh map at 128 (R38-compliant already).
+- GREEN: stories_r53_test.go ×7 clean under LOCAL -race (-count=20),
+  incl. the TRUE tool-proven RED (snapshot-immutability pin fired the
+  detector against the stage-1 in-place build); CI race-leg extended.
+  Full gui suite 925 PASS / 0 FAIL / 3 SKIP (environmental).
+- Next in the unscanned queue: location.go (941), savedsublists.go
+  (883), topics.go (738), statsview.go (697), h264player.go (688),
+  folders.go (688), sponsored.go (641), …
+
+
 ### poll.go (972→1,016 lines — session 340, read in full: the polls surface, AyuGram parity §4 + slice 124 — poll bubbles with vote bars / quiz reveal / solution line, optimistic vote overlays, and the creation dialog; chunk 3 iteration 33, the unscanned queue by size #4, VERDICT: R51 + R52 fixed, rest CLEAN)
 - Scope: the model + pure helpers (parsePollMessage / applyPollOverlay /
   pollPercent / pollSubtitle / pollFooterLabel / pollVoteKey / pollIsBody /
