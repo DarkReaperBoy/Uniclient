@@ -39,27 +39,27 @@ This is not history — stale lines are lies.
   the only non-success step anywhere is the Nix "flake.nix version
   must match the release tag" gate, `skipped` by design off release
   tags). CLOSED: R42/R43 **41244407673 (9b2cf32d)**, R44/R45
-  **41245057374 (1476115a)**, R46 **41245678978 (d8b4ce01)** and
-  R47/R48 **41246248716 (12165b24)** — all 5 jobs success at step
-  level, Race green (the race leg now carries R34×2 + R37×2 + R38×3 +
+  **41245057374 (1476115a)**, R46 **41245678978 (d8b4ce01)**,
+  R47/R48 **41246248716 (12165b24)**, R49/R50 **41251708582
+  (0319f118)** and R51/R52 **41252480112 (9d1d7269)** (session 341,
+  verified at job AND step level, all 5 jobs each, Race green; the
+  race leg now carries R34×2 + R37×2 + R38×3 +
   R39×3 + R40×3 + R41×3 + R42/R43×5 + R44/R45×5 + R46×5 + R47/R48×6 +
-  R49/R50×5 + R51/R52×4 pins). Pending: **41251708582** (R49/R50,
-  0319f118) + **41252480112** (R51/R52, 9d1d7269) — verify EACH at job
-  AND step level. Local -race on the gui
+  R49/R50×5 + R51/R52×4 pins). NO CI pending. Local -race on the gui
   package fits the box (proven 337/338/339 — use it before falling
   back to CI).
 - **Fresh-cache -race build OOM (session 339)**: after a wipe, the gui
   race build (`-race -gcflags=all=-c=1`) gets killed once on gotd/td/tg
   — RETRY the same command; the build cache carries progress and the
   second attempt completes. Don't lower GOMEMLIMIT or split the leg.
-- **Wipe #7 (session 339 boot)**: repo + toolchain + download/ copies
-  gone again (same shape as wipe #6); the upload token file survived.
-  Full recipe re-run from zero (clone → go1.27.1 tarball → mod
-  download), ~10 min. Confirmed a THIRD time: the WORKLOG STATE block
-  is the resume truth (HEAD was
-  one commit AHEAD of the handoff summary). If a verify.yml dispatch is
-  redundant (an earlier run for the same SHA already succeeded), cancel
-  it — CI minutes are not free.
+- **Wipe #8 (session 341 boot)**: repo + toolchain gone again (same
+  shape as #6/#7); the upload token file survived. Full recipe re-run
+  from zero (clone → devroot-setup.sh → mod download), ~10 min.
+  Confirmed a FOURTH time: the WORKLOG STATE block is the resume truth
+  — the handoff summary was a WHOLE PHASE stale (claimed chunk 2
+  iteration 2; actual = chunk 3 iteration 33 done, stories.go next).
+  If a verify.yml dispatch is redundant (an earlier run for the same
+  SHA already succeeded), cancel it — CI minutes are not free.
 - **Edit-tool + gofmt trap (hit THREE times in 338 — and it bites on
   FAILED edits too: a MultiEdit whose old_str mismatched still left the
   file tab→space normalized, breaking gofmt with no obvious cause)**:
