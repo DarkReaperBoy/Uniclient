@@ -7,10 +7,10 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: H-1 hook-debt retirement, iterations 1+2 LANDED — audio.SetDeviceFactory seam retires the MediaPlayer AND VoiceRecorder hook clusters (23 hooks dead, engine 64→41); player + recorder tests drive real device journeys
-- next: H-1 iteration 3 — the big clusters: ForTestSetAccounts (54 uses; route through real AddAccount/SetCoreFactory flows) and ForTestDb (46 uses; seed through real engine APIs or a test DB fixture path); then VAD/media clusters
+- front: H-1 iterations 1+2 EXECUTED + CI-GATED — audio.SetDeviceFactory seam retired the MediaPlayer + VoiceRecorder clusters (23 hooks dead, engine 64→41; dead micCh field removed); player + recorder tests drive real device journeys
+- next: H-1 iteration 3 — the ForTestSetAccounts cluster (54 uses, uniform shape: ForTestNewEngine + SetAccounts{ID, Core: stub} across ~20 files; recon: real AddAccount+SetCoreFactory+StartAuth is too heavy for unit tests — design an honest account-attach API, then sweep); then ForTestDb (46 uses)
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop, Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: local full tier green both iterations (quick gate incl. js leg; race full tests/engine 90s; windows+js-wasm builds; smoke exit 0; comment-ban clean) — verify.yml 41336426885 in flight on 3aa4cdda; dispatch on iteration-2 HEAD pending
+- last-gate: CI verify 41336426885 = SUCCESS on 3aa4cdda AND 41337215090 = SUCCESS on 912e7c06 — both all 3 jobs, every step green at step level (comment-ban/gofmt/vet/vet-live/test/race/headless smoke/nix/windows/js-wasm; flake-version step tag-only, skipped as designed); session 345 closed
 
 ## Open items
 
@@ -74,6 +74,10 @@ owner order — that history lives in git if ever needed.
   strip_comments --check clean (292 files). No behavior change to production code
   (only the dead field removal) — refactor iteration, RED n/a per the session-343
   migration precedent.
+- Gate of record (both iterations): verify.yml **41336426885 = SUCCESS on 3aa4cdda**
+  and **41337215090 = SUCCESS on 912e7c06** — 3/3 jobs each (test&vet&gofmt&smoke /
+  nix flake gate / windows+js-wasm), every step inspected green at step level. Session
+  345 closed.
 
 ## Session 344 — owner redirect #3: product-surface laws into AGENTS.md §1 (2026-11-01)
 
