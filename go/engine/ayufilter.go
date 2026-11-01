@@ -80,7 +80,7 @@ func (e *Engine) enabledAyuRegexes() []*regexp.Regexp {
 	return regs
 }
 
-func filterMessagesByRegexes(msgs []CachedMessage, regs []*regexp.Regexp) []CachedMessage {
+func FilterMessagesByRegexes(msgs []CachedMessage, regs []*regexp.Regexp) []CachedMessage {
 	if len(regs) == 0 || len(msgs) == 0 {
 		return msgs
 	}
@@ -112,7 +112,7 @@ func (e *Engine) applyAyuFilters(msgs []CachedMessage) []CachedMessage {
 	if !e.ayuFiltersTableExists() {
 		return msgs
 	}
-	return filterMessagesByRegexes(msgs, e.enabledAyuRegexes())
+	return FilterMessagesByRegexes(msgs, e.enabledAyuRegexes())
 }
 
 var _ = sql.ErrNoRows

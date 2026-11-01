@@ -33,7 +33,7 @@ type openslDevice struct {
 	iidRecord   unsafe.Pointer
 	iidBQ       unsafe.Pointer
 	iidConfig   unsafe.Pointer
-	slCreateEng uintptr
+	SLCreateEng uintptr
 
 	engineObj unsafe.Pointer
 	engineItf unsafe.Pointer
@@ -43,7 +43,7 @@ type openslDevice struct {
 	playObj  unsafe.Pointer
 	playItf  unsafe.Pointer
 	playBQ   unsafe.Pointer
-	playRing *bqRing
+	playRing *BQRing
 	playStop chan struct{}
 	playDone chan struct{}
 
@@ -51,7 +51,7 @@ type openslDevice struct {
 	recObj  unsafe.Pointer
 	recItf  unsafe.Pointer
 	recBQ   unsafe.Pointer
-	micRing *bqRing
+	micRing *BQRing
 	micCh   chan []byte
 	micStop chan struct{}
 	micDone chan struct{}
@@ -70,19 +70,19 @@ func slCall(itf unsafe.Pointer, idx int, args ...uintptr) uintptr {
 }
 
 func slErr(where string, r uintptr) error {
-	if uint32(r) == slResultSuccess {
+	if uint32(r) == SLResultSuccess {
 		return nil
 	}
 	return fmt.Errorf("audio: OpenSL ES %s: 0x%X", where, uint32(r))
 }
 
 func slRealize(obj unsafe.Pointer) error {
-	return slErr("Realize", slCall(obj, slObjectRealize, slBooleanFalse))
+	return slErr("Realize", slCall(obj, SLObjectRealize, SLBooleanFalse))
 }
 
 func slGetItf(obj, iid unsafe.Pointer) (unsafe.Pointer, error) {
 	var out unsafe.Pointer
-	err := slErr("GetInterface", slCall(obj, slObjectGetItf,
+	err := slErr("GetInterface", slCall(obj, SLObjectGetItf,
 		uintptr(iid), uintptr(unsafe.Pointer(&out))))
 	runtime.KeepAlive(out)
 	runtime.KeepAlive(obj)
@@ -96,9 +96,9 @@ func slGetItf(obj, iid unsafe.Pointer) (unsafe.Pointer, error) {
 	return out, nil
 }
 
-func slDestroy(obj unsafe.Pointer) {
+func SLDestroy(obj unsafe.Pointer) {
 	if obj != nil {
-		slCall(obj, slObjectDestroy)
+		slCall(obj, SLObjectDestroy)
 	}
 }
 
@@ -114,7 +114,7 @@ func slIIDDeref(lib uintptr, name string) (unsafe.Pointer, error) {
 	return iid, nil
 }
 
-func openDevice() (device, error) {
+func OpenDevice() (Device, error) {
 	d := &openslDevice{}
 	lib, err := purego.Dlopen(openslLib, purego.RTLD_NOW|purego.RTLD_GLOBAL)
 	if err != nil {
@@ -143,7 +143,7 @@ func openDevice() (device, error) {
 	if err != nil {
 		return nil, fmt.Errorf("audio: slCreateEngine: %w", err)
 	}
-	d.slCreateEng = fn
+	d.SLCreateEng = fn
 
 	var engine unsafe.Pointer
 	r1, _, _ := purego.SyscallN(fn,
@@ -152,56 +152,56 @@ func openDevice() (device, error) {
 		return nil, err
 	}
 	if err := slRealize(engine); err != nil {
-		slDestroy(engine)
+		SLDestroy(engine)
 		return nil, err
 	}
 	d.engineObj = engine
 
 	engineItf, err := slGetItf(engine, d.iidEngine)
 	if err != nil {
-		slDestroy(engine)
+		SLDestroy(engine)
 		return nil, err
 	}
 	d.engineItf = engineItf
 
 	var mix unsafe.Pointer
-	if err := slErr("CreateOutputMix", slCall(engineItf, slEngineCreateOutputMix,
+	if err := slErr("CreateOutputMix", slCall(engineItf, SLEngineCreateOutputMix,
 		uintptr(unsafe.Pointer(&mix)), 0, 0, 0)); err != nil {
-		slDestroy(engine)
+		SLDestroy(engine)
 		return nil, err
 	}
 	runtime.KeepAlive(mix)
 	if err := slRealize(mix); err != nil {
-		slDestroy(mix)
-		slDestroy(engine)
+		SLDestroy(mix)
+		SLDestroy(engine)
 		return nil, err
 	}
 	d.mixObj = mix
 	return d, nil
 }
 
-func pcmFormat() slDataFormatPCM {
-	return slDataFormatPCM{
-		formatType:    slDataformatPCM,
+func pcmFormat() SLDataFormatPCM {
+	return SLDataFormatPCM{
+		formatType:    SLDataformatPCM,
 		numChannels:   1,
-		samplesPerSec: slSamplingrate48,
-		bitsPerSample: slPCMSampleformatFixed16,
-		containerSize: slPCMSampleformatFixed16,
-		channelMask:   slSpeakerFrontCenter,
-		endianness:    slByteorderLittleEndian,
+		samplesPerSec: SLSamplingrate48,
+		bitsPerSample: SLPCMSampleformatFixed16,
+		containerSize: SLPCMSampleformatFixed16,
+		channelMask:   SLSpeakerFrontCenter,
+		endianness:    SLByteorderLittleEndian,
 	}
 }
 
 func bqEnqueue(bq unsafe.Pointer, buf []byte) error {
-	err := slErr("Enqueue", slCall(bq, slBQEnqueue,
+	err := slErr("Enqueue", slCall(bq, SLBQEnqueue,
 		uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf))))
 	runtime.KeepAlive(buf)
 	return err
 }
 
 func bqCount(bq unsafe.Pointer) int {
-	var st slBQState
-	if err := slErr("GetState", slCall(bq, slBQGetState,
+	var st SLBQState
+	if err := slErr("GetState", slCall(bq, SLBQGetState,
 		uintptr(unsafe.Pointer(&st)))); err != nil {
 		return -1
 	}
@@ -219,16 +219,16 @@ func (d *openslDevice) startPlayback(fill func(out []int16)) error {
 		return fmt.Errorf("audio: playback already running")
 	}
 
-	loc := slDataLocatorAndroidBQ{locatorType: slDatalocatorAndroidBQ, numBuffers: bqQueueDepth}
+	loc := SLDataLocatorAndroidBQ{LocatorType: SLDatalocatorAndroidBQ, NumBuffers: bqQueueDepth}
 	pcm := pcmFormat()
-	src := slDataSource{pLocator: unsafe.Pointer(&loc), pFormat: unsafe.Pointer(&pcm)}
-	outLoc := slDataLocatorOutputMix{locatorType: slDatalocatorOutputMix, outputMix: d.mixObj}
-	sink := slDataSource{pLocator: unsafe.Pointer(&outLoc), pFormat: nil}
+	src := SLDataSource{pLocator: unsafe.Pointer(&loc), pFormat: unsafe.Pointer(&pcm)}
+	outLoc := SLDataLocatorOutputMix{LocatorType: SLDatalocatorOutputMix, outputMix: d.mixObj}
+	sink := SLDataSource{pLocator: unsafe.Pointer(&outLoc), pFormat: nil}
 
 	var player unsafe.Pointer
 	iid := d.iidBQ
-	req := uint32(slBooleanTrue)
-	if err := slErr("CreateAudioPlayer", slCall(d.engineItf, slEngineCreateAudioPlayer,
+	req := uint32(SLBooleanTrue)
+	if err := slErr("CreateAudioPlayer", slCall(d.engineItf, SLEngineCreateAudioPlayer,
 		uintptr(unsafe.Pointer(&player)),
 		uintptr(unsafe.Pointer(&src)), uintptr(unsafe.Pointer(&sink)),
 		1, uintptr(unsafe.Pointer(&iid)), uintptr(unsafe.Pointer(&req)))); err != nil {
@@ -243,21 +243,21 @@ func (d *openslDevice) startPlayback(fill func(out []int16)) error {
 	runtime.KeepAlive(iid)
 	runtime.KeepAlive(req)
 	if err := slRealize(player); err != nil {
-		slDestroy(player)
+		SLDestroy(player)
 		return err
 	}
 	playItf, err := slGetItf(player, d.iidPlay)
 	if err != nil {
-		slDestroy(player)
+		SLDestroy(player)
 		return err
 	}
 	bqItf, err := slGetItf(player, d.iidBQ)
 	if err != nil {
-		slDestroy(player)
+		SLDestroy(player)
 		return err
 	}
-	if err := slErr("SetPlayState", slCall(playItf, slPlaySetPlayState, slPlayStatePlaying)); err != nil {
-		slDestroy(player)
+	if err := slErr("SetPlayState", slCall(playItf, SLPlaySetPlayState, SLPlayStatePlaying)); err != nil {
+		SLDestroy(player)
 		return err
 	}
 
@@ -265,7 +265,7 @@ func (d *openslDevice) startPlayback(fill func(out []int16)) error {
 	done := make(chan struct{})
 	d.playOn = true
 	d.playObj, d.playItf, d.playBQ = player, playItf, bqItf
-	d.playRing = newBQRing(bqQueueDepth, frameBytes)
+	d.playRing = NewBQRing(bqQueueDepth, frameBytes)
 	d.playStop, d.playDone = stop, done
 	ring := d.playRing
 
@@ -284,9 +284,9 @@ func (d *openslDevice) startPlayback(fill func(out []int16)) error {
 			if count < 0 {
 				return
 			}
-			ring.completed(count)
-			for ring.outstanding() < bqTargetInflight {
-				_, buf := ring.next()
+			ring.Completed(count)
+			for ring.Outstanding() < bqTargetInflight {
+				_, buf := ring.Next()
 				fill(pcmS16)
 				for i, s := range pcmS16 {
 					binary.LittleEndian.PutUint16(buf[2*i:], uint16(s))
@@ -316,10 +316,10 @@ func (d *openslDevice) stopPlayback() {
 
 	close(stop)
 	<-done
-	slCall(playItf, slPlaySetPlayState, slPlayStateStopped)
-	slCall(bqItf, slBQClear)
-	slDestroy(obj)
-	ring.reset()
+	slCall(playItf, SLPlaySetPlayState, SLPlayStateStopped)
+	slCall(bqItf, SLBQClear)
+	SLDestroy(obj)
+	ring.Reset()
 }
 
 func (d *openslDevice) startMic() (<-chan []byte, error) {
@@ -344,20 +344,20 @@ func (d *openslDevice) startMic() (<-chan []byte, error) {
 		return nil, ErrNoAudio
 	}
 
-	inDev := slDataLocatorIODevice{
-		locatorType: slDatalocatorIODevice,
-		deviceType:  slIODeviceAudioInput,
-		deviceID:    slDefaultDeviceIDInput,
+	inDev := SLDataLocatorIODevice{
+		LocatorType: SLDatalocatorIODevice,
+		deviceType:  SLIODeviceAudioInput,
+		deviceID:    SLDefaultDeviceIDInput,
 	}
-	src := slDataSource{pLocator: unsafe.Pointer(&inDev), pFormat: nil}
-	loc := slDataLocatorAndroidBQ{locatorType: slDatalocatorAndroidBQ, numBuffers: bqQueueDepth}
+	src := SLDataSource{pLocator: unsafe.Pointer(&inDev), pFormat: nil}
+	loc := SLDataLocatorAndroidBQ{LocatorType: SLDatalocatorAndroidBQ, NumBuffers: bqQueueDepth}
 	pcm := pcmFormat()
-	sink := slDataSource{pLocator: unsafe.Pointer(&loc), pFormat: unsafe.Pointer(&pcm)}
+	sink := SLDataSource{pLocator: unsafe.Pointer(&loc), pFormat: unsafe.Pointer(&pcm)}
 
 	var rec unsafe.Pointer
 	iids := []unsafe.Pointer{d.iidBQ, d.iidConfig}
-	reqs := []uint32{slBooleanTrue, slBooleanTrue}
-	if err := slErr("CreateAudioRecorder", slCall(d.engineItf, slEngineCreateAudioRecorder,
+	reqs := []uint32{SLBooleanTrue, SLBooleanTrue}
+	if err := slErr("CreateAudioRecorder", slCall(d.engineItf, SLEngineCreateAudioRecorder,
 		uintptr(unsafe.Pointer(&rec)),
 		uintptr(unsafe.Pointer(&src)), uintptr(unsafe.Pointer(&sink)),
 		2, uintptr(unsafe.Pointer(&iids[0])), uintptr(unsafe.Pointer(&reqs[0])))); err != nil {
@@ -373,30 +373,30 @@ func (d *openslDevice) startMic() (<-chan []byte, error) {
 	runtime.KeepAlive(reqs)
 
 	if cfgItf, err := slGetItf(rec, d.iidConfig); err == nil {
-		preset := uint32(slRecordingPresetVoiceCommunication)
-		key, keep := cstr(slRecordingPresetKey)
-		_ = slCall(cfgItf, slConfigSetConfiguration,
+		preset := uint32(SLRecordingPresetVoiceCommunication)
+		key, keep := cstr(SLRecordingPresetKey)
+		_ = slCall(cfgItf, SLConfigSetConfiguration,
 			uintptr(key), uintptr(unsafe.Pointer(&preset)), unsafe.Sizeof(preset))
 		runtime.KeepAlive(keep)
 		runtime.KeepAlive(preset)
 	}
 
 	if err := slRealize(rec); err != nil {
-		slDestroy(rec)
+		SLDestroy(rec)
 		return nil, err
 	}
 	recItf, err := slGetItf(rec, d.iidRecord)
 	if err != nil {
-		slDestroy(rec)
+		SLDestroy(rec)
 		return nil, err
 	}
 	bqItf, err := slGetItf(rec, d.iidBQ)
 	if err != nil {
-		slDestroy(rec)
+		SLDestroy(rec)
 		return nil, err
 	}
-	if err := slErr("SetRecordState", slCall(recItf, slRecordSetRecordState, slRecordStateRecording)); err != nil {
-		slDestroy(rec)
+	if err := slErr("SetRecordState", slCall(recItf, SLRecordSetRecordState, SLRecordStateRecording)); err != nil {
+		SLDestroy(rec)
 		return nil, err
 	}
 
@@ -405,14 +405,14 @@ func (d *openslDevice) startMic() (<-chan []byte, error) {
 	done := make(chan struct{})
 	d.micOn = true
 	d.recObj, d.recItf, d.recBQ = rec, recItf, bqItf
-	d.micRing = newBQRing(bqQueueDepth, frameBytes)
+	d.micRing = NewBQRing(bqQueueDepth, frameBytes)
 	d.micCh, d.micStop, d.micDone = frames, stop, done
 	ring := d.micRing
 
 	go func() {
 		defer close(done)
-		for ring.outstanding() < bqQueueDepth {
-			_, buf := ring.next()
+		for ring.Outstanding() < bqQueueDepth {
+			_, buf := ring.Next()
 			if err := bqEnqueue(bqItf, buf); err != nil {
 				return
 			}
@@ -429,7 +429,7 @@ func (d *openslDevice) startMic() (<-chan []byte, error) {
 			if count < 0 {
 				return
 			}
-			for _, slot := range ring.completed(count) {
+			for _, slot := range ring.Completed(count) {
 				frame := make([]byte, frameBytes)
 				copy(frame, ring.bufs[slot])
 				select {
@@ -437,7 +437,7 @@ func (d *openslDevice) startMic() (<-chan []byte, error) {
 				case <-stop:
 					return
 				}
-				reSlot, buf := ring.next()
+				reSlot, buf := ring.Next()
 				if reSlot != slot {
 					return
 				}
@@ -467,23 +467,23 @@ func (d *openslDevice) stopMic() {
 	close(stop)
 	<-done
 	close(frames)
-	slCall(recItf, slRecordSetRecordState, slRecordStateStopped)
-	slCall(bqItf, slBQClear)
-	slDestroy(obj)
-	ring.reset()
+	slCall(recItf, SLRecordSetRecordState, SLRecordStateStopped)
+	slCall(bqItf, SLBQClear)
+	SLDestroy(obj)
+	ring.Reset()
 }
 
 func (d *openslDevice) close() {
-	d.stopMic()
-	d.stopPlayback()
+	d.StopMic()
+	d.StopPlayback()
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.mixObj != nil {
-		slDestroy(d.mixObj)
+		SLDestroy(d.mixObj)
 		d.mixObj = nil
 	}
 	if d.engineObj != nil {
-		slDestroy(d.engineObj)
+		SLDestroy(d.engineObj)
 		d.engineObj = nil
 	}
 	d.engineItf = nil

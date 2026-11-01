@@ -14,7 +14,7 @@ type webPagePhoto struct {
 	Height   int
 }
 
-func parseWebPagePhoto(raw []byte) (webPagePhoto, bool) {
+func ParseWebPagePhoto(raw []byte) (webPagePhoto, bool) {
 	if len(raw) == 0 {
 		return webPagePhoto{}, false
 	}
@@ -42,7 +42,7 @@ func parseWebPagePhoto(raw []byte) (webPagePhoto, bool) {
 	}, true
 }
 
-func webPagePhotoFileName(photoID string) string {
+func WebPagePhotoFileName(photoID string) string {
 	return "webpage_" + photoID + ".jpg"
 }
 
@@ -53,7 +53,7 @@ func (e *Engine) EnsureWebPagePhoto(accountID, chatID, msgID string) error {
 		accountID, chatID, msgID).Scan(&raw); err != nil {
 		return fmt.Errorf("message %s not found: %w", msgID, err)
 	}
-	ph, ok := parseWebPagePhoto(raw)
+	ph, ok := ParseWebPagePhoto(raw)
 	if !ok {
 		return fmt.Errorf("message %s has no webpage photo", msgID)
 	}
@@ -74,7 +74,7 @@ func (e *Engine) EnsureWebPagePhoto(accountID, chatID, msgID string) error {
                   download_state, last_accessed, extra)
                  VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, 0, ?, ?, 0, ?, ?, ?)`,
 		accountID, chatID, msgID, MediaImage, ph.PhotoID, ph.ThumbB64,
-		webPagePhotoFileName(ph.PhotoID), "image/jpeg",
+		WebPagePhotoFileName(ph.PhotoID), "image/jpeg",
 		ph.Width, ph.Height,
 		DownloadNone, time.Now().UnixMilli(), ph.Extra); err != nil {
 		return fmt.Errorf("insert webpage photo row: %w", err)

@@ -7,7 +7,7 @@ import (
 	"github.com/gotd/td/tg"
 )
 
-func withdrawStarsRevenueRequest(peer tg.InputPeerClass, ton bool, amount int64, srp tg.InputCheckPasswordSRPClass) *tg.PaymentsGetStarsRevenueWithdrawalURLRequest {
+func WithdrawStarsRevenueRequest(peer tg.InputPeerClass, ton bool, amount int64, srp tg.InputCheckPasswordSRPClass) *tg.PaymentsGetStarsRevenueWithdrawalURLRequest {
 	req := &tg.PaymentsGetStarsRevenueWithdrawalURLRequest{
 		Peer:     peer,
 		Password: srp,
@@ -21,7 +21,7 @@ func withdrawStarsRevenueRequest(peer tg.InputPeerClass, ton bool, amount int64,
 }
 
 func (t *TelegramCore) WithdrawStarsRevenue(chatID string, ton bool, amount int64, password string) (string, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return "", err
 	}
@@ -47,7 +47,7 @@ func (t *TelegramCore) WithdrawStarsRevenue(chatID string, ton bool, amount int6
 	}
 
 	res, err := api.PaymentsGetStarsRevenueWithdrawalURL(ctx,
-		withdrawStarsRevenueRequest(inputPeer, ton, amount, srp))
+		WithdrawStarsRevenueRequest(inputPeer, ton, amount, srp))
 	if err != nil {
 		return "", err
 	}

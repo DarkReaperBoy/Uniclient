@@ -16,8 +16,8 @@ const (
 	httpImgTimeout  = 10 * time.Second
 	httpImgMaxHops  = 5
 	httpImgCacheCap = 256
-	httpImgMinBytes = 1 << 10
-	httpImgMaxBytes = 8 << 20
+	HttpImgMinBytes = 1 << 10
+	HttpImgMaxBytes = 8 << 20
 )
 
 var (
@@ -31,7 +31,7 @@ var (
 		},
 	}
 
-	httpImgCache = newHTTPImageCache(httpImgCacheCap)
+	httpImgCache = NewHTTPImageCache(httpImgCacheCap)
 
 	httpImgMu       sync.Mutex
 	httpImgInflight = map[string]*httpImgFlight{}
@@ -43,7 +43,7 @@ type httpImgFlight struct {
 	err  error
 }
 
-func validImageURL(raw string) bool {
+func ValidImageURL(raw string) bool {
 	if raw == "" {
 		return false
 	}
@@ -62,7 +62,7 @@ var imageExtURLs = map[string]bool{
 	".heif": true,
 }
 
-func sniffImageAccepted(data []byte, fromURL string) bool {
+func SniffImageAccepted(data []byte, fromURL string) bool {
 	ct := http.DetectContentType(data)
 	if strings.HasPrefix(ct, "image/") {
 		return true
@@ -80,21 +80,21 @@ func rawURLPath(raw string) string {
 	return ""
 }
 
-func clampMaxBytes(n int64) int64 {
-	if n < httpImgMinBytes {
-		return httpImgMinBytes
+func ClampMaxBytes(n int64) int64 {
+	if n < HttpImgMinBytes {
+		return HttpImgMinBytes
 	}
-	if n > httpImgMaxBytes {
-		return httpImgMaxBytes
+	if n > HttpImgMaxBytes {
+		return HttpImgMaxBytes
 	}
 	return n
 }
 
 func (e *Engine) FetchHTTPImage(rawURL string, maxBytes int64) ([]byte, error) {
-	if !validImageURL(rawURL) {
+	if !ValidImageURL(rawURL) {
 		return nil, fmt.Errorf("not an http(s) image URL: %q", rawURL)
 	}
-	cap := clampMaxBytes(maxBytes)
+	cap := ClampMaxBytes(maxBytes)
 	key := fmt.Sprintf("%s|%d", rawURL, cap)
 
 	if data := httpImgCache.get(key); data != nil {
@@ -151,7 +151,7 @@ func httpImgDo(rawURL string, cap int64) ([]byte, error) {
 	if len(body) == 0 {
 		return nil, errors.New("empty response")
 	}
-	if !sniffImageAccepted(body, rawURL) {
+	if !SniffImageAccepted(body, rawURL) {
 		return nil, fmt.Errorf("content is not an image (sniffed %s)", http.DetectContentType(body))
 	}
 	return body, nil
@@ -164,7 +164,7 @@ type httpImageCache struct {
 	vals map[string][]byte
 }
 
-func newHTTPImageCache(cap int) *httpImageCache {
+func NewHTTPImageCache(cap int) *httpImageCache {
 	if cap < 1 {
 		cap = 1
 	}

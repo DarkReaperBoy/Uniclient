@@ -8,7 +8,7 @@ import (
 	"github.com/gotd/td/tg"
 )
 
-func giveawayOptionsFromWire(opts []tg.StarsGiveawayOption) []StarsGiveawayOptionInfo {
+func GiveawayOptionsFromWire(opts []tg.StarsGiveawayOption) []StarsGiveawayOptionInfo {
 	out := make([]StarsGiveawayOptionInfo, 0, len(opts))
 	for _, o := range opts {
 		item := StarsGiveawayOptionInfo{
@@ -60,13 +60,13 @@ func starsGiveawayPurpose(boostPeer tg.InputPeerClass, extraPeers []tg.InputPeer
 	return purp
 }
 
-func starsGiveawayInvoice(boostPeer tg.InputPeerClass, extraPeers []tg.InputPeerClass, p GiveawayParams, totalStars, randomID int64) tg.InputInvoiceClass {
+func StarsGiveawayInvoice(boostPeer tg.InputPeerClass, extraPeers []tg.InputPeerClass, p GiveawayParams, totalStars, randomID int64) tg.InputInvoiceClass {
 	return &tg.InputInvoiceStars{
 		Purpose: starsGiveawayPurpose(boostPeer, extraPeers, p, totalStars, randomID),
 	}
 }
 
-func prepaidGiveawayPurpose(boostPeer tg.InputPeerClass, extraPeers []tg.InputPeerClass, p GiveawayParams, credits int64, months int, randomID int64) tg.InputStorePaymentPurposeClass {
+func PrepaidGiveawayPurpose(boostPeer tg.InputPeerClass, extraPeers []tg.InputPeerClass, p GiveawayParams, credits int64, months int, randomID int64) tg.InputStorePaymentPurposeClass {
 	if credits > 0 {
 		return starsGiveawayPurpose(boostPeer, extraPeers, p, credits, randomID)
 	}
@@ -95,7 +95,7 @@ func prepaidGiveawayPurpose(boostPeer tg.InputPeerClass, extraPeers []tg.InputPe
 	return purp
 }
 
-func giveawayRandomID(opt StarsGiveawayOptionInfo, peerID, sessionID int64) int64 {
+func GiveawayRandomID(opt StarsGiveawayOptionInfo, peerID, sessionID int64) int64 {
 	h := xxhash.New()
 	for _, part := range []string{
 		strconv.FormatInt(opt.Stars, 10),
@@ -111,7 +111,7 @@ func giveawayRandomID(opt StarsGiveawayOptionInfo, peerID, sessionID int64) int6
 }
 
 func (t *TelegramCore) GetStarsGiveawayOptions() ([]StarsGiveawayOptionInfo, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -119,11 +119,11 @@ func (t *TelegramCore) GetStarsGiveawayOptions() ([]StarsGiveawayOptionInfo, err
 	if err != nil {
 		return nil, fmt.Errorf("get stars giveaway options: %w", err)
 	}
-	return giveawayOptionsFromWire(opts), nil
+	return GiveawayOptionsFromWire(opts), nil
 }
 
 func (t *TelegramCore) CreateStarsGiveaway(chatID string, opt StarsGiveawayOptionInfo, p GiveawayParams) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -139,7 +139,7 @@ func (t *TelegramCore) CreateStarsGiveaway(chatID string, opt StarsGiveawayOptio
 	} else if su, ok := inputPeer.(*tg.InputPeerUser); ok {
 		peerID = su.UserID
 	}
-	randomID := giveawayRandomID(opt, peerID, t.selfID)
+	randomID := GiveawayRandomID(opt, peerID, t.selfID)
 
 	var extraPeers []tg.InputPeerClass
 	for _, cid := range p.ExtraChats {
@@ -150,7 +150,7 @@ func (t *TelegramCore) CreateStarsGiveaway(chatID string, opt StarsGiveawayOptio
 		}
 	}
 
-	invoice := starsGiveawayInvoice(inputPeer, extraPeers, p, opt.Stars, randomID)
+	invoice := StarsGiveawayInvoice(inputPeer, extraPeers, p, opt.Stars, randomID)
 	form, err := api.PaymentsGetPaymentForm(ctx, &tg.PaymentsGetPaymentFormRequest{
 		Invoice: invoice,
 	})
@@ -183,7 +183,7 @@ func (t *TelegramCore) CreateStarsGiveaway(chatID string, opt StarsGiveawayOptio
 }
 
 func (t *TelegramCore) LaunchPrepaidGiveaway(chatID string, giveawayID int64, credits int64, months int, p GiveawayParams) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -205,7 +205,7 @@ func (t *TelegramCore) LaunchPrepaidGiveaway(chatID string, giveawayID int64, cr
 	_, err = api.PaymentsLaunchPrepaidGiveaway(ctx, &tg.PaymentsLaunchPrepaidGiveawayRequest{
 		Peer:       inputPeer,
 		GiveawayID: giveawayID,
-		Purpose:    prepaidGiveawayPurpose(inputPeer, extraPeers, p, credits, months, giveawayID),
+		Purpose:    PrepaidGiveawayPurpose(inputPeer, extraPeers, p, credits, months, giveawayID),
 	})
 	return err
 }

@@ -32,7 +32,7 @@ func OpenDB(dir string) (*sql.DB, error) {
 		}
 	}
 
-	if err := migrateDB(db); err != nil {
+	if err := MigrateDB(db); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
@@ -308,7 +308,7 @@ func migrateV48(tx *sql.Tx) error {
 	return err
 }
 
-func migrateDB(db *sql.DB) error {
+func MigrateDB(db *sql.DB) error {
 	var version int
 	db.QueryRow("PRAGMA user_version").Scan(&version)
 

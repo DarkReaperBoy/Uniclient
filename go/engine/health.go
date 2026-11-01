@@ -76,7 +76,7 @@ func (e *Engine) ConnectAccount(accountID string) error {
 	e.accountsMu.Unlock()
 
 	core.OnUpdate(func(u cores.Update) {
-		e.handleUpdate(accountID, u)
+		e.HandleUpdate(accountID, u)
 	})
 
 	log.Printf("[engine] ConnectAccount(%s): authenticating...", accountID)
@@ -156,7 +156,7 @@ func (e *Engine) ConnectAllAccounts() {
 	}
 }
 
-func syncAccountContext(ctx context.Context) context.Context {
+func SyncAccountContext(ctx context.Context) context.Context {
 	if ctx == nil {
 		return context.Background()
 	}
@@ -164,7 +164,7 @@ func syncAccountContext(ctx context.Context) context.Context {
 }
 
 func (e *Engine) syncAccount(ctx context.Context, accountID string) {
-	ctx = syncAccountContext(ctx)
+	ctx = SyncAccountContext(ctx)
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
 		log.Printf("[engine] syncAccount(%s): account not found or no core", accountID)

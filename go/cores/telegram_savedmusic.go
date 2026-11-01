@@ -9,7 +9,7 @@ import (
 	"github.com/gotd/td/tg"
 )
 
-func normalizeMusicDoc(d *tg.Document) (MusicTrackInfo, bool) {
+func NormalizeMusicDoc(d *tg.Document) (MusicTrackInfo, bool) {
 	var tr MusicTrackInfo
 	var audio *tg.DocumentAttributeAudio
 	for _, a := range d.Attributes {
@@ -38,7 +38,7 @@ func normalizeMusicDoc(d *tg.Document) (MusicTrackInfo, bool) {
 	return tr, true
 }
 
-func profileMusicSaveRequest(track, after MusicTrackInfo, unsave bool) *tg.AccountSaveMusicRequest {
+func ProfileMusicSaveRequest(track, after MusicTrackInfo, unsave bool) *tg.AccountSaveMusicRequest {
 	req := &tg.AccountSaveMusicRequest{
 		ID: &tg.InputDocument{
 			ID:            mustInt64(track.DocID),
@@ -76,7 +76,7 @@ func fileRefBytes(b64 string) []byte {
 }
 
 func (t *TelegramCore) GetProfileMusic(peerID string) ([]MusicTrackInfo, int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, 0, err
 	}
@@ -104,7 +104,7 @@ func (t *TelegramCore) GetProfileMusic(peerID string) ([]MusicTrackInfo, int, er
 		tracks := make([]MusicTrackInfo, 0, len(r.Documents))
 		for _, dc := range r.Documents {
 			if d, ok := dc.(*tg.Document); ok {
-				if tr, is := normalizeMusicDoc(d); is {
+				if tr, is := NormalizeMusicDoc(d); is {
 					tracks = append(tracks, tr)
 				}
 			}
@@ -118,16 +118,16 @@ func (t *TelegramCore) GetProfileMusic(peerID string) ([]MusicTrackInfo, int, er
 }
 
 func (t *TelegramCore) SaveProfileMusicDoc(track, after MusicTrackInfo, unsave bool) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
-	_, err = api.AccountSaveMusic(ctx, profileMusicSaveRequest(track, after, unsave))
+	_, err = api.AccountSaveMusic(ctx, ProfileMusicSaveRequest(track, after, unsave))
 	return err
 }
 
 func (t *TelegramCore) GetOwnSavedMusicIDs(hash int64) ([]string, bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, false, err
 	}
@@ -149,7 +149,7 @@ func (t *TelegramCore) GetOwnSavedMusicIDs(hash int64) ([]string, bool, error) {
 	}
 }
 
-func audioSendMediaRequest(track MusicTrackInfo, caption string, silent bool, scheduleDate int, randomID int64) *tg.MessagesSendMediaRequest {
+func AudioSendMediaRequest(track MusicTrackInfo, caption string, silent bool, scheduleDate int, randomID int64) *tg.MessagesSendMediaRequest {
 	req := &tg.MessagesSendMediaRequest{
 		RandomID: randomID,
 		Media: &tg.InputMediaDocument{ID: &tg.InputDocument{
@@ -167,7 +167,7 @@ func audioSendMediaRequest(track MusicTrackInfo, caption string, silent bool, sc
 }
 
 func (t *TelegramCore) SendAudioDocument(chatID string, track MusicTrackInfo, caption string, silent bool, scheduleDate int) (*Message, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -176,7 +176,7 @@ func (t *TelegramCore) SendAudioDocument(chatID string, track MusicTrackInfo, ca
 		return nil, fmt.Errorf("resolve peer: %w", perr)
 	}
 	defer unlock()
-	req := audioSendMediaRequest(track, caption, silent, scheduleDate, time.Now().UnixNano())
+	req := AudioSendMediaRequest(track, caption, silent, scheduleDate, time.Now().UnixNano())
 	req.Peer = inputPeer
 	result, err := api.MessagesSendMedia(ctx, req)
 	if err != nil {

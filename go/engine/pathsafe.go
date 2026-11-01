@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-func safePathSegment(s string) string {
+func SafePathSegment(s string) string {
 	s = strings.TrimSpace(s)
 	s = strings.ReplaceAll(s, `\`, "/")
 	s = strings.Trim(s, "/")

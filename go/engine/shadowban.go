@@ -80,7 +80,7 @@ func (e *Engine) CountShadowBans(accountID string) int {
 	return n
 }
 
-func (e *Engine) dropShadowBanned(accountID, chatID string, msgs []CachedMessage) []CachedMessage {
+func (e *Engine) DropShadowBanned(accountID, chatID string, msgs []CachedMessage) []CachedMessage {
 	bans := e.ListShadowBans(accountID, chatID)
 	if len(bans) == 0 || len(msgs) == 0 {
 		return msgs

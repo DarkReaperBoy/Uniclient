@@ -15,8 +15,8 @@ cd "$ROOT/go"
 export GOFLAGS=-p=1
 export GOMEMLIMIT=3GiB GOGC=20
 
-echo "== native: engine/cores/utils/bootstrap =="
-CGO_ENABLED=1 go test -tags goolm -count=1 ./engine/... ./cores/... ./utils/... ./bootstrap/...
+echo "== native: unit tests (tests/...) =="
+CGO_ENABLED=1 go test -tags goolm -count=1 ./tests/...
 
 echo "== wasm: audio (node exec) =="
 # The shared runner is VERDICT-FIRST and self-tested: a printed --- FAIL line
@@ -26,14 +26,14 @@ echo "== wasm: audio (node exec) =="
 # contracts before trusting a single verdict from the runner.
 "$ROOT/scripts/test-wasm-runner.sh"
 WASM_RUNNER="$ROOT/scripts/wasm-test-runner.sh"
-GOOS=js GOARCH=wasm CGO_ENABLED=0 go test -tags goolm -count=1 -exec "$WASM_RUNNER" ./audio/...
+GOOS=js GOARCH=wasm CGO_ENABLED=0 go test -tags goolm -count=1 -exec "$WASM_RUNNER" ./tests/audio/...
 
 echo "== vet + gofmt =="
 # Native vet for every package that builds without system dev headers.
 # The audio package (WebAudio js half) vets under js/wasm. Full native vet
 # runs in the CI verify workflow.
-CGO_ENABLED=0 go vet -tags goolm ./engine/... ./cores/... ./utils/... ./bootstrap/... ./wrtc/... 2>/dev/null || \
+CGO_ENABLED=0 go vet -tags goolm ./... 2>/dev/null || \
         CGO_ENABLED=0 go vet -tags goolm ./engine/... ./cores/... ./utils/... ./bootstrap/...
-GOOS=js GOARCH=wasm CGO_ENABLED=0 go vet -tags goolm ./audio/...
+GOOS=js GOARCH=wasm CGO_ENABLED=0 go vet -tags goolm ./tests/audio/...
 test -z "$(gofmt -l .)" || { echo "gofmt needed:"; gofmt -l .; exit 1; }
 echo "ALL GATES GREEN"

@@ -1,0 +1,155 @@
+package tests
+
+import (
+	"testing"
+	. "uniclient/engine"
+
+	"uniclient/cores"
+)
+
+func seedTopicMessage(t *testing.T, e *Engine, msgID, topicID string, ts int64) {
+	t.Helper()
+	_, err := e.ForTestDb().Exec(
+		`INSERT OR REPLACE INTO messages
+		 (account_id, chat_id, msg_id, sender_id, sender_name, content_text, timestamp, status, is_outgoing, has_media, topic_id)
+		 VALUES (?, ?, ?, 'u1', 'Alice', ?, ?, 1, 0, 0, ?)`,
+		"tg", "10", msgID, "m-"+msgID, ts, topicID)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestGetTopicMessagesFiltersByTopic(t *testing.T) {
+	e := newTestEngine(t)
+	seedTopicMessage(t, e, "1", "100", 1700000100)
+	seedTopicMessage(t, e, "2", "100", 1700000200)
+	seedTopicMessage(t, e, "3", "200", 1700000300)
+	seedTopicMessage(t, e, "4", "", 1700000400)
+
+	msgs, err := e.GetTopicMessages("tg", "10", "100", 0, 50)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 2 {
+		t.Fatalf("topic 100 rows = %d, want 2", len(msgs))
+	}
+	if msgs[0].MsgID != "2" || msgs[1].MsgID != "1" {
+		t.Errorf("order = [%s %s], want newest first [2 1]", msgs[0].MsgID, msgs[1].MsgID)
+	}
+
+	msgs, err = e.GetTopicMessages("tg", "10", "200", 0, 50)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 1 || msgs[0].MsgID != "3" {
+		t.Fatalf("topic 200 rows = %+v", msgs)
+	}
+
+	msgs, err = e.GetTopicMessages("tg", "10", "100", 1700000150, 50)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 1 || msgs[0].MsgID != "1" {
+		t.Fatalf("paged rows = %+v", msgs)
+	}
+
+	msgs, err = e.GetTopicMessages("tg", "10", "", 0, 50)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 4 {
+		t.Fatalf("unscoped rows = %d, want 4", len(msgs))
+	}
+}
+
+func TestGetTopicMessagesHiddenExcluded(t *testing.T) {
+	e := newTestEngine(t)
+	seedTopicMessage(t, e, "1", "100", 1700000100)
+	seedTopicMessage(t, e, "2", "100", 1700000200)
+	if err := e.HideMessage("tg", "10", "2", true); err != nil {
+		t.Fatal(err)
+	}
+	msgs, err := e.GetTopicMessages("tg", "10", "100", 0, 50)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 1 || msgs[0].MsgID != "1" {
+		t.Fatalf("rows after hide = %+v", msgs)
+	}
+}
+
+func TestGetTopicMessagesAfter(t *testing.T) {
+	e := newTestEngine(t)
+	seedTopicMessage(t, e, "1", "100", 1700000100)
+	seedTopicMessage(t, e, "2", "100", 1700000200)
+	seedTopicMessage(t, e, "3", "200", 1700000300)
+	seedTopicMessage(t, e, "4", "", 1700000400)
+
+	msgs, err := e.GetTopicMessagesAfter("tg", "10", "100", 1700000150, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 1 || msgs[0].MsgID != "2" {
+		t.Fatalf("after(150) = %v", msgIDs(msgs))
+	}
+
+	msgs, err = e.GetTopicMessagesAfter("tg", "10", "100", 1700000200, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 0 {
+		t.Fatalf("strict boundary leaked: %v", msgIDs(msgs))
+	}
+
+	msgs, err = e.GetTopicMessagesAfter("tg", "10", "", 1700000350, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 1 || msgs[0].MsgID != "4" {
+		t.Fatalf("chat-wide after = %v", msgIDs(msgs))
+	}
+}
+
+func msgIDs(msgs []CachedMessage) []string {
+	ids := make([]string, 0, len(msgs))
+	for _, m := range msgs {
+		ids = append(ids, m.MsgID)
+	}
+	return ids
+}
+
+type forumTopicsStub struct {
+	cores.StubCore
+	reorderLog *[][]int
+}
+
+func (s forumTopicsStub) ReorderPinnedForumTopics(chatID string, topicIDs []int) error {
+	if s.reorderLog != nil {
+		*s.reorderLog = append(*s.reorderLog, append([]int(nil), topicIDs...))
+	}
+	return nil
+}
+
+func TestReorderPinnedForumTopics(t *testing.T) {
+	e := newTestEngine(t)
+	if _, err := e.ForTestDb().Exec(
+		`INSERT OR IGNORE INTO accounts (id, platform, display_name, sort_order, created_at)
+                 VALUES ('tg', 'telegram', 'Test', 0, 0)`); err != nil {
+		t.Fatal(err)
+	}
+	var log [][]int
+	e.ForTestSetAccounts(map[string]*Account{"tg": {ID: "tg", Core: forumTopicsStub{reorderLog: &log}}})
+	if err := e.ReorderPinnedForumTopics("tg", "-1009", []int{3, 1, 2}); err != nil {
+		t.Fatalf("ReorderPinnedForumTopics: %v", err)
+	}
+	if len(log) != 1 || log[0][0] != 3 || log[0][2] != 2 {
+		t.Fatalf("reorder forwarded = %v", log)
+	}
+	e.ForTestAccounts()["irc"] = &Account{ID: "irc", Core: plainStub{}}
+	if err := e.ReorderPinnedForumTopics("irc", "-1009", []int{1}); err == nil {
+		t.Fatal("plain core must not support topic reorder")
+	}
+	if err := e.ReorderPinnedForumTopics("missing", "-1009", nil); err == nil {
+		t.Fatal("missing account must error")
+	}
+}

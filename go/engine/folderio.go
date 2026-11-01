@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-type folderExport struct {
+type FolderExport struct {
 	Name         string   `json:"name"`
 	Emoticon     string   `json:"emoticon,omitempty"`
 	Chats        []string `json:"chats,omitempty"`
@@ -25,15 +25,15 @@ type folderExport struct {
 
 type foldersExportEnvelope struct {
 	Version int            `json:"uniclient_folders"`
-	Folders []folderExport `json:"folders"`
+	Folders []FolderExport `json:"folders"`
 }
 
 const foldersExportVersion = 1
 
-func foldersToExport(fs []FolderInfo) []folderExport {
-	out := make([]folderExport, 0, len(fs))
+func foldersToExport(fs []FolderInfo) []FolderExport {
+	out := make([]FolderExport, 0, len(fs))
 	for _, f := range fs {
-		out = append(out, folderExport{
+		out = append(out, FolderExport{
 			Name:         f.Name,
 			Emoticon:     f.Emoticon,
 			Chats:        f.ChatIDs,
@@ -53,7 +53,7 @@ func foldersToExport(fs []FolderInfo) []folderExport {
 	return out
 }
 
-func encodeFoldersExport(fs []FolderInfo) (string, error) {
+func EncodeFoldersExport(fs []FolderInfo) (string, error) {
 	env := foldersExportEnvelope{Version: foldersExportVersion, Folders: foldersToExport(fs)}
 	b, err := json.MarshalIndent(env, "", " ")
 	if err != nil {
@@ -62,7 +62,7 @@ func encodeFoldersExport(fs []FolderInfo) (string, error) {
 	return string(b), nil
 }
 
-func parseFoldersExport(data string) ([]folderExport, error) {
+func ParseFoldersExport(data string) ([]FolderExport, error) {
 	data = strings.TrimSpace(data)
 	if data == "" {
 		return nil, fmt.Errorf("empty import")
@@ -85,7 +85,7 @@ func parseFoldersExport(data string) ([]folderExport, error) {
 	return env.Folders, nil
 }
 
-func exportToOpts(f folderExport) *CreateFolderOpts {
+func ExportToOpts(f FolderExport) *CreateFolderOpts {
 	return &CreateFolderOpts{
 		Contacts:        f.Contacts,
 		NonContacts:     f.NonContacts,
@@ -110,11 +110,11 @@ func (e *Engine) ExportFoldersJSON(accountID string) (string, error) {
 	if len(folders) == 0 {
 		return "", fmt.Errorf("no folders to export")
 	}
-	return encodeFoldersExport(folders)
+	return EncodeFoldersExport(folders)
 }
 
 func (e *Engine) ImportFoldersJSON(accountID, data string) (int, error) {
-	entries, err := parseFoldersExport(data)
+	entries, err := ParseFoldersExport(data)
 	if err != nil {
 		return 0, err
 	}
@@ -129,7 +129,7 @@ func (e *Engine) ImportFoldersJSON(accountID, data string) (int, error) {
 		if have[name] {
 			continue
 		}
-		if _, err := e.CreateFolder(accountID, name, entry.Chats, exportToOpts(entry)); err != nil {
+		if _, err := e.CreateFolder(accountID, name, entry.Chats, ExportToOpts(entry)); err != nil {
 			return created, fmt.Errorf("folder %q: %w", name, err)
 		}
 		have[name] = true

@@ -1,0 +1,141 @@
+package tests
+
+import (
+	"testing"
+	. "uniclient/cores"
+
+	"github.com/gotd/td/tg"
+)
+
+func myGiftStickerDoc() *tg.Document {
+	return &tg.Document{
+		ID:            88001,
+		AccessHash:    77,
+		FileReference: []byte{9},
+		MimeType:      "image/webp",
+		Size:          12_000,
+		Thumbs: []tg.PhotoSizeClass{
+			&tg.PhotoStrippedSize{Type: "j", Bytes: []byte{1, 2, 3}},
+		},
+		Attributes: []tg.DocumentAttributeClass{
+			&tg.DocumentAttributeSticker{Alt: "🎁"},
+			&tg.DocumentAttributeFilename{FileName: "gift.webp"},
+		},
+	}
+}
+
+func TestStarGiftsFromWire(t *testing.T) {
+	res := &tg.PaymentsStarGifts{
+		Gifts: []tg.StarGiftClass{
+			&tg.StarGift{
+				ID:      5001,
+				Sticker: myGiftStickerDoc(),
+				Stars:   50,
+			},
+			&tg.StarGift{
+				ID:      5002,
+				Sticker: myGiftStickerDoc(),
+				Stars:   100,
+			},
+		},
+	}
+	g := res.Gifts[1].(*tg.StarGift)
+	g.SetLimited(true)
+	g.SetSoldOut(true)
+	g.SetRequirePremium(true)
+	g.SetAvailabilityTotal(1000)
+	g.SetAvailabilityRemains(3)
+	g.ConvertStars = 25
+
+	out := StarGiftsFromWire(res)
+	if len(out.Gifts) != 2 {
+		t.Fatalf("gifts = %d, want 2", len(out.Gifts))
+	}
+	first := out.Gifts[0]
+	if first.ID != 5001 || first.Stars != 50 {
+		t.Errorf("first gift wrong: %+v", first)
+	}
+	if first.ThumbB64 == "" {
+		t.Error("sticker thumb not carried (gift rows render it)")
+	}
+	if first.StickerEmoji != "🎁" {
+		t.Errorf("sticker emoji = %q", first.StickerEmoji)
+	}
+	if first.Limited || first.SoldOut || first.RequirePremium {
+		t.Errorf("plain gift carries flags: %+v", first)
+	}
+	second := out.Gifts[1]
+	if !second.Limited || !second.SoldOut || !second.RequirePremium {
+		t.Errorf("flags lost: %+v", second)
+	}
+	if second.Total != 1000 || second.Remaining != 3 {
+		t.Errorf("availability lost: %+v", second)
+	}
+	if second.ConvertStars != 25 {
+		t.Errorf("convert_stars lost: %+v", second)
+	}
+}
+
+func TestStarGiftsFromWireEmptyAndUnique(t *testing.T) {
+	if out := StarGiftsFromWire(nil).Gifts; len(out) != 0 {
+		t.Errorf("nil res = %d", len(out))
+	}
+	res := &tg.PaymentsStarGifts{Gifts: []tg.StarGiftClass{
+		&tg.StarGiftUnique{ID: 99},
+	}}
+	if out := StarGiftsFromWire(res).Gifts; len(out) != 0 {
+		t.Errorf("unique gift leaked into the buy catalog: %d", len(out))
+	}
+}
+
+func TestStarGiftInvoice(t *testing.T) {
+	inv := StarGiftInvoice(&tg.InputPeerUser{UserID: 42, AccessHash: 7}, 5001, "happy birthday", true)
+	sg, ok := inv.(*tg.InputInvoiceStarGift)
+	if !ok {
+		t.Fatalf("invoice type %T", inv)
+	}
+	if sg.GiftID != 5001 {
+		t.Errorf("gift id = %d", sg.GiftID)
+	}
+	if !sg.HideName {
+		t.Error("hide_name flag lost")
+	}
+	peer := sg.Peer.(*tg.InputPeerUser)
+	if peer.UserID != 42 || peer.AccessHash != 7 {
+		t.Errorf("peer = %+v", peer)
+	}
+	if sg.Message.Text != "happy birthday" || len(sg.Message.Entities) != 0 {
+		t.Errorf("message = %+v (want text, empty entities)", sg.Message)
+	}
+
+	inv2 := StarGiftInvoice(&tg.InputPeerUser{UserID: 1, AccessHash: 1}, 2, "", false)
+	sg2 := inv2.(*tg.InputInvoiceStarGift)
+	if sg2.HideName || sg2.Message.Text != "" {
+		t.Errorf("minimal invoice carries optional fields: %+v", sg2)
+	}
+}
+
+func TestGiftOptionsFromWire(t *testing.T) {
+	opts := []tg.StarsGiftOption{
+		{Stars: 100, Currency: "USD", Amount: 200},
+		{Stars: 500},
+	}
+	opts[0].SetStoreProduct("stars_100")
+	opts[0].SetExtended(true)
+	out := GiftOptionsFromWire(opts)
+	if len(out) != 2 {
+		t.Fatalf("options = %d", len(out))
+	}
+	if out[0].Stars != 100 || out[0].NanoStars != 100*1_000_000_000 {
+		t.Errorf("stars = %+v", out[0])
+	}
+	if out[0].Currency != "USD" || out[0].Amount != 200 || !out[0].Extended {
+		t.Errorf("store fields lost: %+v", out[0])
+	}
+	if out[0].StoreProduct != "stars_100" {
+		t.Errorf("store product lost: %+v", out[0])
+	}
+	if out[1].Currency != "" || out[1].Extended {
+		t.Errorf("bare option carries fields: %+v", out[1])
+	}
+}

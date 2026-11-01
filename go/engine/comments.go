@@ -30,7 +30,7 @@ func (e *Engine) GetDiscussionThread(accountID, chatID, msgID string) ([]CachedM
 		}
 	}
 	for _, m := range msgs {
-		e.cacheMessage(accountID, m.ChatID, &m)
+		e.CacheMessage(accountID, m.ChatID, &m)
 	}
 	if discussionChat == "" {
 		return nil, nil

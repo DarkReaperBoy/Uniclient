@@ -24,7 +24,7 @@ func (e *Engine) GetSavedSublistMessages(accountID, savedChatID, peerID string, 
 		limit = 50
 	}
 	if beforeMs == 0 {
-		if n := e.countSavedRows(accountID, savedChatID, peerID); n == 0 {
+		if n := e.CountSavedRows(accountID, savedChatID, peerID); n == 0 {
 			e.fetchSavedHistory(accountID, peerID, 0, 100)
 		}
 	}
@@ -67,7 +67,7 @@ func (e *Engine) readSavedRows(accountID, savedChatID, peerID string, beforeMs i
 	return e.applyAyuFilters(msgs), nil
 }
 
-func (e *Engine) countSavedRows(accountID, savedChatID, peerID string) int {
+func (e *Engine) CountSavedRows(accountID, savedChatID, peerID string) int {
 	q := `SELECT COUNT(*) FROM messages WHERE account_id = ? AND chat_id = ?`
 	args := []interface{}{accountID, savedChatID}
 	if peerID != "" {
@@ -97,7 +97,7 @@ func (e *Engine) fetchSavedHistory(accountID, peerID string, offsetID, limit int
 		return
 	}
 	for i := range msgs {
-		e.cacheMessage(accountID, selfChat, &msgs[i])
+		e.CacheMessage(accountID, selfChat, &msgs[i])
 	}
 }
 

@@ -54,7 +54,7 @@ type AuthOption struct {
 	Label string `json:"label"`
 }
 
-type authFlow struct {
+type AuthFlow struct {
 	mu        sync.Mutex
 	state     *AuthState
 	collected map[string]string
@@ -64,7 +64,7 @@ type authFlow struct {
 
 var (
 	authFlowsMu sync.Mutex
-	authFlows   = make(map[string]*authFlow)
+	authFlows   = make(map[string]*AuthFlow)
 )
 
 func CurrentAuthState(accountID string) *AuthState {
@@ -101,7 +101,7 @@ func (e *Engine) StartAuth(accountID string) (*AuthState, error) {
 
 	initial := initialAuthState(acc.Platform, accountID)
 
-	flow := &authFlow{
+	flow := &AuthFlow{
 		state:     initial,
 		collected: make(map[string]string),
 		core:      core,
@@ -299,8 +299,8 @@ func (e *Engine) SwitchAuthMethod(accountID, method string) (*AuthState, error) 
 	return next, nil
 }
 
-func (e *Engine) finalizeAuth(accountID string, acc *Account, flow *authFlow) {
-	cfg := buildAuthConfig(acc.Platform, flow.collected)
+func (e *Engine) finalizeAuth(accountID string, acc *Account, flow *AuthFlow) {
+	cfg := BuildAuthConfig(acc.Platform, flow.collected)
 
 	e.SaveCredentials(accountID, cfg)
 
@@ -321,7 +321,7 @@ func (e *Engine) finalizeAuth(accountID string, acc *Account, flow *authFlow) {
 	e.UpdateAccountDisplay(accountID, acc.DisplayName, "")
 
 	flow.core.OnUpdate(func(u cores.Update) {
-		e.handleUpdate(accountID, u)
+		e.HandleUpdate(accountID, u)
 	})
 
 	authFlowsMu.Lock()
@@ -397,7 +397,7 @@ func initialAuthState(platform, accountID string) *AuthState {
 	return base
 }
 
-func advanceAuth(platform string, flow *authFlow, input string) (*AuthState, error) {
+func advanceAuth(platform string, flow *AuthFlow, input string) (*AuthState, error) {
 	s := flow.state
 	base := &AuthState{AccountID: s.AccountID, Platform: platform}
 
@@ -411,7 +411,7 @@ func advanceAuth(platform string, flow *authFlow, input string) (*AuthState, err
 	case "irc":
 		return advanceIRC(flow, input, base)
 	case "xmpp":
-		return advanceXMPP(flow, input, base)
+		return AdvanceXMPP(flow, input, base)
 	case "github":
 		return advanceGitHub(flow, input, base)
 	case "deltachat":
@@ -425,7 +425,7 @@ func advanceAuth(platform string, flow *authFlow, input string) (*AuthState, err
 	}
 }
 
-func advanceTelegram(flow *authFlow, input string, base *AuthState) (*AuthState, error) {
+func advanceTelegram(flow *AuthFlow, input string, base *AuthState) (*AuthState, error) {
 	switch flow.state.State {
 	case AuthStateChoose:
 		flow.collected["method"] = input
@@ -728,7 +728,7 @@ func advanceTelegram(flow *authFlow, input string, base *AuthState) (*AuthState,
 	return nil, fmt.Errorf("unexpected state %s for telegram", flow.state.State)
 }
 
-func telegramReadyState(flow *authFlow, base *AuthState) *AuthState {
+func telegramReadyState(flow *AuthFlow, base *AuthState) *AuthState {
 	base.State = AuthStateReady
 	if profile, pErr := flow.core.GetProfile(""); pErr == nil && profile != nil {
 		base.DisplayName = profile.DisplayName
@@ -793,7 +793,7 @@ func splitSignUpInput(input string) [2]string {
 	return [2]string{input[:idx], input[idx+1:]}
 }
 
-func advanceBale(flow *authFlow, input string, base *AuthState) (*AuthState, error) {
+func advanceBale(flow *AuthFlow, input string, base *AuthState) (*AuthState, error) {
 	switch flow.state.State {
 	case AuthStateChoose:
 		flow.collected["method"] = input
@@ -884,7 +884,7 @@ func advanceBale(flow *authFlow, input string, base *AuthState) (*AuthState, err
 	return nil, fmt.Errorf("unexpected state %s for bale", flow.state.State)
 }
 
-func advanceMatrix(flow *authFlow, input string, base *AuthState) (*AuthState, error) {
+func advanceMatrix(flow *AuthFlow, input string, base *AuthState) (*AuthState, error) {
 	switch {
 	case flow.collected["homeserver"] == "":
 		flow.collected["homeserver"] = input
@@ -905,7 +905,7 @@ func advanceMatrix(flow *authFlow, input string, base *AuthState) (*AuthState, e
 	}
 }
 
-func advanceIRC(flow *authFlow, input string, base *AuthState) (*AuthState, error) {
+func advanceIRC(flow *AuthFlow, input string, base *AuthState) (*AuthState, error) {
 	switch {
 	case flow.collected["server"] == "":
 		flow.collected["server"] = input
@@ -930,7 +930,7 @@ func advanceIRC(flow *authFlow, input string, base *AuthState) (*AuthState, erro
 	}
 }
 
-func advanceXMPP(flow *authFlow, input string, base *AuthState) (*AuthState, error) {
+func AdvanceXMPP(flow *AuthFlow, input string, base *AuthState) (*AuthState, error) {
 	switch {
 	case flow.collected["jid"] == "":
 		flow.collected["jid"] = input
@@ -951,12 +951,12 @@ func advanceXMPP(flow *authFlow, input string, base *AuthState) (*AuthState, err
 		base.Hint = "y"
 		return base, nil
 	default:
-		flow.collected["register"] = parseYesNo(input)
+		flow.collected["register"] = ParseYesNo(input)
 		return tryAuth(flow, base)
 	}
 }
 
-func parseYesNo(input string) string {
+func ParseYesNo(input string) string {
 	switch strings.ToLower(strings.TrimSpace(input)) {
 	case "y", "yes", "1", "true", "register", "create":
 		return "true"
@@ -965,12 +965,12 @@ func parseYesNo(input string) string {
 	}
 }
 
-func advanceGitHub(flow *authFlow, input string, base *AuthState) (*AuthState, error) {
+func advanceGitHub(flow *AuthFlow, input string, base *AuthState) (*AuthState, error) {
 	flow.collected["token"] = input
 	return tryAuth(flow, base)
 }
 
-func advanceDeltaChat(flow *authFlow, input string, base *AuthState) (*AuthState, error) {
+func advanceDeltaChat(flow *AuthFlow, input string, base *AuthState) (*AuthState, error) {
 	switch {
 	case flow.collected["email"] == "":
 		flow.collected["email"] = input
@@ -984,7 +984,7 @@ func advanceDeltaChat(flow *authFlow, input string, base *AuthState) (*AuthState
 	}
 }
 
-func advanceTeamSpeak(flow *authFlow, input string, base *AuthState) (*AuthState, error) {
+func advanceTeamSpeak(flow *AuthFlow, input string, base *AuthState) (*AuthState, error) {
 	switch {
 	case flow.collected["server"] == "":
 		flow.collected["server"] = input
@@ -1008,7 +1008,7 @@ func advanceTeamSpeak(flow *authFlow, input string, base *AuthState) (*AuthState
 	}
 }
 
-func advanceMumble(flow *authFlow, input string, base *AuthState) (*AuthState, error) {
+func advanceMumble(flow *AuthFlow, input string, base *AuthState) (*AuthState, error) {
 	switch {
 	case flow.collected["server"] == "":
 		flow.collected["server"] = input
@@ -1032,8 +1032,8 @@ func advanceMumble(flow *authFlow, input string, base *AuthState) (*AuthState, e
 	}
 }
 
-func tryAuth(flow *authFlow, base *AuthState) (*AuthState, error) {
-	cfg := buildAuthConfig(base.Platform, flow.collected)
+func tryAuth(flow *AuthFlow, base *AuthState) (*AuthState, error) {
+	cfg := BuildAuthConfig(base.Platform, flow.collected)
 	err := flow.core.Authenticate(cfg)
 	if err != nil {
 		if err.Error() == "2fa_required" {
@@ -1056,7 +1056,7 @@ func tryAuth(flow *authFlow, base *AuthState) (*AuthState, error) {
 	return base, nil
 }
 
-func buildAuthConfig(platform string, collected map[string]string) cores.AuthConfig {
+func BuildAuthConfig(platform string, collected map[string]string) cores.AuthConfig {
 	cfg := cores.AuthConfig{
 		Extra: make(map[string]string),
 	}

@@ -296,7 +296,7 @@ func (b *BaleCore) UploadRawPUT(url string, data []byte) error {
 		return err
 	}
 	defer resp.Body.Close()
-	drainBodyLimited(resp.Body)
+	DrainBodyLimited(resp.Body)
 	if resp.StatusCode >= 400 {
 		return fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
@@ -508,7 +508,7 @@ func (b *BaleCore) apiRequest(method string, params map[string]interface{}) (map
 	}
 	defer resp.Body.Close()
 
-	respBody, err := readBodyCapped(resp.Body, apiBodyCeiling)
+	respBody, err := ReadBodyCapped(resp.Body, ApiBodyCeiling)
 	if err != nil {
 		return nil, fmt.Errorf("%w: read response: %v", ErrNetwork, err)
 	}
@@ -584,7 +584,7 @@ func (b *BaleCore) apiRequestMultipart(method string, fields map[string]string, 
 	}
 	defer resp.Body.Close()
 
-	respBody, err := readBodyCapped(resp.Body, apiBodyCeiling)
+	respBody, err := ReadBodyCapped(resp.Body, ApiBodyCeiling)
 	if err != nil {
 		return nil, fmt.Errorf("%w: read response: %v", ErrNetwork, err)
 	}
@@ -651,7 +651,7 @@ func (b *BaleCore) pollLoop() {
 			continue
 		}
 
-		body, err := readBodyCapped(resp.Body, apiBodyCeiling)
+		body, err := ReadBodyCapped(resp.Body, ApiBodyCeiling)
 		resp.Body.Close()
 		if err != nil {
 			time.Sleep(1 * time.Second)
@@ -1281,10 +1281,10 @@ func (b *BaleCore) UploadFile(chatID string, file FileUpload, progress func(sent
 	return &parsed, nil
 }
 
-var baleDrainMax int64 = 64 * 1024
+var BaleDrainMax int64 = 64 * 1024
 
-func drainBodyLimited(rc io.ReadCloser) {
-	_, _ = io.Copy(io.Discard, io.LimitReader(rc, baleDrainMax))
+func DrainBodyLimited(rc io.ReadCloser) {
+	_, _ = io.Copy(io.Discard, io.LimitReader(rc, BaleDrainMax))
 }
 
 func (b *BaleCore) userUploadFile(chatID string, file FileUpload, progress func(sent, total int64)) (*Message, error) {
@@ -1324,7 +1324,7 @@ func (b *BaleCore) userUploadFile(chatID string, file FileUpload, progress func(
 		return nil, fmt.Errorf("upload PUT: %w", err)
 	}
 	defer uploadResp.Body.Close()
-	drainBodyLimited(uploadResp.Body)
+	DrainBodyLimited(uploadResp.Body)
 
 	if uploadResp.StatusCode >= 400 {
 		return nil, fmt.Errorf("upload failed: HTTP %d", uploadResp.StatusCode)
@@ -1446,7 +1446,7 @@ func (b *BaleCore) DownloadFile(fileRef FileRef, dest string, progress func(recv
 		}
 	}
 
-	if _, err := boundedCopy(outFile, reader, downloadCeiling); err != nil {
+	if _, err := BoundedCopy(outFile, reader, DownloadCeiling); err != nil {
 		outFile.Close()
 		os.Remove(dest)
 		return err
@@ -2161,7 +2161,7 @@ func (b *BaleCore) mapMessage(m map[string]interface{}) Message {
 		}
 	}
 
-	msg.Attachments = b.extractAttachments(m)
+	msg.Attachments = b.ExtractAttachments(m)
 
 	msg.Status = MessageStatusSent
 	return msg
@@ -2225,7 +2225,7 @@ func (b *BaleCore) mapChatToUser(chat map[string]interface{}) *User {
 	return user
 }
 
-func (b *BaleCore) extractAttachments(m map[string]interface{}) []FileRef {
+func (b *BaleCore) ExtractAttachments(m map[string]interface{}) []FileRef {
 	var attachments []FileRef
 
 	if photos, ok := m["photo"].([]interface{}); ok && len(photos) > 0 {
@@ -3045,7 +3045,7 @@ func (b *BaleCore) wsPost(service, method string, payload map[string]interface{}
 	}
 	defer resp.Body.Close()
 
-	respBody, err := readBodyCapped(resp.Body, apiBodyCeiling)
+	respBody, err := ReadBodyCapped(resp.Body, ApiBodyCeiling)
 	if err != nil {
 		return nil, fmt.Errorf("%w: read response: %v", ErrNetwork, err)
 	}

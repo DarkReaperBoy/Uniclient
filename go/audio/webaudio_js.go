@@ -11,7 +11,7 @@ import (
 
 const audioAvailable = true
 
-type webDevice struct {
+type WebDevice struct {
 	mu sync.Mutex
 
 	ctx     js.Value
@@ -22,11 +22,11 @@ type webDevice struct {
 	playFnSet bool
 	playFill  func(out []int16)
 
-	micStop chan struct{}
+	MicStop chan struct{}
 	micDone chan struct{}
 }
 
-func openDevice() (device, error) {
+func OpenDevice() (Device, error) {
 	ctor := js.Global().Get("AudioContext")
 	if ctor.IsUndefined() {
 		ctor = js.Global().Get("webkitAudioContext")
@@ -38,7 +38,7 @@ func openDevice() (device, error) {
 	opts.Set("sampleRate", 48000)
 	ctx := ctor.New(opts)
 	rate := ctx.Get("sampleRate").Float()
-	return &webDevice{ctx: ctx, ctxRate: rate}, nil
+	return &WebDevice{ctx: ctx, ctxRate: rate}, nil
 }
 
 func resample(in []int16, fromRate, toRate float64) []int16 {
@@ -64,7 +64,7 @@ func resample(in []int16, fromRate, toRate float64) []int16 {
 	return out
 }
 
-func (d *webDevice) startPlayback(fill func(out []int16)) error {
+func (d *WebDevice) StartPlayback(fill func(out []int16)) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if !d.playNode.IsNull() && !d.playNode.IsUndefined() {
@@ -99,7 +99,7 @@ func (d *webDevice) startPlayback(fill func(out []int16)) error {
 	return nil
 }
 
-func (d *webDevice) stopPlayback() {
+func (d *WebDevice) StopPlayback() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.playNode.IsNull() || d.playNode.IsUndefined() {
@@ -115,10 +115,10 @@ func (d *webDevice) stopPlayback() {
 	d.playFill = nil
 }
 
-func (d *webDevice) startMic() (<-chan []byte, error) {
+func (d *WebDevice) StartMic() (<-chan []byte, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	if d.micStop != nil {
+	if d.MicStop != nil {
 		return nil, fmt.Errorf("audio: mic already running")
 	}
 
@@ -138,13 +138,13 @@ func (d *webDevice) startMic() (<-chan []byte, error) {
 	frames := make(chan []byte, 8)
 	stop := make(chan struct{})
 	done := make(chan struct{})
-	d.micStop, d.micDone = stop, done
+	d.MicStop, d.micDone = stop, done
 
 	endMicAttempt := func() {
 		d.mu.Lock()
 		defer d.mu.Unlock()
-		if d.micStop == stop {
-			d.micStop, d.micDone = nil, nil
+		if d.MicStop == stop {
+			d.MicStop, d.micDone = nil, nil
 			close(stop)
 		}
 	}
@@ -247,11 +247,11 @@ func (d *webDevice) startMic() (<-chan []byte, error) {
 	return frames, nil
 }
 
-func (d *webDevice) stopMic() {
+func (d *WebDevice) StopMic() {
 	d.mu.Lock()
-	stop := d.micStop
+	stop := d.MicStop
 	done := d.micDone
-	d.micStop, d.micDone = nil, nil
+	d.MicStop, d.micDone = nil, nil
 	d.mu.Unlock()
 	if stop != nil {
 		close(stop)
@@ -261,9 +261,9 @@ func (d *webDevice) stopMic() {
 	}
 }
 
-func (d *webDevice) close() {
-	d.stopMic()
-	d.stopPlayback()
+func (d *WebDevice) Close() {
+	d.StopMic()
+	d.StopPlayback()
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if !d.ctx.IsNull() && !d.ctx.IsUndefined() {

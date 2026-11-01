@@ -13,7 +13,7 @@ import (
 	"uniclient/cores"
 )
 
-type downloadJob struct {
+type DownloadJob struct {
 	AccountID string
 	ChatID    string
 	MsgID     string
@@ -30,14 +30,14 @@ type MediaManager struct {
 	engine *Engine
 
 	mu      sync.Mutex
-	queue   []*downloadJob
+	queue   []*DownloadJob
 	active  int
 	maxConc int
 	wg      sync.WaitGroup
 	notify  chan struct{}
 }
 
-func newMediaManager(e *Engine) *MediaManager {
+func NewMediaManager(e *Engine) *MediaManager {
 	mm := &MediaManager{
 		engine:  e,
 		maxConc: 10,
@@ -65,7 +65,7 @@ func (mm *MediaManager) Stop() {
 	mm.wg.Wait()
 }
 
-func (mm *MediaManager) Enqueue(job *downloadJob) {
+func (mm *MediaManager) Enqueue(job *DownloadJob) {
 	mm.mu.Lock()
 	defer mm.mu.Unlock()
 
@@ -130,7 +130,7 @@ func (mm *MediaManager) processQueue() {
 	}
 }
 
-func (mm *MediaManager) executeDownload(job *downloadJob) {
+func (mm *MediaManager) executeDownload(job *DownloadJob) {
 	e := mm.engine
 
 	acc, ok := e.getAccount(job.AccountID)
@@ -138,11 +138,11 @@ func (mm *MediaManager) executeDownload(job *downloadJob) {
 		return
 	}
 
-	key := mediaGuardKey(job.AccountID, job.ChatID, job.MsgID, job.Seq)
-	if !e.claimDownload(key) {
+	key := MediaGuardKey(job.AccountID, job.ChatID, job.MsgID, job.Seq)
+	if !e.ClaimDownload(key) {
 		return
 	}
-	defer e.releaseDownload(key)
+	defer e.ReleaseDownload(key)
 
 	dir := filepath.Join(e.mediaDir, job.AccountID, "full")
 	os.MkdirAll(dir, 0o755)
@@ -151,7 +151,7 @@ func (mm *MediaManager) executeDownload(job *downloadJob) {
 	if ext == "" {
 		ext = ".bin"
 	}
-	localPath := filepath.Join(dir, safePathSegment(job.MsgID)+"_"+fmt.Sprint(job.Seq)+ext)
+	localPath := filepath.Join(dir, SafePathSegment(job.MsgID)+"_"+fmt.Sprint(job.Seq)+ext)
 
 	e.db.Exec(
 		"UPDATE media SET download_state = ? WHERE account_id = ? AND chat_id = ? AND msg_id = ? AND seq = ?",
@@ -217,11 +217,11 @@ type mediaGuard struct {
 	dl      bool
 }
 
-func mediaGuardKey(accountID, chatID, msgID string, seq int) string {
+func MediaGuardKey(accountID, chatID, msgID string, seq int) string {
 	return accountID + "|" + chatID + "|" + msgID + "|" + fmt.Sprint(seq)
 }
 
-func (e *Engine) claimStream(key string) bool {
+func (e *Engine) ClaimStream(key string) bool {
 	e.guardMu.Lock()
 	defer e.guardMu.Unlock()
 	if e.guards == nil {
@@ -250,7 +250,7 @@ func (e *Engine) releaseStream(key string) {
 	}
 }
 
-func (e *Engine) claimDownload(key string) bool {
+func (e *Engine) ClaimDownload(key string) bool {
 	e.guardMu.Lock()
 	defer e.guardMu.Unlock()
 	if e.guards == nil {
@@ -268,7 +268,7 @@ func (e *Engine) claimDownload(key string) bool {
 	return true
 }
 
-func (e *Engine) releaseDownload(key string) {
+func (e *Engine) ReleaseDownload(key string) {
 	e.guardMu.Lock()
 	defer e.guardMu.Unlock()
 	if g := e.guards[key]; g != nil && g.dl {
@@ -305,7 +305,7 @@ func (e *Engine) RequestDownload(accountID, chatID, msgID string, seq, priority 
 			return nil
 		}
 	}
-	if e.streamActive(mediaGuardKey(accountID, chatID, msgID, seq)) {
+	if e.streamActive(MediaGuardKey(accountID, chatID, msgID, seq)) {
 		return ErrStreamActive
 	}
 
@@ -313,7 +313,7 @@ func (e *Engine) RequestDownload(accountID, chatID, msgID string, seq, priority 
 		return fmt.Errorf("media manager not initialized")
 	}
 
-	e.media.Enqueue(&downloadJob{
+	e.media.Enqueue(&DownloadJob{
 		AccountID: accountID,
 		ChatID:    chatID,
 		MsgID:     msgID,
@@ -497,7 +497,7 @@ type mediaVictim struct {
 }
 
 func (e *Engine) isThumb(accID, localPath string) bool {
-	return filepath.Dir(localPath) == filepath.Join(e.mediaDir, safePathSegment(accID), "thumb")
+	return filepath.Dir(localPath) == filepath.Join(e.mediaDir, SafePathSegment(accID), "thumb")
 }
 
 func (e *Engine) dropVictim(v mediaVictim) {

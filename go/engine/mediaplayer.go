@@ -28,7 +28,7 @@ type PlaybackState struct {
 
 var mediaSpeeds = []float64{1, 1.5, 2, 0.5}
 
-type mediaPlayer struct {
+type MediaPlayer struct {
 	mu   sync.Mutex
 	eng  *Engine
 	sess *audio.Session
@@ -47,11 +47,11 @@ type mediaPlayer struct {
 	lastErr  string
 }
 
-func (e *Engine) newMediaPlayer() *mediaPlayer {
-	return &mediaPlayer{eng: e, speed: 1, gain: 1}
+func (e *Engine) newMediaPlayer() *MediaPlayer {
+	return &MediaPlayer{eng: e, speed: 1, gain: 1}
 }
 
-func (e *Engine) player() *mediaPlayer {
+func (e *Engine) Player() *MediaPlayer {
 	e.mu.Lock()
 	var (
 		gain    float64
@@ -63,13 +63,13 @@ func (e *Engine) player() *mediaPlayer {
 	e.mu.Unlock()
 
 	e.mediaMu.Lock()
-	if e.mediaPlayer == nil {
-		e.mediaPlayer = e.newMediaPlayer()
+	if e.MediaPlayer == nil {
+		e.MediaPlayer = e.newMediaPlayer()
 		if haveCfg {
-			e.mediaPlayer.gain = gain
+			e.MediaPlayer.gain = gain
 		}
 	}
-	p := e.mediaPlayer
+	p := e.MediaPlayer
 	e.mediaMu.Unlock()
 	return p
 }
@@ -80,7 +80,7 @@ func IsOpusOgg(path string) bool {
 		return false
 	}
 	defer f.Close()
-	rd := newOggPacketReader(f)
+	rd := NewOggPacketReader(f)
 	pkt, err := rd.Next()
 	if err != nil || len(pkt) < 8 {
 		return false
@@ -94,7 +94,7 @@ func decodeOpusOgg(path string) ([]int16, error) {
 		return nil, err
 	}
 	defer f.Close()
-	rd := newOggPacketReader(f)
+	rd := NewOggPacketReader(f)
 	dec := voice.NewDecoder()
 	var pcm []int16
 	idx := 0
@@ -131,7 +131,7 @@ func (e *Engine) PlayMediaAt(acct, chat, msgID, path string, startAt time.Durati
 	return e.playMediaAt(acct, chat, msgID, path, startAt)
 }
 
-func mediaStartPos(startAt time.Duration, dur float64) float64 {
+func MediaStartPos(startAt time.Duration, dur float64) float64 {
 	if startAt <= 0 || dur <= 0 {
 		return 0
 	}
@@ -149,9 +149,9 @@ func (e *Engine) playMediaAt(acct, chat, msgID, path string, startAt time.Durati
 	case IsOpusOgg(path):
 		pcm, err = decodeOpusOgg(path)
 	case IsMp3(path):
-		pcm, err = decodeMp3(path)
+		pcm, err = DecodeMp3(path)
 	case IsMp4(path):
-		pcm, err = decodeMp4Audio(path)
+		pcm, err = DecodeMp4Audio(path)
 	default:
 		return fmt.Errorf("media: %s is not Ogg/Opus, MP3 or MP4 audio — use the system player", path)
 	}
@@ -167,7 +167,7 @@ func (e *Engine) playMediaAt(acct, chat, msgID, path string, startAt time.Durati
 	}
 	e.mu.Unlock()
 
-	p := e.player()
+	p := e.Player()
 	p.mu.Lock()
 	p.stopLocked()
 	if cfgGain != nil {
@@ -184,7 +184,7 @@ func (e *Engine) playMediaAt(acct, chat, msgID, path string, startAt time.Durati
 	}
 	p.pcm = pcm
 	p.dur = float64(len(pcm)) / float64(voice.SampleRate)
-	p.pos = mediaStartPos(startAt, p.dur) * float64(voice.SampleRate)
+	p.pos = MediaStartPos(startAt, p.dur) * float64(voice.SampleRate)
 	p.speed = 1
 	p.ident = [3]string{acct, chat, msgID}
 	p.playing = hasAudio
@@ -199,7 +199,7 @@ func (e *Engine) playMediaAt(acct, chat, msgID, path string, startAt time.Durati
 }
 
 func (e *Engine) TogglePauseMedia() {
-	p := e.player()
+	p := e.Player()
 	p.mu.Lock()
 	if p.playing {
 		p.paused = !p.paused
@@ -209,7 +209,7 @@ func (e *Engine) TogglePauseMedia() {
 }
 
 func (e *Engine) StopMedia() {
-	p := e.player()
+	p := e.Player()
 	p.mu.Lock()
 	had := p.stopLocked()
 	p.mu.Unlock()
@@ -219,7 +219,7 @@ func (e *Engine) StopMedia() {
 }
 
 func (e *Engine) CycleMediaSpeed() {
-	p := e.player()
+	p := e.Player()
 	p.mu.Lock()
 	next := mediaSpeeds[0]
 	for i, s := range mediaSpeeds {
@@ -234,7 +234,7 @@ func (e *Engine) CycleMediaSpeed() {
 }
 
 func (e *Engine) SeekMedia(frac float64) error {
-	p := e.player()
+	p := e.Player()
 	p.mu.Lock()
 	if len(p.pcm) == 0 || p.dur <= 0 {
 		p.mu.Unlock()
@@ -257,7 +257,7 @@ func (e *Engine) SeekMedia(frac float64) error {
 
 func (e *Engine) SetMediaVolume(v float64) {
 	v = utils.ClampMediaVolume(v)
-	p := e.player()
+	p := e.Player()
 	p.mu.Lock()
 	p.gain = v
 	p.mu.Unlock()
@@ -265,13 +265,13 @@ func (e *Engine) SetMediaVolume(v float64) {
 }
 
 func (e *Engine) MediaState() PlaybackState {
-	p := e.player()
+	p := e.Player()
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.stateLocked()
 }
 
-func (p *mediaPlayer) stateLocked() PlaybackState {
+func (p *MediaPlayer) stateLocked() PlaybackState {
 	st := PlaybackState{
 		AccountID: p.ident[0],
 		ChatID:    p.ident[1],
@@ -288,7 +288,7 @@ func (p *mediaPlayer) stateLocked() PlaybackState {
 	return st
 }
 
-func (p *mediaPlayer) stopLocked() (had bool) {
+func (p *MediaPlayer) stopLocked() (had bool) {
 	if p.sess != nil {
 		p.sess.StopPlayback()
 		p.sess.Close()
@@ -304,7 +304,7 @@ func (p *mediaPlayer) stopLocked() (had bool) {
 	return had
 }
 
-func (p *mediaPlayer) fill(out []int16) {
+func (p *MediaPlayer) fill(out []int16) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if !p.playing || p.paused || len(p.pcm) == 0 {
@@ -338,7 +338,7 @@ func (p *mediaPlayer) fill(out []int16) {
 }
 
 func (e *Engine) emitPlayback() {
-	p := e.player()
+	p := e.Player()
 	p.mu.Lock()
 	snap := p.stateLocked()
 	p.mu.Unlock()

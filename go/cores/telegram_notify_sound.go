@@ -6,7 +6,7 @@ import (
 	"github.com/gotd/td/tg"
 )
 
-func notifySoundForKind(kind string) (tg.NotificationSoundClass, error) {
+func NotifySoundForKind(kind string) (tg.NotificationSoundClass, error) {
 	switch kind {
 	case "default":
 		return &tg.NotificationSoundDefault{}, nil
@@ -18,7 +18,7 @@ func notifySoundForKind(kind string) (tg.NotificationSoundClass, error) {
 	return nil, fmt.Errorf("unknown sound kind: %s", kind)
 }
 
-func kindForNotifySound(s tg.NotificationSoundClass) string {
+func KindForNotifySound(s tg.NotificationSoundClass) string {
 	switch v := s.(type) {
 	case *tg.NotificationSoundDefault:
 		return "default"
@@ -57,17 +57,17 @@ func (t *TelegramCore) GetChatNotifySound(chatID string) (string, error) {
 		return "", err
 	}
 	if snd, ok := s.GetOtherSound(); ok {
-		return kindForNotifySound(snd), nil
+		return KindForNotifySound(snd), nil
 	}
 	return "", nil
 }
 
 func (t *TelegramCore) SetChatNotifySound(chatID, kind string) error {
-	snd, err := notifySoundForKind(kind)
+	snd, err := NotifySoundForKind(kind)
 	if err != nil {
 		return err
 	}
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}

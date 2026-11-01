@@ -6,7 +6,7 @@ import (
 	"github.com/gotd/td/tg"
 )
 
-func countriesFromWire(list []tg.HelpCountry) []CountryInfo {
+func CountriesFromWire(list []tg.HelpCountry) []CountryInfo {
 	out := make([]CountryInfo, 0, len(list))
 	for _, c := range list {
 		if c.Hidden {
@@ -22,7 +22,7 @@ func countriesFromWire(list []tg.HelpCountry) []CountryInfo {
 }
 
 func (t *TelegramCore) GetCountriesList(langCode string) ([]CountryInfo, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -34,7 +34,7 @@ func (t *TelegramCore) GetCountriesList(langCode string) ([]CountryInfo, error) 
 	}
 	switch r := res.(type) {
 	case *tg.HelpCountriesList:
-		return countriesFromWire(r.Countries), nil
+		return CountriesFromWire(r.Countries), nil
 	case *tg.HelpCountriesListNotModified:
 		return nil, fmt.Errorf("countries list not modified (hash-cached call without a cached list)")
 	default:

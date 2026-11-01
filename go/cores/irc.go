@@ -49,7 +49,7 @@ func (m *ircMsg) Trailing() string {
 	return ""
 }
 
-func parseIRCMsg(line string) *ircMsg {
+func ParseIRCMsg(line string) *ircMsg {
 	m := &ircMsg{}
 
 	if len(line) > 0 && line[0] == '@' {
@@ -571,7 +571,7 @@ func (c *IRCCore) readLoop() {
 			continue
 		}
 
-		msg := parseIRCMsg(line)
+		msg := ParseIRCMsg(line)
 		if msg == nil {
 			continue
 		}
@@ -972,9 +972,9 @@ func (c *IRCCore) handleMessage(msg *ircMsg) {
 		c.handleTagMsg(msg)
 
 	case "PRIVMSG":
-		c.handlePrivmsg(msg)
+		c.HandlePrivmsg(msg)
 	case "NOTICE":
-		c.handleNotice(msg)
+		c.HandleNotice(msg)
 
 	case "MODE":
 		c.handleMode(msg)
@@ -1431,7 +1431,7 @@ func isServerOrigin(msg *ircMsg, target string) bool {
 	return false
 }
 
-func (c *IRCCore) handlePrivmsg(msg *ircMsg) {
+func (c *IRCCore) HandlePrivmsg(msg *ircMsg) {
 	if len(msg.Params) < 1 {
 		return
 	}
@@ -1502,7 +1502,7 @@ func (c *IRCCore) handlePrivmsg(msg *ircMsg) {
 	})
 }
 
-func (c *IRCCore) handleNotice(msg *ircMsg) {
+func (c *IRCCore) HandleNotice(msg *ircMsg) {
 	if len(msg.Params) < 1 {
 		return
 	}

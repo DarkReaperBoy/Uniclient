@@ -23,7 +23,7 @@ func IsMp4(path string) bool {
 	return string(hdr[4:8]) == "ftyp"
 }
 
-func decodeMp4Audio(path string) ([]int16, error) {
+func DecodeMp4Audio(path string) ([]int16, error) {
 	tr, err := aacaud.ParseFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("mp4: %w", err)
@@ -42,12 +42,12 @@ func decodeMp4Audio(path string) ([]int16, error) {
 	switch tr.Channels {
 	case 1:
 	case 2:
-		samples = mixdownStereo(samples)
+		samples = MixdownStereo(samples)
 	default:
 		return nil, fmt.Errorf("mp4: %d channels (want mono or stereo)", tr.Channels)
 	}
 	if tr.SampleRate > 0 && tr.SampleRate != voice.SampleRate {
-		samples = resampleLinear(samples, tr.SampleRate, voice.SampleRate)
+		samples = ResampleLinear(samples, tr.SampleRate, voice.SampleRate)
 	}
 	if len(samples) == 0 {
 		return nil, fmt.Errorf("mp4: no audio in %s", path)

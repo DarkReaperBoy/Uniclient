@@ -1,0 +1,71 @@
+package tests
+
+import (
+	"testing"
+	. "uniclient/engine"
+
+	"uniclient/cores"
+)
+
+func TestParseDiceExtra(t *testing.T) {
+	info, ok := ParseDiceExtra([]byte(`{"extra":{"dice_emoji":"🎲","dice_value":4}}`))
+	if !ok || info.Emoji != "🎲" || info.Value != 4 {
+		t.Fatalf("parseDiceExtra = %+v ok=%v", info, ok)
+	}
+	info, ok = ParseDiceExtra([]byte(`{"extra":{"dice_emoji":"🎯","dice_value":0}}`))
+	if !ok || info.Emoji != "🎯" || info.Value != 0 {
+		t.Fatalf("rolling parse = %+v ok=%v", info, ok)
+	}
+	if _, ok := ParseDiceExtra([]byte(`{"extra":{"poll_question":"q"}}`)); ok {
+		t.Error("non-dice extra parsed as dice")
+	}
+	if _, ok := ParseDiceExtra(nil); ok {
+		t.Error("empty raw parsed as dice")
+	}
+	if _, ok := ParseDiceExtra([]byte(`not json`)); ok {
+		t.Error("garbage parsed as dice")
+	}
+}
+
+func TestDiceStickerForValue(t *testing.T) {
+	set := &cores.DiceStickersResult{Emoji: "🎲", Stickers: []cores.DiceSticker{
+		{Value: 0, FileID: "roll"},
+		{Value: 1, FileID: "one"},
+		{Value: 6, FileID: "six"},
+	}}
+	cases := []struct {
+		value int
+		want  string
+	}{
+		{0, "roll"},
+		{1, "one"},
+		{6, "six"},
+		{4, ""},
+	}
+	for _, c := range cases {
+		doc := DiceStickerForValue(set, c.value)
+		got := ""
+		if doc != nil {
+			got = doc.FileID
+		}
+		if got != c.want {
+			t.Errorf("diceStickerForValue(%d) = %q, want %q", c.value, got, c.want)
+		}
+	}
+	if DiceStickerForValue(nil, 1) != nil {
+		t.Error("nil set returned a sticker")
+	}
+}
+
+func TestDicePackWanted(t *testing.T) {
+	for _, e := range []string{"🎲", "🎯", "⚽", "🏀"} {
+		if got := DicePackWanted(DiceMsgInfo{Emoji: e}); got != e {
+			t.Errorf("dicePackWanted(%q) = %q, want %q", e, got, e)
+		}
+	}
+	for _, e := range []string{"🎰", "🎉", "", "🎲🎲"} {
+		if got := DicePackWanted(DiceMsgInfo{Emoji: e}); got != "" {
+			t.Errorf("dicePackWanted(%q) = %q, want empty", e, got)
+		}
+	}
+}

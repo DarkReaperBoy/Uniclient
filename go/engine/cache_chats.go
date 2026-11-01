@@ -436,7 +436,7 @@ func (e *Engine) SyncChats(accountID string, dialogs []cores.Dialog) error {
 	return nil
 }
 
-func (e *Engine) ensureChatExists(accountID, chatID string, msg *cores.Message) {
+func (e *Engine) EnsureChatExists(accountID, chatID string, msg *cores.Message) {
 	var exists int
 	e.db.QueryRow("SELECT 1 FROM chats WHERE account_id = ? AND chat_id = ?", accountID, chatID).Scan(&exists)
 	if exists == 1 {
@@ -1735,7 +1735,7 @@ func (e *Engine) GetGroupCall(accountID, chatID string) (*GroupCallInfo, error) 
 	if v, ok := cs.Meta["talk_power"]; ok && v == "blocked" {
 		info.TalkPowerBlocked = true
 	}
-	avatarDir := filepath.Join(e.mediaDir, safePathSegment(accountID), "avatars")
+	avatarDir := filepath.Join(e.mediaDir, SafePathSegment(accountID), "avatars")
 	for _, p := range cs.Participants {
 		gcp := GroupCallParticipant{
 			UserID:             p.UserID,
@@ -2135,10 +2135,10 @@ func (e *Engine) ToggleGroupCallRecord(accountID, callID string, start bool, tit
 	if acc.Core == nil {
 		return fmt.Errorf("account not connected: %s", accountID)
 	}
-	type recorder interface {
+	type Recorder interface {
 		ToggleGroupCallRecord(callID string, start bool, title string, video, videoPortrait bool) error
 	}
-	if r, ok := acc.Core.(recorder); ok {
+	if r, ok := acc.Core.(Recorder); ok {
 		return r.ToggleGroupCallRecord(callID, start, title, video, videoPortrait)
 	}
 	return fmt.Errorf("core does not support ToggleGroupCallRecord")

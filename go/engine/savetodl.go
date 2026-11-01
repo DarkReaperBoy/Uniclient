@@ -40,7 +40,7 @@ func (e *Engine) SaveMessageMediaToDownloads(accountID, chatID, msgID string, se
 	}
 
 	name := sanitizeDownloadName(fileName.String, localPath.String)
-	dest := uniqueDownloadPath(dir, name)
+	dest := UniqueDownloadPath(dir, name)
 	if err := copyFile(localPath.String, dest); err != nil {
 		return "", err
 	}
@@ -63,7 +63,7 @@ func sanitizeDownloadName(stored, cachePath string) string {
 	return name
 }
 
-func uniqueDownloadPath(dir, name string) string {
+func UniqueDownloadPath(dir, name string) string {
 	ext := filepath.Ext(name)
 	stem := strings.TrimSuffix(name, ext)
 	candidate := filepath.Join(dir, name)

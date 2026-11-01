@@ -21,7 +21,7 @@ type DiceStickersResult struct {
 	Stickers []DiceSticker
 }
 
-func diceValueFromEmoticon(emoticon string) int {
+func DiceValueFromEmoticon(emoticon string) int {
 	switch emoticon {
 	case "#":
 		return 0
@@ -31,7 +31,7 @@ func diceValueFromEmoticon(emoticon string) int {
 	return -1
 }
 
-func mapDiceStickerSet(emoji string, docs []tg.DocumentClass, packs []tg.StickerPack) *DiceStickersResult {
+func MapDiceStickerSet(emoji string, docs []tg.DocumentClass, packs []tg.StickerPack) *DiceStickersResult {
 	res := &DiceStickersResult{Emoji: emoji}
 
 	byID := make(map[int64]DiceSticker, len(docs))
@@ -74,7 +74,7 @@ func mapDiceStickerSet(emoji string, docs []tg.DocumentClass, packs []tg.Sticker
 	}
 
 	for _, pack := range packs {
-		v := diceValueFromEmoticon(pack.Emoticon)
+		v := DiceValueFromEmoticon(pack.Emoticon)
 		if v < 0 {
 			continue
 		}
@@ -113,7 +113,7 @@ func (t *TelegramCore) GetDiceStickers(emoji string) (*DiceStickersResult, error
 		return nil, fmt.Errorf("get dice sticker set: unexpected response %T", result)
 	}
 
-	res := mapDiceStickerSet(emoji, set.Documents, set.Packs)
+	res := MapDiceStickerSet(emoji, set.Documents, set.Packs)
 	if len(res.Stickers) == 0 {
 		return nil, fmt.Errorf("dice pack %q has no stickers", emoji)
 	}

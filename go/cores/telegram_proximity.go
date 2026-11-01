@@ -7,7 +7,7 @@ import (
 	"github.com/gotd/td/tg"
 )
 
-func proximityDistanceLabel(meters int) string {
+func ProximityDistanceLabel(meters int) string {
 	if meters < 1000 {
 		return fmt.Sprintf("%d m", meters)
 	}
@@ -17,8 +17,8 @@ func proximityDistanceLabel(meters int) string {
 	return s + " km"
 }
 
-func proximityReachedText(fromName, toName string, fromSelf, toSelf bool, meters int) string {
-	d := proximityDistanceLabel(meters)
+func ProximityReachedText(fromName, toName string, fromSelf, toSelf bool, meters int) string {
+	d := ProximityDistanceLabel(meters)
 	if fromName == "" {
 		fromName = "a user"
 	}

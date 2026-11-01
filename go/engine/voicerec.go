@@ -21,7 +21,7 @@ type VoiceRecording struct {
 
 const minVoiceNote = 900 * time.Millisecond
 
-type voiceRecorder struct {
+type VoiceRecorder struct {
 	mu   sync.Mutex
 	eng  *Engine
 	sess *audio.Session
@@ -37,16 +37,16 @@ type voiceRecorder struct {
 	done  chan struct{}
 }
 
-func (e *Engine) newVoiceRecorder() *voiceRecorder {
-	return &voiceRecorder{eng: e}
+func (e *Engine) newVoiceRecorder() *VoiceRecorder {
+	return &VoiceRecorder{eng: e}
 }
 
-func (e *Engine) recorder() *voiceRecorder {
+func (e *Engine) Recorder() *VoiceRecorder {
 	e.recMu.Lock()
-	if e.voiceRecorder == nil {
-		e.voiceRecorder = e.newVoiceRecorder()
+	if e.VoiceRecorder == nil {
+		e.VoiceRecorder = e.newVoiceRecorder()
 	}
-	r := e.voiceRecorder
+	r := e.VoiceRecorder
 	e.recMu.Unlock()
 	return r
 }
@@ -63,7 +63,7 @@ func (e *Engine) VoiceRecordingSupported(accountID string) bool {
 }
 
 func (e *Engine) StartVoiceRecording() error {
-	r := e.recorder()
+	r := e.Recorder()
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.enc != nil {
@@ -97,7 +97,7 @@ func (e *Engine) StartVoiceRecording() error {
 	return nil
 }
 
-func (r *voiceRecorder) micLoop(frames <-chan []byte) {
+func (r *VoiceRecorder) micLoop(frames <-chan []byte) {
 	defer close(r.done)
 	for frame := range frames {
 		r.mu.Lock()
@@ -110,7 +110,7 @@ func (r *voiceRecorder) micLoop(frames <-chan []byte) {
 	}
 }
 
-func (r *voiceRecorder) feedFrame(frame []byte) error {
+func (r *VoiceRecorder) feedFrame(frame []byte) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.enc == nil {
@@ -148,7 +148,7 @@ func voiceLevel(frame []byte, prev float64) float64 {
 }
 
 func (e *Engine) VoiceRecording() VoiceRecording {
-	r := e.recorder()
+	r := e.Recorder()
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	st := VoiceRecording{HasMic: r.sess != nil}
@@ -162,7 +162,7 @@ func (e *Engine) VoiceRecording() VoiceRecording {
 }
 
 func (e *Engine) StopVoiceRecording() (path string, seconds float64, err error) {
-	r := e.recorder()
+	r := e.Recorder()
 	r.mu.Lock()
 	enc := r.enc
 	r.mu.Unlock()
@@ -186,12 +186,12 @@ func (e *Engine) StopVoiceRecording() (path string, seconds float64, err error) 
 	if time.Duration(seconds*float64(time.Second)) < minVoiceNote {
 		return "", seconds, nil
 	}
-	path, err = writeVoiceOgg(frames, granules, e.mediaDir)
+	path, err = WriteVoiceOgg(frames, granules, e.mediaDir)
 	return path, seconds, err
 }
 
 func (e *Engine) CancelVoiceRecording() {
-	r := e.recorder()
+	r := e.Recorder()
 	r.mu.Lock()
 	if r.enc == nil {
 		r.mu.Unlock()
@@ -207,7 +207,7 @@ func (e *Engine) CancelVoiceRecording() {
 	r.mu.Unlock()
 }
 
-func (r *voiceRecorder) stopDevice() {
+func (r *VoiceRecorder) stopDevice() {
 	r.mu.Lock()
 	sess := r.sess
 	r.sess = nil
@@ -234,7 +234,7 @@ func opusTags() []byte {
 	return p
 }
 
-func writeVoiceOgg(packets [][]byte, granules []int64, dir string) (string, error) {
+func WriteVoiceOgg(packets [][]byte, granules []int64, dir string) (string, error) {
 	if len(packets) == 0 || len(granules) != len(packets) {
 		return "", fmt.Errorf("voice: no audio captured")
 	}
@@ -253,10 +253,10 @@ func writeVoiceOgg(packets [][]byte, granules []int64, dir string) (string, erro
 	const serial = 0x55434C59
 	var seq uint32
 	pages := [][]byte{
-		buildOggPage([][]byte{opusHead()}, 0, serial, seq, false),
+		BuildOggPage([][]byte{opusHead()}, 0, serial, seq, false),
 	}
 	seq++
-	pages = append(pages, buildOggPage([][]byte{opusTags()}, 0, serial, seq, false))
+	pages = append(pages, BuildOggPage([][]byte{opusTags()}, 0, serial, seq, false))
 	seq++
 
 	const batch = 25
@@ -266,7 +266,7 @@ func writeVoiceOgg(packets [][]byte, granules []int64, dir string) (string, erro
 			end = len(packets)
 		}
 		last := end - 1
-		pages = append(pages, buildOggPage(packets[i:end], granules[last], serial, seq, last == len(packets)-1))
+		pages = append(pages, BuildOggPage(packets[i:end], granules[last], serial, seq, last == len(packets)-1))
 		seq++
 	}
 	for _, pg := range pages {

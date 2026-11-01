@@ -142,7 +142,7 @@ func (e *Engine) SearchMessagesByTag(accountID, chatID, tag string, limit int) (
 	}
 	out := hits[:0:0]
 	for _, h := range hits {
-		if matchHashtagToken(h.Text, body) {
+		if MatchHashtagToken(h.Text, body) {
 			out = append(out, h)
 		}
 	}
@@ -153,7 +153,7 @@ func isTagRune(r rune) bool {
 	return r == '_' || unicode.IsLetter(r) || unicode.IsDigit(r)
 }
 
-func matchHashtagToken(text, body string) bool {
+func MatchHashtagToken(text, body string) bool {
 	if text == "" || body == "" {
 		return false
 	}

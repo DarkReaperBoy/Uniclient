@@ -25,7 +25,7 @@ func readVaultBytes(path string) ([]byte, error) {
 	return []byte(v.String()), nil
 }
 
-func writeVaultBytes(path string, data []byte) error {
+func WriteVaultBytes(path string, data []byte) error {
 	ls := js.Global().Get("localStorage")
 	if !ls.Truthy() {
 		return errors.New("localStorage unavailable")
@@ -60,5 +60,5 @@ func (v *Vault) mergeForeignVaultData() {
 	if json.Unmarshal(plain, &foreign) != nil {
 		return
 	}
-	mergeVaultData(v.data, foreign)
+	MergeVaultData(v.data, foreign)
 }

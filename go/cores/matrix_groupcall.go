@@ -18,40 +18,40 @@ import (
 )
 
 const (
-	matrixCallMemberEventType = "org.matrix.msc3401.call.member"
-	matrixCallEventType       = "org.matrix.msc3401.call"
+	MatrixCallMemberEventType = "org.matrix.msc3401.call.member"
+	MatrixCallEventType       = "org.matrix.msc3401.call"
 
-	matrixDeviceTTLMillis int64 = 60_000
+	MatrixDeviceTTLMillis int64 = 60_000
 
-	matrixFeedUserMedia = "m.usermedia"
+	MatrixFeedUserMedia = "m.usermedia"
 )
 
-type matrixCallFeed struct {
+type MatrixCallFeed struct {
 	Purpose  string                 `json:"purpose"`
 	StreamID string                 `json:"stream_id,omitempty"`
 	TrackID  string                 `json:"track_id,omitempty"`
 	Settings map[string]interface{} `json:"settings,omitempty"`
 }
 
-type matrixCallDevice struct {
+type MatrixCallDevice struct {
 	DeviceID  string           `json:"device_id"`
 	SessionID string           `json:"session_id"`
 	ExpiresTS int64            `json:"expires_ts"`
-	Feeds     []matrixCallFeed `json:"feeds,omitempty"`
+	Feeds     []MatrixCallFeed `json:"feeds,omitempty"`
 }
 
-type matrixCallMemberCall struct {
+type MatrixCallMemberCall struct {
 	CallID  string             `json:"m.call_id"`
 	Foci    []string           `json:"m.foci"`
-	Devices []matrixCallDevice `json:"m.devices"`
+	Devices []MatrixCallDevice `json:"m.devices"`
 }
 
-type matrixCallMemberContent struct {
-	Calls []matrixCallMemberCall `json:"m.calls"`
+type MatrixCallMemberContent struct {
+	Calls []MatrixCallMemberCall `json:"m.calls"`
 }
 
-func (c matrixCallMemberCall) liveDevices(now int64) []matrixCallDevice {
-	var out []matrixCallDevice
+func (c MatrixCallMemberCall) liveDevices(now int64) []MatrixCallDevice {
+	var out []MatrixCallDevice
 	for _, d := range c.Devices {
 		if d.ExpiresTS > now {
 			out = append(out, d)
@@ -60,11 +60,11 @@ func (c matrixCallMemberCall) liveDevices(now int64) []matrixCallDevice {
 	return out
 }
 
-func matrixNextRenewalAt(now int64) int64 {
-	return now + matrixDeviceTTLMillis/2
+func MatrixNextRenewalAt(now int64) int64 {
+	return now + MatrixDeviceTTLMillis/2
 }
 
-func matrixNewConfID() string {
+func MatrixNewConfID() string {
 	var b [8]byte
 	if _, err := rand.Read(b[:]); err != nil {
 		return "conf_" + hex.EncodeToString([]byte(time.Now().UTC().Format("150405.000000000")))
@@ -73,8 +73,8 @@ func matrixNewConfID() string {
 }
 
 var (
-	matrixCallMemberStateType = event.Type{Type: matrixCallMemberEventType, Class: event.StateEventType}
-	matrixCallStateType       = event.Type{Type: matrixCallEventType, Class: event.StateEventType}
+	MatrixCallMemberStateType = event.Type{Type: MatrixCallMemberEventType, Class: event.StateEventType}
+	matrixCallStateType       = event.Type{Type: MatrixCallEventType, Class: event.StateEventType}
 )
 
 func matrixNewSessionID() string {
@@ -86,16 +86,16 @@ func matrixNewSessionID() string {
 }
 
 func (m *MatrixCore) publishGroupMembership(roomID id.RoomID, conf, sess string, now int64) error {
-	content := matrixCallMemberContent{
-		Calls: []matrixCallMemberCall{{
+	content := MatrixCallMemberContent{
+		Calls: []MatrixCallMemberCall{{
 			CallID: conf,
 			Foci:   []string{},
-			Devices: []matrixCallDevice{{
+			Devices: []MatrixCallDevice{{
 				DeviceID:  m.deviceID.String(),
 				SessionID: sess,
-				ExpiresTS: now + matrixDeviceTTLMillis,
-				Feeds: []matrixCallFeed{{
-					Purpose:  matrixFeedUserMedia,
+				ExpiresTS: now + MatrixDeviceTTLMillis,
+				Feeds: []MatrixCallFeed{{
+					Purpose:  MatrixFeedUserMedia,
 					StreamID: "ms-" + sess,
 					TrackID:  "mt-" + sess,
 					Settings: map[string]interface{}{"m.maxbr": 48000},
@@ -103,29 +103,29 @@ func (m *MatrixCore) publishGroupMembership(roomID id.RoomID, conf, sess string,
 			}},
 		}},
 	}
-	_, err := m.client.SendStateEvent(m.ctx, roomID, matrixCallMemberStateType, m.userID.String(), content)
+	_, err := m.client.SendStateEvent(m.ctx, roomID, MatrixCallMemberStateType, m.userID.String(), content)
 	return err
 }
 
-func (m *MatrixCore) handleGroupMemberEvent(evt *event.Event) {
+func (m *MatrixCore) HandleGroupMemberEvent(evt *event.Event) {
 	if evt.StateKey == nil {
 		return
 	}
 	if string(*evt.StateKey) != string(evt.Sender) {
 		return
 	}
-	var content matrixCallMemberContent
+	var content MatrixCallMemberContent
 	if err := json.Unmarshal(evt.Content.VeryRaw, &content); err != nil {
 		return
 	}
 	uid := id.UserID(*evt.StateKey)
 	m.groupMu.Lock()
 	if m.groupMembers == nil {
-		m.groupMembers = make(map[id.UserID]matrixCallMemberContent)
+		m.groupMembers = make(map[id.UserID]MatrixCallMemberContent)
 	}
 	m.groupMembers[uid] = content
 	m.groupMu.Unlock()
-	_ = m.reconcileGroupMesh()
+	_ = m.ReconcileGroupMesh()
 }
 
 type groupPeer struct {
@@ -134,15 +134,15 @@ type groupPeer struct {
 	Device string
 }
 
-func groupPeerKey(userID, deviceID string) string {
+func GroupPeerKey(userID, deviceID string) string {
 	return userID + "|" + deviceID
 }
 
-func groupShouldOffer(own, peer string) bool {
+func GroupShouldOffer(own, peer string) bool {
 	return own < peer
 }
 
-func groupPeersToConnect(ownUserID id.UserID, ownDevice string, members map[id.UserID]matrixCallMemberContent, now int64) []groupPeer {
+func GroupPeersToConnect(ownUserID id.UserID, ownDevice string, members map[id.UserID]MatrixCallMemberContent, now int64) []groupPeer {
 	var out []groupPeer
 	for uid, content := range members {
 		for _, call := range content.Calls {
@@ -151,7 +151,7 @@ func groupPeersToConnect(ownUserID id.UserID, ownDevice string, members map[id.U
 					continue
 				}
 				out = append(out, groupPeer{
-					key:    groupPeerKey(string(uid), d.DeviceID),
+					key:    GroupPeerKey(string(uid), d.DeviceID),
 					UserID: uid,
 					Device: d.DeviceID,
 				})
@@ -162,7 +162,7 @@ func groupPeersToConnect(ownUserID id.UserID, ownDevice string, members map[id.U
 	return out
 }
 
-func confIDFromRaw(raw map[string]interface{}) string {
+func ConfIDFromRaw(raw map[string]interface{}) string {
 	if raw == nil {
 		return ""
 	}
@@ -172,7 +172,7 @@ func confIDFromRaw(raw map[string]interface{}) string {
 	return ""
 }
 
-func withConfID(content interface{}, conf string) (map[string]interface{}, error) {
+func WithConfID(content interface{}, conf string) (map[string]interface{}, error) {
 	raw, err := json.Marshal(content)
 	if err != nil {
 		return nil, err
@@ -190,7 +190,7 @@ func peekGroupConf(evt *event.Event) string {
 	if err := json.Unmarshal(evt.Content.VeryRaw, &raw); err != nil {
 		return ""
 	}
-	return confIDFromRaw(raw)
+	return ConfIDFromRaw(raw)
 }
 
 func (m *MatrixCore) dropGroupPeer(key string) {
@@ -203,7 +203,7 @@ func (m *MatrixCore) dropGroupPeer(key string) {
 	}
 }
 
-func (m *MatrixCore) reconcileGroupMesh() error {
+func (m *MatrixCore) ReconcileGroupMesh() error {
 	joinByRoom := make(map[id.RoomID]map[id.UserID]bool)
 	m.roomsMu.RLock()
 	for roomID, rs := range m.rooms {
@@ -225,29 +225,29 @@ func (m *MatrixCore) reconcileGroupMesh() error {
 		return nil
 	}
 	roomJoin := joinByRoom[room]
-	filtered := make(map[id.UserID]matrixCallMemberContent, len(m.groupMembers))
+	filtered := make(map[id.UserID]MatrixCallMemberContent, len(m.groupMembers))
 	for uid, content := range m.groupMembers {
 		if joined, known := roomJoin[uid]; known && !joined {
 			continue
 		}
-		var kept []matrixCallMemberCall
+		var kept []MatrixCallMemberCall
 		for _, c := range content.Calls {
 			if c.CallID == conf {
 				kept = append(kept, c)
 			}
 		}
 		if len(kept) > 0 {
-			filtered[uid] = matrixCallMemberContent{Calls: kept}
+			filtered[uid] = MatrixCallMemberContent{Calls: kept}
 		}
 	}
 	now := time.Now().UnixMilli()
-	ownKey := groupPeerKey(string(m.userID), m.deviceID.String())
-	desired := groupPeersToConnect(m.userID, m.deviceID.String(), filtered, now)
+	ownKey := GroupPeerKey(string(m.userID), m.deviceID.String())
+	desired := GroupPeersToConnect(m.userID, m.deviceID.String(), filtered, now)
 	desiredSet := make(map[string]bool, len(desired))
 	for _, p := range desired {
 		desiredSet[p.key] = true
 	}
-	var toClose []*matrixCall
+	var toClose []*MatrixCall
 	for key, call := range m.groupPeers {
 		if !desiredSet[key] {
 			delete(m.groupPeers, key)
@@ -259,7 +259,7 @@ func (m *MatrixCore) reconcileGroupMesh() error {
 		if _, open := m.groupPeers[p.key]; open {
 			continue
 		}
-		if groupShouldOffer(ownKey, p.key) {
+		if GroupShouldOffer(ownKey, p.key) {
 			toOffer = append(toOffer, p)
 		}
 	}
@@ -278,7 +278,7 @@ func (m *MatrixCore) reconcileGroupMesh() error {
 }
 
 func (m *MatrixCore) sendGroupOffer(room id.RoomID, conf string, peer groupPeer) error {
-	pc, err := m.createPeerConnection()
+	pc, err := m.CreatePeerConnection()
 	if err != nil {
 		return fmt.Errorf("group offer pc: %w", err)
 	}
@@ -297,7 +297,7 @@ func (m *MatrixCore) sendGroupOffer(room id.RoomID, conf string, peer groupPeer)
 		callCancel()
 		return fmt.Errorf("group offer add track: %w", err)
 	}
-	call := &matrixCall{
+	call := &MatrixCall{
 		ID: conf, RoomID: room, GroupConf: conf,
 		RemoteParty: peer.Device, GroupSender: peer.UserID,
 		State:     CallStateConnecting,
@@ -308,7 +308,7 @@ func (m *MatrixCore) sendGroupOffer(room id.RoomID, conf string, peer groupPeer)
 
 	m.groupMu.Lock()
 	if m.groupPeers == nil {
-		m.groupPeers = make(map[string]*matrixCall)
+		m.groupPeers = make(map[string]*MatrixCall)
 	}
 	if _, open := m.groupPeers[peer.key]; open {
 		m.groupMu.Unlock()
@@ -323,7 +323,7 @@ func (m *MatrixCore) sendGroupOffer(room id.RoomID, conf string, peer groupPeer)
 		if c == nil {
 			return
 		}
-		m.sendICECandidates(call, []webrtc.ICECandidateInit{c.ToJSON()})
+		m.SendICECandidates(call, []webrtc.ICECandidateInit{c.ToJSON()})
 	})
 	pc.OnTrack(func(t *wrtc.TrackRemote, _ *webrtc.RTPReceiver) {
 		m.handleIncomingAudio(callCtx, call, t)
@@ -350,13 +350,13 @@ func (m *MatrixCore) sendGroupOffer(room id.RoomID, conf string, peer groupPeer)
 			Version: "1",
 			PartyID: m.deviceID.String(),
 		},
-		Lifetime: int(matrixDeviceTTLMillis),
+		Lifetime: int(MatrixDeviceTTLMillis),
 		Offer: event.CallData{
 			Type: event.CallDataTypeOffer,
 			SDP:  pc.LocalDescription().SDP,
 		},
 	}
-	payload, err := withConfID(invite, conf)
+	payload, err := WithConfID(invite, conf)
 	if err != nil {
 		m.dropGroupPeer(peer.key)
 		return fmt.Errorf("conf-tag invite: %w", err)
@@ -374,17 +374,17 @@ func (m *MatrixCore) handleGroupCallInvite(evt *event.Event, ci *event.CallInvit
 		m.groupMu.Unlock()
 		return
 	}
-	peerKey := groupPeerKey(string(evt.Sender), ci.PartyID)
+	peerKey := GroupPeerKey(string(evt.Sender), ci.PartyID)
 	if _, exists := m.groupPeers[peerKey]; exists {
 		m.groupMu.Unlock()
 		return
 	}
 	if m.groupPeers == nil {
-		m.groupPeers = make(map[string]*matrixCall)
+		m.groupPeers = make(map[string]*MatrixCall)
 	}
 	m.groupMu.Unlock()
 
-	pc, err := m.createPeerConnection()
+	pc, err := m.CreatePeerConnection()
 	if err != nil {
 		return
 	}
@@ -403,7 +403,7 @@ func (m *MatrixCore) handleGroupCallInvite(evt *event.Event, ci *event.CallInvit
 		callCancel()
 		return
 	}
-	call := &matrixCall{
+	call := &MatrixCall{
 		ID: conf, RoomID: evt.RoomID, GroupConf: conf,
 		RemoteParty: ci.PartyID, GroupSender: evt.Sender,
 		State:     CallStateConnecting,
@@ -419,7 +419,7 @@ func (m *MatrixCore) handleGroupCallInvite(evt *event.Event, ci *event.CallInvit
 		if c == nil {
 			return
 		}
-		m.sendICECandidates(call, []webrtc.ICECandidateInit{c.ToJSON()})
+		m.SendICECandidates(call, []webrtc.ICECandidateInit{c.ToJSON()})
 	})
 	pc.OnTrack(func(t *wrtc.TrackRemote, _ *webrtc.RTPReceiver) {
 		m.handleIncomingAudio(callCtx, call, t)
@@ -462,7 +462,7 @@ func (m *MatrixCore) handleGroupCallInvite(evt *event.Event, ci *event.CallInvit
 			SDP:  pc.LocalDescription().SDP,
 		},
 	}
-	payload, err := withConfID(answerContent, conf)
+	payload, err := WithConfID(answerContent, conf)
 	if err == nil {
 		if _, sendErr := m.client.SendMessageEvent(m.ctx, call.RoomID, event.CallAnswer, payload); sendErr != nil {
 			m.dropGroupPeer(peerKey)
@@ -477,7 +477,7 @@ func (m *MatrixCore) handleGroupCallInvite(evt *event.Event, ci *event.CallInvit
 			ID: conf, ChatID: call.RoomID.String(), IsGroup: true,
 			State: CallStateConnecting,
 		},
-		Platform: mxPlatform,
+		Platform: MxPlatform,
 	})
 }
 
@@ -497,7 +497,7 @@ func (m *MatrixCore) SetVoiceMuted(muted bool) error {
 func (m *MatrixCore) SendVoiceFrame(opus []byte) error {
 	m.groupMu.Lock()
 	muted := m.groupVoiceMuted
-	peers := make([]*matrixCall, 0, len(m.groupPeers))
+	peers := make([]*MatrixCall, 0, len(m.groupPeers))
 	for _, c := range m.groupPeers {
 		peers = append(peers, c)
 	}
@@ -511,7 +511,7 @@ func (m *MatrixCore) SendVoiceFrame(opus []byte) error {
 	return nil
 }
 
-func (m *MatrixCore) writeGroupRTP(call *matrixCall, frame []byte) {
+func (m *MatrixCore) writeGroupRTP(call *MatrixCall, frame []byte) {
 	if call == nil || call.audioTrack == nil {
 		return
 	}
@@ -600,7 +600,7 @@ func (m *MatrixCore) leaveGroupCallInternal() (id.RoomID, string, error) {
 	m.groupMu.Lock()
 	room, conf := m.groupRoomID, m.groupConfID
 	renew := m.groupRenew
-	var peers []*matrixCall
+	var peers []*MatrixCall
 	for _, c := range m.groupPeers {
 		peers = append(peers, c)
 	}
@@ -625,8 +625,8 @@ func (m *MatrixCore) leaveGroupCallInternal() (id.RoomID, string, error) {
 
 	var pubErr error
 	if m.authed && m.client != nil {
-		if _, err := m.client.SendStateEvent(m.ctx, room, matrixCallMemberStateType, m.userID.String(),
-			matrixCallMemberContent{Calls: []matrixCallMemberCall{}}); err != nil {
+		if _, err := m.client.SendStateEvent(m.ctx, room, MatrixCallMemberStateType, m.userID.String(),
+			MatrixCallMemberContent{Calls: []MatrixCallMemberCall{}}); err != nil {
 			pubErr = fmt.Errorf("publish leave membership: %w", err)
 		}
 	}
@@ -638,12 +638,12 @@ func (m *MatrixCore) leaveGroupCallInternal() (id.RoomID, string, error) {
 			ID: conf, ChatID: room.String(), IsGroup: true,
 			State: CallStateEnded,
 		},
-		Platform: mxPlatform,
+		Platform: MxPlatform,
 	})
 	return room, conf, pubErr
 }
 
-var matrixRenewInterval = time.Duration(matrixDeviceTTLMillis/2) * time.Millisecond
+var MatrixRenewInterval = time.Duration(MatrixDeviceTTLMillis/2) * time.Millisecond
 
 const matrixRenewMaxConsecutiveFails = 3
 
@@ -669,7 +669,7 @@ func (m *MatrixCore) runGroupRenewal(renewCtx context.Context, roomID id.RoomID,
 			} else {
 				fails = 0
 			}
-			_ = m.reconcileGroupMesh()
+			_ = m.ReconcileGroupMesh()
 		}
 	}
 }

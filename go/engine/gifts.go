@@ -10,15 +10,15 @@ import (
 
 type giftCache struct {
 	mu     sync.Mutex
-	byAcct map[string]giftCacheEntry
+	byAcct map[string]GiftCacheEntry
 }
 
-type giftCacheEntry struct {
-	gifts   *cores.StarGiftsResult
+type GiftCacheEntry struct {
+	Gifts   *cores.StarGiftsResult
 	fetched time.Time
 }
 
-var gifts = giftCache{byAcct: map[string]giftCacheEntry{}}
+var Gifts = giftCache{byAcct: map[string]GiftCacheEntry{}}
 
 const giftCacheTTL = 10 * time.Minute
 
@@ -31,21 +31,21 @@ type StarsBalanceFetcher interface {
 }
 
 func (e *Engine) CachedStarGifts(accountID string) (*cores.StarGiftsResult, error) {
-	gifts.mu.Lock()
-	if ent, ok := gifts.byAcct[accountID]; ok && time.Since(ent.fetched) < giftCacheTTL {
-		out := ent.gifts
-		gifts.mu.Unlock()
+	Gifts.mu.Lock()
+	if ent, ok := Gifts.byAcct[accountID]; ok && time.Since(ent.fetched) < giftCacheTTL {
+		out := ent.Gifts
+		Gifts.mu.Unlock()
 		return out, nil
 	}
-	gifts.mu.Unlock()
+	Gifts.mu.Unlock()
 
 	fresh, err := e.GetStarGifts(accountID)
 	if err != nil {
 		return nil, err
 	}
-	gifts.mu.Lock()
-	gifts.byAcct[accountID] = giftCacheEntry{gifts: fresh, fetched: time.Now()}
-	gifts.mu.Unlock()
+	Gifts.mu.Lock()
+	Gifts.byAcct[accountID] = GiftCacheEntry{Gifts: fresh, fetched: time.Now()}
+	Gifts.mu.Unlock()
 	return fresh, nil
 }
 

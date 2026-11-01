@@ -23,7 +23,7 @@ import (
 
 const (
 	ghAPIBase      = "https://api.github.com"
-	ghPlatform     = "github"
+	GhPlatform     = "github"
 	ghDMPrefix     = "Uniclient DM \u2014 "
 	ghDMLabel      = "uniclient-dm"
 	ghGroupLabel   = "uniclient-group"
@@ -62,11 +62,11 @@ var ghEmojiToReaction = map[string]string{
 	"thumbsup": "+1", "thumbsdown": "-1",
 }
 
-func ghRepoPath(owner, repo string) string {
+func GhRepoPath(owner, repo string) string {
 	return "/repos/" + owner + "/" + repo
 }
 
-func ghIntStr(f float64) string {
+func GhIntStr(f float64) string {
 	return strconv.FormatInt(int64(f), 10)
 }
 
@@ -111,7 +111,7 @@ type GitHubCore struct {
 	rl    *ghRateLimiter
 	cache *ghCache
 
-	dialogs   map[string]*ghDialog
+	dialogs   map[string]*GhDialog
 	dialogsMu sync.RWMutex
 
 	messages   map[string][]*Message
@@ -167,7 +167,7 @@ type GitHubCore struct {
 
 var _ Core = (*GitHubCore)(nil)
 
-type ghDialog struct {
+type GhDialog struct {
 	ChatID      string
 	Type        ChatType
 	Title       string
@@ -204,7 +204,7 @@ func NewGitHubCore(session *utils.SessionStore) *GitHubCore {
 			writeDelay: 1500 * time.Millisecond,
 		},
 		cache:          &ghCache{items: make(map[string]*ghCacheItem)},
-		dialogs:        make(map[string]*ghDialog),
+		dialogs:        make(map[string]*GhDialog),
 		messages:       make(map[string][]*Message),
 		threadETags:    make(map[string]string),
 		activeThreads:  make(map[string]time.Time),
@@ -223,7 +223,7 @@ func NewGitHubCore(session *utils.SessionStore) *GitHubCore {
 	}
 }
 
-func (g *GitHubCore) Name() string { return ghPlatform }
+func (g *GitHubCore) Name() string { return GhPlatform }
 
 func (g *GitHubCore) Capabilities() []string {
 	return []string{
@@ -367,22 +367,22 @@ func (g *GitHubCore) CreateGroup(name string, members []string) (*Dialog, error)
 		return nil, fmt.Errorf("create repo: %w", err)
 	}
 
-	owner := gjsonStr(resp, "owner.login")
-	repo := gjsonStr(resp, "name")
+	owner := GjsonStr(resp, "owner.login")
+	repo := GjsonStr(resp, "name")
 	chatID := "repo:" + owner + "/" + repo
 
-	g.apiPut(ghRepoPath(owner, repo)+"/topics", map[string]any{
+	g.apiPut(GhRepoPath(owner, repo)+"/topics", map[string]any{
 		"names": []string{"uniclient-group"},
 	})
 
-	issueResp, err := g.apiPost(ghRepoPath(owner, repo)+"/issues", map[string]any{
+	issueResp, err := g.apiPost(GhRepoPath(owner, repo)+"/issues", map[string]any{
 		"title":  ghGeneralTitle,
 		"body":   "Welcome! This is the default channel for **" + name + "**.\n\nPowered by [Uniclient](https://github.com/DarkReaperBoy/uniclient).",
 		"labels": []string{ghGroupLabel},
 	})
 	generalNum := 0
 	if err == nil {
-		generalNum = int(gjsonFloat(issueResp, "number"))
+		generalNum = int(GjsonFloat(issueResp, "number"))
 	}
 
 	g.groupReposMu.Lock()
@@ -391,7 +391,7 @@ func (g *GitHubCore) CreateGroup(name string, members []string) (*Dialog, error)
 	g.saveSession()
 
 	for _, member := range members {
-		g.apiPut(ghRepoPath(owner, repo)+"/collaborators/"+member, map[string]any{
+		g.apiPut(GhRepoPath(owner, repo)+"/collaborators/"+member, map[string]any{
 			"permission": "write",
 		})
 	}
@@ -400,7 +400,7 @@ func (g *GitHubCore) CreateGroup(name string, members []string) (*Dialog, error)
 		ID:       chatID,
 		Type:     ChatTypeGroup,
 		Title:    name,
-		Platform: ghPlatform,
+		Platform: GhPlatform,
 	}
 	return dlg, nil
 }
@@ -430,10 +430,10 @@ func (g *GitHubCore) CreateChannel(name string, description string) (*Dialog, er
 	if err != nil {
 		return nil, fmt.Errorf("create channel: %w", err)
 	}
-	owner := gjsonStr(resp, "owner.login")
-	repo := gjsonStr(resp, "name")
+	owner := GjsonStr(resp, "owner.login")
+	repo := GjsonStr(resp, "name")
 	chatID := "repo:" + owner + "/" + repo
-	return &Dialog{ID: chatID, Type: ChatTypeGroup, Title: name, Platform: ghPlatform}, nil
+	return &Dialog{ID: chatID, Type: ChatTypeGroup, Title: name, Platform: GhPlatform}, nil
 }
 
 func (g *GitHubCore) CreateTopic(chatID string, name string) (*Dialog, error) {
@@ -441,12 +441,12 @@ func (g *GitHubCore) CreateTopic(chatID string, name string) (*Dialog, error) {
 		return nil, ErrAuth
 	}
 
-	owner, repo, err := g.parseRepoChat(chatID)
+	owner, repo, err := g.ParseRepoChat(chatID)
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := g.apiPost(ghRepoPath(owner, repo)+"/issues", map[string]any{
+	resp, err := g.apiPost(GhRepoPath(owner, repo)+"/issues", map[string]any{
 		"title":  name,
 		"body":   "Channel: **" + name + "**",
 		"labels": []string{ghGroupLabel},
@@ -455,11 +455,11 @@ func (g *GitHubCore) CreateTopic(chatID string, name string) (*Dialog, error) {
 		return nil, fmt.Errorf("create channel issue: %w", err)
 	}
 
-	num := int(gjsonFloat(resp, "number"))
+	num := int(GjsonFloat(resp, "number"))
 	topicID := "issue:" + owner + "/" + repo + "/" + strconv.Itoa(num)
 
 	g.dialogsMu.Lock()
-	g.dialogs[topicID] = &ghDialog{
+	g.dialogs[topicID] = &GhDialog{
 		ChatID:   topicID,
 		Type:     ChatTypeTopic,
 		Title:    name,
@@ -474,7 +474,7 @@ func (g *GitHubCore) CreateTopic(chatID string, name string) (*Dialog, error) {
 		Type:     ChatTypeTopic,
 		Title:    name,
 		ParentID: chatID,
-		Platform: ghPlatform,
+		Platform: GhPlatform,
 	}, nil
 }
 
@@ -561,14 +561,14 @@ func (g *GitHubCore) EditMessage(chatID string, msgID string, text string) (*Mes
 
 	commentID := strings.TrimPrefix(msgID, "comment:")
 	owner, repo, _ := g.parseChatOwnerRepo(chatID)
-	resp, err := g.apiPatch(ghRepoPath(owner, repo)+"/issues/comments/"+commentID, map[string]any{
+	resp, err := g.apiPatch(GhRepoPath(owner, repo)+"/issues/comments/"+commentID, map[string]any{
 		"body": text,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	return g.commentToMessage(chatID, resp), nil
+	return g.CommentToMessage(chatID, resp), nil
 }
 
 func (g *GitHubCore) DeleteMessage(chatID string, msgID string) error {
@@ -578,7 +578,7 @@ func (g *GitHubCore) DeleteMessage(chatID string, msgID string) error {
 
 	commentID := strings.TrimPrefix(msgID, "comment:")
 	owner, repo, _ := g.parseChatOwnerRepo(chatID)
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/issues/comments/" + commentID)
+	_, err := g.apiDelete(GhRepoPath(owner, repo) + "/issues/comments/" + commentID)
 	return err
 }
 
@@ -627,7 +627,7 @@ func (g *GitHubCore) ReactToMessage(chatID string, msgID string, emoji string) e
 
 	commentID := strings.TrimPrefix(msgID, "comment:")
 	owner, repo, _ := g.parseChatOwnerRepo(chatID)
-	_, err := g.apiPost(ghRepoPath(owner, repo)+"/issues/comments/"+commentID+"/reactions", map[string]any{
+	_, err := g.apiPost(GhRepoPath(owner, repo)+"/issues/comments/"+commentID+"/reactions", map[string]any{
 		"content": ghReaction,
 	})
 	return err
@@ -665,7 +665,7 @@ func (g *GitHubCore) MarkAsRead(chatID string, upToMsgID string) error {
 	if strings.HasPrefix(chatID, "dm:") || strings.HasPrefix(chatID, "issue:") {
 		owner, repo, num := g.parseChatOwnerRepo(chatID)
 		if num != "" {
-			g.apiPut(ghRepoPath(owner, repo)+"/issues/"+num, map[string]any{})
+			g.apiPut(GhRepoPath(owner, repo)+"/issues/"+num, map[string]any{})
 		}
 	}
 
@@ -706,7 +706,7 @@ func (g *GitHubCore) UploadFile(chatID string, file FileUpload, progress func(se
 
 	import_b64 := base64.StdEncoding.EncodeToString(data)
 	filePath := fmt.Sprintf("uniclient-files/%d-%s", time.Now().UnixMilli(), file.Name)
-	_, uploadErr := g.apiPut(ghRepoPath(owner, repo)+"/contents/"+filePath, map[string]any{
+	_, uploadErr := g.apiPut(GhRepoPath(owner, repo)+"/contents/"+filePath, map[string]any{
 		"message": "Upload: " + file.Name,
 		"content": import_b64,
 	})
@@ -753,7 +753,7 @@ func (g *GitHubCore) DownloadFile(fileRef FileRef, dest string, progress func(re
 		total = fileRef.Size
 	}
 
-	written, err := boundedCopy(f, resp.Body, downloadCeiling)
+	written, err := BoundedCopy(f, resp.Body, DownloadCeiling)
 	if err != nil {
 		f.Close()
 		os.Remove(dest)
@@ -842,25 +842,25 @@ func (g *GitHubCore) GetChatInfo(chatID string) (*Dialog, error) {
 	g.dialogsMu.RUnlock()
 
 	if ok {
-		return g.ghDialogToDialog(dlg), nil
+		return g.GhDialogToDialog(dlg), nil
 	}
 
 	if strings.HasPrefix(chatID, "repo:") {
-		owner, repo, err := g.parseRepoChat(chatID)
+		owner, repo, err := g.ParseRepoChat(chatID)
 		if err != nil {
 			return nil, err
 		}
-		resp, err := g.apiGet(ghRepoPath(owner, repo), nil)
+		resp, err := g.apiGet(GhRepoPath(owner, repo), nil)
 		if err != nil {
 			return nil, err
 		}
 		return &Dialog{
 			ID:          chatID,
 			Type:        ChatTypeGroup,
-			Title:       gjsonStr(resp, "name"),
-			AvatarURL:   gjsonStr(resp, "owner.avatar_url"),
-			MemberCount: int(gjsonFloat(resp, "subscribers_count")),
-			Platform:    ghPlatform,
+			Title:       GjsonStr(resp, "name"),
+			AvatarURL:   GjsonStr(resp, "owner.avatar_url"),
+			MemberCount: int(GjsonFloat(resp, "subscribers_count")),
+			Platform:    GhPlatform,
 		}, nil
 	}
 
@@ -871,11 +871,11 @@ func (g *GitHubCore) EditChatTitle(chatID string, title string) error {
 	if !g.authed {
 		return ErrAuth
 	}
-	owner, repo, err := g.parseRepoChat(chatID)
+	owner, repo, err := g.ParseRepoChat(chatID)
 	if err != nil {
 		return err
 	}
-	_, err = g.apiPatch(ghRepoPath(owner, repo), map[string]any{
+	_, err = g.apiPatch(GhRepoPath(owner, repo), map[string]any{
 		"name": title,
 	})
 	return err
@@ -885,11 +885,11 @@ func (g *GitHubCore) EditChatDescription(chatID string, description string) erro
 	if !g.authed {
 		return ErrAuth
 	}
-	owner, repo, err := g.parseRepoChat(chatID)
+	owner, repo, err := g.ParseRepoChat(chatID)
 	if err != nil {
 		return err
 	}
-	_, err = g.apiPatch(ghRepoPath(owner, repo), map[string]any{
+	_, err = g.apiPatch(GhRepoPath(owner, repo), map[string]any{
 		"description": description,
 	})
 	return err
@@ -899,11 +899,11 @@ func (g *GitHubCore) LeaveChat(chatID string) error {
 	if !g.authed {
 		return ErrAuth
 	}
-	owner, repo, err := g.parseRepoChat(chatID)
+	owner, repo, err := g.ParseRepoChat(chatID)
 	if err != nil {
 		return err
 	}
-	_, err = g.apiDelete(ghRepoPath(owner, repo) + "/subscription")
+	_, err = g.apiDelete(GhRepoPath(owner, repo) + "/subscription")
 	return err
 }
 
@@ -911,7 +911,7 @@ func (g *GitHubCore) GetInviteLink(chatID string) (string, error) {
 	if !g.authed {
 		return "", ErrAuth
 	}
-	owner, repo, err := g.parseRepoChat(chatID)
+	owner, repo, err := g.ParseRepoChat(chatID)
 	if err != nil {
 		return "", err
 	}
@@ -922,12 +922,12 @@ func (g *GitHubCore) AddMembers(chatID string, userIDs []string) error {
 	if !g.authed {
 		return ErrAuth
 	}
-	owner, repo, err := g.parseRepoChat(chatID)
+	owner, repo, err := g.ParseRepoChat(chatID)
 	if err != nil {
 		return err
 	}
 	for _, uid := range userIDs {
-		_, err := g.apiPut(ghRepoPath(owner, repo)+"/collaborators/"+uid, map[string]any{
+		_, err := g.apiPut(GhRepoPath(owner, repo)+"/collaborators/"+uid, map[string]any{
 			"permission": "write",
 		})
 		if err != nil {
@@ -941,11 +941,11 @@ func (g *GitHubCore) RemoveMember(chatID string, userID string) error {
 	if !g.authed {
 		return ErrAuth
 	}
-	owner, repo, err := g.parseRepoChat(chatID)
+	owner, repo, err := g.ParseRepoChat(chatID)
 	if err != nil {
 		return err
 	}
-	_, err = g.apiDelete(ghRepoPath(owner, repo) + "/collaborators/" + userID)
+	_, err = g.apiDelete(GhRepoPath(owner, repo) + "/collaborators/" + userID)
 	return err
 }
 
@@ -964,11 +964,11 @@ func (g *GitHubCore) GetMembers(chatID string, opts PaginationOpts) ([]User, err
 	if !g.authed {
 		return nil, ErrAuth
 	}
-	owner, repo, err := g.parseRepoChat(chatID)
+	owner, repo, err := g.ParseRepoChat(chatID)
 	if err != nil {
 		return nil, err
 	}
-	resp, err := g.apiGet(ghRepoPath(owner, repo)+"/collaborators", nil)
+	resp, err := g.apiGet(GhRepoPath(owner, repo)+"/collaborators", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -979,11 +979,11 @@ func (g *GitHubCore) GetMembers(chatID string, opts PaginationOpts) ([]User, err
 	users := make([]User, 0, len(collabs))
 	for _, c := range collabs {
 		users = append(users, User{
-			ID:          ghIntStr(gjsonMapFloat(c, "id")),
+			ID:          GhIntStr(GjsonMapFloat(c, "id")),
 			Username:    strOf(c["login"]),
 			DisplayName: strOf(c["login"]),
 			AvatarURL:   strOf(c["avatar_url"]),
-			Platform:    ghPlatform,
+			Platform:    GhPlatform,
 		})
 	}
 	return users, nil
@@ -993,7 +993,7 @@ func (g *GitHubCore) SetAdmin(chatID string, userID string, admin bool) error {
 	if !g.authed {
 		return ErrAuth
 	}
-	owner, repo, err := g.parseRepoChat(chatID)
+	owner, repo, err := g.ParseRepoChat(chatID)
 	if err != nil {
 		return err
 	}
@@ -1001,7 +1001,7 @@ func (g *GitHubCore) SetAdmin(chatID string, userID string, admin bool) error {
 	if admin {
 		perm = "admin"
 	}
-	_, err = g.apiPut(ghRepoPath(owner, repo)+"/collaborators/"+userID, map[string]any{
+	_, err = g.apiPut(GhRepoPath(owner, repo)+"/collaborators/"+userID, map[string]any{
 		"permission": perm,
 	})
 	return err
@@ -1022,11 +1022,11 @@ func (g *GitHubCore) GetContacts() ([]User, error) {
 	result := make([]User, 0, len(users))
 	for _, u := range users {
 		result = append(result, User{
-			ID:          ghIntStr(gjsonMapFloat(u, "id")),
+			ID:          GhIntStr(GjsonMapFloat(u, "id")),
 			Username:    strOf(u["login"]),
 			DisplayName: strOf(u["login"]),
 			AvatarURL:   strOf(u["avatar_url"]),
-			Platform:    ghPlatform,
+			Platform:    GhPlatform,
 		})
 	}
 	return result, nil
@@ -1097,11 +1097,11 @@ func (g *GitHubCore) GetBlockedUsers() ([]User, error) {
 	for _, u := range users {
 		login := strOf(u["login"])
 		result = append(result, User{
-			ID:          ghIntStr(gjsonMapFloat(u, "id")),
+			ID:          GhIntStr(GjsonMapFloat(u, "id")),
 			Username:    login,
 			DisplayName: login,
 			AvatarURL:   strOf(u["avatar_url"]),
-			Platform:    ghPlatform,
+			Platform:    GhPlatform,
 		})
 	}
 	return result, nil
@@ -1136,7 +1136,7 @@ func (g *GitHubCore) SearchMessages(chatID string, query string, opts Pagination
 		ts, _ := time.Parse(time.RFC3339, strOf(m["created_at"]))
 		user, _ := m["user"].(map[string]any)
 		msgs = append(msgs, Message{
-			ID:         "issue:" + ghIntStr(gjsonMapFloat(m, "number")),
+			ID:         "issue:" + GhIntStr(GjsonMapFloat(m, "number")),
 			ChatID:     chatID,
 			SenderID:   strOf(user["login"]),
 			SenderName: strOf(user["login"]),
@@ -1144,7 +1144,7 @@ func (g *GitHubCore) SearchMessages(chatID string, query string, opts Pagination
 			Timestamp:  ts,
 			Status:     MessageStatusSent,
 			IsOutgoing: strOf(user["login"]) == g.username,
-			Platform:   ghPlatform,
+			Platform:   GhPlatform,
 		})
 	}
 	return msgs, nil
@@ -1175,7 +1175,7 @@ func (g *GitHubCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog, 
 			ID:       "repo:" + strOf(owner["login"]) + "/" + strOf(r["name"]),
 			Type:     ChatTypeGroup,
 			Title:    strOf(r["full_name"]),
-			Platform: ghPlatform,
+			Platform: GhPlatform,
 		})
 	}
 	return dialogs, nil
@@ -1219,7 +1219,7 @@ func (g *GitHubCore) GetSessions() ([]Session, error) {
 	return []Session{{
 		ID:         "pat",
 		Device:     "Personal Access Token",
-		Platform:   ghPlatform,
+		Platform:   GhPlatform,
 		AppName:    "Uniclient",
 		LastActive: time.Now(),
 		IsCurrent:  true,
@@ -1231,7 +1231,7 @@ func (g *GitHubCore) TerminateSession(_ string) error {
 }
 
 func (g *GitHubCore) ensureProfileRepo() error {
-	_, err := g.apiGet(ghRepoPath(g.username, g.username), nil)
+	_, err := g.apiGet(GhRepoPath(g.username, g.username), nil)
 	if err == nil {
 		return nil
 	}
@@ -1254,14 +1254,14 @@ func (g *GitHubCore) sendDMMessage(chatID string, text string) (*Message, error)
 	}
 
 	owner, repo := g.dmIssueLocation(peerUser, issueNum)
-	resp, err := g.apiPost(ghRepoPath(owner, repo)+"/issues/"+strconv.Itoa(issueNum)+"/comments", map[string]any{
+	resp, err := g.apiPost(GhRepoPath(owner, repo)+"/issues/"+strconv.Itoa(issueNum)+"/comments", map[string]any{
 		"body": text,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	msg := g.commentToMessage(chatID, resp)
+	msg := g.CommentToMessage(chatID, resp)
 	g.cacheMessage(chatID, msg)
 	g.touchThread(chatID)
 	return msg, nil
@@ -1283,7 +1283,7 @@ func (g *GitHubCore) findOrCreateDMIssue(peerUser string) (int, error) {
 	}
 	g.dmIssuesMu.RUnlock()
 
-	resp, err := g.apiGet(ghRepoPath(peerUser, peerUser)+"/issues", map[string]string{
+	resp, err := g.apiGet(GhRepoPath(peerUser, peerUser)+"/issues", map[string]string{
 		"creator": g.username,
 		"state":   "open",
 	})
@@ -1298,13 +1298,13 @@ func (g *GitHubCore) findOrCreateDMIssue(peerUser string) (int, error) {
 	for _, issue := range issues {
 		title := strOf(issue["title"])
 		if strings.HasPrefix(title, ghDMPrefix) {
-			num := int(gjsonMapFloat(issue, "number"))
+			num := int(GjsonMapFloat(issue, "number"))
 			g.cacheDMDialog(peerUser, num, peerUser, peerUser)
 			return num, nil
 		}
 	}
 
-	resp2, err := g.apiGet(ghRepoPath(g.username, g.username)+"/issues", map[string]string{
+	resp2, err := g.apiGet(GhRepoPath(g.username, g.username)+"/issues", map[string]string{
 		"state": "open",
 	})
 	if err == nil {
@@ -1313,7 +1313,7 @@ func (g *GitHubCore) findOrCreateDMIssue(peerUser string) (int, error) {
 		for _, issue := range ourIssues {
 			title := strOf(issue["title"])
 			if title == ghDMPrefix+peerUser {
-				num := int(gjsonMapFloat(issue, "number"))
+				num := int(GjsonMapFloat(issue, "number"))
 				g.cacheDMDialog(peerUser, num, g.username, g.username)
 				return num, nil
 			}
@@ -1327,12 +1327,12 @@ func (g *GitHubCore) findOrCreateDMIssue(peerUser string) (int, error) {
 	if strings.EqualFold(peerUser, g.username) {
 		body["labels"] = []string{ghDMLabel}
 	}
-	resp3, err := g.apiPost(ghRepoPath(peerUser, peerUser)+"/issues", body)
+	resp3, err := g.apiPost(GhRepoPath(peerUser, peerUser)+"/issues", body)
 	if err != nil {
 		return 0, err
 	}
 
-	num := int(gjsonFloat(resp3, "number"))
+	num := int(GjsonFloat(resp3, "number"))
 	g.cacheDMDialog(peerUser, num, peerUser, peerUser)
 	return num, nil
 }
@@ -1357,7 +1357,7 @@ func (g *GitHubCore) getDMMessages(chatID string, limit int, cursor string) ([]M
 	}
 
 	resp, err := g.apiGetConditional(
-		ghRepoPath(owner, repo)+"/issues/"+strconv.Itoa(issueNum)+"/comments",
+		GhRepoPath(owner, repo)+"/issues/"+strconv.Itoa(issueNum)+"/comments",
 		params, chatID,
 	)
 	if err != nil {
@@ -1372,7 +1372,7 @@ func (g *GitHubCore) getDMMessages(chatID string, limit int, cursor string) ([]M
 
 	msgs := make([]Message, 0, len(comments))
 	for _, raw := range comments {
-		msgs = append(msgs, *g.commentToMessage(chatID, raw))
+		msgs = append(msgs, *g.CommentToMessage(chatID, raw))
 	}
 
 	g.messagesMu.Lock()
@@ -1401,7 +1401,7 @@ func (g *GitHubCore) dmIssueLocation(peerUser string, issueNum int) (owner, repo
 	}
 	g.dmIssuesMu.RUnlock()
 
-	_, err := g.apiGet(ghRepoPath(peerUser, peerUser)+"/issues/"+strconv.Itoa(issueNum), nil)
+	_, err := g.apiGet(GhRepoPath(peerUser, peerUser)+"/issues/"+strconv.Itoa(issueNum), nil)
 	if err == nil {
 		return peerUser, peerUser
 	}
@@ -1412,7 +1412,7 @@ func (g *GitHubCore) fetchDMDialogs() ([]Dialog, error) {
 	dialogs := []Dialog{}
 	seen := make(map[string]bool)
 
-	resp, err := g.apiGet(ghRepoPath(g.username, g.username)+"/issues", map[string]string{
+	resp, err := g.apiGet(GhRepoPath(g.username, g.username)+"/issues", map[string]string{
 		"state": "open",
 	})
 	if err == nil {
@@ -1429,7 +1429,7 @@ func (g *GitHubCore) fetchDMDialogs() ([]Dialog, error) {
 			}
 			seen[peerUser] = true
 
-			num := int(gjsonMapFloat(issue, "number"))
+			num := int(GjsonMapFloat(issue, "number"))
 			user, _ := issue["user"].(map[string]any)
 			g.cacheDMDialog(peerUser, num, g.username, g.username)
 
@@ -1439,8 +1439,8 @@ func (g *GitHubCore) fetchDMDialogs() ([]Dialog, error) {
 				Type:        ChatTypeDM,
 				Title:       peerUser,
 				AvatarURL:   strOf(user["avatar_url"]),
-				LastMessage: &Message{Timestamp: updatedAt, Platform: ghPlatform},
-				Platform:    ghPlatform,
+				LastMessage: &Message{Timestamp: updatedAt, Platform: GhPlatform},
+				Platform:    GhPlatform,
 			})
 		}
 	}
@@ -1467,7 +1467,7 @@ func (g *GitHubCore) fetchDMDialogs() ([]Dialog, error) {
 			}
 			seen[peerUser] = true
 
-			num := int(gjsonMapFloat(issue, "number"))
+			num := int(GjsonMapFloat(issue, "number"))
 			g.cacheDMDialog(peerUser, num, peerUser, peerUser)
 
 			updatedAt, _ := time.Parse(time.RFC3339, strOf(issue["updated_at"]))
@@ -1475,8 +1475,8 @@ func (g *GitHubCore) fetchDMDialogs() ([]Dialog, error) {
 				ID:          "dm:" + peerUser,
 				Type:        ChatTypeDM,
 				Title:       peerUser,
-				LastMessage: &Message{Timestamp: updatedAt, Platform: ghPlatform},
-				Platform:    ghPlatform,
+				LastMessage: &Message{Timestamp: updatedAt, Platform: GhPlatform},
+				Platform:    GhPlatform,
 			})
 		}
 	}
@@ -1537,7 +1537,7 @@ func (g *GitHubCore) fetchGroupDialogs() ([]Dialog, error) {
 		}
 
 		g.dialogsMu.Lock()
-		g.dialogs[chatID] = &ghDialog{
+		g.dialogs[chatID] = &GhDialog{
 			ChatID:    chatID,
 			Type:      ChatTypeGroup,
 			Title:     fullName,
@@ -1553,8 +1553,8 @@ func (g *GitHubCore) fetchGroupDialogs() ([]Dialog, error) {
 			Type:        ChatTypeGroup,
 			Title:       ownerLogin + "/" + name,
 			AvatarURL:   strOf(owner["avatar_url"]),
-			LastMessage: &Message{Timestamp: updatedAt, Platform: ghPlatform},
-			Platform:    ghPlatform,
+			LastMessage: &Message{Timestamp: updatedAt, Platform: GhPlatform},
+			Platform:    GhPlatform,
 		})
 	}
 
@@ -1572,7 +1572,7 @@ func (g *GitHubCore) fetchGroupDialogs() ([]Dialog, error) {
 			parts := strings.SplitN(fullName, "/", 2)
 			if len(parts) == 2 {
 				g.dialogsMu.Lock()
-				g.dialogs[chatID] = &ghDialog{
+				g.dialogs[chatID] = &GhDialog{
 					ChatID:   chatID,
 					Type:     ChatTypeGroup,
 					Title:    fullName,
@@ -1585,7 +1585,7 @@ func (g *GitHubCore) fetchGroupDialogs() ([]Dialog, error) {
 					ID:       chatID,
 					Type:     ChatTypeGroup,
 					Title:    fullName,
-					Platform: ghPlatform,
+					Platform: GhPlatform,
 				})
 			}
 		}
@@ -1604,14 +1604,14 @@ func (g *GitHubCore) cachedGroupDialogs() []Dialog {
 			ID:       "repo:" + fullName,
 			Type:     ChatTypeGroup,
 			Title:    fullName,
-			Platform: ghPlatform,
+			Platform: GhPlatform,
 		})
 	}
 	return dialogs
 }
 
 func (g *GitHubCore) findGeneralIssue(owner, repo string) int {
-	resp, err := g.apiGet(ghRepoPath(owner, repo)+"/issues", map[string]string{
+	resp, err := g.apiGet(GhRepoPath(owner, repo)+"/issues", map[string]string{
 		"state": "open",
 	})
 	if err != nil {
@@ -1621,31 +1621,31 @@ func (g *GitHubCore) findGeneralIssue(owner, repo string) int {
 	json.Unmarshal(resp, &issues)
 	for _, issue := range issues {
 		if strOf(issue["title"]) == ghGeneralTitle {
-			return int(gjsonMapFloat(issue, "number"))
+			return int(GjsonMapFloat(issue, "number"))
 		}
 	}
 	return 0
 }
 
 func (g *GitHubCore) sendIssueComment(chatID string, text string) (*Message, error) {
-	owner, repo, numStr := g.parseIssueChat(chatID)
+	owner, repo, numStr := g.ParseIssueChat(chatID)
 	if owner == "" {
 		return nil, fmt.Errorf("%w: invalid channel ID %q (expected issue:owner/repo/number)", ErrInvalidInput, chatID)
 	}
-	resp, err := g.apiPost(ghRepoPath(owner, repo)+"/issues/"+numStr+"/comments", map[string]any{
+	resp, err := g.apiPost(GhRepoPath(owner, repo)+"/issues/"+numStr+"/comments", map[string]any{
 		"body": text,
 	})
 	if err != nil {
 		return nil, err
 	}
-	msg := g.commentToMessage(chatID, resp)
+	msg := g.CommentToMessage(chatID, resp)
 	g.cacheMessage(chatID, msg)
 	g.touchThread(chatID)
 	return msg, nil
 }
 
 func (g *GitHubCore) getIssueMessages(chatID string, limit int, cursor string) ([]Message, error) {
-	owner, repo, numStr := g.parseIssueChat(chatID)
+	owner, repo, numStr := g.ParseIssueChat(chatID)
 	if owner == "" {
 		return nil, fmt.Errorf("%w: invalid channel ID %q (expected issue:owner/repo/number)", ErrInvalidInput, chatID)
 	}
@@ -1660,7 +1660,7 @@ func (g *GitHubCore) getIssueMessages(chatID string, limit int, cursor string) (
 	}
 
 	resp, err := g.apiGetConditional(
-		ghRepoPath(owner, repo)+"/issues/"+numStr+"/comments",
+		GhRepoPath(owner, repo)+"/issues/"+numStr+"/comments",
 		params, chatID,
 	)
 	if err != nil {
@@ -1675,13 +1675,13 @@ func (g *GitHubCore) getIssueMessages(chatID string, limit int, cursor string) (
 
 	msgs := make([]Message, 0, len(comments))
 	for _, raw := range comments {
-		msgs = append(msgs, *g.commentToMessage(chatID, raw))
+		msgs = append(msgs, *g.CommentToMessage(chatID, raw))
 	}
 	return msgs, nil
 }
 
 func (g *GitHubCore) sendRepoMessage(chatID string, text string) (*Message, error) {
-	owner, repo, err := g.parseRepoChat(chatID)
+	owner, repo, err := g.ParseRepoChat(chatID)
 	if err != nil {
 		return nil, err
 	}
@@ -1696,12 +1696,12 @@ func (g *GitHubCore) sendRepoMessage(chatID string, text string) (*Message, erro
 }
 
 func (g *GitHubCore) getRepoMessages(chatID string, limit int) ([]Message, error) {
-	owner, repo, err := g.parseRepoChat(chatID)
+	owner, repo, err := g.ParseRepoChat(chatID)
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := g.apiGet(ghRepoPath(owner, repo)+"/issues", map[string]string{
+	resp, err := g.apiGet(GhRepoPath(owner, repo)+"/issues", map[string]string{
 		"state":    "open",
 		"per_page": strconv.Itoa(limit),
 		"sort":     "updated",
@@ -1717,8 +1717,8 @@ func (g *GitHubCore) getRepoMessages(chatID string, limit int) ([]Message, error
 	for _, issue := range issues {
 		user, _ := issue["user"].(map[string]any)
 		ts, _ := time.Parse(time.RFC3339, strOf(issue["updated_at"]))
-		num := int(gjsonMapFloat(issue, "number"))
-		comments := int(gjsonMapFloat(issue, "comments"))
+		num := int(GjsonMapFloat(issue, "number"))
+		comments := int(GjsonMapFloat(issue, "comments"))
 
 		msgs = append(msgs, Message{
 			ID:         "issue:" + owner + "/" + repo + "/" + strconv.Itoa(num),
@@ -1729,7 +1729,7 @@ func (g *GitHubCore) getRepoMessages(chatID string, limit int) ([]Message, error
 			Timestamp:  ts,
 			Status:     MessageStatusSent,
 			IsOutgoing: strOf(user["login"]) == g.username,
-			Platform:   ghPlatform,
+			Platform:   GhPlatform,
 		})
 	}
 	return msgs, nil
@@ -1855,7 +1855,7 @@ func (g *GitHubCore) pollThreadForUpdates(chatID string) {
 		repo = info.RepoName
 		numStr = strconv.Itoa(info.IssueNum)
 	} else if strings.HasPrefix(chatID, "issue:") {
-		owner, repo, numStr = g.parseIssueChat(chatID)
+		owner, repo, numStr = g.ParseIssueChat(chatID)
 	} else if strings.HasPrefix(chatID, "repo:") {
 		g.groupReposMu.RLock()
 		generalNum := g.groupRepos[owner+"/"+repo]
@@ -1870,7 +1870,7 @@ func (g *GitHubCore) pollThreadForUpdates(chatID string) {
 		return
 	}
 
-	path := ghRepoPath(owner, repo) + "/issues/" + numStr + "/comments"
+	path := GhRepoPath(owner, repo) + "/issues/" + numStr + "/comments"
 	params := map[string]string{
 		"per_page":  "10",
 		"sort":      "created",
@@ -1888,7 +1888,7 @@ func (g *GitHubCore) pollThreadForUpdates(chatID string) {
 	}
 
 	for _, raw := range comments {
-		msg := g.commentToMessage(chatID, raw)
+		msg := g.CommentToMessage(chatID, raw)
 		if msg.SenderID == g.username {
 			continue
 		}
@@ -1899,7 +1899,7 @@ func (g *GitHubCore) pollThreadForUpdates(chatID string) {
 			Type:     UpdateNewMessage,
 			ChatID:   chatID,
 			Message:  msg,
-			Platform: ghPlatform,
+			Platform: GhPlatform,
 		})
 	}
 }
@@ -1998,7 +1998,7 @@ func (g *GitHubCore) pollNotifications() {
 		return
 	}
 
-	body, err := readBodyCapped(resp.Body, apiBodyCeiling)
+	body, err := ReadBodyCapped(resp.Body, ApiBodyCeiling)
 	if err != nil {
 		return
 	}
@@ -2037,7 +2037,7 @@ func (g *GitHubCore) processNotification(n map[string]any) {
 			chatID = "dm:" + peerUser
 		} else {
 			url := strOf(subject["url"])
-			if num := extractTrailingNumber(url); num != "" {
+			if num := ExtractTrailingNumber(url); num != "" {
 				chatID = "issue:" + repoFullName + "/" + num
 			}
 		}
@@ -2056,13 +2056,13 @@ func (g *GitHubCore) processNotification(n map[string]any) {
 	if subjectURL != "" {
 		data, err := g.apiGetRaw(subjectURL)
 		if err == nil {
-			msg := g.commentToMessage(chatID, data)
+			msg := g.CommentToMessage(chatID, data)
 			if msg.SenderID != g.username && !g.markCommentSeen(msg.ID) {
 				g.fireUpdate(Update{
 					Type:     UpdateNewMessage,
 					ChatID:   chatID,
 					Message:  msg,
-					Platform: ghPlatform,
+					Platform: GhPlatform,
 				})
 			}
 		}
@@ -2116,13 +2116,13 @@ func (g *GitHubCore) doAPI(method, url string, body []byte, extraHeaders map[str
 		resp, err := g.client.Do(req)
 		if err != nil {
 			if attempt < 3 {
-				sleepCtx(g.ctx, ghBackoffDelay(attempt, 500*time.Millisecond))
+				sleepCtx(g.ctx, GhBackoffDelay(attempt, 500*time.Millisecond))
 				continue
 			}
 			return nil, 0, nil, fmt.Errorf("%w: %v", ErrNetwork, err)
 		}
 
-		respBody, rerr := readBodyCapped(resp.Body, apiBodyCeiling)
+		respBody, rerr := ReadBodyCapped(resp.Body, ApiBodyCeiling)
 		resp.Body.Close()
 
 		g.rl.updateFromHeaders(resp.Header)
@@ -2131,12 +2131,12 @@ func (g *GitHubCore) doAPI(method, url string, body []byte, extraHeaders map[str
 		}
 
 		if resp.StatusCode == 429 && attempt < 3 {
-			sleepCtx(g.ctx, ghParseRetryAfter(resp.Header))
+			sleepCtx(g.ctx, GhParseRetryAfter(resp.Header))
 			continue
 		}
 
 		if resp.StatusCode >= 500 && attempt < 3 {
-			sleepCtx(g.ctx, ghBackoffDelay(attempt, time.Second))
+			sleepCtx(g.ctx, GhBackoffDelay(attempt, time.Second))
 			continue
 		}
 
@@ -2145,8 +2145,8 @@ func (g *GitHubCore) doAPI(method, url string, body []byte, extraHeaders map[str
 				sleepCtx(g.ctx, g.rl.waitForReset())
 				continue
 			}
-			if ghIsSecondaryRateLimit(respBody) {
-				sleepCtx(g.ctx, ghBackoffDelay(attempt, 5*time.Second))
+			if GhIsSecondaryRateLimit(respBody) {
+				sleepCtx(g.ctx, GhBackoffDelay(attempt, 5*time.Second))
 				continue
 			}
 		}
@@ -2304,12 +2304,12 @@ func (g *GitHubCore) apiGetUser(username string) (*User, error) {
 	json.Unmarshal(resp, &u)
 
 	return &User{
-		ID:          ghIntStr(u.ID),
+		ID:          GhIntStr(u.ID),
 		Username:    u.Login,
 		DisplayName: u.Name,
 		AvatarURL:   u.AvatarURL,
 		IsBot:       u.Type == "Bot",
-		Platform:    ghPlatform,
+		Platform:    GhPlatform,
 	}, nil
 }
 
@@ -2455,7 +2455,7 @@ func sleepCtx(ctx context.Context, d time.Duration) {
 	}
 }
 
-func ghBackoffDelay(attempt int, base time.Duration) time.Duration {
+func GhBackoffDelay(attempt int, base time.Duration) time.Duration {
 	delay := base
 	for range attempt {
 		delay *= 2
@@ -2464,7 +2464,7 @@ func ghBackoffDelay(attempt int, base time.Duration) time.Duration {
 	return delay + jitter
 }
 
-func ghIsSecondaryRateLimit(body []byte) bool {
+func GhIsSecondaryRateLimit(body []byte) bool {
 	s := string(body)
 	return strings.Contains(s, "secondary rate") || strings.Contains(s, "Secondary rate") ||
 		strings.Contains(s, "abuse detection") || strings.Contains(s, "Abuse detection") ||
@@ -2472,7 +2472,7 @@ func ghIsSecondaryRateLimit(body []byte) bool {
 		strings.Contains(s, "You have exceeded a secondary rate limit")
 }
 
-func ghParseRetryAfter(h http.Header) time.Duration {
+func GhParseRetryAfter(h http.Header) time.Duration {
 	if ra := h.Get("Retry-After"); ra != "" {
 		if secs, err := strconv.Atoi(ra); err == nil {
 			return time.Duration(secs) * time.Second
@@ -2592,7 +2592,7 @@ func (g *GitHubCore) fireUpdate(u Update) {
 	}
 }
 
-func (g *GitHubCore) commentToMessage(chatID string, raw json.RawMessage) *Message {
+func (g *GitHubCore) CommentToMessage(chatID string, raw json.RawMessage) *Message {
 	var c map[string]any
 	json.Unmarshal(raw, &c)
 
@@ -2616,7 +2616,7 @@ func (g *GitHubCore) commentToMessage(chatID string, raw json.RawMessage) *Messa
 		}
 	}
 
-	commentID := ghIntStr(gjsonMapFloat(c, "id"))
+	commentID := GhIntStr(GjsonMapFloat(c, "id"))
 	msgID := "comment:" + commentID
 
 	body := strOf(c["body"])
@@ -2635,7 +2635,7 @@ func (g *GitHubCore) commentToMessage(chatID string, raw json.RawMessage) *Messa
 		Status:     MessageStatusSent,
 		IsOutgoing: strOf(user["login"]) == g.username,
 		Reactions:  g.parseRESTReactions(c),
-		Platform:   ghPlatform,
+		Platform:   GhPlatform,
 	}
 }
 
@@ -2660,7 +2660,7 @@ func (g *GitHubCore) mapReaction(emoji string) string {
 	return ghEmojiToReaction[emoji]
 }
 
-func (g *GitHubCore) parseRepoChat(chatID string) (owner, repo string, err error) {
+func (g *GitHubCore) ParseRepoChat(chatID string) (owner, repo string, err error) {
 	s := strings.TrimPrefix(chatID, "repo:")
 	parts := strings.SplitN(s, "/", 2)
 	if len(parts) != 2 {
@@ -2669,7 +2669,7 @@ func (g *GitHubCore) parseRepoChat(chatID string) (owner, repo string, err error
 	return parts[0], parts[1], nil
 }
 
-func (g *GitHubCore) parseIssueChat(chatID string) (owner, repo, num string) {
+func (g *GitHubCore) ParseIssueChat(chatID string) (owner, repo, num string) {
 	s := strings.TrimPrefix(chatID, "issue:")
 	parts := strings.SplitN(s, "/", 3)
 	if len(parts) == 3 {
@@ -2714,7 +2714,7 @@ func (g *GitHubCore) parseChatOwnerRepo(chatID string) (owner, repo, num string)
 func (g *GitHubCore) cacheDMDialog(peerUser string, issueNum int, repoOwner, repoName string) {
 	chatID := "dm:" + peerUser
 	g.dialogsMu.Lock()
-	g.dialogs[chatID] = &ghDialog{
+	g.dialogs[chatID] = &GhDialog{
 		ChatID:   chatID,
 		Type:     ChatTypeDM,
 		Title:    peerUser,
@@ -2758,11 +2758,11 @@ func (g *GitHubCore) findCachedOrFetchComment(chatID string, msgID string) *Mess
 	if owner == "" {
 		return nil
 	}
-	resp, err := g.apiGet(ghRepoPath(owner, repo)+"/issues/comments/"+commentID, nil)
+	resp, err := g.apiGet(GhRepoPath(owner, repo)+"/issues/comments/"+commentID, nil)
 	if err != nil {
 		return nil
 	}
-	msg := g.commentToMessage(chatID, resp)
+	msg := g.CommentToMessage(chatID, resp)
 	g.cacheMessage(chatID, msg)
 	return msg
 }
@@ -2791,7 +2791,7 @@ func (g *GitHubCore) touchThread(chatID string) {
 	g.activeThreadsMu.Unlock()
 }
 
-func (g *GitHubCore) ghDialogToDialog(d *ghDialog) *Dialog {
+func (g *GitHubCore) GhDialogToDialog(d *GhDialog) *Dialog {
 	return &Dialog{
 		ID:          d.ChatID,
 		Type:        d.Type,
@@ -2801,11 +2801,11 @@ func (g *GitHubCore) ghDialogToDialog(d *ghDialog) *Dialog {
 		UnreadCount: d.UnreadCount,
 		IsMuted:     d.IsMuted,
 		IsPinned:    d.IsPinned,
-		Platform:    ghPlatform,
+		Platform:    GhPlatform,
 	}
 }
 
-func gjsonStr(raw json.RawMessage, path string) string {
+func GjsonStr(raw json.RawMessage, path string) string {
 	var m map[string]any
 	json.Unmarshal(raw, &m)
 	parts := strings.Split(path, ".")
@@ -2821,7 +2821,7 @@ func gjsonStr(raw json.RawMessage, path string) string {
 	return s
 }
 
-func gjsonFloat(raw json.RawMessage, path string) float64 {
+func GjsonFloat(raw json.RawMessage, path string) float64 {
 	var m map[string]any
 	json.Unmarshal(raw, &m)
 	parts := strings.Split(path, ".")
@@ -2857,7 +2857,7 @@ func gjsonMapStr(m map[string]any, keys ...string) string {
 	return s
 }
 
-func gjsonMapFloat(m map[string]any, key string) float64 {
+func GjsonMapFloat(m map[string]any, key string) float64 {
 	f, _ := m[key].(float64)
 	return f
 }
@@ -2882,7 +2882,7 @@ func truncate(s string, maxLen int) string {
 
 var trailingNumberRe = regexp.MustCompile(`/(\d+)$`)
 
-func extractTrailingNumber(url string) string {
+func ExtractTrailingNumber(url string) string {
 	m := trailingNumberRe.FindStringSubmatch(url)
 	if len(m) == 2 {
 		return m[1]
@@ -2895,35 +2895,35 @@ func (g *GitHubCore) LockIssue(owner, repo string, number int, reason string) er
 	if reason != "" {
 		payload["lock_reason"] = reason
 	}
-	_, err := g.apiPut(ghRepoPath(owner, repo)+"/issues/"+strconv.Itoa(number)+"/lock", payload)
+	_, err := g.apiPut(GhRepoPath(owner, repo)+"/issues/"+strconv.Itoa(number)+"/lock", payload)
 	return err
 }
 
 func (g *GitHubCore) UnlockIssue(owner, repo string, number int) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/issues/" + strconv.Itoa(number) + "/lock")
+	_, err := g.apiDelete(GhRepoPath(owner, repo) + "/issues/" + strconv.Itoa(number) + "/lock")
 	return err
 }
 
 func (g *GitHubCore) ListIssueEvents(owner, repo string, number int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo)+"/issues/"+strconv.Itoa(number)+"/events", nil)
+	return g.apiGet(GhRepoPath(owner, repo)+"/issues/"+strconv.Itoa(number)+"/events", nil)
 }
 
 func (g *GitHubCore) GetIssueTimeline(owner, repo string, number int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo)+"/issues/"+strconv.Itoa(number)+"/timeline", nil)
+	return g.apiGet(GhRepoPath(owner, repo)+"/issues/"+strconv.Itoa(number)+"/timeline", nil)
 }
 
 func (g *GitHubCore) ListSubIssues(owner, repo string, number int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo)+"/issues/"+strconv.Itoa(number)+"/sub_issues", nil)
+	return g.apiGet(GhRepoPath(owner, repo)+"/issues/"+strconv.Itoa(number)+"/sub_issues", nil)
 }
 
 func (g *GitHubCore) AddSubIssue(owner, repo string, number int, subIssueID int) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo)+"/issues/"+strconv.Itoa(number)+"/sub_issues", map[string]any{
+	return g.apiPost(GhRepoPath(owner, repo)+"/issues/"+strconv.Itoa(number)+"/sub_issues", map[string]any{
 		"sub_issue_id": subIssueID,
 	})
 }
 
 func (g *GitHubCore) ListLabels(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo)+"/labels", map[string]string{"per_page": "100"})
+	return g.apiGet(GhRepoPath(owner, repo)+"/labels", map[string]string{"per_page": "100"})
 }
 
 func (g *GitHubCore) CreateLabel(owner, repo, name, color, description string) (json.RawMessage, error) {
@@ -2931,33 +2931,33 @@ func (g *GitHubCore) CreateLabel(owner, repo, name, color, description string) (
 	if description != "" {
 		payload["description"] = description
 	}
-	return g.apiPost(ghRepoPath(owner, repo)+"/labels", payload)
+	return g.apiPost(GhRepoPath(owner, repo)+"/labels", payload)
 }
 
 func (g *GitHubCore) UpdateLabel(owner, repo, name string, updates map[string]any) (json.RawMessage, error) {
-	return g.apiPatch(ghRepoPath(owner, repo)+"/labels/"+name, updates)
+	return g.apiPatch(GhRepoPath(owner, repo)+"/labels/"+name, updates)
 }
 
 func (g *GitHubCore) DeleteLabel(owner, repo, name string) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/labels/" + name)
+	_, err := g.apiDelete(GhRepoPath(owner, repo) + "/labels/" + name)
 	return err
 }
 
 func (g *GitHubCore) AddLabelsToIssue(owner, repo string, number int, labels []string) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo)+"/issues/"+strconv.Itoa(number)+"/labels", map[string]any{"labels": labels})
+	return g.apiPost(GhRepoPath(owner, repo)+"/issues/"+strconv.Itoa(number)+"/labels", map[string]any{"labels": labels})
 }
 
 func (g *GitHubCore) RemoveLabel(owner, repo string, number int, label string) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/issues/" + strconv.Itoa(number) + "/labels/" + label)
+	_, err := g.apiDelete(GhRepoPath(owner, repo) + "/issues/" + strconv.Itoa(number) + "/labels/" + label)
 	return err
 }
 
 func (g *GitHubCore) SetLabels(owner, repo string, number int, labels []string) (json.RawMessage, error) {
-	return g.apiPut(ghRepoPath(owner, repo)+"/issues/"+strconv.Itoa(number)+"/labels", map[string]any{"labels": labels})
+	return g.apiPut(GhRepoPath(owner, repo)+"/issues/"+strconv.Itoa(number)+"/labels", map[string]any{"labels": labels})
 }
 
 func (g *GitHubCore) ListMilestones(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo)+"/milestones", map[string]string{"per_page": "100"})
+	return g.apiGet(GhRepoPath(owner, repo)+"/milestones", map[string]string{"per_page": "100"})
 }
 
 func (g *GitHubCore) CreateMilestone(owner, repo, title, description string) (json.RawMessage, error) {
@@ -2965,15 +2965,15 @@ func (g *GitHubCore) CreateMilestone(owner, repo, title, description string) (js
 	if description != "" {
 		payload["description"] = description
 	}
-	return g.apiPost(ghRepoPath(owner, repo)+"/milestones", payload)
+	return g.apiPost(GhRepoPath(owner, repo)+"/milestones", payload)
 }
 
 func (g *GitHubCore) UpdateMilestone(owner, repo string, number int, updates map[string]any) (json.RawMessage, error) {
-	return g.apiPatch(ghRepoPath(owner, repo)+"/milestones/"+strconv.Itoa(number), updates)
+	return g.apiPatch(GhRepoPath(owner, repo)+"/milestones/"+strconv.Itoa(number), updates)
 }
 
 func (g *GitHubCore) DeleteMilestone(owner, repo string, number int) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/milestones/" + strconv.Itoa(number))
+	_, err := g.apiDelete(GhRepoPath(owner, repo) + "/milestones/" + strconv.Itoa(number))
 	return err
 }
 
@@ -2982,7 +2982,7 @@ func (g *GitHubCore) ListPullRequests(owner, repo, state string, perPage int) (j
 	if state != "" {
 		params["state"] = state
 	}
-	return g.apiGet(ghRepoPath(owner, repo)+"/pulls", params)
+	return g.apiGet(GhRepoPath(owner, repo)+"/pulls", params)
 }
 
 func (g *GitHubCore) CreatePullRequest(owner, repo, title, head, base, body string) (json.RawMessage, error) {
@@ -2994,15 +2994,15 @@ func (g *GitHubCore) CreatePullRequest(owner, repo, title, head, base, body stri
 	if body != "" {
 		payload["body"] = body
 	}
-	return g.apiPost(ghRepoPath(owner, repo)+"/pulls", payload)
+	return g.apiPost(GhRepoPath(owner, repo)+"/pulls", payload)
 }
 
 func (g *GitHubCore) GetPullRequest(owner, repo string, number int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo)+"/pulls/"+strconv.Itoa(number), nil)
+	return g.apiGet(GhRepoPath(owner, repo)+"/pulls/"+strconv.Itoa(number), nil)
 }
 
 func (g *GitHubCore) UpdatePullRequest(owner, repo string, number int, updates map[string]any) (json.RawMessage, error) {
-	return g.apiPatch(ghRepoPath(owner, repo)+"/pulls/"+strconv.Itoa(number), updates)
+	return g.apiPatch(GhRepoPath(owner, repo)+"/pulls/"+strconv.Itoa(number), updates)
 }
 
 func (g *GitHubCore) MergePullRequest(owner, repo string, number int, mergeMethod, commitTitle, commitMessage string) (json.RawMessage, error) {
@@ -3016,11 +3016,11 @@ func (g *GitHubCore) MergePullRequest(owner, repo string, number int, mergeMetho
 	if commitMessage != "" {
 		payload["commit_message"] = commitMessage
 	}
-	return g.apiPut(ghRepoPath(owner, repo)+"/pulls/"+strconv.Itoa(number)+"/merge", payload)
+	return g.apiPut(GhRepoPath(owner, repo)+"/pulls/"+strconv.Itoa(number)+"/merge", payload)
 }
 
 func (g *GitHubCore) ListPRComments(owner, repo string, number int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo)+"/pulls/"+strconv.Itoa(number)+"/comments", nil)
+	return g.apiGet(GhRepoPath(owner, repo)+"/pulls/"+strconv.Itoa(number)+"/comments", nil)
 }
 
 func (g *GitHubCore) CreatePRComment(owner, repo string, number int, body, path, commitID string, line int) (json.RawMessage, error) {
@@ -3034,11 +3034,11 @@ func (g *GitHubCore) CreatePRComment(owner, repo string, number int, body, path,
 	if line > 0 {
 		payload["line"] = line
 	}
-	return g.apiPost(ghRepoPath(owner, repo)+"/pulls/"+strconv.Itoa(number)+"/comments", payload)
+	return g.apiPost(GhRepoPath(owner, repo)+"/pulls/"+strconv.Itoa(number)+"/comments", payload)
 }
 
 func (g *GitHubCore) ListPRReviews(owner, repo string, number int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo)+"/pulls/"+strconv.Itoa(number)+"/reviews", nil)
+	return g.apiGet(GhRepoPath(owner, repo)+"/pulls/"+strconv.Itoa(number)+"/reviews", nil)
 }
 
 func (g *GitHubCore) CreatePRReview(owner, repo string, number int, body, event string) (json.RawMessage, error) {
@@ -3049,18 +3049,18 @@ func (g *GitHubCore) CreatePRReview(owner, repo string, number int, body, event 
 	if event != "" {
 		payload["event"] = event
 	}
-	return g.apiPost(ghRepoPath(owner, repo)+"/pulls/"+strconv.Itoa(number)+"/reviews", payload)
+	return g.apiPost(GhRepoPath(owner, repo)+"/pulls/"+strconv.Itoa(number)+"/reviews", payload)
 }
 
 func (g *GitHubCore) SubmitPRReview(owner, repo string, prNumber, reviewID int, body, event string) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo)+"/pulls/"+strconv.Itoa(prNumber)+"/reviews/"+strconv.Itoa(reviewID)+"/events", map[string]any{
+	return g.apiPost(GhRepoPath(owner, repo)+"/pulls/"+strconv.Itoa(prNumber)+"/reviews/"+strconv.Itoa(reviewID)+"/events", map[string]any{
 		"body":  body,
 		"event": event,
 	})
 }
 
 func (g *GitHubCore) DismissPRReview(owner, repo string, prNumber, reviewID int, message string) (json.RawMessage, error) {
-	return g.apiPut(ghRepoPath(owner, repo)+"/pulls/"+strconv.Itoa(prNumber)+"/reviews/"+strconv.Itoa(reviewID)+"/dismissals", map[string]any{
+	return g.apiPut(GhRepoPath(owner, repo)+"/pulls/"+strconv.Itoa(prNumber)+"/reviews/"+strconv.Itoa(reviewID)+"/dismissals", map[string]any{
 		"message": message,
 	})
 }
@@ -3073,7 +3073,7 @@ func (g *GitHubCore) RequestReviewers(owner, repo string, number int, reviewers 
 	if len(teamReviewers) > 0 {
 		payload["team_reviewers"] = teamReviewers
 	}
-	return g.apiPost(ghRepoPath(owner, repo)+"/pulls/"+strconv.Itoa(number)+"/requested_reviewers", payload)
+	return g.apiPost(GhRepoPath(owner, repo)+"/pulls/"+strconv.Itoa(number)+"/requested_reviewers", payload)
 }
 
 func (g *GitHubCore) ListNotifications(all bool, perPage int) (json.RawMessage, error) {
@@ -3108,40 +3108,40 @@ func (g *GitHubCore) UnsubscribeThread(threadID string) error {
 }
 
 func (g *GitHubCore) DeleteRepo(owner, repo string) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo))
+	_, err := g.apiDelete(GhRepoPath(owner, repo))
 	return err
 }
 
 func (g *GitHubCore) ForkRepo(owner, repo string) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo)+"/forks", nil)
+	return g.apiPost(GhRepoPath(owner, repo)+"/forks", nil)
 }
 
 func (g *GitHubCore) TransferRepo(owner, repo, newOwner string) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo)+"/transfer", map[string]any{"new_owner": newOwner})
+	return g.apiPost(GhRepoPath(owner, repo)+"/transfer", map[string]any{"new_owner": newOwner})
 }
 
 func (g *GitHubCore) GetRepoTopics(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo)+"/topics", nil)
+	return g.apiGet(GhRepoPath(owner, repo)+"/topics", nil)
 }
 
 func (g *GitHubCore) SetRepoTopics(owner, repo string, topics []string) (json.RawMessage, error) {
-	return g.apiPut(ghRepoPath(owner, repo)+"/topics", map[string]any{"names": topics})
+	return g.apiPut(GhRepoPath(owner, repo)+"/topics", map[string]any{"names": topics})
 }
 
 func (g *GitHubCore) ListContributors(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo)+"/contributors", map[string]string{"per_page": "100"})
+	return g.apiGet(GhRepoPath(owner, repo)+"/contributors", map[string]string{"per_page": "100"})
 }
 
 func (g *GitHubCore) ListInvitations(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo)+"/invitations", nil)
+	return g.apiGet(GhRepoPath(owner, repo)+"/invitations", nil)
 }
 
 func (g *GitHubCore) UpdateInvitation(owner, repo string, invitationID int, permissions string) (json.RawMessage, error) {
-	return g.apiPatch(ghRepoPath(owner, repo)+"/invitations/"+strconv.Itoa(invitationID), map[string]any{"permissions": permissions})
+	return g.apiPatch(GhRepoPath(owner, repo)+"/invitations/"+strconv.Itoa(invitationID), map[string]any{"permissions": permissions})
 }
 
 func (g *GitHubCore) DeleteInvitation(owner, repo string, invitationID int) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/invitations/" + strconv.Itoa(invitationID))
+	_, err := g.apiDelete(GhRepoPath(owner, repo) + "/invitations/" + strconv.Itoa(invitationID))
 	return err
 }
 
@@ -3202,7 +3202,7 @@ func (g *GitHubCore) CreateGistComment(gistID, body string) (json.RawMessage, er
 }
 
 func (g *GitHubCore) ListReleases(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo)+"/releases", map[string]string{"per_page": "30"})
+	return g.apiGet(GhRepoPath(owner, repo)+"/releases", map[string]string{"per_page": "30"})
 }
 
 func (g *GitHubCore) CreateRelease(owner, repo, tagName, name, body string, draft, prerelease bool) (json.RawMessage, error) {
@@ -3213,20 +3213,20 @@ func (g *GitHubCore) CreateRelease(owner, repo, tagName, name, body string, draf
 		"draft":      draft,
 		"prerelease": prerelease,
 	}
-	return g.apiPost(ghRepoPath(owner, repo)+"/releases", payload)
+	return g.apiPost(GhRepoPath(owner, repo)+"/releases", payload)
 }
 
 func (g *GitHubCore) UpdateRelease(owner, repo string, releaseID int, updates map[string]any) (json.RawMessage, error) {
-	return g.apiPatch(ghRepoPath(owner, repo)+"/releases/"+strconv.Itoa(releaseID), updates)
+	return g.apiPatch(GhRepoPath(owner, repo)+"/releases/"+strconv.Itoa(releaseID), updates)
 }
 
 func (g *GitHubCore) DeleteRelease(owner, repo string, releaseID int) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/releases/" + strconv.Itoa(releaseID))
+	_, err := g.apiDelete(GhRepoPath(owner, repo) + "/releases/" + strconv.Itoa(releaseID))
 	return err
 }
 
 func (g *GitHubCore) UploadReleaseAsset(owner, repo string, releaseID int, name string, data []byte, contentType string) (json.RawMessage, error) {
-	uploadURL := "https://uploads.github.com" + ghRepoPath(owner, repo) + "/releases/" + strconv.Itoa(releaseID) + "/assets?name=" + name
+	uploadURL := "https://uploads.github.com" + GhRepoPath(owner, repo) + "/releases/" + strconv.Itoa(releaseID) + "/assets?name=" + name
 	body, status, _, err := g.doAPI("POST", uploadURL, data, map[string]string{"Content-Type": contentType})
 	if err != nil {
 		return nil, err
@@ -3238,23 +3238,23 @@ func (g *GitHubCore) UploadReleaseAsset(owner, repo string, releaseID int, name 
 }
 
 func (g *GitHubCore) ListReleaseAssets(owner, repo string, releaseID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo)+"/releases/"+strconv.Itoa(releaseID)+"/assets", nil)
+	return g.apiGet(GhRepoPath(owner, repo)+"/releases/"+strconv.Itoa(releaseID)+"/assets", nil)
 }
 
 func (g *GitHubCore) ListCommitComments(owner, repo, sha string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo)+"/commits/"+sha+"/comments", nil)
+	return g.apiGet(GhRepoPath(owner, repo)+"/commits/"+sha+"/comments", nil)
 }
 
 func (g *GitHubCore) CreateCommitComment(owner, repo, sha, body string) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo)+"/commits/"+sha+"/comments", map[string]any{"body": body})
+	return g.apiPost(GhRepoPath(owner, repo)+"/commits/"+sha+"/comments", map[string]any{"body": body})
 }
 
 func (g *GitHubCore) UpdateCommitComment(owner, repo string, commentID int, body string) (json.RawMessage, error) {
-	return g.apiPatch(ghRepoPath(owner, repo)+"/comments/"+strconv.Itoa(commentID), map[string]any{"body": body})
+	return g.apiPatch(GhRepoPath(owner, repo)+"/comments/"+strconv.Itoa(commentID), map[string]any{"body": body})
 }
 
 func (g *GitHubCore) DeleteCommitComment(owner, repo string, commentID int) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/comments/" + strconv.Itoa(commentID))
+	_, err := g.apiDelete(GhRepoPath(owner, repo) + "/comments/" + strconv.Itoa(commentID))
 	return err
 }
 
@@ -3308,7 +3308,7 @@ func (g *GitHubCore) RemoveTeamMember(org, teamSlug, username string) error {
 }
 
 func (g *GitHubCore) ListStargazers(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo)+"/stargazers", map[string]string{"per_page": "100"})
+	return g.apiGet(GhRepoPath(owner, repo)+"/stargazers", map[string]string{"per_page": "100"})
 }
 
 func (g *GitHubCore) StarRepo(owner, repo string) error {
@@ -3322,15 +3322,15 @@ func (g *GitHubCore) UnstarRepo(owner, repo string) error {
 }
 
 func (g *GitHubCore) ListWatchers(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo)+"/subscribers", map[string]string{"per_page": "100"})
+	return g.apiGet(GhRepoPath(owner, repo)+"/subscribers", map[string]string{"per_page": "100"})
 }
 
 func (g *GitHubCore) WatchRepo(owner, repo string) (json.RawMessage, error) {
-	return g.apiPut(ghRepoPath(owner, repo)+"/subscription", map[string]any{"subscribed": true})
+	return g.apiPut(GhRepoPath(owner, repo)+"/subscription", map[string]any{"subscribed": true})
 }
 
 func (g *GitHubCore) UnwatchRepo(owner, repo string) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/subscription")
+	_, err := g.apiDelete(GhRepoPath(owner, repo) + "/subscription")
 	return err
 }
 
@@ -3339,7 +3339,7 @@ func (g *GitHubCore) ListEvents(perPage int) (json.RawMessage, error) {
 }
 
 func (g *GitHubCore) ListRepoEvents(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo)+"/events", map[string]string{"per_page": "30"})
+	return g.apiGet(GhRepoPath(owner, repo)+"/events", map[string]string{"per_page": "30"})
 }
 
 func (g *GitHubCore) ListUserEvents(username string) (json.RawMessage, error) {
@@ -3475,49 +3475,49 @@ func (g *GitHubCore) CheckRateLimit() (json.RawMessage, error) {
 }
 
 func (g *GitHubCore) ListCollaborators(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo)+"/collaborators", nil)
+	return g.apiGet(GhRepoPath(owner, repo)+"/collaborators", nil)
 }
 
 func (g *GitHubCore) AddCollaborator(owner, repo, username string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPut(ghRepoPath(owner, repo)+"/collaborators/"+username, payload)
+	return g.apiPut(GhRepoPath(owner, repo)+"/collaborators/"+username, payload)
 }
 
 func (g *GitHubCore) RemoveCollaborator(owner, repo, username string) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/collaborators/" + username)
+	_, err := g.apiDelete(GhRepoPath(owner, repo) + "/collaborators/" + username)
 	return err
 }
 
 func (g *GitHubCore) CreatePRCommentReply(owner, repo string, prNumber, commentID int, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo)+"/pulls/"+strconv.Itoa(prNumber)+"/comments/"+strconv.Itoa(commentID)+"/replies", payload)
+	return g.apiPost(GhRepoPath(owner, repo)+"/pulls/"+strconv.Itoa(prNumber)+"/comments/"+strconv.Itoa(commentID)+"/replies", payload)
 }
 
 func (g *GitHubCore) GetRequestedReviewers(owner, repo string, prNumber int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo)+"/pulls/"+strconv.Itoa(prNumber)+"/requested_reviewers", nil)
+	return g.apiGet(GhRepoPath(owner, repo)+"/pulls/"+strconv.Itoa(prNumber)+"/requested_reviewers", nil)
 }
 
 func (g *GitHubCore) RemoveRequestedReviewers(owner, repo string, prNumber int, payload map[string]any) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/pulls/" + strconv.Itoa(prNumber) + "/requested_reviewers")
+	_, err := g.apiDelete(GhRepoPath(owner, repo) + "/pulls/" + strconv.Itoa(prNumber) + "/requested_reviewers")
 	return err
 }
 
 func (g *GitHubCore) ListPRReviewComments(owner, repo string, prNumber, reviewID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo)+"/pulls/"+strconv.Itoa(prNumber)+"/reviews/"+strconv.Itoa(reviewID)+"/comments", nil)
+	return g.apiGet(GhRepoPath(owner, repo)+"/pulls/"+strconv.Itoa(prNumber)+"/reviews/"+strconv.Itoa(reviewID)+"/comments", nil)
 }
 
 func (g *GitHubCore) ListRepoIssueEvents(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo)+"/issues/events", nil)
+	return g.apiGet(GhRepoPath(owner, repo)+"/issues/events", nil)
 }
 
 func (g *GitHubCore) GetIssueEvent(owner, repo string, eventID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo)+"/issues/events/"+strconv.Itoa(eventID), nil)
+	return g.apiGet(GhRepoPath(owner, repo)+"/issues/events/"+strconv.Itoa(eventID), nil)
 }
 
 func (g *GitHubCore) AddIssueAssignees(owner, repo string, issueNumber int, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo)+"/issues/"+strconv.Itoa(issueNumber)+"/assignees", payload)
+	return g.apiPost(GhRepoPath(owner, repo)+"/issues/"+strconv.Itoa(issueNumber)+"/assignees", payload)
 }
 
 func (g *GitHubCore) RemoveIssueAssignees(owner, repo string, issueNumber int, payload map[string]any) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/issues/" + strconv.Itoa(issueNumber) + "/assignees")
+	_, err := g.apiDelete(GhRepoPath(owner, repo) + "/issues/" + strconv.Itoa(issueNumber) + "/assignees")
 	return err
 }
 
@@ -3530,67 +3530,67 @@ func (g *GitHubCore) ListOrgIssues(org string) (json.RawMessage, error) {
 }
 
 func (g *GitHubCore) ListCommitCommentReactions(owner, repo string, commentID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo)+"/comments/"+strconv.Itoa(commentID)+"/reactions", nil)
+	return g.apiGet(GhRepoPath(owner, repo)+"/comments/"+strconv.Itoa(commentID)+"/reactions", nil)
 }
 
 func (g *GitHubCore) CreateCommitCommentReaction(owner, repo string, commentID int, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo)+"/comments/"+strconv.Itoa(commentID)+"/reactions", payload)
+	return g.apiPost(GhRepoPath(owner, repo)+"/comments/"+strconv.Itoa(commentID)+"/reactions", payload)
 }
 
 func (g *GitHubCore) DeleteCommitCommentReaction(owner, repo string, commentID, reactionID int) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/comments/" + strconv.Itoa(commentID) + "/reactions/" + strconv.Itoa(reactionID))
+	_, err := g.apiDelete(GhRepoPath(owner, repo) + "/comments/" + strconv.Itoa(commentID) + "/reactions/" + strconv.Itoa(reactionID))
 	return err
 }
 
 func (g *GitHubCore) ListIssueCommentReactions(owner, repo string, commentID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo)+"/issues/comments/"+strconv.Itoa(commentID)+"/reactions", nil)
+	return g.apiGet(GhRepoPath(owner, repo)+"/issues/comments/"+strconv.Itoa(commentID)+"/reactions", nil)
 }
 
 func (g *GitHubCore) CreateIssueCommentReaction(owner, repo string, commentID int, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo)+"/issues/comments/"+strconv.Itoa(commentID)+"/reactions", payload)
+	return g.apiPost(GhRepoPath(owner, repo)+"/issues/comments/"+strconv.Itoa(commentID)+"/reactions", payload)
 }
 
 func (g *GitHubCore) DeleteIssueCommentReaction(owner, repo string, commentID, reactionID int) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/issues/comments/" + strconv.Itoa(commentID) + "/reactions/" + strconv.Itoa(reactionID))
+	_, err := g.apiDelete(GhRepoPath(owner, repo) + "/issues/comments/" + strconv.Itoa(commentID) + "/reactions/" + strconv.Itoa(reactionID))
 	return err
 }
 
 func (g *GitHubCore) ListIssueReactions(owner, repo string, issueNumber int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo)+"/issues/"+strconv.Itoa(issueNumber)+"/reactions", nil)
+	return g.apiGet(GhRepoPath(owner, repo)+"/issues/"+strconv.Itoa(issueNumber)+"/reactions", nil)
 }
 
 func (g *GitHubCore) CreateIssueReaction(owner, repo string, issueNumber int, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo)+"/issues/"+strconv.Itoa(issueNumber)+"/reactions", payload)
+	return g.apiPost(GhRepoPath(owner, repo)+"/issues/"+strconv.Itoa(issueNumber)+"/reactions", payload)
 }
 
 func (g *GitHubCore) DeleteIssueReaction(owner, repo string, issueNumber, reactionID int) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/issues/" + strconv.Itoa(issueNumber) + "/reactions/" + strconv.Itoa(reactionID))
+	_, err := g.apiDelete(GhRepoPath(owner, repo) + "/issues/" + strconv.Itoa(issueNumber) + "/reactions/" + strconv.Itoa(reactionID))
 	return err
 }
 
 func (g *GitHubCore) ListPRCommentReactions(owner, repo string, commentID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo)+"/pulls/comments/"+strconv.Itoa(commentID)+"/reactions", nil)
+	return g.apiGet(GhRepoPath(owner, repo)+"/pulls/comments/"+strconv.Itoa(commentID)+"/reactions", nil)
 }
 
 func (g *GitHubCore) CreatePRCommentReaction(owner, repo string, commentID int, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo)+"/pulls/comments/"+strconv.Itoa(commentID)+"/reactions", payload)
+	return g.apiPost(GhRepoPath(owner, repo)+"/pulls/comments/"+strconv.Itoa(commentID)+"/reactions", payload)
 }
 
 func (g *GitHubCore) DeletePRCommentReaction(owner, repo string, commentID, reactionID int) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/pulls/comments/" + strconv.Itoa(commentID) + "/reactions/" + strconv.Itoa(reactionID))
+	_, err := g.apiDelete(GhRepoPath(owner, repo) + "/pulls/comments/" + strconv.Itoa(commentID) + "/reactions/" + strconv.Itoa(reactionID))
 	return err
 }
 
 func (g *GitHubCore) ListReleaseReactions(owner, repo string, releaseID int) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo)+"/releases/"+strconv.Itoa(releaseID)+"/reactions", nil)
+	return g.apiGet(GhRepoPath(owner, repo)+"/releases/"+strconv.Itoa(releaseID)+"/reactions", nil)
 }
 
 func (g *GitHubCore) CreateReleaseReaction(owner, repo string, releaseID int, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPost(ghRepoPath(owner, repo)+"/releases/"+strconv.Itoa(releaseID)+"/reactions", payload)
+	return g.apiPost(GhRepoPath(owner, repo)+"/releases/"+strconv.Itoa(releaseID)+"/reactions", payload)
 }
 
 func (g *GitHubCore) DeleteReleaseReaction(owner, repo string, releaseID, reactionID int) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/releases/" + strconv.Itoa(releaseID) + "/reactions/" + strconv.Itoa(reactionID))
+	_, err := g.apiDelete(GhRepoPath(owner, repo) + "/releases/" + strconv.Itoa(releaseID) + "/reactions/" + strconv.Itoa(reactionID))
 	return err
 }
 
@@ -3759,15 +3759,15 @@ func (g *GitHubCore) RemoveOrgInteractionLimits(org string) error {
 }
 
 func (g *GitHubCore) GetRepoInteractionLimits(owner, repo string) (json.RawMessage, error) {
-	return g.apiGet(ghRepoPath(owner, repo)+"/interaction-limits", nil)
+	return g.apiGet(GhRepoPath(owner, repo)+"/interaction-limits", nil)
 }
 
 func (g *GitHubCore) SetRepoInteractionLimits(owner, repo string, payload map[string]any) (json.RawMessage, error) {
-	return g.apiPut(ghRepoPath(owner, repo)+"/interaction-limits", payload)
+	return g.apiPut(GhRepoPath(owner, repo)+"/interaction-limits", payload)
 }
 
 func (g *GitHubCore) RemoveRepoInteractionLimits(owner, repo string) error {
-	_, err := g.apiDelete(ghRepoPath(owner, repo) + "/interaction-limits")
+	_, err := g.apiDelete(GhRepoPath(owner, repo) + "/interaction-limits")
 	return err
 }
 
@@ -3854,14 +3854,14 @@ func (g *GitHubCore) MuteChat(chatID string, muted bool) error {
 
 	switch {
 	case strings.HasPrefix(chatID, "repo:"):
-		owner, repo, err := g.parseRepoChat(chatID)
+		owner, repo, err := g.ParseRepoChat(chatID)
 		if err != nil {
 			return err
 		}
 		if muted {
-			_, err = g.apiPut(ghRepoPath(owner, repo)+"/subscription", map[string]any{"ignored": true})
+			_, err = g.apiPut(GhRepoPath(owner, repo)+"/subscription", map[string]any{"ignored": true})
 		} else {
-			_, err = g.apiPut(ghRepoPath(owner, repo)+"/subscription", map[string]any{"subscribed": true, "ignored": false})
+			_, err = g.apiPut(GhRepoPath(owner, repo)+"/subscription", map[string]any{"subscribed": true, "ignored": false})
 		}
 		return err
 
@@ -3885,20 +3885,20 @@ func (g *GitHubCore) ArchiveChat(chatID string, archived bool) error {
 
 	switch {
 	case strings.HasPrefix(chatID, "repo:"):
-		owner, repo, err := g.parseRepoChat(chatID)
+		owner, repo, err := g.ParseRepoChat(chatID)
 		if err != nil {
 			return err
 		}
-		_, err = g.apiPatch(ghRepoPath(owner, repo), map[string]any{"archived": archived})
+		_, err = g.apiPatch(GhRepoPath(owner, repo), map[string]any{"archived": archived})
 		return err
 
 	case strings.HasPrefix(chatID, "issue:"):
-		owner, repo, num := g.parseIssueChat(chatID)
+		owner, repo, num := g.ParseIssueChat(chatID)
 		state := "open"
 		if archived {
 			state = "closed"
 		}
-		_, err := g.apiPatch(ghRepoPath(owner, repo)+"/issues/"+num, map[string]any{"state": state})
+		_, err := g.apiPatch(GhRepoPath(owner, repo)+"/issues/"+num, map[string]any{"state": state})
 		return err
 
 	case strings.HasPrefix(chatID, "dm:"):
@@ -3913,7 +3913,7 @@ func (g *GitHubCore) ArchiveChat(chatID string, archived bool) error {
 		if archived {
 			state = "closed"
 		}
-		_, err := g.apiPatch(ghRepoPath(info.RepoOwner, info.RepoName)+"/issues/"+strconv.Itoa(info.IssueNum), map[string]any{"state": state})
+		_, err := g.apiPatch(GhRepoPath(info.RepoOwner, info.RepoName)+"/issues/"+strconv.Itoa(info.IssueNum), map[string]any{"state": state})
 		return err
 
 	default:
@@ -3952,11 +3952,11 @@ func (g *GitHubCore) UnpinAllMessages(chatID string) error {
 }
 
 func (g *GitHubCore) AcceptCall(callID string) (*CallSession, error) {
-	return nil, fmt.Errorf("%w: %s does not support accept call", ErrNotSupported, ghPlatform)
+	return nil, fmt.Errorf("%w: %s does not support accept call", ErrNotSupported, GhPlatform)
 }
 
 func (g *GitHubCore) DeclineCall(callID string) error {
-	return fmt.Errorf("%w: %s does not support decline call", ErrNotSupported, ghPlatform)
+	return fmt.Errorf("%w: %s does not support decline call", ErrNotSupported, GhPlatform)
 }
 
 func (g *GitHubCore) SendLocation(chatID string, lat float64, lon float64) (*Message, error) {

@@ -1,0 +1,267 @@
+package engine
+
+import (
+	"database/sql"
+	"sync"
+	"time"
+	"uniclient/audio"
+	"uniclient/cores"
+	"uniclient/utils"
+	"uniclient/voice"
+)
+
+func (x *Engine) ForTestDb() *sql.DB {
+	return x.db
+}
+
+func (x *AuthFlow) ForTestCollected() map[string]string {
+	return x.collected
+}
+
+func (x *Engine) ForTestMedia() *MediaManager {
+	return x.media
+}
+
+func (x *VoiceRecorder) ForTestGranule() []int64 {
+	return x.granule
+}
+
+func (x *oggPage) ForTestGranule() int64 {
+	return x.granule
+}
+
+func (x *httpImageCache) ForTestMu() *sync.Mutex {
+	return &x.mu
+}
+
+func (x *MediaManager) ForTestMu() *sync.Mutex {
+	return &x.mu
+}
+
+func (x *Engine) ForTestMu() *sync.RWMutex {
+	return &x.mu
+}
+
+func (x *giftCache) ForTestMu() *sync.Mutex {
+	return &x.mu
+}
+
+func (x *exportState) ForTestMu() *sync.Mutex {
+	return &x.mu
+}
+
+func (x *MediaPlayer) ForTestMu() *sync.Mutex {
+	return &x.mu
+}
+
+func (x *AuthFlow) ForTestMu() *sync.Mutex {
+	return &x.mu
+}
+
+func (x *suggestionDismiss) ForTestMu() *sync.Mutex {
+	return &x.mu
+}
+
+func (x *MediaStream) ForTestMu() *sync.Mutex {
+	return &x.mu
+}
+
+func (x *VoiceRecorder) ForTestMu() *sync.Mutex {
+	return &x.mu
+}
+
+func (x *avatarState) ForTestMu() *sync.Mutex {
+	return &x.mu
+}
+
+func (x *MediaPlayer) ForTestPcm() []int16 {
+	return x.pcm
+}
+
+func (x *MediaPlayer) ForTestGain() float64 {
+	return x.gain
+}
+
+func (x *Engine) ForTestAccounts() map[string]*Account {
+	return x.accounts
+}
+
+func (x *Engine) ForTestSponsoredMu() *sync.Mutex {
+	return &x.sponsoredMu
+}
+
+func (x *Engine) ForTestSponsoredCache() map[string]*sponsoredCacheEntry {
+	return x.sponsoredCache
+}
+
+func (x *httpImgFlight) ForTestDone() chan struct{} {
+	return x.done
+}
+
+func (x *MediaStream) ForTestDone() bool {
+	return x.done
+}
+
+func (x *VoiceRecorder) ForTestDone() chan struct{} {
+	return x.done
+}
+
+func (x *VoiceRecorder) ForTestPackets() [][]byte {
+	return x.packets
+}
+
+func (x *VoiceRecorder) ForTestLevel() float64 {
+	return x.level
+}
+
+func (x *Engine) ForTestConfig() *utils.AppConfig {
+	return x.config
+}
+
+func (x *MediaPlayer) ForTestSess() *audio.Session {
+	return x.sess
+}
+
+func (x *VoiceRecorder) ForTestSess() *audio.Session {
+	return x.sess
+}
+
+func (x *MediaManager) ForTestQueue() []*DownloadJob {
+	return x.queue
+}
+
+func (x *Engine) ForTestSetConfig(v *utils.AppConfig) {
+	x.config = v
+}
+
+func (x *Engine) ForTestSetMedia(v *MediaManager) {
+	x.media = v
+}
+
+func (x *MediaPlayer) ForTestSetSess(v *audio.Session) {
+	x.sess = v
+}
+
+func (x *VoiceRecorder) ForTestSetSess(v *audio.Session) {
+	x.sess = v
+}
+
+func (x *Engine) ForTestSetDownloadDir(v string) {
+	x.downloadDir = v
+}
+
+func (x *MediaPlayer) ForTestSetPos(v float64) {
+	x.pos = v
+}
+
+func (x *MediaPlayer) ForTestSetPlaying(v bool) {
+	x.playing = v
+}
+
+func (x *MediaPlayer) ForTestSetPaused(v bool) {
+	x.paused = v
+}
+
+func (x *Engine) ForTestSetAccounts(v map[string]*Account) {
+	x.accounts = v
+}
+
+func (x *giftCache) ForTestSetByAcct(v map[string]GiftCacheEntry) {
+	x.byAcct = v
+}
+
+func (x *Engine) ForTestSetVault(v *utils.Vault) {
+	x.vault = v
+}
+
+func (x *Engine) ForTestSetMediaDir(v string) {
+	x.mediaDir = v
+}
+
+func (x *voiceRunner) ForTestSetEnc(v *voice.Encoder) {
+	x.enc = v
+}
+
+func (x *VoiceRecorder) ForTestSetEnc(v *voice.Encoder) {
+	x.enc = v
+}
+
+func (x *VoiceRecorder) ForTestSetStarted(v time.Time) {
+	x.started = v
+}
+
+func (x *httpImgFlight) ForTestSetDone(v chan struct{}) {
+	x.done = v
+}
+
+func (x *MediaStream) ForTestSetDone(v bool) {
+	x.done = v
+}
+
+func (x *VoiceRecorder) ForTestSetDone(v chan struct{}) {
+	x.done = v
+}
+
+func (x *VoiceRecorder) ForTestSetPackets(v [][]byte) {
+	x.packets = v
+}
+
+func (x *sponsoredCacheEntry) ForTestSetFetchedAt(v time.Time) {
+	x.fetchedAt = v
+}
+
+func (x *MediaPlayer) ForTestFill(out []int16) {
+	x.fill(out)
+}
+
+func (x *VoiceVAD) ForTestGate(frame []byte) bool {
+	return x.gate(frame)
+}
+
+func (x *httpImageCache) ForTestStore(key string, data []byte) {
+	x.store(key, data)
+}
+
+func (x *VoiceVAD) ForTestNeedTerminator() bool {
+	return x.needTerminator()
+}
+
+func (x *VoiceRecorder) ForTestFeedFrame(frame []byte) error {
+	return x.feedFrame(frame)
+}
+
+func (x *httpImageCache) ForTestGet(key string) []byte {
+	return x.get(key)
+}
+
+func (x *Engine) ForTestOpenMediaStream(accountID, chatID, msgID string, seq int, src partSource) (*MediaStream, string, int64, error) {
+	return x.openMediaStream(accountID, chatID, msgID, seq, src)
+}
+
+func (x *httpImageCache) ForTestLen() int {
+	return x.len()
+}
+
+func (x *Engine) ForTestGetAccount(accountID string) (*Account, bool) {
+	return x.getAccount(accountID)
+}
+
+func (x *MediaStream) ForTestComplete() bool {
+	return x.complete()
+}
+
+func (x *MediaManager) ForTestExecuteDownload(job *DownloadJob) {
+	x.executeDownload(job)
+}
+
+func (x *Engine) ForTestSetAntiRecall(d, h, b bool) {
+	x.saveDeletedMessages, x.saveMessagesHistory, x.saveForBots = d, h, b
+}
+
+func ForTestNewAuthFlow(core cores.Core) *AuthFlow {
+	return &AuthFlow{collected: map[string]string{}, core: core}
+}
+
+func ForTestNewEngine(db *sql.DB, vault *utils.Vault, config *utils.AppConfig) *Engine {
+	return &Engine{db: db, vault: vault, config: config}
+}

@@ -12,20 +12,20 @@ import (
 
 const voiceVADThreshold = 0.004
 
-const voiceHangoverFrames = 5
+const VoiceHangoverFrames = 5
 
-type voiceVAD struct {
+type VoiceVAD struct {
 	wasVoiced  bool
 	hangover   int
 	terminator bool
 }
 
-func (v *voiceVAD) gate(frame []byte) bool {
+func (v *VoiceVAD) gate(frame []byte) bool {
 	voiced := frameRMS(frame) > voiceVADThreshold
 	switch {
 	case voiced:
 		v.wasVoiced = true
-		v.hangover = voiceHangoverFrames
+		v.hangover = VoiceHangoverFrames
 		v.terminator = false
 		return true
 	case v.hangover > 0:
@@ -40,7 +40,7 @@ func (v *voiceVAD) gate(frame []byte) bool {
 	}
 }
 
-func (v *voiceVAD) needTerminator() bool {
+func (v *VoiceVAD) needTerminator() bool {
 	if v.terminator {
 		v.terminator = false
 		return true
@@ -191,7 +191,7 @@ func (r *voiceRunner) stopInternal() {
 
 func (r *voiceRunner) micLoop(frames <-chan []byte) {
 	defer r.wg.Done()
-	var vad voiceVAD
+	var vad VoiceVAD
 	for {
 		select {
 		case <-r.stop:

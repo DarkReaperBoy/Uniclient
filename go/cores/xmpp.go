@@ -52,7 +52,7 @@ const (
 	nsClient     = "jabber:client"
 	nsTLS        = "urn:ietf:params:xml:ns:xmpp-tls"
 	nsSASL       = "urn:ietf:params:xml:ns:xmpp-sasl"
-	nsBind       = "urn:ietf:params:xml:ns:xmpp-bind"
+	NsBind       = "urn:ietf:params:xml:ns:xmpp-bind"
 	nsSession    = "urn:ietf:params:xml:ns:xmpp-session"
 	nsRoster     = "jabber:iq:roster"
 	nsDiscoInfo  = "http://jabber.org/protocol/disco#info"
@@ -190,7 +190,7 @@ type xmppParsedMessage struct {
 	ForwardedFrom  string
 }
 
-type xmppRosterItem struct {
+type XmppRosterItem struct {
 	JID          string   `xml:"jid,attr"`
 	Name         string   `xml:"name,attr,omitempty"`
 	Subscription string   `xml:"subscription,attr,omitempty"`
@@ -273,7 +273,7 @@ type XMPPCore struct {
 	uploadService string
 	uploadMaxSize int64
 
-	roster    map[string]*xmppRosterItem
+	roster    map[string]*XmppRosterItem
 	rosterMu  sync.RWMutex
 	rosterVer string
 
@@ -332,7 +332,7 @@ var _ Core = (*XMPPCore)(nil)
 func NewXMPPCore(session *utils.SessionStore) *XMPPCore {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &XMPPCore{
-		roster:     make(map[string]*xmppRosterItem),
+		roster:     make(map[string]*XmppRosterItem),
 		rooms:      make(map[string]*xmppRoom),
 		messages:   make(map[string][]*Message),
 		pinned:     make(map[string]map[string]bool),
@@ -631,12 +631,12 @@ func (c *XMPPCore) readStreamStart() error {
 			c.mu.Lock()
 			c.decoder = xml.NewDecoder(reader)
 			c.mu.Unlock()
-			return c.parseStreamFeatures(buf.String())
+			return c.ParseStreamFeatures(buf.String())
 		}
 	}
 }
 
-func (c *XMPPCore) parseStreamFeatures(data string) error {
+func (c *XMPPCore) ParseStreamFeatures(data string) error {
 	var featXML string
 	if idx := strings.Index(data, "<stream:features>"); idx >= 0 {
 		end := strings.Index(data, "</stream:features>")
@@ -681,7 +681,7 @@ func (c *XMPPCore) parseStreamFeatures(data string) error {
 		}
 	}
 
-	if strings.Contains(featXML, nsBind) {
+	if strings.Contains(featXML, NsBind) {
 		feats.Bind = &xml.Name{}
 	}
 
@@ -832,7 +832,7 @@ func (c *XMPPCore) authSASLPlain() error {
 }
 
 const (
-	saslElementMax = 16 << 10
+	SaslElementMax = 16 << 10
 	streamHeadMax  = 64 << 10
 	iqResponseMax  = 8 << 20
 	starttlsMax    = 4 << 10
@@ -841,7 +841,7 @@ const (
 	scramSaltMax   = 1024
 )
 
-func parseScramServerFirst(serverFirst, clientNonce string) (serverNonce string, salt []byte, iterations int, err error) {
+func ParseScramServerFirst(serverFirst, clientNonce string) (serverNonce string, salt []byte, iterations int, err error) {
 	params := parseSCRAMParams(serverFirst)
 	serverNonce = params["r"]
 	if !strings.HasPrefix(serverNonce, clientNonce) {
@@ -893,7 +893,7 @@ func (c *XMPPCore) authSASLScram(hashFunc func() hash.Hash, mechName string) err
 	}
 
 	serverFirst := string(challenge)
-	serverNonce, salt, iterations, err := parseScramServerFirst(serverFirst, clientNonce)
+	serverNonce, salt, iterations, err := ParseScramServerFirst(serverFirst, clientNonce)
 	if err != nil {
 		return err
 	}
@@ -941,7 +941,7 @@ func (c *XMPPCore) authSASLScram(hashFunc func() hash.Hash, mechName string) err
 	return c.readStreamStart()
 }
 
-func (c *XMPPCore) readSASLElement() (elemName, content string, err error) {
+func (c *XMPPCore) ReadSASLElement() (elemName, content string, err error) {
 	c.conn.SetReadDeadline(time.Now().Add(15 * time.Second))
 	defer c.conn.SetReadDeadline(time.Time{})
 
@@ -953,19 +953,19 @@ func (c *XMPPCore) readSASLElement() (elemName, content string, err error) {
 			return "", "", fmt.Errorf("sasl read: %w", readErr)
 		}
 		buf.WriteByte(b)
-		if buf.Len() > saslElementMax {
-			return "", "", fmt.Errorf("sasl element exceeds %d bytes", saslElementMax)
+		if buf.Len() > SaslElementMax {
+			return "", "", fmt.Errorf("sasl element exceeds %d bytes", SaslElementMax)
 		}
 		if b != '>' {
 			continue
 		}
-		if name, content, ok := saslElementMatch(buf.String()); ok {
+		if name, content, ok := SaslElementMatch(buf.String()); ok {
 			return name, content, nil
 		}
 	}
 }
 
-func saslElementMatch(data string) (name, content string, ok bool) {
+func SaslElementMatch(data string) (name, content string, ok bool) {
 	tags := [3]string{"challenge", "success", "failure"}
 	if strings.HasSuffix(data, "/>") {
 		if lt := strings.LastIndex(data, "<"); lt >= 0 {
@@ -1006,7 +1006,7 @@ func saslElementMatch(data string) (name, content string, ok bool) {
 }
 
 func (c *XMPPCore) readSASLChallenge() ([]byte, error) {
-	name, content, err := c.readSASLElement()
+	name, content, err := c.ReadSASLElement()
 	if err != nil {
 		return nil, err
 	}
@@ -1024,7 +1024,7 @@ func (c *XMPPCore) readSASLChallenge() ([]byte, error) {
 }
 
 func (c *XMPPCore) readSASLSuccess() (string, error) {
-	name, content, err := c.readSASLElement()
+	name, content, err := c.ReadSASLElement()
 	if err != nil {
 		return "", err
 	}
@@ -1038,7 +1038,7 @@ func (c *XMPPCore) readSASLSuccess() (string, error) {
 }
 
 func (c *XMPPCore) readSASLResult() error {
-	name, content, err := c.readSASLElement()
+	name, content, err := c.ReadSASLElement()
 	if err != nil {
 		return err
 	}
@@ -1094,7 +1094,7 @@ func (c *XMPPCore) bindResource() error {
 	id := c.nextIQID()
 	stanza := fmt.Sprintf(
 		`<iq type='set' id='%s'><bind xmlns='%s'><resource>%s</resource></bind></iq>`,
-		id, nsBind, xmlEscape(resource),
+		id, NsBind, xmlEscape(resource),
 	)
 	if err := c.sendRawStanza(stanza); err != nil {
 		return fmt.Errorf("bind send: %w", err)
@@ -1109,7 +1109,7 @@ func (c *XMPPCore) bindResource() error {
 		return fmt.Errorf("bind error: %s", resp)
 	}
 
-	jid := extractXMLContent(resp, "jid")
+	jid := ExtractXMLContent(resp, "jid")
 	if jid != "" {
 		c.mu.Lock()
 		c.jid = jid
@@ -1350,7 +1350,7 @@ func (c *XMPPCore) handleMessage(msg xmppMessage) {
 		if msgs, ok := c.messages[chatID]; ok {
 			for _, m := range msgs {
 				if m.ID == parsed.ReplaceID {
-					m.Text, m.Entities = applyStyling(parsed.Body)
+					m.Text, m.Entities = ApplyStyling(parsed.Body)
 					now := time.Now()
 					m.EditedAt = &now
 					c.messagesMu.Unlock()
@@ -1379,7 +1379,7 @@ func (c *XMPPCore) handleMessage(msg xmppMessage) {
 		}
 	}
 
-	styledText, styledEntities := applyStyling(parsed.Body)
+	styledText, styledEntities := ApplyStyling(parsed.Body)
 	ts := time.Now()
 	if parsed.Delay != nil {
 		ts = *parsed.Delay
@@ -1613,9 +1613,9 @@ func (c *XMPPCore) handleIQ(iq XMPPIQ) {
 	}
 }
 
-func xmppParseRoster(inner string) (items []xmppRosterItem, ver string, err error) {
+func XmppParseRoster(inner string) (items []XmppRosterItem, ver string, err error) {
 	type rosterQuery struct {
-		Items []xmppRosterItem `xml:"jabber:iq:roster query>item"`
+		Items []XmppRosterItem `xml:"jabber:iq:roster query>item"`
 		Ver   string           `xml:"jabber:iq:roster query>ver"`
 	}
 	var q rosterQuery
@@ -1628,7 +1628,7 @@ func xmppParseRoster(inner string) (items []xmppRosterItem, ver string, err erro
 func (c *XMPPCore) handleRosterPush(iq XMPPIQ) {
 	c.sendRawStanza("<iq type='result' id='" + xmlEscape(iq.ID) + "'/>")
 
-	items, ver, err := xmppParseRoster(iq.Inner)
+	items, ver, err := XmppParseRoster(iq.Inner)
 	if err != nil {
 		log.Printf("xmpp: roster push parse failed: %v", err)
 		return
@@ -2924,7 +2924,7 @@ func (c *XMPPCore) requestRoster() {
 		return
 	}
 
-	items, ver, err := xmppParseRoster(resp.Inner)
+	items, ver, err := XmppParseRoster(resp.Inner)
 	if err != nil {
 		log.Printf("xmpp: roster fetch parse failed: %v", err)
 		return
@@ -2941,11 +2941,11 @@ func (c *XMPPCore) requestRoster() {
 	c.rosterMu.Unlock()
 }
 
-func (c *XMPPCore) GetRoster() ([]xmppRosterItem, error) {
+func (c *XMPPCore) GetRoster() ([]XmppRosterItem, error) {
 	c.rosterMu.RLock()
 	defer c.rosterMu.RUnlock()
 
-	var items []xmppRosterItem
+	var items []XmppRosterItem
 	for _, item := range c.roster {
 		items = append(items, *item)
 	}
@@ -3260,7 +3260,7 @@ func (c *XMPPCore) GetMUCInfo(roomJID string) (*Dialog, error) {
 		Platform: xmppPlatform,
 	}
 
-	if name := extractXMLAttr(resp.Inner, "identity", "name"); name != "" {
+	if name := ExtractXMLAttr(resp.Inner, "identity", "name"); name != "" {
 		d.Title = name
 	}
 
@@ -3483,9 +3483,9 @@ func (c *XMPPCore) QueryIdentity(target string) (category, typ, name string, err
 	if err != nil {
 		return "", "", "", err
 	}
-	category = extractXMLAttr(resp.Inner, "identity", "category")
-	typ = extractXMLAttr(resp.Inner, "identity", "type")
-	name = extractXMLAttr(resp.Inner, "identity", "name")
+	category = ExtractXMLAttr(resp.Inner, "identity", "category")
+	typ = ExtractXMLAttr(resp.Inner, "identity", "type")
+	name = ExtractXMLAttr(resp.Inner, "identity", "name")
 	return
 }
 
@@ -3617,8 +3617,8 @@ func (c *XMPPCore) RequestHTTPUploadSlot(filename string, size int64, contentTyp
 		return "", "", err
 	}
 
-	putURL = extractXMLAttr(resp.Inner, "put", "url")
-	getURL = extractXMLAttr(resp.Inner, "get", "url")
+	putURL = ExtractXMLAttr(resp.Inner, "put", "url")
+	getURL = ExtractXMLAttr(resp.Inner, "get", "url")
 
 	if putURL == "" || getURL == "" {
 		return "", "", errors.New("upload slot missing URLs")
@@ -3635,7 +3635,7 @@ func (c *XMPPCore) UploadFileHTTP(putURL string, data []byte, contentType string
 	req.Header.Set("Content-Type", contentType)
 	req.ContentLength = int64(len(data))
 
-	resp, err := transferHTTPClient.Do(req)
+	resp, err := TransferHTTPClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("upload: %w", err)
 	}
@@ -3657,7 +3657,7 @@ func (c *XMPPCore) DownloadFileHTTP(url, dest string, progress func(recv, total 
 		return err
 	}
 
-	resp, err := transferHTTPClient.Do(req)
+	resp, err := TransferHTTPClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("download: %w", err)
 	}
@@ -3687,8 +3687,8 @@ func (c *XMPPCore) DownloadFileHTTP(url, dest string, progress func(recv, total 
 	for {
 		n, readErr := resp.Body.Read(buf)
 		if n > 0 {
-			if received+int64(n) > downloadCeiling {
-				return fmt.Errorf("%w: more than %d bytes", ErrFileTooLarge, downloadCeiling)
+			if received+int64(n) > DownloadCeiling {
+				return fmt.Errorf("%w: more than %d bytes", ErrFileTooLarge, DownloadCeiling)
 			}
 			if _, writeErr := f.Write(buf[:n]); writeErr != nil {
 				return writeErr
@@ -3918,7 +3918,7 @@ func (c *XMPPCore) GetAvatarPEP(jid string) ([]byte, error) {
 		return nil, err
 	}
 
-	data := extractXMLContent(resp.Inner, "data")
+	data := ExtractXMLContent(resp.Inner, "data")
 	if data == "" {
 		return nil, ErrNotFound
 	}
@@ -4277,25 +4277,25 @@ func (c *XMPPCore) QueryMAMPage(jid string, limit int, after string) ([]Message,
 	return c.QueryMAM(jid, limit, after)
 }
 
-func buildIBRStanza(id, username, password string) string {
+func BuildIBRStanza(id, username, password string) string {
 	return fmt.Sprintf(
 		`<iq type='set' id='%s'><query xmlns='%s'><username>%s</username><password>%s</password></query></iq>`,
 		xmlEscape(id), nsRegister, xmlEscape(username), xmlEscape(password),
 	)
 }
 
-type ibrFormField struct {
+type IbrFormField struct {
 	Var      string
 	Type     string
 	Value    string
 	Required bool
 }
 
-func buildIBRGetStanza(id string) string {
+func BuildIBRGetStanza(id string) string {
 	return fmt.Sprintf(`<iq type='get' id='%s'><query xmlns='%s'/></iq>`, xmlEscape(id), nsRegister)
 }
 
-func parseIBRForm(raw string) (fields []ibrFormField, ok bool) {
+func ParseIBRForm(raw string) (fields []IbrFormField, ok bool) {
 	xStart := -1
 	for _, marker := range []string{"<x xmlns='jabber:x:data'", `<x xmlns="jabber:x:data"`} {
 		if i := strings.Index(raw, marker); i >= 0 && (xStart < 0 || i < xStart) {
@@ -4328,17 +4328,17 @@ func parseIBRForm(raw string) (fields []ibrFormField, ok bool) {
 			body = rest[:selfClose]
 			rest = rest[selfClose+2:]
 		}
-		fld := ibrFormField{}
-		if v := extractXMLAttr(body, "field", "var"); v != "" {
+		fld := IbrFormField{}
+		if v := ExtractXMLAttr(body, "field", "var"); v != "" {
 			fld.Var = v
 		}
-		if v := extractXMLAttr(body, "field", "type"); v != "" {
+		if v := ExtractXMLAttr(body, "field", "type"); v != "" {
 			fld.Type = v
 		}
 		if strings.Contains(body, "<required") {
 			fld.Required = true
 		}
-		if val := extractXMLContent(body, "value"); val != "" {
+		if val := ExtractXMLContent(body, "value"); val != "" {
 			fld.Value = xmlUnescape(val)
 		}
 		if fld.Var != "" {
@@ -4348,7 +4348,7 @@ func parseIBRForm(raw string) (fields []ibrFormField, ok bool) {
 	return fields, len(fields) > 0
 }
 
-func buildIBRDataFormSubmit(id string, fields []ibrFormField, username, password string) string {
+func BuildIBRDataFormSubmit(id string, fields []IbrFormField, username, password string) string {
 	var b strings.Builder
 	b.WriteString(fmt.Sprintf(`<iq type='set' id='%s'><query xmlns='%s'><x xmlns='jabber:x:data' type='submit'>`, xmlEscape(id), nsRegister))
 	for _, f := range fields {
@@ -4367,7 +4367,7 @@ func buildIBRDataFormSubmit(id string, fields []ibrFormField, username, password
 	return b.String()
 }
 
-func parseIBRResponse(raw string) error {
+func ParseIBRResponse(raw string) error {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return errors.New("ibr: empty response")
@@ -4401,7 +4401,7 @@ func parseIBRResponse(raw string) error {
 	if !strings.Contains(raw, nsRegister) {
 		return fmt.Errorf("ibr: unexpected result payload: %.200s", raw)
 	}
-	if u := extractXMLContent(raw, "url"); u != "" && !strings.Contains(raw, "<username>") {
+	if u := ExtractXMLContent(raw, "url"); u != "" && !strings.Contains(raw, "<username>") {
 		return fmt.Errorf("ibr: server requires web registration at %s (out-of-band)", xmlUnescape(u))
 	}
 	return nil
@@ -4417,7 +4417,7 @@ func (c *XMPPCore) registerPreAuth() error {
 	}
 	_ = advertised
 
-	if err := c.sendRawStanza(buildIBRGetStanza(c.nextIQID())); err != nil {
+	if err := c.sendRawStanza(BuildIBRGetStanza(c.nextIQID())); err != nil {
 		return fmt.Errorf("ibr get send: %w", err)
 	}
 	formResp, err := c.readRawIQResponse()
@@ -4425,14 +4425,14 @@ func (c *XMPPCore) registerPreAuth() error {
 		return fmt.Errorf("ibr get: %w", err)
 	}
 	if strings.Contains(formResp, "type='error'") || strings.Contains(formResp, `type="error"`) {
-		return parseIBRResponse(formResp)
+		return ParseIBRResponse(formResp)
 	}
 
 	var stanza string
-	if fields, hasForm := parseIBRForm(formResp); hasForm {
-		stanza = buildIBRDataFormSubmit(c.nextIQID(), fields, local, c.password)
+	if fields, hasForm := ParseIBRForm(formResp); hasForm {
+		stanza = BuildIBRDataFormSubmit(c.nextIQID(), fields, local, c.password)
 	} else {
-		stanza = buildIBRStanza(c.nextIQID(), local, c.password)
+		stanza = BuildIBRStanza(c.nextIQID(), local, c.password)
 	}
 	if err := c.sendRawStanza(stanza); err != nil {
 		return fmt.Errorf("ibr send: %w", err)
@@ -4441,7 +4441,7 @@ func (c *XMPPCore) registerPreAuth() error {
 	if err != nil {
 		return fmt.Errorf("ibr: %w", err)
 	}
-	return parseIBRResponse(resp)
+	return ParseIBRResponse(resp)
 }
 
 func (c *XMPPCore) RegisterAccount(server, username, password string) error {
@@ -4531,9 +4531,9 @@ func (c *XMPPCore) GetSoftwareVersion(jid string) (name, version, os string, err
 		return "", "", "", err
 	}
 
-	name = extractXMLContent(resp.Inner, "name")
-	version = extractXMLContent(resp.Inner, "version")
-	os = extractXMLContent(resp.Inner, "os")
+	name = ExtractXMLContent(resp.Inner, "name")
+	version = ExtractXMLContent(resp.Inner, "version")
+	os = ExtractXMLContent(resp.Inner, "os")
 	return
 }
 
@@ -4544,7 +4544,7 @@ func (c *XMPPCore) GetLastActivity(jid string) (int64, error) {
 		return 0, err
 	}
 
-	secsStr := extractXMLAttr(resp.Inner, "query", "seconds")
+	secsStr := ExtractXMLAttr(resp.Inner, "query", "seconds")
 	secs, _ := strconv.ParseInt(secsStr, 10, 64)
 	return secs, nil
 }
@@ -4556,8 +4556,8 @@ func (c *XMPPCore) GetEntityTime(jid string) (utc, tzo string, err error) {
 		return "", "", err
 	}
 
-	utc = extractXMLContent(resp.Inner, "utc")
-	tzo = extractXMLContent(resp.Inner, "tzo")
+	utc = ExtractXMLContent(resp.Inner, "utc")
+	tzo = ExtractXMLContent(resp.Inner, "tzo")
 	return
 }
 
@@ -4662,12 +4662,12 @@ func (c *XMPPCore) GetTURNCredentials() ([]map[string]string, error) {
 func (c *XMPPCore) parseMessageInner(inner string) *xmppParsedMessage {
 	p := &xmppParsedMessage{}
 
-	p.Body = extractXMLContent(inner, "body")
-	p.Subject = extractXMLContent(inner, "subject")
-	p.Thread = extractXMLContent(inner, "thread")
+	p.Body = ExtractXMLContent(inner, "body")
+	p.Subject = ExtractXMLContent(inner, "subject")
+	p.Thread = ExtractXMLContent(inner, "thread")
 
 	if strings.Contains(inner, nsDelay) {
-		stamp := extractXMLAttr(inner, "delay", "stamp")
+		stamp := ExtractXMLAttr(inner, "delay", "stamp")
 		if stamp != "" {
 			if t, err := time.Parse("2006-01-02T15:04:05Z", stamp); err == nil {
 				p.Delay = &t
@@ -4675,11 +4675,11 @@ func (c *XMPPCore) parseMessageInner(inner string) *xmppParsedMessage {
 				p.Delay = &t
 			}
 		}
-		p.DelayFrom = extractXMLAttr(inner, "delay", "from")
+		p.DelayFrom = ExtractXMLAttr(inner, "delay", "from")
 	}
 
 	if strings.Contains(inner, nsOOB) {
-		p.OOB = extractXMLContent(inner, "url")
+		p.OOB = ExtractXMLContent(inner, "url")
 	}
 
 	if strings.Contains(inner, nsReceipts) {
@@ -4687,7 +4687,7 @@ func (c *XMPPCore) parseMessageInner(inner string) *xmppParsedMessage {
 			p.ReceiptRequest = true
 		}
 		if strings.Contains(inner, "<received") {
-			p.ReceiptFor = extractXMLAttr(inner, "received", "id")
+			p.ReceiptFor = ExtractXMLAttr(inner, "received", "id")
 		}
 	}
 
@@ -4701,29 +4701,29 @@ func (c *XMPPCore) parseMessageInner(inner string) *xmppParsedMessage {
 	}
 
 	if strings.Contains(inner, nsCorrect) {
-		p.ReplaceID = extractXMLAttr(inner, "replace", "id")
+		p.ReplaceID = ExtractXMLAttr(inner, "replace", "id")
 	}
 
 	if strings.Contains(inner, nsMarkers) {
-		p.DisplayedID = extractXMLAttr(inner, "displayed", "id")
-		p.ReceivedID = extractXMLAttr(inner, "received", "id")
+		p.DisplayedID = ExtractXMLAttr(inner, "displayed", "id")
+		p.ReceivedID = ExtractXMLAttr(inner, "received", "id")
 	}
 
 	if strings.Contains(inner, nsReply) {
-		p.ReplyTo = extractXMLAttr(inner, "reply", "to")
-		p.ReplyID = extractXMLAttr(inner, "reply", "id")
+		p.ReplyTo = ExtractXMLAttr(inner, "reply", "to")
+		p.ReplyID = ExtractXMLAttr(inner, "reply", "id")
 	}
 
 	if strings.Contains(inner, nsReactions) {
-		p.ReactionsID = extractXMLAttr(inner, "reactions", "id")
+		p.ReactionsID = ExtractXMLAttr(inner, "reactions", "id")
 		p.Reactions = extractXMLContents(inner, "reaction")
 	}
 
 	if strings.Contains(inner, nsDirectMUC) {
-		p.MUCInviteRoom = extractXMLAttr(inner, "x", "jid")
+		p.MUCInviteRoom = ExtractXMLAttr(inner, "x", "jid")
 		p.MUCInviteFrom = "direct"
 	} else if strings.Contains(inner, nsMUCUser) && strings.Contains(inner, "<invite") {
-		p.MUCInviteRoom = extractXMLAttr(inner, "invite", "from")
+		p.MUCInviteRoom = ExtractXMLAttr(inner, "invite", "from")
 		p.MUCInviteFrom = "mediated"
 	}
 
@@ -4742,8 +4742,8 @@ func (c *XMPPCore) parseMessageInner(inner string) *xmppParsedMessage {
 	}
 
 	if strings.Contains(inner, nsMAM) {
-		p.MAMID = extractXMLAttr(inner, "result", "id")
-		p.MAMQueryID = extractXMLAttr(inner, "result", "queryid")
+		p.MAMID = ExtractXMLAttr(inner, "result", "id")
+		p.MAMQueryID = ExtractXMLAttr(inner, "result", "queryid")
 		if strings.Contains(inner, nsForward) {
 			fwdInner := extractXMLBlock(inner, "message")
 			if fwdInner != "" {
@@ -4907,7 +4907,7 @@ func xmlUnescape(s string) string {
 	return r.Replace(s)
 }
 
-func extractXMLContent(xmlStr, elemName string) string {
+func ExtractXMLContent(xmlStr, elemName string) string {
 	start := "<" + elemName
 	end := "</" + elemName + ">"
 
@@ -4935,7 +4935,7 @@ func extractXMLContents(xmlStr, elemName string) []string {
 	var results []string
 	remaining := xmlStr
 	for {
-		content := extractXMLContent(remaining, elemName)
+		content := ExtractXMLContent(remaining, elemName)
 		if content == "" {
 			break
 		}
@@ -4950,7 +4950,7 @@ func extractXMLContents(xmlStr, elemName string) []string {
 	return results
 }
 
-func extractXMLAttr(xmlStr, elemName, attrName string) string {
+func ExtractXMLAttr(xmlStr, elemName, attrName string) string {
 	start := "<" + elemName
 	idx := strings.Index(xmlStr, start)
 	if idx < 0 {
@@ -5001,7 +5001,7 @@ func parseJIDsFromInner(inner, elemName string) []string {
 	var jids []string
 	remaining := inner
 	for {
-		jid := extractXMLAttr(remaining, elemName, "jid")
+		jid := ExtractXMLAttr(remaining, elemName, "jid")
 		if jid == "" {
 			break
 		}
@@ -5024,15 +5024,15 @@ func parseJIDsFromInner(inner, elemName string) []string {
 }
 
 func parsePresenceShowStatus(inner string) (show, status string) {
-	show = extractXMLContent(inner, "show")
-	status = extractXMLContent(inner, "status")
+	show = ExtractXMLContent(inner, "show")
+	status = ExtractXMLContent(inner, "status")
 	return
 }
 
 func parseMUCUserItem(inner string) (role, affiliation, realJID string) {
-	role = extractXMLAttr(inner, "item", "role")
-	affiliation = extractXMLAttr(inner, "item", "affiliation")
-	realJID = extractXMLAttr(inner, "item", "jid")
+	role = ExtractXMLAttr(inner, "item", "role")
+	affiliation = ExtractXMLAttr(inner, "item", "affiliation")
+	realJID = ExtractXMLAttr(inner, "item", "jid")
 	return
 }
 
@@ -5040,7 +5040,7 @@ func parseDiscoFeatures(inner string) []string {
 	var features []string
 	remaining := inner
 	for {
-		feat := extractXMLAttr(remaining, "feature", "var")
+		feat := ExtractXMLAttr(remaining, "feature", "var")
 		if feat == "" {
 			break
 		}
@@ -5058,7 +5058,7 @@ func parseDiscoItems(inner string) []string {
 	var items []string
 	remaining := inner
 	for {
-		jid := extractXMLAttr(remaining, "item", "jid")
+		jid := ExtractXMLAttr(remaining, "item", "jid")
 		if jid == "" {
 			break
 		}
@@ -5076,7 +5076,7 @@ func parseXDataForm(inner string) map[string]string {
 	fields := make(map[string]string)
 	remaining := inner
 	for {
-		varName := extractXMLAttr(remaining, "field", "var")
+		varName := ExtractXMLAttr(remaining, "field", "var")
 		if varName == "" {
 			break
 		}
@@ -5085,7 +5085,7 @@ func parseXDataForm(inner string) map[string]string {
 			break
 		}
 		rest := remaining[fieldStart:]
-		value := extractXMLContent(rest, "value")
+		value := ExtractXMLContent(rest, "value")
 		fields[varName] = value
 		remaining = rest[len(varName):]
 	}
@@ -5093,7 +5093,7 @@ func parseXDataForm(inner string) map[string]string {
 }
 
 func parseUploadMaxSize(inner string) int64 {
-	sizeStr := extractXMLContent(inner, "value")
+	sizeStr := ExtractXMLContent(inner, "value")
 	if sizeStr != "" {
 		if size, err := strconv.ParseInt(sizeStr, 10, 64); err == nil {
 			return size
@@ -5104,14 +5104,14 @@ func parseUploadMaxSize(inner string) int64 {
 
 func parseVCard(inner string) map[string]string {
 	fields := make(map[string]string)
-	fields["FN"] = extractXMLContent(inner, "FN")
-	fields["NICKNAME"] = extractXMLContent(inner, "NICKNAME")
-	fields["URL"] = extractXMLContent(inner, "URL")
-	fields["DESC"] = extractXMLContent(inner, "DESC")
-	fields["EMAIL"] = extractXMLContent(inner, "USERID")
-	fields["TEL"] = extractXMLContent(inner, "NUMBER")
-	fields["PHOTO_TYPE"] = extractXMLContent(inner, "TYPE")
-	fields["PHOTO_BINVAL"] = extractXMLContent(inner, "BINVAL")
+	fields["FN"] = ExtractXMLContent(inner, "FN")
+	fields["NICKNAME"] = ExtractXMLContent(inner, "NICKNAME")
+	fields["URL"] = ExtractXMLContent(inner, "URL")
+	fields["DESC"] = ExtractXMLContent(inner, "DESC")
+	fields["EMAIL"] = ExtractXMLContent(inner, "USERID")
+	fields["TEL"] = ExtractXMLContent(inner, "NUMBER")
+	fields["PHOTO_TYPE"] = ExtractXMLContent(inner, "TYPE")
+	fields["PHOTO_BINVAL"] = ExtractXMLContent(inner, "BINVAL")
 	return fields
 }
 
@@ -5119,19 +5119,19 @@ func parseBookmarks(inner string) []xmppBookmark {
 	var bms []xmppBookmark
 	remaining := inner
 	for {
-		jid := extractXMLAttr(remaining, "conference", "jid")
+		jid := ExtractXMLAttr(remaining, "conference", "jid")
 		if jid == "" {
 			break
 		}
 		bm := xmppBookmark{
 			JID:      jid,
-			Name:     extractXMLAttr(remaining, "conference", "name"),
-			AutoJoin: extractXMLAttr(remaining, "conference", "autojoin") == "true",
+			Name:     ExtractXMLAttr(remaining, "conference", "name"),
+			AutoJoin: ExtractXMLAttr(remaining, "conference", "autojoin") == "true",
 		}
 		confIdx := strings.Index(remaining, jid)
 		if confIdx >= 0 {
 			rest := remaining[confIdx:]
-			bm.Nick = extractXMLContent(rest, "nick")
+			bm.Nick = ExtractXMLContent(rest, "nick")
 		}
 		bms = append(bms, bm)
 
@@ -5152,17 +5152,17 @@ func parseExternalServices(inner string) []map[string]string {
 	var services []map[string]string
 	remaining := inner
 	for {
-		host := extractXMLAttr(remaining, "service", "host")
+		host := ExtractXMLAttr(remaining, "service", "host")
 		if host == "" {
 			break
 		}
 		svc := map[string]string{
 			"host":      host,
-			"port":      extractXMLAttr(remaining, "service", "port"),
-			"type":      extractXMLAttr(remaining, "service", "type"),
-			"transport": extractXMLAttr(remaining, "service", "transport"),
-			"username":  extractXMLAttr(remaining, "service", "username"),
-			"password":  extractXMLAttr(remaining, "service", "password"),
+			"port":      ExtractXMLAttr(remaining, "service", "port"),
+			"type":      ExtractXMLAttr(remaining, "service", "type"),
+			"transport": ExtractXMLAttr(remaining, "service", "transport"),
+			"username":  ExtractXMLAttr(remaining, "service", "username"),
+			"password":  ExtractXMLAttr(remaining, "service", "password"),
 		}
 		services = append(services, svc)
 
@@ -6149,12 +6149,12 @@ func (c *XMPPCore) NegotiateChannelBinding(bindingType string) string {
 
 func (c *XMPPCore) DiscoverAlternativeConnections(domain string) (wsURL, boshURL string, err error) {
 	url := "https://" + domain + "/.well-known/host-meta"
-	resp, err := apiHTTPClient.Get(url)
+	resp, err := ApiHTTPClient.Get(url)
 	if err != nil {
 		return "", "", fmt.Errorf("fetch host-meta: %w", err)
 	}
 	defer resp.Body.Close()
-	body, err := readBodyCapped(resp.Body, apiBodyCeiling)
+	body, err := ReadBodyCapped(resp.Body, ApiBodyCeiling)
 	if err != nil {
 		return "", "", fmt.Errorf("read host-meta: %w", err)
 	}
@@ -6246,12 +6246,12 @@ func (c *XMPPCore) ConnectBOSH(boshURL, domain string) (string, error) {
 			`rid='%d' `+
 			`content='text/xml; charset=utf-8'/>`,
 		xmlEscape(domain), time.Now().UnixNano()%1000000)
-	resp, err := apiHTTPClient.Post(boshURL, "text/xml; charset=utf-8", strings.NewReader(body))
+	resp, err := ApiHTTPClient.Post(boshURL, "text/xml; charset=utf-8", strings.NewReader(body))
 	if err != nil {
 		return "", fmt.Errorf("bosh init: %w", err)
 	}
 	defer resp.Body.Close()
-	respBody, err := readBodyCapped(resp.Body, apiBodyCeiling)
+	respBody, err := ReadBodyCapped(resp.Body, ApiBodyCeiling)
 	if err != nil {
 		return "", fmt.Errorf("bosh read: %w", err)
 	}
@@ -6293,13 +6293,13 @@ func (c *XMPPCore) InstantStreamResumption(token string) error {
 
 func (c *XMPPCore) DiscoverHostMeta2(domain string) (map[string]string, error) {
 	url := fmt.Sprintf("https://%s/.well-known/host-meta.json", domain)
-	resp, err := apiHTTPClient.Get(url)
+	resp, err := ApiHTTPClient.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("xmpp: host-meta2: %w", err)
 	}
 	defer resp.Body.Close()
 	var result map[string]interface{}
-	if err := decodeJSONBody(resp.Body, &result); err != nil {
+	if err := DecodeJSONBody(resp.Body, &result); err != nil {
 		return nil, fmt.Errorf("xmpp: host-meta2 parse: %w", err)
 	}
 	links := make(map[string]string)
@@ -6395,7 +6395,7 @@ func ParseMessageStyling(text string) []map[string]string {
 	return spans
 }
 
-func applyStyling(text string) (string, []TextEntity) {
+func ApplyStyling(text string) (string, []TextEntity) {
 	spans := ParseMessageStyling(text)
 	if len(spans) == 0 {
 		return text, nil

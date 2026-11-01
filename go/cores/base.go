@@ -928,9 +928,9 @@ type MediaAlbumSender interface {
 	SendMediaAlbum(chatID string, items []AlbumItem, silent bool, scheduleDate int64) ([]*Message, error)
 }
 
-var downloadCeiling int64 = 512 * 1024 * 1024
+var DownloadCeiling int64 = 512 * 1024 * 1024
 
-func boundedCopy(dst io.Writer, src io.Reader, max int64) (int64, error) {
+func BoundedCopy(dst io.Writer, src io.Reader, max int64) (int64, error) {
 	n, err := io.Copy(dst, io.LimitReader(src, max+1))
 	if n > max {
 		return n, fmt.Errorf("%w: more than %d bytes", ErrFileTooLarge, max)
@@ -938,11 +938,11 @@ func boundedCopy(dst io.Writer, src io.Reader, max int64) (int64, error) {
 	return n, err
 }
 
-var apiBodyCeiling int64 = 64 << 20
+var ApiBodyCeiling int64 = 64 << 20
 
 var ErrBodyTooLarge = errors.New("response body exceeds ceiling")
 
-func readBodyCapped(r io.Reader, max int64) ([]byte, error) {
+func ReadBodyCapped(r io.Reader, max int64) ([]byte, error) {
 	data, err := io.ReadAll(io.LimitReader(r, max+1))
 	if err != nil {
 		return nil, err
@@ -953,17 +953,17 @@ func readBodyCapped(r io.Reader, max int64) ([]byte, error) {
 	return data, nil
 }
 
-func decodeJSONBody(r io.Reader, v any) error {
-	data, err := readBodyCapped(r, apiBodyCeiling)
+func DecodeJSONBody(r io.Reader, v any) error {
+	data, err := ReadBodyCapped(r, ApiBodyCeiling)
 	if err != nil {
 		return err
 	}
 	return json.Unmarshal(data, v)
 }
 
-var apiHTTPClient = &http.Client{Timeout: 30 * time.Second}
+var ApiHTTPClient = &http.Client{Timeout: 30 * time.Second}
 
-var transferHTTPClient = &http.Client{
+var TransferHTTPClient = &http.Client{
 	Transport: newTransferTransport(),
 }
 

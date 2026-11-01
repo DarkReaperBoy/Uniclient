@@ -9,7 +9,7 @@ import (
 
 const streamPartLimit = 1 << 20
 
-func (t *TelegramCore) fileLocationOf(fileRef FileRef) (tg.InputFileLocationClass, error) {
+func (t *TelegramCore) FileLocationOf(fileRef FileRef) (tg.InputFileLocationClass, error) {
 	fileID, err := tgUserID(fileRef.ID)
 	if err != nil {
 		return nil, err
@@ -17,10 +17,10 @@ func (t *TelegramCore) fileLocationOf(fileRef FileRef) (tg.InputFileLocationClas
 	if fileID == 0 {
 		return nil, fmt.Errorf("%w: empty file ID", ErrInvalidInput)
 	}
-	accessHash := t.getCachedFileHash(fileID)
+	accessHash := t.GetCachedFileHash(fileID)
 	fileReference := t.getCachedFileRef(fileID)
 	if accessHash == 0 && fileRef.Extra != "" {
-		accessHash, fileReference = decodeFileExtra(fileRef.Extra)
+		accessHash, fileReference = DecodeFileExtra(fileRef.Extra)
 		if accessHash != 0 {
 			t.cacheFileInfo(fileID, accessHash, fileReference)
 		}
@@ -50,11 +50,11 @@ func (t *TelegramCore) ReadFilePart(fileRef FileRef, offset, limit int64) ([]byt
 	if limit > streamPartLimit {
 		limit = streamPartLimit
 	}
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
-	loc, err := t.fileLocationOf(fileRef)
+	loc, err := t.FileLocationOf(fileRef)
 	if err != nil {
 		return nil, err
 	}

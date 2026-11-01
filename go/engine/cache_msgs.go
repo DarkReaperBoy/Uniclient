@@ -112,7 +112,7 @@ func (e *Engine) GetMessageTimestamp(accountID, chatID, msgID string) (int64, er
 	if msg == nil {
 		return 0, fmt.Errorf("message %s not found", msgID)
 	}
-	cm := e.cacheMessage(accountID, chatID, msg)
+	cm := e.CacheMessage(accountID, chatID, msg)
 	return cm.Timestamp, nil
 }
 
@@ -195,10 +195,10 @@ func (e *Engine) GetMessages(accountID, chatID string, beforeMs, afterMs int64, 
 				log.Printf("[engine] GetMessages(%s, %s): got %d live messages, caching...", accountID, chatID, len(live))
 				result := make([]CachedMessage, 0, len(live))
 				for _, m := range live {
-					cached := e.cacheMessage(accountID, chatID, &m)
+					cached := e.CacheMessage(accountID, chatID, &m)
 					result = append(result, cached)
 				}
-				result = e.dropShadowBanned(accountID, chatID, result)
+				result = e.DropShadowBanned(accountID, chatID, result)
 				e.populateTranscriptions(accountID, chatID, result)
 				return e.applyAyuFilters(result), nil
 			} else {
@@ -229,7 +229,7 @@ func (e *Engine) SearchSavedMessagesByReaction(accountID, chatID, savedPeerID st
 	}
 	result := make([]CachedMessage, 0, len(msgs))
 	for i := range msgs {
-		result = append(result, e.cacheMessage(accountID, chatID, &msgs[i]))
+		result = append(result, e.CacheMessage(accountID, chatID, &msgs[i]))
 	}
 	return result, nil
 }
@@ -272,7 +272,7 @@ func (e *Engine) GetPinnedMessages(accountID, chatID string) ([]CachedMessage, e
 	}
 	result := make([]CachedMessage, 0, len(live))
 	for _, m := range live {
-		c := e.cacheMessage(accountID, chatID, &m)
+		c := e.CacheMessage(accountID, chatID, &m)
 		result = append(result, c)
 	}
 	return result, nil
@@ -357,7 +357,7 @@ func (e *Engine) updateMessageReactions(accountID, chatID, msgID string, reactio
 	})
 }
 
-func (e *Engine) mergePollResults(accountID, chatID, msgID string, extra map[string]interface{}) {
+func (e *Engine) MergePollResults(accountID, chatID, msgID string, extra map[string]interface{}) {
 	if msgID == "" || len(extra) == 0 {
 		return
 	}
@@ -482,7 +482,7 @@ func reactionKey(r cores.Reaction) string {
 	return r.Emoji
 }
 
-func toggleReaction(list []cores.Reaction, emoji string) []cores.Reaction {
+func ToggleReaction(list []cores.Reaction, emoji string) []cores.Reaction {
 	for i := range list {
 		if reactionKey(list[i]) != emoji {
 			continue
@@ -527,7 +527,7 @@ func (e *Engine) cachedReactions(accountID, chatID, msgID string) []cores.Reacti
 }
 
 func (e *Engine) applyOwnReaction(accountID, chatID, msgID, emoji string) {
-	next := toggleReaction(e.cachedReactions(accountID, chatID, msgID), emoji)
+	next := ToggleReaction(e.cachedReactions(accountID, chatID, msgID), emoji)
 	e.updateMessageReactions(accountID, chatID, msgID, next)
 }
 
@@ -645,7 +645,7 @@ func (e *Engine) populateSenderNoForwards(accountID string, msgs []CachedMessage
 	}
 }
 
-func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) CachedMessage {
+func (e *Engine) CacheMessage(accountID, chatID string, msg *cores.Message) CachedMessage {
 	now := time.Now().UnixMilli()
 	var ts int64
 	if msg.Timestamp.IsZero() {
@@ -757,7 +757,7 @@ func (e *Engine) cacheMessage(accountID, chatID string, msg *cores.Message) Cach
 	}
 
 	for i, att := range msg.Attachments {
-		e.cacheMediaRef(accountID, chatID, msg.ID, i, att)
+		e.CacheMediaRef(accountID, chatID, msg.ID, i, att)
 	}
 
 	cached := CachedMessage{
@@ -865,7 +865,7 @@ func (e *Engine) GetMessageRaw(accountID, chatID, msgID string) ([]byte, error) 
 	return raw, err
 }
 
-func (e *Engine) cacheMediaRef(accountID, chatID, msgID string, seq int, att cores.FileRef) {
+func (e *Engine) CacheMediaRef(accountID, chatID, msgID string, seq int, att cores.FileRef) {
 	mediaType := guessMediaType(att.MimeType, att.Name)
 
 	var durationMs sql.NullInt64
@@ -934,7 +934,7 @@ func (e *Engine) GetSharedMedia(accountID, chatID, mediaType string, limit, offs
 		offset = 0
 	}
 
-	typeFilter := sharedMediaTypeFilter(mediaType)
+	typeFilter := SharedMediaTypeFilter(mediaType)
 
 	var queryFilter string
 	args := []interface{}{accountID, chatID}
@@ -2948,7 +2948,7 @@ func (e *Engine) FetchPeerStories(accountID, peerID string) (string, error) {
 		return storiesJSON, nil
 	}
 
-	dir := filepath.Join(e.mediaDir, safePathSegment(accountID), "stories")
+	dir := filepath.Join(e.mediaDir, SafePathSegment(accountID), "stories")
 	os.MkdirAll(dir, 0o755)
 
 	type storyFull map[string]interface{}
@@ -3239,7 +3239,7 @@ func (e *Engine) GetDeletedMessages(accountID, chatID string, search string, off
 	return msgs, nil
 }
 
-func sharedMediaTypeFilter(mediaType string) string {
+func SharedMediaTypeFilter(mediaType string) string {
 	switch mediaType {
 	case "image":
 		return fmt.Sprintf("AND m.media_type IN (%d, %d, %d)", MediaImage, MediaGIF, MediaSticker)

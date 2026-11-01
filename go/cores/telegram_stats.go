@@ -32,7 +32,7 @@ type ChannelStats struct {
 	Graphs []StatsGraphData `json:"graphs"`
 }
 
-func statsGraphJSON(g tg.StatsGraphClass) (json, token string) {
+func StatsGraphJSON(g tg.StatsGraphClass) (json, token string) {
 	switch v := g.(type) {
 	case *tg.StatsGraph:
 		return v.JSON.Data, ""
@@ -42,14 +42,14 @@ func statsGraphJSON(g tg.StatsGraphClass) (json, token string) {
 	return "", ""
 }
 
-func statsPercent(p tg.StatsPercentValue) float64 {
+func StatsPercent(p tg.StatsPercentValue) float64 {
 	if p.Total == 0 {
 		return 0
 	}
 	return p.Part / p.Total * 100
 }
 
-func broadcastStatsToResult(st *tg.StatsBroadcastStats) *ChannelStats {
+func BroadcastStatsToResult(st *tg.StatsBroadcastStats) *ChannelStats {
 	if st == nil {
 		return nil
 	}
@@ -62,10 +62,10 @@ func broadcastStatsToResult(st *tg.StatsBroadcastStats) *ChannelStats {
 		ReactionsPerPost: StatsValue{Current: st.ReactionsPerPost.Current, Previous: st.ReactionsPerPost.Previous},
 		ViewsPerStory:    StatsValue{Current: st.ViewsPerStory.Current, Previous: st.ViewsPerStory.Previous},
 		SharesPerStory:   StatsValue{Current: st.SharesPerStory.Current, Previous: st.SharesPerStory.Previous},
-		NotifPercent:     statsPercent(st.EnabledNotifications),
+		NotifPercent:     StatsPercent(st.EnabledNotifications),
 	}
 	add := func(title string, g tg.StatsGraphClass) {
-		json, token := statsGraphJSON(g)
+		json, token := StatsGraphJSON(g)
 		if json == "" && token == "" {
 			return
 		}
@@ -84,7 +84,7 @@ func broadcastStatsToResult(st *tg.StatsBroadcastStats) *ChannelStats {
 }
 
 func (t *TelegramCore) GetChannelStats(chatID string) (*ChannelStats, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +103,7 @@ func (t *TelegramCore) GetChannelStats(chatID string) (*ChannelStats, error) {
 	if err != nil {
 		return nil, err
 	}
-	r := broadcastStatsToResult(st)
+	r := BroadcastStatsToResult(st)
 	if r == nil {
 		return nil, fmt.Errorf("no stats data")
 	}

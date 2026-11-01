@@ -15,7 +15,7 @@ import (
 
 type jvalue struct{ v uint64 }
 
-var jniState struct {
+var JniState struct {
 	mu   sync.Mutex
 	jvm  uintptr
 	view uintptr
@@ -28,36 +28,36 @@ func jniFn(itf uintptr, idx int) uintptr {
 func jniAttached() (env uintptr, release func(), err error) {
 	runtime.LockOSThread()
 	unlock := func() { runtime.UnlockOSThread() }
-	jvm := jniState.jvm
+	jvm := JniState.jvm
 	if jvm == 0 {
 		unlock()
 		return 0, nil, errors.New("audio: JavaVM not available")
 	}
 	var envp uintptr
-	if r, _, _ := purego.SyscallN(jniFn(jvm, jvmGetEnv), jvm,
+	if r, _, _ := purego.SyscallN(jniFn(jvm, JvmGetEnv), jvm,
 		uintptr(unsafe.Pointer(&envp)), jniVersion16); r == 0 && envp != 0 {
 		return envp, unlock, nil
 	}
-	if r, _, _ := purego.SyscallN(jniFn(jvm, jvmAttachCurrentThread), jvm,
+	if r, _, _ := purego.SyscallN(jniFn(jvm, JvmAttachCurrentThread), jvm,
 		uintptr(unsafe.Pointer(&envp)), 0); r != 0 {
 		unlock()
 		return 0, nil, fmt.Errorf("audio: JNI AttachCurrentThread failed (%d)", r)
 	}
 	return envp, func() {
-		purego.SyscallN(jniFn(jvm, jvmDetachCurrentThread), jvm)
+		purego.SyscallN(jniFn(jvm, JvmDetachCurrentThread), jvm)
 		unlock()
 	}, nil
 }
 
 func jniSanity(env uintptr) error {
-	ver := jniCall(env, jniEnvGetVersion)
+	ver := JniCall(env, jniEnvGetVersion)
 	if ver>>16 != 1 || ver&0xFFFF == 0 {
 		return fmt.Errorf("audio: JNI GetVersion returned 0x%X — ABI mismatch", ver)
 	}
 	return nil
 }
 
-func jniCall(env uintptr, idx int, args ...uintptr) uintptr {
+func JniCall(env uintptr, idx int, args ...uintptr) uintptr {
 	fn := jniFn(env, idx)
 	full := make([]uintptr, 0, len(args)+1)
 	full = append(full, env)
@@ -73,16 +73,16 @@ func cstr(s string) (unsafe.Pointer, []byte) {
 }
 
 func jniExceptionCheck(env uintptr) bool {
-	return jniCall(env, jniEnvExceptionCheck) != 0
+	return JniCall(env, jniEnvExceptionCheck) != 0
 }
 
 func jniExceptionClear(env uintptr) {
-	jniCall(env, jniEnvExceptionClear)
+	JniCall(env, jniEnvExceptionClear)
 }
 
 func jniDeleteLocalRef(env, ref uintptr) {
 	if ref != 0 {
-		jniCall(env, jniEnvDeleteLocalRef, ref)
+		JniCall(env, jniEnvDeleteLocalRef, ref)
 	}
 }
 
@@ -90,7 +90,7 @@ func jniGetObjectClass(env, obj uintptr) uintptr {
 	if obj == 0 {
 		return 0
 	}
-	return jniCall(env, jniEnvGetObjectClass, obj)
+	return JniCall(env, jniEnvGetObjectClass, obj)
 }
 
 func jniGetMethodID(env, cls uintptr, name, sig string) uintptr {
@@ -99,7 +99,7 @@ func jniGetMethodID(env, cls uintptr, name, sig string) uintptr {
 	}
 	np, nKeep := cstr(name)
 	sp, sKeep := cstr(sig)
-	mid := jniCall(env, jniEnvGetMethodID, cls, uintptr(np), uintptr(sp))
+	mid := JniCall(env, jniEnvGetMethodID, cls, uintptr(np), uintptr(sp))
 	runtime.KeepAlive(nKeep)
 	runtime.KeepAlive(sKeep)
 	if mid == 0 {
@@ -110,7 +110,7 @@ func jniGetMethodID(env, cls uintptr, name, sig string) uintptr {
 
 func jniFindClass(env uintptr, name string) uintptr {
 	np, keep := cstr(name)
-	cls := jniCall(env, jniEnvFindClass, uintptr(np))
+	cls := JniCall(env, jniEnvFindClass, uintptr(np))
 	runtime.KeepAlive(keep)
 	if cls == 0 {
 		jniExceptionClear(env)
@@ -120,7 +120,7 @@ func jniFindClass(env uintptr, name string) uintptr {
 
 func jniNewStringUTF(env uintptr, s string) uintptr {
 	np, keep := cstr(s)
-	jstr := jniCall(env, jniEnvNewStringUTF, uintptr(np))
+	jstr := JniCall(env, jniEnvNewStringUTF, uintptr(np))
 	runtime.KeepAlive(keep)
 	if jstr == 0 {
 		jniExceptionClear(env)
@@ -136,7 +136,7 @@ func jniCallObjectMethodA(env, obj, mid uintptr, args []jvalue) uintptr {
 	if len(args) > 0 {
 		argp = unsafe.Pointer(&args[0])
 	}
-	res := jniCall(env, jniEnvCallObjectMethodA, obj, mid, uintptr(argp))
+	res := JniCall(env, jniEnvCallObjectMethodA, obj, mid, uintptr(argp))
 	runtime.KeepAlive(args)
 	if res == 0 && jniExceptionCheck(env) {
 		jniExceptionClear(env)
@@ -148,7 +148,7 @@ func jniCallIntMethodA(env, obj, mid uintptr, args []jvalue) int32 {
 	if obj == 0 || mid == 0 {
 		return -1
 	}
-	res := jniCall(env, jniEnvCallIntMethodA, obj, mid, uintptr(unsafe.Pointer(&args[0])))
+	res := JniCall(env, jniEnvCallIntMethodA, obj, mid, uintptr(unsafe.Pointer(&args[0])))
 	runtime.KeepAlive(args)
 	if res == 0 && jniExceptionCheck(env) {
 		jniExceptionClear(env)
@@ -161,7 +161,7 @@ func jniCallVoidMethodA(env, obj, mid uintptr, args []jvalue) {
 	if obj == 0 || mid == 0 {
 		return
 	}
-	jniCall(env, jniEnvCallVoidMethodA, obj, mid, uintptr(unsafe.Pointer(&args[0])))
+	JniCall(env, jniEnvCallVoidMethodA, obj, mid, uintptr(unsafe.Pointer(&args[0])))
 	runtime.KeepAlive(args)
 	if jniExceptionCheck(env) {
 		jniExceptionClear(env)
@@ -169,7 +169,7 @@ func jniCallVoidMethodA(env, obj, mid uintptr, args []jvalue) {
 }
 
 func jniNewObjectArray(env uintptr, n int, cls uintptr, init uintptr) uintptr {
-	arr := jniCall(env, jniEnvNewObjectArray, uintptr(n), cls, init)
+	arr := JniCall(env, jniEnvNewObjectArray, uintptr(n), cls, init)
 	if arr == 0 {
 		jniExceptionClear(env)
 	}
@@ -177,14 +177,14 @@ func jniNewObjectArray(env uintptr, n int, cls uintptr, init uintptr) uintptr {
 }
 
 func jniSetObjectArrayElement(env, arr uintptr, idx int, val uintptr) {
-	jniCall(env, jniEnvSetObjectArrayElement, arr, uintptr(idx), val)
+	JniCall(env, jniEnvSetObjectArrayElement, arr, uintptr(idx), val)
 	if jniExceptionCheck(env) {
 		jniExceptionClear(env)
 	}
 }
 
 func jniViewActivity(env uintptr) uintptr {
-	view := jniState.view
+	view := JniState.view
 	if view == 0 {
 		return 0
 	}
@@ -200,7 +200,7 @@ func jniViewActivity(env uintptr) uintptr {
 	actCls := jniFindClass(env, "android/app/Activity")
 	obj := ctx
 	for i := 0; i < 4 && obj != 0; i++ {
-		if actCls != 0 && jniCall(env, jniEnvIsInstanceOf, obj, actCls) != 0 {
+		if actCls != 0 && JniCall(env, jniEnvIsInstanceOf, obj, actCls) != 0 {
 			return obj
 		}
 		objCls := jniGetObjectClass(env, obj)
@@ -283,7 +283,7 @@ func ensureMicPermission() error {
 	if micPermissionGranted() {
 		return nil
 	}
-	if jniState.view == 0 {
+	if JniState.view == 0 {
 		return errors.New("audio: microphone permission required — window not ready yet, retry")
 	}
 	env, release, err := jniAttached()

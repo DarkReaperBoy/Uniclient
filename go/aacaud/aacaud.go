@@ -710,7 +710,7 @@ func ascInfo(asc []byte) (rate, channels int, err error) {
 	return aacSampleRates[sfi], chanCfg, nil
 }
 
-func checkASC(asc []byte) error {
+func CheckASC(asc []byte) error {
 	_, _, err := ascInfo(asc)
 	return err
 }

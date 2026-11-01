@@ -11,7 +11,7 @@ func readVaultBytes(path string) ([]byte, error) {
 	return os.ReadFile(path)
 }
 
-func writeVaultBytes(path string, data []byte) error {
+func WriteVaultBytes(path string, data []byte) error {
 	dir := filepath.Dir(path)
 	tmp, err := os.CreateTemp(dir, ".vault-*.tmp")
 	if err != nil {

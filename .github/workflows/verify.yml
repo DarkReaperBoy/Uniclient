@@ -49,7 +49,7 @@ jobs:
         # (the race detector is not optional on any gate).
         run: |
           cd go
-          CGO_ENABLED=1 go test -p 1 -tags goolm -count=1 -race ./cores/ \
+          CGO_ENABLED=1 go test -p 1 -tags goolm -count=1 -race ./tests/cores/ \
             -run 'TestHandshake|TestMyChannelID|TestTSExec|TestTS3|TestTeamSpeak|TestTSCommandQueue|TestSendVoice|TestGetGroupCall|TestMatrix|TestTruncate|TestParseRawHeaders|TestAutocrypt|TestDeltaChat|TestGitHub|TestLockOrder'
         env:
           GOMEMLIMIT: 900MiB

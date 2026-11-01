@@ -77,7 +77,9 @@ go/
                    winmm syscalls (Windows), WebAudio (js/wasm).
   utils/           Config, vault, crypto, storage helpers.
   wrtc/            WebRTC shim: pion natively, browser API on js/wasm.
-  tests/           Live protocol tests (env-gated, run on demand, not CI).
+  tests/           All tests: per-package mirrors (tests/cores, tests/engine, …,
+                   black-box) + live protocol tests at the root (env-gated,
+                   run on demand, never in CI).
 ```
 
 Every backend renders through the same frontend. A core that lacks a feature

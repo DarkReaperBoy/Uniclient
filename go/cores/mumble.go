@@ -43,14 +43,14 @@ const (
 	mumbleDialTimeout    = 10 * time.Second
 	mumbleMaxUDPSize     = 1024
 	mumbleMaxPayload     = 1020
-	mumbleCryptoOverhead = 4
+	MumbleCryptoOverhead = 4
 	mumbleLateWindow     = 30
 
 	mumbleVersionMajor = 1
 	mumbleVersionMinor = 5
 	mumbleVersionPatch = 517
-	mumbleVersionV1    = (mumbleVersionMajor << 16) | (mumbleVersionMinor << 8) | (mumbleVersionPatch & 0xFF)
-	mumbleVersionV2    = (uint64(mumbleVersionMajor) << 48) | (uint64(mumbleVersionMinor) << 32) | (uint64(mumbleVersionPatch) << 16)
+	MumbleVersionV1    = (mumbleVersionMajor << 16) | (mumbleVersionMinor << 8) | (mumbleVersionPatch & 0xFF)
+	MumbleVersionV2    = (uint64(mumbleVersionMajor) << 48) | (uint64(mumbleVersionMinor) << 32) | (uint64(mumbleVersionPatch) << 16)
 	mumbleRelease      = "Uniclient 1.5.517"
 	mumbleOS           = "Linux"
 	mumblePlatform     = "mumble"
@@ -86,7 +86,7 @@ const (
 	mumbleMsgPluginDataTransmission = 26
 )
 
-func mumbleMsgName(t uint16) string {
+func MumbleMsgName(t uint16) string {
 	switch t {
 	case mumbleMsgVersion:
 		return "Version"
@@ -200,27 +200,27 @@ const (
 	mumbleContextListener = 3
 )
 
-type pbEncoder struct {
+type PbEncoder struct {
 	buf bytes.Buffer
 }
 
 var pbEncoderPool = sync.Pool{
 	New: func() interface{} {
-		return &pbEncoder{}
+		return &PbEncoder{}
 	},
 }
 
-func getPBEncoder() *pbEncoder {
-	e := pbEncoderPool.Get().(*pbEncoder)
+func getPBEncoder() *PbEncoder {
+	e := pbEncoderPool.Get().(*PbEncoder)
 	e.buf.Reset()
 	return e
 }
 
-func putPBEncoder(e *pbEncoder) {
+func putPBEncoder(e *PbEncoder) {
 	pbEncoderPool.Put(e)
 }
 
-func (e *pbEncoder) writeVarint(v uint64) {
+func (e *PbEncoder) writeVarint(v uint64) {
 	for v >= 0x80 {
 		e.buf.WriteByte(byte(v) | 0x80)
 		v >>= 7
@@ -228,11 +228,11 @@ func (e *pbEncoder) writeVarint(v uint64) {
 	e.buf.WriteByte(byte(v))
 }
 
-func (e *pbEncoder) writeTag(field int, wireType int) {
+func (e *PbEncoder) writeTag(field int, wireType int) {
 	e.writeVarint(uint64(field<<3 | wireType))
 }
 
-func (e *pbEncoder) writeUint32(field int, v uint32) {
+func (e *PbEncoder) writeUint32(field int, v uint32) {
 	if v == 0 {
 		return
 	}
@@ -240,12 +240,12 @@ func (e *pbEncoder) writeUint32(field int, v uint32) {
 	e.writeVarint(uint64(v))
 }
 
-func (e *pbEncoder) writeUint32Always(field int, v uint32) {
+func (e *PbEncoder) writeUint32Always(field int, v uint32) {
 	e.writeTag(field, 0)
 	e.writeVarint(uint64(v))
 }
 
-func (e *pbEncoder) writeUint64(field int, v uint64) {
+func (e *PbEncoder) writeUint64(field int, v uint64) {
 	if v == 0 {
 		return
 	}
@@ -253,7 +253,7 @@ func (e *pbEncoder) writeUint64(field int, v uint64) {
 	e.writeVarint(v)
 }
 
-func (e *pbEncoder) writeInt32(field int, v int32) {
+func (e *PbEncoder) writeInt32(field int, v int32) {
 	if v == 0 {
 		return
 	}
@@ -265,7 +265,7 @@ func (e *pbEncoder) writeInt32(field int, v int32) {
 	}
 }
 
-func (e *pbEncoder) writeBool(field int, v bool) {
+func (e *PbEncoder) writeBool(field int, v bool) {
 	if !v {
 		return
 	}
@@ -273,7 +273,7 @@ func (e *pbEncoder) writeBool(field int, v bool) {
 	e.buf.WriteByte(1)
 }
 
-func (e *pbEncoder) writeBoolAlways(field int, v bool) {
+func (e *PbEncoder) writeBoolAlways(field int, v bool) {
 	e.writeTag(field, 0)
 	if v {
 		e.buf.WriteByte(1)
@@ -282,7 +282,7 @@ func (e *pbEncoder) writeBoolAlways(field int, v bool) {
 	}
 }
 
-func (e *pbEncoder) writeString(field int, v string) {
+func (e *PbEncoder) writeString(field int, v string) {
 	if v == "" {
 		return
 	}
@@ -291,7 +291,7 @@ func (e *pbEncoder) writeString(field int, v string) {
 	e.buf.WriteString(v)
 }
 
-func (e *pbEncoder) writeBytes(field int, v []byte) {
+func (e *PbEncoder) writeBytes(field int, v []byte) {
 	if len(v) == 0 {
 		return
 	}
@@ -300,7 +300,7 @@ func (e *pbEncoder) writeBytes(field int, v []byte) {
 	e.buf.Write(v)
 }
 
-func (e *pbEncoder) writeFloat(field int, v float32) {
+func (e *PbEncoder) writeFloat(field int, v float32) {
 	if v == 0 {
 		return
 	}
@@ -310,21 +310,21 @@ func (e *pbEncoder) writeFloat(field int, v float32) {
 	e.buf.Write(buf[:])
 }
 
-func (e *pbEncoder) writeFloatAlways(field int, v float32) {
+func (e *PbEncoder) writeFloatAlways(field int, v float32) {
 	e.writeTag(field, 5)
 	var buf [4]byte
 	binary.LittleEndian.PutUint32(buf[:], math.Float32bits(v))
 	e.buf.Write(buf[:])
 }
 
-func (e *pbEncoder) writeRepeatedUint32(field int, vs []uint32) {
+func (e *PbEncoder) writeRepeatedUint32(field int, vs []uint32) {
 	for _, v := range vs {
 		e.writeTag(field, 0)
 		e.writeVarint(uint64(v))
 	}
 }
 
-func (e *pbEncoder) writeRepeatedInt32(field int, vs []int32) {
+func (e *PbEncoder) writeRepeatedInt32(field int, vs []int32) {
 	for _, v := range vs {
 		e.writeTag(field, 0)
 		if v >= 0 {
@@ -335,7 +335,7 @@ func (e *pbEncoder) writeRepeatedInt32(field int, vs []int32) {
 	}
 }
 
-func (e *pbEncoder) writeRepeatedString(field int, vs []string) {
+func (e *PbEncoder) writeRepeatedString(field int, vs []string) {
 	for _, v := range vs {
 		e.writeTag(field, 2)
 		e.writeVarint(uint64(len(v)))
@@ -343,7 +343,7 @@ func (e *pbEncoder) writeRepeatedString(field int, vs []string) {
 	}
 }
 
-func (e *pbEncoder) writeRepeatedFloat(field int, vs []float32) {
+func (e *PbEncoder) writeRepeatedFloat(field int, vs []float32) {
 	for _, v := range vs {
 		e.writeTag(field, 5)
 		var buf [4]byte
@@ -352,7 +352,7 @@ func (e *pbEncoder) writeRepeatedFloat(field int, vs []float32) {
 	}
 }
 
-func (e *pbEncoder) writePackedUint32(field int, vs []uint32) {
+func (e *PbEncoder) writePackedUint32(field int, vs []uint32) {
 	if len(vs) == 0 {
 		return
 	}
@@ -366,7 +366,7 @@ func (e *pbEncoder) writePackedUint32(field int, vs []uint32) {
 	putPBEncoder(inner)
 }
 
-func (e *pbEncoder) writeSubmessage(field int, sub *pbEncoder) {
+func (e *PbEncoder) writeSubmessage(field int, sub *PbEncoder) {
 	n := sub.buf.Len()
 	if n == 0 {
 		return
@@ -376,7 +376,7 @@ func (e *pbEncoder) writeSubmessage(field int, sub *pbEncoder) {
 	e.buf.Write(sub.buf.Bytes())
 }
 
-func (e *pbEncoder) bytes() []byte {
+func (e *PbEncoder) bytes() []byte {
 	return e.buf.Bytes()
 }
 
@@ -479,7 +479,7 @@ func (d *pbDecoder) skipField(wireType int) error {
 	}
 }
 
-func mumbleVarintEncode(v int64) []byte {
+func MumbleVarintEncode(v int64) []byte {
 	var buf [10]byte
 	n := mumbleVarintEncodeTo(buf[:], v)
 	out := make([]byte, n)
@@ -538,7 +538,7 @@ func mumbleVarintEncodeTo(buf []byte, v int64) int {
 	}
 }
 
-func mumbleVarintDecode(data []byte, pos int) (int64, int, error) {
+func MumbleVarintDecode(data []byte, pos int) (int64, int, error) {
 	if pos >= len(data) {
 		return 0, pos, io.ErrUnexpectedEOF
 	}
@@ -572,7 +572,7 @@ func mumbleVarintDecode(data []byte, pos int) (int64, int, error) {
 		}
 		return int64(binary.BigEndian.Uint64(data[pos+1:])), pos + 9, nil
 	case b&0xFC == 0xF8:
-		v, newPos, err := mumbleVarintDecode(data, pos+1)
+		v, newPos, err := MumbleVarintDecode(data, pos+1)
 		if err != nil {
 			return 0, pos, err
 		}
@@ -612,7 +612,7 @@ func ocb2Times3(block []byte) {
 	block[ocb2BlockSize-1] ^= ((block[ocb2BlockSize-1] << 1) ^ (carry * 135))
 }
 
-func ocb2Encrypt(ciph cipher.Block, dst, src, nonce, tag []byte) {
+func Ocb2Encrypt(ciph cipher.Block, dst, src, nonce, tag []byte) {
 	var checksum, delta, tmp, pad [ocb2BlockSize]byte
 
 	ciph.Encrypt(delta[:], nonce)
@@ -648,7 +648,7 @@ func ocb2Encrypt(ciph cipher.Block, dst, src, nonce, tag []byte) {
 	ciph.Encrypt(tag[:ocb2TagSize], tmp[:])
 }
 
-func ocb2Decrypt(ciph cipher.Block, plain, encrypted, nonce, tag []byte) bool {
+func Ocb2Decrypt(ciph cipher.Block, plain, encrypted, nonce, tag []byte) bool {
 	var checksum, delta, tmp, pad [ocb2BlockSize]byte
 
 	ciph.Encrypt(delta[:], nonce)
@@ -731,7 +731,7 @@ func (cs *mumbleCryptState) encrypt(dst, src []byte) int {
 	cs.incrementIV(cs.encryptIV[:])
 
 	var tag [ocb2TagSize]byte
-	ocb2Encrypt(cs.cipher, dst[4:4+len(src)], src, cs.encryptIV[:], tag[:])
+	Ocb2Encrypt(cs.cipher, dst[4:4+len(src)], src, cs.encryptIV[:], tag[:])
 
 	dst[0] = cs.encryptIV[0]
 	dst[1] = tag[0]
@@ -818,7 +818,7 @@ func (cs *mumbleCryptState) decrypt(dst, src []byte) (int, error) {
 
 	var tag [3]byte
 	copy(tag[:], src[1:4])
-	ok := ocb2Decrypt(cs.cipher, dst[:plainLen], src[4:], cs.decryptIV[:], tag[:])
+	ok := Ocb2Decrypt(cs.cipher, dst[:plainLen], src[4:], cs.decryptIV[:], tag[:])
 	if !ok {
 		copy(cs.decryptIV[:], saveIV[:])
 		return 0, errors.New("mumbleCryptState: decrypt failed")
@@ -838,7 +838,7 @@ func (cs *mumbleCryptState) decrypt(dst, src []byte) (int, error) {
 	return plainLen, nil
 }
 
-type mumbleVersion struct {
+type MumbleVersion struct {
 	VersionV1 uint32
 	VersionV2 uint64
 	Release   string
@@ -846,8 +846,8 @@ type mumbleVersion struct {
 	OSVersion string
 }
 
-func (m *mumbleVersion) marshal() []byte {
-	var e pbEncoder
+func (m *MumbleVersion) marshal() []byte {
+	var e PbEncoder
 	e.writeUint32(1, m.VersionV1)
 	e.writeUint64(5, m.VersionV2)
 	e.writeString(2, m.Release)
@@ -856,7 +856,7 @@ func (m *mumbleVersion) marshal() []byte {
 	return e.bytes()
 }
 
-func (m *mumbleVersion) unmarshal(data []byte) error {
+func (m *MumbleVersion) unmarshal(data []byte) error {
 	d := newPBDecoder(data)
 	for d.remaining() > 0 {
 		field, wt, err := d.readTag()
@@ -903,7 +903,7 @@ func (m *mumbleVersion) unmarshal(data []byte) error {
 	return nil
 }
 
-type mumbleAuthenticate struct {
+type MumbleAuthenticate struct {
 	Username     string
 	Password     string
 	Tokens       []string
@@ -912,8 +912,8 @@ type mumbleAuthenticate struct {
 	ClientType   int32
 }
 
-func (m *mumbleAuthenticate) marshal() []byte {
-	var e pbEncoder
+func (m *MumbleAuthenticate) marshal() []byte {
+	var e PbEncoder
 	e.writeString(1, m.Username)
 	e.writeString(2, m.Password)
 	e.writeRepeatedString(3, m.Tokens)
@@ -923,7 +923,7 @@ func (m *mumbleAuthenticate) marshal() []byte {
 	return e.bytes()
 }
 
-type mumblePingMsg struct {
+type MumblePingMsg struct {
 	Timestamp  uint64
 	Good       uint32
 	Late       uint32
@@ -937,7 +937,7 @@ type mumblePingMsg struct {
 	TCPPingVar float32
 }
 
-func (m *mumblePingMsg) marshal() []byte {
+func (m *MumblePingMsg) marshal() []byte {
 	e := getPBEncoder()
 	e.writeUint64(1, m.Timestamp)
 	e.writeUint32(2, m.Good)
@@ -956,7 +956,7 @@ func (m *mumblePingMsg) marshal() []byte {
 	return out
 }
 
-func (m *mumblePingMsg) unmarshal(data []byte) error {
+func (m *MumblePingMsg) unmarshal(data []byte) error {
 	d := newPBDecoder(data)
 	for d.remaining() > 0 {
 		field, wt, err := d.readTag()
@@ -1141,7 +1141,7 @@ type mumbleChannelStateMsg struct {
 }
 
 func (m *mumbleChannelStateMsg) marshal() []byte {
-	var e pbEncoder
+	var e PbEncoder
 	if m.HasChannelID {
 		e.writeUint32Always(1, m.ChannelID)
 	}
@@ -1257,7 +1257,7 @@ func (m *mumbleChannelStateMsg) unmarshal(data []byte) error {
 	return nil
 }
 
-type mumbleUserStateMsg struct {
+type MumbleUserStateMsg struct {
 	Session                uint32
 	Actor                  uint32
 	Name                   string
@@ -1300,8 +1300,8 @@ type mumbleVolumeAdj struct {
 	VolumeAdjustment float32
 }
 
-func (m *mumbleUserStateMsg) marshal() []byte {
-	var e pbEncoder
+func (m *MumbleUserStateMsg) marshal() []byte {
+	var e PbEncoder
 	if m.HasSession {
 		e.writeUint32Always(1, m.Session)
 	}
@@ -1347,7 +1347,7 @@ func (m *mumbleUserStateMsg) marshal() []byte {
 	e.writeRepeatedUint32(21, m.ListeningChannelAdd)
 	e.writeRepeatedUint32(22, m.ListeningChannelRemove)
 	for _, va := range m.ListeningVolumeAdj {
-		var sub pbEncoder
+		var sub PbEncoder
 		sub.writeUint32Always(1, va.ListeningChannel)
 		sub.writeFloatAlways(2, va.VolumeAdjustment)
 		e.writeSubmessage(23, &sub)
@@ -1355,7 +1355,7 @@ func (m *mumbleUserStateMsg) marshal() []byte {
 	return e.bytes()
 }
 
-func (m *mumbleUserStateMsg) unmarshal(data []byte) error {
+func (m *MumbleUserStateMsg) unmarshal(data []byte) error {
 	d := newPBDecoder(data)
 	for d.remaining() > 0 {
 		field, wt, err := d.readTag()
@@ -1557,7 +1557,7 @@ type mumbleUserRemoveMsg struct {
 }
 
 func (m *mumbleUserRemoveMsg) marshal() []byte {
-	var e pbEncoder
+	var e PbEncoder
 	e.writeUint32Always(1, m.Session)
 	e.writeUint32(2, m.Actor)
 	e.writeString(3, m.Reason)
@@ -1620,7 +1620,7 @@ func (m *mumbleUserRemoveMsg) unmarshal(data []byte) error {
 	return nil
 }
 
-type mumbleTextMsg struct {
+type MumbleTextMsg struct {
 	Actor     uint32
 	Session   []uint32
 	ChannelID []uint32
@@ -1628,8 +1628,8 @@ type mumbleTextMsg struct {
 	Message   string
 }
 
-func (m *mumbleTextMsg) marshal() []byte {
-	var e pbEncoder
+func (m *MumbleTextMsg) marshal() []byte {
+	var e PbEncoder
 	e.writeUint32(1, m.Actor)
 	e.writeRepeatedUint32(2, m.Session)
 	e.writeRepeatedUint32(3, m.ChannelID)
@@ -1638,7 +1638,7 @@ func (m *mumbleTextMsg) marshal() []byte {
 	return e.bytes()
 }
 
-func (m *mumbleTextMsg) unmarshal(data []byte) error {
+func (m *MumbleTextMsg) unmarshal(data []byte) error {
 	d := newPBDecoder(data)
 	for d.remaining() > 0 {
 		field, wt, err := d.readTag()
@@ -1690,7 +1690,7 @@ type mumbleChannelRemoveMsg struct {
 }
 
 func (m *mumbleChannelRemoveMsg) marshal() []byte {
-	var e pbEncoder
+	var e PbEncoder
 	e.writeUint32Always(1, m.ChannelID)
 	return e.bytes()
 }
@@ -1718,21 +1718,21 @@ func (m *mumbleChannelRemoveMsg) unmarshal(data []byte) error {
 	return nil
 }
 
-type mumbleCryptSetupMsg struct {
+type MumbleCryptSetupMsg struct {
 	Key         []byte
 	ClientNonce []byte
 	ServerNonce []byte
 }
 
-func (m *mumbleCryptSetupMsg) marshal() []byte {
-	var e pbEncoder
+func (m *MumbleCryptSetupMsg) marshal() []byte {
+	var e PbEncoder
 	e.writeBytes(1, m.Key)
 	e.writeBytes(2, m.ClientNonce)
 	e.writeBytes(3, m.ServerNonce)
 	return e.bytes()
 }
 
-func (m *mumbleCryptSetupMsg) unmarshal(data []byte) error {
+func (m *MumbleCryptSetupMsg) unmarshal(data []byte) error {
 	d := newPBDecoder(data)
 	for d.remaining() > 0 {
 		field, wt, err := d.readTag()
@@ -2001,7 +2001,7 @@ type mumblePermissionQueryMsg struct {
 }
 
 func (m *mumblePermissionQueryMsg) marshal() []byte {
-	var e pbEncoder
+	var e PbEncoder
 	e.writeUint32Always(1, m.ChannelID)
 	e.writeUint32(2, m.Permissions)
 	e.writeBool(3, m.Flush)
@@ -2059,9 +2059,9 @@ type MumbleBanEntry struct {
 }
 
 func (m *mumbleBanListMsg) marshal() []byte {
-	var e pbEncoder
+	var e PbEncoder
 	for _, b := range m.Bans {
-		var sub pbEncoder
+		var sub PbEncoder
 		sub.writeBytes(1, b.Address)
 		sub.writeUint32Always(2, b.Mask)
 		sub.writeString(3, b.Name)
@@ -2182,10 +2182,10 @@ type MumbleVoiceTargetEntry struct {
 }
 
 func (m *mumbleVoiceTargetMsg) marshal() []byte {
-	var e pbEncoder
+	var e PbEncoder
 	e.writeUint32(1, m.ID)
 	for _, t := range m.Targets {
-		var sub pbEncoder
+		var sub PbEncoder
 		sub.writeRepeatedUint32(1, t.Sessions)
 		if t.HasChannel {
 			sub.writeUint32Always(2, t.ChannelID)
@@ -2212,7 +2212,7 @@ type mumbleRequestBlobMsg struct {
 }
 
 func (m *mumbleRequestBlobMsg) marshal() []byte {
-	var e pbEncoder
+	var e PbEncoder
 	e.writeRepeatedUint32(1, m.SessionTexture)
 	e.writeRepeatedUint32(2, m.SessionComment)
 	e.writeRepeatedUint32(3, m.ChannelDescription)
@@ -2274,7 +2274,7 @@ type mumbleContextActionMsg struct {
 }
 
 func (m *mumbleContextActionMsg) marshal() []byte {
-	var e pbEncoder
+	var e PbEncoder
 	e.writeUint32(1, m.Session)
 	e.writeUint32(2, m.ChannelID)
 	e.writeString(3, m.Action)
@@ -2289,7 +2289,7 @@ type mumblePluginDataMsg struct {
 }
 
 func (m *mumblePluginDataMsg) marshal() []byte {
-	var e pbEncoder
+	var e PbEncoder
 	e.writeUint32(1, m.SenderSession)
 	e.writePackedUint32(2, m.ReceiverSessions)
 	e.writeBytes(3, m.Data)
@@ -2449,7 +2449,7 @@ type MumbleCodecVersionEvent struct {
 	Opus        bool
 }
 
-type mumbleSessionData struct {
+type MumbleSessionData struct {
 	CertPEM    string            `json:"cert_pem"`
 	KeyPEM     string            `json:"key_pem"`
 	ServerPins map[string]string `json:"server_pins,omitempty"`
@@ -2471,7 +2471,7 @@ type MumbleCore struct {
 	Session     *utils.SessionStore
 	serverPins  map[string]string
 
-	serverVersion   mumbleVersion
+	serverVersion   MumbleVersion
 	serverConfig    MumbleServerConfig
 	maxBandwidth    uint32
 	welcomeText     string
@@ -2593,12 +2593,12 @@ func mumbleCertHash(cert tls.Certificate) string {
 	return hex.EncodeToString(h[:])
 }
 
-func mumblePeerCertHash(cert *x509.Certificate) string {
+func MumblePeerCertHash(cert *x509.Certificate) string {
 	h := sha1.Sum(cert.Raw)
 	return hex.EncodeToString(h[:])
 }
 
-func mumbleServerTOFU(verifyErr error, fp, storedPin string, hasPin, reset bool) (accept bool, store bool, msg string) {
+func MumbleServerTOFU(verifyErr error, fp, storedPin string, hasPin, reset bool) (accept bool, store bool, msg string) {
 	if verifyErr == nil {
 		return true, false, ""
 	}
@@ -2619,7 +2619,7 @@ func mumbleServerTOFU(verifyErr error, fp, storedPin string, hasPin, reset bool)
 
 func (c *MumbleCore) loadServerPin(hostPort string) (string, bool) {
 	if c.Session != nil {
-		var sess mumbleSessionData
+		var sess MumbleSessionData
 		if err := c.Session.Load(&sess); err == nil && sess.ServerPins != nil {
 			if p, ok := sess.ServerPins[hostPort]; ok {
 				return p, true
@@ -2632,7 +2632,7 @@ func (c *MumbleCore) loadServerPin(hostPort string) (string, bool) {
 	return p, ok
 }
 
-func (c *MumbleCore) storeServerPin(hostPort, fp string) error {
+func (c *MumbleCore) StoreServerPin(hostPort, fp string) error {
 	c.mu.Lock()
 	if c.serverPins == nil {
 		c.serverPins = make(map[string]string)
@@ -2642,9 +2642,9 @@ func (c *MumbleCore) storeServerPin(hostPort, fp string) error {
 	if c.Session == nil {
 		return nil
 	}
-	var sess mumbleSessionData
+	var sess MumbleSessionData
 	if err := c.Session.Load(&sess); err != nil {
-		sess = mumbleSessionData{}
+		sess = MumbleSessionData{}
 	}
 	if sess.ServerPins == nil {
 		sess.ServerPins = make(map[string]string)
@@ -2657,7 +2657,7 @@ func (c *MumbleCore) loadSession() error {
 	if c.Session == nil {
 		return fmt.Errorf("no session store")
 	}
-	var sess mumbleSessionData
+	var sess MumbleSessionData
 	if err := c.Session.Load(&sess); err != nil {
 		return err
 	}
@@ -2687,14 +2687,14 @@ func (c *MumbleCore) saveSession() error {
 		return err
 	}
 	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyBytes})
-	sess := mumbleSessionData{
+	sess := MumbleSessionData{
 		CertPEM: string(certPEM),
 		KeyPEM:  string(keyPEM),
 	}
 	if c.Session == nil {
 		return nil
 	}
-	var prev mumbleSessionData
+	var prev MumbleSessionData
 	if err := c.Session.Load(&prev); err == nil {
 		sess.ServerPins = prev.ServerPins
 	}
@@ -2768,7 +2768,7 @@ func (c *MumbleCore) udpSend(data []byte) error {
 		return c.tcpSend(mumbleMsgUDPTunnel, data)
 	}
 
-	encrypted := make([]byte, mumbleCryptoOverhead+len(data))
+	encrypted := make([]byte, MumbleCryptoOverhead+len(data))
 	c.crypt.encrypt(encrypted, data)
 
 	_, err := conn.Write(encrypted)
@@ -2818,7 +2818,7 @@ func (c *MumbleCore) udpRecvLoop() {
 			}
 			mumbleLogf("UDP RX len=%d head=%x", n, preview)
 		}
-		if n < mumbleCryptoOverhead {
+		if n < MumbleCryptoOverhead {
 			continue
 		}
 
@@ -2909,7 +2909,7 @@ func (c *MumbleCore) handleLegacyUDPPacket(data []byte) {
 
 	if audioType == mumbleUDPPing {
 		if len(data) > 1 {
-			ts, _, _ := mumbleVarintDecode(data, 1)
+			ts, _, _ := MumbleVarintDecode(data, 1)
 			_ = ts
 		}
 		if !c.udpReady {
@@ -2921,13 +2921,13 @@ func (c *MumbleCore) handleLegacyUDPPacket(data []byte) {
 	}
 
 	pos := 1
-	session, newPos, err := mumbleVarintDecode(data, pos)
+	session, newPos, err := MumbleVarintDecode(data, pos)
 	if err != nil {
 		return
 	}
 	pos = newPos
 
-	seq, newPos, err := mumbleVarintDecode(data, pos)
+	seq, newPos, err := MumbleVarintDecode(data, pos)
 	if err != nil {
 		return
 	}
@@ -2944,7 +2944,7 @@ func (c *MumbleCore) handleLegacyUDPPacket(data []byte) {
 		if pos >= len(data) {
 			return
 		}
-		opusHeader, newPos, err := mumbleVarintDecode(data, pos)
+		opusHeader, newPos, err := MumbleVarintDecode(data, pos)
 		if err != nil {
 			return
 		}
@@ -3126,16 +3126,16 @@ func (c *MumbleCore) connect(addr string, username, password string, tokens []st
 		conn.Close()
 		return fmt.Errorf("mumble: server sent no certificate")
 	}
-	peerFP := mumblePeerCertHash(state.PeerCertificates[0])
+	peerFP := MumblePeerCertHash(state.PeerCertificates[0])
 	_, verifyErr := state.PeerCertificates[0].Verify(x509.VerifyOptions{DNSName: host})
 	storedPin, hasPin := c.loadServerPin(hostPort)
-	accept, storePin, msg := mumbleServerTOFU(verifyErr, peerFP, storedPin, hasPin, os.Getenv("UNICLIENT_MUMBLE_RESET_PIN") != "")
+	accept, storePin, msg := MumbleServerTOFU(verifyErr, peerFP, storedPin, hasPin, os.Getenv("UNICLIENT_MUMBLE_RESET_PIN") != "")
 	if !accept {
 		conn.Close()
 		return fmt.Errorf("mumble: server certificate %s", msg)
 	}
 	if storePin {
-		if err := c.storeServerPin(hostPort, peerFP); err != nil && mumbleDebug {
+		if err := c.StoreServerPin(hostPort, peerFP); err != nil && mumbleDebug {
 			fmt.Printf("[mumble] pin store failed: %v\n", err)
 		}
 	}
@@ -3147,9 +3147,9 @@ func (c *MumbleCore) connect(addr string, username, password string, tokens []st
 	c.tlsConn = conn
 	c.mu.Unlock()
 
-	ver := &mumbleVersion{
-		VersionV1: mumbleVersionV1,
-		VersionV2: mumbleVersionV2,
+	ver := &MumbleVersion{
+		VersionV1: MumbleVersionV1,
+		VersionV2: MumbleVersionV2,
 		Release:   mumbleRelease,
 		OS:        mumbleOS,
 		OSVersion: "",
@@ -3163,7 +3163,7 @@ func (c *MumbleCore) connect(addr string, username, password string, tokens []st
 	if isBot {
 		clientType = 1
 	}
-	auth := &mumbleAuthenticate{
+	auth := &MumbleAuthenticate{
 		Username:   username,
 		Password:   password,
 		Tokens:     tokens,
@@ -3278,12 +3278,12 @@ func (c *MumbleCore) handleTCPMessage(msgType uint16, payload []byte) {
 		if msgType == mumbleMsgUDPTunnel {
 			mumbleLogf("RX type=%d (UDPTunnel) len=%d", msgType, len(payload))
 		} else {
-			mumbleLogf("RX type=%d (%s) len=%d", msgType, mumbleMsgName(msgType), len(payload))
+			mumbleLogf("RX type=%d (%s) len=%d", msgType, MumbleMsgName(msgType), len(payload))
 		}
 	}
 	switch msgType {
 	case mumbleMsgVersion:
-		var msg mumbleVersion
+		var msg MumbleVersion
 		if err := msg.unmarshal(payload); err == nil {
 			c.mu.Lock()
 			c.serverVersion = msg
@@ -3298,7 +3298,7 @@ func (c *MumbleCore) handleTCPMessage(msgType uint16, payload []byte) {
 		c.handleUDPPacket(payload)
 
 	case mumbleMsgPing:
-		var msg mumblePingMsg
+		var msg MumblePingMsg
 		if err := msg.unmarshal(payload); err == nil {
 			c.mu.Lock()
 			if msg.TCPPingAvg > 0 {
@@ -3353,7 +3353,7 @@ func (c *MumbleCore) handleTCPMessage(msgType uint16, payload []byte) {
 		}
 
 	case mumbleMsgUserState:
-		var msg mumbleUserStateMsg
+		var msg MumbleUserStateMsg
 		if err := msg.unmarshal(payload); err == nil {
 			c.handleUserState(&msg)
 		}
@@ -3365,13 +3365,13 @@ func (c *MumbleCore) handleTCPMessage(msgType uint16, payload []byte) {
 		}
 
 	case mumbleMsgTextMessage:
-		var msg mumbleTextMsg
+		var msg MumbleTextMsg
 		if err := msg.unmarshal(payload); err == nil {
 			c.handleTextMessage(&msg)
 		}
 
 	case mumbleMsgCryptSetup:
-		var msg mumbleCryptSetupMsg
+		var msg MumbleCryptSetupMsg
 		if err := msg.unmarshal(payload); err == nil {
 			if mumbleDebug {
 				mumbleLogf("CryptSetup: key=%x client_nonce=%x server_nonce=%x", msg.Key, msg.ClientNonce, msg.ServerNonce)
@@ -3389,7 +3389,7 @@ func (c *MumbleCore) handleTCPMessage(msgType uint16, payload []byte) {
 				c.crypt.mu.Unlock()
 			} else {
 				c.crypt.mu.Lock()
-				reply := &mumbleCryptSetupMsg{ClientNonce: append([]byte(nil), c.crypt.encryptIV[:]...)}
+				reply := &MumbleCryptSetupMsg{ClientNonce: append([]byte(nil), c.crypt.encryptIV[:]...)}
 				c.crypt.resync++
 				c.crypt.mu.Unlock()
 				_ = c.tcpSend(mumbleMsgCryptSetup, reply.marshal())
@@ -3546,7 +3546,7 @@ func (c *MumbleCore) handleChannelState(msg *mumbleChannelStateMsg) {
 	ch.CanEnter = msg.CanEnter
 }
 
-func (c *MumbleCore) handleUserState(msg *mumbleUserStateMsg) {
+func (c *MumbleCore) handleUserState(msg *MumbleUserStateMsg) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -3649,7 +3649,7 @@ func (c *MumbleCore) handleUserRemove(msg *mumbleUserRemoveMsg) {
 	}
 }
 
-func (c *MumbleCore) handleTextMessage(msg *mumbleTextMsg) {
+func (c *MumbleCore) handleTextMessage(msg *MumbleTextMsg) {
 	c.mu.Lock()
 
 	senderName := ""
@@ -3765,7 +3765,7 @@ func (c *MumbleCore) pingLoop() {
 
 func (c *MumbleCore) sendTCPPing() {
 	now := uint64(time.Now().UnixMilli())
-	msg := &mumblePingMsg{
+	msg := &MumblePingMsg{
 		Timestamp:  now,
 		Good:       c.crypt.good,
 		Late:       c.crypt.late,
@@ -3795,7 +3795,7 @@ func (c *MumbleCore) sendUDPPing() {
 	copy(data[1:], pb)
 	putPBEncoder(e)
 
-	encrypted := make([]byte, mumbleCryptoOverhead+len(data))
+	encrypted := make([]byte, MumbleCryptoOverhead+len(data))
 	c.crypt.encrypt(encrypted, data)
 	if mumbleDebug {
 		preview := encrypted
@@ -4277,7 +4277,7 @@ func (c *MumbleCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, 
 		return nil, ErrAuth
 	}
 	c.mu.RUnlock()
-	textMsg := &mumbleTextMsg{Message: msg.Text}
+	textMsg := &MumbleTextMsg{Message: msg.Text}
 
 	if strings.HasPrefix(chatID, "user:") {
 		sessionStr := strings.TrimPrefix(chatID, "user:")
@@ -4968,7 +4968,7 @@ func (c *MumbleCore) MoveToChannel(channelID uint32) error {
 }
 
 func (c *MumbleCore) MoveUser(session, channelID uint32) error {
-	msg := &mumbleUserStateMsg{
+	msg := &MumbleUserStateMsg{
 		Session:      session,
 		HasSession:   true,
 		ChannelID:    channelID,
@@ -4978,7 +4978,7 @@ func (c *MumbleCore) MoveUser(session, channelID uint32) error {
 }
 
 func (c *MumbleCore) ServerMute(session uint32, muted bool) error {
-	msg := &mumbleUserStateMsg{
+	msg := &MumbleUserStateMsg{
 		Session:    session,
 		HasSession: true,
 		Mute:       muted,
@@ -4988,7 +4988,7 @@ func (c *MumbleCore) ServerMute(session uint32, muted bool) error {
 }
 
 func (c *MumbleCore) ServerDeaf(session uint32, deafed bool) error {
-	msg := &mumbleUserStateMsg{
+	msg := &MumbleUserStateMsg{
 		Session:    session,
 		HasSession: true,
 		Deaf:       deafed,
@@ -5002,7 +5002,7 @@ func (c *MumbleCore) SelfMute(muted bool) error {
 	session := c.mySession
 	c.mu.RUnlock()
 
-	msg := &mumbleUserStateMsg{
+	msg := &MumbleUserStateMsg{
 		Session:     session,
 		HasSession:  true,
 		SelfMute:    muted,
@@ -5016,7 +5016,7 @@ func (c *MumbleCore) SelfDeaf(deafed bool) error {
 	session := c.mySession
 	c.mu.RUnlock()
 
-	msg := &mumbleUserStateMsg{
+	msg := &MumbleUserStateMsg{
 		Session:     session,
 		HasSession:  true,
 		SelfDeaf:    deafed,
@@ -5026,7 +5026,7 @@ func (c *MumbleCore) SelfDeaf(deafed bool) error {
 }
 
 func (c *MumbleCore) Suppress(session uint32, suppressed bool) error {
-	msg := &mumbleUserStateMsg{
+	msg := &MumbleUserStateMsg{
 		Session:     session,
 		HasSession:  true,
 		Suppress:    suppressed,
@@ -5040,7 +5040,7 @@ func (c *MumbleCore) SetComment(comment string) error {
 	session := c.mySession
 	c.mu.RUnlock()
 
-	msg := &mumbleUserStateMsg{
+	msg := &MumbleUserStateMsg{
 		Session:    session,
 		HasSession: true,
 		Comment:    comment,
@@ -5053,7 +5053,7 @@ func (c *MumbleCore) SetTexture(imageData []byte) error {
 	session := c.mySession
 	c.mu.RUnlock()
 
-	msg := &mumbleUserStateMsg{
+	msg := &MumbleUserStateMsg{
 		Session:    session,
 		HasSession: true,
 		Texture:    imageData,
@@ -5062,7 +5062,7 @@ func (c *MumbleCore) SetTexture(imageData []byte) error {
 }
 
 func (c *MumbleCore) SetPrioritySpeaker(session uint32, enabled bool) error {
-	msg := &mumbleUserStateMsg{
+	msg := &MumbleUserStateMsg{
 		Session:            session,
 		HasSession:         true,
 		PrioritySpeaker:    enabled,
@@ -5076,7 +5076,7 @@ func (c *MumbleCore) SetRecording(recording bool) error {
 	session := c.mySession
 	c.mu.RUnlock()
 
-	msg := &mumbleUserStateMsg{
+	msg := &MumbleUserStateMsg{
 		Session:      session,
 		HasSession:   true,
 		Recording:    recording,
@@ -5090,7 +5090,7 @@ func (c *MumbleCore) RegisterSelf() error {
 	session := c.mySession
 	c.mu.RUnlock()
 
-	msg := &mumbleUserStateMsg{
+	msg := &MumbleUserStateMsg{
 		Session:    session,
 		HasSession: true,
 		UserID:     0,
@@ -5100,7 +5100,7 @@ func (c *MumbleCore) RegisterSelf() error {
 }
 
 func (c *MumbleCore) RegisterUser(session uint32) error {
-	msg := &mumbleUserStateMsg{
+	msg := &MumbleUserStateMsg{
 		Session:    session,
 		HasSession: true,
 		UserID:     0,
@@ -5157,7 +5157,7 @@ func (c *MumbleCore) RequestBlob(textures, comments, descriptions []uint32) erro
 	return c.tcpSend(mumbleMsgRequestBlob, msg.marshal())
 }
 func (c *MumbleCore) SetAccessTokens(tokens []string) error {
-	auth := &mumbleAuthenticate{Tokens: tokens}
+	auth := &MumbleAuthenticate{Tokens: tokens}
 	return c.tcpSend(mumbleMsgAuthenticate, auth.marshal())
 }
 
@@ -5184,7 +5184,7 @@ func (c *MumbleCore) AddChannelListener(channelIDs []uint32) error {
 	session := c.mySession
 	c.mu.RUnlock()
 
-	msg := &mumbleUserStateMsg{
+	msg := &MumbleUserStateMsg{
 		Session:             session,
 		HasSession:          true,
 		ListeningChannelAdd: channelIDs,
@@ -5197,7 +5197,7 @@ func (c *MumbleCore) RemoveChannelListener(channelIDs []uint32) error {
 	session := c.mySession
 	c.mu.RUnlock()
 
-	msg := &mumbleUserStateMsg{
+	msg := &MumbleUserStateMsg{
 		Session:                session,
 		HasSession:             true,
 		ListeningChannelRemove: channelIDs,
@@ -5210,7 +5210,7 @@ func (c *MumbleCore) SetListenerVolume(channelID uint32, volume float32) error {
 	session := c.mySession
 	c.mu.RUnlock()
 
-	msg := &mumbleUserStateMsg{
+	msg := &MumbleUserStateMsg{
 		Session:    session,
 		HasSession: true,
 		ListeningVolumeAdj: []mumbleVolumeAdj{
@@ -5296,7 +5296,7 @@ func (c *MumbleCore) MoveChannel(channelID, newParent uint32) error {
 }
 
 func (c *MumbleCore) SendTreeMessage(channelID uint32, message string) error {
-	msg := &mumbleTextMsg{
+	msg := &MumbleTextMsg{
 		TreeID:  []uint32{channelID},
 		Message: message,
 	}
@@ -5304,7 +5304,7 @@ func (c *MumbleCore) SendTreeMessage(channelID uint32, message string) error {
 }
 
 func (c *MumbleCore) RequestNonceResync() error {
-	msg := &mumbleCryptSetupMsg{}
+	msg := &MumbleCryptSetupMsg{}
 	return c.tcpSend(mumbleMsgCryptSetup, msg.marshal())
 }
 
@@ -5321,11 +5321,11 @@ func (s *MumbleCryptState) Decrypt(dst, src []byte) (int, error) {
 }
 
 func OCB2Encrypt(ciph cipher.Block, dst, src, nonce, tag []byte) {
-	ocb2Encrypt(ciph, dst, src, nonce, tag)
+	Ocb2Encrypt(ciph, dst, src, nonce, tag)
 }
 
 func OCB2Decrypt(ciph cipher.Block, plain, encrypted, nonce, tag []byte) bool {
-	return ocb2Decrypt(ciph, plain, encrypted, nonce, tag)
+	return Ocb2Decrypt(ciph, plain, encrypted, nonce, tag)
 }
 
 func (c *MumbleCore) MumbleUDPStats() (sent, recv int64, pathSeen, udpReady bool) {
@@ -5418,7 +5418,7 @@ func (c *MumbleCore) GetPublicServers() ([]MumblePublicServer, error) {
 	}
 	req.Header.Set("User-Agent", mumbleRelease)
 
-	resp, err := apiHTTPClient.Do(req)
+	resp, err := ApiHTTPClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("mumble public list: %w", err)
 	}
@@ -5428,7 +5428,7 @@ func (c *MumbleCore) GetPublicServers() ([]MumblePublicServer, error) {
 		return nil, fmt.Errorf("mumble public list: HTTP %d", resp.StatusCode)
 	}
 
-	body, err := readBodyCapped(resp.Body, apiBodyCeiling)
+	body, err := ReadBodyCapped(resp.Body, ApiBodyCeiling)
 	if err != nil {
 		return nil, fmt.Errorf("mumble public list: read body: %w", err)
 	}
@@ -5445,7 +5445,7 @@ func (c *MumbleCore) SetPluginContext(ctx []byte) error {
 	c.mu.RLock()
 	session := c.mySession
 	c.mu.RUnlock()
-	msg := &mumbleUserStateMsg{
+	msg := &MumbleUserStateMsg{
 		Session:       session,
 		HasSession:    true,
 		PluginContext: ctx,
@@ -5457,7 +5457,7 @@ func (c *MumbleCore) SetPluginIdentity(identity string) error {
 	c.mu.RLock()
 	session := c.mySession
 	c.mu.RUnlock()
-	msg := &mumbleUserStateMsg{
+	msg := &MumbleUserStateMsg{
 		Session:        session,
 		HasSession:     true,
 		PluginIdentity: identity,
@@ -5469,7 +5469,7 @@ func (c *MumbleCore) SetTemporaryAccessTokens(tokens []string) error {
 	c.mu.RLock()
 	session := c.mySession
 	c.mu.RUnlock()
-	msg := &mumbleUserStateMsg{
+	msg := &MumbleUserStateMsg{
 		Session:               session,
 		HasSession:            true,
 		TemporaryAccessTokens: tokens,
@@ -5556,9 +5556,9 @@ func (c *MumbleCore) RemoveBan(address []byte, mask uint32) error {
 }
 
 func (c *MumbleCore) SendVersion() error {
-	msg := &mumbleVersion{
-		VersionV1: mumbleVersionV1,
-		VersionV2: mumbleVersionV2,
+	msg := &MumbleVersion{
+		VersionV1: MumbleVersionV1,
+		VersionV2: MumbleVersionV2,
 		Release:   mumbleRelease,
 		OS:        mumbleOS,
 		OSVersion: mumbleRelease,

@@ -30,7 +30,7 @@ type SponsoredReportOption struct {
 }
 
 func (t *TelegramCore) GetSponsoredMessages(chatID string) ([]SponsoredMessageInfo, int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, 0, err
 	}
@@ -52,7 +52,7 @@ func (t *TelegramCore) GetSponsoredMessages(chatID string) ([]SponsoredMessageIn
 	var postsBetween int
 	switch v := res.(type) {
 	case *tg.MessagesSponsoredMessages:
-		list, postsBetween = convertSponsoredMessages(v)
+		list, postsBetween = ConvertSponsoredMessages(v)
 	case *tg.MessagesSponsoredMessagesEmpty:
 	default:
 		return nil, 0, fmt.Errorf("unexpected sponsored result %T", res)
@@ -61,7 +61,7 @@ func (t *TelegramCore) GetSponsoredMessages(chatID string) ([]SponsoredMessageIn
 }
 
 func (t *TelegramCore) ViewSponsoredMessage(randomID string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -74,7 +74,7 @@ func (t *TelegramCore) ViewSponsoredMessage(randomID string) error {
 }
 
 func (t *TelegramCore) ClickSponsoredMessage(randomID string, media, fullscreen bool) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -94,7 +94,7 @@ func (t *TelegramCore) ClickSponsoredMessage(randomID string, media, fullscreen 
 }
 
 func (t *TelegramCore) ReportSponsoredMessage(randomID, option string) (string, []SponsoredReportOption, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return "", nil, err
 	}
@@ -115,12 +115,12 @@ func (t *TelegramCore) ReportSponsoredMessage(randomID, option string) (string, 
 	if err != nil {
 		return "", nil, fmt.Errorf("report sponsored message: %w", err)
 	}
-	title, opts := parseSponsoredReportResult(res)
+	title, opts := ParseSponsoredReportResult(res)
 	return title, opts, nil
 }
 
 func (t *TelegramCore) ToggleSponsoredMessages(enabled bool) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -128,7 +128,7 @@ func (t *TelegramCore) ToggleSponsoredMessages(enabled bool) error {
 	return err
 }
 
-func convertSponsoredMessages(res *tg.MessagesSponsoredMessages) ([]SponsoredMessageInfo, int) {
+func ConvertSponsoredMessages(res *tg.MessagesSponsoredMessages) ([]SponsoredMessageInfo, int) {
 	if res == nil {
 		return nil, 0
 	}
@@ -147,7 +147,7 @@ func convertSponsoredMessages(res *tg.MessagesSponsoredMessages) ([]SponsoredMes
 			ButtonText:    m.ButtonText,
 			Recommended:   m.Recommended,
 			CanReport:     m.CanReport,
-			AccentColorID: sponsoredAccentColorID(m.Color),
+			AccentColorID: SponsoredAccentColorID(m.Color),
 			Entities:      convertTgEntities(m.Entities),
 		}
 		if sponsorInfo, ok := m.GetSponsorInfo(); ok {
@@ -161,13 +161,13 @@ func convertSponsoredMessages(res *tg.MessagesSponsoredMessages) ([]SponsoredMes
 				info.ThumbB64 = extractStrippedThumbB64(p.Sizes)
 			}
 		}
-		info.MediaThumbB64, info.MediaIsVideo = sponsoredMediaInfo(m.Media)
+		info.MediaThumbB64, info.MediaIsVideo = SponsoredMediaInfo(m.Media)
 		list = append(list, info)
 	}
 	return list, postsBetween
 }
 
-func sponsoredAccentColorID(c tg.PeerColorClass) int {
+func SponsoredAccentColorID(c tg.PeerColorClass) int {
 	if c == nil {
 		return 0
 	}
@@ -177,7 +177,7 @@ func sponsoredAccentColorID(c tg.PeerColorClass) int {
 	return 0
 }
 
-func sponsoredMediaInfo(m tg.MessageMediaClass) (thumbB64 string, isVideo bool) {
+func SponsoredMediaInfo(m tg.MessageMediaClass) (thumbB64 string, isVideo bool) {
 	if m == nil {
 		return "", false
 	}
@@ -201,7 +201,7 @@ func sponsoredMediaInfo(m tg.MessageMediaClass) (thumbB64 string, isVideo bool) 
 	return "", false
 }
 
-func parseSponsoredReportResult(res tg.ChannelsSponsoredMessageReportResultClass) (string, []SponsoredReportOption) {
+func ParseSponsoredReportResult(res tg.ChannelsSponsoredMessageReportResultClass) (string, []SponsoredReportOption) {
 	if res == nil {
 		return "", nil
 	}

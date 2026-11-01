@@ -24,7 +24,7 @@ type partSource interface {
 	ReadFilePart(fileRef cores.FileRef, offset, limit int64) ([]byte, error)
 }
 
-func resolveStreamSource(core any) (partSource, error) {
+func ResolveStreamSource(core any) (partSource, error) {
 	if core == nil {
 		return nil, ErrNoRangedRead
 	}
@@ -39,7 +39,7 @@ type MediaReader interface {
 	io.Closer
 }
 
-type mediaStream struct {
+type MediaStream struct {
 	mu       sync.Mutex
 	f        *os.File
 	size     int64
@@ -54,7 +54,7 @@ type mediaStream struct {
 	onClose  func()
 }
 
-func newMediaStream(f *os.File, size, chunk int64, src partSource, ref cores.FileRef, onDone func()) (*mediaStream, error) {
+func NewMediaStream(f *os.File, size, chunk int64, src partSource, ref cores.FileRef, onDone func()) (*MediaStream, error) {
 	if f == nil {
 		return nil, errors.New("stream: nil file")
 	}
@@ -69,7 +69,7 @@ func newMediaStream(f *os.File, size, chunk int64, src partSource, ref cores.Fil
 		f.Close()
 		return nil, fmt.Errorf("stream: pre-size: %w", err)
 	}
-	return &mediaStream{
+	return &MediaStream{
 		f:        f,
 		size:     size,
 		chunk:    chunk,
@@ -81,28 +81,28 @@ func newMediaStream(f *os.File, size, chunk int64, src partSource, ref cores.Fil
 	}, nil
 }
 
-func (s *mediaStream) Size() int64 { return s.size }
+func (s *MediaStream) Size() int64 { return s.size }
 
-func (s *mediaStream) Fetched() int64 {
+func (s *MediaStream) Fetched() int64 {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.got
 }
 
-func (s *mediaStream) complete() bool {
+func (s *MediaStream) complete() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.done
 }
 
-func (s *mediaStream) finishFetchLocked(c int64) {
+func (s *MediaStream) finishFetchLocked(c int64) {
 	if ch, ok := s.fetching[c]; ok {
 		delete(s.fetching, c)
 		close(ch)
 	}
 }
 
-func (s *mediaStream) ensureChunk(c int64) error {
+func (s *MediaStream) ensureChunk(c int64) error {
 	var (
 		off, want int64
 		src       partSource
@@ -189,7 +189,7 @@ func (s *mediaStream) ensureChunk(c int64) error {
 	return nil
 }
 
-func (s *mediaStream) ensure(off, n int64) error {
+func (s *MediaStream) ensure(off, n int64) error {
 	if n <= 0 {
 		return nil
 	}
@@ -203,7 +203,7 @@ func (s *mediaStream) ensure(off, n int64) error {
 	return nil
 }
 
-func (s *mediaStream) ReadAt(p []byte, off int64) (int, error) {
+func (s *MediaStream) ReadAt(p []byte, off int64) (int, error) {
 	if off < 0 {
 		return 0, errors.New("stream: negative offset")
 	}
@@ -227,7 +227,7 @@ func (s *mediaStream) ReadAt(p []byte, off int64) (int, error) {
 	return n, nil
 }
 
-func (s *mediaStream) Close() error {
+func (s *MediaStream) Close() error {
 	s.mu.Lock()
 	f := s.f
 	s.f = nil
@@ -267,7 +267,7 @@ func (e *Engine) loadMediaRow(accountID, chatID, msgID string, seq int) (*mediaR
 	return &r, nil
 }
 
-func (e *Engine) openMediaStream(accountID, chatID, msgID string, seq int, src partSource) (*mediaStream, string, int64, error) {
+func (e *Engine) openMediaStream(accountID, chatID, msgID string, seq int, src partSource) (*MediaStream, string, int64, error) {
 	r, err := e.loadMediaRow(accountID, chatID, msgID, seq)
 	if err != nil {
 		return nil, "", 0, err
@@ -279,7 +279,7 @@ func (e *Engine) openMediaStream(accountID, chatID, msgID string, seq int, src p
 		return nil, "", 0, ErrNoRangedRead
 	}
 
-	dir := filepath.Join(e.mediaDir, safePathSegment(accountID), "full")
+	dir := filepath.Join(e.mediaDir, SafePathSegment(accountID), "full")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, "", 0, err
 	}
@@ -287,10 +287,10 @@ func (e *Engine) openMediaStream(accountID, chatID, msgID string, seq int, src p
 	if ext == "" {
 		ext = ".bin"
 	}
-	path := filepath.Join(dir, safePathSegment(msgID)+"_"+fmt.Sprint(seq)+ext)
+	path := filepath.Join(dir, SafePathSegment(msgID)+"_"+fmt.Sprint(seq)+ext)
 
-	key := mediaGuardKey(accountID, chatID, msgID, seq)
-	if !e.claimStream(key) {
+	key := MediaGuardKey(accountID, chatID, msgID, seq)
+	if !e.ClaimStream(key) {
 		return nil, "", 0, ErrStreamBusy
 	}
 	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o644)
@@ -319,7 +319,7 @@ func (e *Engine) openMediaStream(accountID, chatID, msgID string, seq int, src p
 			LocalPath: path,
 		})
 	}
-	s, err := newMediaStream(f, size, streamChunk, src, ref, onDone)
+	s, err := NewMediaStream(f, size, streamChunk, src, ref, onDone)
 	if err != nil {
 		e.releaseStream(key)
 		return nil, "", 0, err
@@ -343,7 +343,7 @@ func (e *Engine) OpenMediaStream(accountID, chatID, msgID string, seq int) (Medi
 	if !ok || acc.Core == nil {
 		return nil, 0, "", ErrNoRangedRead
 	}
-	src, err := resolveStreamSource(acc.Core)
+	src, err := ResolveStreamSource(acc.Core)
 	if err != nil {
 		return nil, 0, "", err
 	}

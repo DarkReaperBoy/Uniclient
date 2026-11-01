@@ -3875,7 +3875,7 @@ func (d *DeltaChatCore) syncFolder(folder string) error {
 			case imapclient.FetchItemDataUID:
 				uid = it.UID
 			case imapclient.FetchItemDataBodySection:
-				data, lerr := readBodyCapped(it.Literal, downloadCeiling)
+				data, lerr := ReadBodyCapped(it.Literal, DownloadCeiling)
 				if lerr != nil {
 					continue
 				}
@@ -3925,7 +3925,7 @@ func (d *DeltaChatCore) deleteServerMessages(uids []imap.UID) {
 }
 
 func (d *DeltaChatCore) processIncomingEmail(env *imap.Envelope, headerBytes []byte, bodyBytes []byte, flags []imap.Flag) {
-	headers := parseRawHeaders(headerBytes)
+	headers := ParseRawHeaders(headerBytes)
 
 	var senderEmail, senderName string
 	if len(env.From) > 0 {
@@ -3950,7 +3950,7 @@ func (d *DeltaChatCore) processIncomingEmail(env *imap.Envelope, headerBytes []b
 				headers[k] = v
 			}
 			if acHeader := innerHeaders["autocrypt"]; acHeader != "" && senderEmail != "" {
-				d.updateAutocryptPeer(senderEmail, senderName, acHeader)
+				d.UpdateAutocryptPeer(senderEmail, senderName, acHeader)
 			}
 			if gossip := innerHeaders["autocrypt-gossip"]; gossip != "" {
 				for _, g := range strings.Split(gossip, "\n") {
@@ -3966,7 +3966,7 @@ func (d *DeltaChatCore) processIncomingEmail(env *imap.Envelope, headerBytes []b
 						}
 					}
 					if gAddr != "" {
-						d.updateAutocryptPeer(gAddr, "", g)
+						d.UpdateAutocryptPeer(gAddr, "", g)
 					}
 				}
 			}
@@ -3987,7 +3987,7 @@ func (d *DeltaChatCore) processIncomingEmail(env *imap.Envelope, headerBytes []b
 	}
 
 	if autocryptHeader := headers["autocrypt"]; autocryptHeader != "" {
-		d.updateAutocryptPeer(senderEmail, senderName, autocryptHeader)
+		d.UpdateAutocryptPeer(senderEmail, senderName, autocryptHeader)
 	} else {
 		d.peerKeysMu.Lock()
 		if d.peerStates[senderEmail] == nil {
@@ -4409,7 +4409,7 @@ func (d *DeltaChatCore) SetPeerPublicKey(email string, pubKeyBytes []byte) error
 	return nil
 }
 
-func (d *DeltaChatCore) updateAutocryptPeer(email string, name string, autocryptHeader string) {
+func (d *DeltaChatCore) UpdateAutocryptPeer(email string, name string, autocryptHeader string) {
 	parts := strings.Split(autocryptHeader, ";")
 	var keydata string
 	var preferEncrypt string
@@ -4664,7 +4664,7 @@ func (d *DeltaChatCore) fireUpdate(u Update) {
 	}
 }
 
-func parseRawHeaders(data []byte) map[string]string {
+func ParseRawHeaders(data []byte) map[string]string {
 	headers := make(map[string]string, 16)
 	var currentKey string
 	var currentValue strings.Builder
@@ -4847,7 +4847,7 @@ func (d *DeltaChatCore) parseWebxdcManifest(path string) (*DeltaChatWebxdcInfo, 
 			if err != nil {
 				continue
 			}
-			data, _ := readBodyCapped(rc, downloadCeiling)
+			data, _ := ReadBodyCapped(rc, DownloadCeiling)
 			rc.Close()
 			for _, line := range strings.Split(string(data), "\n") {
 				line = strings.TrimSpace(line)
@@ -4900,7 +4900,7 @@ func (d *DeltaChatCore) GetWebxdcBlob(chatID, msgID, blobName string) ([]byte, s
 			if err != nil {
 				return nil, "", err
 			}
-			data, err := readBodyCapped(rc, downloadCeiling)
+			data, err := ReadBodyCapped(rc, DownloadCeiling)
 			rc.Close()
 			if err != nil {
 				return nil, "", err
@@ -5920,7 +5920,7 @@ func (d *DeltaChatCore) DownloadFullMessage(chatID, msgID string) error {
 			break
 		}
 		if bodySection, ok := item.(imapclient.FetchItemDataBodySection); ok {
-			data, err := readBodyCapped(bodySection.Literal, downloadCeiling)
+			data, err := ReadBodyCapped(bodySection.Literal, DownloadCeiling)
 			if err != nil {
 				return fmt.Errorf("read body: %w", err)
 			}

@@ -536,7 +536,7 @@ func (e *Engine) GetChatMembersByRole(accountID, chatID, role, query string, lim
 	return &ParticipantsByRoleResult{Members: members, Total: len(members)}, nil
 }
 
-func memberFromExtra(userID, role string, ex cores.ParticipantExtra) MemberInfo {
+func MemberFromExtra(userID, role string, ex cores.ParticipantExtra) MemberInfo {
 	return MemberInfo{
 		UserID:       userID,
 		Role:         role,

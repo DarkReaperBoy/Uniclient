@@ -11,7 +11,7 @@ import (
 
 const audioAvailable = true
 
-type pulseDevice struct {
+type PulseDevice struct {
 	mu     sync.Mutex
 	client *pulse.Client
 
@@ -25,15 +25,15 @@ type pulseDevice struct {
 	playDone chan struct{}
 }
 
-func openDevice() (device, error) {
+func OpenDevice() (Device, error) {
 	c, err := pulse.NewClient()
 	if err != nil {
 		return nil, fmt.Errorf("audio: pulse connect: %w", err)
 	}
-	return &pulseDevice{client: c}, nil
+	return &PulseDevice{client: c}, nil
 }
 
-func (d *pulseDevice) startMic() (<-chan []byte, error) {
+func (d *PulseDevice) StartMic() (<-chan []byte, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.client == nil {
@@ -99,7 +99,7 @@ func (d *pulseDevice) startMic() (<-chan []byte, error) {
 	return frames, nil
 }
 
-func (d *pulseDevice) stopMic() {
+func (d *PulseDevice) StopMic() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if !d.micOn {
@@ -111,7 +111,7 @@ func (d *pulseDevice) stopMic() {
 	d.micCh, d.micStop, d.micDone = nil, nil, nil
 }
 
-func (d *pulseDevice) startPlayback(fill func(out []int16)) error {
+func (d *PulseDevice) StartPlayback(fill func(out []int16)) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.client == nil {
@@ -158,7 +158,7 @@ func (d *pulseDevice) startPlayback(fill func(out []int16)) error {
 	return nil
 }
 
-func (d *pulseDevice) stopPlayback() {
+func (d *PulseDevice) StopPlayback() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if !d.playOn {
@@ -170,9 +170,9 @@ func (d *pulseDevice) stopPlayback() {
 	d.playStop, d.playDone = nil, nil
 }
 
-func (d *pulseDevice) close() {
-	d.stopMic()
-	d.stopPlayback()
+func (d *PulseDevice) Close() {
+	d.StopMic()
+	d.StopPlayback()
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.client != nil {

@@ -18,14 +18,14 @@ type dicePackCache struct {
 	err   error
 }
 
-type diceMsgInfo struct {
+type DiceMsgInfo struct {
 	Emoji string
 	Value int
 }
 
-func parseDiceExtra(raw []byte) (diceMsgInfo, bool) {
+func ParseDiceExtra(raw []byte) (DiceMsgInfo, bool) {
 	if len(raw) == 0 {
-		return diceMsgInfo{}, false
+		return DiceMsgInfo{}, false
 	}
 	var env struct {
 		Extra struct {
@@ -34,15 +34,15 @@ func parseDiceExtra(raw []byte) (diceMsgInfo, bool) {
 		} `json:"extra"`
 	}
 	if err := json.Unmarshal(raw, &env); err != nil {
-		return diceMsgInfo{}, false
+		return DiceMsgInfo{}, false
 	}
 	if env.Extra.DiceEmoji == "" {
-		return diceMsgInfo{}, false
+		return DiceMsgInfo{}, false
 	}
-	return diceMsgInfo{Emoji: env.Extra.DiceEmoji, Value: env.Extra.DiceValue}, true
+	return DiceMsgInfo{Emoji: env.Extra.DiceEmoji, Value: env.Extra.DiceValue}, true
 }
 
-func diceStickerForValue(set *cores.DiceStickersResult, value int) *cores.DiceSticker {
+func DiceStickerForValue(set *cores.DiceStickersResult, value int) *cores.DiceSticker {
 	if set == nil {
 		return nil
 	}
@@ -54,7 +54,7 @@ func diceStickerForValue(set *cores.DiceStickersResult, value int) *cores.DiceSt
 	return nil
 }
 
-func dicePackWanted(info diceMsgInfo) string {
+func DicePackWanted(info DiceMsgInfo) string {
 	switch info.Emoji {
 	case "🎲", "🎯", "⚽", "🏀":
 		return info.Emoji
@@ -78,11 +78,11 @@ func (e *Engine) EnsureDiceSticker(accountID, chatID, msgID string) error {
 		accountID, chatID, msgID).Scan(&raw); err != nil {
 		return fmt.Errorf("message %s not found: %w", msgID, err)
 	}
-	info, ok := parseDiceExtra(raw)
+	info, ok := ParseDiceExtra(raw)
 	if !ok {
 		return fmt.Errorf("message %s carries no dice data", msgID)
 	}
-	emoji := dicePackWanted(info)
+	emoji := DicePackWanted(info)
 	if emoji == "" {
 		return fmt.Errorf("dice emoji %q has no animated pack support", info.Emoji)
 	}
@@ -105,7 +105,7 @@ func (e *Engine) EnsureDiceSticker(accountID, chatID, msgID string) error {
 		return fmt.Errorf("dice pack %q unavailable", emoji)
 	}
 
-	doc := diceStickerForValue(cached.set, info.Value)
+	doc := DiceStickerForValue(cached.set, info.Value)
 	if doc == nil {
 		return fmt.Errorf("dice pack %q has no sticker for value %d", emoji, info.Value)
 	}

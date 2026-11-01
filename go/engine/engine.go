@@ -94,10 +94,10 @@ type Engine struct {
 	sponsoredCache map[string]*sponsoredCacheEntry
 
 	mediaMu     sync.Mutex
-	mediaPlayer *mediaPlayer
+	MediaPlayer *MediaPlayer
 
 	recMu         sync.Mutex
-	voiceRecorder *voiceRecorder
+	VoiceRecorder *VoiceRecorder
 
 	voiceMu      sync.Mutex
 	voiceRun     *voiceRunner
@@ -251,7 +251,7 @@ func Init(configDir, cacheDir, downloadDir, vaultPassword string) (*Engine, erro
 
 	e.loadAutoDownloadSettings()
 
-	e.media = newMediaManager(e)
+	e.media = NewMediaManager(e)
 	e.media.Start(context.Background())
 
 	return e, nil
@@ -303,7 +303,7 @@ func (s *EventSubscription) Unsubscribe() {
 	delete(s.e.eventCBs, s.id)
 }
 
-func (e *Engine) pushEvent(data []byte) {
+func (e *Engine) PushEvent(data []byte) {
 	e.mu.RLock()
 	cbs := make([]func([]byte), 0, len(e.eventCBs))
 	for _, cb := range e.eventCBs {
@@ -459,12 +459,12 @@ func (e *Engine) GetAutoDownloadSettings() map[string]map[string]interface{} {
 		e.autoDownloadMu.RLock()
 		stored := e.autoDownloadSettings[source]
 		e.autoDownloadMu.RUnlock()
-		out[source] = effectiveAutoDownloadSettings(stored)
+		out[source] = EffectiveAutoDownloadSettings(stored)
 	}
 	return out
 }
 
-func effectiveAutoDownloadSettings(stored map[string]interface{}) map[string]interface{} {
+func EffectiveAutoDownloadSettings(stored map[string]interface{}) map[string]interface{} {
 	photos, files, videos, gifs, videoMsgs := true, false, true, true, true
 	downloadLimit := int64(10 * 1024 * 1024)
 	autoPlayLimit := int64(50 * 1024 * 1024)

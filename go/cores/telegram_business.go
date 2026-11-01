@@ -19,7 +19,7 @@ func businessRecipientsFromWire(r tg.BusinessRecipients) map[string]interface{} 
 	}
 }
 
-func quickRepliesFromWire(res *tg.MessagesQuickReplies) []QuickReplyInfo {
+func QuickRepliesFromWire(res *tg.MessagesQuickReplies) []QuickReplyInfo {
 	if res == nil {
 		return nil
 	}
@@ -41,7 +41,7 @@ func quickRepliesFromWire(res *tg.MessagesQuickReplies) []QuickReplyInfo {
 	return out
 }
 
-func timezonesFromWire(res *tg.HelpTimezonesList) []TimezoneInfo {
+func TimezonesFromWire(res *tg.HelpTimezonesList) []TimezoneInfo {
 	if res == nil {
 		return nil
 	}
@@ -52,7 +52,7 @@ func timezonesFromWire(res *tg.HelpTimezonesList) []TimezoneInfo {
 	return out
 }
 
-func businessInfoFromWire(full *tg.UserFull, self *tg.User, replies []QuickReplyInfo) map[string]interface{} {
+func BusinessInfoFromWire(full *tg.UserFull, self *tg.User, replies []QuickReplyInfo) map[string]interface{} {
 	out := map[string]interface{}{}
 	if self != nil {
 		out["premium"] = self.Premium
@@ -119,11 +119,11 @@ func businessInfoFromWire(full *tg.UserFull, self *tg.User, replies []QuickReply
 
 func buildBusinessRecipients(data map[string]interface{}) (tg.InputBusinessRecipients, error) {
 	r := tg.InputBusinessRecipients{
-		ExistingChats:   dataBool(data, "existing_chats"),
-		NewChats:        dataBool(data, "new_chats"),
-		Contacts:        dataBool(data, "contacts"),
-		NonContacts:     dataBool(data, "non_contacts"),
-		ExcludeSelected: dataBool(data, "exclude_selected"),
+		ExistingChats:   DataBool(data, "existing_chats"),
+		NewChats:        DataBool(data, "new_chats"),
+		Contacts:        DataBool(data, "contacts"),
+		NonContacts:     DataBool(data, "non_contacts"),
+		ExcludeSelected: DataBool(data, "exclude_selected"),
 	}
 	if !r.ExistingChats && !r.NewChats && !r.Contacts && !r.NonContacts {
 		return r, fmt.Errorf("select at least one recipient group")
@@ -131,13 +131,13 @@ func buildBusinessRecipients(data map[string]interface{}) (tg.InputBusinessRecip
 	return r, nil
 }
 
-func buildWorkHours(data map[string]interface{}) (*tg.BusinessWorkHours, error) {
+func BuildWorkHours(data map[string]interface{}) (*tg.BusinessWorkHours, error) {
 	raw, _ := data["weekly_open"].([]interface{})
 	if len(raw) == 0 {
 		return nil, nil
 	}
 	wh := &tg.BusinessWorkHours{
-		TimezoneID: dataStr(data, "timezone_id"),
+		TimezoneID: DataStr(data, "timezone_id"),
 		WeeklyOpen: make([]tg.BusinessWeeklyOpen, 0, len(raw)),
 	}
 	for _, it := range raw {
@@ -145,7 +145,7 @@ func buildWorkHours(data map[string]interface{}) (*tg.BusinessWorkHours, error) 
 		if !ok {
 			continue
 		}
-		s, e := dataInt(iv, "start"), dataInt(iv, "end")
+		s, e := DataInt(iv, "start"), DataInt(iv, "end")
 		if s < 0 || e <= s || e > 8*24*60 {
 			return nil, fmt.Errorf("invalid weekly interval %d..%d", s, e)
 		}
@@ -157,10 +157,10 @@ func buildWorkHours(data map[string]interface{}) (*tg.BusinessWorkHours, error) 
 	return wh, nil
 }
 
-func buildLocation(data map[string]interface{}) (address string, geo *tg.InputGeoPoint, err error) {
-	address = strings.TrimSpace(dataStr(data, "address"))
-	lat, hasLat := dataFloat(data, "lat")
-	lon, hasLon := dataFloat(data, "lon")
+func BuildLocation(data map[string]interface{}) (address string, geo *tg.InputGeoPoint, err error) {
+	address = strings.TrimSpace(DataStr(data, "address"))
+	lat, hasLat := DataFloat(data, "lat")
+	lon, hasLon := DataFloat(data, "lon")
 	if address == "" && !hasLat && !hasLon {
 		return "", nil, nil
 	}
@@ -176,7 +176,7 @@ func buildLocation(data map[string]interface{}) (address string, geo *tg.InputGe
 	return address, geo, nil
 }
 
-func buildGreeting(data map[string]interface{}) (*tg.InputBusinessGreetingMessage, error) {
+func BuildGreeting(data map[string]interface{}) (*tg.InputBusinessGreetingMessage, error) {
 	if len(data) == 0 {
 		return nil, nil
 	}
@@ -184,7 +184,7 @@ func buildGreeting(data map[string]interface{}) (*tg.InputBusinessGreetingMessag
 	if err != nil {
 		return nil, err
 	}
-	days := dataInt(data, "no_activity_days")
+	days := DataInt(data, "no_activity_days")
 	switch days {
 	case 0:
 		days = 7
@@ -193,13 +193,13 @@ func buildGreeting(data map[string]interface{}) (*tg.InputBusinessGreetingMessag
 		return nil, fmt.Errorf("inactivity days must be 7, 14, 21 or 28")
 	}
 	return &tg.InputBusinessGreetingMessage{
-		ShortcutID:     dataInt(data, "shortcut_id"),
+		ShortcutID:     DataInt(data, "shortcut_id"),
 		Recipients:     recipients,
 		NoActivityDays: days,
 	}, nil
 }
 
-func buildAway(data map[string]interface{}) (*tg.InputBusinessAwayMessage, error) {
+func BuildAway(data map[string]interface{}) (*tg.InputBusinessAwayMessage, error) {
 	if len(data) == 0 {
 		return nil, nil
 	}
@@ -208,36 +208,36 @@ func buildAway(data map[string]interface{}) (*tg.InputBusinessAwayMessage, error
 		return nil, err
 	}
 	msg := &tg.InputBusinessAwayMessage{
-		OfflineOnly: dataBool(data, "offline_only"),
-		ShortcutID:  dataInt(data, "shortcut_id"),
+		OfflineOnly: DataBool(data, "offline_only"),
+		ShortcutID:  DataInt(data, "shortcut_id"),
 		Recipients:  recipients,
 	}
-	switch dataStr(data, "schedule") {
+	switch DataStr(data, "schedule") {
 	case "", "always":
 		msg.Schedule = &tg.BusinessAwayMessageScheduleAlways{}
 	case "outside_work_hours":
 		msg.Schedule = &tg.BusinessAwayMessageScheduleOutsideWorkHours{}
 	case "custom":
-		s, e := dataInt(data, "start_date"), dataInt(data, "end_date")
+		s, e := DataInt(data, "start_date"), DataInt(data, "end_date")
 		if s <= 0 || e <= s {
 			return nil, fmt.Errorf("custom schedule needs a valid date range")
 		}
 		msg.Schedule = &tg.BusinessAwayMessageScheduleCustom{StartDate: s, EndDate: e}
 	default:
-		return nil, fmt.Errorf("unknown schedule %q", dataStr(data, "schedule"))
+		return nil, fmt.Errorf("unknown schedule %q", DataStr(data, "schedule"))
 	}
 	return msg, nil
 }
 
-func buildIntro(data map[string]interface{}) (*tg.InputBusinessIntro, error) {
+func BuildIntro(data map[string]interface{}) (*tg.InputBusinessIntro, error) {
 	if len(data) == 0 {
 		return nil, nil
 	}
-	title := strings.TrimSpace(dataStr(data, "title"))
+	title := strings.TrimSpace(DataStr(data, "title"))
 	if title == "" {
 		return nil, nil
 	}
-	desc := strings.TrimSpace(dataStr(data, "description"))
+	desc := strings.TrimSpace(DataStr(data, "description"))
 	if desc == "" {
 		return nil, fmt.Errorf("description is required")
 	}
@@ -247,7 +247,7 @@ func buildIntro(data map[string]interface{}) (*tg.InputBusinessIntro, error) {
 	return &tg.InputBusinessIntro{Title: title, Description: desc}, nil
 }
 
-func sanitizeShortcutName(name, fallback string) string {
+func SanitizeShortcutName(name, fallback string) string {
 	var b strings.Builder
 	for _, r := range strings.TrimSpace(name) {
 		switch {
@@ -264,7 +264,7 @@ func sanitizeShortcutName(name, fallback string) string {
 	return b.String()
 }
 
-func dataBool(m map[string]interface{}, k string) bool {
+func DataBool(m map[string]interface{}, k string) bool {
 	switch v := m[k].(type) {
 	case bool:
 		return v
@@ -278,7 +278,7 @@ func dataBool(m map[string]interface{}, k string) bool {
 	return false
 }
 
-func dataStr(m map[string]interface{}, k string) string {
+func DataStr(m map[string]interface{}, k string) string {
 	if m == nil {
 		return ""
 	}
@@ -291,7 +291,7 @@ func dataStr(m map[string]interface{}, k string) string {
 	return ""
 }
 
-func dataInt(m map[string]interface{}, k string) int {
+func DataInt(m map[string]interface{}, k string) int {
 	switch v := m[k].(type) {
 	case int:
 		return v
@@ -307,7 +307,7 @@ func dataInt(m map[string]interface{}, k string) int {
 	return 0
 }
 
-func dataFloat(m map[string]interface{}, k string) (float64, bool) {
+func DataFloat(m map[string]interface{}, k string) (float64, bool) {
 	switch v := m[k].(type) {
 	case float64:
 		return v, true
@@ -327,7 +327,7 @@ func dataFloat(m map[string]interface{}, k string) (float64, bool) {
 }
 
 func (t *TelegramCore) GetTimezones() ([]TimezoneInfo, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -339,11 +339,11 @@ func (t *TelegramCore) GetTimezones() ([]TimezoneInfo, error) {
 	if !ok {
 		return nil, nil
 	}
-	return timezonesFromWire(list), nil
+	return TimezonesFromWire(list), nil
 }
 
 func (t *TelegramCore) GetQuickReplies() ([]QuickReplyInfo, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -356,11 +356,11 @@ func (t *TelegramCore) GetQuickReplies() ([]QuickReplyInfo, error) {
 		return nil, nil
 	}
 	t.cacheEntities(list.Users, list.Chats)
-	return quickRepliesFromWire(list), nil
+	return QuickRepliesFromWire(list), nil
 }
 
 func (t *TelegramCore) GetBusinessInfo() (map[string]interface{}, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -380,21 +380,21 @@ func (t *TelegramCore) GetBusinessInfo() (map[string]interface{}, error) {
 	if qr, err := api.MessagesGetQuickReplies(ctx, 0); err == nil {
 		if list, ok := qr.(*tg.MessagesQuickReplies); ok {
 			t.cacheEntities(list.Users, list.Chats)
-			replies = quickRepliesFromWire(list)
+			replies = QuickRepliesFromWire(list)
 		}
 	}
-	return businessInfoFromWire(&res.FullUser, self, replies), nil
+	return BusinessInfoFromWire(&res.FullUser, self, replies), nil
 }
 
 func (t *TelegramCore) SetBusinessFeature(feature string, data map[string]interface{}) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
 	switch feature {
 	case "work_hours":
 		req := &tg.AccountUpdateBusinessWorkHoursRequest{}
-		wh, err := buildWorkHours(data)
+		wh, err := BuildWorkHours(data)
 		if err != nil {
 			return err
 		}
@@ -407,7 +407,7 @@ func (t *TelegramCore) SetBusinessFeature(feature string, data map[string]interf
 		return nil
 	case "location":
 		req := &tg.AccountUpdateBusinessLocationRequest{}
-		address, geo, err := buildLocation(data)
+		address, geo, err := BuildLocation(data)
 		if err != nil {
 			return err
 		}
@@ -426,7 +426,7 @@ func (t *TelegramCore) SetBusinessFeature(feature string, data map[string]interf
 			_, err := api.AccountUpdateBusinessGreetingMessage(ctx, &tg.AccountUpdateBusinessGreetingMessageRequest{})
 			return err
 		}
-		msg, err := buildGreeting(data)
+		msg, err := BuildGreeting(data)
 		if err != nil {
 			return err
 		}
@@ -434,8 +434,8 @@ func (t *TelegramCore) SetBusinessFeature(feature string, data map[string]interf
 			_, err := api.AccountUpdateBusinessGreetingMessage(ctx, &tg.AccountUpdateBusinessGreetingMessageRequest{})
 			return err
 		}
-		id, err := t.ensureShortcutMessage(api, ctx, msg.ShortcutID, dataStr(data, "message"),
-			sanitizeShortcutName(dataStr(data, "shortcut_name"), "greeting"))
+		id, err := t.ensureShortcutMessage(api, ctx, msg.ShortcutID, DataStr(data, "message"),
+			SanitizeShortcutName(DataStr(data, "shortcut_name"), "greeting"))
 		if err != nil {
 			return err
 		}
@@ -451,7 +451,7 @@ func (t *TelegramCore) SetBusinessFeature(feature string, data map[string]interf
 			_, err := api.AccountUpdateBusinessAwayMessage(ctx, &tg.AccountUpdateBusinessAwayMessageRequest{})
 			return err
 		}
-		msg, err := buildAway(data)
+		msg, err := BuildAway(data)
 		if err != nil {
 			return err
 		}
@@ -459,8 +459,8 @@ func (t *TelegramCore) SetBusinessFeature(feature string, data map[string]interf
 			_, err := api.AccountUpdateBusinessAwayMessage(ctx, &tg.AccountUpdateBusinessAwayMessageRequest{})
 			return err
 		}
-		id, err := t.ensureShortcutMessage(api, ctx, msg.ShortcutID, dataStr(data, "message"),
-			sanitizeShortcutName(dataStr(data, "shortcut_name"), "away"))
+		id, err := t.ensureShortcutMessage(api, ctx, msg.ShortcutID, DataStr(data, "message"),
+			SanitizeShortcutName(DataStr(data, "shortcut_name"), "away"))
 		if err != nil {
 			return err
 		}
@@ -473,7 +473,7 @@ func (t *TelegramCore) SetBusinessFeature(feature string, data map[string]interf
 		return nil
 	case "intro":
 		req := &tg.AccountUpdateBusinessIntroRequest{}
-		intro, err := buildIntro(data)
+		intro, err := BuildIntro(data)
 		if err != nil {
 			return err
 		}
@@ -546,11 +546,11 @@ func (t *TelegramCore) ensureShortcutMessage(api *tg.Client, ctx context.Context
 }
 
 func (t *TelegramCore) CreateQuickReply(name, text string) (int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 0, err
 	}
-	name = sanitizeShortcutName(name, "")
+	name = SanitizeShortcutName(name, "")
 	if name == "" {
 		return 0, fmt.Errorf("shortcut name is required")
 	}
@@ -580,11 +580,11 @@ func (t *TelegramCore) CreateQuickReply(name, text string) (int, error) {
 }
 
 func (t *TelegramCore) RenameQuickReply(id int, name string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
-	name = sanitizeShortcutName(name, "")
+	name = SanitizeShortcutName(name, "")
 	if name == "" {
 		return fmt.Errorf("shortcut name is required")
 	}

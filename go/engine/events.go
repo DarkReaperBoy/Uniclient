@@ -165,7 +165,7 @@ func (e *Engine) emitEvent(eventType, accountID string, data any) {
 	if err != nil {
 		return
 	}
-	e.pushEvent(b)
+	e.PushEvent(b)
 }
 
 func (e *Engine) emitConnState(accountID string, state ConnState, errMsg string) {
@@ -211,7 +211,7 @@ func shouldEmitTyping(accountID, chatID, userID string) bool {
 	return true
 }
 
-func (e *Engine) handleUpdate(accountID string, u cores.Update) {
+func (e *Engine) HandleUpdate(accountID string, u cores.Update) {
 	e.accountsMu.Lock()
 	if acc, ok := e.accounts[accountID]; ok {
 		acc.lastEvent = time.Now()
@@ -245,7 +245,7 @@ func (e *Engine) handleUpdate(accountID string, u cores.Update) {
 			if chatID == "" {
 				chatID = u.Message.ChatID
 			}
-			e.mergePollResults(accountID, chatID, u.Message.ID, u.Message.Extra)
+			e.MergePollResults(accountID, chatID, u.Message.ID, u.Message.Extra)
 		}
 
 	case cores.UpdateTranscription:
@@ -307,7 +307,7 @@ func (e *Engine) handleUpdate(accountID string, u cores.Update) {
 	}
 }
 
-func notifyPeerChatID(peerType string, peerID int64) string {
+func NotifyPeerChatID(peerType string, peerID int64) string {
 	switch peerType {
 	case "user":
 		return strconv.FormatInt(peerID, 10)
@@ -320,7 +320,7 @@ func notifyPeerChatID(peerType string, peerID int64) string {
 }
 
 func (e *Engine) applyNotifySettings(accountID string, ns *cores.NotifySettingsUpdate) {
-	chatID := notifyPeerChatID(ns.PeerType, ns.PeerID)
+	chatID := NotifyPeerChatID(ns.PeerType, ns.PeerID)
 	if chatID == "" {
 		return
 	}
@@ -344,7 +344,7 @@ func (e *Engine) handleNewMessage(accountID, chatID string, msg *cores.Message) 
 		return
 	}
 
-	cached := e.cacheMessage(accountID, chatID, msg)
+	cached := e.CacheMessage(accountID, chatID, msg)
 
 	preview := msgPreviewText(msg)
 	var mediaType int
@@ -354,7 +354,7 @@ func (e *Engine) handleNewMessage(accountID, chatID string, msg *cores.Message) 
 		mediaType = guessMediaType(att.MimeType, att.Name)
 		thumbB64 = att.ThumbB64
 	}
-	e.ensureChatExists(accountID, chatID, msg)
+	e.EnsureChatExists(accountID, chatID, msg)
 	e.updateChatLastMessage(accountID, chatID, msg.ID, preview, msg.SenderName, msg.Timestamp.UnixMilli(), msg.IsOutgoing, msgStatusFromCore(msg.Status), mediaType, thumbB64)
 
 	if !e.isActiveChat(accountID, chatID) {
@@ -367,10 +367,10 @@ func (e *Engine) handleNewMessage(accountID, chatID string, msg *cores.Message) 
 		Message:   cached,
 	})
 
-	e.maybeAutoDownload(accountID, chatID, msg)
+	e.MaybeAutoDownload(accountID, chatID, msg)
 }
 
-func (e *Engine) maybeAutoDownload(accountID, chatID string, msg *cores.Message) {
+func (e *Engine) MaybeAutoDownload(accountID, chatID string, msg *cores.Message) {
 	if msg == nil || msg.IsOutgoing || len(msg.Attachments) == 0 || e.media == nil {
 		return
 	}

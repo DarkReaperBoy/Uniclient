@@ -35,7 +35,7 @@ func (e *Engine) TranscribeVoiceNote(accountID, chatID, msgID string) (text stri
 	if err != nil {
 		return "", false, err
 	}
-	if _, serr := e.storeTranscription(accountID, chatID, msgID, tid, txt, pend); serr != nil {
+	if _, serr := e.StoreTranscription(accountID, chatID, msgID, tid, txt, pend); serr != nil {
 		return txt, pend, nil
 	}
 	return txt, pend, nil
@@ -54,7 +54,7 @@ func (e *Engine) GetCachedTranscription(accountID, chatID, msgID string) (text s
 	return txt, pend != 0
 }
 
-func (e *Engine) storeTranscription(accountID, chatID, msgID string, transcriptionID int64, text string, pending bool) (sql.Result, error) {
+func (e *Engine) StoreTranscription(accountID, chatID, msgID string, transcriptionID int64, text string, pending bool) (sql.Result, error) {
 	return e.db.Exec(
 		`INSERT INTO message_transcriptions (account_id, chat_id, msg_id, transcription_id, pending, text, created_at)
                  VALUES (?, ?, ?, ?, ?, ?, ?)

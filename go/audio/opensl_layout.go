@@ -3,77 +3,77 @@ package audio
 import "unsafe"
 
 const (
-	slObjectRealize  = 0
-	slObjectResume   = 1
-	slObjectGetState = 2
-	slObjectGetItf   = 3
-	slObjectDestroy  = 6
+	SLObjectRealize  = 0
+	SLObjectResume   = 1
+	SLObjectGetState = 2
+	SLObjectGetItf   = 3
+	SLObjectDestroy  = 6
 )
 
 const (
-	slEngineCreateAudioPlayer   = 2
-	slEngineCreateAudioRecorder = 3
-	slEngineCreateOutputMix     = 7
+	SLEngineCreateAudioPlayer   = 2
+	SLEngineCreateAudioRecorder = 3
+	SLEngineCreateOutputMix     = 7
 )
 
 const (
-	slPlaySetPlayState = 0
-	slPlayGetPlayState = 1
+	SLPlaySetPlayState = 0
+	SLPlayGetPlayState = 1
 )
 
 const (
-	slRecordSetRecordState = 0
-	slRecordGetRecordState = 1
+	SLRecordSetRecordState = 0
+	SLRecordGetRecordState = 1
 )
 
 const (
-	slBQEnqueue  = 0
-	slBQClear    = 1
-	slBQGetState = 2
+	SLBQEnqueue  = 0
+	SLBQClear    = 1
+	SLBQGetState = 2
 )
 
 const (
-	slConfigSetConfiguration = 0
+	SLConfigSetConfiguration = 0
 )
 
 const (
-	slResultSuccess          = 0x00000000
-	slBooleanFalse           = 0
-	slBooleanTrue            = 1
-	slDatalocatorOutputMix   = 0x00000004
-	slDatalocatorIODevice    = 0x00000003
-	slIODeviceAudioInput     = 0x00000001
-	slDataformatPCM          = 0x00000002
-	slPCMSampleformatFixed16 = 0x0010
-	slSpeakerFrontCenter     = 0x00000004
-	slByteorderLittleEndian  = 0x00000002
-	slSamplingrate48         = 48000000
-	slDatalocatorAndroidBQ   = 0x800007BD
-	slDefaultDeviceIDInput   = 0xFFFFFFFF
-	slDefaultDeviceIDOutput  = 0xFFFFFFFE
+	SLResultSuccess          = 0x00000000
+	SLBooleanFalse           = 0
+	SLBooleanTrue            = 1
+	SLDatalocatorOutputMix   = 0x00000004
+	SLDatalocatorIODevice    = 0x00000003
+	SLIODeviceAudioInput     = 0x00000001
+	SLDataformatPCM          = 0x00000002
+	SLPCMSampleformatFixed16 = 0x0010
+	SLSpeakerFrontCenter     = 0x00000004
+	SLByteorderLittleEndian  = 0x00000002
+	SLSamplingrate48         = 48000000
+	SLDatalocatorAndroidBQ   = 0x800007BD
+	SLDefaultDeviceIDInput   = 0xFFFFFFFF
+	SLDefaultDeviceIDOutput  = 0xFFFFFFFE
 )
 
 const (
-	slRecordingPresetGeneric            = 0x00000001
-	slRecordingPresetVoiceCommunication = 0x00000004
+	SLRecordingPresetGeneric            = 0x00000001
+	SLRecordingPresetVoiceCommunication = 0x00000004
 )
 
 const (
-	slPlayStateStopped     = 0x00000001
-	slPlayStatePaused      = 0x00000002
-	slPlayStatePlaying     = 0x00000003
-	slRecordStateStopped   = 0x00000001
-	slRecordStateRecording = 0x00000002
+	SLPlayStateStopped     = 0x00000001
+	SLPlayStatePaused      = 0x00000002
+	SLPlayStatePlaying     = 0x00000003
+	SLRecordStateStopped   = 0x00000001
+	SLRecordStateRecording = 0x00000002
 )
 
-const slRecordingPresetKey = "androidRecordingPreset"
+const SLRecordingPresetKey = "androidRecordingPreset"
 
-type slDataLocatorAndroidBQ struct {
-	locatorType uint32
-	numBuffers  uint32
+type SLDataLocatorAndroidBQ struct {
+	LocatorType uint32
+	NumBuffers  uint32
 }
 
-type slDataFormatPCM struct {
+type SLDataFormatPCM struct {
 	formatType    uint32
 	numChannels   uint32
 	samplesPerSec uint32
@@ -83,80 +83,80 @@ type slDataFormatPCM struct {
 	endianness    uint32
 }
 
-type slDataLocatorOutputMix struct {
-	locatorType uint32
+type SLDataLocatorOutputMix struct {
+	LocatorType uint32
 	_           uint32
-	outputMix   unsafe.Pointer
+	OutputMix   unsafe.Pointer
 }
 
-type slDataLocatorIODevice struct {
-	locatorType uint32
-	deviceType  uint32
-	deviceID    uint32
+type SLDataLocatorIODevice struct {
+	LocatorType uint32
+	DeviceType  uint32
+	DeviceID    uint32
 	_           uint32
-	device      unsafe.Pointer
+	Device      unsafe.Pointer
 }
 
-type slDataSource struct {
+type SLDataSource struct {
 	pLocator unsafe.Pointer
 	pFormat  unsafe.Pointer
 }
 
-type slBQState struct {
+type SLBQState struct {
 	count     uint32
 	playIndex uint32
 }
 
 const (
-	jniEnvGetVersion            = 4
-	jniEnvFindClass             = 6
-	jniEnvExceptionOccurred     = 15
-	jniEnvExceptionClear        = 17
-	jniEnvNewGlobalRef          = 21
-	jniEnvDeleteGlobalRef       = 22
-	jniEnvDeleteLocalRef        = 23
-	jniEnvGetObjectClass        = 31
-	jniEnvIsInstanceOf          = 32
-	jniEnvGetMethodID           = 33
-	jniEnvCallObjectMethodA     = 36
-	jniEnvCallBooleanMethodA    = 39
-	jniEnvCallIntMethodA        = 51
-	jniEnvCallVoidMethodA       = 63
-	jniEnvNewStringUTF          = 167
-	jniEnvGetStringUTFChars     = 169
-	jniEnvReleaseStringUTFChars = 170
-	jniEnvGetArrayLength        = 171
-	jniEnvNewObjectArray        = 172
-	jniEnvSetObjectArrayElement = 174
-	jniEnvExceptionCheck        = 228
+	JNIEnvGetVersion            = 4
+	JNIEnvFindClass             = 6
+	JNIEnvExceptionOccurred     = 15
+	JNIEnvExceptionClear        = 17
+	JNIEnvNewGlobalRef          = 21
+	JNIEnvDeleteGlobalRef       = 22
+	JNIEnvDeleteLocalRef        = 23
+	JNIEnvGetObjectClass        = 31
+	JNIEnvIsInstanceOf          = 32
+	JNIEnvGetMethodID           = 33
+	JNIEnvCallObjectMethodA     = 36
+	JNIEnvCallBooleanMethodA    = 39
+	JNIEnvCallIntMethodA        = 51
+	JNIEnvCallVoidMethodA       = 63
+	JNIEnvNewStringUTF          = 167
+	JNIEnvGetStringUTFChars     = 169
+	JNIEnvReleaseStringUTFChars = 170
+	JNIEnvGetArrayLength        = 171
+	JNIEnvNewObjectArray        = 172
+	JNIEnvSetObjectArrayElement = 174
+	JNIEnvExceptionCheck        = 228
 )
 
 const (
-	jvmAttachCurrentThread = 4
-	jvmDetachCurrentThread = 5
-	jvmGetEnv              = 6
+	JvmAttachCurrentThread = 4
+	JvmDetachCurrentThread = 5
+	JvmGetEnv              = 6
 )
 
-const jniVersion16 = 0x00010006
+const JniVersion16 = 0x00010006
 
-type bqRing struct {
+type BQRing struct {
 	n    int
 	enq  int
 	done int
 	bufs [][]byte
 }
 
-func newBQRing(n, bufLen int) *bqRing {
-	r := &bqRing{n: n, bufs: make([][]byte, n)}
+func NewBQRing(n, bufLen int) *BQRing {
+	r := &BQRing{n: n, bufs: make([][]byte, n)}
 	for i := range r.bufs {
 		r.bufs[i] = make([]byte, bufLen)
 	}
 	return r
 }
 
-func (r *bqRing) outstanding() int { return r.enq - r.done }
+func (r *BQRing) Outstanding() int { return r.enq - r.done }
 
-func (r *bqRing) completed(queueCount int) []int {
+func (r *BQRing) Completed(queueCount int) []int {
 	var out []int
 	for r.enq-r.done > queueCount {
 		out = append(out, r.done%r.n)
@@ -165,10 +165,10 @@ func (r *bqRing) completed(queueCount int) []int {
 	return out
 }
 
-func (r *bqRing) next() (int, []byte) {
+func (r *BQRing) Next() (int, []byte) {
 	slot := r.enq % r.n
 	r.enq++
 	return slot, r.bufs[slot]
 }
 
-func (r *bqRing) reset() { r.enq, r.done = 0, 0 }
+func (r *BQRing) Reset() { r.enq, r.done = 0, 0 }

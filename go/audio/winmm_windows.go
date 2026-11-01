@@ -112,7 +112,7 @@ func (b *buffer) unprepare(in bool) {
 	}
 }
 
-type winmmDevice struct {
+type WinmmDevice struct {
 	mu sync.Mutex
 
 	playHandle uintptr
@@ -128,11 +128,11 @@ type winmmDevice struct {
 	micDone   chan struct{}
 }
 
-func openDevice() (device, error) {
-	return &winmmDevice{}, nil
+func OpenDevice() (Device, error) {
+	return &WinmmDevice{}, nil
 }
 
-func (d *winmmDevice) startPlayback(fill func(out []int16)) error {
+func (d *WinmmDevice) StartPlayback(fill func(out []int16)) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.playHandle != 0 {
@@ -172,7 +172,7 @@ func (d *winmmDevice) startPlayback(fill func(out []int16)) error {
 	return nil
 }
 
-func (d *winmmDevice) playLoop() {
+func (d *WinmmDevice) playLoop() {
 	defer close(d.playDone)
 	pcm := make([]int16, playBufBytes/2)
 	for {
@@ -206,7 +206,7 @@ func (d *winmmDevice) playLoop() {
 	}
 }
 
-func (d *winmmDevice) stopPlayback() {
+func (d *WinmmDevice) StopPlayback() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.closePlaybackLocked()
@@ -216,7 +216,7 @@ func (d *winmmDevice) stopPlayback() {
 	}
 }
 
-func (d *winmmDevice) closePlaybackLocked() {
+func (d *WinmmDevice) closePlaybackLocked() {
 	if d.playHandle == 0 {
 		return
 	}
@@ -234,7 +234,7 @@ func (d *winmmDevice) closePlaybackLocked() {
 	d.playBufs = nil
 }
 
-func (d *winmmDevice) startMic() (<-chan []byte, error) {
+func (d *WinmmDevice) StartMic() (<-chan []byte, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.micHandle != 0 {
@@ -275,7 +275,7 @@ func (d *winmmDevice) startMic() (<-chan []byte, error) {
 	return frames, nil
 }
 
-func (d *winmmDevice) micLoop() {
+func (d *WinmmDevice) micLoop() {
 	defer close(d.micDone)
 	defer close(d.micCh)
 	for {
@@ -318,7 +318,7 @@ func (d *winmmDevice) micLoop() {
 	}
 }
 
-func (d *winmmDevice) stopMic() {
+func (d *WinmmDevice) StopMic() {
 	d.mu.Lock()
 	d.closeMicLocked()
 	d.mu.Unlock()
@@ -328,7 +328,7 @@ func (d *winmmDevice) stopMic() {
 	}
 }
 
-func (d *winmmDevice) closeMicLocked() {
+func (d *WinmmDevice) closeMicLocked() {
 	if d.micHandle == 0 {
 		return
 	}
@@ -346,9 +346,9 @@ func (d *winmmDevice) closeMicLocked() {
 	d.micBufs = nil
 }
 
-func (d *winmmDevice) close() {
-	d.stopMic()
-	d.stopPlayback()
+func (d *WinmmDevice) Close() {
+	d.StopMic()
+	d.StopPlayback()
 }
 
 func s16ToBytes(samples []int16) []byte {

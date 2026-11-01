@@ -7,8 +7,8 @@ import (
 )
 
 const (
-	oggMagic       = "OggS"
-	oggHeaderLen   = 27
+	OggMagic       = "OggS"
+	OggHeaderLen   = 27
 	oggMaxPageSize = 1 << 20
 )
 
@@ -28,7 +28,7 @@ func init() {
 	}
 }
 
-func oggCRC(data []byte) uint32 {
+func OggCRC(data []byte) uint32 {
 	var crc uint32
 	for _, b := range data {
 		crc = (crc << 8) ^ oggCRCTable[byte(crc>>24)^b]
@@ -45,15 +45,15 @@ type oggPage struct {
 	lacing     []byte
 }
 
-func readOggPage(r io.Reader, scratch []byte) (oggPage, error) {
-	var head [oggHeaderLen]byte
+func ReadOggPage(r io.Reader, scratch []byte) (oggPage, error) {
+	var head [OggHeaderLen]byte
 	if _, err := io.ReadFull(r, head[:]); err != nil {
 		if err == io.ErrUnexpectedEOF {
 			return oggPage{}, fmt.Errorf("ogg: truncated page header")
 		}
 		return oggPage{}, err
 	}
-	if string(head[:4]) != oggMagic {
+	if string(head[:4]) != OggMagic {
 		return oggPage{}, fmt.Errorf("ogg: bad magic %q", string(head[:4]))
 	}
 	if head[4] != 0 {
@@ -88,7 +88,7 @@ func readOggPage(r io.Reader, scratch []byte) (oggPage, error) {
 	page = append(page, head[:]...)
 	page = append(page, segTbl[:nsegs]...)
 	page = append(page, payload...)
-	if got := oggCRC(page); got != saved {
+	if got := OggCRC(page); got != saved {
 		return oggPage{}, fmt.Errorf("ogg: crc mismatch (stored %08x, computed %08x)", saved, got)
 	}
 
@@ -110,7 +110,7 @@ type oggPacketReader struct {
 	err     error
 }
 
-func newOggPacketReader(r io.Reader) *oggPacketReader {
+func NewOggPacketReader(r io.Reader) *oggPacketReader {
 	return &oggPacketReader{r: r, scratch: make([]byte, 0, 8192)}
 }
 
@@ -131,7 +131,7 @@ func (o *oggPacketReader) Next() ([]byte, error) {
 }
 
 func (o *oggPacketReader) readPage() error {
-	pg, err := readOggPage(o.r, o.scratch)
+	pg, err := ReadOggPage(o.r, o.scratch)
 	if err != nil {
 		return err
 	}
@@ -150,7 +150,7 @@ func (o *oggPacketReader) readPage() error {
 	return nil
 }
 
-func buildOggPage(packets [][]byte, granule int64, serial, seq uint32, last bool) []byte {
+func BuildOggPage(packets [][]byte, granule int64, serial, seq uint32, last bool) []byte {
 	var lacing []byte
 	var payload []byte
 	for _, p := range packets {
@@ -162,8 +162,8 @@ func buildOggPage(packets [][]byte, granule int64, serial, seq uint32, last bool
 		lacing = append(lacing, byte(n))
 		payload = append(payload, p...)
 	}
-	var head [oggHeaderLen]byte
-	copy(head[:4], oggMagic)
+	var head [OggHeaderLen]byte
+	copy(head[:4], OggMagic)
 	head[4] = 0
 	if last {
 		head[5] = 0x04
@@ -173,10 +173,10 @@ func buildOggPage(packets [][]byte, granule int64, serial, seq uint32, last bool
 	binary.LittleEndian.PutUint32(head[18:22], seq)
 	head[26] = byte(len(lacing))
 
-	page := make([]byte, 0, oggHeaderLen+len(lacing)+len(payload))
+	page := make([]byte, 0, OggHeaderLen+len(lacing)+len(payload))
 	page = append(page, head[:]...)
 	page = append(page, lacing...)
 	page = append(page, payload...)
-	binary.LittleEndian.PutUint32(page[22:26], oggCRC(page))
+	binary.LittleEndian.PutUint32(page[22:26], OggCRC(page))
 	return page
 }

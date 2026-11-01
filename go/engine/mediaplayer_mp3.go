@@ -41,7 +41,7 @@ func IsInAppPlayable(path string) bool {
 	return IsOpusOgg(path) || IsMp3(path) || IsMp4(path)
 }
 
-func mixdownStereo(in []int16) []int16 {
+func MixdownStereo(in []int16) []int16 {
 	if len(in) < 2 {
 		return in
 	}
@@ -52,7 +52,7 @@ func mixdownStereo(in []int16) []int16 {
 	return out
 }
 
-func resampleLinear(in []int16, from, to int) []int16 {
+func ResampleLinear(in []int16, from, to int) []int16 {
 	if len(in) == 0 || from <= 0 || to <= 0 || from == to {
 		return in
 	}
@@ -78,7 +78,7 @@ func resampleLinear(in []int16, from, to int) []int16 {
 	return out
 }
 
-func decodeMp3(path string) ([]int16, error) {
+func DecodeMp3(path string) ([]int16, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -99,9 +99,9 @@ func decodeMp3(path string) ([]int16, error) {
 	for i := range samples {
 		samples[i] = int16(binary.LittleEndian.Uint16(raw[i*2 : i*2+2]))
 	}
-	mono := mixdownStereo(samples)
+	mono := MixdownStereo(samples)
 	if rate := dec.SampleRate(); rate > 0 && rate != voice.SampleRate {
-		mono = resampleLinear(mono, rate, voice.SampleRate)
+		mono = ResampleLinear(mono, rate, voice.SampleRate)
 	}
 	if len(mono) == 0 {
 		return nil, fmt.Errorf("mp3: no audio in %s", path)

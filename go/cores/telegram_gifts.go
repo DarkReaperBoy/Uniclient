@@ -6,7 +6,7 @@ import (
 	"github.com/gotd/td/tg"
 )
 
-func starGiftsFromWire(res *tg.PaymentsStarGifts) *StarGiftsResult {
+func StarGiftsFromWire(res *tg.PaymentsStarGifts) *StarGiftsResult {
 	out := &StarGiftsResult{}
 	if res == nil {
 		return out
@@ -46,7 +46,7 @@ func starGiftsFromWire(res *tg.PaymentsStarGifts) *StarGiftsResult {
 	return out
 }
 
-func giftOptionsFromWire(opts []tg.StarsGiftOption) []StarsGiftAmount {
+func GiftOptionsFromWire(opts []tg.StarsGiftOption) []StarsGiftAmount {
 	out := make([]StarsGiftAmount, 0, len(opts))
 	for _, o := range opts {
 		amt := StarsGiftAmount{
@@ -64,7 +64,7 @@ func giftOptionsFromWire(opts []tg.StarsGiftOption) []StarsGiftAmount {
 	return out
 }
 
-func starGiftInvoice(peer tg.InputPeerClass, giftID int64, message string, hideName bool) tg.InputInvoiceClass {
+func StarGiftInvoice(peer tg.InputPeerClass, giftID int64, message string, hideName bool) tg.InputInvoiceClass {
 	inv := &tg.InputInvoiceStarGift{
 		Peer:   peer,
 		GiftID: giftID,
@@ -79,7 +79,7 @@ func starGiftInvoice(peer tg.InputPeerClass, giftID int64, message string, hideN
 }
 
 func (t *TelegramCore) GetStarGifts() (*StarGiftsResult, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +89,7 @@ func (t *TelegramCore) GetStarGifts() (*StarGiftsResult, error) {
 	}
 	switch r := res.(type) {
 	case *tg.PaymentsStarGifts:
-		return starGiftsFromWire(r), nil
+		return StarGiftsFromWire(r), nil
 	case *tg.PaymentsStarGiftsNotModified:
 		return &StarGiftsResult{}, nil
 	default:
@@ -98,7 +98,7 @@ func (t *TelegramCore) GetStarGifts() (*StarGiftsResult, error) {
 }
 
 func (t *TelegramCore) GetStarsGiftOptions(userID string) ([]StarsGiftAmount, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -117,11 +117,11 @@ func (t *TelegramCore) GetStarsGiftOptions(userID string) ([]StarsGiftAmount, er
 	if err != nil {
 		return nil, err
 	}
-	return giftOptionsFromWire(opts), nil
+	return GiftOptionsFromWire(opts), nil
 }
 
 func (t *TelegramCore) SendStarGift(chatID string, giftID int64, message string, hideName bool) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -130,7 +130,7 @@ func (t *TelegramCore) SendStarGift(chatID string, giftID int64, message string,
 		return fmt.Errorf("resolve peer: %w", perr)
 	}
 	defer unlock()
-	invoice := starGiftInvoice(inputPeer, giftID, message, hideName)
+	invoice := StarGiftInvoice(inputPeer, giftID, message, hideName)
 
 	form, err := api.PaymentsGetPaymentForm(ctx, &tg.PaymentsGetPaymentFormRequest{
 		Invoice: invoice,

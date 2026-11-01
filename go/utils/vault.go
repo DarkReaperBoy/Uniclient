@@ -47,7 +47,7 @@ func CreateVault(path, password string) (*Vault, error) {
 	if _, err := io.ReadFull(rand.Reader, salt); err != nil {
 		return nil, err
 	}
-	v.masterKey = deriveVaultKey(password, salt)
+	v.masterKey = DeriveVaultKey(password, salt)
 
 	if err := v.flush(salt); err != nil {
 		return nil, err
@@ -68,7 +68,7 @@ func OpenVault(path, password string) (*Vault, error) {
 		return nil, fmt.Errorf("unsupported vault version: %d", vf.Version)
 	}
 
-	masterKey := deriveVaultKey(password, vf.Salt)
+	masterKey := DeriveVaultKey(password, vf.Salt)
 	plaintext, err := Decrypt(masterKey, vf.Ciphertext)
 	if err != nil {
 		return nil, ErrVaultWrongPass
@@ -209,7 +209,7 @@ func (v *Vault) flush(salt []byte) error {
 	if err != nil {
 		return fmt.Errorf("marshal vault file: %w", err)
 	}
-	if err := writeVaultBytes(v.path, raw); err != nil {
+	if err := WriteVaultBytes(v.path, raw); err != nil {
 		return fmt.Errorf("write vault: %w", err)
 	}
 	v.dirty = false
@@ -244,11 +244,11 @@ func ImportVault(srcPath, destPath, password string) (*Vault, error) {
 	return v, nil
 }
 
-func deriveVaultKey(password string, salt []byte) []byte {
+func DeriveVaultKey(password string, salt []byte) []byte {
 	return argon2.IDKey([]byte(password), salt, Argon2Iterations, Argon2Memory, Argon2Parallelism, KeySize)
 }
 
-func mergeVaultData(ours, foreign map[string]map[string]json.RawMessage) {
+func MergeVaultData(ours, foreign map[string]map[string]json.RawMessage) {
 	for bucket, keys := range foreign {
 		ob, ok := ours[bucket]
 		if !ok {

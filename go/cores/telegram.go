@@ -292,7 +292,7 @@ func (t *TelegramCore) initClient() {
 		var converted *Message
 		switch msg := u.Message.(type) {
 		case *tg.Message:
-			converted = t.convertMessage(msg)
+			converted = t.ConvertMessage(msg)
 			t.attachSublistInfo(converted, msg, e)
 			if code := extractLoginCode(msg); code != "" {
 				t.fireUpdate(Update{
@@ -308,7 +308,7 @@ func (t *TelegramCore) initClient() {
 			if _, ok := msg.Action.(*tg.MessageActionHistoryClear); ok {
 				return nil
 			}
-			converted = t.convertServiceMessage(msg)
+			converted = t.ConvertServiceMessage(msg)
 		default:
 			return nil
 		}
@@ -326,7 +326,7 @@ func (t *TelegramCore) initClient() {
 		if !ok {
 			return nil
 		}
-		converted := t.convertMessage(msg)
+		converted := t.ConvertMessage(msg)
 		t.fireUpdate(Update{
 			Type:     UpdateEditMessage,
 			ChatID:   converted.ChatID,
@@ -361,7 +361,7 @@ func (t *TelegramCore) initClient() {
 		var converted *Message
 		switch msg := u.Message.(type) {
 		case *tg.Message:
-			converted = t.convertMessage(msg)
+			converted = t.ConvertMessage(msg)
 			t.attachSublistInfo(converted, msg, e)
 		case *tg.MessageService:
 			if _, ok := msg.Action.(*tg.MessageActionEmpty); ok {
@@ -370,7 +370,7 @@ func (t *TelegramCore) initClient() {
 			if _, ok := msg.Action.(*tg.MessageActionHistoryClear); ok {
 				return nil
 			}
-			converted = t.convertServiceMessage(msg)
+			converted = t.ConvertServiceMessage(msg)
 		default:
 			return nil
 		}
@@ -388,7 +388,7 @@ func (t *TelegramCore) initClient() {
 		if !ok {
 			return nil
 		}
-		converted := t.convertMessage(msg)
+		converted := t.ConvertMessage(msg)
 		t.fireUpdate(Update{
 			Type:     UpdateEditMessage,
 			ChatID:   converted.ChatID,
@@ -1718,7 +1718,7 @@ func (t *TelegramCore) Logout() error {
 }
 
 func (t *TelegramCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -1795,7 +1795,7 @@ func (t *TelegramCore) GetDialogs(opts PaginationOpts) ([]Dialog, error) {
 }
 
 func (t *TelegramCore) SendMessage(chatID string, msg OutgoingMessage) (*Message, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -1976,7 +1976,7 @@ func (t *TelegramCore) SendMessage(chatID string, msg OutgoingMessage) (*Message
 }
 
 func (t *TelegramCore) GetMessageByID(chatID string, msgID string) (*Message, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -2024,7 +2024,7 @@ func (t *TelegramCore) GetMessageByID(chatID string, msgID string) (*Message, er
 }
 
 func (t *TelegramCore) GetMessages(chatID string, opts PaginationOpts) ([]Message, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -2075,7 +2075,7 @@ func (t *TelegramCore) GetMessages(chatID string, opts PaginationOpts) ([]Messag
 }
 
 func (t *TelegramCore) GetPinnedMessages(chatID string) ([]Message, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -2215,7 +2215,7 @@ func (t *TelegramCore) DeleteMessage(chatID string, msgID string) error {
 }
 
 func (t *TelegramCore) DeleteMessageRevoke(chatID string, msgID string, revoke bool) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -2256,7 +2256,7 @@ func (t *TelegramCore) ForwardMessage(fromChatID string, msgID string, toChatID 
 }
 
 func (t *TelegramCore) ForwardMessageWithOptions(fromChatID, msgID, toChatID string, opts ForwardOptions) (*Message, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -2300,7 +2300,7 @@ func (t *TelegramCore) ForwardMessageWithOptions(fromChatID, msgID, toChatID str
 }
 
 func (t *TelegramCore) ForwardMessagesWithOptions(fromChatID string, msgIDs []string, toChatID string, opts ForwardOptions) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -2416,7 +2416,7 @@ func (t *TelegramCore) UnpinMessage(chatID string, msgID string) error {
 }
 
 func (t *TelegramCore) MarkAsRead(chatID string, upToMsgID string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -2677,7 +2677,7 @@ func (t *TelegramCore) buildStyledCaption(text, entitiesJSON string) []styling.S
 }
 
 func (t *TelegramCore) SendMediaAlbum(chatID string, items []AlbumItem, silent bool, scheduleDate int64) ([]*Message, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -2752,12 +2752,12 @@ func (t *TelegramCore) SendMediaAlbum(chatID string, items []AlbumItem, silent b
 }
 
 func (t *TelegramCore) DownloadFile(fileRef FileRef, dest string, progress func(recv, total int64)) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
 
-	location, err := t.fileLocationOf(fileRef)
+	location, err := t.FileLocationOf(fileRef)
 	if err != nil {
 		return err
 	}
@@ -2802,7 +2802,7 @@ func (t *TelegramCore) DownloadChatAvatar(chatID, destPath string) error {
 		return fmt.Errorf("no photo for peer %s", chatID)
 	}
 
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -2871,7 +2871,7 @@ func (t *TelegramCore) getUserAvatarB64(userID int64) string {
 }
 
 func (t *TelegramCore) GetUserAvatarThumb(userID string) (string, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return "", err
 	}
@@ -2897,7 +2897,7 @@ func (t *TelegramCore) GetUserAvatarThumb(userID string) (string, error) {
 }
 
 func (t *TelegramCore) SendImageBase64(chatID string, b64 string, caption string) (*Message, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -2937,7 +2937,7 @@ func (t *TelegramCore) SendImageBase64(chatID string, b64 string, caption string
 }
 
 func (t *TelegramCore) SendContact(chatID string, phone string, firstName string, lastName string, userID string) (*Message, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -3091,7 +3091,7 @@ type tgCall struct {
 
 	useV2Impl              bool
 	useV1Framing           bool
-	remoteInitialSetup     *tgInitialSetup
+	remoteInitialSetup     *TgInitialSetup
 	remoteNegChannels      *tgNegotiateChannels
 	remoteNegChannelsOffer *tgNegotiateChannels
 	v2ImplExchangeSeq      uint32
@@ -3129,12 +3129,12 @@ type tgCall struct {
 	dhDone      chan struct{}
 }
 
-type tgInitialSetup struct {
+type TgInitialSetup struct {
 	Type         string              `json:"@type"`
 	Ufrag        string              `json:"ufrag"`
 	Pwd          string              `json:"pwd"`
 	Renomination bool                `json:"renomination"`
-	Fingerprints []tgDTLSFingerprint `json:"fingerprints"`
+	Fingerprints []TgDTLSFingerprint `json:"fingerprints"`
 	Audio        *tgMediaDesc        `json:"audio,omitempty"`
 	Video        *tgMediaDesc        `json:"video,omitempty"`
 	Screencast   *tgMediaDesc        `json:"screencast,omitempty"`
@@ -3152,7 +3152,7 @@ type tgWebSSRCGroup struct {
 	SSRCs     []int  `json:"ssrcs"`
 }
 
-type tgDTLSFingerprint struct {
+type TgDTLSFingerprint struct {
 	Hash        string `json:"hash"`
 	Setup       string `json:"setup"`
 	Fingerprint string `json:"fingerprint"`
@@ -3161,10 +3161,10 @@ type tgDTLSFingerprint struct {
 type tgNegotiateChannels struct {
 	Type       string           `json:"@type"`
 	ExchangeID string           `json:"exchangeId"`
-	Contents   []tgMediaContent `json:"contents"`
+	Contents   []TgMediaContent `json:"contents"`
 }
 
-type tgMediaContent struct {
+type TgMediaContent struct {
 	Type          string           `json:"type"`
 	SSRC          string           `json:"ssrc"`
 	SSRCGroups    []tgSSRCGroup    `json:"ssrcGroups,omitempty"`
@@ -3214,21 +3214,21 @@ type tgMediaState struct {
 	LowBattery      bool   `json:"lowBattery"`
 }
 
-func unmarshalCallSignal(data []byte, v any) error {
+func UnmarshalCallSignal(data []byte, v any) error {
 	if err := json.Unmarshal(data, v); err != nil {
 		return fmt.Errorf("call signal parse: %w", err)
 	}
 	return nil
 }
 
-func fingerprintLabel(setup tgInitialSetup) string {
+func FingerprintLabel(setup TgInitialSetup) string {
 	if len(setup.Fingerprints) == 0 {
 		return "none"
 	}
 	return setup.Fingerprints[0].Setup
 }
 
-func firstSSRC(contents []tgMediaContent) string {
+func FirstSSRC(contents []TgMediaContent) string {
 	if len(contents) == 0 {
 		return ""
 	}
@@ -4208,7 +4208,7 @@ func (t *TelegramCore) startInstanceImplCall(call *tgCall, connections []tg.Phon
 	return nil
 }
 
-func extractWebInitialSetupFromSDP(sdp string, isOutgoing bool) *tgInitialSetup {
+func extractWebInitialSetupFromSDP(sdp string, isOutgoing bool) *TgInitialSetup {
 	v2Setup, v2NC := extractV2ImplFromSDP(sdp, isOutgoing)
 
 	for _, content := range v2NC.Contents {
@@ -4318,12 +4318,12 @@ func extractWebInitialSetupFromSDP(sdp string, isOutgoing bool) *tgInitialSetup 
 	return v2Setup
 }
 
-func buildSyntheticSDPFromWebSetup(setup *tgInitialSetup, sdpType string) string {
+func buildSyntheticSDPFromWebSetup(setup *TgInitialSetup, sdpType string) string {
 	nc := &tgNegotiateChannels{
 		Type: "NegotiateChannels",
 	}
 	if setup.Audio != nil {
-		nc.Contents = append(nc.Contents, tgMediaContent{
+		nc.Contents = append(nc.Contents, TgMediaContent{
 			Type:          "audio",
 			SSRC:          setup.Audio.SSRC,
 			PayloadTypes:  setup.Audio.PayloadTypes,
@@ -4339,7 +4339,7 @@ func buildSyntheticSDPFromWebSetup(setup *tgInitialSetup, sdpType string) string
 			}
 			groups = append(groups, tgSSRCGroup{Semantics: wg.Semantics, SSRCs: ssrcs})
 		}
-		nc.Contents = append(nc.Contents, tgMediaContent{
+		nc.Contents = append(nc.Contents, TgMediaContent{
 			Type:          "video",
 			SSRC:          setup.Video.SSRC,
 			SSRCGroups:    groups,
@@ -4356,7 +4356,7 @@ func buildSyntheticSDPFromWebSetup(setup *tgInitialSetup, sdpType string) string
 			}
 			groups = append(groups, tgSSRCGroup{Semantics: wg.Semantics, SSRCs: ssrcs})
 		}
-		nc.Contents = append(nc.Contents, tgMediaContent{
+		nc.Contents = append(nc.Contents, TgMediaContent{
 			Type:          "video",
 			SSRC:          setup.Screencast.SSRC,
 			SSRCGroups:    groups,
@@ -4390,8 +4390,8 @@ func buildSyntheticSDPFromWebSetup(setup *tgInitialSetup, sdpType string) string
 	return sdp
 }
 
-func extractV2ImplFromSDP(sdp string, isOutgoing bool) (*tgInitialSetup, *tgNegotiateChannels) {
-	setup := &tgInitialSetup{
+func extractV2ImplFromSDP(sdp string, isOutgoing bool) (*TgInitialSetup, *tgNegotiateChannels) {
+	setup := &TgInitialSetup{
 		Type: "InitialSetup",
 	}
 
@@ -4413,7 +4413,7 @@ func extractV2ImplFromSDP(sdp string, isOutgoing bool) (*tgInitialSetup, *tgNego
 						break
 					}
 				}
-				setup.Fingerprints = append(setup.Fingerprints, tgDTLSFingerprint{
+				setup.Fingerprints = append(setup.Fingerprints, TgDTLSFingerprint{
 					Hash:        parts[0],
 					Setup:       dtlsSetup,
 					Fingerprint: parts[1],
@@ -4429,7 +4429,7 @@ func extractV2ImplFromSDP(sdp string, isOutgoing bool) (*tgInitialSetup, *tgNego
 
 	type mSection struct {
 		mediaType string
-		content   tgMediaContent
+		content   TgMediaContent
 		ssrcGroup []tgSSRCGroup
 	}
 	var sections []mSection
@@ -4437,11 +4437,11 @@ func extractV2ImplFromSDP(sdp string, isOutgoing bool) (*tgInitialSetup, *tgNego
 
 	for _, line := range strings.Split(sdp, "\r\n") {
 		if strings.HasPrefix(line, "m=audio ") {
-			sections = append(sections, mSection{mediaType: "audio", content: tgMediaContent{Type: "audio"}})
+			sections = append(sections, mSection{mediaType: "audio", content: TgMediaContent{Type: "audio"}})
 			currentIdx = len(sections) - 1
 			continue
 		} else if strings.HasPrefix(line, "m=video ") {
-			sections = append(sections, mSection{mediaType: "video", content: tgMediaContent{Type: "video"}})
+			sections = append(sections, mSection{mediaType: "video", content: TgMediaContent{Type: "video"}})
 			currentIdx = len(sections) - 1
 			continue
 		} else if strings.HasPrefix(line, "m=") {
@@ -4622,7 +4622,7 @@ func extractRemoteVideoSSRCs(call *tgCall, sdp string) {
 	}
 }
 
-func buildSyntheticSDPFromV2Impl(setup *tgInitialSetup, nc *tgNegotiateChannels, sdpType string, localAudioSSRC ...uint32) string {
+func buildSyntheticSDPFromV2Impl(setup *TgInitialSetup, nc *tgNegotiateChannels, sdpType string, localAudioSSRC ...uint32) string {
 	var sb strings.Builder
 
 	sb.WriteString("v=0\r\n")
@@ -5139,7 +5139,7 @@ func (t *TelegramCore) setupSctpSignaling(call *tgCall) {
 			}
 
 			if len(decrypted) >= 2 && decrypted[0] == 0x1f && decrypted[1] == 0x8b {
-				if decompressed, err := gzipDecompress(decrypted); err == nil {
+				if decompressed, err := GzipDecompress(decrypted); err == nil {
 					decrypted = decompressed
 				}
 			}
@@ -5147,7 +5147,7 @@ func (t *TelegramCore) setupSctpSignaling(call *tgCall) {
 			fmt.Printf("[tg-call] SCTP signaling: %s\n", string(decrypted[:min(len(decrypted), 300)]))
 
 			var msg map[string]interface{}
-			if err := unmarshalCallSignal(decrypted, &msg); err != nil {
+			if err := UnmarshalCallSignal(decrypted, &msg); err != nil {
 				fmt.Printf("[tg-call] SCTP signaling: invalid JSON: %v\n", err)
 				continue
 			}
@@ -5173,8 +5173,8 @@ func (t *TelegramCore) setupSctpSignaling(call *tgCall) {
 				t.handleRemoteCandidate(call, sdp, mid, mline)
 			case "InitialSetup":
 				if call.useV2Impl {
-					var setup tgInitialSetup
-					if err := unmarshalCallSignal(decrypted, &setup); err != nil {
+					var setup TgInitialSetup
+					if err := UnmarshalCallSignal(decrypted, &setup); err != nil {
 						fmt.Printf("[tg-call] SCTP skip InitialSetup: %v\n", err)
 						break
 					}
@@ -5184,7 +5184,7 @@ func (t *TelegramCore) setupSctpSignaling(call *tgCall) {
 			case "NegotiateChannels":
 				if call.useV2Impl {
 					var nc tgNegotiateChannels
-					if err := unmarshalCallSignal(decrypted, &nc); err != nil {
+					if err := UnmarshalCallSignal(decrypted, &nc); err != nil {
 						fmt.Printf("[tg-call] SCTP skip NegotiateChannels: %v\n", err)
 						break
 					}
@@ -5193,7 +5193,7 @@ func (t *TelegramCore) setupSctpSignaling(call *tgCall) {
 				}
 			case "Candidates":
 				var candidates tgCandidates
-				if err := unmarshalCallSignal(decrypted, &candidates); err != nil {
+				if err := UnmarshalCallSignal(decrypted, &candidates); err != nil {
 					fmt.Printf("[tg-call] SCTP skip Candidates: %v\n", err)
 					break
 				}
@@ -5204,7 +5204,7 @@ func (t *TelegramCore) setupSctpSignaling(call *tgCall) {
 				}
 			case "MediaState":
 				var ms tgMediaState
-				if err := unmarshalCallSignal(decrypted, &ms); err != nil {
+				if err := UnmarshalCallSignal(decrypted, &ms); err != nil {
 					fmt.Printf("[tg-call] SCTP skip MediaState: %v\n", err)
 					break
 				}
@@ -5927,11 +5927,11 @@ func (t *TelegramCore) finishCallSetup(call *tgCall, t0 time.Time) {
 
 			t.sendCallSignaling(call, v2Setup)
 			fmt.Printf("[tg-call] V2Impl: sent InitialSetup (ufrag=%s, setup=%s) (+%dms)\n",
-				v2Setup.Ufrag, fingerprintLabel(*v2Setup), time.Since(t0).Milliseconds())
+				v2Setup.Ufrag, FingerprintLabel(*v2Setup), time.Since(t0).Milliseconds())
 
 			t.sendCallSignaling(call, v2NC)
 			fmt.Printf("[tg-call] V2Impl: sent NegotiateChannels (exchangeId=%s, ssrc=%s) (+%dms)\n",
-				v2NC.ExchangeID, firstSSRC(v2NC.Contents), time.Since(t0).Milliseconds())
+				v2NC.ExchangeID, FirstSSRC(v2NC.Contents), time.Since(t0).Milliseconds())
 		} else {
 			t.sendCallSignaling(call, map[string]interface{}{
 				"@type": "offer",
@@ -6479,14 +6479,14 @@ func (t *TelegramCore) handleSignalingData(callID int64, data []byte) {
 		}
 
 		if len(plaintext) >= 2 && plaintext[0] == 0x1f && plaintext[1] == 0x8b {
-			if decompressed, err := gzipDecompress(plaintext); err == nil {
+			if decompressed, err := GzipDecompress(plaintext); err == nil {
 				plaintext = decompressed
 				fmt.Printf("[tg-call] decompressed gzip → %d bytes\n", len(plaintext))
 			}
 		}
 
 		var msg map[string]interface{}
-		if err := unmarshalCallSignal(plaintext, &msg); err != nil {
+		if err := UnmarshalCallSignal(plaintext, &msg); err != nil {
 			fmt.Printf("[tg-call] signaling: invalid JSON: %v\n", err)
 			continue
 		}
@@ -6514,7 +6514,7 @@ func (t *TelegramCore) handleSignalingData(callID int64, data []byte) {
 
 		case "MediaState":
 			var ms tgMediaState
-			if err := unmarshalCallSignal(plaintext, &ms); err != nil {
+			if err := UnmarshalCallSignal(plaintext, &ms); err != nil {
 				fmt.Printf("[tg-call] skip MediaState: %v\n", err)
 				break
 			}
@@ -6524,22 +6524,22 @@ func (t *TelegramCore) handleSignalingData(callID int64, data []byte) {
 
 		case "InitialSetup":
 			if call.useWebSignaling {
-				var setup tgInitialSetup
-				if err := unmarshalCallSignal(plaintext, &setup); err != nil {
+				var setup TgInitialSetup
+				if err := UnmarshalCallSignal(plaintext, &setup); err != nil {
 					fmt.Printf("[tg-call] skip Web InitialSetup: %v\n", err)
 					break
 				}
 				fmt.Printf("[tg-call] Web: got InitialSetup (ufrag=%s, setup=%s, audio=%v, video=%v, screencast=%v)\n",
-					setup.Ufrag, fingerprintLabel(setup), setup.Audio != nil, setup.Video != nil, setup.Screencast != nil)
+					setup.Ufrag, FingerprintLabel(setup), setup.Audio != nil, setup.Video != nil, setup.Screencast != nil)
 				t.handleRemoteInitialSetupWeb(call, &setup)
 			} else if call.useV2Impl {
-				var setup tgInitialSetup
-				if err := unmarshalCallSignal(plaintext, &setup); err != nil {
+				var setup TgInitialSetup
+				if err := UnmarshalCallSignal(plaintext, &setup); err != nil {
 					fmt.Printf("[tg-call] skip V2Impl InitialSetup: %v\n", err)
 					break
 				}
 				fmt.Printf("[tg-call] V2Impl: got InitialSetup (ufrag=%s, setup=%s)\n",
-					setup.Ufrag, fingerprintLabel(setup))
+					setup.Ufrag, FingerprintLabel(setup))
 				t.handleRemoteInitialSetupV2Impl(call, &setup)
 			} else {
 				fmt.Printf("[tg-call] Got InitialSetup (unexpected with V2Reference)\n")
@@ -6547,11 +6547,11 @@ func (t *TelegramCore) handleSignalingData(callID int64, data []byte) {
 		case "NegotiateChannels":
 			if call.useV2Impl {
 				var nc tgNegotiateChannels
-				if err := unmarshalCallSignal(plaintext, &nc); err != nil {
+				if err := UnmarshalCallSignal(plaintext, &nc); err != nil {
 					fmt.Printf("[tg-call] skip NegotiateChannels: %v\n", err)
 					break
 				}
-				ssrc := firstSSRC(nc.Contents)
+				ssrc := FirstSSRC(nc.Contents)
 				fmt.Printf("[tg-call] V2Impl: got NegotiateChannels (exchangeId=%s, contents=%d, ssrc=%s)\n",
 					nc.ExchangeID, len(nc.Contents), ssrc)
 				t.handleRemoteNegotiateChannelsV2Impl(call, &nc)
@@ -6560,7 +6560,7 @@ func (t *TelegramCore) handleSignalingData(callID int64, data []byte) {
 			}
 		case "Candidates":
 			var candidates tgCandidates
-			if err := unmarshalCallSignal(plaintext, &candidates); err != nil {
+			if err := UnmarshalCallSignal(plaintext, &candidates); err != nil {
 				fmt.Printf("[tg-call] skip Candidates: %v\n", err)
 				break
 			}
@@ -6792,7 +6792,7 @@ func (t *TelegramCore) handleRemoteCandidate(call *tgCall, sdp string, mid strin
 	}
 }
 
-func (t *TelegramCore) handleRemoteInitialSetupWeb(call *tgCall, setup *tgInitialSetup) {
+func (t *TelegramCore) handleRemoteInitialSetupWeb(call *tgCall, setup *TgInitialSetup) {
 	if call.localSDPReady != nil {
 		select {
 		case <-call.localSDPReady:
@@ -6952,7 +6952,7 @@ func (t *TelegramCore) handleRemoteInitialSetupWeb(call *tgCall, setup *tgInitia
 	})
 }
 
-func (t *TelegramCore) handleRemoteInitialSetupV2Impl(call *tgCall, setup *tgInitialSetup) {
+func (t *TelegramCore) handleRemoteInitialSetupV2Impl(call *tgCall, setup *TgInitialSetup) {
 	call.mu.Lock()
 	call.remoteInitialSetup = setup
 	call.v2ImplHandshakeDone = true
@@ -7130,7 +7130,7 @@ func (t *TelegramCore) trySetRemoteV2Impl(call *tgCall) {
 		ourSetup, ourNC := extractV2ImplFromSDP(answer.SDP, false)
 		t.sendCallSignaling(call, ourSetup)
 		fmt.Printf("[tg-call] V2Impl: sent InitialSetup (ufrag=%s, setup=%s)\n",
-			ourSetup.Ufrag, fingerprintLabel(*ourSetup))
+			ourSetup.Ufrag, FingerprintLabel(*ourSetup))
 
 		answerNC := &tgNegotiateChannels{
 			Type:       "NegotiateChannels",
@@ -7139,7 +7139,7 @@ func (t *TelegramCore) trySetRemoteV2Impl(call *tgCall) {
 		}
 		t.sendCallSignaling(call, answerNC)
 		fmt.Printf("[tg-call] V2Impl: sent NegotiateChannels answer (exchangeId=%s, ssrc=%s [echoed remote])\n",
-			answerNC.ExchangeID, firstSSRC(answerNC.Contents))
+			answerNC.ExchangeID, FirstSSRC(answerNC.Contents))
 
 		var eidBuf [4]byte
 		rand.Read(eidBuf[:])
@@ -7147,7 +7147,7 @@ func (t *TelegramCore) trySetRemoteV2Impl(call *tgCall) {
 		ourNC.ExchangeID = ownExchangeID
 		t.sendCallSignaling(call, ourNC)
 		fmt.Printf("[tg-call] V2Impl: sent NegotiateChannels own offer (exchangeId=%s, ssrc=%s)\n",
-			ourNC.ExchangeID, firstSSRC(ourNC.Contents))
+			ourNC.ExchangeID, FirstSSRC(ourNC.Contents))
 
 		for _, line := range strings.Split(answer.SDP, "\r\n") {
 			if strings.HasPrefix(line, "a=ssrc:") {
@@ -7252,7 +7252,7 @@ func (t *TelegramCore) trySetRemoteV2Impl(call *tgCall) {
 }
 
 func (t *TelegramCore) processRemoteV2ImplOffer(call *tgCall, nc *tgNegotiateChannels) {
-	remoteSSRC := firstSSRC(nc.Contents)
+	remoteSSRC := FirstSSRC(nc.Contents)
 
 	call.mu.Lock()
 	if call.answeredExchangeIDs == nil {
@@ -7292,7 +7292,7 @@ func (t *TelegramCore) processRemoteV2ImplOffer(call *tgCall, nc *tgNegotiateCha
 	}
 }
 
-func (t *TelegramCore) handleV2ImplReoffer(call *tgCall, setup *tgInitialSetup, nc *tgNegotiateChannels) {
+func (t *TelegramCore) handleV2ImplReoffer(call *tgCall, setup *TgInitialSetup, nc *tgNegotiateChannels) {
 	if call.localSDPReady != nil {
 		select {
 		case <-call.localSDPReady:
@@ -7352,20 +7352,20 @@ func generateICECredential(length int) string {
 	return string(b)
 }
 
-var tgGzipMaxDecompressed int64 = 128 * 1024 * 1024
+var TgGzipMaxDecompressed int64 = 128 * 1024 * 1024
 
-func gzipDecompress(data []byte) ([]byte, error) {
+func GzipDecompress(data []byte) ([]byte, error) {
 	r, err := gzip.NewReader(bytes.NewReader(data))
 	if err != nil {
 		return nil, err
 	}
 	defer r.Close()
-	out, err := io.ReadAll(io.LimitReader(r, tgGzipMaxDecompressed+1))
+	out, err := io.ReadAll(io.LimitReader(r, TgGzipMaxDecompressed+1))
 	if err != nil {
 		return nil, err
 	}
-	if int64(len(out)) > tgGzipMaxDecompressed {
-		return nil, fmt.Errorf("gzip: decompressed size exceeds %d bytes", tgGzipMaxDecompressed)
+	if int64(len(out)) > TgGzipMaxDecompressed {
+		return nil, fmt.Errorf("gzip: decompressed size exceeds %d bytes", TgGzipMaxDecompressed)
 	}
 	return out, nil
 }
@@ -10426,7 +10426,7 @@ func (t *TelegramCore) SetAudioFrameDuration(callID string, durationMs int) erro
 }
 
 func (t *TelegramCore) GetProfile(userID string) (*User, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -10466,7 +10466,7 @@ func (t *TelegramCore) CreateGroup(name string, members []string) (*Dialog, erro
 }
 
 func (t *TelegramCore) CreateGroupWithTTL(name string, members []string, ttlSeconds int) (*Dialog, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -10524,7 +10524,7 @@ func (t *TelegramCore) RawCreateChannel(name, description string, broadcast, meg
 }
 
 func (t *TelegramCore) RawCreateChannelFull(name, description string, broadcast, megagroup, forum bool, ttlPeriod int) (*Dialog, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -10572,7 +10572,7 @@ func (t *TelegramCore) CreateTopic(chatID string, name string) (*Dialog, error) 
 }
 
 func (t *TelegramCore) GetFolders() ([]Folder, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -10638,7 +10638,7 @@ func (t *TelegramCore) GetFolders() ([]Folder, error) {
 }
 
 func (t *TelegramCore) CreateFolder(name string, chatIDs []string) (*Folder, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -10684,7 +10684,7 @@ func (t *TelegramCore) CreateFolder(name string, chatIDs []string) (*Folder, err
 }
 
 func (t *TelegramCore) CreateFolderWithFlags(name string, chatIDs []string, contacts, nonContacts, groups, channels, bots bool) (*Folder, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -10750,7 +10750,7 @@ func (t *TelegramCore) UpdateDialogFilterFull(
 	emoticon string,
 	staticTitle bool,
 ) (*Folder, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -11024,7 +11024,7 @@ func tgUserID(s string) (int64, error) {
 }
 
 func (t *TelegramCore) withPeer(chatID string) (tg.InputPeerClass, func(), error) {
-	if _, _, err := t.withAPI(); err != nil {
+	if _, _, err := t.WithAPI(); err != nil {
 		return nil, nil, err
 	}
 	peer, err := t.resolvePeer(chatID)
@@ -11038,18 +11038,18 @@ func (t *TelegramCore) withPeer(chatID string) (tg.InputPeerClass, func(), error
 	return inputPeer, func() {}, nil
 }
 
-const rpcTimeout = 60 * time.Second
+const RpcTimeout = 60 * time.Second
 
-type rpcGuard struct {
+type RpcGuard struct {
 	next    tg.Invoker
 	timeout time.Duration
 }
 
-func (g rpcGuard) Invoke(ctx context.Context, input bin.Encoder, output bin.Decoder) error {
+func (g RpcGuard) Invoke(ctx context.Context, input bin.Encoder, output bin.Decoder) error {
 	if _, ok := ctx.Deadline(); !ok {
 		timeout := g.timeout
 		if timeout <= 0 {
-			timeout = rpcTimeout
+			timeout = RpcTimeout
 		}
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, timeout)
@@ -11059,10 +11059,10 @@ func (g rpcGuard) Invoke(ctx context.Context, input bin.Encoder, output bin.Deco
 }
 
 func (t *TelegramCore) guardedClient() *tg.Client {
-	return tg.NewClient(rpcGuard{next: t.client})
+	return tg.NewClient(RpcGuard{next: t.client})
 }
 
-func (t *TelegramCore) withAPI() (*tg.Client, context.Context, error) {
+func (t *TelegramCore) WithAPI() (*tg.Client, context.Context, error) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 	if !t.authed || t.api == nil {
@@ -11216,7 +11216,7 @@ func encodeFileExtra(accessHash int64, fileRef []byte) string {
 	return strconv.FormatInt(accessHash, 10) + ":" + base64.StdEncoding.EncodeToString(fileRef)
 }
 
-func decodeFileExtra(extra string) (int64, []byte) {
+func DecodeFileExtra(extra string) (int64, []byte) {
 	parts := strings.SplitN(extra, ":", 2)
 	if len(parts) != 2 {
 		return 0, nil
@@ -11239,7 +11239,7 @@ func (t *TelegramCore) cacheFileInfo(fileID, accessHash int64, fileRef []byte) {
 	t.peerMu.Unlock()
 }
 
-func (t *TelegramCore) getCachedFileHash(fileID int64) int64 {
+func (t *TelegramCore) GetCachedFileHash(fileID int64) int64 {
 	t.peerMu.RLock()
 	defer t.peerMu.RUnlock()
 	return t.fileAccessHash[fileID]
@@ -11327,14 +11327,14 @@ func (t *TelegramCore) resolveChannelAccessHash(channelID int64) (int64, error) 
 	return 0, fmt.Errorf("channel %d not found", channelID)
 }
 
-func repliesInfoOf(msg *tg.Message) (count int, isComments bool) {
+func RepliesInfoOf(msg *tg.Message) (count int, isComments bool) {
 	if r, ok := msg.GetReplies(); ok {
 		return r.Replies, r.Comments
 	}
 	return 0, false
 }
 
-func threadRootOf(msg *tg.Message) string {
+func ThreadRootOf(msg *tg.Message) string {
 	if reply, ok := msg.GetReplyTo(); ok {
 		if rh, ok := reply.(*tg.MessageReplyHeader); ok {
 			if rh.ReplyToTopID != 0 {
@@ -11348,7 +11348,7 @@ func threadRootOf(msg *tg.Message) string {
 	return ""
 }
 
-func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
+func (t *TelegramCore) ConvertMessage(msg *tg.Message) *Message {
 	m := &Message{
 		ID:         strconv.Itoa(msg.ID),
 		ChatID:     peerToID(msg.PeerID),
@@ -11431,10 +11431,10 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 		m.EditedAt = &et
 	}
 
-	if c, _ := repliesInfoOf(msg); c > 0 {
+	if c, _ := RepliesInfoOf(msg); c > 0 {
 		m.CommentsCount = c
 	}
-	if root := threadRootOf(msg); root != "" {
+	if root := ThreadRootOf(msg); root != "" {
 		m.ThreadRoot = root
 	}
 
@@ -11882,7 +11882,7 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 				if _, nested := em.Media.(*tg.MessageMediaPaidMedia); !nested {
 					inner := *msg
 					inner.Media = em.Media
-					if innerMsg := t.convertMessage(&inner); innerMsg != nil {
+					if innerMsg := t.ConvertMessage(&inner); innerMsg != nil {
 						m.Attachments = innerMsg.Attachments
 						for k, v := range innerMsg.Extra {
 							m.Extra[k] = v
@@ -12150,7 +12150,7 @@ func (t *TelegramCore) convertMessage(msg *tg.Message) *Message {
 	return m
 }
 
-func (t *TelegramCore) convertServiceMessage(svc *tg.MessageService) *Message {
+func (t *TelegramCore) ConvertServiceMessage(svc *tg.MessageService) *Message {
 	m := &Message{
 		ID:         strconv.Itoa(svc.ID),
 		ChatID:     peerToID(svc.PeerID),
@@ -12169,7 +12169,7 @@ func (t *TelegramCore) convertServiceMessage(svc *tg.MessageService) *Message {
 		}
 	}
 
-	m.Text = t.serviceActionText(m.SenderName, svc.Action)
+	m.Text = t.ServiceActionText(m.SenderName, svc.Action)
 	m.Extra["service_action"] = serviceActionTag(svc.Action)
 	if gc, ok := svc.Action.(*tg.MessageActionGiftCode); ok {
 		if bp, ok := gc.GetBoostPeer(); ok {
@@ -12209,7 +12209,7 @@ func (t *TelegramCore) convertServiceMessage(svc *tg.MessageService) *Message {
 		}
 		m.Extra["chat_theme_emoticon"] = emoticon
 	case *tg.MessageActionSetChatWallPaper:
-		if info := t.wallpaperFromWire(act.Wallpaper); info.ID != 0 || info.DocID != 0 {
+		if info := t.WallpaperFromWire(act.Wallpaper); info.ID != 0 || info.DocID != 0 {
 			if raw, jerr := json.Marshal(info); jerr == nil {
 				m.Extra["chat_wallpaper"] = string(raw)
 				if act.Same {
@@ -12257,7 +12257,7 @@ func serviceActionTag(action tg.MessageActionClass) string {
 	}
 }
 
-func (t *TelegramCore) serviceActionText(sender string, action tg.MessageActionClass) string {
+func (t *TelegramCore) ServiceActionText(sender string, action tg.MessageActionClass) string {
 	if sender == "" {
 		sender = "Someone"
 	}
@@ -12272,7 +12272,7 @@ func (t *TelegramCore) serviceActionText(sender string, action tg.MessageActionC
 		if p, ok := a.ToID.(*tg.PeerUser); ok {
 			toSelf = p.UserID == t.selfID
 		}
-		return proximityReachedText(fromName, toName, fromSelf, toSelf, a.Distance)
+		return ProximityReachedText(fromName, toName, fromSelf, toSelf, a.Distance)
 	case *tg.MessageActionChatCreate:
 		return sender + " created the group \u201c" + a.Title + "\u201d"
 	case *tg.MessageActionChatEditTitle:
@@ -12569,7 +12569,7 @@ func userAvatarStrippedB64(u *tg.User) string {
 	return ""
 }
 
-func storyReactionEmoticon(r tg.ReactionClass) string {
+func StoryReactionEmoticon(r tg.ReactionClass) string {
 	if e, ok := r.(*tg.ReactionEmoji); ok {
 		return e.Emoticon
 	}
@@ -12889,7 +12889,7 @@ func (t *TelegramCore) extractDialogs(dlgs []tg.DialogClass, msgs []tg.MessageCl
 		if dlg.TopMessage != 0 {
 			if msg, ok := msgMap[dlg.TopMessage]; ok {
 				if m, ok := msg.(*tg.Message); ok {
-					dialog.LastMessage = t.convertMessage(m)
+					dialog.LastMessage = t.ConvertMessage(m)
 				}
 			}
 		}
@@ -12907,11 +12907,11 @@ func (t *TelegramCore) extractMessageFromUpdates(updates tg.UpdatesClass, chatID
 			switch upd := update.(type) {
 			case *tg.UpdateNewMessage:
 				if msg, ok := upd.Message.(*tg.Message); ok {
-					return t.convertMessage(msg)
+					return t.ConvertMessage(msg)
 				}
 			case *tg.UpdateNewChannelMessage:
 				if msg, ok := upd.Message.(*tg.Message); ok {
-					return t.convertMessage(msg)
+					return t.ConvertMessage(msg)
 				}
 			}
 		}
@@ -12999,7 +12999,7 @@ func (t *TelegramCore) convertMessages(result tg.MessagesMessagesClass) []Messag
 	for _, m := range rawMsgs {
 		switch msg := m.(type) {
 		case *tg.Message:
-			messages = append(messages, *t.convertMessage(msg))
+			messages = append(messages, *t.ConvertMessage(msg))
 		case *tg.MessageService:
 			if _, ok := msg.Action.(*tg.MessageActionEmpty); ok {
 				continue
@@ -13007,7 +13007,7 @@ func (t *TelegramCore) convertMessages(result tg.MessagesMessagesClass) []Messag
 			if _, ok := msg.Action.(*tg.MessageActionHistoryClear); ok {
 				continue
 			}
-			messages = append(messages, *t.convertServiceMessage(msg))
+			messages = append(messages, *t.ConvertServiceMessage(msg))
 		}
 	}
 	return messages
@@ -13094,7 +13094,7 @@ func (t *TelegramCore) attachSublistInfo(m *Message, msg *tg.Message, e tg.Entit
 	if hasWire && saved != nil {
 		id = peerToID(saved)
 	} else if t.selfID != 0 {
-		id = deriveSavedPeerID(msg, t.selfID)
+		id = DeriveSavedPeerID(msg, t.selfID)
 	}
 	if id == "" {
 		return
@@ -13109,7 +13109,7 @@ func (t *TelegramCore) attachSublistInfo(m *Message, msg *tg.Message, e tg.Entit
 	}
 }
 
-func deriveSavedPeerID(msg *tg.Message, selfID int64) string {
+func DeriveSavedPeerID(msg *tg.Message, selfID int64) string {
 	if peer, ok := msg.GetSavedPeerID(); ok && peer != nil {
 		return peerToID(peer)
 	}
@@ -13138,7 +13138,7 @@ func (t *TelegramCore) GetSavedHistory(peerID string, offsetID, limit int) ([]Me
 		return nil, fmt.Errorf("resolve saved sublist peer: %w", err)
 	}
 	unlock()
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -13587,7 +13587,7 @@ func (f *telegramAuthFlow) SignUp(ctx context.Context) (auth.UserInfo, error) {
 }
 
 func (t *TelegramCore) SearchMessagesGlobal(query string, limit int) ([]Message, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -13610,7 +13610,7 @@ func (t *TelegramCore) SearchMessagesGlobal(query string, limit int) ([]Message,
 }
 
 func (t *TelegramCore) GetContacts() ([]User, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -13637,7 +13637,7 @@ func (t *TelegramCore) GetContacts() ([]User, error) {
 }
 
 func (t *TelegramCore) BlockUser(userID string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -13654,7 +13654,7 @@ func (t *TelegramCore) BlockUser(userID string) error {
 }
 
 func (t *TelegramCore) UnblockUser(userID string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -13775,7 +13775,7 @@ type ActiveSession struct {
 }
 
 func (t *TelegramCore) GetActiveSessions() ([]ActiveSession, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -13808,7 +13808,7 @@ func (t *TelegramCore) GetActiveSessions() ([]ActiveSession, error) {
 }
 
 func (t *TelegramCore) GetSessionAutoTerminateDays() (int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 0, err
 	}
@@ -13820,7 +13820,7 @@ func (t *TelegramCore) GetSessionAutoTerminateDays() (int, error) {
 }
 
 func (t *TelegramCore) SetSessionAutoTerminateDays(days int) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -13853,7 +13853,7 @@ func (t *TelegramCore) PromoteAdmin(chatID, userID string, rights tg.ChatAdminRi
 }
 
 func (t *TelegramCore) promoteAdminInternal(chatID, userID string, rights tg.ChatAdminRights, rank string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -13921,7 +13921,7 @@ func (t *TelegramCore) DemoteAdmin(chatID, userID string) error {
 }
 
 func (t *TelegramCore) TransferChannelOwnership(chatID, userID, password string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -13955,7 +13955,7 @@ func (t *TelegramCore) TransferChannelOwnership(chatID, userID, password string)
 }
 
 func (t *TelegramCore) TransferOwnershipPreflight(chatID, userID string) (string, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return "", err
 	}
@@ -14008,7 +14008,7 @@ func (t *TelegramCore) RestrictMember(chatID, userID string) error {
 }
 
 func (t *TelegramCore) RestrictUser(chatID, userID string, rights tg.ChatBannedRights) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -14064,7 +14064,7 @@ func (t *TelegramCore) RestrictMemberWithRights(chatID, userID string, rights *D
 }
 
 func (t *TelegramCore) SetSlowMode(chatID string, seconds int) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -14101,7 +14101,7 @@ type AdminLogEvent struct {
 }
 
 func (t *TelegramCore) GetAdminLogEvents(chatID string, limit int, query string, maxID int64, filters map[string]bool, admins []string) ([]AdminLogEvent, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -14774,7 +14774,7 @@ func participantUserName(p tg.ChannelParticipantClass, users map[int64]*tg.User)
 }
 
 func (t *TelegramCore) GetStickerSet(shortName string) (*tg.MessagesStickerSet, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -14801,7 +14801,7 @@ func (t *TelegramCore) GetStickerSet(shortName string) (*tg.MessagesStickerSet, 
 }
 
 func (t *TelegramCore) GetStickerSetInfo(shortName string, setID int64, accessHash int64) (*StickerSetResult, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -14908,7 +14908,7 @@ func (t *TelegramCore) DeleteStickerFromSet(fileID int64) error {
 	if !t.authed || t.api == nil {
 		return ErrAuth
 	}
-	accessHash := t.getCachedFileHash(fileID)
+	accessHash := t.GetCachedFileHash(fileID)
 	fileRef := t.getCachedFileRef(fileID)
 	_, err := t.StickersRemoveStickerFromSet(&tg.InputDocument{
 		ID:            fileID,
@@ -14919,7 +14919,7 @@ func (t *TelegramCore) DeleteStickerFromSet(fileID int64) error {
 }
 
 func (t *TelegramCore) GetCreatedStickerSets() ([]StickerSetResult, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -14954,7 +14954,7 @@ func (t *TelegramCore) AddStickerToExistingSet(setID, accessHash, fileID int64, 
 	if !t.authed || t.api == nil {
 		return ErrAuth
 	}
-	docAccessHash := t.getCachedFileHash(fileID)
+	docAccessHash := t.GetCachedFileHash(fileID)
 	fileRef := t.getCachedFileRef(fileID)
 	_, err := t.StickersAddStickerToSet(&tg.StickersAddStickerToSetRequest{
 		Stickerset: &tg.InputStickerSetID{ID: setID, AccessHash: accessHash},
@@ -14971,7 +14971,7 @@ func (t *TelegramCore) AddStickerToExistingSet(setID, accessHash, fileID int64, 
 }
 
 func (t *TelegramCore) GetStickerSuggestions(emoji string) ([]StickerInfo, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -15017,7 +15017,7 @@ func (t *TelegramCore) GetStickerSuggestions(emoji string) ([]StickerInfo, error
 }
 
 func (t *TelegramCore) GetInstalledEmojiSets() ([]EmojiSetSummary, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -15093,7 +15093,7 @@ func (t *TelegramCore) GetInstalledEmojiSets() ([]EmojiSetSummary, error) {
 }
 
 func (t *TelegramCore) GetCustomEmojiThumbs(documentIDs []int64) ([]CustomEmojiThumb, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -15165,7 +15165,7 @@ func (t *TelegramCore) GetCustomEmojiThumbs(documentIDs []int64) ([]CustomEmojiT
 }
 
 func (t *TelegramCore) GetCustomEmojiFiles(documentIDs []int64) ([]CustomEmojiFile, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -15206,7 +15206,7 @@ func (t *TelegramCore) GetCustomEmojiFiles(documentIDs []int64) ([]CustomEmojiFi
 }
 
 func (t *TelegramCore) GetCustomEmojiSetInfo(documentID int64) (setID int64, accessHash int64, title string, shortName string, count int32, found bool, err error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 0, 0, "", "", 0, false, err
 	}
@@ -15267,7 +15267,7 @@ func (t *TelegramCore) downloadSmallFile(api *tg.Client, ctx context.Context, lo
 }
 
 func (t *TelegramCore) GetInstalledStickerPacks() ([]StickerPackSummary, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -15282,7 +15282,7 @@ func (t *TelegramCore) GetInstalledStickerPacks() ([]StickerPackSummary, error) 
 
 	var packs []StickerPackSummary
 	for _, s := range allStickers.Sets {
-		summary := installedSetSummary(&s)
+		summary := InstalledSetSummary(&s)
 
 		setResult, err := api.MessagesGetStickerSet(ctx, &tg.MessagesGetStickerSetRequest{
 			Stickerset: &tg.InputStickerSetID{ID: s.ID, AccessHash: s.AccessHash},
@@ -15336,7 +15336,7 @@ func (t *TelegramCore) GetInstalledStickerPacks() ([]StickerPackSummary, error) 
 	return packs, nil
 }
 
-func installedSetSummary(s *tg.StickerSet) StickerPackSummary {
+func InstalledSetSummary(s *tg.StickerSet) StickerPackSummary {
 	summary := StickerPackSummary{
 		SetID:      s.ID,
 		AccessHash: s.AccessHash,
@@ -15374,7 +15374,7 @@ func coveredDocs(sc tg.StickerSetCoveredClass) []tg.DocumentClass {
 	return nil
 }
 
-func stickerSetCoveredSummary(sc tg.StickerSetCoveredClass) (StickerPackSummary, bool) {
+func StickerSetCoveredSummary(sc tg.StickerSetCoveredClass) (StickerPackSummary, bool) {
 	var set *tg.StickerSet
 	switch covered := sc.(type) {
 	case *tg.StickerSetCovered:
@@ -15389,7 +15389,7 @@ func stickerSetCoveredSummary(sc tg.StickerSetCoveredClass) (StickerPackSummary,
 	if set == nil {
 		return StickerPackSummary{}, false
 	}
-	summary := installedSetSummary(set)
+	summary := InstalledSetSummary(set)
 	summary.Installed = false
 	for _, doc := range coveredDocs(sc) {
 		d, ok := doc.(*tg.Document)
@@ -15426,7 +15426,7 @@ func stickerSetCoveredSummary(sc tg.StickerSetCoveredClass) (StickerPackSummary,
 	return summary, true
 }
 
-func mergeArchivedStickerSets(installed, archived []StickerPackSummary) []StickerPackSummary {
+func MergeArchivedStickerSets(installed, archived []StickerPackSummary) []StickerPackSummary {
 	if len(archived) == 0 {
 		return installed
 	}
@@ -15445,7 +15445,7 @@ func mergeArchivedStickerSets(installed, archived []StickerPackSummary) []Sticke
 	return merged
 }
 
-func stickerSetInstallRequest(setID, accessHash int64, archived bool) *tg.MessagesInstallStickerSetRequest {
+func StickerSetInstallRequest(setID, accessHash int64, archived bool) *tg.MessagesInstallStickerSetRequest {
 	return &tg.MessagesInstallStickerSetRequest{
 		Stickerset: &tg.InputStickerSetID{ID: setID, AccessHash: accessHash},
 		Archived:   archived,
@@ -15461,7 +15461,7 @@ func (t *TelegramCore) cacheCoveredDocs(sc tg.StickerSetCoveredClass) {
 }
 
 func (t *TelegramCore) GetStickerSetSummaries() ([]StickerPackSummary, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -15472,7 +15472,7 @@ func (t *TelegramCore) GetStickerSetSummaries() ([]StickerPackSummary, error) {
 	installed := []StickerPackSummary{}
 	if all, ok := result.(*tg.MessagesAllStickers); ok {
 		for _, s := range all.Sets {
-			installed = append(installed, installedSetSummary(&s))
+			installed = append(installed, InstalledSetSummary(&s))
 		}
 	}
 	archived := []StickerPackSummary{}
@@ -15482,26 +15482,26 @@ func (t *TelegramCore) GetStickerSetSummaries() ([]StickerPackSummary, error) {
 	})
 	if err == nil && archResult != nil {
 		for _, sc := range archResult.Sets {
-			if summary, ok := stickerSetCoveredSummary(sc); ok {
+			if summary, ok := StickerSetCoveredSummary(sc); ok {
 				summary.Archived = true
 				archived = append(archived, summary)
 			}
 		}
 	}
-	return mergeArchivedStickerSets(installed, archived), nil
+	return MergeArchivedStickerSets(installed, archived), nil
 }
 
 func (t *TelegramCore) ArchiveStickerSet(setID, accessHash int64, archived bool) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
-	_, err = api.MessagesInstallStickerSet(ctx, stickerSetInstallRequest(setID, accessHash, archived))
+	_, err = api.MessagesInstallStickerSet(ctx, StickerSetInstallRequest(setID, accessHash, archived))
 	return err
 }
 
 func (t *TelegramCore) GetRecentStickers() ([]StickerInfo, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -15548,13 +15548,13 @@ func (t *TelegramCore) GetRecentStickers() ([]StickerInfo, error) {
 }
 
 func (t *TelegramCore) RemoveRecentSticker(fileID int64, extra string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
-	accessHash, fileRef := decodeFileExtra(extra)
+	accessHash, fileRef := DecodeFileExtra(extra)
 	if accessHash == 0 {
-		accessHash = t.getCachedFileHash(fileID)
+		accessHash = t.GetCachedFileHash(fileID)
 		fileRef = t.getCachedFileRef(fileID)
 	}
 	_, err = api.MessagesSaveRecentSticker(ctx, &tg.MessagesSaveRecentStickerRequest{
@@ -15569,13 +15569,13 @@ func (t *TelegramCore) RemoveRecentSticker(fileID int64, extra string) error {
 }
 
 func (t *TelegramCore) GetStickerFiles(documentIDs []int64) ([]CustomEmojiFile, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
 	var result []CustomEmojiFile
 	for _, docID := range documentIDs {
-		accessHash := t.getCachedFileHash(docID)
+		accessHash := t.GetCachedFileHash(docID)
 		fileRef := t.getCachedFileRef(docID)
 		if accessHash == 0 {
 			continue
@@ -15613,7 +15613,7 @@ func detectStickerMime(data []byte) string {
 }
 
 func (t *TelegramCore) GetSavedGifs() ([]GifInfo, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -15653,13 +15653,13 @@ func (t *TelegramCore) GetSavedGifs() ([]GifInfo, error) {
 }
 
 func (t *TelegramCore) GetGifFiles(documentIDs []int64) ([]CustomEmojiFile, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
 	var result []CustomEmojiFile
 	for _, docID := range documentIDs {
-		accessHash := t.getCachedFileHash(docID)
+		accessHash := t.GetCachedFileHash(docID)
 		fileRef := t.getCachedFileRef(docID)
 		if accessHash == 0 && len(fileRef) == 0 {
 			continue
@@ -15683,7 +15683,7 @@ func (t *TelegramCore) GetGifFiles(documentIDs []int64) ([]CustomEmojiFile, erro
 }
 
 func (t *TelegramCore) GetFeaturedStickerPacks() ([]StickerPackSummary, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -15707,7 +15707,7 @@ func (t *TelegramCore) GetFeaturedStickerPacks() ([]StickerPackSummary, error) {
 	}
 	var packs []StickerPackSummary
 	for _, setCovered := range fs.Sets {
-		summary, ok := stickerSetCoveredSummary(setCovered)
+		summary, ok := StickerSetCoveredSummary(setCovered)
 		if !ok {
 			continue
 		}
@@ -15719,7 +15719,7 @@ func (t *TelegramCore) GetFeaturedStickerPacks() ([]StickerPackSummary, error) {
 }
 
 func (t *TelegramCore) SearchStickerSets(query string) ([]StickerPackSummary, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -15743,7 +15743,7 @@ func (t *TelegramCore) SearchStickerSets(query string) ([]StickerPackSummary, er
 	}
 	var packs []StickerPackSummary
 	for _, setCovered := range found.Sets {
-		summary, ok := stickerSetCoveredSummary(setCovered)
+		summary, ok := StickerSetCoveredSummary(setCovered)
 		if !ok {
 			continue
 		}
@@ -15755,16 +15755,16 @@ func (t *TelegramCore) SearchStickerSets(query string) ([]StickerPackSummary, er
 }
 
 func (t *TelegramCore) InstallStickerSet(setID, accessHash int64) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
-	_, err = api.MessagesInstallStickerSet(ctx, stickerSetInstallRequest(setID, accessHash, false))
+	_, err = api.MessagesInstallStickerSet(ctx, StickerSetInstallRequest(setID, accessHash, false))
 	return err
 }
 
 func (t *TelegramCore) UninstallStickerSet(setID, accessHash int64) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -15773,7 +15773,7 @@ func (t *TelegramCore) UninstallStickerSet(setID, accessHash int64) error {
 }
 
 func (t *TelegramCore) DeleteFolder(filterID int) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -15785,7 +15785,7 @@ func (t *TelegramCore) DeleteFolder(filterID int) error {
 }
 
 func (t *TelegramCore) AddChatToFolder(chatID string, folderID int) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -15839,7 +15839,7 @@ func (t *TelegramCore) AddChatToFolder(chatID string, folderID int) error {
 }
 
 func (t *TelegramCore) GetTopPeersList(limit int) ([]string, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -15874,7 +15874,7 @@ func (t *TelegramCore) GetTopPeersList(limit int) ([]string, error) {
 }
 
 func (t *TelegramCore) RemoveSavedReactionTag(emoji string, customID int64) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -15891,7 +15891,7 @@ func (t *TelegramCore) RemoveSavedReactionTag(emoji string, customID int64) erro
 }
 
 func (t *TelegramCore) ResolveUsername(username string) (string, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return "", err
 	}
@@ -15946,7 +15946,7 @@ func (t *TelegramCore) UnpinDialog(chatID string) error {
 }
 
 func (t *TelegramCore) GetPinnedDialogs() ([]Dialog, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -16004,7 +16004,7 @@ func (t *TelegramCore) GetOnlineCount(chatID string) (int, error) {
 }
 
 func (t *TelegramCore) GetMessagesViewsBatch(chatID string, msgIDs []string) (views, forwards map[string]int, err error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -16046,7 +16046,7 @@ func (t *TelegramCore) GetMessagesViewsBatch(chatID string, msgIDs []string) (vi
 }
 
 func (t *TelegramCore) GetMessageReadParticipants(chatID string, msgID string) ([]int64, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -16073,7 +16073,7 @@ func (t *TelegramCore) GetMessageReadParticipants(chatID string, msgID string) (
 }
 
 func (t *TelegramCore) GetMessageReadParticipantsDetailedJSON(chatID string, msgID string) ([]map[string]interface{}, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -16242,7 +16242,7 @@ func (t *TelegramCore) ReportPeer(chatID, reason, message string) (bool, error) 
 }
 
 func (t *TelegramCore) ReportReaction(chatID string, msgID int, participantID string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -16280,7 +16280,7 @@ func (t *TelegramCore) GetWebPagePreview(url string) (string, error) {
 }
 
 func (t *TelegramCore) GetWebPagePreviewFull(url string) (*WebPagePreviewResult, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -16341,7 +16341,7 @@ func (t *TelegramCore) GetWebPagePreviewFull(url string) (*WebPagePreviewResult,
 }
 
 func (t *TelegramCore) GetInstantViewPage(url string) ([]byte, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -16806,7 +16806,7 @@ func (t *TelegramCore) SetHistoryTTL(chatID string, period int) error {
 }
 
 func (t *TelegramCore) GetAllDrafts() error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -16956,7 +16956,7 @@ func (t *TelegramCore) ExportChatInvite(chatID string) (string, error) {
 }
 
 func (t *TelegramCore) GetFullChannel(chatID string) (*Dialog, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -17177,7 +17177,7 @@ func formatRestrictionDate(unixTime int) string {
 }
 
 func (t *TelegramCore) GetDefaultBannedRights(chatID string) (*DefaultBannedRights, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -17289,7 +17289,7 @@ func (t *TelegramCore) SetDefaultBannedRights(chatID string, rights *DefaultBann
 }
 
 func (t *TelegramCore) GetChatPermissionFlags(chatID string) (*ChatPermissionFlags, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -17477,7 +17477,7 @@ func appConfigRawAPI(api *tg.Client, ctx context.Context, key string) (tg.JSONVa
 }
 
 func (t *TelegramCore) ToggleChannelAutoTranslation(chatID string, enabled bool) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -17498,7 +17498,7 @@ func (t *TelegramCore) ToggleChannelAutoTranslation(chatID string, enabled bool)
 }
 
 func (t *TelegramCore) GetBotManageInfo(chatID string) (map[string]interface{}, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -17544,7 +17544,7 @@ func (t *TelegramCore) GetBotManageInfo(chatID string) (map[string]interface{}, 
 }
 
 func (t *TelegramCore) GetBotVerifyState(botID, userID string) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -17567,7 +17567,7 @@ func (t *TelegramCore) GetBotVerifyState(botID, userID string) (bool, error) {
 }
 
 func (t *TelegramCore) SetBotCustomVerification(botID, peerID string, enabled bool, customDescription string) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -17618,7 +17618,7 @@ func connectedStarRefBotsToMaps(users map[int64]*tg.User, bots []tg.ConnectedBot
 }
 
 func (t *TelegramCore) GetSuggestedStarRefBots(chatID, offset string, limit int, orderByRevenue, orderByDate bool) (map[string]interface{}, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -17675,7 +17675,7 @@ func (t *TelegramCore) GetSuggestedStarRefBots(chatID, offset string, limit int,
 }
 
 func (t *TelegramCore) GetConnectedStarRefBots(chatID string) ([]map[string]interface{}, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -17701,7 +17701,7 @@ func (t *TelegramCore) GetConnectedStarRefBots(chatID string) ([]map[string]inte
 }
 
 func (t *TelegramCore) ConnectStarRefBot(chatID, botID string, revoked bool, link string) (map[string]interface{}, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -17767,7 +17767,7 @@ func (t *TelegramCore) ConnectStarRefBot(chatID, botID string, revoked bool, lin
 }
 
 func (t *TelegramCore) GetParticipants(chatID string, limit int) ([]User, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -17852,7 +17852,7 @@ func bannedRightsFromTG(br tg.ChatBannedRights) *DefaultBannedRights {
 }
 
 func (t *TelegramCore) GetParticipantsByRole(chatID, role, query string, limit, offset int) ([]User, map[int64]ParticipantExtra, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -18042,7 +18042,7 @@ func (t *TelegramCore) GetParticipantsByRole(chatID, role, query string, limit, 
 }
 
 func (t *TelegramCore) GetCommonChats(userID string, limit int) ([]Dialog, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -18079,7 +18079,7 @@ func (t *TelegramCore) GetCommonChats(userID string, limit int) ([]Dialog, error
 }
 
 func (t *TelegramCore) GetSimilarChannels(chatID string) ([]Dialog, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -18134,7 +18134,7 @@ func (t *TelegramCore) GetSimilarChannels(chatID string) ([]Dialog, error) {
 }
 
 func (t *TelegramCore) GetChatsToSend() ([]Dialog, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -18185,7 +18185,7 @@ func (t *TelegramCore) GetChatsToSend() ([]Dialog, error) {
 }
 
 func (t *TelegramCore) ExportMessageLink(chatID string, msgID string) (string, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return "", err
 	}
@@ -18229,7 +18229,7 @@ func (t *TelegramCore) GetSendAs(chatID string) ([]string, error) {
 }
 
 func (t *TelegramCore) SaveDefaultSendAs(chatID, peerID string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -18257,7 +18257,7 @@ func (t *TelegramCore) SaveDefaultSendAs(chatID, peerID string) error {
 }
 
 func (t *TelegramCore) JoinChannel(chatID string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -18275,7 +18275,7 @@ func (t *TelegramCore) JoinChannel(chatID string) error {
 }
 
 func (t *TelegramCore) LeaveChannel(chatID string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -18293,7 +18293,7 @@ func (t *TelegramCore) LeaveChannel(chatID string) error {
 }
 
 func (t *TelegramCore) ToggleAntiSpam(chatID string, enabled bool) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -18313,7 +18313,7 @@ func (t *TelegramCore) ToggleAntiSpam(chatID string, enabled bool) error {
 }
 
 func (t *TelegramCore) ToggleSignatures(chatID string, enabled bool, profilesEnabled ...bool) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -18337,7 +18337,7 @@ func (t *TelegramCore) ToggleSignatures(chatID string, enabled bool, profilesEna
 }
 
 func (t *TelegramCore) TogglePreHistoryHidden(chatID string, hidden bool) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -18369,7 +18369,7 @@ func (t *TelegramCore) TogglePeerTranslations(chatID string, disabled bool) erro
 }
 
 func (t *TelegramCore) SetGroupStickerSet(chatID, shortName string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -18395,7 +18395,7 @@ func (t *TelegramCore) SetGroupStickerSet(chatID, shortName string) error {
 }
 
 func (t *TelegramCore) SetDiscussionGroup(broadcastID, groupID string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -18439,7 +18439,7 @@ func (t *TelegramCore) SetDiscussionGroup(broadcastID, groupID string) error {
 }
 
 func (t *TelegramCore) GetDiscussionGroups() ([]map[string]interface{}, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -18542,7 +18542,7 @@ func (t *TelegramCore) SetChatReactionsMode(chatID string, mode string, emojis [
 }
 
 func (t *TelegramCore) UpdatePaidMessagesPrice(chatID string, stars int64, broadcastEnabled bool) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -18567,7 +18567,7 @@ func (t *TelegramCore) UpdatePaidMessagesPrice(chatID string, stars int64, broad
 }
 
 func (t *TelegramCore) SetBoostsUnrestrict(chatID string, boosts int) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -18588,7 +18588,7 @@ func (t *TelegramCore) SetBoostsUnrestrict(chatID string, boosts int) error {
 }
 
 func (t *TelegramCore) GetBoostsJSON(chatID string) (map[string]interface{}, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -18649,7 +18649,7 @@ func (t *TelegramCore) GetBoostsJSON(chatID string) (map[string]interface{}, err
 }
 
 func (t *TelegramCore) ApplyBoost(chatID string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -18668,7 +18668,7 @@ func (t *TelegramCore) ApplyBoost(chatID string) error {
 }
 
 func (t *TelegramCore) GetDiscussionThread(chatID, msgID string) ([]Message, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -18696,14 +18696,14 @@ func (t *TelegramCore) GetDiscussionThread(chatID, msgID string) ([]Message, err
 	var out []Message
 	for _, mc := range dm.Messages {
 		if m, ok := mc.(*tg.Message); ok {
-			out = append(out, *t.convertMessage(m))
+			out = append(out, *t.ConvertMessage(m))
 		}
 	}
 	return out, nil
 }
 
 func (t *TelegramCore) ReadDiscussion(chatID, msgID string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -18728,7 +18728,7 @@ func (t *TelegramCore) ReadDiscussion(chatID, msgID string) error {
 }
 
 func (t *TelegramCore) GetBoostsListJSON(chatID string, isGifts bool, offset string) (map[string]interface{}, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -18806,7 +18806,7 @@ func (t *TelegramCore) GetBoostsListJSON(chatID string, isGifts bool, offset str
 }
 
 func (t *TelegramCore) GetGiftCodeOptions(chatID string) ([]map[string]interface{}, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -18846,7 +18846,7 @@ func (t *TelegramCore) GetGiftCodeOptions(chatID string) ([]map[string]interface
 }
 
 func (t *TelegramCore) GetGiveawayPeriodMax() (int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 604800, err
 	}
@@ -18873,7 +18873,7 @@ func (t *TelegramCore) GetGiveawayPeriodMax() (int, error) {
 }
 
 func (t *TelegramCore) EditChannelTitle(chatID string, title string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -18893,7 +18893,7 @@ func (t *TelegramCore) EditChannelTitle(chatID string, title string) error {
 }
 
 func (t *TelegramCore) GetForumTopics(chatID string, limit int) ([]ForumTopic, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -18919,7 +18919,7 @@ func (t *TelegramCore) GetForumTopics(chatID string, limit int) ([]ForumTopic, e
 }
 
 func (t *TelegramCore) GetForumTopicsWithOffset(chatID string, limit, offsetDate, offsetID, offsetTopic int) ([]ForumTopic, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -19031,7 +19031,7 @@ func (t *TelegramCore) parseForumTopicsResult(chatID string, result *tg.Messages
 }
 
 func (t *TelegramCore) ToggleForum(chatID string, enabled bool) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -19051,7 +19051,7 @@ func (t *TelegramCore) ToggleForum(chatID string, enabled bool) error {
 }
 
 func (t *TelegramCore) ToggleForumTabs(chatID string, enabled bool, tabs bool) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -19070,7 +19070,7 @@ func (t *TelegramCore) ToggleForumTabs(chatID string, enabled bool, tabs bool) e
 	return err
 }
 
-func applyBotInfoFields(cu *User, bi *tg.BotInfo) {
+func ApplyBotInfoFields(cu *User, bi *tg.BotInfo) {
 	if cu == nil || bi == nil {
 		return
 	}
@@ -19088,7 +19088,7 @@ func applyBotInfoFields(cu *User, bi *tg.BotInfo) {
 }
 
 func (t *TelegramCore) GetFullUser(userID string) (*User, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -19107,7 +19107,7 @@ func (t *TelegramCore) GetFullUser(userID string) (*User, error) {
 			cu := t.convertUser(user)
 			cu.Bio = result.FullUser.About
 			if bi, ok := result.FullUser.GetBotInfo(); ok {
-				applyBotInfoFields(cu, &bi)
+				ApplyBotInfoFields(cu, &bi)
 			}
 			if bday, ok := result.FullUser.GetBirthday(); ok {
 				cu.BirthdayDay = bday.Day
@@ -19200,7 +19200,7 @@ type BotCommandEntry struct {
 }
 
 func (t *TelegramCore) GetChatBotCommands(chatID string) ([]BotCommandEntry, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -19320,7 +19320,7 @@ func userDisplayName(u *tg.User) string {
 }
 
 func (t *TelegramCore) UpdateProfile(firstName, lastName, about string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -19346,7 +19346,7 @@ func (t *TelegramCore) SelfUserID() string {
 }
 
 func (t *TelegramCore) GetSelfBio() (string, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return "", err
 	}
@@ -19358,7 +19358,7 @@ func (t *TelegramCore) GetSelfBio() (string, error) {
 }
 
 func (t *TelegramCore) GetSelfBirthday() (day, month, year int, err error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 0, 0, 0, err
 	}
@@ -19375,7 +19375,7 @@ func (t *TelegramCore) GetSelfBirthday() (day, month, year int, err error) {
 }
 
 func (t *TelegramCore) UpdateBio(bio string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -19386,7 +19386,7 @@ func (t *TelegramCore) UpdateBio(bio string) error {
 }
 
 func (t *TelegramCore) GetSelfColorAndChannel() (colorID int, channelName string, bgEmojiID int64, profileColorID int, profileBgEmojiID int64, err error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return -1, "", 0, -1, 0, err
 	}
@@ -19438,7 +19438,7 @@ func (t *TelegramCore) GetSelfColorAndChannel() (colorID int, channelName string
 }
 
 func (t *TelegramCore) UpdateNameColor(colorID int, backgroundEmojiID int64, forProfile bool) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -19465,7 +19465,7 @@ func (t *TelegramCore) UpdateNameColor(colorID int, backgroundEmojiID int64, for
 }
 
 func (t *TelegramCore) GetBackgroundEmojiList() ([]int64, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -19482,7 +19482,7 @@ func (t *TelegramCore) GetBackgroundEmojiList() ([]int64, error) {
 }
 
 func (t *TelegramCore) GetContentSettings() (sensitiveEnabled bool, sensitiveCanChange bool, ageVerifyNeeded bool, err error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, false, false, err
 	}
@@ -19510,7 +19510,7 @@ func (t *TelegramCore) GetContentSettings() (sensitiveEnabled bool, sensitiveCan
 }
 
 func (t *TelegramCore) SetContentSettings(sensitiveEnabled bool) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -19521,7 +19521,7 @@ func (t *TelegramCore) SetContentSettings(sensitiveEnabled bool) error {
 }
 
 func (t *TelegramCore) UpdateStatus(online bool) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -19530,7 +19530,7 @@ func (t *TelegramCore) UpdateStatus(online bool) error {
 }
 
 func (t *TelegramCore) GetUserPhotos(userID string, limit int) (int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 0, err
 	}
@@ -19558,7 +19558,7 @@ func (t *TelegramCore) GetUserPhotos(userID string, limit int) (int, error) {
 }
 
 func (t *TelegramCore) GetUserPhotoAtIndex(userID string, index int) (string, string, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return "", "", err
 	}
@@ -19651,7 +19651,7 @@ func (t *TelegramCore) GetUserPhotoAtIndex(userID string, index int) (string, st
 }
 
 func (t *TelegramCore) GetAccountTTL() (int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 0, err
 	}
@@ -19663,7 +19663,7 @@ func (t *TelegramCore) GetAccountTTL() (int, error) {
 }
 
 func (t *TelegramCore) GetPrivacy(key tg.InputPrivacyKeyClass) ([]tg.PrivacyRuleClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -19675,7 +19675,7 @@ func (t *TelegramCore) GetPrivacy(key tg.InputPrivacyKeyClass) ([]tg.PrivacyRule
 }
 
 func (t *TelegramCore) SetPrivacy(key tg.InputPrivacyKeyClass, rules []tg.InputPrivacyRuleClass) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -19685,7 +19685,7 @@ func (t *TelegramCore) SetPrivacy(key tg.InputPrivacyKeyClass, rules []tg.InputP
 	return err
 }
 
-func privacyKeyFor(key string) tg.InputPrivacyKeyClass {
+func PrivacyKeyFor(key string) tg.InputPrivacyKeyClass {
 	switch key {
 	case "last_seen":
 		return &tg.InputPrivacyKeyStatusTimestamp{}
@@ -19711,7 +19711,7 @@ func privacyKeyFor(key string) tg.InputPrivacyKeyClass {
 	return nil
 }
 
-func privacyScopeFromRules(rules []tg.PrivacyRuleClass) string {
+func PrivacyScopeFromRules(rules []tg.PrivacyRuleClass) string {
 	scope := "nobody"
 	for _, r := range rules {
 		switch r.(type) {
@@ -19728,7 +19728,7 @@ func privacyScopeFromRules(rules []tg.PrivacyRuleClass) string {
 	return scope
 }
 
-func privacyRulesForScope(scope string) []tg.InputPrivacyRuleClass {
+func PrivacyRulesForScope(scope string) []tg.InputPrivacyRuleClass {
 	switch scope {
 	case "everybody":
 		return []tg.InputPrivacyRuleClass{&tg.InputPrivacyValueAllowAll{}}
@@ -19748,7 +19748,7 @@ func privacyRulesForScope(scope string) []tg.InputPrivacyRuleClass {
 }
 
 func (t *TelegramCore) GetPrivacyScope(key string) (string, error) {
-	k := privacyKeyFor(key)
+	k := PrivacyKeyFor(key)
 	if k == nil {
 		return "", fmt.Errorf("unknown privacy key: %s", key)
 	}
@@ -19756,19 +19756,19 @@ func (t *TelegramCore) GetPrivacyScope(key string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return privacyScopeFromRules(rules), nil
+	return PrivacyScopeFromRules(rules), nil
 }
 
 func (t *TelegramCore) SetPrivacyScope(key, scope string) error {
-	k := privacyKeyFor(key)
+	k := PrivacyKeyFor(key)
 	if k == nil {
 		return fmt.Errorf("unknown privacy key: %s", key)
 	}
-	return t.SetPrivacy(k, privacyRulesForScope(scope))
+	return t.SetPrivacy(k, PrivacyRulesForScope(scope))
 }
 
 func (t *TelegramCore) GetAllStickerSets() ([]string, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -19786,7 +19786,7 @@ func (t *TelegramCore) GetAllStickerSets() ([]string, error) {
 }
 
 func (t *TelegramCore) GetFavedStickers() (int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 0, err
 	}
@@ -19801,7 +19801,7 @@ func (t *TelegramCore) GetFavedStickers() (int, error) {
 }
 
 func (t *TelegramCore) GetFavedStickersList() ([]StickerInfo, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -19856,7 +19856,7 @@ func (t *TelegramCore) GetGifSearchEmojies() ([]string, error) {
 		"\U0001F60E",
 		"\U0001F44E",
 	}
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return fallback, err
 	}
@@ -19892,7 +19892,7 @@ func (t *TelegramCore) GetGifSearchEmojies() ([]string, error) {
 }
 
 func (t *TelegramCore) StartBot(botID string, chatID string, startParam string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -20042,7 +20042,7 @@ func (t *TelegramCore) AcceptURLAuth(chatID string, msgID string, buttonID int, 
 }
 
 func (t *TelegramCore) RequestBotWebView(chatID string, botID string) (string, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return "", err
 	}
@@ -20094,7 +20094,7 @@ type InlineBotResults struct {
 }
 
 func (t *TelegramCore) GetInlineBotResults(botID string, query string) (int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 0, err
 	}
@@ -20114,7 +20114,7 @@ func (t *TelegramCore) GetInlineBotResults(botID string, query string) (int, err
 }
 
 func (t *TelegramCore) GetInlineBotResultsFull(botID string, query string, offset string, chatID string) (*InlineBotResults, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -20213,7 +20213,7 @@ func (t *TelegramCore) GetInlineBotResultsFull(botID string, query string, offse
 }
 
 func (t *TelegramCore) GetCallConfig() (int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 0, err
 	}
@@ -20225,7 +20225,7 @@ func (t *TelegramCore) GetCallConfig() (int, error) {
 }
 
 func (t *TelegramCore) GetBroadcastStats(chatID string) (map[string]interface{}, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -20378,7 +20378,7 @@ func statsAbsVal(v tg.StatsAbsValueAndPrev) map[string]interface{} {
 }
 
 func (t *TelegramCore) GetAllStories() (int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 0, err
 	}
@@ -20393,7 +20393,7 @@ func (t *TelegramCore) GetAllStories() (int, error) {
 }
 
 func (t *TelegramCore) GetNearestDC() (int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 0, err
 	}
@@ -20483,7 +20483,7 @@ func (t *TelegramCore) GetMessageReactionsList(chatID string, msgID int, limit i
 }
 
 func (t *TelegramCore) GetAvailableReactionEmojis() ([]string, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -20658,7 +20658,7 @@ func (t *TelegramCore) GetPollResults(chatID string, msgID int) error {
 }
 
 func (t *TelegramCore) CheckChatInvite(hash string) (string, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return "", err
 	}
@@ -20688,7 +20688,7 @@ func (t *TelegramCore) CheckChatInvite(hash string) (string, error) {
 }
 
 func (t *TelegramCore) GetFullChat(chatID string) (*Dialog, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -20718,7 +20718,7 @@ func (t *TelegramCore) GetFullChat(chatID string) (*Dialog, error) {
 }
 
 func (t *TelegramCore) ToggleJoinToSend(chatID string, enabled bool) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -20738,7 +20738,7 @@ func (t *TelegramCore) ToggleJoinToSend(chatID string, enabled bool) error {
 }
 
 func (t *TelegramCore) ToggleJoinRequest(chatID string, enabled bool) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -20758,7 +20758,7 @@ func (t *TelegramCore) ToggleJoinRequest(chatID string, enabled bool) error {
 }
 
 func (t *TelegramCore) DeleteChannel(chatID string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -20793,14 +20793,14 @@ func (t *TelegramCore) EditForumTopic(chatID string, topicID int, title string, 
 }
 
 func (t *TelegramCore) FaveSticker(fileID int64, extra string, unfave bool) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
-	accessHash := t.getCachedFileHash(fileID)
+	accessHash := t.GetCachedFileHash(fileID)
 	fileRef := t.getCachedFileRef(fileID)
 	if accessHash == 0 && extra != "" {
-		accessHash, fileRef = decodeFileExtra(extra)
+		accessHash, fileRef = DecodeFileExtra(extra)
 		t.cacheFileInfo(fileID, accessHash, fileRef)
 	}
 	_, err = api.MessagesFaveSticker(ctx, &tg.MessagesFaveStickerRequest{
@@ -20811,14 +20811,14 @@ func (t *TelegramCore) FaveSticker(fileID int64, extra string, unfave bool) erro
 }
 
 func (t *TelegramCore) SaveGif(fileID int64, extra string, unsave bool) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
-	accessHash := t.getCachedFileHash(fileID)
+	accessHash := t.GetCachedFileHash(fileID)
 	fileRef := t.getCachedFileRef(fileID)
 	if accessHash == 0 && extra != "" {
-		accessHash, fileRef = decodeFileExtra(extra)
+		accessHash, fileRef = DecodeFileExtra(extra)
 		t.cacheFileInfo(fileID, accessHash, fileRef)
 	}
 	_, err = api.MessagesSaveGif(ctx, &tg.MessagesSaveGifRequest{
@@ -20829,7 +20829,7 @@ func (t *TelegramCore) SaveGif(fileID int64, extra string, unsave bool) error {
 }
 
 func (t *TelegramCore) GetMegagroupStats(chatID string) (map[string]interface{}, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -21052,7 +21052,7 @@ func (t *TelegramCore) FetchPeerStoriesData(peerID string) (string, error) {
 			}
 		}
 		if sent, ok := si.GetSentReaction(); ok && sent != nil {
-			item.SentReaction = storyReactionEmoticon(sent)
+			item.SentReaction = StoryReactionEmoticon(sent)
 		}
 
 		switch md := si.Media.(type) {
@@ -21194,7 +21194,7 @@ type StoryAlbumInfo struct {
 }
 
 func (t *TelegramCore) GetStoryAlbums(peerID string) ([]StoryAlbumInfo, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -21231,7 +21231,7 @@ func (t *TelegramCore) GetStoryAlbums(peerID string) ([]StoryAlbumInfo, error) {
 }
 
 func (t *TelegramCore) GetAlbumStories(peerID string, albumID int, offset, limit int) (string, int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return "", 0, err
 	}
@@ -21299,7 +21299,7 @@ func (t *TelegramCore) GetAlbumStories(peerID string, albumID int, offset, limit
 }
 
 func (t *TelegramCore) CreateStoryAlbum(title string) (int64, string, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 0, "", err
 	}
@@ -21314,7 +21314,7 @@ func (t *TelegramCore) CreateStoryAlbum(title string) (int64, string, error) {
 }
 
 func (t *TelegramCore) ReorderStoryAlbums(albumIDs []int) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -21326,7 +21326,7 @@ func (t *TelegramCore) ReorderStoryAlbums(albumIDs []int) error {
 }
 
 func (t *TelegramCore) GetConfig() (int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 0, err
 	}
@@ -21338,7 +21338,7 @@ func (t *TelegramCore) GetConfig() (int, error) {
 }
 
 func (t *TelegramCore) GetNotifyDelayConfig() (cloudDelayMs, defaultDelayMs, onlineCloudTimeoutMs int, err error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 0, 0, 0, err
 	}
@@ -21350,7 +21350,7 @@ func (t *TelegramCore) GetNotifyDelayConfig() (cloudDelayMs, defaultDelayMs, onl
 }
 
 func (t *TelegramCore) GetAppConfig() (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -21362,7 +21362,7 @@ func (t *TelegramCore) GetAppConfig() (bool, error) {
 }
 
 func (t *TelegramCore) GetMegagroupSizeMax() (int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 0, err
 	}
@@ -21374,7 +21374,7 @@ func (t *TelegramCore) GetMegagroupSizeMax() (int, error) {
 }
 
 func (t *TelegramCore) GetPassword() (*tg.AccountPassword, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -21388,7 +21388,7 @@ type PasskeyInfo struct {
 }
 
 func (t *TelegramCore) GetPasskeyList() ([]PasskeyInfo, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -21419,7 +21419,7 @@ type PasswordResetResult struct {
 }
 
 func (t *TelegramCore) GetCloudPasswordState() (CloudPasswordState, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return CloudPasswordState{}, err
 	}
@@ -21445,7 +21445,7 @@ func (t *TelegramCore) GetCloudPasswordState() (CloudPasswordState, error) {
 }
 
 func (t *TelegramCore) CheckCloudPassword(password string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -21462,7 +21462,7 @@ func (t *TelegramCore) CheckCloudPassword(password string) error {
 }
 
 func (t *TelegramCore) SetCloudPassword(currentPassword, newPassword, hint, email string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -21518,7 +21518,7 @@ func (t *TelegramCore) RemoveCloudPassword(currentPassword string) error {
 }
 
 func (t *TelegramCore) SetCloudPasswordEmail(currentPassword, email string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -21546,7 +21546,7 @@ func (t *TelegramCore) SetCloudPasswordEmail(currentPassword, email string) erro
 }
 
 func (t *TelegramCore) CheckRecoveryPassword(code string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -21555,7 +21555,7 @@ func (t *TelegramCore) CheckRecoveryPassword(code string) error {
 }
 
 func (t *TelegramCore) RecoverPasswordWithCode(code, newPassword, hint string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -21589,7 +21589,7 @@ func (t *TelegramCore) RecoverPasswordWithCode(code, newPassword, hint string) e
 }
 
 func (t *TelegramCore) RequestPasswordRecovery() (string, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return "", err
 	}
@@ -21601,7 +21601,7 @@ func (t *TelegramCore) RequestPasswordRecovery() (string, error) {
 }
 
 func (t *TelegramCore) ResetPassword() (PasswordResetResult, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return PasswordResetResult{}, err
 	}
@@ -21621,7 +21621,7 @@ func (t *TelegramCore) ResetPassword() (PasswordResetResult, error) {
 }
 
 func (t *TelegramCore) CancelResetPassword() error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -21630,7 +21630,7 @@ func (t *TelegramCore) CancelResetPassword() error {
 }
 
 func (t *TelegramCore) GetGlobalPrivacy() (*tg.GlobalPrivacySettings, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -21638,7 +21638,7 @@ func (t *TelegramCore) GetGlobalPrivacy() (*tg.GlobalPrivacySettings, error) {
 }
 
 func (t *TelegramCore) GetGiftSettings() (showIcon bool, disallowLimited, disallowUnlimited, disallowUnique, disallowChannels, disallowPremium bool, err error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, false, false, false, false, false, err
 	}
@@ -21651,7 +21651,7 @@ func (t *TelegramCore) GetGiftSettings() (showIcon bool, disallowLimited, disall
 }
 
 func (t *TelegramCore) SetGiftSettings(showIcon, acceptLimited, acceptUnlimited, acceptUnique, acceptChannels, acceptPremium bool) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -21672,7 +21672,7 @@ func (t *TelegramCore) SetGiftSettings(showIcon, acceptLimited, acceptUnlimited,
 }
 
 func (t *TelegramCore) GetArchiveSettings() (archiveAndMute bool, keepArchivedUnmuted bool, keepArchivedFolders bool, err error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, false, false, err
 	}
@@ -21684,7 +21684,7 @@ func (t *TelegramCore) GetArchiveSettings() (archiveAndMute bool, keepArchivedUn
 }
 
 func (t *TelegramCore) SetArchiveSettings(archiveAndMute, keepArchivedUnmuted, keepArchivedFolders bool) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -21697,7 +21697,7 @@ func (t *TelegramCore) SetArchiveSettings(archiveAndMute, keepArchivedUnmuted, k
 }
 
 func (t *TelegramCore) GetAppConfigCheck() error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -21706,7 +21706,7 @@ func (t *TelegramCore) GetAppConfigCheck() error {
 }
 
 func (t *TelegramCore) GetConfigDCCount() (int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 0, err
 	}
@@ -21718,7 +21718,7 @@ func (t *TelegramCore) GetConfigDCCount() (int, error) {
 }
 
 func (t *TelegramCore) SearchContactsCount(query string) (int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 0, err
 	}
@@ -21730,7 +21730,7 @@ func (t *TelegramCore) SearchContactsCount(query string) (int, error) {
 }
 
 func (t *TelegramCore) GetTopPeersCount() (int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 0, err
 	}
@@ -21751,7 +21751,7 @@ func (t *TelegramCore) GetTopPeersCount() (int, error) {
 }
 
 func (t *TelegramCore) GetBirthdaysCount() (int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 0, err
 	}
@@ -21763,7 +21763,7 @@ func (t *TelegramCore) GetBirthdaysCount() (int, error) {
 }
 
 func (t *TelegramCore) GetRecentStickersCount() (int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 0, err
 	}
@@ -21778,7 +21778,7 @@ func (t *TelegramCore) GetRecentStickersCount() (int, error) {
 }
 
 func (t *TelegramCore) GetFeaturedStickersCount() (int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 0, err
 	}
@@ -21793,7 +21793,7 @@ func (t *TelegramCore) GetFeaturedStickersCount() (int, error) {
 }
 
 func (t *TelegramCore) SearchStickerSetsCount(query string) (int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 0, err
 	}
@@ -21827,7 +21827,7 @@ func (t *TelegramCore) GetSearchCounters(chatID string) ([]int, error) {
 }
 
 func (t *TelegramCore) GetDefaultHistoryTTL() (int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 0, err
 	}
@@ -21838,7 +21838,7 @@ func (t *TelegramCore) GetDefaultHistoryTTL() (int, error) {
 	return result.Period, nil
 }
 
-func reactionClassForKey(key string) tg.ReactionClass {
+func ReactionClassForKey(key string) tg.ReactionClass {
 	if strings.HasPrefix(key, "custom_") {
 		if docID, err := strconv.ParseInt(key[7:], 10, 64); err == nil {
 			return &tg.ReactionCustomEmoji{DocumentID: docID}
@@ -21847,7 +21847,7 @@ func reactionClassForKey(key string) tg.ReactionClass {
 	return &tg.ReactionEmoji{Emoticon: key}
 }
 
-func decodeDefaultReactionKey(r tg.ReactionClass) string {
+func DecodeDefaultReactionKey(r tg.ReactionClass) string {
 	switch v := r.(type) {
 	case *tg.ReactionEmoji:
 		return v.Emoticon
@@ -21858,11 +21858,11 @@ func decodeDefaultReactionKey(r tg.ReactionClass) string {
 }
 
 func (t *TelegramCore) SetDefaultReaction(emoji string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
-	reaction := reactionClassForKey(emoji)
+	reaction := ReactionClassForKey(emoji)
 	_, err = api.MessagesSetDefaultReaction(ctx, reaction)
 	if err == nil {
 		t.cfgMu.Lock()
@@ -21879,7 +21879,7 @@ func (t *TelegramCore) GetDefaultReaction() (string, error) {
 	cfg := t.cachedCfg
 	t.cfgMu.RUnlock()
 	if cfg == nil {
-		api, ctx, err := t.withAPI()
+		api, ctx, err := t.WithAPI()
 		if err != nil {
 			return "", err
 		}
@@ -21893,13 +21893,13 @@ func (t *TelegramCore) GetDefaultReaction() (string, error) {
 		cfg = result
 	}
 	if reaction, ok := cfg.GetReactionsDefault(); ok {
-		return decodeDefaultReactionKey(reaction), nil
+		return DecodeDefaultReactionKey(reaction), nil
 	}
 	return "", nil
 }
 
 func (t *TelegramCore) ReactToMessageList(chatID string, msgID string, emojis []string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -21933,7 +21933,7 @@ func (t *TelegramCore) ReactToMessageList(chatID string, msgID string, emojis []
 }
 
 func (t *TelegramCore) ToggleParticipantsHidden(chatID string, hidden bool) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -21953,7 +21953,7 @@ func (t *TelegramCore) ToggleParticipantsHidden(chatID string, hidden bool) erro
 }
 
 func (t *TelegramCore) GetSuggestedFoldersCount() (int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 0, err
 	}
@@ -21965,7 +21965,7 @@ func (t *TelegramCore) GetSuggestedFoldersCount() (int, error) {
 }
 
 func (t *TelegramCore) GetSuggestedFolders() ([]SuggestedFolder, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -22078,7 +22078,7 @@ func (t *TelegramCore) GetPeerBarSettings(chatID string) (string, error) {
 }
 
 func (t *TelegramCore) GetParticipantInfo(chatID, userID string) (*User, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -22159,7 +22159,7 @@ func (t *TelegramCore) GetParticipantInfo(chatID, userID string) (*User, error) 
 }
 
 func (t *TelegramCore) UploadProfilePhoto(pngData []byte) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -22175,7 +22175,7 @@ func (t *TelegramCore) UploadProfilePhoto(pngData []byte) error {
 }
 
 func (t *TelegramCore) SetBotPhoto(chatID string, pngData []byte) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -22196,7 +22196,7 @@ func (t *TelegramCore) SetBotPhoto(chatID string, pngData []byte) error {
 }
 
 func (t *TelegramCore) SetEmojiProfilePhoto(documentID int64) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -22210,7 +22210,7 @@ func (t *TelegramCore) SetEmojiProfilePhoto(documentID int64) error {
 }
 
 func (t *TelegramCore) UploadFallbackPhoto(pngData []byte) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -22226,7 +22226,7 @@ func (t *TelegramCore) UploadFallbackPhoto(pngData []byte) error {
 }
 
 func (t *TelegramCore) DeleteFallbackPhoto() error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -22249,7 +22249,7 @@ func (t *TelegramCore) DeleteFallbackPhoto() error {
 }
 
 func (t *TelegramCore) HasFallbackPhoto() (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -22262,7 +22262,7 @@ func (t *TelegramCore) HasFallbackPhoto() (bool, error) {
 }
 
 func (t *TelegramCore) GetDialogUnreadMarksCount() (int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 0, err
 	}
@@ -22274,7 +22274,7 @@ func (t *TelegramCore) GetDialogUnreadMarksCount() (int, error) {
 }
 
 func (t *TelegramCore) ToggleAutotranslation(chatID string, enabled bool) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -22294,7 +22294,7 @@ func (t *TelegramCore) ToggleAutotranslation(chatID string, enabled bool) error 
 }
 
 func (t *TelegramCore) UpdateChannelColor(chatID string, colorIndex int) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -22314,7 +22314,7 @@ func (t *TelegramCore) UpdateChannelColor(chatID string, colorIndex int) error {
 }
 
 func (t *TelegramCore) UpdateChannelColorEx(chatID string, colorIndex int, backgroundEmojiID int64) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -22339,7 +22339,7 @@ func (t *TelegramCore) UpdateChannelColorEx(chatID string, colorIndex int, backg
 }
 
 func (t *TelegramCore) UpdateChannelEmojiStatus(chatID string, documentID int64) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -22366,7 +22366,7 @@ func (t *TelegramCore) UpdateChannelEmojiStatus(chatID string, documentID int64)
 }
 
 func (t *TelegramCore) DeleteProfilePhotos() error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -22416,7 +22416,7 @@ func (t *TelegramCore) GetOutboxReadDate(chatID, msgID string) (int, error) {
 }
 
 func (t *TelegramCore) SetAccountTTL(days int) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -22425,7 +22425,7 @@ func (t *TelegramCore) SetAccountTTL(days int) error {
 }
 
 func (t *TelegramCore) ResolvePhone(phone string) (string, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return "", err
 	}
@@ -22443,7 +22443,7 @@ func (t *TelegramCore) ResolvePhone(phone string) (string, error) {
 }
 
 func (t *TelegramCore) EditCloseFriends(userIDs []int64) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -22563,7 +22563,7 @@ func (t *TelegramCore) DeleteChatInvite(chatID, link string) error {
 }
 
 func (t *TelegramCore) GetContactIDs() (int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 0, err
 	}
@@ -22575,7 +22575,7 @@ func (t *TelegramCore) GetContactIDs() (int, error) {
 }
 
 func (t *TelegramCore) GetDifferenceCheck() error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -22590,7 +22590,7 @@ func (t *TelegramCore) GetDifferenceCheck() error {
 }
 
 func (t *TelegramCore) ReorderPinnedSavedDialogs(peerIDs []string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -22610,7 +22610,7 @@ func (t *TelegramCore) ReorderPinnedSavedDialogs(peerIDs []string) error {
 }
 
 func (t *TelegramCore) ReorderPinnedDialogs(chatIDs []string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -22630,7 +22630,7 @@ func (t *TelegramCore) ReorderPinnedDialogs(chatIDs []string) error {
 }
 
 func (t *TelegramCore) SetGlobalPrivacy(settings *tg.GlobalPrivacySettings) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -22639,7 +22639,7 @@ func (t *TelegramCore) SetGlobalPrivacy(settings *tg.GlobalPrivacySettings) erro
 }
 
 func (t *TelegramCore) GetHideReadMarks() (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -22651,7 +22651,7 @@ func (t *TelegramCore) GetHideReadMarks() (bool, error) {
 }
 
 func (t *TelegramCore) SetHideReadMarks(hide bool) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -22665,7 +22665,7 @@ func (t *TelegramCore) SetHideReadMarks(hide bool) error {
 }
 
 func (t *TelegramCore) GetMessagesPrivacy() (option string, chargeStars int64, err error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return "", 0, err
 	}
@@ -22684,7 +22684,7 @@ func (t *TelegramCore) GetMessagesPrivacy() (option string, chargeStars int64, e
 }
 
 func (t *TelegramCore) SetMessagesPrivacy(option string, chargeStars int64) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -22711,7 +22711,7 @@ func (t *TelegramCore) SetMessagesPrivacy(option string, chargeStars int64) erro
 }
 
 func (t *TelegramCore) GetConfcallSizeLimit() (int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 200, err
 	}
@@ -22738,7 +22738,7 @@ func (t *TelegramCore) GetConfcallSizeLimit() (int, error) {
 }
 
 func (t *TelegramCore) GetStarsPaidPostAmountMax() (int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 10000, err
 	}
@@ -22765,7 +22765,7 @@ func (t *TelegramCore) GetStarsPaidPostAmountMax() (int, error) {
 }
 
 func (t *TelegramCore) UnlockPaidMedia(chatID, msgID string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -22813,7 +22813,7 @@ func (t *TelegramCore) UnlockPaidMedia(chatID, msgID string) error {
 }
 
 func (t *TelegramCore) GetStarsBalance() (int64, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 0, err
 	}
@@ -22838,7 +22838,7 @@ type StarsRevenueResult struct {
 }
 
 func (t *TelegramCore) GetStarsRevenueStats(chatID string) (StarsRevenueResult, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return StarsRevenueResult{}, err
 	}
@@ -22875,7 +22875,7 @@ func (t *TelegramCore) GetStarsRevenueStats(chatID string) (StarsRevenueResult, 
 	}, nil
 }
 
-func starsStatusFromWire(res *tg.PaymentsStarsStatus) StarsStatus {
+func StarsStatusFromWire(res *tg.PaymentsStarsStatus) StarsStatus {
 	if res == nil {
 		return StarsStatus{}
 	}
@@ -22929,7 +22929,7 @@ func starsStatusFromWire(res *tg.PaymentsStarsStatus) StarsStatus {
 }
 
 func (t *TelegramCore) GetMyStars(offset, filter string) (StarsStatus, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return StarsStatus{}, err
 	}
@@ -22948,11 +22948,11 @@ func (t *TelegramCore) GetMyStars(offset, filter string) (StarsStatus, error) {
 	if err != nil {
 		return StarsStatus{}, fmt.Errorf("get stars transactions: %w", err)
 	}
-	return starsStatusFromWire(res), nil
+	return StarsStatusFromWire(res), nil
 }
 
 func (t *TelegramCore) GetStarsTransactions(chatID, offset string, limit int, filter string) (map[string]interface{}, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -23008,7 +23008,7 @@ func (t *TelegramCore) GetStarsTransactions(chatID, offset string, limit int, fi
 }
 
 func (t *TelegramCore) GetStarsRevenueWithdrawalUrl(chatID, password string, amount int64) (string, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return "", err
 	}
@@ -23051,7 +23051,7 @@ func (t *TelegramCore) GetStarsRevenueWithdrawalUrl(chatID, password string, amo
 }
 
 func (t *TelegramCore) GetSponsoredInfo(chatID string) (map[string]interface{}, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -23095,7 +23095,7 @@ func (t *TelegramCore) GetSponsoredInfo(chatID string) (map[string]interface{}, 
 }
 
 func (t *TelegramCore) SetRestrictSponsored(chatID string, restricted bool) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -23116,7 +23116,7 @@ func (t *TelegramCore) SetRestrictSponsored(chatID string, restricted bool) erro
 }
 
 func (t *TelegramCore) GetBroadcastRevenueStats(chatID string) (StarsRevenueResult, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return StarsRevenueResult{}, err
 	}
@@ -23147,7 +23147,7 @@ func (t *TelegramCore) GetBroadcastRevenueStats(chatID string) (StarsRevenueResu
 }
 
 func (t *TelegramCore) GetBroadcastRevenueTransactions(chatID, offset string, limit int) (map[string]interface{}, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -23212,7 +23212,7 @@ func (t *TelegramCore) GetBroadcastRevenueTransactions(chatID, offset string, li
 }
 
 func (t *TelegramCore) GetBroadcastRevenueWithdrawalUrl(chatID, password string) (string, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return "", err
 	}
@@ -23252,7 +23252,7 @@ func (t *TelegramCore) GetBroadcastRevenueWithdrawalUrl(chatID, password string)
 }
 
 func (t *TelegramCore) GetPremiumStatus() (premiumPossible bool, premiumCanBuy bool, err error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, false, err
 	}
@@ -23286,7 +23286,7 @@ func (t *TelegramCore) GetPremiumStatus() (premiumPossible bool, premiumCanBuy b
 }
 
 func (t *TelegramCore) GetDialogFiltersEnabled() (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -23313,7 +23313,7 @@ func (t *TelegramCore) GetDialogFiltersEnabled() (bool, error) {
 }
 
 func (t *TelegramCore) GetFolderLimits() (freeLimit, premiumLimit int, err error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 10, 20, err
 	}
@@ -23352,7 +23352,7 @@ func (t *TelegramCore) GetAllFolderLimits() (map[string]int, error) {
 		"shared_folders_free": 2, "shared_folders_premium": 20,
 		"links_per_folder_free": 3, "links_per_folder_premium": 20,
 	}
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return limits, err
 	}
@@ -23394,7 +23394,7 @@ func (t *TelegramCore) GetAllFolderLimits() (map[string]int, error) {
 }
 
 func (t *TelegramCore) GetPublicLinksLimits() (freeLimit, premiumLimit int, err error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 10, 20, err
 	}
@@ -23432,7 +23432,7 @@ type ForumTopicIconInfo struct {
 }
 
 func (t *TelegramCore) GetForumTopicDefaultIcons() ([]ForumTopicIconInfo, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -23472,7 +23472,7 @@ type ChannelUsernameInfo struct {
 }
 
 func (t *TelegramCore) GetChannelUsernames(chatID string) ([]ChannelUsernameInfo, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -23511,7 +23511,7 @@ func (t *TelegramCore) GetChannelUsernames(chatID string) ([]ChannelUsernameInfo
 }
 
 func (t *TelegramCore) ToggleChannelUsername(chatID, username string, active bool) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -23532,7 +23532,7 @@ func (t *TelegramCore) ToggleChannelUsername(chatID, username string, active boo
 }
 
 func (t *TelegramCore) ReorderChannelUsernames(chatID string, order []string) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -23552,7 +23552,7 @@ func (t *TelegramCore) ReorderChannelUsernames(chatID string, order []string) (b
 }
 
 func (t *TelegramCore) GetPaidMessagesConfig() (maxStars int64, commissionPermille int32, withdrawRate float64, err error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 0, 0, 0, err
 	}
@@ -23695,7 +23695,7 @@ func (t *TelegramCore) DeleteChatHistoryWithRevoke(chatID string, revoke bool) e
 }
 
 func (t *TelegramCore) ImportChatInvite(hash string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -23704,7 +23704,7 @@ func (t *TelegramCore) ImportChatInvite(hash string) error {
 }
 
 func (t *TelegramCore) GetFullChatParticipantsCount(chatID string) (int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 0, err
 	}
@@ -23730,7 +23730,7 @@ func (t *TelegramCore) GetFullChatParticipantsCount(chatID string) (int, error) 
 }
 
 func (t *TelegramCore) InviteToChannel(chatID string, userIDs []string) (int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 0, err
 	}
@@ -23763,7 +23763,7 @@ func (t *TelegramCore) InviteToChannel(chatID string, userIDs []string) (int, er
 }
 
 func (t *TelegramCore) AddChatUser(chatID string, userID string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -23789,7 +23789,7 @@ func (t *TelegramCore) AddChatUser(chatID string, userID string) error {
 }
 
 func (t *TelegramCore) DeleteChatUser(chatID string, userID string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -23814,7 +23814,7 @@ func (t *TelegramCore) DeleteChatUser(chatID string, userID string) error {
 }
 
 func (t *TelegramCore) EditChannelPhoto(chatID string, photoData []byte) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -23840,7 +23840,7 @@ func (t *TelegramCore) EditChannelPhoto(chatID string, photoData []byte) error {
 }
 
 func (t *TelegramCore) EditChannelVideoPhoto(chatID string, videoData []byte) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -23912,7 +23912,7 @@ func (t *TelegramCore) PinForumTopic(chatID string, topicID int, pinned bool) er
 }
 
 func (t *TelegramCore) ReorderPinnedForumTopics(chatID string, topicIDs []int) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -23928,7 +23928,7 @@ func (t *TelegramCore) ReorderPinnedForumTopics(chatID string, topicIDs []int) e
 }
 
 func (t *TelegramCore) ToggleViewForumAsMessages(chatID string, enabled bool) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -23984,7 +23984,7 @@ func (t *TelegramCore) DeleteTopicHistory(chatID string, topicID int) error {
 }
 
 func (t *TelegramCore) ReorderDialogFilters(ids []int) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -23993,7 +23993,7 @@ func (t *TelegramCore) ReorderDialogFilters(ids []int) error {
 }
 
 func (t *TelegramCore) DeleteContacts(userIDs []string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -24011,7 +24011,7 @@ func (t *TelegramCore) DeleteContacts(userIDs []string) error {
 }
 
 func (t *TelegramCore) ImportContacts(contacts []tg.InputPhoneContact) (int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 0, err
 	}
@@ -24023,7 +24023,7 @@ func (t *TelegramCore) ImportContacts(contacts []tg.InputPhoneContact) (int, err
 }
 
 func (t *TelegramCore) UpdateUsername(username string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -24032,7 +24032,7 @@ func (t *TelegramCore) UpdateUsername(username string) error {
 }
 
 func (t *TelegramCore) GetChatUsername(chatID string) (string, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return "", err
 	}
@@ -24058,7 +24058,7 @@ func (t *TelegramCore) GetChatUsername(chatID string) (string, error) {
 }
 
 func (t *TelegramCore) UpdateChannelUsername(chatID, username string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -24079,7 +24079,7 @@ func (t *TelegramCore) UpdateChannelUsername(chatID, username string) error {
 }
 
 func (t *TelegramCore) CheckChannelUsername(chatID, username string) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -24099,7 +24099,7 @@ func (t *TelegramCore) CheckChannelUsername(chatID, username string) (bool, erro
 }
 
 func (t *TelegramCore) UpdateBirthday(day, month, year int) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -24114,7 +24114,7 @@ func (t *TelegramCore) UpdateBirthday(day, month, year int) error {
 }
 
 func (t *TelegramCore) GetChannelDifference(chatID string) (int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 0, err
 	}
@@ -24229,7 +24229,7 @@ func (t *TelegramCore) sendStoryCommon(api *tg.Client, ctx context.Context, req 
 }
 
 func (t *TelegramCore) SendStoryWithPhoto(text string, photoData []byte, opts StoryPostOptions) (int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 0, err
 	}
@@ -24324,7 +24324,7 @@ func overlayVideoWithFFmpeg(videoPath string, overlayPNG []byte) (string, error)
 }
 
 func (t *TelegramCore) SendStoryWithVideoFile(text string, videoPath string, opts StoryPostOptions) (int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 0, err
 	}
@@ -24403,7 +24403,7 @@ func (t *TelegramCore) SendStoryWithVideoFile(text string, videoPath string, opt
 }
 
 func (t *TelegramCore) SendStory(text string) (int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 0, err
 	}
@@ -24439,7 +24439,7 @@ func (t *TelegramCore) SendStory(text string) (int, error) {
 }
 
 func (t *TelegramCore) DeleteStories(ids []int) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -24450,7 +24450,7 @@ func (t *TelegramCore) DeleteStories(ids []int) error {
 }
 
 func (t *TelegramCore) GetStoryViews(ids []int) (int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 0, err
 	}
@@ -24468,7 +24468,7 @@ func (t *TelegramCore) GetStoryViews(ids []int) (int, error) {
 }
 
 func (t *TelegramCore) ReactToStory(userID string, storyID int, emoji string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -24495,7 +24495,7 @@ func (t *TelegramCore) ReactToStory(userID string, storyID int, emoji string) er
 }
 
 func (t *TelegramCore) ExportStoryLink(peerID string, storyID int) (string, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return "", err
 	}
@@ -24518,7 +24518,7 @@ func (t *TelegramCore) ExportStoryLink(peerID string, storyID int) (string, erro
 }
 
 func (t *TelegramCore) GetPinnedStories(userID string) (int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 0, err
 	}
@@ -24553,7 +24553,7 @@ func (t *TelegramCore) SetChatWallpaper(chatID string, wallpaper WallpaperInfo, 
 	_, err = t.api.MessagesSetChatWallPaper(t.ctx, &tg.MessagesSetChatWallPaperRequest{
 		Peer:      inputPeer,
 		Wallpaper: input,
-		Settings:  wallpaperSettingsFromInfo(wallpaper),
+		Settings:  WallpaperSettingsFromInfo(wallpaper),
 		ForBoth:   forBoth,
 	})
 	return err
@@ -24573,7 +24573,7 @@ func (t *TelegramCore) RevertChatWallpaper(chatID string) error {
 }
 
 func (t *TelegramCore) UploadChatWallpaper(data []byte, mime string, blurred bool) (WallpaperInfo, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return WallpaperInfo{}, err
 	}
@@ -24601,7 +24601,7 @@ func (t *TelegramCore) UploadChatWallpaper(data []byte, mime string, blurred boo
 	if _, ok := resp.(*tg.WallPaper); !ok {
 		return WallpaperInfo{}, fmt.Errorf("unexpected upload response")
 	}
-	return t.wallpaperFromWire(resp), nil
+	return t.WallpaperFromWire(resp), nil
 }
 
 func (t *TelegramCore) HideChatJoinRequest(chatID string, userID string, approved bool) error {
@@ -24623,7 +24623,7 @@ func (t *TelegramCore) HideChatJoinRequest(chatID string, userID string, approve
 }
 
 func (t *TelegramCore) MigrateChat(chatID string) (int64, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 0, err
 	}
@@ -24651,7 +24651,7 @@ func (t *TelegramCore) MigrateChat(chatID string) (int64, error) {
 }
 
 func (t *TelegramCore) ExportChatlistInvite(folderID int, title string, peerIDs []string) (string, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return "", err
 	}
@@ -24676,7 +24676,7 @@ func (t *TelegramCore) ExportChatlistInvite(folderID int, title string, peerIDs 
 }
 
 func (t *TelegramCore) GetChatlistInvites(folderID int) (int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 0, err
 	}
@@ -24688,7 +24688,7 @@ func (t *TelegramCore) GetChatlistInvites(folderID int) (int, error) {
 }
 
 func (t *TelegramCore) GetFolderInviteLinks(folderID int) ([]ChatlistInviteLink, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -24723,7 +24723,7 @@ func (t *TelegramCore) GetFolderInviteLinks(folderID int) ([]ChatlistInviteLink,
 }
 
 func (t *TelegramCore) EditChatlistInvite(folderID int, slug string, peerIDs []string, title string) (ChatlistInviteLink, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return ChatlistInviteLink{}, err
 	}
@@ -24764,7 +24764,7 @@ func (t *TelegramCore) EditChatlistInvite(folderID int, slug string, peerIDs []s
 }
 
 func (t *TelegramCore) DeleteChatlistInvite(folderID int, slug string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -24776,7 +24776,7 @@ func (t *TelegramCore) DeleteChatlistInvite(folderID int, slug string) error {
 }
 
 func (t *TelegramCore) GetLeaveChatlistSuggestions(folderID int) ([]string, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -24794,7 +24794,7 @@ func (t *TelegramCore) GetLeaveChatlistSuggestions(folderID int) ([]string, erro
 }
 
 func (t *TelegramCore) LeaveChatlistFolder(folderID int, peerIDs []string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -24815,7 +24815,7 @@ func (t *TelegramCore) LeaveChatlistFolder(folderID int, peerIDs []string) error
 }
 
 func (t *TelegramCore) JoinChatlistInvite(slug string, peerIDs []string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -24835,7 +24835,7 @@ func (t *TelegramCore) JoinChatlistInvite(slug string, peerIDs []string) error {
 }
 
 func (t *TelegramCore) AccountAcceptAuthorization(request *tg.AccountAcceptAuthorizationRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -24843,7 +24843,7 @@ func (t *TelegramCore) AccountAcceptAuthorization(request *tg.AccountAcceptAutho
 }
 
 func (t *TelegramCore) AccountCancelPasswordEmail() (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -24851,7 +24851,7 @@ func (t *TelegramCore) AccountCancelPasswordEmail() (bool, error) {
 }
 
 func (t *TelegramCore) AccountChangeAuthorizationSettings(request *tg.AccountChangeAuthorizationSettingsRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -24859,7 +24859,7 @@ func (t *TelegramCore) AccountChangeAuthorizationSettings(request *tg.AccountCha
 }
 
 func (t *TelegramCore) AccountChangePhone(request *tg.AccountChangePhoneRequest) (tg.UserClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -24867,7 +24867,7 @@ func (t *TelegramCore) AccountChangePhone(request *tg.AccountChangePhoneRequest)
 }
 
 func (t *TelegramCore) AccountCheckUsername(username string) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -24875,7 +24875,7 @@ func (t *TelegramCore) AccountCheckUsername(username string) (bool, error) {
 }
 
 func (t *TelegramCore) GetAccountUsernames() ([]ChannelUsernameInfo, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -24904,7 +24904,7 @@ func (t *TelegramCore) GetAccountUsernames() ([]ChannelUsernameInfo, error) {
 }
 
 func (t *TelegramCore) ToggleAccountUsername(username string, active bool) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -24915,7 +24915,7 @@ func (t *TelegramCore) ToggleAccountUsername(username string, active bool) (bool
 }
 
 func (t *TelegramCore) ReorderAccountUsernames(order []string) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -24923,7 +24923,7 @@ func (t *TelegramCore) ReorderAccountUsernames(order []string) (bool, error) {
 }
 
 func (t *TelegramCore) AccountClearRecentEmojiStatuses() (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -24931,7 +24931,7 @@ func (t *TelegramCore) AccountClearRecentEmojiStatuses() (bool, error) {
 }
 
 func (t *TelegramCore) AccountConfirmPasswordEmail(code string) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -24939,7 +24939,7 @@ func (t *TelegramCore) AccountConfirmPasswordEmail(code string) (bool, error) {
 }
 
 func (t *TelegramCore) AccountConfirmPhone(request *tg.AccountConfirmPhoneRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -24947,7 +24947,7 @@ func (t *TelegramCore) AccountConfirmPhone(request *tg.AccountConfirmPhoneReques
 }
 
 func (t *TelegramCore) AccountCreateBusinessChatLink(link tg.InputBusinessChatLink) (*tg.BusinessChatLink, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -24955,7 +24955,7 @@ func (t *TelegramCore) AccountCreateBusinessChatLink(link tg.InputBusinessChatLi
 }
 
 func (t *TelegramCore) AccountCreateTheme(request *tg.AccountCreateThemeRequest) (*tg.Theme, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -24963,7 +24963,7 @@ func (t *TelegramCore) AccountCreateTheme(request *tg.AccountCreateThemeRequest)
 }
 
 func (t *TelegramCore) AccountDeclinePasswordReset() (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -24971,7 +24971,7 @@ func (t *TelegramCore) AccountDeclinePasswordReset() (bool, error) {
 }
 
 func (t *TelegramCore) AccountDeleteAccount(request *tg.AccountDeleteAccountRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -24979,7 +24979,7 @@ func (t *TelegramCore) AccountDeleteAccount(request *tg.AccountDeleteAccountRequ
 }
 
 func (t *TelegramCore) AccountDeleteAutoSaveExceptions() (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -24987,7 +24987,7 @@ func (t *TelegramCore) AccountDeleteAutoSaveExceptions() (bool, error) {
 }
 
 func (t *TelegramCore) AccountDeleteBusinessChatLink(slug string) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -24995,7 +24995,7 @@ func (t *TelegramCore) AccountDeleteBusinessChatLink(slug string) (bool, error) 
 }
 
 func (t *TelegramCore) AccountDeletePasskey(id string) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -25003,7 +25003,7 @@ func (t *TelegramCore) AccountDeletePasskey(id string) (bool, error) {
 }
 
 func (t *TelegramCore) AccountDeleteSecureValue(types []tg.SecureValueTypeClass) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -25011,7 +25011,7 @@ func (t *TelegramCore) AccountDeleteSecureValue(types []tg.SecureValueTypeClass)
 }
 
 func (t *TelegramCore) AccountDisablePeerConnectedBot(peer tg.InputPeerClass) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -25019,7 +25019,7 @@ func (t *TelegramCore) AccountDisablePeerConnectedBot(peer tg.InputPeerClass) (b
 }
 
 func (t *TelegramCore) AccountEditBusinessChatLink(request *tg.AccountEditBusinessChatLinkRequest) (*tg.BusinessChatLink, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25027,7 +25027,7 @@ func (t *TelegramCore) AccountEditBusinessChatLink(request *tg.AccountEditBusine
 }
 
 func (t *TelegramCore) AccountFinishTakeoutSession(request *tg.AccountFinishTakeoutSessionRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -25035,7 +25035,7 @@ func (t *TelegramCore) AccountFinishTakeoutSession(request *tg.AccountFinishTake
 }
 
 func (t *TelegramCore) InitTakeout(contacts, msgUsers, msgChats, msgMegagroups, msgChannels, files bool, fileMaxSizeBytes int64) (int64, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return 0, err
 	}
@@ -25067,7 +25067,7 @@ func (t *TelegramCore) InitTakeout(contacts, msgUsers, msgChats, msgMegagroups, 
 }
 
 func (t *TelegramCore) FinishTakeout() error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -25076,7 +25076,7 @@ func (t *TelegramCore) FinishTakeout() error {
 }
 
 func (t *TelegramCore) AccountGetAllSecureValues() ([]tg.SecureValue, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25084,7 +25084,7 @@ func (t *TelegramCore) AccountGetAllSecureValues() ([]tg.SecureValue, error) {
 }
 
 func (t *TelegramCore) AccountGetAuthorizationForm(request *tg.AccountGetAuthorizationFormRequest) (*tg.AccountAuthorizationForm, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25092,7 +25092,7 @@ func (t *TelegramCore) AccountGetAuthorizationForm(request *tg.AccountGetAuthori
 }
 
 func (t *TelegramCore) AccountGetAutoDownloadSettings() (*tg.AccountAutoDownloadSettings, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25100,7 +25100,7 @@ func (t *TelegramCore) AccountGetAutoDownloadSettings() (*tg.AccountAutoDownload
 }
 
 func (t *TelegramCore) AccountGetAutoSaveSettings() (*tg.AccountAutoSaveSettings, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25108,7 +25108,7 @@ func (t *TelegramCore) AccountGetAutoSaveSettings() (*tg.AccountAutoSaveSettings
 }
 
 func (t *TelegramCore) AccountGetBotBusinessConnection(connectionid string) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25116,7 +25116,7 @@ func (t *TelegramCore) AccountGetBotBusinessConnection(connectionid string) (tg.
 }
 
 func (t *TelegramCore) AccountGetBusinessChatLinks() (*tg.AccountBusinessChatLinks, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25124,7 +25124,7 @@ func (t *TelegramCore) AccountGetBusinessChatLinks() (*tg.AccountBusinessChatLin
 }
 
 func (t *TelegramCore) AccountGetChannelDefaultEmojiStatuses(hash int64) (tg.AccountEmojiStatusesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25132,7 +25132,7 @@ func (t *TelegramCore) AccountGetChannelDefaultEmojiStatuses(hash int64) (tg.Acc
 }
 
 func (t *TelegramCore) AccountGetChannelRestrictedStatusEmojis(hash int64) (tg.EmojiListClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25140,7 +25140,7 @@ func (t *TelegramCore) AccountGetChannelRestrictedStatusEmojis(hash int64) (tg.E
 }
 
 func (t *TelegramCore) AccountGetChatThemes(hash int64) (tg.AccountThemesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25148,7 +25148,7 @@ func (t *TelegramCore) AccountGetChatThemes(hash int64) (tg.AccountThemesClass, 
 }
 
 func (t *TelegramCore) AccountGetCollectibleEmojiStatuses(hash int64) (tg.AccountEmojiStatusesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25156,7 +25156,7 @@ func (t *TelegramCore) AccountGetCollectibleEmojiStatuses(hash int64) (tg.Accoun
 }
 
 func (t *TelegramCore) AccountGetConnectedBots() (*tg.AccountConnectedBots, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25164,7 +25164,7 @@ func (t *TelegramCore) AccountGetConnectedBots() (*tg.AccountConnectedBots, erro
 }
 
 func (t *TelegramCore) AccountGetContactSignUpNotification() (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -25172,7 +25172,7 @@ func (t *TelegramCore) AccountGetContactSignUpNotification() (bool, error) {
 }
 
 func (t *TelegramCore) AccountGetContentSettings() (*tg.AccountContentSettings, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25180,7 +25180,7 @@ func (t *TelegramCore) AccountGetContentSettings() (*tg.AccountContentSettings, 
 }
 
 func (t *TelegramCore) AccountGetDefaultBackgroundEmojis(hash int64) (tg.EmojiListClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25188,7 +25188,7 @@ func (t *TelegramCore) AccountGetDefaultBackgroundEmojis(hash int64) (tg.EmojiLi
 }
 
 func (t *TelegramCore) AccountGetDefaultEmojiStatuses(hash int64) (tg.AccountEmojiStatusesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25196,7 +25196,7 @@ func (t *TelegramCore) AccountGetDefaultEmojiStatuses(hash int64) (tg.AccountEmo
 }
 
 func (t *TelegramCore) AccountGetDefaultGroupPhotoEmojis(hash int64) (tg.EmojiListClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25204,7 +25204,7 @@ func (t *TelegramCore) AccountGetDefaultGroupPhotoEmojis(hash int64) (tg.EmojiLi
 }
 
 func (t *TelegramCore) AccountGetDefaultProfilePhotoEmojis(hash int64) (tg.EmojiListClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25212,7 +25212,7 @@ func (t *TelegramCore) AccountGetDefaultProfilePhotoEmojis(hash int64) (tg.Emoji
 }
 
 func (t *TelegramCore) AccountGetMultiWallPapers(wallpapers []tg.InputWallPaperClass) ([]tg.WallPaperClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25220,7 +25220,7 @@ func (t *TelegramCore) AccountGetMultiWallPapers(wallpapers []tg.InputWallPaperC
 }
 
 func (t *TelegramCore) AccountGetNotifyExceptions(request *tg.AccountGetNotifyExceptionsRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25228,7 +25228,7 @@ func (t *TelegramCore) AccountGetNotifyExceptions(request *tg.AccountGetNotifyEx
 }
 
 func (t *TelegramCore) AccountGetNotifySettings(peer tg.InputNotifyPeerClass) (*tg.PeerNotifySettings, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25236,7 +25236,7 @@ func (t *TelegramCore) AccountGetNotifySettings(peer tg.InputNotifyPeerClass) (*
 }
 
 func (t *TelegramCore) AccountGetPaidMessagesRevenue(request *tg.AccountGetPaidMessagesRevenueRequest) (*tg.AccountPaidMessagesRevenue, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25244,7 +25244,7 @@ func (t *TelegramCore) AccountGetPaidMessagesRevenue(request *tg.AccountGetPaidM
 }
 
 func (t *TelegramCore) AccountGetPasskeys() (*tg.AccountPasskeys, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25252,7 +25252,7 @@ func (t *TelegramCore) AccountGetPasskeys() (*tg.AccountPasskeys, error) {
 }
 
 func (t *TelegramCore) AccountGetPasswordSettings(password tg.InputCheckPasswordSRPClass) (*tg.AccountPasswordSettings, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25260,7 +25260,7 @@ func (t *TelegramCore) AccountGetPasswordSettings(password tg.InputCheckPassword
 }
 
 func (t *TelegramCore) AccountGetReactionsNotifySettings() (*tg.ReactionsNotifySettings, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25268,7 +25268,7 @@ func (t *TelegramCore) AccountGetReactionsNotifySettings() (*tg.ReactionsNotifyS
 }
 
 func (t *TelegramCore) AccountGetRecentEmojiStatuses(hash int64) (tg.AccountEmojiStatusesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25276,7 +25276,7 @@ func (t *TelegramCore) AccountGetRecentEmojiStatuses(hash int64) (tg.AccountEmoj
 }
 
 func (t *TelegramCore) AccountGetSavedMusicIDs(hash int64) (tg.AccountSavedMusicIDsClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25284,7 +25284,7 @@ func (t *TelegramCore) AccountGetSavedMusicIDs(hash int64) (tg.AccountSavedMusic
 }
 
 func (t *TelegramCore) AccountGetSavedRingtones(hash int64) (tg.AccountSavedRingtonesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25292,7 +25292,7 @@ func (t *TelegramCore) AccountGetSavedRingtones(hash int64) (tg.AccountSavedRing
 }
 
 func (t *TelegramCore) AccountGetSecureValue(types []tg.SecureValueTypeClass) ([]tg.SecureValue, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25300,7 +25300,7 @@ func (t *TelegramCore) AccountGetSecureValue(types []tg.SecureValueTypeClass) ([
 }
 
 func (t *TelegramCore) AccountGetTheme(request *tg.AccountGetThemeRequest) (*tg.Theme, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25308,7 +25308,7 @@ func (t *TelegramCore) AccountGetTheme(request *tg.AccountGetThemeRequest) (*tg.
 }
 
 func (t *TelegramCore) AccountGetThemes(request *tg.AccountGetThemesRequest) (tg.AccountThemesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25316,7 +25316,7 @@ func (t *TelegramCore) AccountGetThemes(request *tg.AccountGetThemesRequest) (tg
 }
 
 func (t *TelegramCore) GetCloudThemes() ([]CloudThemeInfo, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25360,7 +25360,7 @@ func (t *TelegramCore) GetCloudThemes() ([]CloudThemeInfo, error) {
 }
 
 func (t *TelegramCore) DeleteCloudTheme(themeID int64) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -25373,7 +25373,7 @@ func (t *TelegramCore) DeleteCloudTheme(themeID int64) error {
 }
 
 func (t *TelegramCore) CreateCloudThemeWithData(title, slug string, themeData []byte) (*CloudThemeInfo, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25439,7 +25439,7 @@ func (t *TelegramCore) CreateCloudThemeWithData(title, slug string, themeData []
 }
 
 func (t *TelegramCore) UpdateCloudThemeWithData(themeID, accessHash int64, title, slug string, themeData []byte) (*CloudThemeInfo, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25509,7 +25509,7 @@ func (t *TelegramCore) UpdateCloudThemeWithData(themeID, accessHash int64, title
 }
 
 func (t *TelegramCore) AccountGetTmpPassword(request *tg.AccountGetTmpPasswordRequest) (*tg.AccountTmpPassword, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25517,7 +25517,7 @@ func (t *TelegramCore) AccountGetTmpPassword(request *tg.AccountGetTmpPasswordRe
 }
 
 func (t *TelegramCore) AccountGetUniqueGiftChatThemes(request *tg.AccountGetUniqueGiftChatThemesRequest) (tg.AccountChatThemesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25525,7 +25525,7 @@ func (t *TelegramCore) AccountGetUniqueGiftChatThemes(request *tg.AccountGetUniq
 }
 
 func (t *TelegramCore) AccountGetWallPaper(wallpaper tg.InputWallPaperClass) (tg.WallPaperClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25533,7 +25533,7 @@ func (t *TelegramCore) AccountGetWallPaper(wallpaper tg.InputWallPaperClass) (tg
 }
 
 func (t *TelegramCore) AccountGetWallPapers(hash int64) (tg.AccountWallPapersClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25541,7 +25541,7 @@ func (t *TelegramCore) AccountGetWallPapers(hash int64) (tg.AccountWallPapersCla
 }
 
 func (t *TelegramCore) AccountGetWebAuthorizations() (*tg.AccountWebAuthorizations, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25549,7 +25549,7 @@ func (t *TelegramCore) AccountGetWebAuthorizations() (*tg.AccountWebAuthorizatio
 }
 
 func (t *TelegramCore) AccountInitPasskeyRegistration() (*tg.AccountPasskeyRegistrationOptions, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25557,7 +25557,7 @@ func (t *TelegramCore) AccountInitPasskeyRegistration() (*tg.AccountPasskeyRegis
 }
 
 func (t *TelegramCore) AccountInitTakeoutSession(request *tg.AccountInitTakeoutSessionRequest) (*tg.AccountTakeout, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25565,7 +25565,7 @@ func (t *TelegramCore) AccountInitTakeoutSession(request *tg.AccountInitTakeoutS
 }
 
 func (t *TelegramCore) InstallCloudTheme(themeID int64, isDark bool) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -25578,7 +25578,7 @@ func (t *TelegramCore) InstallCloudTheme(themeID int64, isDark bool) error {
 }
 
 func (t *TelegramCore) AccountInstallTheme(request *tg.AccountInstallThemeRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -25586,7 +25586,7 @@ func (t *TelegramCore) AccountInstallTheme(request *tg.AccountInstallThemeReques
 }
 
 func (t *TelegramCore) AccountInstallWallPaper(request *tg.AccountInstallWallPaperRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -25594,7 +25594,7 @@ func (t *TelegramCore) AccountInstallWallPaper(request *tg.AccountInstallWallPap
 }
 
 func (t *TelegramCore) AccountInvalidateSignInCodes(codes []string) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -25602,7 +25602,7 @@ func (t *TelegramCore) AccountInvalidateSignInCodes(codes []string) (bool, error
 }
 
 func (t *TelegramCore) AccountRegisterDevice(request *tg.AccountRegisterDeviceRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -25610,7 +25610,7 @@ func (t *TelegramCore) AccountRegisterDevice(request *tg.AccountRegisterDeviceRe
 }
 
 func (t *TelegramCore) AccountRegisterPasskey(credential tg.InputPasskeyCredentialClass) (*tg.Passkey, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25618,7 +25618,7 @@ func (t *TelegramCore) AccountRegisterPasskey(credential tg.InputPasskeyCredenti
 }
 
 func (t *TelegramCore) AccountReorderUsernames(order []string) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -25626,7 +25626,7 @@ func (t *TelegramCore) AccountReorderUsernames(order []string) (bool, error) {
 }
 
 func (t *TelegramCore) AccountReportPeer(request *tg.AccountReportPeerRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -25634,7 +25634,7 @@ func (t *TelegramCore) AccountReportPeer(request *tg.AccountReportPeerRequest) (
 }
 
 func (t *TelegramCore) AccountReportProfilePhoto(request *tg.AccountReportProfilePhotoRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -25642,7 +25642,7 @@ func (t *TelegramCore) AccountReportProfilePhoto(request *tg.AccountReportProfil
 }
 
 func (t *TelegramCore) AccountResendPasswordEmail() (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -25650,7 +25650,7 @@ func (t *TelegramCore) AccountResendPasswordEmail() (bool, error) {
 }
 
 func (t *TelegramCore) AccountResetNotifySettings() (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -25658,7 +25658,7 @@ func (t *TelegramCore) AccountResetNotifySettings() (bool, error) {
 }
 
 func (t *TelegramCore) AccountResetPassword() (tg.AccountResetPasswordResultClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25666,7 +25666,7 @@ func (t *TelegramCore) AccountResetPassword() (tg.AccountResetPasswordResultClas
 }
 
 func (t *TelegramCore) AccountResetWallPapers() (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -25674,7 +25674,7 @@ func (t *TelegramCore) AccountResetWallPapers() (bool, error) {
 }
 
 func (t *TelegramCore) AccountResetWebAuthorization(hash int64) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -25682,7 +25682,7 @@ func (t *TelegramCore) AccountResetWebAuthorization(hash int64) (bool, error) {
 }
 
 func (t *TelegramCore) AccountResetWebAuthorizations() (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -25690,7 +25690,7 @@ func (t *TelegramCore) AccountResetWebAuthorizations() (bool, error) {
 }
 
 func (t *TelegramCore) AccountResolveBusinessChatLink(slug string) (*tg.AccountResolvedBusinessChatLinks, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25698,7 +25698,7 @@ func (t *TelegramCore) AccountResolveBusinessChatLink(slug string) (*tg.AccountR
 }
 
 func (t *TelegramCore) AccountSaveAutoDownloadSettings(request *tg.AccountSaveAutoDownloadSettingsRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -25706,7 +25706,7 @@ func (t *TelegramCore) AccountSaveAutoDownloadSettings(request *tg.AccountSaveAu
 }
 
 func (t *TelegramCore) AccountSaveAutoSaveSettings(request *tg.AccountSaveAutoSaveSettingsRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -25714,7 +25714,7 @@ func (t *TelegramCore) AccountSaveAutoSaveSettings(request *tg.AccountSaveAutoSa
 }
 
 func (t *TelegramCore) AccountSaveMusic(request *tg.AccountSaveMusicRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -25722,7 +25722,7 @@ func (t *TelegramCore) AccountSaveMusic(request *tg.AccountSaveMusicRequest) (bo
 }
 
 func (t *TelegramCore) AccountSaveRingtone(request *tg.AccountSaveRingtoneRequest) (tg.AccountSavedRingtoneClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25730,7 +25730,7 @@ func (t *TelegramCore) AccountSaveRingtone(request *tg.AccountSaveRingtoneReques
 }
 
 func (t *TelegramCore) AccountSaveSecureValue(request *tg.AccountSaveSecureValueRequest) (*tg.SecureValue, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25738,7 +25738,7 @@ func (t *TelegramCore) AccountSaveSecureValue(request *tg.AccountSaveSecureValue
 }
 
 func (t *TelegramCore) AccountSaveTheme(request *tg.AccountSaveThemeRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -25746,7 +25746,7 @@ func (t *TelegramCore) AccountSaveTheme(request *tg.AccountSaveThemeRequest) (bo
 }
 
 func (t *TelegramCore) AccountSaveWallPaper(request *tg.AccountSaveWallPaperRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -25754,7 +25754,7 @@ func (t *TelegramCore) AccountSaveWallPaper(request *tg.AccountSaveWallPaperRequ
 }
 
 func (t *TelegramCore) AccountSendChangePhoneCode(request *tg.AccountSendChangePhoneCodeRequest) (tg.AuthSentCodeClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25762,7 +25762,7 @@ func (t *TelegramCore) AccountSendChangePhoneCode(request *tg.AccountSendChangeP
 }
 
 func (t *TelegramCore) AccountSendConfirmPhoneCode(request *tg.AccountSendConfirmPhoneCodeRequest) (tg.AuthSentCodeClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25770,7 +25770,7 @@ func (t *TelegramCore) AccountSendConfirmPhoneCode(request *tg.AccountSendConfir
 }
 
 func (t *TelegramCore) AccountSendVerifyEmailCode(request *tg.AccountSendVerifyEmailCodeRequest) (*tg.AccountSentEmailCode, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25778,7 +25778,7 @@ func (t *TelegramCore) AccountSendVerifyEmailCode(request *tg.AccountSendVerifyE
 }
 
 func (t *TelegramCore) AccountSendVerifyPhoneCode(request *tg.AccountSendVerifyPhoneCodeRequest) (tg.AuthSentCodeClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25786,7 +25786,7 @@ func (t *TelegramCore) AccountSendVerifyPhoneCode(request *tg.AccountSendVerifyP
 }
 
 func (t *TelegramCore) AccountSetAuthorizationTTL(authorizationttldays int) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -25794,7 +25794,7 @@ func (t *TelegramCore) AccountSetAuthorizationTTL(authorizationttldays int) (boo
 }
 
 func (t *TelegramCore) AccountSetContactSignUpNotification(silent bool) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -25802,7 +25802,7 @@ func (t *TelegramCore) AccountSetContactSignUpNotification(silent bool) (bool, e
 }
 
 func (t *TelegramCore) AccountSetContentSettings(request *tg.AccountSetContentSettingsRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -25810,7 +25810,7 @@ func (t *TelegramCore) AccountSetContentSettings(request *tg.AccountSetContentSe
 }
 
 func (t *TelegramCore) AccountSetMainProfileTab(tab tg.ProfileTabClass) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -25818,7 +25818,7 @@ func (t *TelegramCore) AccountSetMainProfileTab(tab tg.ProfileTabClass) (bool, e
 }
 
 func (t *TelegramCore) AccountSetReactionsNotifySettings(settings tg.ReactionsNotifySettings) (*tg.ReactionsNotifySettings, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25826,7 +25826,7 @@ func (t *TelegramCore) AccountSetReactionsNotifySettings(settings tg.ReactionsNo
 }
 
 func (t *TelegramCore) AccountToggleConnectedBotPaused(request *tg.AccountToggleConnectedBotPausedRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -25834,7 +25834,7 @@ func (t *TelegramCore) AccountToggleConnectedBotPaused(request *tg.AccountToggle
 }
 
 func (t *TelegramCore) AccountToggleNoPaidMessagesException(request *tg.AccountToggleNoPaidMessagesExceptionRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -25842,7 +25842,7 @@ func (t *TelegramCore) AccountToggleNoPaidMessagesException(request *tg.AccountT
 }
 
 func (t *TelegramCore) AccountToggleSponsoredMessages(enabled bool) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -25850,7 +25850,7 @@ func (t *TelegramCore) AccountToggleSponsoredMessages(enabled bool) (bool, error
 }
 
 func (t *TelegramCore) AccountToggleUsername(request *tg.AccountToggleUsernameRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -25858,7 +25858,7 @@ func (t *TelegramCore) AccountToggleUsername(request *tg.AccountToggleUsernameRe
 }
 
 func (t *TelegramCore) AccountUnregisterDevice(request *tg.AccountUnregisterDeviceRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -25866,7 +25866,7 @@ func (t *TelegramCore) AccountUnregisterDevice(request *tg.AccountUnregisterDevi
 }
 
 func (t *TelegramCore) AccountUpdateBusinessAwayMessage(request *tg.AccountUpdateBusinessAwayMessageRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -25874,7 +25874,7 @@ func (t *TelegramCore) AccountUpdateBusinessAwayMessage(request *tg.AccountUpdat
 }
 
 func (t *TelegramCore) AccountUpdateBusinessGreetingMessage(request *tg.AccountUpdateBusinessGreetingMessageRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -25882,7 +25882,7 @@ func (t *TelegramCore) AccountUpdateBusinessGreetingMessage(request *tg.AccountU
 }
 
 func (t *TelegramCore) AccountUpdateBusinessIntro(request *tg.AccountUpdateBusinessIntroRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -25890,7 +25890,7 @@ func (t *TelegramCore) AccountUpdateBusinessIntro(request *tg.AccountUpdateBusin
 }
 
 func (t *TelegramCore) AccountUpdateBusinessLocation(request *tg.AccountUpdateBusinessLocationRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -25898,7 +25898,7 @@ func (t *TelegramCore) AccountUpdateBusinessLocation(request *tg.AccountUpdateBu
 }
 
 func (t *TelegramCore) AccountUpdateBusinessWorkHours(request *tg.AccountUpdateBusinessWorkHoursRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -25906,7 +25906,7 @@ func (t *TelegramCore) AccountUpdateBusinessWorkHours(request *tg.AccountUpdateB
 }
 
 func (t *TelegramCore) AccountUpdateColor(request *tg.AccountUpdateColorRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -25914,7 +25914,7 @@ func (t *TelegramCore) AccountUpdateColor(request *tg.AccountUpdateColorRequest)
 }
 
 func (t *TelegramCore) AccountUpdateConnectedBot(request *tg.AccountUpdateConnectedBotRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -25922,7 +25922,7 @@ func (t *TelegramCore) AccountUpdateConnectedBot(request *tg.AccountUpdateConnec
 }
 
 func (t *TelegramCore) AccountUpdateDeviceLocked(period int) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -25930,7 +25930,7 @@ func (t *TelegramCore) AccountUpdateDeviceLocked(period int) (bool, error) {
 }
 
 func (t *TelegramCore) AccountUpdateEmojiStatus(emojistatus tg.EmojiStatusClass) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -25938,7 +25938,7 @@ func (t *TelegramCore) AccountUpdateEmojiStatus(emojistatus tg.EmojiStatusClass)
 }
 
 func (t *TelegramCore) SetEmojiStatus(documentID int64, expiresIn int) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -25951,7 +25951,7 @@ func (t *TelegramCore) SetEmojiStatus(documentID int64, expiresIn int) error {
 }
 
 func (t *TelegramCore) ClearEmojiStatus() error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -25960,7 +25960,7 @@ func (t *TelegramCore) ClearEmojiStatus() error {
 }
 
 func (t *TelegramCore) DeleteQuickReply(shortcutID int) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -25969,7 +25969,7 @@ func (t *TelegramCore) DeleteQuickReply(shortcutID int) error {
 }
 
 func (t *TelegramCore) DeleteBusinessLink(slug string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -25978,7 +25978,7 @@ func (t *TelegramCore) DeleteBusinessLink(slug string) error {
 }
 
 func (t *TelegramCore) AccountUpdateNotifySettings(request *tg.AccountUpdateNotifySettingsRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -25986,7 +25986,7 @@ func (t *TelegramCore) AccountUpdateNotifySettings(request *tg.AccountUpdateNoti
 }
 
 func (t *TelegramCore) AccountUpdatePasswordSettings(request *tg.AccountUpdatePasswordSettingsRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -25994,7 +25994,7 @@ func (t *TelegramCore) AccountUpdatePasswordSettings(request *tg.AccountUpdatePa
 }
 
 func (t *TelegramCore) AccountUpdatePersonalChannel(channel tg.InputChannelClass) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -26002,7 +26002,7 @@ func (t *TelegramCore) AccountUpdatePersonalChannel(channel tg.InputChannelClass
 }
 
 func (t *TelegramCore) SetPersonalChannel(channelUsername string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -26026,7 +26026,7 @@ func (t *TelegramCore) SetPersonalChannel(channelUsername string) error {
 }
 
 func (t *TelegramCore) ClearPersonalChannel() error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -26035,7 +26035,7 @@ func (t *TelegramCore) ClearPersonalChannel() error {
 }
 
 func (t *TelegramCore) AccountUpdateTheme(request *tg.AccountUpdateThemeRequest) (*tg.Theme, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26043,7 +26043,7 @@ func (t *TelegramCore) AccountUpdateTheme(request *tg.AccountUpdateThemeRequest)
 }
 
 func (t *TelegramCore) AccountUploadRingtone(request *tg.AccountUploadRingtoneRequest) (tg.DocumentClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26051,7 +26051,7 @@ func (t *TelegramCore) AccountUploadRingtone(request *tg.AccountUploadRingtoneRe
 }
 
 func (t *TelegramCore) AccountUploadTheme(request *tg.AccountUploadThemeRequest) (tg.DocumentClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26059,7 +26059,7 @@ func (t *TelegramCore) AccountUploadTheme(request *tg.AccountUploadThemeRequest)
 }
 
 func (t *TelegramCore) AccountUploadWallPaper(request *tg.AccountUploadWallPaperRequest) (tg.WallPaperClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26067,7 +26067,7 @@ func (t *TelegramCore) AccountUploadWallPaper(request *tg.AccountUploadWallPaper
 }
 
 func (t *TelegramCore) AccountVerifyEmail(request *tg.AccountVerifyEmailRequest) (tg.AccountEmailVerifiedClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26075,7 +26075,7 @@ func (t *TelegramCore) AccountVerifyEmail(request *tg.AccountVerifyEmailRequest)
 }
 
 func (t *TelegramCore) AccountVerifyPhone(request *tg.AccountVerifyPhoneRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -26083,7 +26083,7 @@ func (t *TelegramCore) AccountVerifyPhone(request *tg.AccountVerifyPhoneRequest)
 }
 
 func (t *TelegramCore) AuthAcceptLoginToken(token []byte) (*tg.Authorization, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26091,7 +26091,7 @@ func (t *TelegramCore) AuthAcceptLoginToken(token []byte) (*tg.Authorization, er
 }
 
 func (t *TelegramCore) AuthBindTempAuthKey(request *tg.AuthBindTempAuthKeyRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -26099,7 +26099,7 @@ func (t *TelegramCore) AuthBindTempAuthKey(request *tg.AuthBindTempAuthKeyReques
 }
 
 func (t *TelegramCore) AuthCancelCode(request *tg.AuthCancelCodeRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -26107,7 +26107,7 @@ func (t *TelegramCore) AuthCancelCode(request *tg.AuthCancelCodeRequest) (bool, 
 }
 
 func (t *TelegramCore) AuthCheckPaidAuth(request *tg.AuthCheckPaidAuthRequest) (tg.AuthSentCodeClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26115,7 +26115,7 @@ func (t *TelegramCore) AuthCheckPaidAuth(request *tg.AuthCheckPaidAuthRequest) (
 }
 
 func (t *TelegramCore) AuthCheckPassword(password tg.InputCheckPasswordSRPClass) (tg.AuthAuthorizationClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26123,7 +26123,7 @@ func (t *TelegramCore) AuthCheckPassword(password tg.InputCheckPasswordSRPClass)
 }
 
 func (t *TelegramCore) AuthCheckRecoveryPassword(code string) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -26131,7 +26131,7 @@ func (t *TelegramCore) AuthCheckRecoveryPassword(code string) (bool, error) {
 }
 
 func (t *TelegramCore) AuthDropTempAuthKeys(exceptauthkeys []int64) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -26139,7 +26139,7 @@ func (t *TelegramCore) AuthDropTempAuthKeys(exceptauthkeys []int64) (bool, error
 }
 
 func (t *TelegramCore) AuthExportAuthorization(dcid int) (*tg.AuthExportedAuthorization, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26147,7 +26147,7 @@ func (t *TelegramCore) AuthExportAuthorization(dcid int) (*tg.AuthExportedAuthor
 }
 
 func (t *TelegramCore) AuthExportLoginToken(request *tg.AuthExportLoginTokenRequest) (tg.AuthLoginTokenClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26155,7 +26155,7 @@ func (t *TelegramCore) AuthExportLoginToken(request *tg.AuthExportLoginTokenRequ
 }
 
 func (t *TelegramCore) AuthFinishPasskeyLogin(request *tg.AuthFinishPasskeyLoginRequest) (tg.AuthAuthorizationClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26163,7 +26163,7 @@ func (t *TelegramCore) AuthFinishPasskeyLogin(request *tg.AuthFinishPasskeyLogin
 }
 
 func (t *TelegramCore) AuthImportAuthorization(request *tg.AuthImportAuthorizationRequest) (tg.AuthAuthorizationClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26171,7 +26171,7 @@ func (t *TelegramCore) AuthImportAuthorization(request *tg.AuthImportAuthorizati
 }
 
 func (t *TelegramCore) AuthImportBotAuthorization(request *tg.AuthImportBotAuthorizationRequest) (tg.AuthAuthorizationClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26179,7 +26179,7 @@ func (t *TelegramCore) AuthImportBotAuthorization(request *tg.AuthImportBotAutho
 }
 
 func (t *TelegramCore) AuthImportLoginToken(token []byte) (tg.AuthLoginTokenClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26187,7 +26187,7 @@ func (t *TelegramCore) AuthImportLoginToken(token []byte) (tg.AuthLoginTokenClas
 }
 
 func (t *TelegramCore) AuthImportWebTokenAuthorization(request *tg.AuthImportWebTokenAuthorizationRequest) (tg.AuthAuthorizationClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26195,7 +26195,7 @@ func (t *TelegramCore) AuthImportWebTokenAuthorization(request *tg.AuthImportWeb
 }
 
 func (t *TelegramCore) AuthInitPasskeyLogin(request *tg.AuthInitPasskeyLoginRequest) (*tg.AuthPasskeyLoginOptions, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26203,7 +26203,7 @@ func (t *TelegramCore) AuthInitPasskeyLogin(request *tg.AuthInitPasskeyLoginRequ
 }
 
 func (t *TelegramCore) AuthRecoverPassword(request *tg.AuthRecoverPasswordRequest) (tg.AuthAuthorizationClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26211,7 +26211,7 @@ func (t *TelegramCore) AuthRecoverPassword(request *tg.AuthRecoverPasswordReques
 }
 
 func (t *TelegramCore) AuthReportMissingCode(request *tg.AuthReportMissingCodeRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -26219,7 +26219,7 @@ func (t *TelegramCore) AuthReportMissingCode(request *tg.AuthReportMissingCodeRe
 }
 
 func (t *TelegramCore) AuthRequestFirebaseSMS(request *tg.AuthRequestFirebaseSMSRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -26227,7 +26227,7 @@ func (t *TelegramCore) AuthRequestFirebaseSMS(request *tg.AuthRequestFirebaseSMS
 }
 
 func (t *TelegramCore) AuthRequestPasswordRecovery() (*tg.AuthPasswordRecovery, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26235,7 +26235,7 @@ func (t *TelegramCore) AuthRequestPasswordRecovery() (*tg.AuthPasswordRecovery, 
 }
 
 func (t *TelegramCore) AuthResendCode(request *tg.AuthResendCodeRequest) (tg.AuthSentCodeClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26243,7 +26243,7 @@ func (t *TelegramCore) AuthResendCode(request *tg.AuthResendCodeRequest) (tg.Aut
 }
 
 func (t *TelegramCore) AuthResetAuthorizations() (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -26251,7 +26251,7 @@ func (t *TelegramCore) AuthResetAuthorizations() (bool, error) {
 }
 
 func (t *TelegramCore) AuthResetLoginEmail(request *tg.AuthResetLoginEmailRequest) (tg.AuthSentCodeClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26259,7 +26259,7 @@ func (t *TelegramCore) AuthResetLoginEmail(request *tg.AuthResetLoginEmailReques
 }
 
 func (t *TelegramCore) AuthSendCode(request *tg.AuthSendCodeRequest) (tg.AuthSentCodeClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26267,7 +26267,7 @@ func (t *TelegramCore) AuthSendCode(request *tg.AuthSendCodeRequest) (tg.AuthSen
 }
 
 func (t *TelegramCore) AuthSignIn(request *tg.AuthSignInRequest) (tg.AuthAuthorizationClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26275,7 +26275,7 @@ func (t *TelegramCore) AuthSignIn(request *tg.AuthSignInRequest) (tg.AuthAuthori
 }
 
 func (t *TelegramCore) AuthSignUp(request *tg.AuthSignUpRequest) (tg.AuthAuthorizationClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26283,7 +26283,7 @@ func (t *TelegramCore) AuthSignUp(request *tg.AuthSignUpRequest) (tg.AuthAuthori
 }
 
 func (t *TelegramCore) BotsAddPreviewMedia(request *tg.BotsAddPreviewMediaRequest) (*tg.BotPreviewMedia, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26291,7 +26291,7 @@ func (t *TelegramCore) BotsAddPreviewMedia(request *tg.BotsAddPreviewMediaReques
 }
 
 func (t *TelegramCore) BotsAllowSendMessage(bot tg.InputUserClass) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26299,7 +26299,7 @@ func (t *TelegramCore) BotsAllowSendMessage(bot tg.InputUserClass) (tg.UpdatesCl
 }
 
 func (t *TelegramCore) BotsAnswerWebhookJSONQuery(request *tg.BotsAnswerWebhookJSONQueryRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -26307,7 +26307,7 @@ func (t *TelegramCore) BotsAnswerWebhookJSONQuery(request *tg.BotsAnswerWebhookJ
 }
 
 func (t *TelegramCore) BotsCanSendMessage(bot tg.InputUserClass) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -26315,7 +26315,7 @@ func (t *TelegramCore) BotsCanSendMessage(bot tg.InputUserClass) (bool, error) {
 }
 
 func (t *TelegramCore) BotsCheckDownloadFileParams(request *tg.BotsCheckDownloadFileParamsRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -26323,7 +26323,7 @@ func (t *TelegramCore) BotsCheckDownloadFileParams(request *tg.BotsCheckDownload
 }
 
 func (t *TelegramCore) BotsCheckUsername(username string) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -26331,7 +26331,7 @@ func (t *TelegramCore) BotsCheckUsername(username string) (bool, error) {
 }
 
 func (t *TelegramCore) BotsCreateBot(request *tg.BotsCreateBotRequest) (tg.UserClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26339,7 +26339,7 @@ func (t *TelegramCore) BotsCreateBot(request *tg.BotsCreateBotRequest) (tg.UserC
 }
 
 func (t *TelegramCore) BotsDeletePreviewMedia(request *tg.BotsDeletePreviewMediaRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -26347,7 +26347,7 @@ func (t *TelegramCore) BotsDeletePreviewMedia(request *tg.BotsDeletePreviewMedia
 }
 
 func (t *TelegramCore) BotsEditPreviewMedia(request *tg.BotsEditPreviewMediaRequest) (*tg.BotPreviewMedia, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26355,7 +26355,7 @@ func (t *TelegramCore) BotsEditPreviewMedia(request *tg.BotsEditPreviewMediaRequ
 }
 
 func (t *TelegramCore) BotsExportBotToken(request *tg.BotsExportBotTokenRequest) (*tg.BotsExportedBotToken, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26363,7 +26363,7 @@ func (t *TelegramCore) BotsExportBotToken(request *tg.BotsExportBotTokenRequest)
 }
 
 func (t *TelegramCore) BotsGetAdminedBots() ([]tg.UserClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26371,7 +26371,7 @@ func (t *TelegramCore) BotsGetAdminedBots() ([]tg.UserClass, error) {
 }
 
 func (t *TelegramCore) BotsGetBotCommands(request *tg.BotsGetBotCommandsRequest) ([]tg.BotCommand, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26379,7 +26379,7 @@ func (t *TelegramCore) BotsGetBotCommands(request *tg.BotsGetBotCommandsRequest)
 }
 
 func (t *TelegramCore) BotsGetBotInfo(request *tg.BotsGetBotInfoRequest) (*tg.BotsBotInfo, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26387,7 +26387,7 @@ func (t *TelegramCore) BotsGetBotInfo(request *tg.BotsGetBotInfoRequest) (*tg.Bo
 }
 
 func (t *TelegramCore) BotsGetBotMenuButton(userid tg.InputUserClass) (tg.BotMenuButtonClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26395,7 +26395,7 @@ func (t *TelegramCore) BotsGetBotMenuButton(userid tg.InputUserClass) (tg.BotMen
 }
 
 func (t *TelegramCore) BotsGetBotRecommendations(bot tg.InputUserClass) (tg.UsersUsersClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26403,7 +26403,7 @@ func (t *TelegramCore) BotsGetBotRecommendations(bot tg.InputUserClass) (tg.User
 }
 
 func (t *TelegramCore) BotsGetPopularAppBots(request *tg.BotsGetPopularAppBotsRequest) (*tg.BotsPopularAppBots, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26411,7 +26411,7 @@ func (t *TelegramCore) BotsGetPopularAppBots(request *tg.BotsGetPopularAppBotsRe
 }
 
 func (t *TelegramCore) BotsGetPreviewInfo(request *tg.BotsGetPreviewInfoRequest) (*tg.BotsPreviewInfo, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26419,7 +26419,7 @@ func (t *TelegramCore) BotsGetPreviewInfo(request *tg.BotsGetPreviewInfoRequest)
 }
 
 func (t *TelegramCore) BotsGetPreviewMedias(bot tg.InputUserClass) ([]tg.BotPreviewMedia, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26427,7 +26427,7 @@ func (t *TelegramCore) BotsGetPreviewMedias(bot tg.InputUserClass) ([]tg.BotPrev
 }
 
 func (t *TelegramCore) BotsGetRequestedWebViewButton(request *tg.BotsGetRequestedWebViewButtonRequest) (tg.KeyboardButtonClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26435,7 +26435,7 @@ func (t *TelegramCore) BotsGetRequestedWebViewButton(request *tg.BotsGetRequeste
 }
 
 func (t *TelegramCore) BotsInvokeWebViewCustomMethod(request *tg.BotsInvokeWebViewCustomMethodRequest) (*tg.DataJSON, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26443,7 +26443,7 @@ func (t *TelegramCore) BotsInvokeWebViewCustomMethod(request *tg.BotsInvokeWebVi
 }
 
 func (t *TelegramCore) BotsReorderPreviewMedias(request *tg.BotsReorderPreviewMediasRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -26451,7 +26451,7 @@ func (t *TelegramCore) BotsReorderPreviewMedias(request *tg.BotsReorderPreviewMe
 }
 
 func (t *TelegramCore) BotsReorderUsernames(request *tg.BotsReorderUsernamesRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -26459,7 +26459,7 @@ func (t *TelegramCore) BotsReorderUsernames(request *tg.BotsReorderUsernamesRequ
 }
 
 func (t *TelegramCore) BotsRequestWebViewButton(request *tg.BotsRequestWebViewButtonRequest) (*tg.BotsRequestedButton, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26467,7 +26467,7 @@ func (t *TelegramCore) BotsRequestWebViewButton(request *tg.BotsRequestWebViewBu
 }
 
 func (t *TelegramCore) BotsResetBotCommands(request *tg.BotsResetBotCommandsRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -26475,7 +26475,7 @@ func (t *TelegramCore) BotsResetBotCommands(request *tg.BotsResetBotCommandsRequ
 }
 
 func (t *TelegramCore) BotsSendCustomRequest(request *tg.BotsSendCustomRequestRequest) (*tg.DataJSON, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26483,7 +26483,7 @@ func (t *TelegramCore) BotsSendCustomRequest(request *tg.BotsSendCustomRequestRe
 }
 
 func (t *TelegramCore) BotsSetBotBroadcastDefaultAdminRights(adminrights tg.ChatAdminRights) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -26491,7 +26491,7 @@ func (t *TelegramCore) BotsSetBotBroadcastDefaultAdminRights(adminrights tg.Chat
 }
 
 func (t *TelegramCore) BotsSetBotCommands(request *tg.BotsSetBotCommandsRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -26499,7 +26499,7 @@ func (t *TelegramCore) BotsSetBotCommands(request *tg.BotsSetBotCommandsRequest)
 }
 
 func (t *TelegramCore) BotsSetBotGroupDefaultAdminRights(adminrights tg.ChatAdminRights) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -26507,7 +26507,7 @@ func (t *TelegramCore) BotsSetBotGroupDefaultAdminRights(adminrights tg.ChatAdmi
 }
 
 func (t *TelegramCore) BotsSetBotInfo(request *tg.BotsSetBotInfoRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -26515,7 +26515,7 @@ func (t *TelegramCore) BotsSetBotInfo(request *tg.BotsSetBotInfoRequest) (bool, 
 }
 
 func (t *TelegramCore) BotsSetBotMenuButton(request *tg.BotsSetBotMenuButtonRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -26523,7 +26523,7 @@ func (t *TelegramCore) BotsSetBotMenuButton(request *tg.BotsSetBotMenuButtonRequ
 }
 
 func (t *TelegramCore) BotsSetCustomVerification(request *tg.BotsSetCustomVerificationRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -26531,7 +26531,7 @@ func (t *TelegramCore) BotsSetCustomVerification(request *tg.BotsSetCustomVerifi
 }
 
 func (t *TelegramCore) BotsToggleUserEmojiStatusPermission(request *tg.BotsToggleUserEmojiStatusPermissionRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -26539,7 +26539,7 @@ func (t *TelegramCore) BotsToggleUserEmojiStatusPermission(request *tg.BotsToggl
 }
 
 func (t *TelegramCore) BotsToggleUsername(request *tg.BotsToggleUsernameRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -26547,7 +26547,7 @@ func (t *TelegramCore) BotsToggleUsername(request *tg.BotsToggleUsernameRequest)
 }
 
 func (t *TelegramCore) BotsUpdateStarRefProgram(request *tg.BotsUpdateStarRefProgramRequest) (*tg.StarRefProgram, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26555,7 +26555,7 @@ func (t *TelegramCore) BotsUpdateStarRefProgram(request *tg.BotsUpdateStarRefPro
 }
 
 func (t *TelegramCore) SetStarRefProgram(chatID string, commissionPermille, durationMonths int) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -26576,7 +26576,7 @@ func (t *TelegramCore) SetStarRefProgram(chatID string, commissionPermille, dura
 }
 
 func (t *TelegramCore) BotsUpdateUserEmojiStatus(request *tg.BotsUpdateUserEmojiStatusRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -26584,7 +26584,7 @@ func (t *TelegramCore) BotsUpdateUserEmojiStatus(request *tg.BotsUpdateUserEmoji
 }
 
 func (t *TelegramCore) ChannelsCheckSearchPostsFlood(request *tg.ChannelsCheckSearchPostsFloodRequest) (*tg.SearchPostsFlood, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26592,7 +26592,7 @@ func (t *TelegramCore) ChannelsCheckSearchPostsFlood(request *tg.ChannelsCheckSe
 }
 
 func (t *TelegramCore) ChannelsCheckUsername(request *tg.ChannelsCheckUsernameRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -26600,7 +26600,7 @@ func (t *TelegramCore) ChannelsCheckUsername(request *tg.ChannelsCheckUsernameRe
 }
 
 func (t *TelegramCore) ChannelsConvertToGigagroup(channel tg.InputChannelClass) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26608,7 +26608,7 @@ func (t *TelegramCore) ChannelsConvertToGigagroup(channel tg.InputChannelClass) 
 }
 
 func (t *TelegramCore) ChannelsDeactivateAllUsernames(channel tg.InputChannelClass) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -26616,7 +26616,7 @@ func (t *TelegramCore) ChannelsDeactivateAllUsernames(channel tg.InputChannelCla
 }
 
 func (t *TelegramCore) ChannelsDeleteHistory(request *tg.ChannelsDeleteHistoryRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26624,7 +26624,7 @@ func (t *TelegramCore) ChannelsDeleteHistory(request *tg.ChannelsDeleteHistoryRe
 }
 
 func (t *TelegramCore) ChannelsDeleteParticipantHistory(request *tg.ChannelsDeleteParticipantHistoryRequest) (*tg.MessagesAffectedHistory, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26632,7 +26632,7 @@ func (t *TelegramCore) ChannelsDeleteParticipantHistory(request *tg.ChannelsDele
 }
 
 func (t *TelegramCore) ChannelsEditLocation(request *tg.ChannelsEditLocationRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -26640,7 +26640,7 @@ func (t *TelegramCore) ChannelsEditLocation(request *tg.ChannelsEditLocationRequ
 }
 
 func (t *TelegramCore) ChannelsGetAdminedPublicChannels(request *tg.ChannelsGetAdminedPublicChannelsRequest) (tg.MessagesChatsClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26648,7 +26648,7 @@ func (t *TelegramCore) ChannelsGetAdminedPublicChannels(request *tg.ChannelsGetA
 }
 
 func (t *TelegramCore) GetAdminedPublicChannels() ([]Dialog, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26707,7 +26707,7 @@ func (t *TelegramCore) GetAdminedPublicChannels() ([]Dialog, error) {
 }
 
 func (t *TelegramCore) GetAdminedPublicChannelsForPersonal() ([]Dialog, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26768,7 +26768,7 @@ func (t *TelegramCore) GetAdminedPublicChannelsForPersonal() ([]Dialog, error) {
 }
 
 func (t *TelegramCore) ChannelsGetChannelRecommendations(request *tg.ChannelsGetChannelRecommendationsRequest) (tg.MessagesChatsClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26776,7 +26776,7 @@ func (t *TelegramCore) ChannelsGetChannelRecommendations(request *tg.ChannelsGet
 }
 
 func (t *TelegramCore) ChannelsGetGroupsForDiscussion() (tg.MessagesChatsClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26784,7 +26784,7 @@ func (t *TelegramCore) ChannelsGetGroupsForDiscussion() (tg.MessagesChatsClass, 
 }
 
 func (t *TelegramCore) ChannelsGetInactiveChannels() (*tg.MessagesInactiveChats, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26792,7 +26792,7 @@ func (t *TelegramCore) ChannelsGetInactiveChannels() (*tg.MessagesInactiveChats,
 }
 
 func (t *TelegramCore) ChannelsGetLeftChannels(offset int) (tg.MessagesChatsClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26800,7 +26800,7 @@ func (t *TelegramCore) ChannelsGetLeftChannels(offset int) (tg.MessagesChatsClas
 }
 
 func (t *TelegramCore) ChannelsGetMessageAuthor(request *tg.ChannelsGetMessageAuthorRequest) (tg.UserClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26808,7 +26808,7 @@ func (t *TelegramCore) ChannelsGetMessageAuthor(request *tg.ChannelsGetMessageAu
 }
 
 func (t *TelegramCore) ChannelsGetMessages(request *tg.ChannelsGetMessagesRequest) (tg.MessagesMessagesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26816,7 +26816,7 @@ func (t *TelegramCore) ChannelsGetMessages(request *tg.ChannelsGetMessagesReques
 }
 
 func (t *TelegramCore) ChannelsReadMessageContents(request *tg.ChannelsReadMessageContentsRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -26824,7 +26824,7 @@ func (t *TelegramCore) ChannelsReadMessageContents(request *tg.ChannelsReadMessa
 }
 
 func (t *TelegramCore) ChannelsReorderUsernames(request *tg.ChannelsReorderUsernamesRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -26832,7 +26832,7 @@ func (t *TelegramCore) ChannelsReorderUsernames(request *tg.ChannelsReorderUsern
 }
 
 func (t *TelegramCore) ChannelsReportAntiSpamFalsePositive(request *tg.ChannelsReportAntiSpamFalsePositiveRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -26840,7 +26840,7 @@ func (t *TelegramCore) ChannelsReportAntiSpamFalsePositive(request *tg.ChannelsR
 }
 
 func (t *TelegramCore) ChannelsReportSpam(request *tg.ChannelsReportSpamRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -26848,7 +26848,7 @@ func (t *TelegramCore) ChannelsReportSpam(request *tg.ChannelsReportSpamRequest)
 }
 
 func (t *TelegramCore) ChannelsRestrictSponsoredMessages(request *tg.ChannelsRestrictSponsoredMessagesRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26856,7 +26856,7 @@ func (t *TelegramCore) ChannelsRestrictSponsoredMessages(request *tg.ChannelsRes
 }
 
 func (t *TelegramCore) ChannelsSearchPosts(request *tg.ChannelsSearchPostsRequest) (tg.MessagesMessagesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26864,7 +26864,7 @@ func (t *TelegramCore) ChannelsSearchPosts(request *tg.ChannelsSearchPostsReques
 }
 
 func (t *TelegramCore) ChannelsSetBoostsToUnblockRestrictions(request *tg.ChannelsSetBoostsToUnblockRestrictionsRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26872,7 +26872,7 @@ func (t *TelegramCore) ChannelsSetBoostsToUnblockRestrictions(request *tg.Channe
 }
 
 func (t *TelegramCore) ChannelsSetDiscussionGroup(request *tg.ChannelsSetDiscussionGroupRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -26880,7 +26880,7 @@ func (t *TelegramCore) ChannelsSetDiscussionGroup(request *tg.ChannelsSetDiscuss
 }
 
 func (t *TelegramCore) ChannelsSetEmojiStickers(request *tg.ChannelsSetEmojiStickersRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -26888,7 +26888,7 @@ func (t *TelegramCore) ChannelsSetEmojiStickers(request *tg.ChannelsSetEmojiStic
 }
 
 func (t *TelegramCore) ChannelsSetMainProfileTab(request *tg.ChannelsSetMainProfileTabRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -26896,7 +26896,7 @@ func (t *TelegramCore) ChannelsSetMainProfileTab(request *tg.ChannelsSetMainProf
 }
 
 func (t *TelegramCore) ChannelsSetStickers(request *tg.ChannelsSetStickersRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -26904,7 +26904,7 @@ func (t *TelegramCore) ChannelsSetStickers(request *tg.ChannelsSetStickersReques
 }
 
 func (t *TelegramCore) ChannelsToggleUsername(request *tg.ChannelsToggleUsernameRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -26912,7 +26912,7 @@ func (t *TelegramCore) ChannelsToggleUsername(request *tg.ChannelsToggleUsername
 }
 
 func (t *TelegramCore) ChannelsUpdateEmojiStatus(request *tg.ChannelsUpdateEmojiStatusRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26920,7 +26920,7 @@ func (t *TelegramCore) ChannelsUpdateEmojiStatus(request *tg.ChannelsUpdateEmoji
 }
 
 func (t *TelegramCore) ChannelsUpdatePaidMessagesPrice(request *tg.ChannelsUpdatePaidMessagesPriceRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26928,7 +26928,7 @@ func (t *TelegramCore) ChannelsUpdatePaidMessagesPrice(request *tg.ChannelsUpdat
 }
 
 func (t *TelegramCore) ChatlistsCheckChatlistInvite(slug string) (tg.ChatlistsChatlistInviteClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26936,7 +26936,7 @@ func (t *TelegramCore) ChatlistsCheckChatlistInvite(slug string) (tg.ChatlistsCh
 }
 
 func (t *TelegramCore) ChatlistsEditExportedInvite(request *tg.ChatlistsEditExportedInviteRequest) (*tg.ExportedChatlistInvite, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26944,7 +26944,7 @@ func (t *TelegramCore) ChatlistsEditExportedInvite(request *tg.ChatlistsEditExpo
 }
 
 func (t *TelegramCore) ChatlistsGetChatlistUpdates(chatlist tg.InputChatlistDialogFilter) (*tg.ChatlistsChatlistUpdates, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26952,7 +26952,7 @@ func (t *TelegramCore) ChatlistsGetChatlistUpdates(chatlist tg.InputChatlistDial
 }
 
 func (t *TelegramCore) ChatlistsGetLeaveChatlistSuggestions(chatlist tg.InputChatlistDialogFilter) ([]tg.PeerClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26960,7 +26960,7 @@ func (t *TelegramCore) ChatlistsGetLeaveChatlistSuggestions(chatlist tg.InputCha
 }
 
 func (t *TelegramCore) ChatlistsHideChatlistUpdates(chatlist tg.InputChatlistDialogFilter) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -26968,7 +26968,7 @@ func (t *TelegramCore) ChatlistsHideChatlistUpdates(chatlist tg.InputChatlistDia
 }
 
 func (t *TelegramCore) ChatlistsJoinChatlistUpdates(request *tg.ChatlistsJoinChatlistUpdatesRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26976,7 +26976,7 @@ func (t *TelegramCore) ChatlistsJoinChatlistUpdates(request *tg.ChatlistsJoinCha
 }
 
 func (t *TelegramCore) ChatlistsLeaveChatlist(request *tg.ChatlistsLeaveChatlistRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -26984,7 +26984,7 @@ func (t *TelegramCore) ChatlistsLeaveChatlist(request *tg.ChatlistsLeaveChatlist
 }
 
 func (t *TelegramCore) ContactsAcceptContact(id tg.InputUserClass) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -27006,7 +27006,7 @@ func (t *TelegramCore) SharePhoneWithPeer(chatID string) error {
 	if err != nil {
 		return err
 	}
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -27016,7 +27016,7 @@ func (t *TelegramCore) SharePhoneWithPeer(chatID string) error {
 }
 
 func (t *TelegramCore) ContactsBlockFromReplies(request *tg.ContactsBlockFromRepliesRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -27024,7 +27024,7 @@ func (t *TelegramCore) ContactsBlockFromReplies(request *tg.ContactsBlockFromRep
 }
 
 func (t *TelegramCore) ContactsDeleteByPhones(phones []string) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -27032,7 +27032,7 @@ func (t *TelegramCore) ContactsDeleteByPhones(phones []string) (bool, error) {
 }
 
 func (t *TelegramCore) ContactsExportContactToken() (*tg.ExportedContactToken, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -27040,7 +27040,7 @@ func (t *TelegramCore) ContactsExportContactToken() (*tg.ExportedContactToken, e
 }
 
 func (t *TelegramCore) ContactsGetLocated(request *tg.ContactsGetLocatedRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -27048,7 +27048,7 @@ func (t *TelegramCore) ContactsGetLocated(request *tg.ContactsGetLocatedRequest)
 }
 
 func (t *TelegramCore) ContactsGetSaved() ([]tg.SavedPhoneContact, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -27056,7 +27056,7 @@ func (t *TelegramCore) ContactsGetSaved() ([]tg.SavedPhoneContact, error) {
 }
 
 func (t *TelegramCore) ContactsGetSponsoredPeers(q string) (tg.ContactsSponsoredPeersClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -27064,7 +27064,7 @@ func (t *TelegramCore) ContactsGetSponsoredPeers(q string) (tg.ContactsSponsored
 }
 
 func (t *TelegramCore) ContactsGetStatuses() ([]tg.ContactStatus, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -27072,7 +27072,7 @@ func (t *TelegramCore) ContactsGetStatuses() ([]tg.ContactStatus, error) {
 }
 
 func (t *TelegramCore) ContactsImportContactToken(token string) (tg.UserClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -27080,7 +27080,7 @@ func (t *TelegramCore) ContactsImportContactToken(token string) (tg.UserClass, e
 }
 
 func (t *TelegramCore) ContactsResetSaved() (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -27088,7 +27088,7 @@ func (t *TelegramCore) ContactsResetSaved() (bool, error) {
 }
 
 func (t *TelegramCore) ContactsResetTopPeerRating(request *tg.ContactsResetTopPeerRatingRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -27096,7 +27096,7 @@ func (t *TelegramCore) ContactsResetTopPeerRating(request *tg.ContactsResetTopPe
 }
 
 func (t *TelegramCore) ContactsSetBlocked(request *tg.ContactsSetBlockedRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -27104,7 +27104,7 @@ func (t *TelegramCore) ContactsSetBlocked(request *tg.ContactsSetBlockedRequest)
 }
 
 func (t *TelegramCore) ContactsToggleTopPeers(enabled bool) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -27125,7 +27125,7 @@ func (t *TelegramCore) RemoveFromTopPeers(peerID string) error {
 }
 
 func (t *TelegramCore) ContactsUpdateContactNote(request *tg.ContactsUpdateContactNoteRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -27133,7 +27133,7 @@ func (t *TelegramCore) ContactsUpdateContactNote(request *tg.ContactsUpdateConta
 }
 
 func (t *TelegramCore) UpdateContactNote(userID, note string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -27150,7 +27150,7 @@ func (t *TelegramCore) UpdateContactNote(userID, note string) error {
 }
 
 func (t *TelegramCore) HelpAcceptTermsOfService(id tg.DataJSON) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -27158,7 +27158,7 @@ func (t *TelegramCore) HelpAcceptTermsOfService(id tg.DataJSON) (bool, error) {
 }
 
 func (t *TelegramCore) HelpDismissSuggestion(request *tg.HelpDismissSuggestionRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -27166,7 +27166,7 @@ func (t *TelegramCore) HelpDismissSuggestion(request *tg.HelpDismissSuggestionRe
 }
 
 func (t *TelegramCore) HelpEditUserInfo(request *tg.HelpEditUserInfoRequest) (tg.HelpUserInfoClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -27174,7 +27174,7 @@ func (t *TelegramCore) HelpEditUserInfo(request *tg.HelpEditUserInfoRequest) (tg
 }
 
 func (t *TelegramCore) HelpGetAppUpdate(source string) (tg.HelpAppUpdateClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -27182,7 +27182,7 @@ func (t *TelegramCore) HelpGetAppUpdate(source string) (tg.HelpAppUpdateClass, e
 }
 
 func (t *TelegramCore) HelpGetCDNConfig() (*tg.CDNConfig, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -27190,7 +27190,7 @@ func (t *TelegramCore) HelpGetCDNConfig() (*tg.CDNConfig, error) {
 }
 
 func (t *TelegramCore) HelpGetDeepLinkInfo(path string) (tg.HelpDeepLinkInfoClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -27198,7 +27198,7 @@ func (t *TelegramCore) HelpGetDeepLinkInfo(path string) (tg.HelpDeepLinkInfoClas
 }
 
 func (t *TelegramCore) HelpGetInviteText() (*tg.HelpInviteText, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -27206,7 +27206,7 @@ func (t *TelegramCore) HelpGetInviteText() (*tg.HelpInviteText, error) {
 }
 
 func (t *TelegramCore) HelpGetPassportConfig(hash int) (tg.HelpPassportConfigClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -27214,7 +27214,7 @@ func (t *TelegramCore) HelpGetPassportConfig(hash int) (tg.HelpPassportConfigCla
 }
 
 func (t *TelegramCore) HelpGetPeerColors(hash int) (tg.HelpPeerColorsClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -27333,7 +27333,7 @@ type WallpaperInfo struct {
 	DocRef     string `json:"doc_ref,omitempty"`
 }
 
-func (t *TelegramCore) wallpaperFromWire(wp tg.WallPaperClass) WallpaperInfo {
+func (t *TelegramCore) WallpaperFromWire(wp tg.WallPaperClass) WallpaperInfo {
 	var info WallpaperInfo
 	w, ok := wp.(*tg.WallPaper)
 	if !ok {
@@ -27378,7 +27378,7 @@ func (t *TelegramCore) wallpaperFromWire(wp tg.WallPaperClass) WallpaperInfo {
 	return info
 }
 
-func wallpaperSettingsFromInfo(info WallpaperInfo) tg.WallPaperSettings {
+func WallpaperSettingsFromInfo(info WallpaperInfo) tg.WallPaperSettings {
 	s := tg.WallPaperSettings{Blur: info.Blurred, Motion: info.Motion, Rotation: info.Rotation}
 	if len(info.Colors) > 0 {
 		s.SetBackgroundColor(info.Colors[0])
@@ -27399,7 +27399,7 @@ func wallpaperSettingsFromInfo(info WallpaperInfo) tg.WallPaperSettings {
 }
 
 func (t *TelegramCore) GetWallpapers() ([]WallpaperInfo, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -27501,7 +27501,7 @@ func (t *TelegramCore) GetWallpapers() ([]WallpaperInfo, error) {
 }
 
 func (t *TelegramCore) DownloadWallpaperDocument(docID int64, accessHash int64, fileRef []byte) ([]byte, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -27530,7 +27530,7 @@ type ChatThemeInfo struct {
 }
 
 func (t *TelegramCore) GetChatThemesList() ([]ChatThemeInfo, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -27649,14 +27649,14 @@ func (t *TelegramCore) GetColorLevelRequirements() (map[string]interface{}, erro
 }
 
 func (t *TelegramCore) HelpGetPeerProfileColors(hash int) (tg.HelpPeerColorsClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
 	return api.HelpGetPeerProfileColors(ctx, hash)
 }
 
-func premiumPlansFromPromo(promo *tg.HelpPremiumPromo) PremiumPromo {
+func PremiumPlansFromPromo(promo *tg.HelpPremiumPromo) PremiumPromo {
 	if promo == nil {
 		return PremiumPromo{}
 	}
@@ -27676,7 +27676,7 @@ func premiumPlansFromPromo(promo *tg.HelpPremiumPromo) PremiumPromo {
 }
 
 func (t *TelegramCore) GetPremiumPromo() (PremiumPromo, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return PremiumPromo{}, err
 	}
@@ -27684,11 +27684,11 @@ func (t *TelegramCore) GetPremiumPromo() (PremiumPromo, error) {
 	if err != nil {
 		return PremiumPromo{}, fmt.Errorf("get premium promo: %w", err)
 	}
-	return premiumPlansFromPromo(promo), nil
+	return PremiumPlansFromPromo(promo), nil
 }
 
 func (t *TelegramCore) HelpGetPremiumPromo() (*tg.HelpPremiumPromo, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -27696,7 +27696,7 @@ func (t *TelegramCore) HelpGetPremiumPromo() (*tg.HelpPremiumPromo, error) {
 }
 
 func (t *TelegramCore) HelpGetPromoData() (tg.HelpPromoDataClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -27704,7 +27704,7 @@ func (t *TelegramCore) HelpGetPromoData() (tg.HelpPromoDataClass, error) {
 }
 
 func (t *TelegramCore) HelpGetRecentMeURLs(referer string) (*tg.HelpRecentMeURLs, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -27712,7 +27712,7 @@ func (t *TelegramCore) HelpGetRecentMeURLs(referer string) (*tg.HelpRecentMeURLs
 }
 
 func (t *TelegramCore) HelpGetSupport() (*tg.HelpSupport, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -27720,7 +27720,7 @@ func (t *TelegramCore) HelpGetSupport() (*tg.HelpSupport, error) {
 }
 
 func (t *TelegramCore) HelpGetSupportName() (*tg.HelpSupportName, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -27728,7 +27728,7 @@ func (t *TelegramCore) HelpGetSupportName() (*tg.HelpSupportName, error) {
 }
 
 func (t *TelegramCore) HelpGetTermsOfServiceUpdate() (tg.HelpTermsOfServiceUpdateClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -27736,7 +27736,7 @@ func (t *TelegramCore) HelpGetTermsOfServiceUpdate() (tg.HelpTermsOfServiceUpdat
 }
 
 func (t *TelegramCore) HelpGetTimezonesList(hash int) (tg.HelpTimezonesListClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -27772,7 +27772,7 @@ func (t *TelegramCore) timezoneOffsetNoLock(id string) (int, bool) {
 }
 
 func (t *TelegramCore) HelpGetUserInfo(userid tg.InputUserClass) (tg.HelpUserInfoClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -27780,7 +27780,7 @@ func (t *TelegramCore) HelpGetUserInfo(userid tg.InputUserClass) (tg.HelpUserInf
 }
 
 func (t *TelegramCore) HelpHidePromoData(peer tg.InputPeerClass) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -27788,7 +27788,7 @@ func (t *TelegramCore) HelpHidePromoData(peer tg.InputPeerClass) (bool, error) {
 }
 
 func (t *TelegramCore) HelpSaveAppLog(events []tg.InputAppEvent) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -27796,7 +27796,7 @@ func (t *TelegramCore) HelpSaveAppLog(events []tg.InputAppEvent) (bool, error) {
 }
 
 func (t *TelegramCore) HelpSetBotUpdatesStatus(request *tg.HelpSetBotUpdatesStatusRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -27804,7 +27804,7 @@ func (t *TelegramCore) HelpSetBotUpdatesStatus(request *tg.HelpSetBotUpdatesStat
 }
 
 func (t *TelegramCore) InvokeJSON(jsonData string, useSnakeCase bool) (string, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return "", err
 	}
@@ -27812,7 +27812,7 @@ func (t *TelegramCore) InvokeJSON(jsonData string, useSnakeCase bool) (string, e
 }
 
 func (t *TelegramCore) LangpackGetDifference(request *tg.LangpackGetDifferenceRequest) (*tg.LangPackDifference, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -27820,7 +27820,7 @@ func (t *TelegramCore) LangpackGetDifference(request *tg.LangpackGetDifferenceRe
 }
 
 func (t *TelegramCore) LangpackGetLangPack(request *tg.LangpackGetLangPackRequest) (*tg.LangPackDifference, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -27828,7 +27828,7 @@ func (t *TelegramCore) LangpackGetLangPack(request *tg.LangpackGetLangPackReques
 }
 
 func (t *TelegramCore) LangpackGetLanguage(request *tg.LangpackGetLanguageRequest) (*tg.LangPackLanguage, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -27913,7 +27913,7 @@ func (t *TelegramCore) LangpackGetLanguages(langpack string) ([]tg.LangPackLangu
 }
 
 func (t *TelegramCore) LangpackGetStrings(request *tg.LangpackGetStringsRequest) ([]tg.LangPackStringClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -27963,7 +27963,7 @@ func (t *TelegramCore) LangpackGetStringsMap(langCode string, keys []string) (ma
 }
 
 func (t *TelegramCore) SetInterfaceLanguage(langCode string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -27975,7 +27975,7 @@ func (t *TelegramCore) SetInterfaceLanguage(langCode string) error {
 }
 
 func (t *TelegramCore) MessagesAcceptEncryption(request *tg.MessagesAcceptEncryptionRequest) (tg.EncryptedChatClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -27983,7 +27983,7 @@ func (t *TelegramCore) MessagesAcceptEncryption(request *tg.MessagesAcceptEncryp
 }
 
 func (t *TelegramCore) MessagesAcceptURLAuth(request *tg.MessagesAcceptURLAuthRequest) (tg.URLAuthResultClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -27991,7 +27991,7 @@ func (t *TelegramCore) MessagesAcceptURLAuth(request *tg.MessagesAcceptURLAuthRe
 }
 
 func (t *TelegramCore) MessagesAddPollAnswer(request *tg.MessagesAddPollAnswerRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -27999,7 +27999,7 @@ func (t *TelegramCore) MessagesAddPollAnswer(request *tg.MessagesAddPollAnswerRe
 }
 
 func (t *TelegramCore) MessagesAppendTodoList(request *tg.MessagesAppendTodoListRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28007,7 +28007,7 @@ func (t *TelegramCore) MessagesAppendTodoList(request *tg.MessagesAppendTodoList
 }
 
 func (t *TelegramCore) MessagesCheckHistoryImport(importhead string) (*tg.MessagesHistoryImportParsed, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28015,7 +28015,7 @@ func (t *TelegramCore) MessagesCheckHistoryImport(importhead string) (*tg.Messag
 }
 
 func (t *TelegramCore) MessagesCheckHistoryImportPeer(peer tg.InputPeerClass) (*tg.MessagesCheckedHistoryImportPeer, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28023,7 +28023,7 @@ func (t *TelegramCore) MessagesCheckHistoryImportPeer(peer tg.InputPeerClass) (*
 }
 
 func (t *TelegramCore) MessagesCheckQuickReplyShortcut(shortcut string) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -28031,7 +28031,7 @@ func (t *TelegramCore) MessagesCheckQuickReplyShortcut(shortcut string) (bool, e
 }
 
 func (t *TelegramCore) MessagesCheckURLAuthMatchCode(request *tg.MessagesCheckURLAuthMatchCodeRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -28039,7 +28039,7 @@ func (t *TelegramCore) MessagesCheckURLAuthMatchCode(request *tg.MessagesCheckUR
 }
 
 func (t *TelegramCore) MessagesClearAllDrafts() (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -28047,7 +28047,7 @@ func (t *TelegramCore) MessagesClearAllDrafts() (bool, error) {
 }
 
 func (t *TelegramCore) MessagesClearRecentReactions() (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -28055,7 +28055,7 @@ func (t *TelegramCore) MessagesClearRecentReactions() (bool, error) {
 }
 
 func (t *TelegramCore) MessagesClearRecentStickers(request *tg.MessagesClearRecentStickersRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -28063,7 +28063,7 @@ func (t *TelegramCore) MessagesClearRecentStickers(request *tg.MessagesClearRece
 }
 
 func (t *TelegramCore) MessagesClickSponsoredMessage(request *tg.MessagesClickSponsoredMessageRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -28071,7 +28071,7 @@ func (t *TelegramCore) MessagesClickSponsoredMessage(request *tg.MessagesClickSp
 }
 
 func (t *TelegramCore) MessagesComposeMessageWithAI(request *tg.MessagesComposeMessageWithAIRequest) (*tg.MessagesComposedMessageWithAI, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28079,7 +28079,7 @@ func (t *TelegramCore) MessagesComposeMessageWithAI(request *tg.MessagesComposeM
 }
 
 func (t *TelegramCore) MessagesDeclineURLAuth(url string) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -28087,7 +28087,7 @@ func (t *TelegramCore) MessagesDeclineURLAuth(url string) (bool, error) {
 }
 
 func (t *TelegramCore) MessagesDeleteChat(chatid int64) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -28095,7 +28095,7 @@ func (t *TelegramCore) MessagesDeleteChat(chatid int64) (bool, error) {
 }
 
 func (t *TelegramCore) MessagesDeleteFactCheck(request *tg.MessagesDeleteFactCheckRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28103,7 +28103,7 @@ func (t *TelegramCore) MessagesDeleteFactCheck(request *tg.MessagesDeleteFactChe
 }
 
 func (t *TelegramCore) MessagesDeletePhoneCallHistory(request *tg.MessagesDeletePhoneCallHistoryRequest) (*tg.MessagesAffectedFoundMessages, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28111,7 +28111,7 @@ func (t *TelegramCore) MessagesDeletePhoneCallHistory(request *tg.MessagesDelete
 }
 
 func (t *TelegramCore) ClearCallHistory(revoke bool) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -28144,7 +28144,7 @@ type CallHistoryEntry struct {
 }
 
 func (t *TelegramCore) GetCallHistory(offsetID int, limit int) ([]CallHistoryEntry, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28230,7 +28230,7 @@ func (t *TelegramCore) GetCallHistory(offsetID int, limit int) ([]CallHistoryEnt
 }
 
 func (t *TelegramCore) MessagesDeletePollAnswer(request *tg.MessagesDeletePollAnswerRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28238,7 +28238,7 @@ func (t *TelegramCore) MessagesDeletePollAnswer(request *tg.MessagesDeletePollAn
 }
 
 func (t *TelegramCore) MessagesDeleteQuickReplyMessages(request *tg.MessagesDeleteQuickReplyMessagesRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28246,7 +28246,7 @@ func (t *TelegramCore) MessagesDeleteQuickReplyMessages(request *tg.MessagesDele
 }
 
 func (t *TelegramCore) MessagesDeleteQuickReplyShortcut(shortcutid int) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -28254,7 +28254,7 @@ func (t *TelegramCore) MessagesDeleteQuickReplyShortcut(shortcutid int) (bool, e
 }
 
 func (t *TelegramCore) MessagesDeleteRevokedExportedChatInvites(request *tg.MessagesDeleteRevokedExportedChatInvitesRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -28262,7 +28262,7 @@ func (t *TelegramCore) MessagesDeleteRevokedExportedChatInvites(request *tg.Mess
 }
 
 func (t *TelegramCore) MessagesDeleteSavedHistory(request *tg.MessagesDeleteSavedHistoryRequest) (*tg.MessagesAffectedHistory, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28270,7 +28270,7 @@ func (t *TelegramCore) MessagesDeleteSavedHistory(request *tg.MessagesDeleteSave
 }
 
 func (t *TelegramCore) MessagesDiscardEncryption(request *tg.MessagesDiscardEncryptionRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -28278,7 +28278,7 @@ func (t *TelegramCore) MessagesDiscardEncryption(request *tg.MessagesDiscardEncr
 }
 
 func (t *TelegramCore) MessagesEditChatAbout(request *tg.MessagesEditChatAboutRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -28286,7 +28286,7 @@ func (t *TelegramCore) MessagesEditChatAbout(request *tg.MessagesEditChatAboutRe
 }
 
 func (t *TelegramCore) MessagesEditChatAdmin(request *tg.MessagesEditChatAdminRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -28294,7 +28294,7 @@ func (t *TelegramCore) MessagesEditChatAdmin(request *tg.MessagesEditChatAdminRe
 }
 
 func (t *TelegramCore) MessagesEditChatCreator(request *tg.MessagesEditChatCreatorRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28302,7 +28302,7 @@ func (t *TelegramCore) MessagesEditChatCreator(request *tg.MessagesEditChatCreat
 }
 
 func (t *TelegramCore) MessagesEditChatParticipantRank(request *tg.MessagesEditChatParticipantRankRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28310,7 +28310,7 @@ func (t *TelegramCore) MessagesEditChatParticipantRank(request *tg.MessagesEditC
 }
 
 func (t *TelegramCore) MessagesEditChatPhoto(request *tg.MessagesEditChatPhotoRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28318,7 +28318,7 @@ func (t *TelegramCore) MessagesEditChatPhoto(request *tg.MessagesEditChatPhotoRe
 }
 
 func (t *TelegramCore) MessagesEditChatTitle(request *tg.MessagesEditChatTitleRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28326,7 +28326,7 @@ func (t *TelegramCore) MessagesEditChatTitle(request *tg.MessagesEditChatTitleRe
 }
 
 func (t *TelegramCore) MessagesEditFactCheck(request *tg.MessagesEditFactCheckRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28334,7 +28334,7 @@ func (t *TelegramCore) MessagesEditFactCheck(request *tg.MessagesEditFactCheckRe
 }
 
 func (t *TelegramCore) MessagesEditInlineBotMessage(request *tg.MessagesEditInlineBotMessageRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -28342,7 +28342,7 @@ func (t *TelegramCore) MessagesEditInlineBotMessage(request *tg.MessagesEditInli
 }
 
 func (t *TelegramCore) MessagesEditQuickReplyShortcut(request *tg.MessagesEditQuickReplyShortcutRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -28350,7 +28350,7 @@ func (t *TelegramCore) MessagesEditQuickReplyShortcut(request *tg.MessagesEditQu
 }
 
 func (t *TelegramCore) MessagesGetAdminsWithInvites(peer tg.InputPeerClass) (*tg.MessagesChatAdminsWithInvites, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28358,7 +28358,7 @@ func (t *TelegramCore) MessagesGetAdminsWithInvites(peer tg.InputPeerClass) (*tg
 }
 
 func (t *TelegramCore) MessagesGetArchivedStickers(request *tg.MessagesGetArchivedStickersRequest) (*tg.MessagesArchivedStickers, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28366,7 +28366,7 @@ func (t *TelegramCore) MessagesGetArchivedStickers(request *tg.MessagesGetArchiv
 }
 
 func (t *TelegramCore) MessagesGetAttachedStickers(media tg.InputStickeredMediaClass) ([]tg.StickerSetCoveredClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28374,7 +28374,7 @@ func (t *TelegramCore) MessagesGetAttachedStickers(media tg.InputStickeredMediaC
 }
 
 func (t *TelegramCore) MessagesGetAttachMenuBot(bot tg.InputUserClass) (*tg.AttachMenuBotsBot, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28382,7 +28382,7 @@ func (t *TelegramCore) MessagesGetAttachMenuBot(bot tg.InputUserClass) (*tg.Atta
 }
 
 func (t *TelegramCore) MessagesGetAttachMenuBots(hash int64) (tg.AttachMenuBotsClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28390,7 +28390,7 @@ func (t *TelegramCore) MessagesGetAttachMenuBots(hash int64) (tg.AttachMenuBotsC
 }
 
 func (t *TelegramCore) GetAttachMenuBots() ([]AttachMenuBotInfo, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28417,7 +28417,7 @@ func (t *TelegramCore) GetAttachMenuBots() ([]AttachMenuBotInfo, error) {
 }
 
 func (t *TelegramCore) GetMainMenuBots() ([]AttachMenuBotInfo, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28474,7 +28474,7 @@ func (t *TelegramCore) GetMainMenuBots() ([]AttachMenuBotInfo, error) {
 }
 
 func (t *TelegramCore) MessagesGetAvailableEffects(hash int) (tg.MessagesAvailableEffectsClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28482,7 +28482,7 @@ func (t *TelegramCore) MessagesGetAvailableEffects(hash int) (tg.MessagesAvailab
 }
 
 func (t *TelegramCore) MessagesGetAvailableReactions(hash int) (tg.MessagesAvailableReactionsClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28490,7 +28490,7 @@ func (t *TelegramCore) MessagesGetAvailableReactions(hash int) (tg.MessagesAvail
 }
 
 func (t *TelegramCore) MessagesGetBotApp(request *tg.MessagesGetBotAppRequest) (*tg.MessagesBotApp, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28498,7 +28498,7 @@ func (t *TelegramCore) MessagesGetBotApp(request *tg.MessagesGetBotAppRequest) (
 }
 
 func (t *TelegramCore) MessagesGetChats(id []int64) (tg.MessagesChatsClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28506,7 +28506,7 @@ func (t *TelegramCore) MessagesGetChats(id []int64) (tg.MessagesChatsClass, erro
 }
 
 func (t *TelegramCore) MessagesGetCustomEmojiDocuments(documentid []int64) ([]tg.DocumentClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28514,7 +28514,7 @@ func (t *TelegramCore) MessagesGetCustomEmojiDocuments(documentid []int64) ([]tg
 }
 
 func (t *TelegramCore) MessagesGetDefaultTagReactions(hash int64) (tg.MessagesReactionsClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28522,7 +28522,7 @@ func (t *TelegramCore) MessagesGetDefaultTagReactions(hash int64) (tg.MessagesRe
 }
 
 func (t *TelegramCore) MessagesGetDiscussionMessage(request *tg.MessagesGetDiscussionMessageRequest) (*tg.MessagesDiscussionMessage, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28530,7 +28530,7 @@ func (t *TelegramCore) MessagesGetDiscussionMessage(request *tg.MessagesGetDiscu
 }
 
 func (t *TelegramCore) MessagesGetDocumentByHash(request *tg.MessagesGetDocumentByHashRequest) (tg.DocumentClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28538,7 +28538,7 @@ func (t *TelegramCore) MessagesGetDocumentByHash(request *tg.MessagesGetDocument
 }
 
 func (t *TelegramCore) MessagesGetEmojiGameInfo() (tg.MessagesEmojiGameInfoClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28546,7 +28546,7 @@ func (t *TelegramCore) MessagesGetEmojiGameInfo() (tg.MessagesEmojiGameInfoClass
 }
 
 func (t *TelegramCore) MessagesGetEmojiGroups(hash int) (tg.MessagesEmojiGroupsClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28554,7 +28554,7 @@ func (t *TelegramCore) MessagesGetEmojiGroups(hash int) (tg.MessagesEmojiGroupsC
 }
 
 func (t *TelegramCore) MessagesGetEmojiKeywords(langcode string) (interface{}, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28574,7 +28574,7 @@ type emojiKeywordDiffResult struct {
 }
 
 func (t *TelegramCore) MessagesGetEmojiKeywordsDifference(langCode string, fromVersion int) (interface{}, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28605,7 +28605,7 @@ func (t *TelegramCore) MessagesGetEmojiKeywordsDifference(langCode string, fromV
 }
 
 func (t *TelegramCore) MessagesGetEmojiKeywordsLanguages(langcodes []string) (interface{}, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28613,7 +28613,7 @@ func (t *TelegramCore) MessagesGetEmojiKeywordsLanguages(langcodes []string) (in
 }
 
 func (t *TelegramCore) MessagesGetEmojiProfilePhotoGroups(hash int) (tg.MessagesEmojiGroupsClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28621,7 +28621,7 @@ func (t *TelegramCore) MessagesGetEmojiProfilePhotoGroups(hash int) (tg.Messages
 }
 
 func (t *TelegramCore) MessagesGetEmojiStatusGroups(hash int) (tg.MessagesEmojiGroupsClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28629,7 +28629,7 @@ func (t *TelegramCore) MessagesGetEmojiStatusGroups(hash int) (tg.MessagesEmojiG
 }
 
 func (t *TelegramCore) MessagesGetEmojiStickerGroups(hash int) (tg.MessagesEmojiGroupsClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28637,7 +28637,7 @@ func (t *TelegramCore) MessagesGetEmojiStickerGroups(hash int) (tg.MessagesEmoji
 }
 
 func (t *TelegramCore) MessagesGetEmojiStickers(hash int64) (tg.MessagesAllStickersClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28645,7 +28645,7 @@ func (t *TelegramCore) MessagesGetEmojiStickers(hash int64) (tg.MessagesAllStick
 }
 
 func (t *TelegramCore) MessagesGetEmojiURL(langcode string) (*tg.EmojiURL, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28653,7 +28653,7 @@ func (t *TelegramCore) MessagesGetEmojiURL(langcode string) (*tg.EmojiURL, error
 }
 
 func (t *TelegramCore) MessagesGetExportedChatInvite(request *tg.MessagesGetExportedChatInviteRequest) (tg.MessagesExportedChatInviteClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28661,7 +28661,7 @@ func (t *TelegramCore) MessagesGetExportedChatInvite(request *tg.MessagesGetExpo
 }
 
 func (t *TelegramCore) MessagesGetExportedChatInvites(request *tg.MessagesGetExportedChatInvitesRequest) (*tg.MessagesExportedChatInvites, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28669,7 +28669,7 @@ func (t *TelegramCore) MessagesGetExportedChatInvites(request *tg.MessagesGetExp
 }
 
 func (t *TelegramCore) MessagesGetExtendedMedia(request *tg.MessagesGetExtendedMediaRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28677,7 +28677,7 @@ func (t *TelegramCore) MessagesGetExtendedMedia(request *tg.MessagesGetExtendedM
 }
 
 func (t *TelegramCore) MessagesGetFactCheck(request *tg.MessagesGetFactCheckRequest) ([]tg.FactCheck, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28685,7 +28685,7 @@ func (t *TelegramCore) MessagesGetFactCheck(request *tg.MessagesGetFactCheckRequ
 }
 
 func (t *TelegramCore) MessagesGetFeaturedEmojiStickers(hash int64) (tg.MessagesFeaturedStickersClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28693,7 +28693,7 @@ func (t *TelegramCore) MessagesGetFeaturedEmojiStickers(hash int64) (tg.Messages
 }
 
 func (t *TelegramCore) MessagesGetForumTopicsByID(request *tg.MessagesGetForumTopicsByIDRequest) (*tg.MessagesForumTopics, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28701,7 +28701,7 @@ func (t *TelegramCore) MessagesGetForumTopicsByID(request *tg.MessagesGetForumTo
 }
 
 func (t *TelegramCore) MessagesGetFutureChatCreatorAfterLeave(peer tg.InputPeerClass) (tg.UserClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28709,7 +28709,7 @@ func (t *TelegramCore) MessagesGetFutureChatCreatorAfterLeave(peer tg.InputPeerC
 }
 
 func (t *TelegramCore) MessagesGetGameHighScores(request *tg.MessagesGetGameHighScoresRequest) (*tg.MessagesHighScores, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28717,7 +28717,7 @@ func (t *TelegramCore) MessagesGetGameHighScores(request *tg.MessagesGetGameHigh
 }
 
 func (t *TelegramCore) MessagesGetInlineGameHighScores(request *tg.MessagesGetInlineGameHighScoresRequest) (*tg.MessagesHighScores, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28725,7 +28725,7 @@ func (t *TelegramCore) MessagesGetInlineGameHighScores(request *tg.MessagesGetIn
 }
 
 func (t *TelegramCore) MessagesGetMaskStickers(hash int64) (tg.MessagesAllStickersClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28733,7 +28733,7 @@ func (t *TelegramCore) MessagesGetMaskStickers(hash int64) (tg.MessagesAllSticke
 }
 
 func (t *TelegramCore) MessagesGetMessageEditData(request *tg.MessagesGetMessageEditDataRequest) (*tg.MessagesMessageEditData, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28741,7 +28741,7 @@ func (t *TelegramCore) MessagesGetMessageEditData(request *tg.MessagesGetMessage
 }
 
 func (t *TelegramCore) MessagesGetMessages(id []tg.InputMessageClass) (tg.MessagesMessagesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28749,7 +28749,7 @@ func (t *TelegramCore) MessagesGetMessages(id []tg.InputMessageClass) (tg.Messag
 }
 
 func (t *TelegramCore) MessagesGetMessagesReactions(request *tg.MessagesGetMessagesReactionsRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28757,7 +28757,7 @@ func (t *TelegramCore) MessagesGetMessagesReactions(request *tg.MessagesGetMessa
 }
 
 func (t *TelegramCore) MessagesGetMyStickers(request *tg.MessagesGetMyStickersRequest) (*tg.MessagesMyStickers, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28765,7 +28765,7 @@ func (t *TelegramCore) MessagesGetMyStickers(request *tg.MessagesGetMyStickersRe
 }
 
 func (t *TelegramCore) MessagesGetOldFeaturedStickers(request *tg.MessagesGetOldFeaturedStickersRequest) (tg.MessagesFeaturedStickersClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28773,7 +28773,7 @@ func (t *TelegramCore) MessagesGetOldFeaturedStickers(request *tg.MessagesGetOld
 }
 
 func (t *TelegramCore) MessagesGetPaidReactionPrivacy() (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28781,7 +28781,7 @@ func (t *TelegramCore) MessagesGetPaidReactionPrivacy() (tg.UpdatesClass, error)
 }
 
 func (t *TelegramCore) MessagesGetPeerDialogs(peers []tg.InputDialogPeerClass) (*tg.MessagesPeerDialogs, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28789,7 +28789,7 @@ func (t *TelegramCore) MessagesGetPeerDialogs(peers []tg.InputDialogPeerClass) (
 }
 
 func (t *TelegramCore) MessagesGetPinnedSavedDialogs() (tg.MessagesSavedDialogsClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28797,7 +28797,7 @@ func (t *TelegramCore) MessagesGetPinnedSavedDialogs() (tg.MessagesSavedDialogsC
 }
 
 func (t *TelegramCore) MessagesGetPreparedInlineMessage(request *tg.MessagesGetPreparedInlineMessageRequest) (*tg.MessagesPreparedInlineMessage, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28805,7 +28805,7 @@ func (t *TelegramCore) MessagesGetPreparedInlineMessage(request *tg.MessagesGetP
 }
 
 func (t *TelegramCore) MessagesGetQuickReplies(hash int64) (tg.MessagesQuickRepliesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28813,7 +28813,7 @@ func (t *TelegramCore) MessagesGetQuickReplies(hash int64) (tg.MessagesQuickRepl
 }
 
 func (t *TelegramCore) MessagesGetQuickReplyMessages(request *tg.MessagesGetQuickReplyMessagesRequest) (tg.MessagesMessagesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28821,7 +28821,7 @@ func (t *TelegramCore) MessagesGetQuickReplyMessages(request *tg.MessagesGetQuic
 }
 
 func (t *TelegramCore) MessagesGetRecentLocations(request *tg.MessagesGetRecentLocationsRequest) (tg.MessagesMessagesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28829,7 +28829,7 @@ func (t *TelegramCore) MessagesGetRecentLocations(request *tg.MessagesGetRecentL
 }
 
 func (t *TelegramCore) MessagesGetRecentReactions(request *tg.MessagesGetRecentReactionsRequest) (tg.MessagesReactionsClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28837,7 +28837,7 @@ func (t *TelegramCore) MessagesGetRecentReactions(request *tg.MessagesGetRecentR
 }
 
 func (t *TelegramCore) MessagesGetReplies(request *tg.MessagesGetRepliesRequest) (tg.MessagesMessagesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28845,7 +28845,7 @@ func (t *TelegramCore) MessagesGetReplies(request *tg.MessagesGetRepliesRequest)
 }
 
 func (t *TelegramCore) MessagesGetSavedDialogs(request *tg.MessagesGetSavedDialogsRequest) (tg.MessagesSavedDialogsClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28853,7 +28853,7 @@ func (t *TelegramCore) MessagesGetSavedDialogs(request *tg.MessagesGetSavedDialo
 }
 
 func (t *TelegramCore) MessagesGetSavedDialogsByID(request *tg.MessagesGetSavedDialogsByIDRequest) (tg.MessagesSavedDialogsClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28861,7 +28861,7 @@ func (t *TelegramCore) MessagesGetSavedDialogsByID(request *tg.MessagesGetSavedD
 }
 
 func (t *TelegramCore) MessagesGetSavedGifs(hash int64) (tg.MessagesSavedGifsClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28869,7 +28869,7 @@ func (t *TelegramCore) MessagesGetSavedGifs(hash int64) (tg.MessagesSavedGifsCla
 }
 
 func (t *TelegramCore) MessagesGetSavedHistory(request *tg.MessagesGetSavedHistoryRequest) (tg.MessagesMessagesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28877,7 +28877,7 @@ func (t *TelegramCore) MessagesGetSavedHistory(request *tg.MessagesGetSavedHisto
 }
 
 func (t *TelegramCore) MessagesGetSavedReactionTags(request *tg.MessagesGetSavedReactionTagsRequest) (tg.MessagesSavedReactionTagsClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28885,7 +28885,7 @@ func (t *TelegramCore) MessagesGetSavedReactionTags(request *tg.MessagesGetSaved
 }
 
 func (t *TelegramCore) MessagesGetScheduledMessages(request *tg.MessagesGetScheduledMessagesRequest) (tg.MessagesMessagesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28893,7 +28893,7 @@ func (t *TelegramCore) MessagesGetScheduledMessages(request *tg.MessagesGetSched
 }
 
 func (t *TelegramCore) MessagesGetSearchResultsPositions(request *tg.MessagesGetSearchResultsPositionsRequest) (*tg.MessagesSearchResultsPositions, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28901,7 +28901,7 @@ func (t *TelegramCore) MessagesGetSearchResultsPositions(request *tg.MessagesGet
 }
 
 func (t *TelegramCore) MessagesGetSplitRanges() ([]tg.MessageRange, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28909,7 +28909,7 @@ func (t *TelegramCore) MessagesGetSplitRanges() ([]tg.MessageRange, error) {
 }
 
 func (t *TelegramCore) MessagesGetSponsoredMessages(request *tg.MessagesGetSponsoredMessagesRequest) (tg.MessagesSponsoredMessagesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28917,7 +28917,7 @@ func (t *TelegramCore) MessagesGetSponsoredMessages(request *tg.MessagesGetSpons
 }
 
 func (t *TelegramCore) MessagesGetStickers(request *tg.MessagesGetStickersRequest) (tg.MessagesStickersClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28925,7 +28925,7 @@ func (t *TelegramCore) MessagesGetStickers(request *tg.MessagesGetStickersReques
 }
 
 func (t *TelegramCore) MessagesGetTopReactions(request *tg.MessagesGetTopReactionsRequest) (tg.MessagesReactionsClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28933,7 +28933,7 @@ func (t *TelegramCore) MessagesGetTopReactions(request *tg.MessagesGetTopReactio
 }
 
 func (t *TelegramCore) MessagesGetUnreadPollVotes(request *tg.MessagesGetUnreadPollVotesRequest) (tg.MessagesMessagesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28941,7 +28941,7 @@ func (t *TelegramCore) MessagesGetUnreadPollVotes(request *tg.MessagesGetUnreadP
 }
 
 func (t *TelegramCore) MessagesGetWebPage(request *tg.MessagesGetWebPageRequest) (*tg.MessagesWebPage, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28949,7 +28949,7 @@ func (t *TelegramCore) MessagesGetWebPage(request *tg.MessagesGetWebPageRequest)
 }
 
 func (t *TelegramCore) MessagesHideAllChatJoinRequests(request *tg.MessagesHideAllChatJoinRequestsRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28957,7 +28957,7 @@ func (t *TelegramCore) MessagesHideAllChatJoinRequests(request *tg.MessagesHideA
 }
 
 func (t *TelegramCore) MessagesHidePeerSettingsBar(peer tg.InputPeerClass) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -28965,7 +28965,7 @@ func (t *TelegramCore) MessagesHidePeerSettingsBar(peer tg.InputPeerClass) (bool
 }
 
 func (t *TelegramCore) MessagesInitHistoryImport(request *tg.MessagesInitHistoryImportRequest) (*tg.MessagesHistoryImport, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28973,7 +28973,7 @@ func (t *TelegramCore) MessagesInitHistoryImport(request *tg.MessagesInitHistory
 }
 
 func (t *TelegramCore) MessagesInstallStickerSet(request *tg.MessagesInstallStickerSetRequest) (tg.MessagesStickerSetInstallResultClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -28981,7 +28981,7 @@ func (t *TelegramCore) MessagesInstallStickerSet(request *tg.MessagesInstallStic
 }
 
 func (t *TelegramCore) MessagesProlongWebView(request *tg.MessagesProlongWebViewRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -28989,7 +28989,7 @@ func (t *TelegramCore) MessagesProlongWebView(request *tg.MessagesProlongWebView
 }
 
 func (t *TelegramCore) MessagesRateTranscribedAudio(request *tg.MessagesRateTranscribedAudioRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -28997,7 +28997,7 @@ func (t *TelegramCore) MessagesRateTranscribedAudio(request *tg.MessagesRateTran
 }
 
 func (t *TelegramCore) MessagesReadDiscussion(request *tg.MessagesReadDiscussionRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -29005,7 +29005,7 @@ func (t *TelegramCore) MessagesReadDiscussion(request *tg.MessagesReadDiscussion
 }
 
 func (t *TelegramCore) MessagesReadEncryptedHistory(request *tg.MessagesReadEncryptedHistoryRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -29013,7 +29013,7 @@ func (t *TelegramCore) MessagesReadEncryptedHistory(request *tg.MessagesReadEncr
 }
 
 func (t *TelegramCore) MessagesReadFeaturedStickers(id []int64) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -29021,7 +29021,7 @@ func (t *TelegramCore) MessagesReadFeaturedStickers(id []int64) (bool, error) {
 }
 
 func (t *TelegramCore) MessagesReadMessageContents(id []int) (*tg.MessagesAffectedMessages, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -29029,7 +29029,7 @@ func (t *TelegramCore) MessagesReadMessageContents(id []int) (*tg.MessagesAffect
 }
 
 func (t *TelegramCore) MessagesReadPollVotes(request *tg.MessagesReadPollVotesRequest) (*tg.MessagesAffectedHistory, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -29037,7 +29037,7 @@ func (t *TelegramCore) MessagesReadPollVotes(request *tg.MessagesReadPollVotesRe
 }
 
 func (t *TelegramCore) MessagesReadSavedHistory(request *tg.MessagesReadSavedHistoryRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -29045,7 +29045,7 @@ func (t *TelegramCore) MessagesReadSavedHistory(request *tg.MessagesReadSavedHis
 }
 
 func (t *TelegramCore) MessagesReceivedMessages(maxid int) ([]tg.ReceivedNotifyMessage, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -29053,7 +29053,7 @@ func (t *TelegramCore) MessagesReceivedMessages(maxid int) ([]tg.ReceivedNotifyM
 }
 
 func (t *TelegramCore) MessagesReceivedQueue(maxqts int) ([]int64, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -29061,7 +29061,7 @@ func (t *TelegramCore) MessagesReceivedQueue(maxqts int) ([]int64, error) {
 }
 
 func (t *TelegramCore) MessagesReorderPinnedSavedDialogs(request *tg.MessagesReorderPinnedSavedDialogsRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -29069,7 +29069,7 @@ func (t *TelegramCore) MessagesReorderPinnedSavedDialogs(request *tg.MessagesReo
 }
 
 func (t *TelegramCore) MessagesReorderQuickReplies(order []int) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -29077,7 +29077,7 @@ func (t *TelegramCore) MessagesReorderQuickReplies(order []int) (bool, error) {
 }
 
 func (t *TelegramCore) MessagesReorderStickerSets(request *tg.MessagesReorderStickerSetsRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -29085,7 +29085,7 @@ func (t *TelegramCore) MessagesReorderStickerSets(request *tg.MessagesReorderSti
 }
 
 func (t *TelegramCore) ReorderStickerSets(order []int64) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -29096,7 +29096,7 @@ func (t *TelegramCore) ReorderStickerSets(order []int64) error {
 }
 
 func (t *TelegramCore) MessagesReport(request *tg.MessagesReportRequest) (tg.ReportResultClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -29104,7 +29104,7 @@ func (t *TelegramCore) MessagesReport(request *tg.MessagesReportRequest) (tg.Rep
 }
 
 func (t *TelegramCore) MessagesReportEncryptedSpam(peer tg.InputEncryptedChat) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -29112,7 +29112,7 @@ func (t *TelegramCore) MessagesReportEncryptedSpam(peer tg.InputEncryptedChat) (
 }
 
 func (t *TelegramCore) MessagesReportMessagesDelivery(request *tg.MessagesReportMessagesDeliveryRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -29120,7 +29120,7 @@ func (t *TelegramCore) MessagesReportMessagesDelivery(request *tg.MessagesReport
 }
 
 func (t *TelegramCore) MessagesReportMusicListen(request *tg.MessagesReportMusicListenRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -29128,7 +29128,7 @@ func (t *TelegramCore) MessagesReportMusicListen(request *tg.MessagesReportMusic
 }
 
 func (t *TelegramCore) ReportMusicListen(docID int64, accessHash int64, fileRef []byte, durationSec int) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -29192,7 +29192,7 @@ func (t *TelegramCore) RefreshDocumentFileRef(docID int64, chatID string, msgID 
 }
 
 func (t *TelegramCore) MessagesReportReaction(request *tg.MessagesReportReactionRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -29200,7 +29200,7 @@ func (t *TelegramCore) MessagesReportReaction(request *tg.MessagesReportReaction
 }
 
 func (t *TelegramCore) MessagesReportReadMetrics(request *tg.MessagesReportReadMetricsRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -29208,7 +29208,7 @@ func (t *TelegramCore) MessagesReportReadMetrics(request *tg.MessagesReportReadM
 }
 
 func (t *TelegramCore) MessagesReportSpam(peer tg.InputPeerClass) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -29216,7 +29216,7 @@ func (t *TelegramCore) MessagesReportSpam(peer tg.InputPeerClass) (bool, error) 
 }
 
 func (t *TelegramCore) MessagesReportSponsoredMessage(request *tg.MessagesReportSponsoredMessageRequest) (tg.ChannelsSponsoredMessageReportResultClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -29224,7 +29224,7 @@ func (t *TelegramCore) MessagesReportSponsoredMessage(request *tg.MessagesReport
 }
 
 func (t *TelegramCore) MessagesRequestAppWebView(request *tg.MessagesRequestAppWebViewRequest) (*tg.WebViewResultURL, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -29232,7 +29232,7 @@ func (t *TelegramCore) MessagesRequestAppWebView(request *tg.MessagesRequestAppW
 }
 
 func (t *TelegramCore) MessagesRequestEncryption(request *tg.MessagesRequestEncryptionRequest) (tg.EncryptedChatClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -29240,7 +29240,7 @@ func (t *TelegramCore) MessagesRequestEncryption(request *tg.MessagesRequestEncr
 }
 
 func (t *TelegramCore) MessagesRequestMainWebView(request *tg.MessagesRequestMainWebViewRequest) (*tg.WebViewResultURL, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -29248,7 +29248,7 @@ func (t *TelegramCore) MessagesRequestMainWebView(request *tg.MessagesRequestMai
 }
 
 func (t *TelegramCore) MessagesRequestSimpleWebView(request *tg.MessagesRequestSimpleWebViewRequest) (*tg.WebViewResultURL, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -29256,7 +29256,7 @@ func (t *TelegramCore) MessagesRequestSimpleWebView(request *tg.MessagesRequestS
 }
 
 func (t *TelegramCore) MessagesRequestURLAuth(request *tg.MessagesRequestURLAuthRequest) (tg.URLAuthResultClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -29264,7 +29264,7 @@ func (t *TelegramCore) MessagesRequestURLAuth(request *tg.MessagesRequestURLAuth
 }
 
 func (t *TelegramCore) MessagesRequestWebView(request *tg.MessagesRequestWebViewRequest) (*tg.WebViewResultURL, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -29272,7 +29272,7 @@ func (t *TelegramCore) MessagesRequestWebView(request *tg.MessagesRequestWebView
 }
 
 func (t *TelegramCore) MessagesSaveDefaultSendAs(request *tg.MessagesSaveDefaultSendAsRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -29280,7 +29280,7 @@ func (t *TelegramCore) MessagesSaveDefaultSendAs(request *tg.MessagesSaveDefault
 }
 
 func (t *TelegramCore) MessagesSaveGif(request *tg.MessagesSaveGifRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -29288,7 +29288,7 @@ func (t *TelegramCore) MessagesSaveGif(request *tg.MessagesSaveGifRequest) (bool
 }
 
 func (t *TelegramCore) MessagesSavePreparedInlineMessage(request *tg.MessagesSavePreparedInlineMessageRequest) (*tg.MessagesBotPreparedInlineMessage, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -29296,7 +29296,7 @@ func (t *TelegramCore) MessagesSavePreparedInlineMessage(request *tg.MessagesSav
 }
 
 func (t *TelegramCore) MessagesSaveRecentSticker(request *tg.MessagesSaveRecentStickerRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -29304,7 +29304,7 @@ func (t *TelegramCore) MessagesSaveRecentSticker(request *tg.MessagesSaveRecentS
 }
 
 func (t *TelegramCore) MessagesSearchCustomEmoji(request *tg.MessagesSearchCustomEmojiRequest) (tg.EmojiListClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -29312,7 +29312,7 @@ func (t *TelegramCore) MessagesSearchCustomEmoji(request *tg.MessagesSearchCusto
 }
 
 func (t *TelegramCore) MessagesSearchEmojiStickerSets(request *tg.MessagesSearchEmojiStickerSetsRequest) (tg.MessagesFoundStickerSetsClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -29320,7 +29320,7 @@ func (t *TelegramCore) MessagesSearchEmojiStickerSets(request *tg.MessagesSearch
 }
 
 func (t *TelegramCore) MessagesSearchSentMedia(request *tg.MessagesSearchSentMediaRequest) (tg.MessagesMessagesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -29328,7 +29328,7 @@ func (t *TelegramCore) MessagesSearchSentMedia(request *tg.MessagesSearchSentMed
 }
 
 func (t *TelegramCore) MessagesSearchStickers(request *tg.MessagesSearchStickersRequest) (tg.MessagesFoundStickersClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -29336,7 +29336,7 @@ func (t *TelegramCore) MessagesSearchStickers(request *tg.MessagesSearchStickers
 }
 
 func (t *TelegramCore) MessagesSendBotRequestedPeer(request *tg.MessagesSendBotRequestedPeerRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -29344,7 +29344,7 @@ func (t *TelegramCore) MessagesSendBotRequestedPeer(request *tg.MessagesSendBotR
 }
 
 func (t *TelegramCore) MessagesSendEncrypted(request *tg.MessagesSendEncryptedRequest) (tg.MessagesSentEncryptedMessageClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -29352,7 +29352,7 @@ func (t *TelegramCore) MessagesSendEncrypted(request *tg.MessagesSendEncryptedRe
 }
 
 func (t *TelegramCore) MessagesSendEncryptedFile(request *tg.MessagesSendEncryptedFileRequest) (tg.MessagesSentEncryptedMessageClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -29360,7 +29360,7 @@ func (t *TelegramCore) MessagesSendEncryptedFile(request *tg.MessagesSendEncrypt
 }
 
 func (t *TelegramCore) MessagesSendEncryptedService(request *tg.MessagesSendEncryptedServiceRequest) (tg.MessagesSentEncryptedMessageClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -29368,7 +29368,7 @@ func (t *TelegramCore) MessagesSendEncryptedService(request *tg.MessagesSendEncr
 }
 
 func (t *TelegramCore) MessagesSendPaidReaction(request *tg.MessagesSendPaidReactionRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -29376,7 +29376,7 @@ func (t *TelegramCore) MessagesSendPaidReaction(request *tg.MessagesSendPaidReac
 }
 
 func (t *TelegramCore) MessagesSendQuickReplyMessages(request *tg.MessagesSendQuickReplyMessagesRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -29384,7 +29384,7 @@ func (t *TelegramCore) MessagesSendQuickReplyMessages(request *tg.MessagesSendQu
 }
 
 func (t *TelegramCore) MessagesSendScreenshotNotification(request *tg.MessagesSendScreenshotNotificationRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -29392,7 +29392,7 @@ func (t *TelegramCore) MessagesSendScreenshotNotification(request *tg.MessagesSe
 }
 
 func (t *TelegramCore) MessagesSendWebViewData(request *tg.MessagesSendWebViewDataRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -29400,7 +29400,7 @@ func (t *TelegramCore) MessagesSendWebViewData(request *tg.MessagesSendWebViewDa
 }
 
 func (t *TelegramCore) MessagesSendWebViewResultMessage(request *tg.MessagesSendWebViewResultMessageRequest) (*tg.WebViewMessageSent, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -29408,7 +29408,7 @@ func (t *TelegramCore) MessagesSendWebViewResultMessage(request *tg.MessagesSend
 }
 
 func (t *TelegramCore) MessagesSetBotCallbackAnswer(request *tg.MessagesSetBotCallbackAnswerRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -29416,7 +29416,7 @@ func (t *TelegramCore) MessagesSetBotCallbackAnswer(request *tg.MessagesSetBotCa
 }
 
 func (t *TelegramCore) MessagesSetBotPrecheckoutResults(request *tg.MessagesSetBotPrecheckoutResultsRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -29424,7 +29424,7 @@ func (t *TelegramCore) MessagesSetBotPrecheckoutResults(request *tg.MessagesSetB
 }
 
 func (t *TelegramCore) MessagesSetBotShippingResults(request *tg.MessagesSetBotShippingResultsRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -29432,7 +29432,7 @@ func (t *TelegramCore) MessagesSetBotShippingResults(request *tg.MessagesSetBotS
 }
 
 func (t *TelegramCore) MessagesSetDefaultHistoryTTL(period int) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -29440,7 +29440,7 @@ func (t *TelegramCore) MessagesSetDefaultHistoryTTL(period int) (bool, error) {
 }
 
 func (t *TelegramCore) MessagesSetEncryptedTyping(request *tg.MessagesSetEncryptedTypingRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -29448,7 +29448,7 @@ func (t *TelegramCore) MessagesSetEncryptedTyping(request *tg.MessagesSetEncrypt
 }
 
 func (t *TelegramCore) MessagesSetGameScore(request *tg.MessagesSetGameScoreRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -29456,7 +29456,7 @@ func (t *TelegramCore) MessagesSetGameScore(request *tg.MessagesSetGameScoreRequ
 }
 
 func (t *TelegramCore) MessagesSetInlineBotResults(request *tg.MessagesSetInlineBotResultsRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -29464,7 +29464,7 @@ func (t *TelegramCore) MessagesSetInlineBotResults(request *tg.MessagesSetInline
 }
 
 func (t *TelegramCore) MessagesSetInlineGameScore(request *tg.MessagesSetInlineGameScoreRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -29472,7 +29472,7 @@ func (t *TelegramCore) MessagesSetInlineGameScore(request *tg.MessagesSetInlineG
 }
 
 func (t *TelegramCore) MessagesStartHistoryImport(request *tg.MessagesStartHistoryImportRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -29480,7 +29480,7 @@ func (t *TelegramCore) MessagesStartHistoryImport(request *tg.MessagesStartHisto
 }
 
 func (t *TelegramCore) MessagesSummarizeText(request *tg.MessagesSummarizeTextRequest) (*tg.TextWithEntities, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -29488,7 +29488,7 @@ func (t *TelegramCore) MessagesSummarizeText(request *tg.MessagesSummarizeTextRe
 }
 
 func (t *TelegramCore) MessagesToggleBotInAttachMenu(request *tg.MessagesToggleBotInAttachMenuRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -29496,7 +29496,7 @@ func (t *TelegramCore) MessagesToggleBotInAttachMenu(request *tg.MessagesToggleB
 }
 
 func (t *TelegramCore) MarkAllStoriesRead() error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -29545,7 +29545,7 @@ func (t *TelegramCore) MarkAllStoriesRead() error {
 }
 
 func (t *TelegramCore) RemoveBotFromMenu(botID int64) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -29557,7 +29557,7 @@ func (t *TelegramCore) RemoveBotFromMenu(botID int64) error {
 }
 
 func (t *TelegramCore) MessagesToggleDialogFilterTags(enabled bool) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -29565,7 +29565,7 @@ func (t *TelegramCore) MessagesToggleDialogFilterTags(enabled bool) (bool, error
 }
 
 func (t *TelegramCore) MessagesTogglePaidReactionPrivacy(request *tg.MessagesTogglePaidReactionPrivacyRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -29573,7 +29573,7 @@ func (t *TelegramCore) MessagesTogglePaidReactionPrivacy(request *tg.MessagesTog
 }
 
 func (t *TelegramCore) MessagesTogglePeerTranslations(request *tg.MessagesTogglePeerTranslationsRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -29581,7 +29581,7 @@ func (t *TelegramCore) MessagesTogglePeerTranslations(request *tg.MessagesToggle
 }
 
 func (t *TelegramCore) MessagesToggleSavedDialogPin(request *tg.MessagesToggleSavedDialogPinRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -29589,7 +29589,7 @@ func (t *TelegramCore) MessagesToggleSavedDialogPin(request *tg.MessagesToggleSa
 }
 
 func (t *TelegramCore) ToggleSavedDialogPin(peerID string, pinned bool) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -29606,7 +29606,7 @@ func (t *TelegramCore) ToggleSavedDialogPin(peerID string, pinned bool) error {
 }
 
 func (t *TelegramCore) DeleteSavedHistory(peerID string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -29622,7 +29622,7 @@ func (t *TelegramCore) DeleteSavedHistory(peerID string) error {
 }
 
 func (t *TelegramCore) MessagesToggleStickerSets(request *tg.MessagesToggleStickerSetsRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -29630,7 +29630,7 @@ func (t *TelegramCore) MessagesToggleStickerSets(request *tg.MessagesToggleStick
 }
 
 func (t *TelegramCore) MessagesToggleSuggestedPostApproval(request *tg.MessagesToggleSuggestedPostApprovalRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -29638,7 +29638,7 @@ func (t *TelegramCore) MessagesToggleSuggestedPostApproval(request *tg.MessagesT
 }
 
 func (t *TelegramCore) MessagesToggleTodoCompleted(request *tg.MessagesToggleTodoCompletedRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -29646,7 +29646,7 @@ func (t *TelegramCore) MessagesToggleTodoCompleted(request *tg.MessagesToggleTod
 }
 
 func (t *TelegramCore) MessagesTranscribeAudio(request *tg.MessagesTranscribeAudioRequest) (*tg.MessagesTranscribedAudio, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -29676,7 +29676,7 @@ func (t *TelegramCore) TranscribeAudio(chatID, msgID string) (bool, int64, strin
 }
 
 func (t *TelegramCore) MessagesUninstallStickerSet(stickerset tg.InputStickerSetClass) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -29684,7 +29684,7 @@ func (t *TelegramCore) MessagesUninstallStickerSet(stickerset tg.InputStickerSet
 }
 
 func (t *TelegramCore) MessagesUpdateSavedReactionTag(request *tg.MessagesUpdateSavedReactionTagRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -29692,7 +29692,7 @@ func (t *TelegramCore) MessagesUpdateSavedReactionTag(request *tg.MessagesUpdate
 }
 
 func (t *TelegramCore) MessagesUploadEncryptedFile(request *tg.MessagesUploadEncryptedFileRequest) (tg.EncryptedFileClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -29700,7 +29700,7 @@ func (t *TelegramCore) MessagesUploadEncryptedFile(request *tg.MessagesUploadEnc
 }
 
 func (t *TelegramCore) MessagesUploadImportedMedia(request *tg.MessagesUploadImportedMediaRequest) (tg.MessageMediaClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -29708,7 +29708,7 @@ func (t *TelegramCore) MessagesUploadImportedMedia(request *tg.MessagesUploadImp
 }
 
 func (t *TelegramCore) MessagesUploadMedia(request *tg.MessagesUploadMediaRequest) (tg.MessageMediaClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -29716,7 +29716,7 @@ func (t *TelegramCore) MessagesUploadMedia(request *tg.MessagesUploadMediaReques
 }
 
 func (t *TelegramCore) MessagesViewSponsoredMessage(randomid []byte) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -29724,7 +29724,7 @@ func (t *TelegramCore) MessagesViewSponsoredMessage(randomid []byte) (bool, erro
 }
 
 func (t *TelegramCore) PhoneCheckGroupCall(request *tg.PhoneCheckGroupCallRequest) ([]int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -29732,7 +29732,7 @@ func (t *TelegramCore) PhoneCheckGroupCall(request *tg.PhoneCheckGroupCallReques
 }
 
 func (t *TelegramCore) PhoneCreateConferenceCall(request *tg.PhoneCreateConferenceCallRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -29740,7 +29740,7 @@ func (t *TelegramCore) PhoneCreateConferenceCall(request *tg.PhoneCreateConferen
 }
 
 func (t *TelegramCore) CreateConferenceCall() (string, string, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return "", "", err
 	}
@@ -30015,7 +30015,7 @@ func (t *TelegramCore) DeclineOutgoingConferenceInvite(callID, userID string, di
 }
 
 func (t *TelegramCore) PhoneCreateGroupCall(request *tg.PhoneCreateGroupCallRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30023,7 +30023,7 @@ func (t *TelegramCore) PhoneCreateGroupCall(request *tg.PhoneCreateGroupCallRequ
 }
 
 func (t *TelegramCore) PhoneDeclineConferenceCallInvite(msgid int) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30031,7 +30031,7 @@ func (t *TelegramCore) PhoneDeclineConferenceCallInvite(msgid int) (tg.UpdatesCl
 }
 
 func (t *TelegramCore) PhoneDeleteConferenceCallParticipants(request *tg.PhoneDeleteConferenceCallParticipantsRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30039,7 +30039,7 @@ func (t *TelegramCore) PhoneDeleteConferenceCallParticipants(request *tg.PhoneDe
 }
 
 func (t *TelegramCore) PhoneDeleteGroupCallMessages(request *tg.PhoneDeleteGroupCallMessagesRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30047,7 +30047,7 @@ func (t *TelegramCore) PhoneDeleteGroupCallMessages(request *tg.PhoneDeleteGroup
 }
 
 func (t *TelegramCore) PhoneDeleteGroupCallParticipantMessages(request *tg.PhoneDeleteGroupCallParticipantMessagesRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30055,7 +30055,7 @@ func (t *TelegramCore) PhoneDeleteGroupCallParticipantMessages(request *tg.Phone
 }
 
 func (t *TelegramCore) PhoneDiscardGroupCall(call tg.InputGroupCallClass) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30063,7 +30063,7 @@ func (t *TelegramCore) PhoneDiscardGroupCall(call tg.InputGroupCallClass) (tg.Up
 }
 
 func (t *TelegramCore) PhoneEditGroupCallParticipant(request *tg.PhoneEditGroupCallParticipantRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30071,7 +30071,7 @@ func (t *TelegramCore) PhoneEditGroupCallParticipant(request *tg.PhoneEditGroupC
 }
 
 func (t *TelegramCore) PhoneEditGroupCallTitle(request *tg.PhoneEditGroupCallTitleRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30079,7 +30079,7 @@ func (t *TelegramCore) PhoneEditGroupCallTitle(request *tg.PhoneEditGroupCallTit
 }
 
 func (t *TelegramCore) PhoneExportGroupCallInvite(request *tg.PhoneExportGroupCallInviteRequest) (*tg.PhoneExportedGroupCallInvite, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30087,7 +30087,7 @@ func (t *TelegramCore) PhoneExportGroupCallInvite(request *tg.PhoneExportGroupCa
 }
 
 func (t *TelegramCore) PhoneGetGroupCall(request *tg.PhoneGetGroupCallRequest) (*tg.PhoneGroupCall, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30095,7 +30095,7 @@ func (t *TelegramCore) PhoneGetGroupCall(request *tg.PhoneGetGroupCallRequest) (
 }
 
 func (t *TelegramCore) PhoneGetGroupCallChainBlocks(request *tg.PhoneGetGroupCallChainBlocksRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30103,7 +30103,7 @@ func (t *TelegramCore) PhoneGetGroupCallChainBlocks(request *tg.PhoneGetGroupCal
 }
 
 func (t *TelegramCore) PhoneGetGroupCallJoinAs(peer tg.InputPeerClass) (*tg.PhoneJoinAsPeers, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30111,7 +30111,7 @@ func (t *TelegramCore) PhoneGetGroupCallJoinAs(peer tg.InputPeerClass) (*tg.Phon
 }
 
 func (t *TelegramCore) PhoneGetGroupCallStars(call tg.InputGroupCallClass) (*tg.PhoneGroupCallStars, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30119,7 +30119,7 @@ func (t *TelegramCore) PhoneGetGroupCallStars(call tg.InputGroupCallClass) (*tg.
 }
 
 func (t *TelegramCore) PhoneGetGroupCallStreamChannels(call tg.InputGroupCallClass) (*tg.PhoneGroupCallStreamChannels, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30127,7 +30127,7 @@ func (t *TelegramCore) PhoneGetGroupCallStreamChannels(call tg.InputGroupCallCla
 }
 
 func (t *TelegramCore) PhoneGetGroupCallStreamRtmpURL(request *tg.PhoneGetGroupCallStreamRtmpURLRequest) (*tg.PhoneGroupCallStreamRtmpURL, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30135,7 +30135,7 @@ func (t *TelegramCore) PhoneGetGroupCallStreamRtmpURL(request *tg.PhoneGetGroupC
 }
 
 func (t *TelegramCore) PhoneGetGroupParticipants(request *tg.PhoneGetGroupParticipantsRequest) (*tg.PhoneGroupParticipants, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30143,7 +30143,7 @@ func (t *TelegramCore) PhoneGetGroupParticipants(request *tg.PhoneGetGroupPartic
 }
 
 func (t *TelegramCore) PhoneInviteConferenceCallParticipant(request *tg.PhoneInviteConferenceCallParticipantRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30151,7 +30151,7 @@ func (t *TelegramCore) PhoneInviteConferenceCallParticipant(request *tg.PhoneInv
 }
 
 func (t *TelegramCore) PhoneInviteToGroupCall(request *tg.PhoneInviteToGroupCallRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30159,7 +30159,7 @@ func (t *TelegramCore) PhoneInviteToGroupCall(request *tg.PhoneInviteToGroupCall
 }
 
 func (t *TelegramCore) PhoneJoinGroupCall(request *tg.PhoneJoinGroupCallRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30167,7 +30167,7 @@ func (t *TelegramCore) PhoneJoinGroupCall(request *tg.PhoneJoinGroupCallRequest)
 }
 
 func (t *TelegramCore) PhoneJoinGroupCallPresentation(request *tg.PhoneJoinGroupCallPresentationRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30175,7 +30175,7 @@ func (t *TelegramCore) PhoneJoinGroupCallPresentation(request *tg.PhoneJoinGroup
 }
 
 func (t *TelegramCore) PhoneLeaveGroupCall(request *tg.PhoneLeaveGroupCallRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30183,7 +30183,7 @@ func (t *TelegramCore) PhoneLeaveGroupCall(request *tg.PhoneLeaveGroupCallReques
 }
 
 func (t *TelegramCore) PhoneLeaveGroupCallPresentation(call tg.InputGroupCallClass) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30191,7 +30191,7 @@ func (t *TelegramCore) PhoneLeaveGroupCallPresentation(call tg.InputGroupCallCla
 }
 
 func (t *TelegramCore) PhoneReceivedCall(peer tg.InputPhoneCall) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -30199,7 +30199,7 @@ func (t *TelegramCore) PhoneReceivedCall(peer tg.InputPhoneCall) (bool, error) {
 }
 
 func (t *TelegramCore) PhoneSaveCallDebug(request *tg.PhoneSaveCallDebugRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -30207,7 +30207,7 @@ func (t *TelegramCore) PhoneSaveCallDebug(request *tg.PhoneSaveCallDebugRequest)
 }
 
 func (t *TelegramCore) PhoneSaveCallLog(request *tg.PhoneSaveCallLogRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -30215,7 +30215,7 @@ func (t *TelegramCore) PhoneSaveCallLog(request *tg.PhoneSaveCallLogRequest) (bo
 }
 
 func (t *TelegramCore) PhoneSaveDefaultGroupCallJoinAs(request *tg.PhoneSaveDefaultGroupCallJoinAsRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -30223,7 +30223,7 @@ func (t *TelegramCore) PhoneSaveDefaultGroupCallJoinAs(request *tg.PhoneSaveDefa
 }
 
 func (t *TelegramCore) PhoneSaveDefaultSendAs(request *tg.PhoneSaveDefaultSendAsRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -30231,7 +30231,7 @@ func (t *TelegramCore) PhoneSaveDefaultSendAs(request *tg.PhoneSaveDefaultSendAs
 }
 
 func (t *TelegramCore) PhoneSendConferenceCallBroadcast(request *tg.PhoneSendConferenceCallBroadcastRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30239,7 +30239,7 @@ func (t *TelegramCore) PhoneSendConferenceCallBroadcast(request *tg.PhoneSendCon
 }
 
 func (t *TelegramCore) PhoneSendGroupCallEncryptedMessage(request *tg.PhoneSendGroupCallEncryptedMessageRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -30247,7 +30247,7 @@ func (t *TelegramCore) PhoneSendGroupCallEncryptedMessage(request *tg.PhoneSendG
 }
 
 func (t *TelegramCore) PhoneSendGroupCallMessage(request *tg.PhoneSendGroupCallMessageRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30255,7 +30255,7 @@ func (t *TelegramCore) PhoneSendGroupCallMessage(request *tg.PhoneSendGroupCallM
 }
 
 func (t *TelegramCore) PhoneSetCallRating(request *tg.PhoneSetCallRatingRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30263,7 +30263,7 @@ func (t *TelegramCore) PhoneSetCallRating(request *tg.PhoneSetCallRatingRequest)
 }
 
 func (t *TelegramCore) PhoneStartScheduledGroupCall(call tg.InputGroupCallClass) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30271,7 +30271,7 @@ func (t *TelegramCore) PhoneStartScheduledGroupCall(call tg.InputGroupCallClass)
 }
 
 func (t *TelegramCore) PhoneToggleGroupCallRecord(request *tg.PhoneToggleGroupCallRecordRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30279,7 +30279,7 @@ func (t *TelegramCore) PhoneToggleGroupCallRecord(request *tg.PhoneToggleGroupCa
 }
 
 func (t *TelegramCore) PhoneToggleGroupCallSettings(request *tg.PhoneToggleGroupCallSettingsRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30287,7 +30287,7 @@ func (t *TelegramCore) PhoneToggleGroupCallSettings(request *tg.PhoneToggleGroup
 }
 
 func (t *TelegramCore) PhoneToggleGroupCallStartSubscription(request *tg.PhoneToggleGroupCallStartSubscriptionRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30295,7 +30295,7 @@ func (t *TelegramCore) PhoneToggleGroupCallStartSubscription(request *tg.PhoneTo
 }
 
 func (t *TelegramCore) PhotosUpdateProfilePhoto(request *tg.PhotosUpdateProfilePhotoRequest) (*tg.PhotosPhoto, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30303,7 +30303,7 @@ func (t *TelegramCore) PhotosUpdateProfilePhoto(request *tg.PhotosUpdateProfileP
 }
 
 func (t *TelegramCore) PhotosUploadContactProfilePhoto(request *tg.PhotosUploadContactProfilePhotoRequest) (*tg.PhotosPhoto, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30311,7 +30311,7 @@ func (t *TelegramCore) PhotosUploadContactProfilePhoto(request *tg.PhotosUploadC
 }
 
 func (t *TelegramCore) StatsGetMessagePublicForwards(request *tg.StatsGetMessagePublicForwardsRequest) (*tg.StatsPublicForwards, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30319,7 +30319,7 @@ func (t *TelegramCore) StatsGetMessagePublicForwards(request *tg.StatsGetMessage
 }
 
 func (t *TelegramCore) StatsGetMessageStats(request *tg.StatsGetMessageStatsRequest) (*tg.StatsMessageStats, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30327,7 +30327,7 @@ func (t *TelegramCore) StatsGetMessageStats(request *tg.StatsGetMessageStatsRequ
 }
 
 func (t *TelegramCore) GetMessageStatsJSON(chatID string, msgID int) (map[string]interface{}, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30483,7 +30483,7 @@ func (t *TelegramCore) GetMessageStatsJSON(chatID string, msgID int) (map[string
 }
 
 func (t *TelegramCore) GetMessagePublicForwardsJSON(chatID string, msgID int, offset string) (map[string]interface{}, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30576,7 +30576,7 @@ func (t *TelegramCore) GetMessagePublicForwardsJSON(chatID string, msgID int, of
 }
 
 func (t *TelegramCore) StatsGetStoryPublicForwards(request *tg.StatsGetStoryPublicForwardsRequest) (*tg.StatsPublicForwards, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30584,7 +30584,7 @@ func (t *TelegramCore) StatsGetStoryPublicForwards(request *tg.StatsGetStoryPubl
 }
 
 func (t *TelegramCore) StatsGetStoryStats(request *tg.StatsGetStoryStatsRequest) (*tg.StatsStoryStats, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30592,7 +30592,7 @@ func (t *TelegramCore) StatsGetStoryStats(request *tg.StatsGetStoryStatsRequest)
 }
 
 func (t *TelegramCore) StatsLoadAsyncGraph(request *tg.StatsLoadAsyncGraphRequest) (tg.StatsGraphClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30600,7 +30600,7 @@ func (t *TelegramCore) StatsLoadAsyncGraph(request *tg.StatsLoadAsyncGraphReques
 }
 
 func (t *TelegramCore) LoadStatsGraph(token string, x int64) (map[string]interface{}, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30620,7 +30620,7 @@ func (t *TelegramCore) LoadStatsGraph(token string, x int64) (map[string]interfa
 }
 
 func (t *TelegramCore) StickersAddStickerToSet(request *tg.StickersAddStickerToSetRequest) (tg.MessagesStickerSetClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30628,7 +30628,7 @@ func (t *TelegramCore) StickersAddStickerToSet(request *tg.StickersAddStickerToS
 }
 
 func (t *TelegramCore) StickersChangeSticker(request *tg.StickersChangeStickerRequest) (tg.MessagesStickerSetClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30636,7 +30636,7 @@ func (t *TelegramCore) StickersChangeSticker(request *tg.StickersChangeStickerRe
 }
 
 func (t *TelegramCore) StickersChangeStickerPosition(request *tg.StickersChangeStickerPositionRequest) (tg.MessagesStickerSetClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30644,7 +30644,7 @@ func (t *TelegramCore) StickersChangeStickerPosition(request *tg.StickersChangeS
 }
 
 func (t *TelegramCore) StickersCheckShortName(shortname string) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -30652,7 +30652,7 @@ func (t *TelegramCore) StickersCheckShortName(shortname string) (bool, error) {
 }
 
 func (t *TelegramCore) StickersCreateStickerSet(request *tg.StickersCreateStickerSetRequest) (tg.MessagesStickerSetClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30660,7 +30660,7 @@ func (t *TelegramCore) StickersCreateStickerSet(request *tg.StickersCreateSticke
 }
 
 func (t *TelegramCore) StickersDeleteStickerSet(stickerset tg.InputStickerSetClass) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -30668,7 +30668,7 @@ func (t *TelegramCore) StickersDeleteStickerSet(stickerset tg.InputStickerSetCla
 }
 
 func (t *TelegramCore) StickersRemoveStickerFromSet(sticker tg.InputDocumentClass) (tg.MessagesStickerSetClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30676,7 +30676,7 @@ func (t *TelegramCore) StickersRemoveStickerFromSet(sticker tg.InputDocumentClas
 }
 
 func (t *TelegramCore) StickersRenameStickerSet(request *tg.StickersRenameStickerSetRequest) (tg.MessagesStickerSetClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30684,7 +30684,7 @@ func (t *TelegramCore) StickersRenameStickerSet(request *tg.StickersRenameSticke
 }
 
 func (t *TelegramCore) StickersReplaceSticker(request *tg.StickersReplaceStickerRequest) (tg.MessagesStickerSetClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30692,7 +30692,7 @@ func (t *TelegramCore) StickersReplaceSticker(request *tg.StickersReplaceSticker
 }
 
 func (t *TelegramCore) StickersSetStickerSetThumb(request *tg.StickersSetStickerSetThumbRequest) (tg.MessagesStickerSetClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30700,7 +30700,7 @@ func (t *TelegramCore) StickersSetStickerSetThumb(request *tg.StickersSetSticker
 }
 
 func (t *TelegramCore) StickersSuggestShortName(title string) (*tg.StickersSuggestedShortName, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30708,7 +30708,7 @@ func (t *TelegramCore) StickersSuggestShortName(title string) (*tg.StickersSugge
 }
 
 func (t *TelegramCore) StoriesActivateStealthMode(request *tg.StoriesActivateStealthModeRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30716,7 +30716,7 @@ func (t *TelegramCore) StoriesActivateStealthMode(request *tg.StoriesActivateSte
 }
 
 func (t *TelegramCore) ActivateStealthMode() error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -30728,7 +30728,7 @@ func (t *TelegramCore) ActivateStealthMode() error {
 }
 
 func (t *TelegramCore) StoriesCanSendStory(peer tg.InputPeerClass) (*tg.StoriesCanSendStoryCount, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30736,7 +30736,7 @@ func (t *TelegramCore) StoriesCanSendStory(peer tg.InputPeerClass) (*tg.StoriesC
 }
 
 func (t *TelegramCore) StoriesCreateAlbum(request *tg.StoriesCreateAlbumRequest) (*tg.StoryAlbum, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30744,7 +30744,7 @@ func (t *TelegramCore) StoriesCreateAlbum(request *tg.StoriesCreateAlbumRequest)
 }
 
 func (t *TelegramCore) StoriesDeleteAlbum(request *tg.StoriesDeleteAlbumRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -30752,7 +30752,7 @@ func (t *TelegramCore) StoriesDeleteAlbum(request *tg.StoriesDeleteAlbumRequest)
 }
 
 func (t *TelegramCore) StoriesEditStory(request *tg.StoriesEditStoryRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30760,7 +30760,7 @@ func (t *TelegramCore) StoriesEditStory(request *tg.StoriesEditStoryRequest) (tg
 }
 
 func (t *TelegramCore) StoriesExportStoryLink(request *tg.StoriesExportStoryLinkRequest) (*tg.ExportedStoryLink, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30768,7 +30768,7 @@ func (t *TelegramCore) StoriesExportStoryLink(request *tg.StoriesExportStoryLink
 }
 
 func (t *TelegramCore) StoriesGetAlbums(request *tg.StoriesGetAlbumsRequest) (tg.StoriesAlbumsClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30776,7 +30776,7 @@ func (t *TelegramCore) StoriesGetAlbums(request *tg.StoriesGetAlbumsRequest) (tg
 }
 
 func (t *TelegramCore) StoriesGetAlbumStories(request *tg.StoriesGetAlbumStoriesRequest) (*tg.StoriesStories, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30784,7 +30784,7 @@ func (t *TelegramCore) StoriesGetAlbumStories(request *tg.StoriesGetAlbumStories
 }
 
 func (t *TelegramCore) StoriesGetAllReadPeerStories() (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30792,7 +30792,7 @@ func (t *TelegramCore) StoriesGetAllReadPeerStories() (tg.UpdatesClass, error) {
 }
 
 func (t *TelegramCore) StoriesGetChatsToSend() (tg.MessagesChatsClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30800,7 +30800,7 @@ func (t *TelegramCore) StoriesGetChatsToSend() (tg.MessagesChatsClass, error) {
 }
 
 func (t *TelegramCore) StoriesGetPeerMaxIDs(id []tg.InputPeerClass) ([]tg.RecentStory, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30808,7 +30808,7 @@ func (t *TelegramCore) StoriesGetPeerMaxIDs(id []tg.InputPeerClass) ([]tg.Recent
 }
 
 func (t *TelegramCore) StoriesGetStoriesArchive(request *tg.StoriesGetStoriesArchiveRequest) (*tg.StoriesStories, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30816,7 +30816,7 @@ func (t *TelegramCore) StoriesGetStoriesArchive(request *tg.StoriesGetStoriesArc
 }
 
 func (t *TelegramCore) StoriesGetStoriesByID(request *tg.StoriesGetStoriesByIDRequest) (*tg.StoriesStories, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30824,7 +30824,7 @@ func (t *TelegramCore) StoriesGetStoriesByID(request *tg.StoriesGetStoriesByIDRe
 }
 
 func (t *TelegramCore) StoriesGetStoryReactionsList(request *tg.StoriesGetStoryReactionsListRequest) (*tg.StoriesStoryReactionsList, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30832,7 +30832,7 @@ func (t *TelegramCore) StoriesGetStoryReactionsList(request *tg.StoriesGetStoryR
 }
 
 func (t *TelegramCore) StoriesGetStoryViewsList(request *tg.StoriesGetStoryViewsListRequest) (*tg.StoriesStoryViewsList, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30840,7 +30840,7 @@ func (t *TelegramCore) StoriesGetStoryViewsList(request *tg.StoriesGetStoryViews
 }
 
 func (t *TelegramCore) StoriesIncrementStoryViews(request *tg.StoriesIncrementStoryViewsRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -30848,7 +30848,7 @@ func (t *TelegramCore) StoriesIncrementStoryViews(request *tg.StoriesIncrementSt
 }
 
 func (t *TelegramCore) StoriesReadStories(request *tg.StoriesReadStoriesRequest) ([]int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30856,7 +30856,7 @@ func (t *TelegramCore) StoriesReadStories(request *tg.StoriesReadStoriesRequest)
 }
 
 func (t *TelegramCore) StoriesReorderAlbums(request *tg.StoriesReorderAlbumsRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -30864,7 +30864,7 @@ func (t *TelegramCore) StoriesReorderAlbums(request *tg.StoriesReorderAlbumsRequ
 }
 
 func (t *TelegramCore) StoriesReport(request *tg.StoriesReportRequest) (tg.ReportResultClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30872,7 +30872,7 @@ func (t *TelegramCore) StoriesReport(request *tg.StoriesReportRequest) (tg.Repor
 }
 
 func (t *TelegramCore) StoriesSearchPosts(request *tg.StoriesSearchPostsRequest) (*tg.StoriesFoundStories, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30880,7 +30880,7 @@ func (t *TelegramCore) StoriesSearchPosts(request *tg.StoriesSearchPostsRequest)
 }
 
 func (t *TelegramCore) StoriesStartLive(request *tg.StoriesStartLiveRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30888,7 +30888,7 @@ func (t *TelegramCore) StoriesStartLive(request *tg.StoriesStartLiveRequest) (tg
 }
 
 func (t *TelegramCore) StoriesToggleAllStoriesHidden(hidden bool) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -30896,7 +30896,7 @@ func (t *TelegramCore) StoriesToggleAllStoriesHidden(hidden bool) (bool, error) 
 }
 
 func (t *TelegramCore) StoriesTogglePeerStoriesHidden(request *tg.StoriesTogglePeerStoriesHiddenRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -30904,7 +30904,7 @@ func (t *TelegramCore) StoriesTogglePeerStoriesHidden(request *tg.StoriesToggleP
 }
 
 func (t *TelegramCore) StoriesTogglePinned(request *tg.StoriesTogglePinnedRequest) ([]int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30912,7 +30912,7 @@ func (t *TelegramCore) StoriesTogglePinned(request *tg.StoriesTogglePinnedReques
 }
 
 func (t *TelegramCore) StoriesTogglePinnedToTop(request *tg.StoriesTogglePinnedToTopRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -30920,7 +30920,7 @@ func (t *TelegramCore) StoriesTogglePinnedToTop(request *tg.StoriesTogglePinnedT
 }
 
 func (t *TelegramCore) StoriesUpdateAlbum(request *tg.StoriesUpdateAlbumRequest) (*tg.StoryAlbum, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30928,7 +30928,7 @@ func (t *TelegramCore) StoriesUpdateAlbum(request *tg.StoriesUpdateAlbumRequest)
 }
 
 func (t *TelegramCore) UploadGetCDNFile(request *tg.UploadGetCDNFileRequest) (tg.UploadCDNFileClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30936,7 +30936,7 @@ func (t *TelegramCore) UploadGetCDNFile(request *tg.UploadGetCDNFileRequest) (tg
 }
 
 func (t *TelegramCore) UploadGetCDNFileHashes(request *tg.UploadGetCDNFileHashesRequest) ([]tg.FileHash, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30944,7 +30944,7 @@ func (t *TelegramCore) UploadGetCDNFileHashes(request *tg.UploadGetCDNFileHashes
 }
 
 func (t *TelegramCore) UploadGetFile(request *tg.UploadGetFileRequest) (tg.UploadFileClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30952,7 +30952,7 @@ func (t *TelegramCore) UploadGetFile(request *tg.UploadGetFileRequest) (tg.Uploa
 }
 
 func (t *TelegramCore) UploadGetFileHashes(request *tg.UploadGetFileHashesRequest) ([]tg.FileHash, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30960,7 +30960,7 @@ func (t *TelegramCore) UploadGetFileHashes(request *tg.UploadGetFileHashesReques
 }
 
 func (t *TelegramCore) UploadGetWebFile(request *tg.UploadGetWebFileRequest) (*tg.UploadWebFile, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30968,7 +30968,7 @@ func (t *TelegramCore) UploadGetWebFile(request *tg.UploadGetWebFileRequest) (*t
 }
 
 func (t *TelegramCore) UploadReuploadCDNFile(request *tg.UploadReuploadCDNFileRequest) ([]tg.FileHash, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -30976,7 +30976,7 @@ func (t *TelegramCore) UploadReuploadCDNFile(request *tg.UploadReuploadCDNFileRe
 }
 
 func (t *TelegramCore) UploadSaveBigFilePart(request *tg.UploadSaveBigFilePartRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -30984,7 +30984,7 @@ func (t *TelegramCore) UploadSaveBigFilePart(request *tg.UploadSaveBigFilePartRe
 }
 
 func (t *TelegramCore) UploadSaveFilePart(request *tg.UploadSaveFilePartRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -30992,7 +30992,7 @@ func (t *TelegramCore) UploadSaveFilePart(request *tg.UploadSaveFilePartRequest)
 }
 
 func (t *TelegramCore) UsersGetRequirementsToContact(id []tg.InputUserClass) ([]tg.RequirementToContactClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -31000,7 +31000,7 @@ func (t *TelegramCore) UsersGetRequirementsToContact(id []tg.InputUserClass) ([]
 }
 
 func (t *TelegramCore) UsersGetSavedMusic(request *tg.UsersGetSavedMusicRequest) (tg.UsersSavedMusicClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -31008,7 +31008,7 @@ func (t *TelegramCore) UsersGetSavedMusic(request *tg.UsersGetSavedMusicRequest)
 }
 
 func (t *TelegramCore) UsersGetSavedMusicByID(request *tg.UsersGetSavedMusicByIDRequest) (tg.UsersSavedMusicClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -31016,7 +31016,7 @@ func (t *TelegramCore) UsersGetSavedMusicByID(request *tg.UsersGetSavedMusicByID
 }
 
 func (t *TelegramCore) UsersSetSecureValueErrors(request *tg.UsersSetSecureValueErrorsRequest) (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -31024,7 +31024,7 @@ func (t *TelegramCore) UsersSetSecureValueErrors(request *tg.UsersSetSecureValue
 }
 
 func (t *TelegramCore) UsersSuggestBirthday(request *tg.UsersSuggestBirthdayRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -31032,7 +31032,7 @@ func (t *TelegramCore) UsersSuggestBirthday(request *tg.UsersSuggestBirthdayRequ
 }
 
 func (t *TelegramCore) SuggestBirthday(userID string, day, month, year int) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -31282,7 +31282,7 @@ func (t *TelegramCore) GetChatInfo(chatID string) (*Dialog, error) {
 }
 
 func (t *TelegramCore) EditChatTitle(chatID string, title string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -31319,7 +31319,7 @@ func (t *TelegramCore) EditChatDescription(chatID string, description string) er
 }
 
 func (t *TelegramCore) LeaveChat(chatID string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -31588,7 +31588,7 @@ func (t *TelegramCore) GetAdminsWithInvites(chatID string) ([]map[string]interfa
 }
 
 func (t *TelegramCore) AddMembers(chatID string, userIDs []string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -31632,7 +31632,7 @@ func (t *TelegramCore) AddMembers(chatID string, userIDs []string) error {
 }
 
 func (t *TelegramCore) RemoveMember(chatID string, userID string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -31664,7 +31664,7 @@ func (t *TelegramCore) RemoveMember(chatID string, userID string) error {
 }
 
 func (t *TelegramCore) BanMember(chatID string, userID string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -31698,7 +31698,7 @@ func (t *TelegramCore) BanMemberUntil(chatID, userID string, untilDate int) erro
 }
 
 func (t *TelegramCore) DeleteParticipantHistory(chatID string, userID string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -31724,7 +31724,7 @@ func (t *TelegramCore) DeleteParticipantHistory(chatID string, userID string) er
 }
 
 func (t *TelegramCore) ReportChannelSpam(chatID string, userID string, msgIDs []int) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -31751,7 +31751,7 @@ func (t *TelegramCore) ReportChannelSpam(chatID string, userID string, msgIDs []
 }
 
 func (t *TelegramCore) UnbanMember(chatID string, userID string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -31786,7 +31786,7 @@ func (t *TelegramCore) GetMembers(chatID string, opts PaginationOpts) ([]User, e
 	if err == nil {
 		return users, nil
 	}
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -31848,7 +31848,7 @@ func (t *TelegramCore) AddContact(phone string, firstName string, lastName strin
 }
 
 func (t *TelegramCore) AddContactReturnUserID(phone string, firstName string, lastName string) (string, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return "", err
 	}
@@ -31870,7 +31870,7 @@ func (t *TelegramCore) AddContactReturnUserID(phone string, firstName string, la
 }
 
 func (t *TelegramCore) AddContactWithNote(phone, firstName, lastName, note string, sharePhone bool) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -31943,7 +31943,7 @@ func parseNoteEntities(entitiesJSON string) []tg.MessageEntityClass {
 }
 
 func (t *TelegramCore) AddContactByUserID(userID, firstName, lastName, note, noteEntitiesJSON string, sharePhone bool) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -31970,7 +31970,7 @@ func (t *TelegramCore) AddContactByUserID(userID, firstName, lastName, note, not
 }
 
 func (t *TelegramCore) SuggestContactPhoto(userID string, photoData []byte) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -31993,7 +31993,7 @@ func (t *TelegramCore) SuggestContactPhoto(userID string, photoData []byte) erro
 }
 
 func (t *TelegramCore) SetPersonalContactPhoto(userID string, photoData []byte) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -32015,7 +32015,7 @@ func (t *TelegramCore) SetPersonalContactPhoto(userID string, photoData []byte) 
 }
 
 func (t *TelegramCore) ClearPersonalContactPhoto(userID string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -32036,7 +32036,7 @@ func (t *TelegramCore) DeleteContact(userID string) error {
 }
 
 func (t *TelegramCore) GetBlockedUsers() ([]User, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -32065,7 +32065,7 @@ func (t *TelegramCore) GetBlockedUsers() ([]User, error) {
 }
 
 func (t *TelegramCore) GetBlockedUsersPaged(offset, limit int) ([]User, int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, 0, err
 	}
@@ -32131,7 +32131,7 @@ func parseSavedReaction(s string) tg.ReactionClass {
 }
 
 func (t *TelegramCore) SearchSavedMessagesByReaction(savedPeerID string, reactions []string, offsetID, limit int) ([]Message, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -32215,7 +32215,7 @@ func (t *TelegramCore) SearchMessagesFromCount(chatID string, senderID string) (
 }
 
 func (t *TelegramCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -32259,7 +32259,7 @@ func (t *TelegramCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog
 }
 
 func (t *TelegramCore) SearchGlobalUsers(query string, limit int) ([]map[string]interface{}, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -32289,7 +32289,7 @@ func (t *TelegramCore) SearchGlobalUsers(query string, limit int) ([]map[string]
 }
 
 func (t *TelegramCore) SearchGlobalPosts(query string, opts PaginationOpts) ([]Dialog, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -32319,7 +32319,7 @@ func (t *TelegramCore) SearchGlobalPosts(query string, opts PaginationOpts) ([]D
 }
 
 func (t *TelegramCore) SearchGlobalPostMessages(query string, limit int) ([]Message, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -32543,7 +32543,7 @@ func (t *TelegramCore) SendStickerWithOpts(chatID string, stickerID string, sile
 	if err != nil {
 		return nil, err
 	}
-	accessHash := t.getCachedFileHash(id)
+	accessHash := t.GetCachedFileHash(id)
 	fileRef := t.getCachedFileRef(id)
 	req := &tg.MessagesSendMediaRequest{
 		Peer: inputPeer, RandomID: time.Now().UnixNano(),
@@ -32574,7 +32574,7 @@ func (t *TelegramCore) SendStickerWithCaption(chatID string, stickerID string, c
 	if err != nil {
 		return nil, err
 	}
-	accessHash := t.getCachedFileHash(id)
+	accessHash := t.GetCachedFileHash(id)
 	fileRef := t.getCachedFileRef(id)
 	req := &tg.MessagesSendMediaRequest{
 		Peer: inputPeer, RandomID: time.Now().UnixNano(),
@@ -32670,7 +32670,7 @@ func (t *TelegramCore) MuteChat(chatID string, muted bool) error {
 		return err
 	}
 	unlock()
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -32695,7 +32695,7 @@ func (t *TelegramCore) MuteChatFor(chatID string, durationSeconds int32) error {
 		return err
 	}
 	unlock()
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -32717,21 +32717,21 @@ type ChatNotifySettings struct {
 	ShowPreviews bool
 }
 
-func notifySoundOn(s tg.NotificationSoundClass) bool {
+func NotifySoundOn(s tg.NotificationSoundClass) bool {
 	if _, is := s.(*tg.NotificationSoundNone); is {
 		return false
 	}
 	return true
 }
 
-func notifyPreviewsOf(s *tg.PeerNotifySettings) bool {
+func NotifyPreviewsOf(s *tg.PeerNotifySettings) bool {
 	if v, ok := s.GetShowPreviews(); ok {
 		return v
 	}
 	return true
 }
 
-func chatNotifySettingsFromWire(s *tg.PeerNotifySettings) ChatNotifySettings {
+func ChatNotifySettingsFromWire(s *tg.PeerNotifySettings) ChatNotifySettings {
 	if s == nil {
 		return ChatNotifySettings{SoundOn: true, ShowPreviews: true}
 	}
@@ -32742,12 +32742,12 @@ func chatNotifySettingsFromWire(s *tg.PeerNotifySettings) ChatNotifySettings {
 	return ChatNotifySettings{
 		Muted:        s.MuteUntil > 0,
 		MuteUntil:    muteUntil,
-		SoundOn:      notifySoundOn(s.OtherSound),
-		ShowPreviews: notifyPreviewsOf(s),
+		SoundOn:      NotifySoundOn(s.OtherSound),
+		ShowPreviews: NotifyPreviewsOf(s),
 	}
 }
 
-func notifySettingsInput(muteUntil int32, soundOn, showPreviews *bool) tg.InputPeerNotifySettings {
+func NotifySettingsInput(muteUntil int32, soundOn, showPreviews *bool) tg.InputPeerNotifySettings {
 	settings := tg.InputPeerNotifySettings{}
 	settings.SetMuteUntil(int(muteUntil))
 	if soundOn != nil {
@@ -32769,7 +32769,7 @@ func (t *TelegramCore) GetChatNotifySettings(chatID string) (*ChatNotifySettings
 		return nil, err
 	}
 	unlock()
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -32777,7 +32777,7 @@ func (t *TelegramCore) GetChatNotifySettings(chatID string) (*ChatNotifySettings
 	if err != nil {
 		return nil, err
 	}
-	s := chatNotifySettingsFromWire(res)
+	s := ChatNotifySettingsFromWire(res)
 	return &s, nil
 }
 
@@ -32787,19 +32787,19 @@ func (t *TelegramCore) SetChatNotifySettings(chatID string, muteUntil int32, sou
 		return err
 	}
 	unlock()
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
 	_, err = api.AccountUpdateNotifySettings(ctx, &tg.AccountUpdateNotifySettingsRequest{
 		Peer:     &tg.InputNotifyPeer{Peer: inputPeer},
-		Settings: notifySettingsInput(muteUntil, soundOn, showPreviews),
+		Settings: NotifySettingsInput(muteUntil, soundOn, showPreviews),
 	})
 	return err
 }
 
 func (t *TelegramCore) GetCallsDisabledHere() (bool, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
@@ -32830,7 +32830,7 @@ func (t *TelegramCore) ResetPeerNotifySettings(chatID string) error {
 }
 
 func (t *TelegramCore) ToggleCallsDisabledHere(disabled bool) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -32843,7 +32843,7 @@ func (t *TelegramCore) ToggleCallsDisabledHere(disabled bool) error {
 }
 
 func (t *TelegramCore) UpdateDefaultNotifySettings(peerType string, enabled bool, silent *bool) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -32878,7 +32878,7 @@ func (t *TelegramCore) UpdateDefaultNotifySettings(peerType string, enabled bool
 }
 
 func (t *TelegramCore) MuteDefaultNotifyForDuration(peerType string, seconds int) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -32906,7 +32906,7 @@ func (t *TelegramCore) MuteDefaultNotifyForDuration(peerType string, seconds int
 }
 
 func (t *TelegramCore) GetDefaultNotifySettings(peerType string) (map[string]interface{}, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -32955,7 +32955,7 @@ func (t *TelegramCore) GetDefaultNotifySettings(peerType string) (map[string]int
 }
 
 func (t *TelegramCore) GetReactionsNotifySettings() (map[string]interface{}, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -32991,7 +32991,7 @@ func (t *TelegramCore) GetReactionsNotifySettings() (map[string]interface{}, err
 }
 
 func (t *TelegramCore) SetReactionsNotifySettings(reactionsEnabled bool, reactionsFrom string, pollVotesEnabled bool, pollVotesFrom string, showSenderName bool) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -33019,7 +33019,7 @@ func (t *TelegramCore) SetReactionsNotifySettings(reactionsEnabled bool, reactio
 }
 
 func (t *TelegramCore) GetSavedRingtones() ([]map[string]interface{}, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -33096,7 +33096,7 @@ func (t *TelegramCore) cachedRingtonePath(api *tg.Client, ctx context.Context, d
 }
 
 func (t *TelegramCore) UploadRingtone(fileName, mimeType string, data []byte) (map[string]interface{}, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -33143,7 +33143,7 @@ func (t *TelegramCore) UploadRingtone(fileName, mimeType string, data []byte) (m
 }
 
 func (t *TelegramCore) DeleteRingtone(documentID int64) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -33172,7 +33172,7 @@ func (t *TelegramCore) DeleteRingtone(documentID int64) error {
 }
 
 func (t *TelegramCore) GetNotificationExceptions(peerType string) ([]map[string]interface{}, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -33259,7 +33259,7 @@ func (t *TelegramCore) SendLocation(chatID string, lat float64, lon float64) (*M
 		return nil, err
 	}
 	unlock()
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -33282,7 +33282,7 @@ func (t *TelegramCore) SendLocation(chatID string, lat float64, lon float64) (*M
 	return t.extractMessageFromUpdates(result, chatID), nil
 }
 
-func liveLocationMedia(lat, lon float64, period int) tg.InputMediaClass {
+func LiveLocationMedia(lat, lon float64, period int) tg.InputMediaClass {
 	m := &tg.InputMediaGeoLive{
 		GeoPoint: &tg.InputGeoPoint{Lat: lat, Long: lon},
 	}
@@ -33290,7 +33290,7 @@ func liveLocationMedia(lat, lon float64, period int) tg.InputMediaClass {
 	return m
 }
 
-func liveStopMedia() tg.InputMediaClass {
+func LiveStopMedia() tg.InputMediaClass {
 	m := &tg.InputMediaGeoLive{}
 	m.SetStopped(true)
 	return m
@@ -33302,14 +33302,14 @@ func (t *TelegramCore) SendLiveLocation(chatID string, lat float64, lon float64,
 		return nil, err
 	}
 	unlock()
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
 
 	result, err := api.MessagesSendMedia(ctx, &tg.MessagesSendMediaRequest{
 		Peer:     inputPeer,
-		Media:    liveLocationMedia(lat, lon, period),
+		Media:    LiveLocationMedia(lat, lon, period),
 		RandomID: time.Now().UnixNano(),
 		Message:  "",
 	})
@@ -33326,7 +33326,7 @@ func (t *TelegramCore) StopLiveLocation(chatID, msgID string) error {
 		return err
 	}
 	unlock()
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -33338,7 +33338,7 @@ func (t *TelegramCore) StopLiveLocation(chatID, msgID string) error {
 	_, err = api.MessagesEditMessage(ctx, &tg.MessagesEditMessageRequest{
 		Peer:  inputPeer,
 		ID:    id,
-		Media: liveStopMedia(),
+		Media: LiveStopMedia(),
 	})
 	if err != nil {
 		return fmt.Errorf("stop live location: %w", err)
@@ -33351,7 +33351,7 @@ func (t *TelegramCore) TerminateSession(sessionID string) error {
 	if err != nil {
 		return fmt.Errorf("invalid session ID: %w", err)
 	}
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -33360,7 +33360,7 @@ func (t *TelegramCore) TerminateSession(sessionID string) error {
 }
 
 func (t *TelegramCore) ClearPaymentInfo(clearCredentials, clearShipping bool) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -33704,7 +33704,7 @@ func (t *TelegramCore) ValidatePaymentInfo(chatID, msgID string, info map[string
 }
 
 func (t *TelegramCore) GetConnectedBots() ([]map[string]interface{}, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -33747,7 +33747,7 @@ func (t *TelegramCore) GetConnectedBots() ([]map[string]interface{}, error) {
 }
 
 func (t *TelegramCore) ToggleConnectedBotPaused(chatID string, paused bool) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -33764,7 +33764,7 @@ func (t *TelegramCore) ToggleConnectedBotPaused(chatID string, paused bool) erro
 }
 
 func (t *TelegramCore) DisablePeerConnectedBot(chatID string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -33778,7 +33778,7 @@ func (t *TelegramCore) DisablePeerConnectedBot(chatID string) error {
 }
 
 func (t *TelegramCore) GetSavedSublists(limit, offsetDate, offsetID int, excludePinned bool) ([]SavedSublistInfo, int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, 0, err
 	}
@@ -33907,7 +33907,7 @@ func (t *TelegramCore) GetSavedSublists(limit, offsetDate, offsetID int, exclude
 }
 
 func (t *TelegramCore) GetPinnedSavedSublists() ([]SavedSublistInfo, int, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, 0, err
 	}
@@ -34022,7 +34022,7 @@ func (t *TelegramCore) GetPinnedSavedSublists() ([]SavedSublistInfo, int, error)
 }
 
 func (t *TelegramCore) GetSavedReactionTags(sublistPeerID string) ([]SavedReactionTagInfo, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -34069,7 +34069,7 @@ func (t *TelegramCore) GetSavedReactionTags(sublistPeerID string) ([]SavedReacti
 }
 
 func (t *TelegramCore) RenameSavedReactionTag(emoji string, customID int64, title string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -34091,7 +34091,7 @@ func (t *TelegramCore) RenameSavedReactionTag(emoji string, customID int64, titl
 }
 
 func (t *TelegramCore) GetThemeBySlug(slug string, isDark bool) (*CloudThemeInfo, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -34131,7 +34131,7 @@ func (t *TelegramCore) GetThemeBySlug(slug string, isDark bool) (*CloudThemeInfo
 }
 
 func (t *TelegramCore) CheckGiftCode(slug string) (map[string]interface{}, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -34153,7 +34153,7 @@ func (t *TelegramCore) CheckGiftCode(slug string) (map[string]interface{}, error
 }
 
 func (t *TelegramCore) ApplyGiftCode(slug string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -34162,7 +34162,7 @@ func (t *TelegramCore) ApplyGiftCode(slug string) error {
 }
 
 func (t *TelegramCore) GetPromoSuggestions() (PromoSuggestionsSnapshot, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return PromoSuggestionsSnapshot{}, err
 	}
@@ -34187,7 +34187,7 @@ func (t *TelegramCore) GetPromoSuggestions() (PromoSuggestionsSnapshot, error) {
 }
 
 func (t *TelegramCore) DismissSuggestion(key string) error {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return err
 	}
@@ -34199,7 +34199,7 @@ func (t *TelegramCore) DismissSuggestion(key string) error {
 }
 
 func (t *TelegramCore) GetTodayBirthdayContacts() ([]BirthdayContact, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
@@ -34224,7 +34224,7 @@ func (t *TelegramCore) GetTodayBirthdayContacts() ([]BirthdayContact, error) {
 }
 
 func (t *TelegramCore) GetSelfSuggestionState() (SelfSuggestionState, error) {
-	api, ctx, err := t.withAPI()
+	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return SelfSuggestionState{}, err
 	}

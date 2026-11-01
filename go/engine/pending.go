@@ -30,7 +30,7 @@ const (
 	ActionResendAlbum  = "resend_album"
 )
 
-type sendPayload struct {
+type SendPayload struct {
 	Text            string             `json:"text"`
 	ReplyToID       string             `json:"reply_to_id,omitempty"`
 	Entities        []cores.TextEntity `json:"entities,omitempty"`
@@ -144,7 +144,7 @@ func (e *Engine) SendMessage(accountID, chatID, text, replyToID string, entities
 	localID := generateLocalID()
 	now := time.Now().UnixMilli()
 
-	payload, _ := json.Marshal(sendPayload{
+	payload, _ := json.Marshal(SendPayload{
 		Text:            text,
 		ReplyToID:       replyToID,
 		Entities:        entities,
@@ -318,7 +318,7 @@ func (e *Engine) SendMediaAlbumFromPaths(accountID, chatID string, paths []strin
 	}
 	for _, m := range msgs {
 		if m != nil {
-			cached := e.cacheMessage(accountID, chatID, m)
+			cached := e.CacheMessage(accountID, chatID, m)
 			e.emitEvent(EventMsgReceived, accountID, MsgReceivedEvent{
 				AccountID: accountID,
 				ChatID:    chatID,
@@ -367,7 +367,7 @@ func (e *Engine) UploadFileEx(accountID, chatID, filePath string, opts cores.Upl
 	}
 
 	if msg != nil {
-		cached := e.cacheMessage(accountID, chatID, msg)
+		cached := e.CacheMessage(accountID, chatID, msg)
 		e.emitEvent(EventMsgReceived, accountID, MsgReceivedEvent{
 			AccountID: accountID,
 			ChatID:    chatID,
@@ -588,7 +588,7 @@ func (e *Engine) PreloadResendMedia(accountID, sourceChatID string, msgIDs []str
 		if ext == "" {
 			ext = ".bin"
 		}
-		tmpPath := filepath.Join(tmpDir, safePathSegment(msgID)+ext)
+		tmpPath := filepath.Join(tmpDir, SafePathSegment(msgID)+ext)
 
 		if info, statErr := os.Stat(tmpPath); statErr == nil {
 			if expectedSize <= 0 || info.Size() >= expectedSize {
@@ -742,7 +742,7 @@ func (e *Engine) processPendingItem(accountID, chatID, localID, action string, p
 	return err
 }
 
-func sendExtras(p sendPayload) map[string]interface{} {
+func SendExtras(p SendPayload) map[string]interface{} {
 	extra := map[string]interface{}{}
 	if p.Silent {
 		extra["silent"] = true
@@ -777,10 +777,10 @@ func sendExtras(p sendPayload) map[string]interface{} {
 func (e *Engine) executePending(acc *Account, chatID, localID, action string, payload []byte) error {
 	switch action {
 	case ActionSend:
-		var p sendPayload
+		var p SendPayload
 		json.Unmarshal(payload, &p)
 
-		extra := sendExtras(p)
+		extra := SendExtras(p)
 		msg := cores.OutgoingMessage{Text: p.Text, ReplyToID: p.ReplyToID, Entities: p.Entities, Extra: extra}
 		log.Printf("[engine] executePending SEND: chatID=%s replyToID=%q text=%q silent=%v scheduleDate=%d topicRootID=%q", chatID, p.ReplyToID, p.Text, p.Silent, p.ScheduleDate, p.TopicRootID)
 
@@ -1040,10 +1040,10 @@ func (e *Engine) executeResendAsOwn(acc *Account, p resendAsOwnPayload) error {
 				stickerExt = ".bin"
 			}
 			if rd, derr := resendTmpDir(); derr == nil {
-				os.Remove(filepath.Join(rd, safePathSegment(p.MsgID)+stickerExt))
+				os.Remove(filepath.Join(rd, SafePathSegment(p.MsgID)+stickerExt))
 			}
 			if sentMsg != nil {
-				e.cacheMessage(acc.ID, p.ToChatID, sentMsg)
+				e.CacheMessage(acc.ID, p.ToChatID, sentMsg)
 			}
 			if text != "" && (sentMsg == nil || sentMsg.Text != text) {
 				e.resendText(acc, p.ToChatID, text, p.Silent, p.ScheduleDate)
@@ -1061,7 +1061,7 @@ func (e *Engine) executeResendAsOwn(acc *Account, p resendAsOwnPayload) error {
 		if ext == "" {
 			ext = ".bin"
 		}
-		tmpPath := filepath.Join(tmpDir, safePathSegment(p.MsgID)+ext)
+		tmpPath := filepath.Join(tmpDir, SafePathSegment(p.MsgID)+ext)
 		defer os.Remove(tmpPath)
 
 		ref := cores.FileRef{
@@ -1137,7 +1137,7 @@ func (e *Engine) executeResendAsOwn(acc *Account, p resendAsOwnPayload) error {
 				return fmt.Errorf("upload resend: %w", err)
 			}
 			if sentMsg != nil {
-				e.cacheMessage(acc.ID, p.ToChatID, sentMsg)
+				e.CacheMessage(acc.ID, p.ToChatID, sentMsg)
 			}
 			return nil
 		}
@@ -1150,7 +1150,7 @@ func (e *Engine) executeResendAsOwn(acc *Account, p resendAsOwnPayload) error {
 			e.resendText(acc, p.ToChatID, text, p.Silent, p.ScheduleDate)
 		}
 		if sentMsg != nil {
-			e.cacheMessage(acc.ID, p.ToChatID, sentMsg)
+			e.CacheMessage(acc.ID, p.ToChatID, sentMsg)
 		}
 	} else if text != "" {
 		return e.resendText(acc, p.ToChatID, text, p.Silent, p.ScheduleDate)
@@ -1174,7 +1174,7 @@ func (e *Engine) resendText(acc *Account, chatID, text string, silent bool, sche
 		return err
 	}
 	if sentMsg != nil {
-		e.cacheMessage(acc.ID, chatID, sentMsg)
+		e.CacheMessage(acc.ID, chatID, sentMsg)
 	}
 	return nil
 }
@@ -1233,7 +1233,7 @@ func (e *Engine) executeResendAlbum(acc *Account, p resendAlbumPayload) error {
 		if ext == "" {
 			ext = ".bin"
 		}
-		tmpPath := filepath.Join(tmpDir, safePathSegment(msgID)+ext)
+		tmpPath := filepath.Join(tmpDir, SafePathSegment(msgID)+ext)
 
 		ref := cores.FileRef{
 			ID: remoteRef.String, Name: fName.String,
@@ -1305,7 +1305,7 @@ func (e *Engine) executeResendAlbum(acc *Account, p resendAlbumPayload) error {
 		} else {
 			for _, m := range msgs {
 				if m != nil {
-					e.cacheMessage(acc.ID, p.ToChatID, m)
+					e.CacheMessage(acc.ID, p.ToChatID, m)
 				}
 			}
 			for _, t := range textOnly {
@@ -1331,7 +1331,7 @@ func (e *Engine) executeResendAlbum(acc *Account, p resendAlbumPayload) error {
 			continue
 		}
 		if sentMsg != nil {
-			e.cacheMessage(acc.ID, p.ToChatID, sentMsg)
+			e.CacheMessage(acc.ID, p.ToChatID, sentMsg)
 		}
 	}
 	for _, t := range textOnly {
