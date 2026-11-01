@@ -6,10 +6,13 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
+
 	. "uniclient/engine"
 
+	"uniclient/audio"
 	"uniclient/voice"
 )
 
@@ -28,52 +31,117 @@ func recToneFrames(n int) [][]byte {
 	return frames
 }
 
-func startRecorderNoDevice(t *testing.T, e *Engine) *VoiceRecorder {
-	t.Helper()
-	r := e.Recorder()
-	enc, err := voice.NewEncoder(24000)
-	if err != nil {
-		t.Fatalf("encoder: %v", err)
+func recSilenceFrames(n int) [][]byte {
+	frames := make([][]byte, n)
+	for i := range frames {
+		frames[i] = make([]byte, voice.FrameBytes)
 	}
-	r.ForTestMu().Lock()
-	r.ForTestSetEnc(enc)
-	r.ForTestSetStarted(time.Now())
-	r.ForTestSetDone(make(chan struct{}))
-	close(r.ForTestDone())
-	r.ForTestMu().Unlock()
-	return r
+	return frames
+}
+
+type micDevice struct {
+	mu     sync.Mutex
+	frames chan []byte
+}
+
+func (d *micDevice) StartMic() (<-chan []byte, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.frames != nil {
+		return nil, audio.ErrNoAudio
+	}
+	d.frames = make(chan []byte, 256)
+	return d.frames, nil
+}
+
+func (d *micDevice) StopMic() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.frames != nil {
+		close(d.frames)
+		d.frames = nil
+	}
+}
+
+func (d *micDevice) StartPlayback(func([]int16)) error { return audio.ErrNoAudio }
+func (d *micDevice) StopPlayback()                     {}
+func (d *micDevice) Close()                            { d.StopMic() }
+
+func (d *micDevice) push(frames [][]byte) {
+	for _, f := range frames {
+		d.frames <- f
+	}
+}
+
+func startRecording(t *testing.T, e *Engine) *micDevice {
+	t.Helper()
+	dev := &micDevice{}
+	installDevice(t, func() (audio.Device, error) { return dev, nil })
+	if err := e.StartVoiceRecording(); err != nil {
+		t.Fatalf("StartVoiceRecording: %v", err)
+	}
+	t.Cleanup(func() { e.CancelVoiceRecording() })
+	return dev
+}
+
+func levelReachesAbove(t *testing.T, e *Engine, min float64) float64 {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		lvl := e.VoiceRecording().Level
+		if lvl >= min {
+			return lvl
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("level %.3f never rose above %v", lvl, min)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func levelReachesBelow(t *testing.T, e *Engine, max float64) float64 {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		lvl := e.VoiceRecording().Level
+		if lvl <= max {
+			return lvl
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("level %.3f never dropped below %v", lvl, max)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func levelStaysBelow(t *testing.T, e *Engine, max float64, window time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(window)
+	for time.Now().Before(deadline) {
+		if lvl := e.VoiceRecording().Level; lvl > max {
+			t.Fatalf("level %.3f exceeded %v on silence", lvl, max)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
 }
 
 func TestVoiceRecorderRoundTrip(t *testing.T) {
 	e := &Engine{}
-	r := startRecorderNoDevice(t, e)
+	dev := startRecording(t, e)
 
-	frames := recToneFrames(50)
-	for _, f := range frames {
-		if err := r.ForTestFeedFrame(f); err != nil {
-			t.Fatalf("feedFrame: %v", err)
-		}
-	}
+	dev.push(recToneFrames(50))
 
-	r.ForTestMu().Lock()
-	pkts := append([][]byte(nil), r.ForTestPackets()...)
-	gran := append([]int64(nil), r.ForTestGranule()...)
-	r.ForTestSetEnc(nil)
-	r.ForTestSetPackets(nil)
-	r.ForTestMu().Unlock()
-
-	if len(pkts) != 50 || len(gran) != 50 {
-		t.Fatalf("packet/granule counts: %d/%d", len(pkts), len(gran))
-	}
-	if gran[49] != 50*voice.FrameSamples {
-		t.Fatalf("final granule %d, want %d", gran[49], 50*voice.FrameSamples)
-	}
-
-	path, err := WriteVoiceOgg(pkts, gran, t.TempDir())
+	path, seconds, err := e.StopVoiceRecording()
 	if err != nil {
-		t.Fatalf("writeVoiceOgg: %v", err)
+		t.Fatalf("StopVoiceRecording: %v", err)
+	}
+	if path == "" {
+		t.Fatalf("no voice note written (seconds %.2f)", seconds)
 	}
 	defer os.Remove(path)
+	if seconds < 0.9 || seconds > 1.1 {
+		t.Fatalf("recorded %.2fs, want ~1s", seconds)
+	}
 
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -128,59 +196,47 @@ func TestVoiceRecorderRoundTrip(t *testing.T) {
 	if power < 0.05 {
 		t.Fatalf("440 Hz magnitude %.4f — tone did not survive the round-trip", power)
 	}
-	t.Logf("voice-note round-trip: 50 packets, %.2fs, 440Hz magnitude %.3f", dur, power)
+	t.Logf("voice-note round-trip: 50 frames, %.2fs, 440Hz magnitude %.3f", dur, power)
 }
 
 func TestVoiceRecorderLevelAndMinDuration(t *testing.T) {
 	e := &Engine{}
-	r := startRecorderNoDevice(t, e)
+	dev := startRecording(t, e)
 
-	for _, f := range recSilenceFrames(10) {
-		r.ForTestFeedFrame(f)
-	}
-	r.ForTestMu().Lock()
-	lvl := r.ForTestLevel()
-	r.ForTestMu().Unlock()
-	if lvl > 0.05 {
-		t.Fatalf("silence level %.3f, want ~0", lvl)
-	}
+	dev.push(recSilenceFrames(10))
+	levelStaysBelow(t, e, 0.05, 100*time.Millisecond)
 
-	for _, f := range recToneFrames(20) {
-		r.ForTestFeedFrame(f)
-	}
-	r.ForTestMu().Lock()
-	lvl = r.ForTestLevel()
-	r.ForTestMu().Unlock()
-	if lvl < 0.1 {
+	dev.push(recToneFrames(20))
+	if lvl := levelReachesAbove(t, e, 0.1); lvl < 0.1 {
 		t.Fatalf("tone level %.3f, want >0.1", lvl)
 	}
 
+	dev.push(recSilenceFrames(10))
+	if lvl := levelReachesBelow(t, e, 0.05); lvl > 0.05 {
+		t.Fatalf("level after silence %.3f, want ≤0.05", lvl)
+	}
+
 	e2 := &Engine{}
-	r2 := startRecorderNoDevice(t, e2)
-	for _, f := range recToneFrames(30) {
-		r2.ForTestFeedFrame(f)
+	dev2 := startRecording(t, e2)
+	dev2.push(recToneFrames(30))
+	path, seconds, err := e2.StopVoiceRecording()
+	if err != nil {
+		t.Fatalf("StopVoiceRecording(short): %v", err)
 	}
-	r2.ForTestMu().Lock()
-	pkts := append([][]byte(nil), r2.ForTestPackets()...)
-	gran := append([]int64(nil), r2.ForTestGranule()...)
-	r2.ForTestSetEnc(nil)
-	r2.ForTestSetPackets(nil)
-	r2.ForTestMu().Unlock()
-	path, err := WriteVoiceOgg(pkts, gran, t.TempDir())
-	if err != nil || path == "" {
-		t.Fatalf("direct write of a short capture must still work: %v", err)
+	if path != "" {
+		os.Remove(path)
+		t.Fatalf("sub-minimum capture must be dropped, got %s", path)
 	}
-	secs := float64(30*voice.FrameSamples) / float64(voice.SampleRate)
-	if secs < 0.58 || secs > 0.62 {
-		t.Fatalf("short capture duration %.3f", secs)
+	if seconds < 0.58 || seconds > 0.62 {
+		t.Fatalf("short capture duration %.3f", seconds)
 	}
 }
 
 func TestVoiceRecorderNoMicIsHonest(t *testing.T) {
 	e := &Engine{}
+	installDevice(t, func() (audio.Device, error) { return nil, audio.ErrNoAudio })
 	if err := e.StartVoiceRecording(); err == nil {
-		e.CancelVoiceRecording()
-		return
+		t.Fatal("failed mic must error out of StartVoiceRecording")
 	}
 	st := e.VoiceRecording()
 	if st.Active || st.HasMic {
@@ -190,25 +246,23 @@ func TestVoiceRecorderNoMicIsHonest(t *testing.T) {
 
 func TestVoiceRecorderStateSnapshot(t *testing.T) {
 	e := &Engine{}
-	r := startRecorderNoDevice(t, e)
-	for _, f := range recToneFrames(5) {
-		r.ForTestFeedFrame(f)
-	}
+	dev := startRecording(t, e)
+	dev.push(recToneFrames(5))
+	levelReachesAbove(t, e, 0.05)
+
 	st := e.VoiceRecording()
-	if !st.Active || st.HasMic != true && st.Seconds < 0 {
+	if !st.Active || !st.HasMic {
 		t.Fatalf("snapshot: %+v", st)
 	}
-	if !st.Active {
-		t.Fatal("recording must report Active while the encoder exists")
+	if st.Seconds < 0 {
+		t.Fatalf("snapshot seconds %.3f", st.Seconds)
 	}
-}
 
-func recSilenceFrames(n int) [][]byte {
-	frames := make([][]byte, n)
-	for i := range frames {
-		frames[i] = make([]byte, voice.FrameBytes)
+	e.CancelVoiceRecording()
+	st = e.VoiceRecording()
+	if st.Active || st.HasMic {
+		t.Fatalf("cancel must idle the recorder: %+v", st)
 	}
-	return frames
 }
 
 func TestWriteVoiceOggEmpty(t *testing.T) {

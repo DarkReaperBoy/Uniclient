@@ -4,10 +4,9 @@ import (
 	"database/sql"
 	"sync"
 	"time"
-	"uniclient/audio"
+
 	"uniclient/cores"
 	"uniclient/utils"
-	"uniclient/voice"
 )
 
 func (x *Engine) ForTestDb() *sql.DB {
@@ -20,10 +19,6 @@ func (x *AuthFlow) ForTestCollected() map[string]string {
 
 func (x *Engine) ForTestMedia() *MediaManager {
 	return x.media
-}
-
-func (x *VoiceRecorder) ForTestGranule() []int64 {
-	return x.granule
 }
 
 func (x *oggPage) ForTestGranule() int64 {
@@ -58,10 +53,6 @@ func (x *MediaStream) ForTestMu() *sync.Mutex {
 	return &x.mu
 }
 
-func (x *VoiceRecorder) ForTestMu() *sync.Mutex {
-	return &x.mu
-}
-
 func (x *avatarState) ForTestMu() *sync.Mutex {
 	return &x.mu
 }
@@ -86,28 +77,8 @@ func (x *MediaStream) ForTestDone() bool {
 	return x.done
 }
 
-func (x *VoiceRecorder) ForTestDone() chan struct{} {
-	return x.done
-}
-
-func (x *VoiceRecorder) ForTestPackets() [][]byte {
-	return x.packets
-}
-
-func (x *VoiceRecorder) ForTestLevel() float64 {
-	return x.level
-}
-
 func (x *Engine) ForTestConfig() *utils.AppConfig {
 	return x.config
-}
-
-func (x *VoiceRecorder) ForTestSess() *audio.Session {
-	return x.sess
-}
-
-func (x *VoiceRecorder) ForTestSetSess(v *audio.Session) {
-	x.sess = v
 }
 
 func (x *MediaManager) ForTestQueue() []*DownloadJob {
@@ -142,32 +113,12 @@ func (x *Engine) ForTestSetMediaDir(v string) {
 	x.mediaDir = v
 }
 
-func (x *voiceRunner) ForTestSetEnc(v *voice.Encoder) {
-	x.enc = v
-}
-
-func (x *VoiceRecorder) ForTestSetEnc(v *voice.Encoder) {
-	x.enc = v
-}
-
-func (x *VoiceRecorder) ForTestSetStarted(v time.Time) {
-	x.started = v
-}
-
 func (x *httpImgFlight) ForTestSetDone(v chan struct{}) {
 	x.done = v
 }
 
 func (x *MediaStream) ForTestSetDone(v bool) {
 	x.done = v
-}
-
-func (x *VoiceRecorder) ForTestSetDone(v chan struct{}) {
-	x.done = v
-}
-
-func (x *VoiceRecorder) ForTestSetPackets(v [][]byte) {
-	x.packets = v
 }
 
 func (x *sponsoredCacheEntry) ForTestSetFetchedAt(v time.Time) {
@@ -184,10 +135,6 @@ func (x *httpImageCache) ForTestStore(key string, data []byte) {
 
 func (x *VoiceVAD) ForTestNeedTerminator() bool {
 	return x.needTerminator()
-}
-
-func (x *VoiceRecorder) ForTestFeedFrame(frame []byte) error {
-	return x.feedFrame(frame)
 }
 
 func (x *httpImageCache) ForTestGet(key string) []byte {

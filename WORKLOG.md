@@ -7,20 +7,20 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: H-1 hook-debt retirement, iteration 1 LANDED — audio.SetDeviceFactory seam (the SetCoreFactory shape) retires the MediaPlayer hook cluster (10 hooks dead); player tests drive the real device path
-- next: H-1 iteration 2 — VoiceRecorder mic cluster (ForTestSess/SetSess/Mu/Granule/Packets/...) through the same factory + a mic fake device; then ForTestDb/ForTestSetAccounts (the two biggest remaining clusters)
+- front: H-1 hook-debt retirement, iterations 1+2 LANDED — audio.SetDeviceFactory seam retires the MediaPlayer AND VoiceRecorder hook clusters (23 hooks dead, engine 64→41); player + recorder tests drive real device journeys
+- next: H-1 iteration 3 — the big clusters: ForTestSetAccounts (54 uses; route through real AddAccount/SetCoreFactory flows) and ForTestDb (46 uses; seed through real engine APIs or a test DB fixture path); then VAD/media clusters
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop, Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: local full tier green (quick gate incl. js leg; race tests/audio+tests/engine 90.2s; windows+js-wasm builds; smoke exit 0; comment-ban clean) — verify.yml dispatch pending this push
+- last-gate: local full tier green both iterations (quick gate incl. js leg; race full tests/engine 90s; windows+js-wasm builds; smoke exit 0; comment-ban clean) — verify.yml 41336426885 in flight on 3aa4cdda; dispatch on iteration-2 HEAD pending
 
 ## Open items
 
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
-| H-1 | cores/engine testhooks*.go | ForTest* hooks are debt (§5.3): ~240 hooks left after session 345 (engine 64→54) | session 345 entry | retire hooks as flows gain exported APIs; prune when a hook's last use dies |
+| H-1 | cores/engine testhooks*.go | ForTest* hooks are debt (§5.3): ~227 hooks left after session 345 (engine 64→41) | session 345 entry | retire hooks as flows gain exported APIs; prune when a hook's last use dies |
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 302 identifiers exported purely for the tests move (API noise: TsParseInit1, ForTest-adjacent) | commit 27faa5a4 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
 
-## Session 345 — H-1 iteration 1: MediaPlayer hook cluster retired via audio device factory (2026-11-02)
+## Session 345 — H-1: audio device factory retires the MediaPlayer + VoiceRecorder hook clusters (2026-11-02)
 
 - Atomic change: `audio.SetDeviceFactory(func() (Device, error))` — the exact SetCoreFactory
   shape the codebase already blesses (mutex-guarded; nil restores platform truth;
@@ -49,6 +49,31 @@ owner order — that history lives in git if ever needed.
   degradation); headless smoke: engine ready, vault+dirs created, SIGTERM → exit 0.
 - H-1 ledger: engine hooks 64 → 54 (~250 → ~240 across packages). Next: VoiceRecorder
   mic cluster through the same factory.
+
+### Iteration 2 — VoiceRecorder mic cluster retired (same session)
+
+- voicerec_test.go now drives the REAL mic journey: StartVoiceRecording → micDevice
+  (fake Device whose StartMic hands the recorder a test-fed channel) → the real micLoop
+  goroutine → StopVoiceRecording → the written OGG read back and decoded. The
+  startRecorderNoDevice half-initialized-recorder helper (enc/started/done force-set
+  through hooks) is gone.
+- New/stronger pins: sub-minimum captures are DROPPED (Stop on a 0.6s capture → path "",
+  seconds ~0.6, no error — never pinned before, the old test wrote the OGG directly
+  instead); NoMicIsHonest deterministic (error factory — was a no-op on pulse machines);
+  level meter pinned through VoiceRecording().Level with an EMA decay leg (tone → >0.1,
+  then silence → ≤0.05, deadline-polled — monotone so deterministic both ways); cancel
+  idles the recorder; round-trip decode + 440Hz magnitude kept, now from the real output
+  file. Silence-keeps-level-0 leg is window-polled (heuristic; the decay leg covers the
+  math deterministically) — stated honestly.
+- Retired: VoiceRecorder ForTestMu/Granule/Done/Packets/Level/Sess/SetSess/SetEnc/
+  SetStarted/SetDone/SetPackets/FeedFrame (12) + voiceRunner ForTestSetEnc (zero uses
+  anywhere) — engine hooks 54 → 41. The dead write-only micCh field removed from
+  voicerec.go (white-box-era leftover).
+- Evidence: converted tests 5/5 green; -race full tests/engine 89.8s green (the new
+  micLoop concurrency included); windows + js/wasm builds ok; smoke exit 0; gofmt +
+  strip_comments --check clean (292 files). No behavior change to production code
+  (only the dead field removal) — refactor iteration, RED n/a per the session-343
+  migration precedent.
 
 ## Session 344 — owner redirect #3: product-surface laws into AGENTS.md §1 (2026-11-01)
 

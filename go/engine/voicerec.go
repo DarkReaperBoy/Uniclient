@@ -33,8 +33,7 @@ type VoiceRecorder struct {
 	level   float64
 	started time.Time
 
-	micCh <-chan []byte
-	done  chan struct{}
+	done chan struct{}
 }
 
 func (e *Engine) newVoiceRecorder() *VoiceRecorder {
@@ -91,7 +90,6 @@ func (e *Engine) StartVoiceRecording() error {
 	r.samples = 0
 	r.level = 0
 	r.started = time.Now()
-	r.micCh = frames
 	r.done = make(chan struct{})
 	go r.micLoop(frames)
 	return nil
