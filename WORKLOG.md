@@ -7,10 +7,10 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: 2026-11-01 owner redirect #2 FULLY EXECUTED + CI-GATED — GUI removed, tests in go/tests/, AGENTS.md v4.1 (commits bcead437, 27faa5a4, f80f9b2d + flake pin a05066c8)
-- next: standby for the owner's next instruction; treat it as the new front and execute it completely (never ask, never wait)
+- front: 2026-11-01 owner redirect #3 — AGENTS.md §1.19-21 product-surface laws added (no premium/paid/useless feature or look; lean: least deps/size/resources/latency on phone+desktop+web; production code + clean code rules + refactor-as-you-go + senior-dev intuition, SOTA bar); ceiling 320→330
+- next: gate of record for the docs commit (verify dispatch pending), then standby for the owner's next instruction (never ask, never wait)
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop, Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: CI verify **41317140352 = SUCCESS on a05066c8** — all 3 jobs, all steps (comment-ban, gofmt, vet, vet-live, test, race tests/cores subset, headless smoke, nix build + nix run smoke, windows exe, js/wasm check); flake.yml 41316797193 pinned the new vendorHash first
+- last-gate: pending verify dispatch on the §1.19-21 commit; previous green — CI verify 41317140352 = SUCCESS on a05066c8 (all 3 jobs, all steps)
 
 ## Open items
 
@@ -19,6 +19,27 @@ owner order — that history lives in git if ever needed.
 | H-1 | cores/engine testhooks*.go | ForTest* hooks are debt (§5.3): ~260 hooks exist because the suites were white-box | AGENTS.md §5.3 (2026-11-01) | retire hooks as flows gain exported APIs; prune when a hook's last use dies |
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 302 identifiers exported purely for the tests move (API noise: TsParseInit1, ForTest-adjacent) | commit 27faa5a4 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
+
+## Session 344 — owner redirect #3: product-surface laws into AGENTS.md §1 (2026-11-01)
+
+- Owner order (intent, kept short as asked): nothing from premium/paid or any useless
+  feature/look ever; support all phone + desktop + web with least dependency/size/
+  hardware resource/latency; refactor clunky code as you go; unit tests over every
+  user scenario PLUS the agent itself using the app and navigating it with any tool it
+  can; "clean code rules" (deliberately unspecified); senior-dev intuition + common
+  sense; production code; nothing less than SOTA perfection.
+- **Added §1.19-21 (this commit):** 19 no-premium/no-bloat product surface; 20 lean on
+  every axis for phone/desktop/web (deps/size/resources/latency as hard budgets); 21
+  production code + clean code rules + refactor-as-you-go + senior-dev intuition with
+  the SOTA bar. Ceiling 320→330, updated in all 3 places it is stated (line 29, §10,
+  §11).
+- Deliberately NOT duplicated (already law, verified before writing): phone+desktop+
+  web targets = §1.2-1.4; size-based responsive UI = §6.4 (3/2/1-pane dp breakpoints,
+  answering the owner's "maybe size based?"); agent plays the app through its real
+  interface with whatever tool fits (Xvfb+xdotool, Puppeteer, event stream) = §4.1-5;
+  scenario-complete unit tests = §4.7; small release binaries = §1.6.
+- Docs-only change — no ladder tier touched (§9/§11); pre-push invariants checked
+  locally: no secrets/token anywhere in the tree, WORKLOG < 300 lines, AGENTS ≤ ~330.
 
 ## Session 343 — owner redirect #2: GUI removal + tests to /tests + AGENTS.md v4.1 (2026-11-01)
 

@@ -26,7 +26,8 @@ engine host. The cores and the engine are the product.
 
 This file is **law + reference only** — history and session state live in WORKLOG.md,
 never here. If the code contradicts anything here, the code wins: fix this file in the
-same commit. Hard ceiling ~320 lines (raised 2026-11-01 when the tests + GUI-rebuild laws were added).
+same commit. Hard ceiling ~330 lines (raised 2026-11-01 for the tests + GUI-rebuild +
+product-surface laws).
 
 ## 0. Boot — every session, in order
 
@@ -83,6 +84,15 @@ same commit. Hard ceiling ~320 lines (raised 2026-11-01 when the tests + GUI-reb
     tsdeclarations) — never invent wire behavior.
 18. **100% certainty = differential proof:** official client/tool vs OUR build, bytes
     and behavior compared. "Matches the docs" is never 100%.
+19. **No premium, no bloat:** nothing premium/paid ever ships — no paid-tier feature,
+    no useless feature, no useless look; if it is not load-bearing for free chatting,
+    it does not exist in this product.
+20. **Lean on every axis, every platform — phone, desktop, web alike:** least
+    dependencies, least size, least hardware resource use, least latency — each one a
+    hard budget, never an afterthought.
+21. **This is production code obeying clean code rules.** Refactor clunky code as you
+    go — never leave it for later; senior-dev intuition and common sense decide the
+    ties; the bar is nothing short of SOTA perfection.
 
 ## 2. No comments in code. Ever.
 
@@ -292,7 +302,7 @@ pre-tag.
 ## 10. Files, formats & context hygiene
 
 - **AGENTS.md** — this file; law + reference only; no history or session state; fix or
-  cut anything the code disproves, in the same commit; ≤ ~320 lines.
+  cut anything the code disproves, in the same commit; ≤ ~330 lines.
 - **WORKLOG.md** — the ONLY state file: **STATE block** (≤8 lines: front | next |
   owner-waiting | last-gate), rewritten every session; then open items (topmost first,
   severity order: `| ID | where | what | evidence | next step |`; OPEN / BLOCKED /
@@ -318,4 +328,4 @@ prerelease off, ordering the GUI build, setting the next direction.
 **Before every push, verify:** every ladder tier your change touches is green; the
 comment ban holds (`strip_comments.py --check` clean); no TODO/FIXME/placeholder
 markers and no dead UI; no secrets/tokens anywhere; error messages leak no internals;
-WORKLOG STATE current; AGENTS.md still ≤ ~320 lines; repo stats still Go.
+WORKLOG STATE current; AGENTS.md still ≤ ~330 lines; repo stats still Go.
