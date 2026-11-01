@@ -1,12 +1,12 @@
 #!/bin/sh
-# The executable gate (AGENTS.md §7) — enforcement is code, not memory.
+# The executable gate (AGENTS.md §9) — enforcement is code, not memory.
 #
 # Usage: scripts/gate.sh quick|full [base-ref]
 #   quick [base] — gofmt + vet + tests on the packages changed since <base>
 #          (default origin/main) AND every package that imports them (test
 #          imports count as edges). Run after every commit; mid-work it also
 #          covers staged + unstaged edits (working tree vs base).
-#   full  — every §7 tier except live/owner rungs: gofmt everywhere, vet +
+#   full  — every §9 tier except live/owner rungs: gofmt everywhere, vet +
 #          tests for ALL packages (native leg + js/wasm leg for audio),
 #          cross-build (windows). The web E2E + Xvfb GUI tiers return with
 #          the rebuilt GUI (AGENTS.md §6).
@@ -36,7 +36,7 @@ RUNNER="$ROOT/scripts/wasm-test-runner.sh"
 fail() { echo "gate: FAIL — $*" >&2; exit 1; }
 
 # go_run CMD... — run a go invocation; an OOM-killed COMPILE (gotd's tg needs
-# >4GB free RAM; this box has a 4GiB cgroup) degrades to one EXPLICIT §9.7
+# >4GB free RAM; this box has a 4GiB cgroup) degrades to one EXPLICIT §9-rung-7
 # skip line — CI verify.yml is the real gate on such machines. Anything else
 # is a hard fail. Output is echoed either way.
 go_run() {
@@ -45,7 +45,7 @@ go_run() {
                 cat "$out"; rm -f "$out"; return 0
         fi
         if grep -q "compile: signal: killed" "$out"; then
-                echo "SKIP (§7 rung 7 — compile OOM, machine too small for gotd; dispatch verify.yml): $*"
+                echo "SKIP (§9 rung 7 — compile OOM, machine too small for gotd; dispatch verify.yml): $*"
                 rm -f "$out"; return 0
         fi
         cat "$out"; rm -f "$out"

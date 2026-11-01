@@ -1,5 +1,5 @@
 #!/bin/sh
-# Small-machine full quality gate (AGENTS.md §7) for boxes that cannot
+# Small-machine full quality gate (AGENTS.md §9) for boxes that cannot
 # compile gotd's tg package with default GC settings (needs ≥4GB free).
 #
 # Usage: scripts/dev-test.sh [goos: js|linux] — default runs everything.

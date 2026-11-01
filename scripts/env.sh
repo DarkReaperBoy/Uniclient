@@ -11,7 +11,7 @@
 #   4. (cd go && go mod download)  # refill the module cache (~1.2G)
 #
 # Machine truths: 4GiB cgroup — gotd native compiles OOM here, so gate.sh falls
-# back to CI dispatch (verify.yml; AGENTS.md §7). Long processes are reaped between tool
+# back to CI dispatch (verify.yml; AGENTS.md §9). Long processes are reaped between tool
 # calls — run foreground; the build cache carries progress across calls.
 
 # Sourced, never executed (exports must reach the caller's shell): `. scripts/env.sh`
