@@ -503,16 +503,8 @@ var liveDurationChoices = []liveDurationChoice{
 	{480, "8 hours"},
 }
 
-// liveDurationClickables pools the preset chips.
-
-// liveDurationSelected is the picked preset index (session state).
-var liveDurationSelected = 0
-
-// a.wid.attachDlgLiveBtn toggles the "share live location" mode; attachDlgLiveOn
-// is the toggle's state (reset when the dialog opens).
-var attachDlgLiveOn bool
-
-// attachDlgStopBtn stops an outgoing share from the bubble chip.
+// The live toggle + preset pick live on the App (R56): per-window
+// GUI-loop state, reset when the dialog opens.
 
 func (a *App) liveStopClickable(key string) *widget.Clickable {
 	if c, ok := a.wid.liveStopBtns[key]; ok {
@@ -602,8 +594,8 @@ var (
 
 // openAttachDialog opens the location/contact helper (needs an open chat).
 func (a *App) openAttachDialog(kind string) {
-	attachDlgLiveOn = false // live mode never leaks across dialog opens
-	liveDurationSelected = 0
+	a.attachLiveOn = false // live mode never leaks across dialog opens
+	a.attachLiveSel = 0
 	a.mu.Lock()
 	account := ""
 	if a.selected != nil {
@@ -617,23 +609,50 @@ func (a *App) openAttachDialog(kind string) {
 	a.mu.Unlock()
 	a.invalidate()
 	if st != nil && kind == "contact" {
-		account, st2 := account, st
 		go func() {
 			contacts, err := a.eng.GetContacts(account)
-			a.mu.Lock()
-			if a.attachDlg != st2 {
-				a.mu.Unlock()
-				return
-			}
-			if err != nil {
-				st2.err = err.Error()
-			} else {
-				st2.contacts, st2.loaded = contacts, true
-			}
-			a.mu.Unlock()
-			a.invalidate()
+			a.attachContactsDone(account, kind, contacts, err)
 		}()
 	}
+}
+
+// attachContactsDone installs the contact-list load. R57: through the
+// copy-on-write installer with an account+kind guard (the R44 rule —
+// field guards, not pointer identity, under copy-on-write); a dialog
+// closed or reopened for another account/chat is not touched.
+func (a *App) attachContactsDone(account, kind string, contacts []engine.ContactInfo, err error) {
+	if !a.updateAttachDlg(func(st *attachDlgState) bool {
+		if st.account != account || st.kind != kind {
+			return false
+		}
+		if err != nil {
+			st.err = err.Error()
+			return true
+		}
+		st.contacts, st.loaded = contacts, true
+		return true
+	}) {
+		return
+	}
+	a.invalidate()
+}
+
+// updateAttachDlg copy-on-write installs a mutated attach-dialog
+// head. R57: attachDlgState is frame-carried as a POINTER, so the
+// frame and the head share the struct — every writer goes through
+// here so a frame's snapshot stays immutable while tails run.
+func (a *App) updateAttachDlg(fn func(st *attachDlgState) bool) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.attachDlg == nil {
+		return false
+	}
+	st := *a.attachDlg
+	if !fn(&st) {
+		return false
+	}
+	a.attachDlg = &st
+	return true
 }
 
 // closeAttachDialog dismisses it.
@@ -658,8 +677,8 @@ func (a *App) sendLocationFromDialog(f frame) {
 	}
 	accountID, chatID := f.selected.AccountID, f.selected.ChatID
 	period := 0
-	if attachDlgLiveOn && liveDurationSelected < len(liveDurationChoices) {
-		period = liveDurationChoices[liveDurationSelected].minutes * 60
+	if a.attachLiveOn && a.attachLiveSel < len(liveDurationChoices) {
+		period = liveDurationChoices[a.attachLiveSel].minutes * 60
 	}
 	a.closeAttachDialog()
 	go func() {
@@ -719,13 +738,13 @@ func (a *App) layoutAttachDialog(gtx layout.Context, f frame) layout.Dimensions 
 		a.sendLocationFromDialog(f)
 	}
 	if a.wid.attachDlgLiveBtn.Clicked(gtx) {
-		attachDlgLiveOn = !attachDlgLiveOn
+		a.attachLiveOn = !a.attachLiveOn
 	}
-	if attachDlgLiveOn {
+	if a.attachLiveOn {
 		growClickables(&a.wid.liveDurationBtns, len(liveDurationChoices))
 		for i := range liveDurationChoices {
 			if a.wid.liveDurationBtns[i].Clicked(gtx) {
-				liveDurationSelected = i
+				a.attachLiveSel = i
 			}
 		}
 	}
@@ -769,7 +788,7 @@ func (a *App) layoutAttachDialog(gtx layout.Context, f frame) layout.Dimensions 
 										return layout.Dimensions{}
 									}
 									label := "Send"
-									if attachDlgLiveOn {
+									if a.attachLiveOn {
 										label = "Share live"
 									}
 									bl := material.Button(a.ui.Theme, &a.wid.attachDlgSendBtn, label)
@@ -829,7 +848,7 @@ func (a *App) locationDlgBody(gtx layout.Context) layout.Dimensions {
 					btn := material.Button(a.ui.Theme, &a.wid.attachDlgLiveBtn, "Share live location")
 					btn.CornerRadius = 10
 					btn.TextSize = unit.Sp(13)
-					if attachDlgLiveOn {
+					if a.attachLiveOn {
 						btn.Background = a.ui.p.Accent
 					} else {
 						btn.Background = a.ui.p.SurfaceHi
@@ -839,7 +858,7 @@ func (a *App) locationDlgBody(gtx layout.Context) layout.Dimensions {
 				})
 			}),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				if !attachDlgLiveOn {
+				if !a.attachLiveOn {
 					return layout.Dimensions{}
 				}
 				// Preset chips: 15 minutes / 1 hour / 8 hours.
@@ -851,7 +870,7 @@ func (a *App) locationDlgBody(gtx layout.Context) layout.Dimensions {
 							btn.CornerRadius = 12
 							btn.TextSize = unit.Sp(12)
 							btn.Inset = layout.UniformInset(unit.Dp(6))
-							if i == liveDurationSelected {
+							if i == a.attachLiveSel {
 								btn.Background = a.ui.p.AccentDim
 							} else {
 								btn.Background = a.ui.p.SurfaceHi

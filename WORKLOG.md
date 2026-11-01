@@ -8,11 +8,10 @@ on 2026-10-30 — it lives in git history if ever needed.)
 ## STATE
 
 - cycle: 2 | phase: P0 recon (chunk 3, per-file gui surfaces)
-- item: iteration 34 DONE — stories.go (960→1,034 lines, read in full — the unscanned queue by size #5); **R53** (storyViewerState frame-carried as a POINTER, every writer mutated it in place: the fetch tail, storyAdvance, storyReact's optimistic flip + background revert THROUGH the frame-shared items backing array, the react/reply strip toggles — plus the revert stomp: a failed old react overwriting a newer successful one; → updateStoryView copy-on-write installer + flipStoryReaction deep-item copy + extracted storyReactDone with a from-match guard) + **R54** (the fetch tail was identity-guarded only — a slow fetch for chat X landed stale data over a reopened X; → storyViewGen session key, open/close bump it) + **R55** (the story reply draft leaked across viewer sessions — cleared on close now; every close caller verified GUI-loop). stories_r53_test.go ×7, TRUE tool-proven RED (the snapshot-immutability pin fired the detector against the stage-1 in-place build). Rows in BUGS, section in MAP
-- next: the unscanned gui files by size — location.go (941), savedsublists.go (883), topics.go (738), statsview.go (697), h264player.go (688), folders.go (688), sponsored.go (641), …; CI: R32-R52 ALL CLOSED at job+step level (runs in HOT); R53-R55 verify.yml **41282402414 (40089c8b)** queued — verify at job+step level next session
+- item: iteration 35 DONE — location.go (941 lines, read in full — the unscanned queue by size #6); **R57** (attachDlgState frame-carried as a POINTER, the GetContacts tail mutated contacts/loaded/err in place under a.mu while the layout reads through f.attachDlg lock-free → updateAttachDlg copy-on-write installer + extracted attachContactsDone with an account+kind guard) + **R56** (attachDlgLiveOn/liveDurationSelected were PACKAGE vars on the GUI loop — the R14/R22 class: two windows race one bool/int AND cross-talk; → per-App attachLiveOn/attachLiveSel, reset on open). location_r56_test.go ×4, TRUE tool-proven RED (snapshot pin fired the detector against the stage-1 extraction build). Rows in BUGS, section in MAP. Iteration 34 (same session): stories.go R53+R54+R55
+- next: the unscanned gui files by size — savedsublists.go (883), topics.go (738), statsview.go (697), h264player.go (688), folders.go (688), sponsored.go (641), …; CI: R32-R52 ALL CLOSED (runs in HOT); pending verify: R53-R55 **41282402414 (40089c8b)**; R56/R57 verify.yml dispatched this session — run ID in HOT/entry
 - owner-waiting: v0.10.4 cut IN FLIGHT BY THE OWNER (release.yml run 41282149076 on da6c7bfe, dispatched 2026-11-01T06:46Z — predates the stories fix by minutes; verify outcome next session, do not touch); Pages RE-ENABLED by the owner (built, serving from gh-pages); R9 web-vault decision; real-account sign-ins; first non-prerelease
-- last-gate: local full GREEN — gofmt clean, vet clean, full gui suite **925 PASS / 0 FAIL / 3 SKIP** (environmental; +7 story pins on top of 918), new pins clean under LOCAL -race **-count=20**; R49/R50 CI 41251708582 + R51/R52 CI 41252480112 verified SUCCESS at job+step level this session; R53-R55 CI in flight
-
+- last-gate: local full GREEN — gofmt clean, vet clean, full gui suite **929 PASS / 0 FAIL / 3 SKIP** (environmental; +4 location pins on top of 925), story+location pins clean under LOCAL -race **-count=20**; R49/R50 + R51/R52 CI verified SUCCESS (job+step) this session; R53-R55 CI 41282402414 + R56/R57 CI in flight
 
 ## Session 341 — wipe #8 boot; CI closures; iteration 34: stories.go = R53 + R54 + R55 (2026-11-01)
 
@@ -58,6 +57,20 @@ on 2026-10-30 — it lives in git history if ever needed.)
   suite **925 PASS / 0 FAIL / 3 SKIP** (environmental); gofmt + vet
   clean. CI race-leg extended with the ×7 pins; verify.yml dispatched —
   run ID backfilled below/HOT.
+- Iteration 35 — location.go (the Location & Contact surface): **R57**
+  — the GetContacts tail wrote the frame-carried *attachDlgState in
+  place (contacts/loaded/err, pointer-identity guard) while the layout
+  reads through f.attachDlg lock-free: updateAttachDlg CoW installer +
+  extracted attachContactsDone with the account+kind field guard (the
+  R44 rule). **R56** — attachDlgLiveOn/liveDurationSelected were
+  PACKAGE vars (the R14/R22 class): per-App attachLiveOn/attachLiveSel
+  now (the attachMenuOpen contract), reset on open. mapTileCache
+  verified CLEAN (mu-guarded, immutable values); P4 watch: it never
+  evicts (~387KB/tile). Evidence: TRUE RED (snapshot-immutability pin
+  under -race against the stage-1 in-place build: "race detected" +
+  frozen head mutated), then location_r56_test.go ×4 clean under
+  -race -count=20; suite **929 PASS / 0 FAIL / 3 SKIP**; gofmt + vet
+  clean. CI race-leg extended; verify.yml dispatched (run ID below).
 - Doc hygiene: WORKLOG pruned to <300 lines (sessions 333-335 dropped —
   their bugs live in BUGS.md Fixed + git history).
 
@@ -247,45 +260,3 @@ on 2026-10-30 — it lives in git history if ever needed.)
   normalizes tabs→spaces across the file (profileedit.go needed
   gofmt -w after a failed attempt) — the HOT rule now covers failed
   edits; python-based edits with explicit \t avoid the trap.
-
-
-## Session 337 — iteration 20: state.go part 2 = R32 + R33 (2026-11-01)
-
-- Boot after **wipe #5**: repo clone AND toolchain both gone this time —
-  full env.sh recipe re-run from scratch (go1.27.1 tarball → mod download
-  → devroot-setup for the CGO sysroot). Recovery proven end-to-end again;
-  repo git log confirmed the summary pointer was stale (repo sat at 3dc41161,
-  chunk 3 iteration 19 DONE) — the WORKLOG STATE block is the truth, not
-  the handoff summary.
-- Read state.go's remaining body in three passes: downloads/auth
-  (1161-1418), composer trio + cfg/load*/apply* families (1714-2245),
-  snapshot() + frame struct (2246-2914). Verified every sibling call in
-  refreshConfig's tail (setMsgShowSeconds atomic, updateTray self-locking,
-  applyAppIconRuntime re-dispatched) — applyAvatarCorners was the one plain
-  field left (R32). Verified the loaders' snapshot-outside-lock pattern, the
-  download handlers' copy-on-write installs, the auth flows' off-lock
-  engine calls, and the composer trio's GUI-loop-only widget discipline.
-- **R32** (avatarcorners race): UI.avatarCorners plain int, written by
-  refreshConfig from openSettings/applyDrawerHidden/applySystemTray/
-  applyAccent/applyFontScale goroutines + the corners 600 ms debounce
-  timer, read by avatarRadiusPx every frame in every window. Fix:
-  atomic.Int32 (msgShowSeconds precedent). RED: dep-free scratch repro of
-  the pre-fix shape under `go run -race` — DATA RACE flagged at exactly
-  applyAvatarCorners vs avatarRadiusPx. GREEN: local `-race` on the gui
-  package's new pin (first session the race build fit in 4 GiB — no OOM)
-  + the CI race-leg filter carries it now. avatarcorners_r32_test.go.
-- **R33** (show_sender_name stomp): loadNotifyAccts read the engine's
-  show_sender_name into a dead `if ok && !from { _ = from }` block;
-  applyReactionsNotify hardcoded true — any of the four reactions/polls
-  rows re-enabled what another client had disabled. Fix: senderName on
-  notifyAcctState (default true, §1.10 keeps it unsurfaced), pure
-  (*notifyAcctState).applyReactionsMap extraction, pass-through in the
-  apply. notifyaccts_r33_test.go ×4 shapes; engine round-trip needs a live
-  account (noted in the row).
-- Watch items added to MAP (both P4): applyGhostFlag's split RMW (sole
-  caller is the serial GUI loop — fold if a second caller ever appears);
-  addAccount's completion goroutine clobbering a.authAcct (auth-view
-  confusion only, engine state per-account consistent).
-- Gates: gofmt clean; vet OK; full gui suite 868/868 PASS; gate quick
-  GREEN (native + js legs, 4/4 wasm-runner contracts); local -race pin
-  clean. verify.yml race filter extended with the R32 pin.

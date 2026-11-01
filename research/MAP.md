@@ -706,6 +706,41 @@ music, slice 206; iteration 17, VERDICT: R29 fixed, rest CLEAN)
 
 
 
+### location.go (941 lines — session 341, read in full: the Location & Contact sharing surface, matrix "Attach menu" — geo/contact message bubbles (map tiles via upload.getWebFile + InputWebFileGeoPointLocation, the tdesktop mechanism; live-location countdown badges + the own-share Stop chip; the person card) and the attach dialog (manual lat/lon entry per §1.10, live presets 15m/1h/8h, the contact picker); chunk 3 iteration 35, the unscanned queue by size #6, VERDICT: R56 + R57 fixed, rest CLEAN)
+- Scope: pure parsers (parseGeoMessage/parseContactMessage — rawEnvelope
+  Extra keys, nil-safe; parseCoords; splitContactName), pure labels
+  (mapsURL/coordLabel/fullName/liveBadgeText/liveAge — clock-skew
+  clamped, unit-tested already/liveRemainingText), the mapTileCache
+  (mu-guarded get/claim/store/fail — CLEAN; permanent fail-pinning is
+  the documented honest choice, restart clears), ensureMapTile (claim
+  before spawn, captures acc/lat/long/hash by value — CLEAN), the
+  bubbles (locationBubble/contactBubble — engine calls goroutine-
+  wrapped, toasts only), and the attach dialog lifecycle.
+- R57 (write-races-layout): the GetContacts tail wrote the
+  frame-carried *attachDlgState in place (contacts/loaded/err under
+  a.mu, pointer-identity guard) while the layout reads through
+  f.attachDlg lock-free. Fix: updateAttachDlg CoW installer + the
+  extracted attachContactsDone with an account+kind guard (R44 rule).
+- R56 (package state vs per-window Apps): attachDlgLiveOn +
+  liveDurationSelected were PACKAGE vars on the GUI loop — the R14/R22
+  class (two windows = two GUI goroutines racing one bool/int, plus
+  cross-talk). Fix: per-App attachLiveOn/attachLiveSel (state.go,
+  the attachMenuOpen contract), reset on open.
+- Also: the a.wid pools (liveStopBtns fresh-map reset at 256,
+  attachDlgRowBtns/liveDurationBtns growClickables) are per-App — the
+  R22 shape was already applied here; attachDlgKeyTag is a read-only
+  event tag (safe to share). Watch item (P4): mapTiles never evicts —
+  ~387KB per 440×220 RGBA tile, unbounded over a long session with
+  many distinct geo points; a future LRU cap belongs in the P4 pass.
+- GREEN: location_r56_test.go ×4 clean under LOCAL -race (-count=20),
+  incl. the TRUE tool-proven RED (snapshot immutability pin fired the
+  detector against the stage-1 extraction build); CI race-leg extended.
+  Full gui suite 929 PASS / 0 FAIL / 3 SKIP (environmental).
+- Next in the unscanned queue: savedsublists.go (883), topics.go
+  (738), statsview.go (697), h264player.go (688), folders.go (688),
+  sponsored.go (641), boostview.go (630), …
+
+
 ### stories.go (960→1,034 lines — session 341, read in full: the Stories surface, AyuGram parity slice 104 + slices 164/215 — the chat-list story-circles strip (unread-first, accent/dim rings, forum-native corner rounding) and the fullscreen viewer overlay (progress segments, tap zones, keyboard layer, caption/views meta, reaction heart + emoji strip, inline reply composer, share-link copy, video handoff to the system player); chunk 3 iteration 34, the unscanned queue by size #5, VERDICT: R53 + R54 + R55 fixed, rest CLEAN)
 - Scope: storyItem (the engine FetchPeerStories JSON contract) +
   storyViewerState (accountID/chatID/title/items/cur/loading/err/

@@ -328,6 +328,10 @@ type App struct {
 	// attach flow (AyuGram parity slice 5): OS file picker + upload pipeline
 	expl           *explorer.Explorer
 	attachMenuOpen bool
+	// live-location attach-dialog state (slice 131) — GUI-loop-only,
+	// per-App: each window's dialog owns its own (R56).
+	attachLiveOn  bool
+	attachLiveSel int
 
 	// emoji picker (AyuGram parity slice 10): panel open + active category
 	emojiOpen bool
