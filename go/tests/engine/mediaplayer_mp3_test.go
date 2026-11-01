@@ -121,11 +121,10 @@ func TestDecodeMp3(t *testing.T) {
 func TestPlayMediaMp3(t *testing.T) {
 	p := mp3Fixture(t)
 	e := newTestEngineForPlayer(t)
+	dev := pullPlayer(t)
 	if err := e.PlayMedia("acct", "chat", "m1", p); err != nil {
 		t.Fatalf("PlayMedia(mp3): %v", err)
 	}
-	p2 := e.Player()
-	detachDevice(t, p2)
 	st := e.MediaState()
 	if !st.Playing || st.MsgID != "m1" || st.AccountID != "acct" {
 		t.Fatalf("state = %+v", st)
@@ -134,8 +133,8 @@ func TestPlayMediaMp3(t *testing.T) {
 		t.Fatalf("duration = %v", st.Duration)
 	}
 	buf := make([]int16, 4800)
-	p2.ForTestFill(buf)
-	p2.ForTestFill(buf)
+	dev.pull(buf)
+	dev.pull(buf)
 	if st2 := e.MediaState(); st2.Position < 0.15 || st2.Position > 0.25 {
 		t.Fatalf("after 200ms of fill: position %.3f", st2.Position)
 	}

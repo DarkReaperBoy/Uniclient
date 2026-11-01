@@ -7,18 +7,48 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: 2026-11-01 owner redirect #3 EXECUTED + CI-GATED — AGENTS.md §1.19-21 product-surface laws (commit d4b4476f)
-- next: standby for the owner's next instruction; treat it as the new front and execute it completely (never ask, never wait)
+- front: H-1 hook-debt retirement, iteration 1 LANDED — audio.SetDeviceFactory seam (the SetCoreFactory shape) retires the MediaPlayer hook cluster (10 hooks dead); player tests drive the real device path
+- next: H-1 iteration 2 — VoiceRecorder mic cluster (ForTestSess/SetSess/Mu/Granule/Packets/...) through the same factory + a mic fake device; then ForTestDb/ForTestSetAccounts (the two biggest remaining clusters)
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop, Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: CI verify **41323001269 = SUCCESS on d4b4476f** — all 3 jobs, all steps green (comment-ban/gofmt/vet/vet-live/test/race subset/headless smoke/nix/windows/js-wasm; flake-version step is tag-only, skipped as designed)
+- last-gate: local full tier green (quick gate incl. js leg; race tests/audio+tests/engine 90.2s; windows+js-wasm builds; smoke exit 0; comment-ban clean) — verify.yml dispatch pending this push
 
 ## Open items
 
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
-| H-1 | cores/engine testhooks*.go | ForTest* hooks are debt (§5.3): ~260 hooks exist because the suites were white-box | AGENTS.md §5.3 (2026-11-01) | retire hooks as flows gain exported APIs; prune when a hook's last use dies |
+| H-1 | cores/engine testhooks*.go | ForTest* hooks are debt (§5.3): ~240 hooks left after session 345 (engine 64→54) | session 345 entry | retire hooks as flows gain exported APIs; prune when a hook's last use dies |
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 302 identifiers exported purely for the tests move (API noise: TsParseInit1, ForTest-adjacent) | commit 27faa5a4 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
+
+## Session 345 — H-1 iteration 1: MediaPlayer hook cluster retired via audio device factory (2026-11-02)
+
+- Atomic change: `audio.SetDeviceFactory(func() (Device, error))` — the exact SetCoreFactory
+  shape the codebase already blesses (mutex-guarded; nil restores platform truth;
+  Available() true while installed; factory errors surface from Open() unchanged). The
+  three engine call sites (mediaplayer/voicerec/voice) untouched — the seam sits at the
+  package front door, so ALL three flows can now be driven with real devices.
+- Retired: engine/testhooks.go loses MediaPlayer ForTestMu/Pcm/Gain/Sess/SetSess/SetPos/
+  SetPlaying/SetPaused/Fill + AuthFlow.ForTestMu (zero uses anywhere — dead since the
+  tests move; grep-verified before deletion). mediaplayer{,_mp3,_aac}_test.go now drive
+  the REAL path: PlayMedia → audio.Open() → pullDevice (fake Device capturing the real
+  fill callback) → manual pulls. detachDevice/rewindMediaForTest (state force-set
+  through hooks) deleted.
+- Pins strengthened while converting: seek-after-completion now pins BOTH real
+  behaviors (device present → resumes at 0.3·dur; deterministic headless via error
+  factory → stays !Playing — the §1.10 pin, previously machine-dependent on absent
+  pulse); TestMediaPlayerNoDeviceIsHonest deterministic; stored-signal immutability
+  pinned behaviorally (pull@1 == full after 0.5/0/0.1-gain pulls) instead of reading
+  p.pcm through a hook.
+- TRUE tool-proven RED: tests/audio/devicefactory_test.go — 6× "undefined:
+  SetDeviceFactory" build failure (compile seam, the R47/R51 class); GREEN post-change:
+  3/3 factory tests. Full evidence: quick gate GREEN (scoped audio/bootstrap/cmd/engine/
+  tests/{audio,bootstrap,engine}; native vet+test + js/wasm legs); gofmt clean;
+  strip_comments --check clean (292 files); windows + js/wasm builds ok; -race
+  tests/audio 1.0s + FULL tests/engine 90.2s ok (-gcflags=all=-c=1 — gotd's tg
+  race-compile OOM-kills on this 4GiB box without it; env.sh's documented rung-7
+  degradation); headless smoke: engine ready, vault+dirs created, SIGTERM → exit 0.
+- H-1 ledger: engine hooks 64 → 54 (~250 → ~240 across packages). Next: VoiceRecorder
+  mic cluster through the same factory.
 
 ## Session 344 — owner redirect #3: product-surface laws into AGENTS.md §1 (2026-11-01)
 

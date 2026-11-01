@@ -22,15 +22,6 @@ func mp4Fixture(t *testing.T, name string) string {
 	return p
 }
 
-func rewindMediaForTest(t *testing.T, p *MediaPlayer) {
-	t.Helper()
-	p.ForTestMu().Lock()
-	p.ForTestSetPos(0)
-	p.ForTestSetPlaying(true)
-	p.ForTestSetPaused(false)
-	p.ForTestMu().Unlock()
-}
-
 func TestIsMp4(t *testing.T) {
 	dir := t.TempDir()
 	cases := []struct {
@@ -124,11 +115,10 @@ func TestDecodeMp4AudioRejectsVideoOnly(t *testing.T) {
 
 func TestPlayMediaMp4(t *testing.T) {
 	e := newTestEngineForPlayer(t)
+	dev := pullPlayer(t)
 	if err := e.PlayMedia("acct", "chat", "m1", mp4Fixture(t, "note.mp4")); err != nil {
 		t.Fatalf("PlayMedia(mp4): %v", err)
 	}
-	p := e.Player()
-	detachDevice(t, p)
 	st := e.MediaState()
 	if !st.Playing || st.MsgID != "m1" || st.AccountID != "acct" {
 		t.Fatalf("state = %+v", st)
@@ -137,8 +127,8 @@ func TestPlayMediaMp4(t *testing.T) {
 		t.Fatalf("duration = %v, want ~1.0s", st.Duration)
 	}
 	buf := make([]int16, 4800)
-	p.ForTestFill(buf)
-	p.ForTestFill(buf)
+	dev.pull(buf)
+	dev.pull(buf)
 	if got := e.MediaState().Position; got < 0.15 || got > 0.25 {
 		t.Fatalf("after 200ms of fill: position %.3f", got)
 	}
@@ -147,27 +137,26 @@ func TestPlayMediaMp4(t *testing.T) {
 
 func TestMediaVolumeScalesPlayback(t *testing.T) {
 	e := newTestEngineForPlayer(t)
+	dev := pullPlayer(t)
 	if err := e.PlayMedia("acct", "chat", "m1", mp4Fixture(t, "note.mp4")); err != nil {
 		t.Fatalf("PlayMedia: %v", err)
 	}
-	p := e.Player()
-	detachDevice(t, p)
 	buf := make([]int16, 960)
 
 	e.SetMediaVolume(1)
-	rewindMediaForTest(t, p)
-	p.ForTestFill(buf)
+	e.SeekMedia(0)
+	dev.pull(buf)
 	full := append([]int16(nil), buf...)
 
 	e.SetMediaVolume(0.5)
 	if got := e.MediaState().Volume; got != 0.5 {
 		t.Fatalf("Volume in state = %v, want 0.5", got)
 	}
-	rewindMediaForTest(t, p)
+	e.SeekMedia(0)
 	for i := range buf {
 		buf[i] = 0
 	}
-	p.ForTestFill(buf)
+	dev.pull(buf)
 	for i := range buf {
 		if want := full[i] / 2; buf[i] != want {
 			t.Fatalf("half-volume sample[%d] = %d, want %d (unity was %d)",
@@ -176,30 +165,27 @@ func TestMediaVolumeScalesPlayback(t *testing.T) {
 	}
 
 	e.SetMediaVolume(0)
-	rewindMediaForTest(t, p)
+	e.SeekMedia(0)
 	for i := range buf {
 		buf[i] = 12345
 	}
-	p.ForTestFill(buf)
+	dev.pull(buf)
 	for i, s := range buf {
 		if s != 0 {
 			t.Fatalf("muted sample[%d] = %d, want 0", i, s)
 		}
 	}
 
-	p.ForTestMu().Lock()
-	stored := append([]int16(nil), p.ForTestPcm()[:4800]...)
-	p.ForTestMu().Unlock()
 	e.SetMediaVolume(0.1)
-	rewindMediaForTest(t, p)
-	p.ForTestFill(buf)
-	p.ForTestMu().Lock()
-	after := append([]int16(nil), p.ForTestPcm()[:4800]...)
-	p.ForTestMu().Unlock()
-	for i := range stored {
-		if stored[i] != after[i] {
-			t.Fatalf("fill mutated stored PCM at %d: %d → %d",
-				i, stored[i], after[i])
+	e.SeekMedia(0)
+	dev.pull(buf)
+	e.SetMediaVolume(1)
+	e.SeekMedia(0)
+	dev.pull(buf)
+	for i := range buf {
+		if buf[i] != full[i] {
+			t.Fatalf("gain pulls mutated the stored signal at %d: %d → %d",
+				i, full[i], buf[i])
 		}
 	}
 	e.StopMedia()
@@ -215,7 +201,7 @@ func TestMediaVolumeClamps(t *testing.T) {
 			t.Errorf("SetMediaVolume(%v) → %v, want %v", c.in, got, c.want)
 		}
 	}
-	if got := (&Engine{}).Player().ForTestGain(); got != 1 {
+	if got := (&Engine{}).MediaState().Volume; got != 1 {
 		t.Errorf("default gain = %v, want 1", got)
 	}
 }

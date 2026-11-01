@@ -50,14 +50,6 @@ func (x *exportState) ForTestMu() *sync.Mutex {
 	return &x.mu
 }
 
-func (x *MediaPlayer) ForTestMu() *sync.Mutex {
-	return &x.mu
-}
-
-func (x *AuthFlow) ForTestMu() *sync.Mutex {
-	return &x.mu
-}
-
 func (x *suggestionDismiss) ForTestMu() *sync.Mutex {
 	return &x.mu
 }
@@ -72,14 +64,6 @@ func (x *VoiceRecorder) ForTestMu() *sync.Mutex {
 
 func (x *avatarState) ForTestMu() *sync.Mutex {
 	return &x.mu
-}
-
-func (x *MediaPlayer) ForTestPcm() []int16 {
-	return x.pcm
-}
-
-func (x *MediaPlayer) ForTestGain() float64 {
-	return x.gain
 }
 
 func (x *Engine) ForTestAccounts() map[string]*Account {
@@ -118,12 +102,12 @@ func (x *Engine) ForTestConfig() *utils.AppConfig {
 	return x.config
 }
 
-func (x *MediaPlayer) ForTestSess() *audio.Session {
+func (x *VoiceRecorder) ForTestSess() *audio.Session {
 	return x.sess
 }
 
-func (x *VoiceRecorder) ForTestSess() *audio.Session {
-	return x.sess
+func (x *VoiceRecorder) ForTestSetSess(v *audio.Session) {
+	x.sess = v
 }
 
 func (x *MediaManager) ForTestQueue() []*DownloadJob {
@@ -138,28 +122,8 @@ func (x *Engine) ForTestSetMedia(v *MediaManager) {
 	x.media = v
 }
 
-func (x *MediaPlayer) ForTestSetSess(v *audio.Session) {
-	x.sess = v
-}
-
-func (x *VoiceRecorder) ForTestSetSess(v *audio.Session) {
-	x.sess = v
-}
-
 func (x *Engine) ForTestSetDownloadDir(v string) {
 	x.downloadDir = v
-}
-
-func (x *MediaPlayer) ForTestSetPos(v float64) {
-	x.pos = v
-}
-
-func (x *MediaPlayer) ForTestSetPlaying(v bool) {
-	x.playing = v
-}
-
-func (x *MediaPlayer) ForTestSetPaused(v bool) {
-	x.paused = v
 }
 
 func (x *Engine) ForTestSetAccounts(v map[string]*Account) {
@@ -208,10 +172,6 @@ func (x *VoiceRecorder) ForTestSetPackets(v [][]byte) {
 
 func (x *sponsoredCacheEntry) ForTestSetFetchedAt(v time.Time) {
 	x.fetchedAt = v
-}
-
-func (x *MediaPlayer) ForTestFill(out []int16) {
-	x.fill(out)
 }
 
 func (x *VoiceVAD) ForTestGate(frame []byte) bool {

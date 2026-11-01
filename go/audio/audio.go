@@ -1,16 +1,46 @@
 package audio
 
-import "errors"
+import (
+	"errors"
+	"sync"
+)
 
 var ErrNoAudio = errors.New("audio: no audio devices on this platform")
 
-func Available() bool { return audioAvailable }
+var (
+	deviceFactoryMu sync.Mutex
+	deviceFactory   func() (Device, error)
+)
+
+func SetDeviceFactory(f func() (Device, error)) {
+	deviceFactoryMu.Lock()
+	defer deviceFactoryMu.Unlock()
+	deviceFactory = f
+}
+
+func deviceFactoryInstalled() bool {
+	deviceFactoryMu.Lock()
+	defer deviceFactoryMu.Unlock()
+	return deviceFactory != nil
+}
+
+func Available() bool { return audioAvailable || deviceFactoryInstalled() }
 
 type Session struct {
 	dev Device
 }
 
 func Open() (*Session, error) {
+	deviceFactoryMu.Lock()
+	factory := deviceFactory
+	deviceFactoryMu.Unlock()
+	if factory != nil {
+		dev, err := factory()
+		if err != nil {
+			return nil, err
+		}
+		return &Session{dev: dev}, nil
+	}
 	dev, err := OpenDevice()
 	if err != nil {
 		return nil, err
