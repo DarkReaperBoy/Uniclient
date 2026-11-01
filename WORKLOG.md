@@ -7,10 +7,10 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: 2026-11-01 owner redirect #3 — AGENTS.md §1.19-21 product-surface laws added (no premium/paid/useless feature or look; lean: least deps/size/resources/latency on phone+desktop+web; production code + clean code rules + refactor-as-you-go + senior-dev intuition, SOTA bar); ceiling 320→330
-- next: gate of record for the docs commit (verify dispatch pending), then standby for the owner's next instruction (never ask, never wait)
+- front: 2026-11-01 owner redirect #3 EXECUTED + CI-GATED — AGENTS.md §1.19-21 product-surface laws (commit d4b4476f)
+- next: standby for the owner's next instruction; treat it as the new front and execute it completely (never ask, never wait)
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop, Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: pending verify dispatch on the §1.19-21 commit; previous green — CI verify 41317140352 = SUCCESS on a05066c8 (all 3 jobs, all steps)
+- last-gate: CI verify **41323001269 = SUCCESS on d4b4476f** — all 3 jobs, all steps green (comment-ban/gofmt/vet/vet-live/test/race subset/headless smoke/nix/windows/js-wasm; flake-version step is tag-only, skipped as designed)
 
 ## Open items
 
@@ -40,6 +40,9 @@ owner order — that history lives in git if ever needed.
   scenario-complete unit tests = §4.7; small release binaries = §1.6.
 - Docs-only change — no ladder tier touched (§9/§11); pre-push invariants checked
   locally: no secrets/token anywhere in the tree, WORKLOG < 300 lines, AGENTS ≤ ~330.
+- Gate of record: verify.yml dispatch **41323001269 = SUCCESS on d4b4476f** — 3/3 jobs
+  (test&vet&gofmt&smoke / nix flake gate / windows+js-wasm cross-builds), every step
+  inspected green at step level. Session 344 closed.
 
 ## Session 343 — owner redirect #2: GUI removal + tests to /tests + AGENTS.md v4.1 (2026-11-01)
 
