@@ -26,11 +26,12 @@ owner order — that history lives in git if ever needed.
   voice/img fronts; then cores (181 hooks, receiver-qualified recon first)
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: verify.yml **41454716589 dispatched on 1255350** (session 351's six
-  commits; result lands in the gate-of-record entry next session) AND
-  **41447518193 = SUCCESS on 93b0aa4** (iteration 6) AND **41434129182 =
-  SUCCESS on ffd31b2** (M-1); local quick gate GREEN after every iteration
-  (tests/engine 5.0–5.6s, tests/bootstrap ~0.9s, vet/gofmt/comment checks clean)
+- last-gate: verify.yml **41454716589 = SUCCESS on 1255350** (session 351's six
+  commits; all 3 jobs, every step green — comment ban/gofmt/vet(+live)/test/
+  race/headless-smoke, nix build, windows + js/wasm) AND **41447518193 =
+  SUCCESS on 93b0aa4** (iteration 6) AND **41434129182 = SUCCESS on ffd31b2**
+  (M-1); local quick gate GREEN after every iteration (tests/engine 5.0–5.6s,
+  tests/bootstrap ~0.9s, vet/gofmt/comment checks clean)
 
 ## Open items
 
