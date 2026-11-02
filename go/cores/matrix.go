@@ -3136,7 +3136,9 @@ func (m *MatrixCore) setupSyncer() {
 }
 
 func (m *MatrixCore) startSync() {
+	m.mu.Lock()
 	m.syncCtx, m.syncStop = context.WithCancel(m.ctx)
+	m.mu.Unlock()
 
 	for {
 		err := m.client.SyncWithContext(m.syncCtx)

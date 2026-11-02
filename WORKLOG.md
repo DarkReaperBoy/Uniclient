@@ -127,6 +127,19 @@ owner order — that history lives in git if ever needed.
   resolved via go clean -cache (4G) + one full recompile (~15 min, gotd
   compiled clean with -gcflags=all=-c=1). If the box fills again: clean
   the gocache, not the modcache.
+- BUG FIX (red→green, the front working as intended): CI race legs on
+  iterations 2+3 (41520169823 on f1fca6c9, 41520879579 on 3b99c679) FAILED
+  with DATA RACE in TestMatrixGetDialogsSortsAndPaginates — the real-auth
+  journey from iteration 1 exposed a PRE-EXISTING MatrixCore bug:
+  startSync() wrote m.syncCtx/m.syncStop WITHOUT m.mu (matrix.go:3139)
+  while Close() reads m.syncStop under the lock (1848) — a close-races-
+  auth-start crash vector in production. Fix: m.mu around the assignment
+  (+2 lines; all orderings then safe — Close-before-start yields a
+  WithCancel on the cancelled parent → instant clean loop exit). Local
+  scoped -race insensitive (scheduling window; CI is the reproducer);
+  quick gate GREEN; CI re-dispatched = the verdict.
+- Race-fix dispatches: verify.yml on 329cdb58 (iteration 4, in flight at
+  edit) then the fix commit (id at push).
 
 ## Session 352 — boot reconciliation + H-1 iterations 16–17: media lifecycle self-contained; engine hook quarantine deleted (2026-11-02)
 
