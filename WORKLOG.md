@@ -13,16 +13,18 @@ owner order — that history lives in git if ever needed.
   the real mic pipeline via audio.SetDeviceFactory + JoinGroupCall, LRU pinned
   through FetchHTTPImage hit-counting; NewHTTPImageCache de-exported) —
   engine/testhooks.go DELETED, engine hooks 0
-- next: cores hooks (181) — receiver-qualified recon first (per-core files,
-  per-hook user counts), then retire by family; H-3 export noise folds into
-  those reworks
+- next: cores hooks (180 — census in the session 352 entry: MatrixCore 25,
+  TsConnection 18, TeamSpeakCore 14, mumble wire msgs ~35, …; first candidate
+  = the cross-core SetAuthed/SetCtx/Cancel/SaveSession injection family) —
+  retire by family; H-3 export noise folds into those reworks
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: verify.yml **41489996615 = SUCCESS on b8cfe27d** (iteration 16;
-  all 3 jobs, every step incl. the CI race leg) AND **41482286310 = SUCCESS
-  on a5f6566a** (reconciled dead-session iters 13–15); local quick gate GREEN
-  on iteration 17 (tests/engine 6.4s, bootstrap 0.9s, vet/gofmt/comments
-  clean, js/wasm + cmd ok; -race = rung-7 gotd OOM skip, CI leg gates)
+- last-gate: verify.yml **41491975538 = SUCCESS on 8911e54b** (iteration 17;
+  all 3 jobs, every step incl. the CI race leg) AND **41489996615 = SUCCESS
+  on b8cfe27d** (iteration 16) AND **41482286310 = SUCCESS on a5f6566a**
+  (reconciled dead-session iters 13–15); local quick gate GREEN on every
+  iteration this session (tests/engine 5.6–6.4s, bootstrap ~0.9s,
+  vet/gofmt/comments clean, js/wasm + cmd ok, headless smoke rc=0)
 
 ## Open items
 
@@ -182,8 +184,6 @@ owner order — that history lives in git if ever needed.
   M-1 opened at top of open items (§0.4 owner-reported): engine earn/gifts/
   giveaways/premium_business/sponsored + cores telegram_business/earn/gifts/
   giveaways/sponsored (+ paidmedia, stars) + 13 test files.
-- Next: M-1 pruning in atomic steps (feature files + their tests die together;
-  ForTestMu cluster shrinks as sponsored ×2 / gifts ×2 users die with M-1).
 
 ## Session 348 — H-1 iteration 5: ForTestNewAuthFlow + ForTestCollected retired (2026-11-02)
 
