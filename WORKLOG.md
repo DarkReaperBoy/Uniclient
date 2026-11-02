@@ -16,11 +16,10 @@ owner order — that history lives in git if ever needed.
   APIs or harness-owned state)
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: verify.yml **41394693974 = SUCCESS on 5997a16b** (iteration 3) — all 3 jobs, every
-  step green at step level (comment-ban/gofmt/vet/vet-live/test/race/headless smoke/nix with
-  flake-version tag-skip/windows/js-wasm); iteration 4 (f356da7d) local legs all green (quick
-  scoped + FULL native 7/7 + -race engine 89.9s + wasm + smoke exit 0), verify.yml dispatched —
-  run id lands in the next session's gate-of-record
+- last-gate: verify.yml **41396012222 = SUCCESS on d9e472df** (iteration 4, closed at job+step
+  level: comment-ban/gofmt/vet/vet-live/test/race/headless smoke/nix with flake-version
+  tag-skip/windows/js-wasm all green) AND **41394693974 = SUCCESS on 5997a16b** (iteration 3,
+  same step-level shape); session 346 closed — engine hooks 41→36
 
 ## Open items
 
@@ -91,7 +90,8 @@ owner order — that history lives in git if ever needed.
 - Evidence: quick gate GREEN (scoped engine+importers, native test ok; vet leg = rung-7 gotd
   OOM skip per gate.sh); FULL native suite 7/7 ok; -race tests/engine 89.9s + tests/bootstrap
   6.2s ok; gofmt + strip_comments --check clean; js/wasm build ok; headless smoke exit 0
-  (engine ready, vault+cache+downloads, SIGTERM). CI verify.yml dispatched on f356da7d.
+  (engine ready, vault+cache+downloads, SIGTERM). CI gate of record: verify.yml
+  **41396012222 = SUCCESS on d9e472df** — all 3 jobs, every step green at step level.
 
 ## Session 345 — H-1: audio device factory retires the MediaPlayer + VoiceRecorder hook clusters (2026-11-02)
 
