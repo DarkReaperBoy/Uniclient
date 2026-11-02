@@ -34,7 +34,9 @@ func autoDLMsg() *cores.Message {
 func TestAutoDownloadLogsUnexpectedRequestErrors(t *testing.T) {
 	e := newTestEngine(t)
 	seedAutoDLChat(t, e)
-	e.ForTestSetMedia(&MediaManager{})
+	if err := e.UseMediaDir(t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
 
 	var buf bytes.Buffer
 	log.SetOutput(&buf)
@@ -52,7 +54,9 @@ func TestAutoDownloadStaysQuietOnStreamActive(t *testing.T) {
 	e := newTestEngine(t)
 	seedAutoDLChat(t, e)
 	seedStreamRow(t, e, 4096, 0, "")
-	e.ForTestSetMedia(&MediaManager{})
+	if err := e.UseMediaDir(t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
 	if !e.ClaimStream(MediaGuardKey("a1", "c1", "m1", 0)) {
 		t.Fatal("claimStream failed on a fresh guard")
 	}

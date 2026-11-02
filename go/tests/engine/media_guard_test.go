@@ -50,8 +50,9 @@ func (g *guardCore) downloads() int {
 func newGuardEngine(t *testing.T) (*dbEngine, *guardCore, []byte) {
 	t.Helper()
 	e := newTestEngine(t)
-	e.ForTestSetMediaDir(t.TempDir())
-	e.ForTestSetMedia(NewMediaManager(e.Engine))
+	if err := e.UseMediaDir(t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
 	data := streamPattern(16_384)
 	core := &guardCore{part: &fakePartSource{data: data}}
 	if err := e.AttachAccount("a1", "telegram", core); err != nil {
@@ -162,7 +163,7 @@ func TestRequestDownloadCompletesInstantlyWhenFileOnDisk(t *testing.T) {
 	}
 	if _, err := e.db.Exec(
 		`UPDATE media SET download_state=?, local_path=?
-		 WHERE account_id='a1' AND chat_id='c1' AND msg_id='m1' AND seq=0`,
+                 WHERE account_id='a1' AND chat_id='c1' AND msg_id='m1' AND seq=0`,
 		DownloadComplete, path); err != nil {
 		t.Fatal(err)
 	}

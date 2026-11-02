@@ -262,7 +262,11 @@ func Init(configDir, cacheDir, downloadDir, vaultPassword string) (*Engine, erro
 
 	e.loadAutoDownloadSettings()
 
-	e.media = NewMediaManager(e)
+	if err := e.UseMediaDir(mediaDir); err != nil {
+		e.db.Close()
+		e.vault.Close()
+		return nil, err
+	}
 	e.media.Start(context.Background())
 
 	return e, nil
@@ -274,6 +278,17 @@ func (e *Engine) Vault() *utils.Vault {
 
 func (e *Engine) MediaDir() string {
 	return e.mediaDir
+}
+
+func (e *Engine) UseMediaDir(dir string) error {
+	if err := ensureDir(dir); err != nil {
+		return fmt.Errorf("media dir: %w", err)
+	}
+	e.mu.Lock()
+	e.mediaDir = dir
+	e.media = NewMediaManager(e)
+	e.mu.Unlock()
+	return nil
 }
 
 func (e *Engine) SetEventCallback(cb func([]byte)) {

@@ -243,7 +243,9 @@ func TestMediaStreamConcurrentReads(t *testing.T) {
 
 func TestOpenMediaStreamPromotesRow(t *testing.T) {
 	e := newTestEngine(t)
-	e.ForTestSetMediaDir(t.TempDir())
+	if err := e.UseMediaDir(t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
 
 	data := streamPattern(16_384)
 	src := &fakePartSource{data: data}
@@ -267,7 +269,7 @@ func TestOpenMediaStreamPromotesRow(t *testing.T) {
 	)
 	err = e.db.QueryRow(
 		`SELECT download_state, local_path FROM media
-		 WHERE account_id='a1' AND chat_id='c1' AND msg_id='m1' AND seq=0`).
+                 WHERE account_id='a1' AND chat_id='c1' AND msg_id='m1' AND seq=0`).
 		Scan(&state, &localPath)
 	if err != nil {
 		t.Fatalf("read back row: %v", err)
@@ -297,7 +299,9 @@ func TestOpenMediaStreamPromotesRow(t *testing.T) {
 
 func TestOpenMediaStreamFastPathSkipsFetch(t *testing.T) {
 	e := newTestEngine(t)
-	e.ForTestSetMediaDir(t.TempDir())
+	if err := e.UseMediaDir(t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
 
 	data := streamPattern(8_192)
 	dir := filepath.Join(e.MediaDir(), "a1", "full")
@@ -420,8 +424,8 @@ func seedStreamRow(t *testing.T, e *dbEngine, size int64, state int, localPath s
 	}
 	_, err := e.db.Exec(
 		`INSERT INTO media (account_id, chat_id, msg_id, seq, media_type, remote_ref,
-			file_name, mime_type, file_size, download_state, local_path, extra)
-		 VALUES ('a1','c1','m1',0,1,'REF-1','clip.mp4','video/mp4',?,?,?,'777:Zm9v')`,
+                        file_name, mime_type, file_size, download_state, local_path, extra)
+                 VALUES ('a1','c1','m1',0,1,'REF-1','clip.mp4','video/mp4',?,?,?,'777:Zm9v')`,
 		size, state, path)
 	if err != nil {
 		t.Fatal(err)

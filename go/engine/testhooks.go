@@ -40,14 +40,6 @@ func (x *MediaManager) ForTestQueue() []*DownloadJob {
 	return x.queue
 }
 
-func (x *Engine) ForTestSetMedia(v *MediaManager) {
-	x.media = v
-}
-
-func (x *Engine) ForTestSetMediaDir(v string) {
-	x.mediaDir = v
-}
-
 func (x *VoiceVAD) ForTestGate(frame []byte) bool {
 	return x.gate(frame)
 }
