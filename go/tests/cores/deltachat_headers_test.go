@@ -3,6 +3,7 @@ package tests
 import (
 	"bytes"
 	"encoding/base64"
+	"fmt"
 	"testing"
 	. "uniclient/cores"
 
@@ -107,24 +108,13 @@ func TestAutocryptKeydataSurvivesHeaderFolding(t *testing.T) {
 	d := NewDeltaChatCore(nil)
 	d.UpdateAutocryptPeer("fold@example.org", "Fold", got)
 
-	d.ForTestPeerKeysMu().RLock()
-	ps := d.ForTestPeerStates()["fold@example.org"]
-	var stored []byte
-	var hasEntity bool
-	if ps != nil {
-		stored = ps.PublicKey
-		hasEntity = ps.ForTestEntity() != nil
+	info, err := d.GetContactEncryptionInfo("fold@example.org")
+	if err != nil {
+		t.Fatalf("GetContactEncryptionInfo: %v", err)
 	}
-	d.ForTestPeerKeysMu().RUnlock()
-
-	if len(stored) == 0 {
-		t.Fatalf("folded keydata never stored (B-31): decode failed silently — peer=%v header value %q…", ps, got[:min(80, len(got))])
-	}
-	if !bytes.Equal(stored, keyBuf.Bytes()) {
-		t.Errorf("stored key does not equal the serialized key (%d vs %d bytes)", len(stored), keyBuf.Len())
-	}
-	if !hasEntity {
-		t.Errorf("openpgp entity not parsed from the stored key")
+	want := fmt.Sprintf("Autocrypt key: %X", ent.PrimaryKey.Fingerprint)
+	if info != want {
+		t.Fatalf("folded keydata not stored+parsed identically (B-31): info=%q want %q", info, want)
 	}
 }
 

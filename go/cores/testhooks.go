@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"crypto/ecdsa"
-	"github.com/ProtonMail/go-crypto/openpgp"
 	"github.com/gotd/td/tg"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/event"
@@ -22,10 +21,6 @@ func (x *MatrixCore) ForTestActiveCalls() map[string]*MatrixCall {
 }
 
 func (x *MatrixCore) ForTestCallsMu() *sync.RWMutex {
-	return &x.callsMu
-}
-
-func (x *DeltaChatCore) ForTestCallsMu() *sync.RWMutex {
 	return &x.callsMu
 }
 
@@ -51,10 +46,6 @@ func (x *TsConnection) ForTestCmdCh() chan TsIncomingCmd {
 
 func (x *MatrixCore) ForTestDeviceID() id.DeviceID {
 	return x.deviceID
-}
-
-func (x *dcPeerState) ForTestEntity() *openpgp.Entity {
-	return x.entity
 }
 
 func (x *TsConnection) ForTestExecCh() chan TsIncomingCmd {
@@ -127,14 +118,6 @@ func (x *MatrixCall) ForTestPc() *wrtc.PeerConnection {
 
 func (x *tgCall) ForTestPc() *wrtc.PeerConnection {
 	return x.pc
-}
-
-func (x *DeltaChatCore) ForTestPeerKeysMu() *sync.RWMutex {
-	return &x.peerKeysMu
-}
-
-func (x *DeltaChatCore) ForTestPeerStates() map[string]*dcPeerState {
-	return x.peerStates
 }
 
 func (x *TsConnection) ForTestPktState() *[9]tsPacketState {

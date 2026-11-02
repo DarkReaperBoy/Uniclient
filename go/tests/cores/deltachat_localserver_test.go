@@ -10,6 +10,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"io"
 	"math/big"
 	"net"
@@ -456,20 +457,13 @@ func TestDeltaChatFullChainLocalServer(t *testing.T) {
 	}
 	t.Log("RECEIVE PATH OK: SELECT + FETCH + processIncomingEmail built the chat from the incoming email")
 
-	core.ForTestPeerKeysMu().RLock()
-	bob := core.ForTestPeerStates()["bob@example.test"]
-	var pubLen int
-	var hasEntity bool
-	if bob != nil {
-		pubLen = len(bob.PublicKey)
-		hasEntity = bob.ForTestEntity() != nil
+	bobInfo, err := core.GetContactEncryptionInfo("bob@example.test")
+	if err != nil {
+		t.Fatalf("GetContactEncryptionInfo: %v", err)
 	}
-	core.ForTestPeerKeysMu().RUnlock()
-	if pubLen == 0 {
-		t.Fatal("bob's Autocrypt key never ingested — peerStates empty (B-31 end-to-end)")
-	}
-	if !hasEntity {
-		t.Fatal("ingested key did not parse into an openpgp entity")
+	wantBob := fmt.Sprintf("Autocrypt key: %X", bobKey.PrimaryKey.Fingerprint)
+	if bobInfo != wantBob {
+		t.Fatalf("bob's Autocrypt key not ingested+parsed (B-31 end-to-end): got %q, want %q", bobInfo, wantBob)
 	}
 	t.Log("AUTOCRYPT INGEST OK: peer key stored and parsed (B-31 chain)")
 
