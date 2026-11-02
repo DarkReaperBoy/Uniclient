@@ -17591,181 +17591,6 @@ func (t *TelegramCore) SetBotCustomVerification(botID, peerID string, enabled bo
 	return api.BotsSetCustomVerification(ctx, req)
 }
 
-func connectedStarRefBotsToMaps(users map[int64]*tg.User, bots []tg.ConnectedBotStarRef) []map[string]interface{} {
-	out := make([]map[string]interface{}, 0, len(bots))
-	for _, b := range bots {
-		name, uname, avatar := "", "", ""
-		if u, ok := users[b.BotID]; ok {
-			name = userDisplayName(u)
-			uname = u.Username
-			avatar = userAvatarStrippedB64(u)
-		}
-		out = append(out, map[string]interface{}{
-			"bot_id":              strconv.FormatInt(b.BotID, 10),
-			"bot_name":            name,
-			"bot_username":        uname,
-			"avatar_b64":          avatar,
-			"url":                 b.URL,
-			"commission_permille": b.CommissionPermille,
-			"duration_months":     b.DurationMonths,
-			"date":                b.Date,
-			"revoked":             b.Revoked,
-			"participants":        b.Participants,
-			"revenue":             b.Revenue,
-		})
-	}
-	return out
-}
-
-func (t *TelegramCore) GetSuggestedStarRefBots(chatID, offset string, limit int, orderByRevenue, orderByDate bool) (map[string]interface{}, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return nil, err
-	}
-	peer, err := t.resolvePeer(chatID)
-	if err != nil {
-		return nil, err
-	}
-	inputPeer, err := t.toInputPeer(peer)
-	if err != nil {
-		return nil, err
-	}
-	if limit <= 0 {
-		limit = 20
-	}
-	req := &tg.PaymentsGetSuggestedStarRefBotsRequest{Peer: inputPeer, Offset: offset, Limit: limit}
-	req.OrderByRevenue = orderByRevenue
-	req.OrderByDate = orderByDate
-	res, err := api.PaymentsGetSuggestedStarRefBots(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	users := map[int64]*tg.User{}
-	for _, u := range res.Users {
-		if uu, ok := u.(*tg.User); ok {
-			users[uu.ID] = uu
-		}
-	}
-	bots := make([]map[string]interface{}, 0, len(res.SuggestedBots))
-	for _, p := range res.SuggestedBots {
-		name, uname, avatar := "", "", ""
-		if u, ok := users[p.BotID]; ok {
-			name = userDisplayName(u)
-			uname = u.Username
-			avatar = userAvatarStrippedB64(u)
-		}
-		m := map[string]interface{}{
-			"bot_id":              strconv.FormatInt(p.BotID, 10),
-			"bot_name":            name,
-			"bot_username":        uname,
-			"avatar_b64":          avatar,
-			"commission_permille": p.CommissionPermille,
-			"duration_months":     p.DurationMonths,
-		}
-		if dr, ok := p.GetDailyRevenuePerUser(); ok && dr != nil {
-			m["daily_revenue"] = dr.GetAmount()
-		}
-		bots = append(bots, m)
-	}
-	return map[string]interface{}{
-		"count":       res.Count,
-		"bots":        bots,
-		"next_offset": res.NextOffset,
-	}, nil
-}
-
-func (t *TelegramCore) GetConnectedStarRefBots(chatID string) ([]map[string]interface{}, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return nil, err
-	}
-	peer, err := t.resolvePeer(chatID)
-	if err != nil {
-		return nil, err
-	}
-	inputPeer, err := t.toInputPeer(peer)
-	if err != nil {
-		return nil, err
-	}
-	res, err := api.PaymentsGetConnectedStarRefBots(ctx, &tg.PaymentsGetConnectedStarRefBotsRequest{Peer: inputPeer})
-	if err != nil {
-		return nil, err
-	}
-	users := map[int64]*tg.User{}
-	for _, u := range res.Users {
-		if uu, ok := u.(*tg.User); ok {
-			users[uu.ID] = uu
-		}
-	}
-	return connectedStarRefBotsToMaps(users, res.ConnectedBots), nil
-}
-
-func (t *TelegramCore) ConnectStarRefBot(chatID, botID string, revoked bool, link string) (map[string]interface{}, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return nil, err
-	}
-	peer, err := t.resolvePeer(chatID)
-	if err != nil {
-		return nil, err
-	}
-	inputPeer, err := t.toInputPeer(peer)
-	if err != nil {
-		return nil, err
-	}
-	bid, err := tgUserID(botID)
-	if err != nil {
-		return nil, err
-	}
-	if revoked {
-		if link == "" {
-			return nil, fmt.Errorf("revoke requires the connected link")
-		}
-		editRes, eerr := api.PaymentsEditConnectedStarRefBot(ctx, &tg.PaymentsEditConnectedStarRefBotRequest{
-			Revoked: true,
-			Peer:    inputPeer,
-			Link:    link,
-		})
-		if eerr != nil {
-			return nil, eerr
-		}
-		users := map[int64]*tg.User{}
-		for _, u := range editRes.Users {
-			if uu, ok := u.(*tg.User); ok {
-				users[uu.ID] = uu
-			}
-		}
-		list := connectedStarRefBotsToMaps(users, editRes.ConnectedBots)
-		if len(list) > 0 {
-			return list[0], nil
-		}
-		return map[string]interface{}{"revoked": true}, nil
-	}
-	res, err := api.PaymentsConnectStarRefBot(ctx, &tg.PaymentsConnectStarRefBotRequest{
-		Peer: inputPeer,
-		Bot:  &tg.InputUser{UserID: bid, AccessHash: t.getCachedUserHash(bid)},
-	})
-	if err != nil {
-		return nil, err
-	}
-	users := map[int64]*tg.User{}
-	for _, u := range res.Users {
-		if uu, ok := u.(*tg.User); ok {
-			users[uu.ID] = uu
-		}
-	}
-	list := connectedStarRefBotsToMaps(users, res.ConnectedBots)
-	for _, m := range list {
-		if m["bot_id"] == botID {
-			return m, nil
-		}
-	}
-	if len(list) > 0 {
-		return list[0], nil
-	}
-	return map[string]interface{}{}, nil
-}
-
 func (t *TelegramCore) GetParticipants(chatID string, limit int) ([]User, error) {
 	api, ctx, err := t.WithAPI()
 	if err != nil {
@@ -18502,7 +18327,7 @@ func (t *TelegramCore) SetChatReactions(chatID string, reactions []tg.ReactionCl
 	return err
 }
 
-func (t *TelegramCore) SetChatReactionsMode(chatID string, mode string, emojis []string, maxCount int, paidEnabled bool) error {
+func (t *TelegramCore) SetChatReactionsMode(chatID string, mode string, emojis []string, maxCount int) error {
 	inputPeer, unlock, err := t.withPeer(chatID)
 	if err != nil {
 		return err
@@ -18534,136 +18359,7 @@ func (t *TelegramCore) SetChatReactionsMode(chatID string, mode string, emojis [
 	if maxCount > 0 {
 		req.SetReactionsLimit(maxCount)
 	}
-	if paidEnabled {
-		req.SetPaidEnabled(true)
-	}
 	_, err = t.api.MessagesSetChatAvailableReactions(t.ctx, req)
-	return err
-}
-
-func (t *TelegramCore) UpdatePaidMessagesPrice(chatID string, stars int64, broadcastEnabled bool) error {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return err
-	}
-	peer, err := t.resolvePeer(chatID)
-	if err != nil {
-		return err
-	}
-	ch, ok := peer.(*tg.PeerChannel)
-	if !ok {
-		return fmt.Errorf("not a channel")
-	}
-	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
-	req := &tg.ChannelsUpdatePaidMessagesPriceRequest{
-		Channel:               &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash},
-		SendPaidMessagesStars: stars,
-	}
-	if broadcastEnabled {
-		req.SetBroadcastMessagesAllowed(true)
-	}
-	_, err = api.ChannelsUpdatePaidMessagesPrice(ctx, req)
-	return err
-}
-
-func (t *TelegramCore) SetBoostsUnrestrict(chatID string, boosts int) error {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return err
-	}
-	peer, err := t.resolvePeer(chatID)
-	if err != nil {
-		return err
-	}
-	ch, ok := peer.(*tg.PeerChannel)
-	if !ok {
-		return fmt.Errorf("not a channel")
-	}
-	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
-	_, err = api.ChannelsSetBoostsToUnblockRestrictions(ctx, &tg.ChannelsSetBoostsToUnblockRestrictionsRequest{
-		Channel: &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash},
-		Boosts:  boosts,
-	})
-	return err
-}
-
-func (t *TelegramCore) GetBoostsJSON(chatID string) (map[string]interface{}, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return nil, err
-	}
-	peer, err := t.resolvePeer(chatID)
-	if err != nil {
-		return nil, err
-	}
-	inputPeer, err := t.toInputPeer(peer)
-	if err != nil {
-		return nil, err
-	}
-	status, err := api.PremiumGetBoostsStatus(ctx, inputPeer)
-	if err != nil {
-		return nil, err
-	}
-	out := map[string]interface{}{
-		"level":                status.Level,
-		"boosts":               status.Boosts,
-		"current_level_boosts": status.CurrentLevelBoosts,
-		"next_level_boosts":    status.NextLevelBoosts,
-		"gift_boosts":          status.GiftBoosts,
-		"my_boost":             status.MyBoost,
-		"boost_url":            status.BoostURL,
-	}
-	if pa := status.PremiumAudience; pa.Total > 0 {
-		out["premium_audience"] = map[string]interface{}{
-			"part":  pa.Part,
-			"total": pa.Total,
-		}
-	}
-	if slots, ok := status.GetMyBoostSlots(); ok {
-		out["my_boost_slots"] = slots
-	}
-	if prepaid, ok := status.GetPrepaidGiveaways(); ok && len(prepaid) > 0 {
-		var giveaways []map[string]interface{}
-		for _, pg := range prepaid {
-			switch g := pg.(type) {
-			case *tg.PrepaidGiveaway:
-				giveaways = append(giveaways, map[string]interface{}{
-					"id":       g.ID,
-					"months":   g.Months,
-					"quantity": g.Quantity,
-					"date":     g.Date,
-				})
-			case *tg.PrepaidStarsGiveaway:
-				giveaways = append(giveaways, map[string]interface{}{
-					"id":       g.ID,
-					"credits":  g.Stars,
-					"quantity": g.Quantity,
-					"boosts":   g.Boosts,
-					"date":     g.Date,
-				})
-			}
-		}
-		out["prepaid_giveaways"] = giveaways
-	}
-	return out, nil
-}
-
-func (t *TelegramCore) ApplyBoost(chatID string) error {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return err
-	}
-	peer, err := t.resolvePeer(chatID)
-	if err != nil {
-		return err
-	}
-	inputPeer, err := t.toInputPeer(peer)
-	if err != nil {
-		return err
-	}
-	_, err = api.PremiumApplyBoost(ctx, &tg.PremiumApplyBoostRequest{
-		Peer: inputPeer,
-	})
 	return err
 }
 
@@ -18725,151 +18421,6 @@ func (t *TelegramCore) ReadDiscussion(chatID, msgID string) error {
 		MsgID: id,
 	})
 	return err
-}
-
-func (t *TelegramCore) GetBoostsListJSON(chatID string, isGifts bool, offset string) (map[string]interface{}, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return nil, err
-	}
-	peer, err := t.resolvePeer(chatID)
-	if err != nil {
-		return nil, err
-	}
-	inputPeer, err := t.toInputPeer(peer)
-	if err != nil {
-		return nil, err
-	}
-	req := &tg.PremiumGetBoostsListRequest{
-		Peer:   inputPeer,
-		Offset: offset,
-		Limit:  50,
-	}
-	if isGifts {
-		req.SetGifts(true)
-	}
-	list, err := api.PremiumGetBoostsList(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	out := map[string]interface{}{
-		"count": list.Count,
-	}
-	if nextOff, ok := list.GetNextOffset(); ok {
-		out["next_offset"] = nextOff
-	}
-	t.cacheEntities(list.Users, nil)
-	var boosters []map[string]interface{}
-	userMap := map[int64]tg.UserClass{}
-	for _, u := range list.Users {
-		if usr, ok := u.(*tg.User); ok {
-			userMap[usr.ID] = usr
-		}
-	}
-	for _, b := range list.Boosts {
-		row := map[string]interface{}{
-			"id":      b.ID,
-			"date":    b.Date,
-			"expires": b.Expires,
-		}
-		if b.Gift {
-			row["gift"] = true
-		}
-		if b.Giveaway {
-			row["giveaway"] = true
-		}
-		if b.Unclaimed {
-			row["unclaimed"] = true
-		}
-		if uid, ok := b.GetUserID(); ok {
-			row["user_id"] = uid
-			if u, exists := userMap[uid]; exists {
-				if usr, ok := u.(*tg.User); ok {
-					name := usr.FirstName
-					if usr.LastName != "" {
-						name += " " + usr.LastName
-					}
-					row["user_name"] = name
-				}
-			}
-			if av := t.getUserAvatarB64(uid); av != "" {
-				row["avatar_b64"] = av
-			}
-		}
-		if mult, ok := b.GetMultiplier(); ok {
-			row["multiplier"] = mult
-		}
-		boosters = append(boosters, row)
-	}
-	out["boosters"] = boosters
-	return out, nil
-}
-
-func (t *TelegramCore) GetGiftCodeOptions(chatID string) ([]map[string]interface{}, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return nil, err
-	}
-	req := &tg.PaymentsGetPremiumGiftCodeOptionsRequest{}
-	if chatID != "" {
-		peer, err := t.resolvePeer(chatID)
-		if err != nil {
-			return nil, err
-		}
-		inputPeer, err := t.toInputPeer(peer)
-		if err != nil {
-			return nil, err
-		}
-		req.SetBoostPeer(inputPeer)
-	}
-	options, err := api.PaymentsGetPremiumGiftCodeOptions(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	var result []map[string]interface{}
-	for _, opt := range options {
-		row := map[string]interface{}{
-			"users":    opt.Users,
-			"months":   opt.Months,
-			"currency": opt.Currency,
-			"amount":   opt.Amount,
-		}
-		if sp, ok := opt.GetStoreProduct(); ok {
-			row["store_product"] = sp
-		}
-		if sq, ok := opt.GetStoreQuantity(); ok {
-			row["store_quantity"] = sq
-		}
-		result = append(result, row)
-	}
-	return result, nil
-}
-
-func (t *TelegramCore) GetGiveawayPeriodMax() (int, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return 604800, err
-	}
-	result, err := api.HelpGetAppConfig(ctx, 0)
-	if err != nil {
-		return 604800, nil
-	}
-	cfg, ok := result.(*tg.HelpAppConfig)
-	if !ok {
-		return 604800, nil
-	}
-	if jv := cfg.Config; jv != nil {
-		if obj, ok2 := jv.(*tg.JSONObject); ok2 {
-			for _, kv := range obj.Value {
-				if kv.Key == "giveaway_period_max" {
-					if n, ok3 := kv.Value.(*tg.JSONNumber); ok3 {
-						return int(n.Value), nil
-					}
-				}
-			}
-		}
-	}
-	return 604800, nil
 }
 
 func (t *TelegramCore) EditChannelTitle(chatID string, title string) error {
@@ -21637,40 +21188,6 @@ func (t *TelegramCore) GetGlobalPrivacy() (*tg.GlobalPrivacySettings, error) {
 	return api.AccountGetGlobalPrivacySettings(ctx)
 }
 
-func (t *TelegramCore) GetGiftSettings() (showIcon bool, disallowLimited, disallowUnlimited, disallowUnique, disallowChannels, disallowPremium bool, err error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return false, false, false, false, false, false, err
-	}
-	s, err := api.AccountGetGlobalPrivacySettings(ctx)
-	if err != nil {
-		return false, false, false, false, false, false, err
-	}
-	dg, _ := s.GetDisallowedGifts()
-	return s.DisplayGiftsButton, dg.DisallowLimitedStargifts, dg.DisallowUnlimitedStargifts, dg.DisallowUniqueStargifts, dg.DisallowStargiftsFromChannels, dg.DisallowPremiumGifts, nil
-}
-
-func (t *TelegramCore) SetGiftSettings(showIcon, acceptLimited, acceptUnlimited, acceptUnique, acceptChannels, acceptPremium bool) error {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return err
-	}
-	s, err := api.AccountGetGlobalPrivacySettings(ctx)
-	if err != nil {
-		return err
-	}
-	s.SetDisplayGiftsButton(showIcon)
-	s.SetDisallowedGifts(tg.DisallowedGiftsSettings{
-		DisallowLimitedStargifts:      !acceptLimited,
-		DisallowUnlimitedStargifts:    !acceptUnlimited,
-		DisallowUniqueStargifts:       !acceptUnique,
-		DisallowStargiftsFromChannels: !acceptChannels,
-		DisallowPremiumGifts:          !acceptPremium,
-	})
-	_, err = api.AccountSetGlobalPrivacySettings(ctx, *s)
-	return err
-}
-
 func (t *TelegramCore) GetArchiveSettings() (archiveAndMute bool, keepArchivedUnmuted bool, keepArchivedFolders bool, err error) {
 	api, ctx, err := t.WithAPI()
 	if err != nil {
@@ -22338,33 +21855,6 @@ func (t *TelegramCore) UpdateChannelColorEx(chatID string, colorIndex int, backg
 	return err
 }
 
-func (t *TelegramCore) UpdateChannelEmojiStatus(chatID string, documentID int64) error {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return err
-	}
-	peer, err := t.resolvePeer(chatID)
-	if err != nil {
-		return err
-	}
-	ch, ok := peer.(*tg.PeerChannel)
-	if !ok {
-		return fmt.Errorf("not a channel")
-	}
-	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
-	var status tg.EmojiStatusClass
-	if documentID == 0 {
-		status = &tg.EmojiStatusEmpty{}
-	} else {
-		status = &tg.EmojiStatus{DocumentID: documentID}
-	}
-	_, err = api.ChannelsUpdateEmojiStatus(ctx, &tg.ChannelsUpdateEmojiStatusRequest{
-		Channel:     &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash},
-		EmojiStatus: status,
-	})
-	return err
-}
-
 func (t *TelegramCore) DeleteProfilePhotos() error {
 	api, ctx, err := t.WithAPI()
 	if err != nil {
@@ -22737,554 +22227,6 @@ func (t *TelegramCore) GetConfcallSizeLimit() (int, error) {
 	return 200, nil
 }
 
-func (t *TelegramCore) GetStarsPaidPostAmountMax() (int, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return 10000, err
-	}
-	result, err := api.HelpGetAppConfig(ctx, 0)
-	if err != nil {
-		return 10000, nil
-	}
-	cfg, ok := result.(*tg.HelpAppConfig)
-	if !ok {
-		return 10000, nil
-	}
-	if jv := cfg.Config; jv != nil {
-		if obj, ok2 := jv.(*tg.JSONObject); ok2 {
-			for _, kv := range obj.Value {
-				if kv.Key == "stars_paid_post_amount_max" {
-					if n, ok3 := kv.Value.(*tg.JSONNumber); ok3 {
-						return int(n.Value), nil
-					}
-				}
-			}
-		}
-	}
-	return 10000, nil
-}
-
-func (t *TelegramCore) UnlockPaidMedia(chatID, msgID string) error {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return err
-	}
-	peer, err := t.resolvePeer(chatID)
-	if err != nil {
-		return err
-	}
-	inputPeer, err := t.toInputPeer(peer)
-	if err != nil {
-		return err
-	}
-	id, err := strconv.Atoi(strings.TrimSpace(msgID))
-	if err != nil || id <= 0 {
-		return fmt.Errorf("%w: bad message id %q", ErrInvalidInput, msgID)
-	}
-	invoice := &tg.InputInvoiceMessage{Peer: inputPeer, MsgID: id}
-	rawForm, err := api.PaymentsGetPaymentForm(ctx, &tg.PaymentsGetPaymentFormRequest{
-		Invoice: invoice,
-	})
-	if err != nil {
-		return fmt.Errorf("get payment form: %w", err)
-	}
-	form, ok := rawForm.(*tg.PaymentsPaymentForm)
-	if !ok {
-		return fmt.Errorf("unexpected payment form type: %T", rawForm)
-	}
-	rawRes, err := api.PaymentsSendStarsForm(ctx, &tg.PaymentsSendStarsFormRequest{
-		FormID:  form.FormID,
-		Invoice: invoice,
-	})
-	if err != nil {
-		return fmt.Errorf("pay: %w", err)
-	}
-	switch res := rawRes.(type) {
-	case *tg.PaymentsPaymentResult:
-		return nil
-	case *tg.PaymentsPaymentVerificationNeeded:
-		if res.URL != "" {
-			return fmt.Errorf("verification needed: %s", res.URL)
-		}
-		return fmt.Errorf("verification needed")
-	default:
-		return fmt.Errorf("unexpected payment result type: %T", rawRes)
-	}
-}
-
-func (t *TelegramCore) GetStarsBalance() (int64, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return 0, err
-	}
-	result, err := api.PaymentsGetStarsStatus(ctx, &tg.PaymentsGetStarsStatusRequest{
-		Peer: &tg.InputPeerSelf{},
-	})
-	if err != nil {
-		return 0, err
-	}
-	return result.Balance.GetAmount(), nil
-}
-
-type StarsRevenueResult struct {
-	CurrentBalance    int64                    `json:"current_balance"`
-	AvailableBalance  int64                    `json:"available_balance"`
-	OverallRevenue    int64                    `json:"overall_revenue"`
-	WithdrawalEnabled bool                     `json:"withdrawal_enabled"`
-	UsdRate           float64                  `json:"usd_rate"`
-	Charts            []map[string]interface{} `json:"charts,omitempty"`
-	WithdrawalMin     int64                    `json:"withdrawal_min,omitempty"`
-	WithdrawalMax     int64                    `json:"withdrawal_max,omitempty"`
-}
-
-func (t *TelegramCore) GetStarsRevenueStats(chatID string) (StarsRevenueResult, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return StarsRevenueResult{}, err
-	}
-	peer, _ := t.resolvePeer(chatID)
-	inputPeer, _ := t.toInputPeer(peer)
-	result, err := api.PaymentsGetStarsRevenueStats(ctx, &tg.PaymentsGetStarsRevenueStatsRequest{
-		Peer: inputPeer,
-	})
-	if err != nil {
-		return StarsRevenueResult{}, err
-	}
-	charts := []map[string]interface{}{}
-	if c := statsGraphToMap("Revenue", result.RevenueGraph, "StackBar"); c != nil {
-		charts = append(charts, c)
-	}
-	if c := statsGraphToMap("Top Hours", result.TopHoursGraph, "Linear"); c != nil {
-		charts = append(charts, c)
-	}
-	avail := result.Status.AvailableBalance.GetAmount()
-	withdrawMin := int64(t.appConfigIntNoLock("stars_revenue_withdrawal_min", 1000))
-	withdrawMax := int64(t.appConfigIntNoLock("stars_revenue_withdrawal_max", 1000000000))
-	if withdrawMax <= 0 || withdrawMax > avail {
-		withdrawMax = avail
-	}
-	return StarsRevenueResult{
-		CurrentBalance:    result.Status.CurrentBalance.GetAmount(),
-		AvailableBalance:  avail,
-		OverallRevenue:    result.Status.OverallRevenue.GetAmount(),
-		WithdrawalEnabled: result.Status.WithdrawalEnabled,
-		UsdRate:           result.UsdRate,
-		Charts:            charts,
-		WithdrawalMin:     withdrawMin,
-		WithdrawalMax:     withdrawMax,
-	}, nil
-}
-
-func StarsStatusFromWire(res *tg.PaymentsStarsStatus) StarsStatus {
-	if res == nil {
-		return StarsStatus{}
-	}
-	names := map[int64]string{}
-	for _, u := range res.Users {
-		if user, ok := u.(*tg.User); ok {
-			names[user.ID] = userDisplayName(user)
-		}
-	}
-	for _, c := range res.Chats {
-		switch ch := c.(type) {
-		case *tg.Channel:
-			names[ch.ID] = ch.Title
-		case *tg.Chat:
-			names[ch.ID] = ch.Title
-		}
-	}
-	out := StarsStatus{NextOffset: res.NextOffset}
-	if res.Balance != nil {
-		out.BalanceNano = res.Balance.GetAmount()
-	}
-	for _, tx := range res.History {
-		t := StarsTxn{
-			ID:        tx.ID,
-			NanoStars: tx.Amount.GetAmount(),
-			Date:      int64(tx.Date),
-			Refund:    tx.Refund,
-			Pending:   tx.Pending,
-			Failed:    tx.Failed,
-			Gift:      tx.Gift,
-		}
-		if title, ok := tx.GetTitle(); ok {
-			t.Title = title
-		}
-		if desc, ok := tx.GetDescription(); ok {
-			t.Description = desc
-		}
-		if sp, ok := tx.Peer.(*tg.StarsTransactionPeer); ok {
-			switch p := sp.Peer.(type) {
-			case *tg.PeerUser:
-				t.PeerTitle = names[p.UserID]
-			case *tg.PeerChannel:
-				t.PeerTitle = names[p.ChannelID]
-			case *tg.PeerChat:
-				t.PeerTitle = names[p.ChatID]
-			}
-		}
-		out.Txns = append(out.Txns, t)
-	}
-	return out
-}
-
-func (t *TelegramCore) GetMyStars(offset, filter string) (StarsStatus, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return StarsStatus{}, err
-	}
-	req := &tg.PaymentsGetStarsTransactionsRequest{
-		Peer:   &tg.InputPeerSelf{},
-		Offset: offset,
-		Limit:  30,
-	}
-	switch filter {
-	case "in":
-		req.Inbound = true
-	case "out":
-		req.Outbound = true
-	}
-	res, err := api.PaymentsGetStarsTransactions(ctx, req)
-	if err != nil {
-		return StarsStatus{}, fmt.Errorf("get stars transactions: %w", err)
-	}
-	return StarsStatusFromWire(res), nil
-}
-
-func (t *TelegramCore) GetStarsTransactions(chatID, offset string, limit int, filter string) (map[string]interface{}, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return nil, err
-	}
-	peer, err := t.resolvePeer(chatID)
-	if err != nil {
-		return nil, err
-	}
-	inputPeer, err := t.toInputPeer(peer)
-	if err != nil {
-		return nil, err
-	}
-	if limit <= 0 {
-		limit = 30
-	}
-	req := &tg.PaymentsGetStarsTransactionsRequest{
-		Peer:   inputPeer,
-		Offset: offset,
-		Limit:  limit,
-	}
-	switch filter {
-	case "in":
-		req.Inbound = true
-	case "out":
-		req.Outbound = true
-	}
-	res, err := api.PaymentsGetStarsTransactions(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-	txns := make([]map[string]interface{}, 0, len(res.History))
-	for _, tx := range res.History {
-		m := map[string]interface{}{
-			"id":          tx.ID,
-			"amount":      tx.Amount.GetAmount(),
-			"date":        tx.Date,
-			"refund":      tx.Refund,
-			"title":       tx.Title,
-			"description": tx.Description,
-			"pending":     tx.Pending,
-			"failed":      tx.Failed,
-			"gift":        tx.Gift,
-		}
-		if sp, ok := tx.GetSubscriptionPeriod(); ok && sp != 0 {
-			m["subscription_period"] = sp
-		}
-		txns = append(txns, m)
-	}
-	return map[string]interface{}{
-		"transactions": txns,
-		"next_offset":  res.NextOffset,
-		"balance":      res.Balance.GetAmount(),
-	}, nil
-}
-
-func (t *TelegramCore) GetStarsRevenueWithdrawalUrl(chatID, password string, amount int64) (string, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return "", err
-	}
-	peer, err := t.resolvePeer(chatID)
-	if err != nil {
-		return "", err
-	}
-	inputPeer, err := t.toInputPeer(peer)
-	if err != nil {
-		return "", err
-	}
-	stats, err := api.PaymentsGetStarsRevenueStats(ctx, &tg.PaymentsGetStarsRevenueStatsRequest{Peer: inputPeer})
-	if err != nil {
-		return "", fmt.Errorf("get revenue stats: %w", err)
-	}
-	avail := stats.Status.AvailableBalance.GetAmount()
-	if avail <= 0 {
-		return "", fmt.Errorf("no balance available to withdraw")
-	}
-	if amount <= 0 || amount > avail {
-		amount = avail
-	}
-	pw, err := api.AccountGetPassword(ctx)
-	if err != nil {
-		return "", fmt.Errorf("get password params: %w", err)
-	}
-	srpCheck, err := auth.PasswordHash([]byte(password), pw.SRPID, pw.SRPB, pw.SecureRandom, pw.CurrentAlgo)
-	if err != nil {
-		return "", fmt.Errorf("SRP computation failed: %w", err)
-	}
-	res, err := api.PaymentsGetStarsRevenueWithdrawalURL(ctx, &tg.PaymentsGetStarsRevenueWithdrawalURLRequest{
-		Peer:     inputPeer,
-		Amount:   amount,
-		Password: srpCheck,
-	})
-	if err != nil {
-		return "", err
-	}
-	return res.URL, nil
-}
-
-func (t *TelegramCore) GetSponsoredInfo(chatID string) (map[string]interface{}, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return nil, err
-	}
-	peer, err := t.resolvePeer(chatID)
-	if err != nil {
-		return nil, err
-	}
-	ch, ok := peer.(*tg.PeerChannel)
-	if !ok {
-		return map[string]interface{}{"is_broadcast": false}, nil
-	}
-	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
-	inputCh := &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash}
-	requiredLevel := appConfigIntAPI(api, ctx, "channel_restrict_sponsored_level_min", 50)
-	isBroadcast := false
-	restricted := false
-	full, err := api.ChannelsGetFullChannel(ctx, inputCh)
-	if err != nil {
-		return nil, err
-	}
-	if cf, ok := full.FullChat.(*tg.ChannelFull); ok {
-		restricted = cf.RestrictedSponsored
-	}
-	for _, c := range full.Chats {
-		if cc, ok := c.(*tg.Channel); ok && cc.ID == ch.ChannelID {
-			isBroadcast = cc.Broadcast && !cc.Megagroup
-		}
-	}
-	currentLevel := 0
-	if isBroadcast {
-		if bs, err := api.PremiumGetBoostsStatus(ctx, &tg.InputPeerChannel{ChannelID: ch.ChannelID, AccessHash: hash}); err == nil {
-			currentLevel = bs.Level
-		}
-	}
-	return map[string]interface{}{
-		"is_broadcast":   isBroadcast,
-		"restricted":     restricted,
-		"required_level": requiredLevel,
-		"current_level":  currentLevel,
-	}, nil
-}
-
-func (t *TelegramCore) SetRestrictSponsored(chatID string, restricted bool) error {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return err
-	}
-	peer, err := t.resolvePeer(chatID)
-	if err != nil {
-		return err
-	}
-	ch, ok := peer.(*tg.PeerChannel)
-	if !ok {
-		return fmt.Errorf("not a channel")
-	}
-	hash, _ := t.resolveChannelAccessHash(ch.ChannelID)
-	_, err = api.ChannelsRestrictSponsoredMessages(ctx, &tg.ChannelsRestrictSponsoredMessagesRequest{
-		Channel:    &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash},
-		Restricted: restricted,
-	})
-	return err
-}
-
-func (t *TelegramCore) GetBroadcastRevenueStats(chatID string) (StarsRevenueResult, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return StarsRevenueResult{}, err
-	}
-	peer, _ := t.resolvePeer(chatID)
-	inputPeer, _ := t.toInputPeer(peer)
-	result, err := api.PaymentsGetStarsRevenueStats(ctx, &tg.PaymentsGetStarsRevenueStatsRequest{
-		Ton:  true,
-		Peer: inputPeer,
-	})
-	if err != nil {
-		return StarsRevenueResult{}, err
-	}
-	charts := []map[string]interface{}{}
-	if c := statsGraphToMap("Top Hours", result.TopHoursGraph, "Bar"); c != nil {
-		charts = append(charts, c)
-	}
-	if c := statsGraphToMap("Revenue", result.RevenueGraph, "StackBar"); c != nil {
-		charts = append(charts, c)
-	}
-	return StarsRevenueResult{
-		CurrentBalance:    result.Status.CurrentBalance.GetAmount(),
-		AvailableBalance:  result.Status.AvailableBalance.GetAmount(),
-		OverallRevenue:    result.Status.OverallRevenue.GetAmount(),
-		WithdrawalEnabled: result.Status.WithdrawalEnabled,
-		UsdRate:           result.UsdRate,
-		Charts:            charts,
-	}, nil
-}
-
-func (t *TelegramCore) GetBroadcastRevenueTransactions(chatID, offset string, limit int) (map[string]interface{}, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return nil, err
-	}
-	peer, err := t.resolvePeer(chatID)
-	if err != nil {
-		return nil, err
-	}
-	inputPeer, err := t.toInputPeer(peer)
-	if err != nil {
-		return nil, err
-	}
-	if limit <= 0 {
-		limit = 30
-	}
-	res, err := api.PaymentsGetStarsTransactions(ctx, &tg.PaymentsGetStarsTransactionsRequest{
-		Ton:    true,
-		Peer:   inputPeer,
-		Offset: offset,
-		Limit:  limit,
-	})
-	if err != nil {
-		return nil, err
-	}
-	txns := make([]map[string]interface{}, 0, len(res.History))
-	for _, tx := range res.History {
-		m := map[string]interface{}{
-			"id":          tx.ID,
-			"amount":      tx.Amount.GetAmount(),
-			"date":        tx.Date,
-			"refund":      tx.Refund,
-			"pending":     tx.Pending,
-			"failed":      tx.Failed,
-			"title":       tx.Title,
-			"description": tx.Description,
-		}
-		if url, ok := tx.GetTransactionURL(); ok && url != "" {
-			m["transaction_url"] = url
-		}
-		if td, ok := tx.GetTransactionDate(); ok && td != 0 {
-			m["transaction_date"] = td
-		}
-		switch tx.Peer.(type) {
-		case *tg.StarsTransactionPeerFragment:
-			m["provider"] = "Fragment"
-		case *tg.StarsTransactionPeerAds:
-			m["provider"] = "Telegram Ads"
-		case *tg.StarsTransactionPeerAppStore:
-			m["provider"] = "App Store"
-		case *tg.StarsTransactionPeerPlayMarket:
-			m["provider"] = "Google Play"
-		case *tg.StarsTransactionPeerPremiumBot:
-			m["provider"] = "Telegram"
-		case *tg.StarsTransactionPeerAPI:
-			m["provider"] = "Telegram API"
-		}
-		txns = append(txns, m)
-	}
-	return map[string]interface{}{
-		"transactions": txns,
-		"next_offset":  res.NextOffset,
-	}, nil
-}
-
-func (t *TelegramCore) GetBroadcastRevenueWithdrawalUrl(chatID, password string) (string, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return "", err
-	}
-	peer, err := t.resolvePeer(chatID)
-	if err != nil {
-		return "", err
-	}
-	inputPeer, err := t.toInputPeer(peer)
-	if err != nil {
-		return "", err
-	}
-	stats, err := api.PaymentsGetStarsRevenueStats(ctx, &tg.PaymentsGetStarsRevenueStatsRequest{Ton: true, Peer: inputPeer})
-	if err != nil {
-		return "", fmt.Errorf("get revenue stats: %w", err)
-	}
-	if stats.Status.AvailableBalance.GetAmount() <= 0 {
-		return "", fmt.Errorf("no balance available to withdraw")
-	}
-	pw, err := api.AccountGetPassword(ctx)
-	if err != nil {
-		return "", fmt.Errorf("get password params: %w", err)
-	}
-	srpCheck, err := auth.PasswordHash([]byte(password), pw.SRPID, pw.SRPB, pw.SecureRandom, pw.CurrentAlgo)
-	if err != nil {
-		return "", fmt.Errorf("SRP computation failed: %w", err)
-	}
-	res, err := api.PaymentsGetStarsRevenueWithdrawalURL(ctx, &tg.PaymentsGetStarsRevenueWithdrawalURLRequest{
-		Ton:      true,
-		Peer:     inputPeer,
-		Amount:   0,
-		Password: srpCheck,
-	})
-	if err != nil {
-		return "", err
-	}
-	return res.URL, nil
-}
-
-func (t *TelegramCore) GetPremiumStatus() (premiumPossible bool, premiumCanBuy bool, err error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return false, false, err
-	}
-	blocked := false
-	result, err := api.HelpGetAppConfig(ctx, 0)
-	if err == nil {
-		if cfg, ok := result.(*tg.HelpAppConfig); ok {
-			if jv := cfg.Config; jv != nil {
-				if obj, ok2 := jv.(*tg.JSONObject); ok2 {
-					for _, kv := range obj.Value {
-						if kv.Key == "premium_purchase_blocked" {
-							if b, ok3 := kv.Value.(*tg.JSONBool); ok3 {
-								blocked = b.Value
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-	premiumPossible = !blocked
-	selfPremium := false
-	users, err2 := api.UsersGetUsers(ctx, []tg.InputUserClass{&tg.InputUserSelf{}})
-	if err2 == nil && len(users) > 0 {
-		if u, ok := users[0].(*tg.User); ok {
-			selfPremium = u.Premium
-		}
-	}
-	premiumCanBuy = premiumPossible && !selfPremium
-	return premiumPossible, premiumCanBuy, nil
-}
-
 func (t *TelegramCore) GetDialogFiltersEnabled() (bool, error) {
 	api, ctx, err := t.WithAPI()
 	if err != nil {
@@ -23549,45 +22491,6 @@ func (t *TelegramCore) ReorderChannelUsernames(chatID string, order []string) (b
 		Channel: &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: hash},
 		Order:   order,
 	})
-}
-
-func (t *TelegramCore) GetPaidMessagesConfig() (maxStars int64, commissionPermille int32, withdrawRate float64, err error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return 0, 0, 0, err
-	}
-	result, err := api.HelpGetAppConfig(ctx, 0)
-	if err != nil {
-		return 0, 0, 0, err
-	}
-	cfg, ok := result.(*tg.HelpAppConfig)
-	if !ok {
-		return 10000, 150, 0.013, nil
-	}
-	maxStars = 10000
-	commissionPermille = 150
-	withdrawRate = 0.013
-	if jv := cfg.Config; jv != nil {
-		if obj, ok2 := jv.(*tg.JSONObject); ok2 {
-			for _, kv := range obj.Value {
-				switch kv.Key {
-				case "paid_message_stars_max":
-					if n, ok3 := kv.Value.(*tg.JSONNumber); ok3 {
-						maxStars = int64(n.Value)
-					}
-				case "paid_message_commission_permille":
-					if n, ok3 := kv.Value.(*tg.JSONNumber); ok3 {
-						commissionPermille = int32(n.Value)
-					}
-				case "stars_usd_withdraw_rate_x1000":
-					if n, ok3 := kv.Value.(*tg.JSONNumber); ok3 {
-						withdrawRate = n.Value / 1000.0
-					}
-				}
-			}
-		}
-	}
-	return maxStars, commissionPermille, withdrawRate, nil
 }
 
 func (t *TelegramCore) GetReactionsList(chatID, msgID string, limit int) (int, error) {
@@ -24946,14 +23849,6 @@ func (t *TelegramCore) AccountConfirmPhone(request *tg.AccountConfirmPhoneReques
 	return api.AccountConfirmPhone(ctx, request)
 }
 
-func (t *TelegramCore) AccountCreateBusinessChatLink(link tg.InputBusinessChatLink) (*tg.BusinessChatLink, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return nil, err
-	}
-	return api.AccountCreateBusinessChatLink(ctx, link)
-}
-
 func (t *TelegramCore) AccountCreateTheme(request *tg.AccountCreateThemeRequest) (*tg.Theme, error) {
 	api, ctx, err := t.WithAPI()
 	if err != nil {
@@ -24986,14 +23881,6 @@ func (t *TelegramCore) AccountDeleteAutoSaveExceptions() (bool, error) {
 	return api.AccountDeleteAutoSaveExceptions(ctx)
 }
 
-func (t *TelegramCore) AccountDeleteBusinessChatLink(slug string) (bool, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return false, err
-	}
-	return api.AccountDeleteBusinessChatLink(ctx, slug)
-}
-
 func (t *TelegramCore) AccountDeletePasskey(id string) (bool, error) {
 	api, ctx, err := t.WithAPI()
 	if err != nil {
@@ -25016,14 +23903,6 @@ func (t *TelegramCore) AccountDisablePeerConnectedBot(peer tg.InputPeerClass) (b
 		return false, err
 	}
 	return api.AccountDisablePeerConnectedBot(ctx, peer)
-}
-
-func (t *TelegramCore) AccountEditBusinessChatLink(request *tg.AccountEditBusinessChatLinkRequest) (*tg.BusinessChatLink, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return nil, err
-	}
-	return api.AccountEditBusinessChatLink(ctx, request)
 }
 
 func (t *TelegramCore) AccountFinishTakeoutSession(request *tg.AccountFinishTakeoutSessionRequest) (bool, error) {
@@ -25105,22 +23984,6 @@ func (t *TelegramCore) AccountGetAutoSaveSettings() (*tg.AccountAutoSaveSettings
 		return nil, err
 	}
 	return api.AccountGetAutoSaveSettings(ctx)
-}
-
-func (t *TelegramCore) AccountGetBotBusinessConnection(connectionid string) (tg.UpdatesClass, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return nil, err
-	}
-	return api.AccountGetBotBusinessConnection(ctx, connectionid)
-}
-
-func (t *TelegramCore) AccountGetBusinessChatLinks() (*tg.AccountBusinessChatLinks, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return nil, err
-	}
-	return api.AccountGetBusinessChatLinks(ctx)
 }
 
 func (t *TelegramCore) AccountGetChannelDefaultEmojiStatuses(hash int64) (tg.AccountEmojiStatusesClass, error) {
@@ -25233,14 +24096,6 @@ func (t *TelegramCore) AccountGetNotifySettings(peer tg.InputNotifyPeerClass) (*
 		return nil, err
 	}
 	return api.AccountGetNotifySettings(ctx, peer)
-}
-
-func (t *TelegramCore) AccountGetPaidMessagesRevenue(request *tg.AccountGetPaidMessagesRevenueRequest) (*tg.AccountPaidMessagesRevenue, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return nil, err
-	}
-	return api.AccountGetPaidMessagesRevenue(ctx, request)
 }
 
 func (t *TelegramCore) AccountGetPasskeys() (*tg.AccountPasskeys, error) {
@@ -25516,14 +24371,6 @@ func (t *TelegramCore) AccountGetTmpPassword(request *tg.AccountGetTmpPasswordRe
 	return api.AccountGetTmpPassword(ctx, request)
 }
 
-func (t *TelegramCore) AccountGetUniqueGiftChatThemes(request *tg.AccountGetUniqueGiftChatThemesRequest) (tg.AccountChatThemesClass, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return nil, err
-	}
-	return api.AccountGetUniqueGiftChatThemes(ctx, request)
-}
-
 func (t *TelegramCore) AccountGetWallPaper(wallpaper tg.InputWallPaperClass) (tg.WallPaperClass, error) {
 	api, ctx, err := t.WithAPI()
 	if err != nil {
@@ -25689,14 +24536,6 @@ func (t *TelegramCore) AccountResetWebAuthorizations() (bool, error) {
 	return api.AccountResetWebAuthorizations(ctx)
 }
 
-func (t *TelegramCore) AccountResolveBusinessChatLink(slug string) (*tg.AccountResolvedBusinessChatLinks, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return nil, err
-	}
-	return api.AccountResolveBusinessChatLink(ctx, slug)
-}
-
 func (t *TelegramCore) AccountSaveAutoDownloadSettings(request *tg.AccountSaveAutoDownloadSettingsRequest) (bool, error) {
 	api, ctx, err := t.WithAPI()
 	if err != nil {
@@ -25833,22 +24672,6 @@ func (t *TelegramCore) AccountToggleConnectedBotPaused(request *tg.AccountToggle
 	return api.AccountToggleConnectedBotPaused(ctx, request)
 }
 
-func (t *TelegramCore) AccountToggleNoPaidMessagesException(request *tg.AccountToggleNoPaidMessagesExceptionRequest) (bool, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return false, err
-	}
-	return api.AccountToggleNoPaidMessagesException(ctx, request)
-}
-
-func (t *TelegramCore) AccountToggleSponsoredMessages(enabled bool) (bool, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return false, err
-	}
-	return api.AccountToggleSponsoredMessages(ctx, enabled)
-}
-
 func (t *TelegramCore) AccountToggleUsername(request *tg.AccountToggleUsernameRequest) (bool, error) {
 	api, ctx, err := t.WithAPI()
 	if err != nil {
@@ -25863,46 +24686,6 @@ func (t *TelegramCore) AccountUnregisterDevice(request *tg.AccountUnregisterDevi
 		return false, err
 	}
 	return api.AccountUnregisterDevice(ctx, request)
-}
-
-func (t *TelegramCore) AccountUpdateBusinessAwayMessage(request *tg.AccountUpdateBusinessAwayMessageRequest) (bool, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return false, err
-	}
-	return api.AccountUpdateBusinessAwayMessage(ctx, request)
-}
-
-func (t *TelegramCore) AccountUpdateBusinessGreetingMessage(request *tg.AccountUpdateBusinessGreetingMessageRequest) (bool, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return false, err
-	}
-	return api.AccountUpdateBusinessGreetingMessage(ctx, request)
-}
-
-func (t *TelegramCore) AccountUpdateBusinessIntro(request *tg.AccountUpdateBusinessIntroRequest) (bool, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return false, err
-	}
-	return api.AccountUpdateBusinessIntro(ctx, request)
-}
-
-func (t *TelegramCore) AccountUpdateBusinessLocation(request *tg.AccountUpdateBusinessLocationRequest) (bool, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return false, err
-	}
-	return api.AccountUpdateBusinessLocation(ctx, request)
-}
-
-func (t *TelegramCore) AccountUpdateBusinessWorkHours(request *tg.AccountUpdateBusinessWorkHoursRequest) (bool, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return false, err
-	}
-	return api.AccountUpdateBusinessWorkHours(ctx, request)
 }
 
 func (t *TelegramCore) AccountUpdateColor(request *tg.AccountUpdateColorRequest) (bool, error) {
@@ -25927,54 +24710,6 @@ func (t *TelegramCore) AccountUpdateDeviceLocked(period int) (bool, error) {
 		return false, err
 	}
 	return api.AccountUpdateDeviceLocked(ctx, period)
-}
-
-func (t *TelegramCore) AccountUpdateEmojiStatus(emojistatus tg.EmojiStatusClass) (bool, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return false, err
-	}
-	return api.AccountUpdateEmojiStatus(ctx, emojistatus)
-}
-
-func (t *TelegramCore) SetEmojiStatus(documentID int64, expiresIn int) error {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return err
-	}
-	status := &tg.EmojiStatus{DocumentID: documentID}
-	if expiresIn > 0 {
-		status.SetUntil(int(time.Now().Unix()) + expiresIn)
-	}
-	_, err = api.AccountUpdateEmojiStatus(ctx, status)
-	return err
-}
-
-func (t *TelegramCore) ClearEmojiStatus() error {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return err
-	}
-	_, err = api.AccountUpdateEmojiStatus(ctx, &tg.EmojiStatusEmpty{})
-	return err
-}
-
-func (t *TelegramCore) DeleteQuickReply(shortcutID int) error {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return err
-	}
-	_, err = api.MessagesDeleteQuickReplyShortcut(ctx, shortcutID)
-	return err
-}
-
-func (t *TelegramCore) DeleteBusinessLink(slug string) error {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return err
-	}
-	_, err = api.AccountDeleteBusinessChatLink(ctx, slug)
-	return err
 }
 
 func (t *TelegramCore) AccountUpdateNotifySettings(request *tg.AccountUpdateNotifySettingsRequest) (bool, error) {
@@ -26104,14 +24839,6 @@ func (t *TelegramCore) AuthCancelCode(request *tg.AuthCancelCodeRequest) (bool, 
 		return false, err
 	}
 	return api.AuthCancelCode(ctx, request)
-}
-
-func (t *TelegramCore) AuthCheckPaidAuth(request *tg.AuthCheckPaidAuthRequest) (tg.AuthSentCodeClass, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return nil, err
-	}
-	return api.AuthCheckPaidAuth(ctx, request)
 }
 
 func (t *TelegramCore) AuthCheckPassword(password tg.InputCheckPasswordSRPClass) (tg.AuthAuthorizationClass, error) {
@@ -26530,57 +25257,12 @@ func (t *TelegramCore) BotsSetCustomVerification(request *tg.BotsSetCustomVerifi
 	return api.BotsSetCustomVerification(ctx, request)
 }
 
-func (t *TelegramCore) BotsToggleUserEmojiStatusPermission(request *tg.BotsToggleUserEmojiStatusPermissionRequest) (bool, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return false, err
-	}
-	return api.BotsToggleUserEmojiStatusPermission(ctx, request)
-}
-
 func (t *TelegramCore) BotsToggleUsername(request *tg.BotsToggleUsernameRequest) (bool, error) {
 	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return false, err
 	}
 	return api.BotsToggleUsername(ctx, request)
-}
-
-func (t *TelegramCore) BotsUpdateStarRefProgram(request *tg.BotsUpdateStarRefProgramRequest) (*tg.StarRefProgram, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return nil, err
-	}
-	return api.BotsUpdateStarRefProgram(ctx, request)
-}
-
-func (t *TelegramCore) SetStarRefProgram(chatID string, commissionPermille, durationMonths int) error {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return err
-	}
-	uid, err := tgUserID(chatID)
-	if err != nil {
-		return err
-	}
-	req := &tg.BotsUpdateStarRefProgramRequest{
-		Bot:                &tg.InputUser{UserID: uid, AccessHash: t.getCachedUserHash(uid)},
-		CommissionPermille: commissionPermille,
-	}
-	if durationMonths > 0 {
-		req.DurationMonths = durationMonths
-	}
-	req.SetFlags()
-	_, err = api.BotsUpdateStarRefProgram(ctx, req)
-	return err
-}
-
-func (t *TelegramCore) BotsUpdateUserEmojiStatus(request *tg.BotsUpdateUserEmojiStatusRequest) (bool, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return false, err
-	}
-	return api.BotsUpdateUserEmojiStatus(ctx, request)
 }
 
 func (t *TelegramCore) ChannelsCheckSearchPostsFlood(request *tg.ChannelsCheckSearchPostsFloodRequest) (*tg.SearchPostsFlood, error) {
@@ -26847,28 +25529,12 @@ func (t *TelegramCore) ChannelsReportSpam(request *tg.ChannelsReportSpamRequest)
 	return api.ChannelsReportSpam(ctx, request)
 }
 
-func (t *TelegramCore) ChannelsRestrictSponsoredMessages(request *tg.ChannelsRestrictSponsoredMessagesRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return nil, err
-	}
-	return api.ChannelsRestrictSponsoredMessages(ctx, request)
-}
-
 func (t *TelegramCore) ChannelsSearchPosts(request *tg.ChannelsSearchPostsRequest) (tg.MessagesMessagesClass, error) {
 	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
 	return api.ChannelsSearchPosts(ctx, request)
-}
-
-func (t *TelegramCore) ChannelsSetBoostsToUnblockRestrictions(request *tg.ChannelsSetBoostsToUnblockRestrictionsRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return nil, err
-	}
-	return api.ChannelsSetBoostsToUnblockRestrictions(ctx, request)
 }
 
 func (t *TelegramCore) ChannelsSetDiscussionGroup(request *tg.ChannelsSetDiscussionGroupRequest) (bool, error) {
@@ -26909,22 +25575,6 @@ func (t *TelegramCore) ChannelsToggleUsername(request *tg.ChannelsToggleUsername
 		return false, err
 	}
 	return api.ChannelsToggleUsername(ctx, request)
-}
-
-func (t *TelegramCore) ChannelsUpdateEmojiStatus(request *tg.ChannelsUpdateEmojiStatusRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return nil, err
-	}
-	return api.ChannelsUpdateEmojiStatus(ctx, request)
-}
-
-func (t *TelegramCore) ChannelsUpdatePaidMessagesPrice(request *tg.ChannelsUpdatePaidMessagesPriceRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return nil, err
-	}
-	return api.ChannelsUpdatePaidMessagesPrice(ctx, request)
 }
 
 func (t *TelegramCore) ChatlistsCheckChatlistInvite(slug string) (tg.ChatlistsChatlistInviteClass, error) {
@@ -27053,14 +25703,6 @@ func (t *TelegramCore) ContactsGetSaved() ([]tg.SavedPhoneContact, error) {
 		return nil, err
 	}
 	return api.ContactsGetSaved(ctx)
-}
-
-func (t *TelegramCore) ContactsGetSponsoredPeers(q string) (tg.ContactsSponsoredPeersClass, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return nil, err
-	}
-	return api.ContactsGetSponsoredPeers(ctx, q)
 }
 
 func (t *TelegramCore) ContactsGetStatuses() ([]tg.ContactStatus, error) {
@@ -27656,45 +26298,6 @@ func (t *TelegramCore) HelpGetPeerProfileColors(hash int) (tg.HelpPeerColorsClas
 	return api.HelpGetPeerProfileColors(ctx, hash)
 }
 
-func PremiumPlansFromPromo(promo *tg.HelpPremiumPromo) PremiumPromo {
-	if promo == nil {
-		return PremiumPromo{}
-	}
-	out := PremiumPromo{StatusText: promo.StatusText}
-	for _, o := range promo.PeriodOptions {
-		out.Options = append(out.Options, PremiumPlanOption{
-			Months:             o.Months,
-			Currency:           o.Currency,
-			Amount:             o.Amount,
-			BotURL:             o.BotURL,
-			StoreProduct:       o.StoreProduct,
-			Current:            o.Current,
-			CanPurchaseUpgrade: o.CanPurchaseUpgrade,
-		})
-	}
-	return out
-}
-
-func (t *TelegramCore) GetPremiumPromo() (PremiumPromo, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return PremiumPromo{}, err
-	}
-	promo, err := api.HelpGetPremiumPromo(ctx)
-	if err != nil {
-		return PremiumPromo{}, fmt.Errorf("get premium promo: %w", err)
-	}
-	return PremiumPlansFromPromo(promo), nil
-}
-
-func (t *TelegramCore) HelpGetPremiumPromo() (*tg.HelpPremiumPromo, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return nil, err
-	}
-	return api.HelpGetPremiumPromo(ctx)
-}
-
 func (t *TelegramCore) HelpGetPromoData() (tg.HelpPromoDataClass, error) {
 	api, ctx, err := t.WithAPI()
 	if err != nil {
@@ -27733,14 +26336,6 @@ func (t *TelegramCore) HelpGetTermsOfServiceUpdate() (tg.HelpTermsOfServiceUpdat
 		return nil, err
 	}
 	return api.HelpGetTermsOfServiceUpdate(ctx)
-}
-
-func (t *TelegramCore) HelpGetTimezonesList(hash int) (tg.HelpTimezonesListClass, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return nil, err
-	}
-	return api.HelpGetTimezonesList(ctx, hash)
 }
 
 func (t *TelegramCore) timezoneOffsetNoLock(id string) (int, bool) {
@@ -28022,14 +26617,6 @@ func (t *TelegramCore) MessagesCheckHistoryImportPeer(peer tg.InputPeerClass) (*
 	return api.MessagesCheckHistoryImportPeer(ctx, peer)
 }
 
-func (t *TelegramCore) MessagesCheckQuickReplyShortcut(shortcut string) (bool, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return false, err
-	}
-	return api.MessagesCheckQuickReplyShortcut(ctx, shortcut)
-}
-
 func (t *TelegramCore) MessagesCheckURLAuthMatchCode(request *tg.MessagesCheckURLAuthMatchCodeRequest) (bool, error) {
 	api, ctx, err := t.WithAPI()
 	if err != nil {
@@ -28060,14 +26647,6 @@ func (t *TelegramCore) MessagesClearRecentStickers(request *tg.MessagesClearRece
 		return false, err
 	}
 	return api.MessagesClearRecentStickers(ctx, request)
-}
-
-func (t *TelegramCore) MessagesClickSponsoredMessage(request *tg.MessagesClickSponsoredMessageRequest) (bool, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return false, err
-	}
-	return api.MessagesClickSponsoredMessage(ctx, request)
 }
 
 func (t *TelegramCore) MessagesComposeMessageWithAI(request *tg.MessagesComposeMessageWithAIRequest) (*tg.MessagesComposedMessageWithAI, error) {
@@ -28237,22 +26816,6 @@ func (t *TelegramCore) MessagesDeletePollAnswer(request *tg.MessagesDeletePollAn
 	return api.MessagesDeletePollAnswer(ctx, request)
 }
 
-func (t *TelegramCore) MessagesDeleteQuickReplyMessages(request *tg.MessagesDeleteQuickReplyMessagesRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return nil, err
-	}
-	return api.MessagesDeleteQuickReplyMessages(ctx, request)
-}
-
-func (t *TelegramCore) MessagesDeleteQuickReplyShortcut(shortcutid int) (bool, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return false, err
-	}
-	return api.MessagesDeleteQuickReplyShortcut(ctx, shortcutid)
-}
-
 func (t *TelegramCore) MessagesDeleteRevokedExportedChatInvites(request *tg.MessagesDeleteRevokedExportedChatInvitesRequest) (bool, error) {
 	api, ctx, err := t.WithAPI()
 	if err != nil {
@@ -28339,14 +26902,6 @@ func (t *TelegramCore) MessagesEditInlineBotMessage(request *tg.MessagesEditInli
 		return false, err
 	}
 	return api.MessagesEditInlineBotMessage(ctx, request)
-}
-
-func (t *TelegramCore) MessagesEditQuickReplyShortcut(request *tg.MessagesEditQuickReplyShortcutRequest) (bool, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return false, err
-	}
-	return api.MessagesEditQuickReplyShortcut(ctx, request)
 }
 
 func (t *TelegramCore) MessagesGetAdminsWithInvites(peer tg.InputPeerClass) (*tg.MessagesChatAdminsWithInvites, error) {
@@ -28620,14 +27175,6 @@ func (t *TelegramCore) MessagesGetEmojiProfilePhotoGroups(hash int) (tg.Messages
 	return api.MessagesGetEmojiProfilePhotoGroups(ctx, hash)
 }
 
-func (t *TelegramCore) MessagesGetEmojiStatusGroups(hash int) (tg.MessagesEmojiGroupsClass, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return nil, err
-	}
-	return api.MessagesGetEmojiStatusGroups(ctx, hash)
-}
-
 func (t *TelegramCore) MessagesGetEmojiStickerGroups(hash int) (tg.MessagesEmojiGroupsClass, error) {
 	api, ctx, err := t.WithAPI()
 	if err != nil {
@@ -28772,14 +27319,6 @@ func (t *TelegramCore) MessagesGetOldFeaturedStickers(request *tg.MessagesGetOld
 	return api.MessagesGetOldFeaturedStickers(ctx, request)
 }
 
-func (t *TelegramCore) MessagesGetPaidReactionPrivacy() (tg.UpdatesClass, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return nil, err
-	}
-	return api.MessagesGetPaidReactionPrivacy(ctx)
-}
-
 func (t *TelegramCore) MessagesGetPeerDialogs(peers []tg.InputDialogPeerClass) (*tg.MessagesPeerDialogs, error) {
 	api, ctx, err := t.WithAPI()
 	if err != nil {
@@ -28802,22 +27341,6 @@ func (t *TelegramCore) MessagesGetPreparedInlineMessage(request *tg.MessagesGetP
 		return nil, err
 	}
 	return api.MessagesGetPreparedInlineMessage(ctx, request)
-}
-
-func (t *TelegramCore) MessagesGetQuickReplies(hash int64) (tg.MessagesQuickRepliesClass, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return nil, err
-	}
-	return api.MessagesGetQuickReplies(ctx, hash)
-}
-
-func (t *TelegramCore) MessagesGetQuickReplyMessages(request *tg.MessagesGetQuickReplyMessagesRequest) (tg.MessagesMessagesClass, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return nil, err
-	}
-	return api.MessagesGetQuickReplyMessages(ctx, request)
 }
 
 func (t *TelegramCore) MessagesGetRecentLocations(request *tg.MessagesGetRecentLocationsRequest) (tg.MessagesMessagesClass, error) {
@@ -28906,14 +27429,6 @@ func (t *TelegramCore) MessagesGetSplitRanges() ([]tg.MessageRange, error) {
 		return nil, err
 	}
 	return api.MessagesGetSplitRanges(ctx)
-}
-
-func (t *TelegramCore) MessagesGetSponsoredMessages(request *tg.MessagesGetSponsoredMessagesRequest) (tg.MessagesSponsoredMessagesClass, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return nil, err
-	}
-	return api.MessagesGetSponsoredMessages(ctx, request)
 }
 
 func (t *TelegramCore) MessagesGetStickers(request *tg.MessagesGetStickersRequest) (tg.MessagesStickersClass, error) {
@@ -29068,14 +27583,6 @@ func (t *TelegramCore) MessagesReorderPinnedSavedDialogs(request *tg.MessagesReo
 	return api.MessagesReorderPinnedSavedDialogs(ctx, request)
 }
 
-func (t *TelegramCore) MessagesReorderQuickReplies(order []int) (bool, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return false, err
-	}
-	return api.MessagesReorderQuickReplies(ctx, order)
-}
-
 func (t *TelegramCore) MessagesReorderStickerSets(request *tg.MessagesReorderStickerSetsRequest) (bool, error) {
 	api, ctx, err := t.WithAPI()
 	if err != nil {
@@ -29213,14 +27720,6 @@ func (t *TelegramCore) MessagesReportSpam(peer tg.InputPeerClass) (bool, error) 
 		return false, err
 	}
 	return api.MessagesReportSpam(ctx, peer)
-}
-
-func (t *TelegramCore) MessagesReportSponsoredMessage(request *tg.MessagesReportSponsoredMessageRequest) (tg.ChannelsSponsoredMessageReportResultClass, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return nil, err
-	}
-	return api.MessagesReportSponsoredMessage(ctx, request)
 }
 
 func (t *TelegramCore) MessagesRequestAppWebView(request *tg.MessagesRequestAppWebViewRequest) (*tg.WebViewResultURL, error) {
@@ -29365,22 +27864,6 @@ func (t *TelegramCore) MessagesSendEncryptedService(request *tg.MessagesSendEncr
 		return nil, err
 	}
 	return api.MessagesSendEncryptedService(ctx, request)
-}
-
-func (t *TelegramCore) MessagesSendPaidReaction(request *tg.MessagesSendPaidReactionRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return nil, err
-	}
-	return api.MessagesSendPaidReaction(ctx, request)
-}
-
-func (t *TelegramCore) MessagesSendQuickReplyMessages(request *tg.MessagesSendQuickReplyMessagesRequest) (tg.UpdatesClass, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return nil, err
-	}
-	return api.MessagesSendQuickReplyMessages(ctx, request)
 }
 
 func (t *TelegramCore) MessagesSendScreenshotNotification(request *tg.MessagesSendScreenshotNotificationRequest) (tg.UpdatesClass, error) {
@@ -29564,14 +28047,6 @@ func (t *TelegramCore) MessagesToggleDialogFilterTags(enabled bool) (bool, error
 	return api.MessagesToggleDialogFilterTags(ctx, enabled)
 }
 
-func (t *TelegramCore) MessagesTogglePaidReactionPrivacy(request *tg.MessagesTogglePaidReactionPrivacyRequest) (bool, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return false, err
-	}
-	return api.MessagesTogglePaidReactionPrivacy(ctx, request)
-}
-
 func (t *TelegramCore) MessagesTogglePeerTranslations(request *tg.MessagesTogglePeerTranslationsRequest) (bool, error) {
 	api, ctx, err := t.WithAPI()
 	if err != nil {
@@ -29713,14 +28188,6 @@ func (t *TelegramCore) MessagesUploadMedia(request *tg.MessagesUploadMediaReques
 		return nil, err
 	}
 	return api.MessagesUploadMedia(ctx, request)
-}
-
-func (t *TelegramCore) MessagesViewSponsoredMessage(randomid []byte) (bool, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return false, err
-	}
-	return api.MessagesViewSponsoredMessage(ctx, randomid)
 }
 
 func (t *TelegramCore) PhoneCheckGroupCall(request *tg.PhoneCheckGroupCallRequest) ([]int, error) {
@@ -30108,14 +28575,6 @@ func (t *TelegramCore) PhoneGetGroupCallJoinAs(peer tg.InputPeerClass) (*tg.Phon
 		return nil, err
 	}
 	return api.PhoneGetGroupCallJoinAs(ctx, peer)
-}
-
-func (t *TelegramCore) PhoneGetGroupCallStars(call tg.InputGroupCallClass) (*tg.PhoneGroupCallStars, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return nil, err
-	}
-	return api.PhoneGetGroupCallStars(ctx, call)
 }
 
 func (t *TelegramCore) PhoneGetGroupCallStreamChannels(call tg.InputGroupCallClass) (*tg.PhoneGroupCallStreamChannels, error) {
@@ -34128,37 +32587,6 @@ func (t *TelegramCore) GetThemeBySlug(slug string, isDark bool) (*CloudThemeInfo
 		info.RecvColor = info.AccentColor
 	}
 	return info, nil
-}
-
-func (t *TelegramCore) CheckGiftCode(slug string) (map[string]interface{}, error) {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return nil, err
-	}
-	result, err := api.PaymentsCheckGiftCode(ctx, slug)
-	if err != nil {
-		return nil, err
-	}
-	usedDate, hasUsed := result.GetUsedDate()
-	info := map[string]interface{}{
-		"days":         result.Days,
-		"used":         hasUsed,
-		"date":         result.Date,
-		"via_giveaway": result.ViaGiveaway,
-	}
-	if hasUsed {
-		info["used_date"] = usedDate
-	}
-	return info, nil
-}
-
-func (t *TelegramCore) ApplyGiftCode(slug string) error {
-	api, ctx, err := t.WithAPI()
-	if err != nil {
-		return err
-	}
-	_, err = api.PaymentsApplyGiftCode(ctx, slug)
-	return err
 }
 
 func (t *TelegramCore) GetPromoSuggestions() (PromoSuggestionsSnapshot, error) {

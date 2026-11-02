@@ -2423,16 +2423,16 @@ func (e *Engine) TogglePeerTranslations(accountID, chatID string, disabled bool)
 	return fmt.Errorf("platform does not support peer translations toggle")
 }
 
-func (e *Engine) SetChatReactionsMode(accountID, chatID, mode string, emojis []string, maxCount int, paidEnabled bool) error {
+func (e *Engine) SetChatReactionsMode(accountID, chatID, mode string, emojis []string, maxCount int) error {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
 		return fmt.Errorf("account %q not found or not connected", accountID)
 	}
 	type reactor interface {
-		SetChatReactionsMode(chatID string, mode string, emojis []string, maxCount int, paidEnabled bool) error
+		SetChatReactionsMode(chatID string, mode string, emojis []string, maxCount int) error
 	}
 	if r, ok := acc.Core.(reactor); ok {
-		return r.SetChatReactionsMode(chatID, mode, emojis, maxCount, paidEnabled)
+		return r.SetChatReactionsMode(chatID, mode, emojis, maxCount)
 	}
 	return fmt.Errorf("platform does not support reactions mode")
 }

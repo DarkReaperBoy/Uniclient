@@ -367,47 +367,6 @@ type SavedReactionTagInfo struct {
 	Count    int    `json:"count"`
 }
 
-type StarsGiftAmount struct {
-	Stars        int64  `json:"stars"`
-	NanoStars    int64  `json:"nano_stars"`
-	Currency     string `json:"currency,omitempty"`
-	Amount       int64  `json:"amount,omitempty"`
-	Extended     bool   `json:"extended,omitempty"`
-	StoreProduct string `json:"store_product,omitempty"`
-}
-
-type StarsGiveawayWinnerInfo struct {
-	Users        int   `json:"users"`
-	PerUserStars int64 `json:"per_user_stars"`
-	Default      bool  `json:"default,omitempty"`
-}
-
-type StarsGiveawayOptionInfo struct {
-	Winners      []StarsGiveawayWinnerInfo `json:"winners"`
-	Stars        int64                     `json:"stars"`
-	YearlyBoosts int                       `json:"yearly_boosts"`
-	Currency     string                    `json:"currency,omitempty"`
-	Amount       int64                     `json:"amount,omitempty"`
-	StoreProduct string                    `json:"store_product,omitempty"`
-	Extended     bool                      `json:"extended,omitempty"`
-	Default      bool                      `json:"default,omitempty"`
-}
-
-type CountryInfo struct {
-	ISO2 string `json:"iso2"`
-	Name string `json:"name"`
-}
-
-type GiveawayParams struct {
-	WinnerCount int      `json:"winner_count"`
-	UntilDate   int      `json:"until_date"`
-	OnlyNew     bool     `json:"only_new,omitempty"`
-	ShowWinners bool     `json:"show_winners,omitempty"`
-	Prize       string   `json:"prize,omitempty"`
-	Countries   []string `json:"countries,omitempty"`
-	ExtraChats  []string `json:"extra_chats,omitempty"`
-}
-
 type MusicTrackInfo struct {
 	DocID      string `json:"doc_id"`
 	AccessHash int64  `json:"access_hash,omitempty"`
@@ -495,53 +454,6 @@ type StickerPackSummary struct {
 	Installed  bool          `json:"installed"`
 }
 
-type StarsTxn struct {
-	ID          string
-	NanoStars   int64
-	Date        int64
-	PeerTitle   string
-	Title       string
-	Description string
-	Refund      bool
-	Pending     bool
-	Failed      bool
-	Gift        bool
-}
-
-type StarsStatus struct {
-	BalanceNano int64
-	Txns        []StarsTxn
-	NextOffset  string
-}
-
-type PremiumPlanOption struct {
-	Months             int
-	Currency           string
-	Amount             int64
-	BotURL             string
-	StoreProduct       string
-	Current            bool
-	CanPurchaseUpgrade bool
-}
-
-type PremiumPromo struct {
-	StatusText string
-	Options    []PremiumPlanOption
-}
-
-type TimezoneInfo struct {
-	ID        string
-	Name      string
-	UtcOffset int
-}
-
-type QuickReplyInfo struct {
-	ID         int
-	Name       string
-	Count      int
-	TopMessage string
-}
-
 type AttachMenuBotInfo struct {
 	BotID     int64  `json:"bot_id"`
 	ShortName string `json:"short_name"`
@@ -577,34 +489,6 @@ type WebPagePreviewResult struct {
 	HasDocument   bool   `json:"has_document"`
 	HasUniqueGift bool   `json:"has_unique_gift"`
 	HasIV         bool   `json:"has_iv"`
-}
-
-type StarGiftItem struct {
-	ID             int64  `json:"id"`
-	Stars          int64  `json:"stars"`
-	Title          string `json:"title,omitempty"`
-	Limited        bool   `json:"limited,omitempty"`
-	SoldOut        bool   `json:"sold_out,omitempty"`
-	Birthday       bool   `json:"birthday,omitempty"`
-	Remaining      int    `json:"remaining,omitempty"`
-	Total          int    `json:"total,omitempty"`
-	ThumbB64       string `json:"thumb_b64,omitempty"`
-	StickerEmoji   string `json:"sticker_emoji,omitempty"`
-	RequirePremium bool   `json:"require_premium,omitempty"`
-	ConvertStars   int64  `json:"convert_stars,omitempty"`
-}
-
-type StarGiftsResult struct {
-	Gifts []StarGiftItem `json:"gifts"`
-}
-
-type PinnedGiftItem struct {
-	ID       int64  `json:"id"`
-	ThumbB64 string `json:"thumb_b64,omitempty"`
-}
-
-type PinnedGiftsResult struct {
-	Gifts []PinnedGiftItem `json:"gifts"`
 }
 
 type ReadState struct {
