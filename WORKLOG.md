@@ -7,34 +7,69 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 348 landed TWO atomic changes — (1) H-1 iteration 5: auth tests on
-  the REAL path (SetCoreFactory + New + AttachAccount + StartAuth + SubmitAuthInput,
-  real XMPPCore + SessionStore); ForTestNewAuthFlow + ForTestCollected deleted (engine
-  hooks 36→34); (2) authFlows per-Engine: Engine owns authFlows/authFlowsMu (New
-  initializes them), engine/auth.go + cache_users.go read e.authFlows, dead package-level
-  CurrentAuthState deleted (zero users)
-- next: **M-1 (owner ban, rule 19)** — prune monetary FEATURE surfaces (engine
-  earn/gifts/giveaways/premium_business/sponsored + cores telegram_* counterparts +
-  their tests); then remaining engine hook families by use-count — recon done:
-  ForTestMu cluster tops the list (tests/cores/telegram_freeze_test.go ×4, sponsored ×2
-  and gifts ×2 users die with M-1, audio ×4); ForTestSet* setters next (SetConfig ×2,
-  SetVault ×2, singles); then the next front
+- front: session 350 landed M-1 (owner ban, rule 19) in 3 code slices + 1 fix —
+  (1) engine layer: earn/gifts/giveaways/premium_business/sponsored.go deleted,
+  engine.go/cache_msgs.go/cache_users.go monetary methods + sponsoredCache/
+  giftCache/LocalPremium fields pruned, utils/config.go LocalPremium dropped
+  (1,680 lines, 5e64e5e); (2) cores files: telegram_business/earn/gifts/giveaways/
+  sponsored.go + telegram_countries.go deleted, tests/business/earn/gifts/giveaways/
+  sponsored/countries/stars/premium pruned, TestStoryReactionEmoticon rescued
+  (d1d02e2); (3) telegram.go cascade-cut: ~50 zero-user monetary methods + types,
+  base.go 15 orphan types, paidEnabled branch of SetChatReactionsMode removed at
+  both layers (5db0adc); comment-law fix (ffd31b2). Engine hooks 34→29
+- next: remaining engine hook families by use-count — recon stale after M-1: re-grep
+  users first; ForTestMu cluster now = tests/cores/telegram_freeze_test.go ×4,
+  audio ×4 (sponsored/gifts users died with M-1); ForTestSet* setters next
+  (SetConfig ×2, SetVault ×2, singles); then the next front
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: verify.yml **41424762770 = SUCCESS on 8f595494** (authFlows fix; closed at
-  job+step level: Test/vet/gofmt/smoke 13 steps green, cross-builds 9 steps green, Nix
-  green + the expected non-tag flake-version skip) AND **41423303029 = SUCCESS on
-  3096c150** (iteration 5, same step-level shape); session 348 closed — two atomic
-  changes green, engine hooks 36→34, authFlows per-Engine
+- last-gate: verify.yml **41434129182 = SUCCESS on ffd31b2** (M-1 prune complete;
+  dispatch 204 at ~11:05Z, completed success) AND **41424762770 = SUCCESS on
+  8f595494** (session 348 authFlows fix); local quick gate GREEN after every slice
+  (tests/cores ~14s, tests/engine ~5s, vet clean, gofmt clean, comment check clean)
 
 ## Open items
 
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
-| M-1 (owner) | engine + cores + tests | rule 19 ban: prune all premium/gift/monetary FEATURE surfaces — engine: earn.go, gifts.go, giveaways.go, premium_business.go, sponsored.go; cores: telegram_business/earn/gifts/giveaways/sponsored.go (+ paidmedia/stars surfaces); 13 test files; remote data-mirror flags (is_premium, stars_to_send columns) may stay per rule wording | session 349 grep; AGENTS.md §1 rule 19 | atomic red→green prune, gate green each step; ForTestSponsored*/gift-cache hooks die with their features |
-| H-1 | cores/engine testhooks*.go | ForTest* hooks are debt (§5.3): ~222 hooks left after session 346 (engine 41→36); session 348: engine 36→34 | session 348 entry | retire hooks as flows gain exported APIs; prune when a hook's last use dies |
+| H-1 | cores/engine testhooks*.go | ForTest* hooks are debt (§5.3): ~222 hooks left after session 346 (engine 41→36); session 348: engine 36→34; session 350 (M-1): engine 34→29 (gift/sponsored cache hooks died with their features) | session 350 entry | retire hooks as flows gain exported APIs; prune when a hook's last use dies |
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 302 identifiers exported purely for the tests move (API noise: TsParseInit1, ForTest-adjacent) | commit 27faa5a4 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
+
+## Session 350 — M-1 executed: monetary feature surfaces pruned engine-wide and core-wide (2026-11-02)
+
+- Slice 1 (engine, 5e64e5e, 1,680 lines): engine/earn.go gifts.go giveaways.go
+  premium_business.go sponsored.go deleted + tests/engine/{earn,gifts,giveaways,
+  sponsored}_test.go; engine.go lost sponsoredMu/sponsoredCache fields,
+  SetLocalPremium/localPremiumSnapshot/LocalPremiumFor, star-ref APIs,
+  UpdateChannelEmojiStatus, UpdatePaidMessagesPrice, boosts APIs, gift-code
+  options, GetGiveawayPeriodMax; cache_msgs.go lost star-gift fetch/pinned/send,
+  UnlockPaidMedia, stars/broadcast revenue + withdrawal URLs; cache_users.go lost
+  messages privacy/paid-messages config/stars-paid-post max/gift codes;
+  utils/config.go LocalPremium dropped; testhooks.go gift/sponsored hooks deleted
+  (engine 34→29). Zero non-test callers existed (grep evidence).
+- Slice 2a (cores files, d1d02e2): telegram_business/earn/gifts/giveaways/
+  sponsored.go deleted (Data*/Build* helpers were file-local); telegram_countries.go
+  orphaned + deleted; 5 test files died, TestStoryReactionEmoticon rescued to
+  telegram_story_test.go; freeze test table: 5 monetary entries excised.
+- Slice 2b (telegram.go cascade, 5db0adc, ~2,088 lines): fixpoint scan cut every
+  monetary decl with zero surviving users (~50 methods: stars balance/status/
+  txns/revenue/withdrawals, broadcast revenue, premium status/promo/plans, gift
+  settings/codes, boosts, sponsored wrappers, star-ref, paid messages/reactions/
+  auth, UnlockPaidMedia, business/quick-reply/emoji-status raw wrappers) + 15
+  orphan base.go types; SetChatReactionsMode paidEnabled branch removed at both
+  layers; telegram_premium/stars/countries tests deleted.
+- KEPT per rule wording (data mirroring, not features): is_premium/stars_to_send/
+  stars_per_message columns + Extra keys, received gift/paid-media message
+  conversion (telegram_gift_test.go, telegram_paidmedia_test.go),
+  ServiceActionText gift branches, timezoneOffsetNoLock (business-hours
+  rendering), folder/link limits, Get/SetMessagesPrivacy.
+- Evidence: quick gate GREEN after every slice (latest: tests/bootstrap 1.049s,
+  tests/cores 14.679s, tests/engine 5.312s, vet clean, gofmt clean); comment
+  check clean (2 stray comments in the rescued test stripped, ffd31b2); gate of
+  record verify.yml **41434129182 = SUCCESS on ffd31b2**.
+- Next: re-grep hook users (M-1 invalidated recon) → ForTestMu family by
+  use-count; ForTestSet* next.
 
 ## Session 349 — owner directive: rule 19 extended — no gifts, nothing monetary (2026-11-02)
 
