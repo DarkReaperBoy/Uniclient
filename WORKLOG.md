@@ -16,14 +16,23 @@ owner order — that history lives in git if ever needed.
   sponsored/countries/stars/premium pruned, TestStoryReactionEmoticon rescued
   (d1d02e2); (3) telegram.go cascade-cut: ~50 zero-user monetary methods + types,
   base.go 15 orphan types, paidEnabled branch of SetChatReactionsMode removed at
-  both layers (5db0adc); comment-law fix (ffd31b2). Engine hooks 34→29
-- next: remaining engine hook families by use-count — recon stale after M-1: re-grep
-  users first; ForTestMu cluster now = tests/cores/telegram_freeze_test.go ×4,
-  audio ×4 (sponsored/gifts users died with M-1); ForTestSet* setters next
-  (SetConfig ×2, SetVault ×2, singles); then the next front
+  both layers (5db0adc); comment-law fix (ffd31b2). Engine hooks 34→29;
+  then H-1 iteration 6 (93b0aa4): ForTestSetConfig + ForTestSetVault retired —
+  antirecall/avatarcorners tests now build via New(db, vault, config) through
+  newTestEngineWith (newTestEngine delegates nil/nil; 20+ call sites unchanged),
+  zero semantic drift (DefaultConfig leaves Ayu*/MaxCacheSize
+  constructor-neutral; proxy branch Mode=0 inert). Engine hooks 29→27
+- next: remaining engine hook families by use-count — SetConfig/SetVault pair
+  DONE (iter 6); next singles by user count: ForTestSetAntiRecall (1 user,
+  antirecall_test.go — real path: UpdateConfigFromBridge with Ayu flags?),
+  ForTestGranule (1 user, fuzz_ogg_test.go), ForTestComplete (1 user,
+  mediastream_test.go); ForTestSetMedia ×3 / SetDownloadDir ×5 / SetMediaDir ×3
+  need downloadDir/mediaDir on New or setters → real API decision; ForTestMu
+  cluster after (receiver-qualified re-grep needed); then the next front
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: verify.yml **41434129182 = SUCCESS on ffd31b2** (M-1 prune complete;
+- last-gate: verify.yml dispatched post-93b0aa4 (iteration 6; id pending) AND
+  **41434129182 = SUCCESS on ffd31b2** (M-1 prune complete;
   dispatch 204 at ~11:05Z, completed success) AND **41424762770 = SUCCESS on
   8f595494** (session 348 authFlows fix); local quick gate GREEN after every slice
   (tests/cores ~14s, tests/engine ~5s, vet clean, gofmt clean, comment check clean)
@@ -70,6 +79,23 @@ owner order — that history lives in git if ever needed.
   record verify.yml **41434129182 = SUCCESS on ffd31b2**.
 - Next: re-grep hook users (M-1 invalidated recon) → ForTestMu family by
   use-count; ForTestSet* next.
+
+### H-1 iteration 6: ForTestSetConfig + ForTestSetVault retired (same session)
+
+- Atomic change (93b0aa4): the config/vault injection hooks (2 users each —
+  antirecall_test.go, avatarcorners_test.go) replaced by the REAL constructor
+  path: newTestEngineWith(t, vault, config) → New(db, vault, config);
+  newTestEngine delegates with nil/nil so 20+ existing call sites unchanged.
+  engine/testhooks.go: both setters deleted (engine hooks 29→27).
+- Evidence: scoped quick gate vet clean; go test -tags goolm -count=1
+  ./tests/engine/ ok 5.671s, ./tests/bootstrap/ ok 6.331s; gofmt clean;
+  comment check clean. Sandbox recycled mid-iteration (Go SDK + caches wiped,
+  file modes 100644→100755 — core.fileMode false set locally; content
+  untouched); reinstalled Go 1.27.0, re-ran gate green. verify.yml dispatched
+  post-push.
+- Next: singles (ForTestSetAntiRecall 1, ForTestGranule 1, ForTestComplete 1),
+  then the SetMedia/SetDownloadDir/SetMediaDir trio (needs downloadDir/
+  mediaDir on the real path), then ForTestMu cluster.
 
 ## Session 349 — owner directive: rule 19 extended — no gifts, nothing monetary (2026-11-02)
 
