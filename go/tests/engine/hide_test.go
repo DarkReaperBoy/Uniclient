@@ -6,7 +6,12 @@ import (
 	. "uniclient/engine"
 )
 
-func newTestEngine(t *testing.T) *Engine {
+type dbEngine struct {
+	*Engine
+	db *sql.DB
+}
+
+func newTestEngine(t *testing.T) *dbEngine {
 	db, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
 		t.Fatal(err)
@@ -15,11 +20,11 @@ func newTestEngine(t *testing.T) *Engine {
 	if err := MigrateDB(db); err != nil {
 		t.Fatal(err)
 	}
-	return New(db, nil, nil)
+	return &dbEngine{Engine: New(db, nil, nil), db: db}
 }
 
-func seedMessage(t *testing.T, e *Engine, msgID string, ts int64) {
-	_, err := e.ForTestDb().Exec(
+func seedMessage(t *testing.T, e *dbEngine, msgID string, ts int64) {
+	_, err := e.db.Exec(
 		`INSERT INTO messages (account_id, chat_id, msg_id, content_text, timestamp)
                  VALUES ('a1', 'c1', ?, ?, ?)`, msgID, msgID, ts)
 	if err != nil {

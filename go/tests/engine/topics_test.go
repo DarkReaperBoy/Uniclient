@@ -7,9 +7,9 @@ import (
 	"uniclient/cores"
 )
 
-func seedTopicMessage(t *testing.T, e *Engine, msgID, topicID string, ts int64) {
+func seedTopicMessage(t *testing.T, e *dbEngine, msgID, topicID string, ts int64) {
 	t.Helper()
-	_, err := e.ForTestDb().Exec(
+	_, err := e.db.Exec(
 		`INSERT OR REPLACE INTO messages
 		 (account_id, chat_id, msg_id, sender_id, sender_name, content_text, timestamp, status, is_outgoing, has_media, topic_id)
 		 VALUES (?, ?, ?, 'u1', 'Alice', ?, ?, 1, 0, 0, ?)`,
@@ -132,7 +132,7 @@ func (s forumTopicsStub) ReorderPinnedForumTopics(chatID string, topicIDs []int)
 
 func TestReorderPinnedForumTopics(t *testing.T) {
 	e := newTestEngine(t)
-	if _, err := e.ForTestDb().Exec(
+	if _, err := e.db.Exec(
 		`INSERT OR IGNORE INTO accounts (id, platform, display_name, sort_order, created_at)
                  VALUES ('tg', 'telegram', 'Test', 0, 0)`); err != nil {
 		t.Fatal(err)

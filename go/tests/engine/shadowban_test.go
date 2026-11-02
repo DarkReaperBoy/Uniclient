@@ -5,8 +5,8 @@ import (
 	. "uniclient/engine"
 )
 
-func seedSenderMessage(t *testing.T, e *Engine, msgID, senderID, senderName string, ts int64) {
-	_, err := e.ForTestDb().Exec(
+func seedSenderMessage(t *testing.T, e *dbEngine, msgID, senderID, senderName string, ts int64) {
+	_, err := e.db.Exec(
 		`INSERT INTO messages (account_id, chat_id, msg_id, sender_id, sender_name, content_text, timestamp)
                  VALUES ('a1', 'c1', ?, ?, ?, ?, ?)`, msgID, senderID, senderName, msgID, ts)
 	if err != nil {
@@ -118,7 +118,7 @@ func TestShadowBanFiltersGetMessages(t *testing.T) {
 
 func TestShadowBanIsPerChat(t *testing.T) {
 	e := newTestEngine(t)
-	_, err := e.ForTestDb().Exec(
+	_, err := e.db.Exec(
 		`INSERT INTO messages (account_id, chat_id, msg_id, sender_id, content_text, timestamp)
                  VALUES ('a1', 'c1', 'm1', 'u1', 'x', 1000),
                         ('a1', 'c2', 'm2', 'u1', 'x', 2000)`)

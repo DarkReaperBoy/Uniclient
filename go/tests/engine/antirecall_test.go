@@ -7,7 +7,7 @@ import (
 	"uniclient/utils"
 )
 
-func newAntiRecallEngine(t *testing.T) *Engine {
+func newAntiRecallEngine(t *testing.T) *dbEngine {
 	e := newTestEngine(t)
 	dir := t.TempDir()
 	v, err := utils.CreateVault(dir+"/vault.db", "test")
@@ -56,7 +56,7 @@ func TestClearDeletedMessages(t *testing.T) {
 		{"m3", "c1", false},
 		{"m4", "c2", true},
 	} {
-		_, err := e.ForTestDb().Exec(
+		_, err := e.db.Exec(
 			`INSERT INTO messages (account_id, chat_id, msg_id, content_text, timestamp, is_deleted)
                          VALUES ('a1', ?, ?, ?, ?, ?)`,
 			msg.chat, msg.id, msg.id, int64(1000+i), msg.deleted)
@@ -64,7 +64,7 @@ func TestClearDeletedMessages(t *testing.T) {
 			t.Fatal(err)
 		}
 		if msg.deleted {
-			if _, err := e.ForTestDb().Exec(
+			if _, err := e.db.Exec(
 				`INSERT INTO media (account_id, chat_id, msg_id, seq, media_type)
                                  VALUES ('a1', ?, ?, 0, 1)`, msg.chat, msg.id); err != nil {
 				t.Fatal(err)
@@ -95,7 +95,7 @@ func TestClearDeletedMessages(t *testing.T) {
 		t.Fatalf("c2 = %+v, want deleted m4", msgs)
 	}
 	var mediaCount int
-	if err := e.ForTestDb().QueryRow(
+	if err := e.db.QueryRow(
 		`SELECT COUNT(*) FROM media WHERE account_id = 'a1' AND chat_id = 'c1'`).Scan(&mediaCount); err != nil {
 		t.Fatal(err)
 	}

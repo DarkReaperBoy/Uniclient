@@ -8,9 +8,9 @@ import (
 	"uniclient/cores"
 )
 
-func seedCommentPost(t *testing.T, e *Engine, chatType int, msgID string, comments int) {
+func seedCommentPost(t *testing.T, e *dbEngine, chatType int, msgID string, comments int) {
 	t.Helper()
-	_, err := e.ForTestDb().Exec(
+	_, err := e.db.Exec(
 		`INSERT INTO chats (account_id, chat_id, type, title, updated_at) VALUES ('a1', 'c1', ?, 'chan', ?)`,
 		chatType, time.Now().UnixMilli())
 	if err != nil {
@@ -35,7 +35,7 @@ func TestCommentsCountRoundTrip(t *testing.T) {
 
 func TestThreadRootRoundTripAndFilter(t *testing.T) {
 	e := newTestEngine(t)
-	_, err := e.ForTestDb().Exec(
+	_, err := e.db.Exec(
 		`INSERT INTO chats (account_id, chat_id, type, title, updated_at) VALUES ('a1', 'd1', ?, 'disc', ?)`,
 		ChatTypeGroupVal, time.Now().UnixMilli())
 	if err != nil {

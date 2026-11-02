@@ -11,9 +11,9 @@ import (
 	"uniclient/cores"
 )
 
-func seedMediaRow(t *testing.T, e *Engine, msgID, localPath, fileName string) {
+func seedMediaRow(t *testing.T, e *dbEngine, msgID, localPath, fileName string) {
 	t.Helper()
-	_, err := e.ForTestDb().Exec(
+	_, err := e.db.Exec(
 		`INSERT INTO media (account_id, chat_id, msg_id, seq, media_type, local_path, file_name, download_state)
                  VALUES ('a1', 'c1', ?, 0, 8, ?, ?, 2)`,
 		msgID, localPath, fileName)
@@ -167,7 +167,7 @@ func TestUniqueDownloadPath(t *testing.T) {
 func TestSaveQueryShapeMatchesMediaTable(t *testing.T) {
 	e := newTestEngine(t)
 	var lp, fn sql.NullString
-	err := e.ForTestDb().QueryRow(
+	err := e.db.QueryRow(
 		`SELECT local_path, file_name FROM media WHERE account_id = ? AND chat_id = ? AND msg_id = ? AND seq = ?`,
 		"a1", "c1", "zz", 0,
 	).Scan(&lp, &fn)

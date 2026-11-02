@@ -268,7 +268,7 @@ func TestOpenMediaStreamPromotesRow(t *testing.T) {
 		state     int
 		localPath string
 	)
-	err = e.ForTestDb().QueryRow(
+	err = e.db.QueryRow(
 		`SELECT download_state, local_path FROM media
 		 WHERE account_id='a1' AND chat_id='c1' AND msg_id='m1' AND seq=0`).
 		Scan(&state, &localPath)
@@ -415,13 +415,13 @@ func TestMediaStreamSingleFlightPerChunk(t *testing.T) {
 	})
 }
 
-func seedStreamRow(t *testing.T, e *Engine, size int64, state int, localPath string) {
+func seedStreamRow(t *testing.T, e *dbEngine, size int64, state int, localPath string) {
 	t.Helper()
 	var path any
 	if localPath != "" {
 		path = localPath
 	}
-	_, err := e.ForTestDb().Exec(
+	_, err := e.db.Exec(
 		`INSERT INTO media (account_id, chat_id, msg_id, seq, media_type, remote_ref,
 			file_name, mime_type, file_size, download_state, local_path, extra)
 		 VALUES ('a1','c1','m1',0,1,'REF-1','clip.mp4','video/mp4',?,?,?,'777:Zm9v')`,

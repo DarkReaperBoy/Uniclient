@@ -47,11 +47,11 @@ func (g *guardCore) downloads() int {
 	return g.dlCalls
 }
 
-func newGuardEngine(t *testing.T) (*Engine, *guardCore, []byte) {
+func newGuardEngine(t *testing.T) (*dbEngine, *guardCore, []byte) {
 	t.Helper()
 	e := newTestEngine(t)
 	e.ForTestSetMediaDir(t.TempDir())
-	e.ForTestSetMedia(NewMediaManager(e))
+	e.ForTestSetMedia(NewMediaManager(e.Engine))
 	data := streamPattern(16_384)
 	core := &guardCore{part: &fakePartSource{data: data}}
 	if err := e.AttachAccount("a1", "telegram", core); err != nil {
@@ -125,7 +125,7 @@ func TestExecuteDownloadSkipsWhileStreamOpen(t *testing.T) {
 		t.Errorf("DownloadFile ran %d times while a stream owns the file", core.downloads())
 	}
 	var st int
-	if err := e.ForTestDb().QueryRow(
+	if err := e.db.QueryRow(
 		`SELECT download_state FROM media WHERE account_id='a1' AND chat_id='c1' AND msg_id='m1' AND seq=0`).
 		Scan(&st); err != nil {
 		t.Fatal(err)
@@ -139,7 +139,7 @@ func TestExecuteDownloadSkipsWhileStreamOpen(t *testing.T) {
 	if core.downloads() != 1 {
 		t.Fatalf("DownloadFile ran %d times after the stream closed, want 1", core.downloads())
 	}
-	if err := e.ForTestDb().QueryRow(
+	if err := e.db.QueryRow(
 		`SELECT download_state FROM media WHERE account_id='a1' AND chat_id='c1' AND msg_id='m1' AND seq=0`).
 		Scan(&st); err != nil {
 		t.Fatal(err)
@@ -160,7 +160,7 @@ func TestRequestDownloadCompletesInstantlyWhenFileOnDisk(t *testing.T) {
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.ForTestDb().Exec(
+	if _, err := e.db.Exec(
 		`UPDATE media SET download_state=?, local_path=?
 		 WHERE account_id='a1' AND chat_id='c1' AND msg_id='m1' AND seq=0`,
 		DownloadComplete, path); err != nil {
@@ -210,7 +210,7 @@ func TestStreamGuardSurvivesDoubleClose(t *testing.T) {
 	e.ReleaseDownload(key)
 }
 
-func getAccountCore(e *Engine, t *testing.T) *guardCore {
+func getAccountCore(e *dbEngine, t *testing.T) *guardCore {
 	t.Helper()
 	core := e.GetAccountCore("a1")
 	if core == nil {

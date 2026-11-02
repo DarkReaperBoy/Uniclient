@@ -56,7 +56,7 @@ func TestOpenSavedMessagesIdempotent(t *testing.T) {
 	if err := e.AttachAccount("tg", "telegram", selfStub{selfID: "42"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.ForTestDb().Exec(
+	if _, err := e.db.Exec(
 		`INSERT OR IGNORE INTO accounts (id, platform, display_name, sort_order, created_at)
                  VALUES ('tg', 'telegram', 'Test', 0, 0)`); err != nil {
 		t.Fatal(err)
@@ -75,7 +75,7 @@ func TestOpenSavedMessagesIdempotent(t *testing.T) {
 	}
 
 	var n int
-	if err := e.ForTestDb().QueryRow(
+	if err := e.db.QueryRow(
 		`SELECT COUNT(*) FROM chats WHERE account_id = ? AND chat_id = ?`,
 		"tg", "42").Scan(&n); err != nil {
 		t.Fatal(err)
@@ -84,7 +84,7 @@ func TestOpenSavedMessagesIdempotent(t *testing.T) {
 		t.Errorf("chat rows = %d, want 1", n)
 	}
 	var title string
-	if err := e.ForTestDb().QueryRow(
+	if err := e.db.QueryRow(
 		`SELECT title FROM chats WHERE account_id = ? AND chat_id = ?`,
 		"tg", "42").Scan(&title); err != nil {
 		t.Fatal(err)

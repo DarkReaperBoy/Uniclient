@@ -3,7 +3,6 @@ package tests
 import (
 	"testing"
 	"time"
-	. "uniclient/engine"
 
 	"uniclient/cores"
 )
@@ -62,10 +61,10 @@ func parseInt64(s string) int64 {
 	return n
 }
 
-func newSavedSublistEngine(t *testing.T) *Engine {
+func newSavedSublistEngine(t *testing.T) *dbEngine {
 	t.Helper()
 	e := newTestEngine(t)
-	if _, err := e.ForTestDb().Exec(
+	if _, err := e.db.Exec(
 		`INSERT OR IGNORE INTO accounts (id, platform, display_name, sort_order, created_at)
                  VALUES ('tg', 'telegram', 'Test', 0, 0)`); err != nil {
 		t.Fatal(err)
@@ -256,7 +255,7 @@ func TestSavedSublistDeletePurgesCache(t *testing.T) {
 		for _, id := range ids {
 			m := cores.Message{ID: id, Text: "m " + id, Timestamp: timeOf(1700000000)}
 			e.CacheMessage("tg", self, &m)
-			e.ForTestDb().Exec(`UPDATE messages SET saved_peer = ? WHERE account_id = ? AND chat_id = ? AND msg_id = ?`,
+			e.db.Exec(`UPDATE messages SET saved_peer = ? WHERE account_id = ? AND chat_id = ? AND msg_id = ?`,
 				peer, "tg", self, id)
 		}
 	}

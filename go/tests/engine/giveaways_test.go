@@ -2,7 +2,6 @@ package tests
 
 import (
 	"testing"
-	. "uniclient/engine"
 
 	"uniclient/cores"
 )
@@ -38,10 +37,10 @@ func (s *giveawayStub) LaunchPrepaidGiveaway(chatID string, giveawayID int64, cr
 	return nil
 }
 
-func newGiveawayEngine(t *testing.T, core cores.Core) *Engine {
+func newGiveawayEngine(t *testing.T, core cores.Core) *dbEngine {
 	t.Helper()
 	e := newTestEngine(t)
-	if _, err := e.ForTestDb().Exec(
+	if _, err := e.db.Exec(
 		`INSERT OR IGNORE INTO accounts (id, platform, display_name, sort_order, created_at)
                  VALUES ('tg', 'telegram', 'Test', 0, 0)`); err != nil {
 		t.Fatal(err)

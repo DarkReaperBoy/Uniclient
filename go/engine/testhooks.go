@@ -1,17 +1,12 @@
 package engine
 
 import (
-	"database/sql"
 	"sync"
 	"time"
 
 	"uniclient/cores"
 	"uniclient/utils"
 )
-
-func (x *Engine) ForTestDb() *sql.DB {
-	return x.db
-}
 
 func (x *AuthFlow) ForTestCollected() map[string]string {
 	return x.collected

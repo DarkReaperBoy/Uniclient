@@ -11,13 +11,13 @@ import (
 	"uniclient/cores"
 )
 
-func seedAutoDLChat(t *testing.T, e *Engine) {
+func seedAutoDLChat(t *testing.T, e *dbEngine) {
 	t.Helper()
-	if _, err := e.ForTestDb().Exec(
+	if _, err := e.db.Exec(
 		`INSERT INTO accounts (id, platform, created_at) VALUES ('a1','telegram',0)`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := e.ForTestDb().Exec(
+	if _, err := e.db.Exec(
 		`INSERT INTO chats (account_id, chat_id, type, title, updated_at) VALUES ('a1','c1',?,'Alice',0)`,
 		ChatTypeDMVal); err != nil {
 		t.Fatal(err)

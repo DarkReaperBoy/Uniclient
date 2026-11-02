@@ -8,9 +8,9 @@ import (
 	"uniclient/cores"
 )
 
-func seedChatRow(t *testing.T, e *Engine, chatID string) {
+func seedChatRow(t *testing.T, e *dbEngine, chatID string) {
 	t.Helper()
-	_, err := e.ForTestDb().Exec(
+	_, err := e.db.Exec(
 		`INSERT INTO chats (account_id, chat_id, type, title, last_msg_time, updated_at)
                  VALUES ('a1', ?, 1, 'Chat', ?, ?)`, chatID, time.Now().UnixMilli(), time.Now().UnixMilli())
 	if err != nil {
@@ -18,7 +18,7 @@ func seedChatRow(t *testing.T, e *Engine, chatID string) {
 	}
 }
 
-func getChatRow(t *testing.T, e *Engine, chatID string) ChatInfo {
+func getChatRow(t *testing.T, e *dbEngine, chatID string) ChatInfo {
 	t.Helper()
 	chats, err := e.GetUnifiedChatList(100, 0)
 	if err != nil {
@@ -83,7 +83,7 @@ func TestMuteChatUnmuteClearsUntil(t *testing.T) {
 func TestTimedMuteExpiresSweep(t *testing.T) {
 	e := newTestEngine(t)
 	seedChatRow(t, e, "100")
-	_, err := e.ForTestDb().Exec(
+	_, err := e.db.Exec(
 		`UPDATE chats SET is_muted = 1, mute_until = ? WHERE account_id = 'a1' AND chat_id = '100'`,
 		time.Now().Unix()-10)
 	if err != nil {
@@ -98,7 +98,7 @@ func TestTimedMuteExpiresSweep(t *testing.T) {
 func TestTimedMuteNotExpired(t *testing.T) {
 	e := newTestEngine(t)
 	seedChatRow(t, e, "100")
-	_, err := e.ForTestDb().Exec(
+	_, err := e.db.Exec(
 		`UPDATE chats SET is_muted = 1, mute_until = ? WHERE account_id = 'a1' AND chat_id = '100'`,
 		time.Now().Unix()+3600)
 	if err != nil {

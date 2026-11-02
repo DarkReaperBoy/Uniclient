@@ -108,10 +108,10 @@ func (s profileMusicStub) GetOwnSavedMusicIDs(hash int64) ([]string, bool, error
 	return out, true, nil
 }
 
-func newProfileMusicEngine(t *testing.T) *Engine {
+func newProfileMusicEngine(t *testing.T) *dbEngine {
 	t.Helper()
 	e := newTestEngine(t)
-	if _, err := e.ForTestDb().Exec(
+	if _, err := e.db.Exec(
 		`INSERT OR IGNORE INTO accounts (id, platform, display_name, sort_order, created_at)
                  VALUES ('tg', 'telegram', 'Test', 0, 0)`); err != nil {
 		t.Fatal(err)

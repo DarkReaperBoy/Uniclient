@@ -34,7 +34,7 @@ func TestMatchHashtagToken(t *testing.T) {
 func TestSearchMessagesByTag(t *testing.T) {
 	e := newTestEngine(t)
 	seed := func(id, text string) {
-		_, err := e.ForTestDb().Exec(
+		_, err := e.db.Exec(
 			`INSERT INTO messages (account_id, chat_id, msg_id, content_text, timestamp)
 			 VALUES ('a1', 'c1', ?, ?, 1000)`, id, text)
 		if err != nil {

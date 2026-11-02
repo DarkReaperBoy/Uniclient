@@ -28,7 +28,7 @@ func TestExecuteDownloadRemovesPartialOnFailure(t *testing.T) {
 	}
 
 	var st int
-	if err := e.ForTestDb().QueryRow(
+	if err := e.db.QueryRow(
 		`SELECT download_state FROM media WHERE account_id='a1' AND chat_id='c1' AND msg_id='m1' AND seq=0`).
 		Scan(&st); err != nil {
 		t.Fatal(err)

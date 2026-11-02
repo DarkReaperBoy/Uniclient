@@ -44,9 +44,9 @@ func TestExtractFirstURL(t *testing.T) {
 	}
 }
 
-func seedSharedMsg(t *testing.T, e *Engine, msgID, text, sender string, ts int64) {
+func seedSharedMsg(t *testing.T, e *dbEngine, msgID, text, sender string, ts int64) {
 	t.Helper()
-	_, err := e.ForTestDb().Exec(
+	_, err := e.db.Exec(
 		`INSERT INTO messages (account_id, chat_id, msg_id, content_text, sender_name, timestamp)
                  VALUES ('a1', 'c1', ?, ?, ?, ?)`, msgID, text, sender, ts)
 	if err != nil {
@@ -54,9 +54,9 @@ func seedSharedMsg(t *testing.T, e *Engine, msgID, text, sender string, ts int64
 	}
 }
 
-func seedSharedMedia(t *testing.T, e *Engine, msgID string, mediaType int) {
+func seedSharedMedia(t *testing.T, e *dbEngine, msgID string, mediaType int) {
 	t.Helper()
-	_, err := e.ForTestDb().Exec(
+	_, err := e.db.Exec(
 		`INSERT INTO media (account_id, chat_id, msg_id, seq, media_type, file_name, file_size, duration_ms)
                  VALUES ('a1', 'c1', ?, 0, ?, ?, ?, ?)`, msgID, mediaType, "f.bin", 1024, 3000)
 	if err != nil {

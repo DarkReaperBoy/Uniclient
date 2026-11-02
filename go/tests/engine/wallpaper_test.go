@@ -9,10 +9,10 @@ import (
 	"uniclient/cores"
 )
 
-func wallpaperJSON(t *testing.T, e *Engine) string {
+func wallpaperJSON(t *testing.T, e *dbEngine) string {
 	t.Helper()
 	var js string
-	if err := e.ForTestDb().QueryRow(
+	if err := e.db.QueryRow(
 		`SELECT wallpaper_json FROM chats WHERE account_id = ? AND chat_id = ?`, "a1", "c1").Scan(&js); err != nil {
 		t.Fatal(err)
 	}

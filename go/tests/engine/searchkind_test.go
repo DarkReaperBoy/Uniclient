@@ -8,7 +8,7 @@ import (
 func TestSearchMessagesExKindFilters(t *testing.T) {
 	e := newTestEngine(t)
 	seed := func(id, text, raw string, hasMedia int) {
-		_, err := e.ForTestDb().Exec(
+		_, err := e.db.Exec(
 			`INSERT INTO messages (account_id, chat_id, msg_id, content_text, content_raw, has_media, timestamp)
 			 VALUES ('a1', 'c1', ?, ?, ?, ?, 1000)`, id, text, raw, hasMedia)
 		if err != nil {

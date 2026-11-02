@@ -28,10 +28,10 @@ func (s *giftStub) GetStarsGiftOptions(userID string) ([]cores.StarsGiftAmount, 
 
 func (s *giftStub) GetStarsBalance() (int64, error) { return s.balance, nil }
 
-func newGiftEngine(t *testing.T, core cores.Core) *Engine {
+func newGiftEngine(t *testing.T, core cores.Core) *dbEngine {
 	t.Helper()
 	e := newTestEngine(t)
-	if _, err := e.ForTestDb().Exec(
+	if _, err := e.db.Exec(
 		`INSERT OR IGNORE INTO accounts (id, platform, display_name, sort_order, created_at)
                  VALUES ('tg', 'telegram', 'Test', 0, 0)`); err != nil {
 		t.Fatal(err)

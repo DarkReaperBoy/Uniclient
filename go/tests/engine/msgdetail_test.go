@@ -18,7 +18,7 @@ func TestMediaDCRoundTrip(t *testing.T) {
 		DC:       4,
 	})
 	var dc int
-	err := e.ForTestDb().QueryRow(
+	err := e.db.QueryRow(
 		`SELECT dc_id FROM media WHERE account_id = 'a1' AND chat_id = 'c1' AND msg_id = 'm1' AND seq = 0`).
 		Scan(&dc)
 	if err != nil {

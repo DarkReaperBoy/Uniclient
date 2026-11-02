@@ -14,7 +14,7 @@ func TestChatThemeMirror(t *testing.T) {
 
 	getEmoticon := func() string {
 		var em string
-		if err := e.ForTestDb().QueryRow(
+		if err := e.db.QueryRow(
 			`SELECT theme_emoticon FROM chats WHERE account_id = ? AND chat_id = ?`, "a1", "c1").Scan(&em); err != nil {
 			t.Fatal(err)
 		}
@@ -79,7 +79,7 @@ func TestEnsureChatExistsSeedsTheme(t *testing.T) {
 	e.CacheMessage("a1", "c9", svc)
 	e.EnsureChatExists("a1", "c9", svc)
 	var em string
-	if err := e.ForTestDb().QueryRow(
+	if err := e.db.QueryRow(
 		`SELECT theme_emoticon FROM chats WHERE account_id = ? AND chat_id = ?`, "a1", "c9").Scan(&em); err != nil {
 		t.Fatal(err)
 	}

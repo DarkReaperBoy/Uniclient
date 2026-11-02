@@ -37,9 +37,9 @@ func (s *transcribeStub) lastCall() (string, string, bool) {
 	return c[0], c[1], true
 }
 
-func seedVoiceMessage(t *testing.T, e *Engine, accountID, chatID, msgID string) {
+func seedVoiceMessage(t *testing.T, e *dbEngine, accountID, chatID, msgID string) {
 	t.Helper()
-	_, err := e.ForTestDb().Exec(
+	_, err := e.db.Exec(
 		`INSERT OR REPLACE INTO messages
                  (account_id, chat_id, msg_id, sender_id, sender_name, content_text, timestamp, status, is_outgoing, has_media)
                  VALUES (?, ?, ?, 'u1', 'Alice', '', 1700000000, 1, 0, 1)`,
@@ -47,7 +47,7 @@ func seedVoiceMessage(t *testing.T, e *Engine, accountID, chatID, msgID string) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = e.ForTestDb().Exec(
+	_, err = e.db.Exec(
 		`INSERT OR REPLACE INTO media (account_id, chat_id, msg_id, seq, media_type, mime_type, file_size, duration_ms)
                  VALUES (?, ?, ?, 0, ?, 'audio/ogg', 1234, 5000)`,
 		accountID, chatID, msgID, MediaVoice)

@@ -19,7 +19,7 @@ func TestSendMessageNoWebpagePayload(t *testing.T) {
 
 	var payload string
 	var action string
-	err := e.ForTestDb().QueryRow(
+	err := e.db.QueryRow(
 		`SELECT action, payload FROM pending WHERE account_id = ? AND chat_id = ? ORDER BY created_at DESC LIMIT 1`,
 		"tg", "10").Scan(&action, &payload)
 	if err == sql.ErrNoRows {

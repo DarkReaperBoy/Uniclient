@@ -3,10 +3,9 @@ package tests
 import (
 	"encoding/json"
 	"testing"
-	. "uniclient/engine"
 )
 
-func seedPollMessage(t *testing.T, e *Engine, msgID string) {
+func seedPollMessage(t *testing.T, e *dbEngine, msgID string) {
 	t.Helper()
 	raw, err := json.Marshal(map[string]interface{}{
 		"id":   msgID,
@@ -23,7 +22,7 @@ func seedPollMessage(t *testing.T, e *Engine, msgID string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = e.ForTestDb().Exec(
+	_, err = e.db.Exec(
 		`INSERT INTO messages (account_id, chat_id, msg_id, content_text, content_raw, timestamp)
 		 VALUES ('a1', 'c1', ?, ?, ?, 1000)`, msgID, "📊 Lunch?", string(raw))
 	if err != nil {
@@ -31,10 +30,10 @@ func seedPollMessage(t *testing.T, e *Engine, msgID string) {
 	}
 }
 
-func readPollExtra(t *testing.T, e *Engine, msgID string) map[string]interface{} {
+func readPollExtra(t *testing.T, e *dbEngine, msgID string) map[string]interface{} {
 	t.Helper()
 	var raw []byte
-	err := e.ForTestDb().QueryRow(
+	err := e.db.QueryRow(
 		`SELECT content_raw FROM messages WHERE account_id='a1' AND chat_id='c1' AND msg_id=?`,
 		msgID).Scan(&raw)
 	if err != nil {

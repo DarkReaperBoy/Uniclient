@@ -21,9 +21,9 @@ func (f *fakeViewsCore) GetMessagesViewsBatch(chatID string, msgIDs []string) (v
 	return f.views, f.forwards, f.err
 }
 
-func seedChannelChat(t *testing.T, e *Engine, chatID string, chatType int) {
+func seedChannelChat(t *testing.T, e *dbEngine, chatID string, chatType int) {
 	t.Helper()
-	_, err := e.ForTestDb().Exec(
+	_, err := e.db.Exec(
 		`INSERT INTO chats (account_id, chat_id, type, title, updated_at) VALUES ('a1', ?, ?, 'chan', ?)`,
 		chatID, chatType, time.Now().UnixMilli())
 	if err != nil {
