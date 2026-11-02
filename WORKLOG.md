@@ -260,41 +260,21 @@ owner order — that history lives in git if ever needed.
   giveaways/premium_business/sponsored + cores telegram_business/earn/gifts/
   giveaways/sponsored (+ paidmedia, stars) + 13 test files.
 
-## Session 348 — H-1 iteration 5: ForTestNewAuthFlow + ForTestCollected retired (2026-11-02)
+## Session 348 — H-1 iteration 5: auth-flow hooks retired + authFlows scoped per-Engine (2026-11-02)
 
-- Atomic change: tests/engine/auth_xmpp_test.go rewritten onto the REAL auth path — a test
-  core factory (SetCoreFactory, exported registration seam bootstrap uses in production)
-  feeds a real XMPPCore + real SessionStore from a test vault; the engine comes from
-  New(nil,nil,nil) + AttachAccount("xmpp-…", "xmpp", nil); the journeys drive StartAuth →
-  SubmitAuthInput and assert the same transitions black-box via returned AuthStates:
-  initial JID input → password → register offer (label pinned) → dial failure surfaces
-  as a RECOVERABLE ERROR STATE (the engine contract — SubmitAuthInput never returns the
-  dial error), both for "y" (register) and "" (straight-login retry). AdvanceXMPP white-box
-  tests and the ForTestCollected map assertions died with the hooks. engine/testhooks.go:
-  both hooks deleted (engine 36→34), orphaned cores import dropped. TestParseYesNo +
-  TestBuildAuthConfigXMPPRegister kept (exported pure functions, no hooks).
-- Evidence: gofmt clean; go vet -tags goolm EXIT 0 (engine, tests/engine, bootstrap,
-  cmd/uniclient, tests/bootstrap); go test -p 1 -tags goolm -count=1 ./tests/engine/ ok
-  5.144s (4/4 auth tests PASS), ./tests/bootstrap/ ok 0.863s; strip_comments.py --check
-  clean (go files=293, dropped=0). Gate of record: verify.yml dispatched post-push (id
-  below when closed).
-- Next: authFlows package-global → per-Engine (isolation test red→green, touches
-  engine/auth.go + engine/cache_users.go); then remaining hook families by use-count.
-
-### authFlows scoped per-Engine (same session, second atomic change)
-
-- Failing test first: TestAuthFlowsArePerEngine (tests/engine/authflows_test.go) — two
-  Engines via newAuthEngine, same accountID "acct", e2.CancelAuth kills e1's flow →
-  SEEN RED: `e1 lost its auth flow after e2 cancelled its own: no auth flow for "acct"`.
-- Fix: authFlows + authFlowsMu moved into Engine (engine.go struct + New literal); all
-  readers rewritten to e.authFlows/e.authFlowsMu (auth.go: StartAuth, SubmitAuthInput,
-  onQRTokenUpdate, CancelAuth, GoBackAuth, SwitchAuthMethod, finalizeAuth; cache_users.go:
-  GetLanguages, GetLangStrings auth-flow core fallback); dead package-level CurrentAuthState
-  deleted (zero users repo-wide — grep evidence in-session).
-- Evidence: TestAuthFlowsArePerEngine PASS + both XMPP journeys PASS; full
-  ./tests/engine/ ok 5.350s; ./tests/bootstrap/ ok 0.842s; vet EXIT 0; gofmt clean;
-  -race clean on the auth tests; strip_comments.py --check clean (294 files, 0 dropped).
-- Next: remaining engine hook families by use-count (ForTestMu / ForTestSet*).
+- auth_xmpp_test.go rewritten onto the REAL auth path: test core factory
+  (SetCoreFactory, the registration seam bootstrap uses in production) feeds
+  a real XMPPCore + real SessionStore from a test vault; engine from
+  New(nil,nil,nil) + AttachAccount; journeys drive StartAuth →
+  SubmitAuthInput, assert AuthStates black-box (JID → password → register
+  offer → dial failure as a RECOVERABLE ERROR STATE, both retry paths).
+  ForTestNewAuthFlow + ForTestCollected deleted (engine 36→34).
+- Second atomic change: authFlows + authFlowsMu moved INTO Engine —
+  TestAuthFlowsArePerEngine RED first ("e1 lost its auth flow after e2
+  cancelled its own"), then green; dead package-level CurrentAuthState
+  deleted (zero users).
+- Evidence: tests/engine ok 5.14s / 5.35s, bootstrap 0.84s; vet EXIT 0;
+  -race clean on the auth tests; comment-ban clean.
 
 ## Session 347 — owner redirect: AGENTS.md §3 push law hardened — git is the checkpoint (2026-11-02)
 
