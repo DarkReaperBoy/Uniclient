@@ -62,27 +62,6 @@ type AuthFlow struct {
 	history   []*AuthState
 }
 
-var (
-	authFlowsMu sync.Mutex
-	authFlows   = make(map[string]*AuthFlow)
-)
-
-func CurrentAuthState(accountID string) *AuthState {
-	authFlowsMu.Lock()
-	defer authFlowsMu.Unlock()
-	flow, ok := authFlows[accountID]
-	if !ok {
-		return nil
-	}
-	flow.mu.Lock()
-	defer flow.mu.Unlock()
-	if flow.state == nil {
-		return nil
-	}
-	cp := *flow.state
-	return &cp
-}
-
 func (e *Engine) StartAuth(accountID string) (*AuthState, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok {
@@ -107,18 +86,18 @@ func (e *Engine) StartAuth(accountID string) (*AuthState, error) {
 		core:      core,
 	}
 
-	authFlowsMu.Lock()
-	authFlows[accountID] = flow
-	authFlowsMu.Unlock()
+	e.authFlowsMu.Lock()
+	e.authFlows[accountID] = flow
+	e.authFlowsMu.Unlock()
 
 	e.emitEvent(EventAuthState, accountID, initial)
 	return initial, nil
 }
 
 func (e *Engine) SubmitAuthInput(accountID, input string) (*AuthState, error) {
-	authFlowsMu.Lock()
-	flow, ok := authFlows[accountID]
-	authFlowsMu.Unlock()
+	e.authFlowsMu.Lock()
+	flow, ok := e.authFlows[accountID]
+	e.authFlowsMu.Unlock()
 	if !ok {
 		return nil, fmt.Errorf("no auth flow for %q", accountID)
 	}
@@ -168,9 +147,9 @@ func (e *Engine) SubmitAuthInput(accountID, input string) (*AuthState, error) {
 }
 
 func (e *Engine) onQRTokenUpdate(accountID string) {
-	authFlowsMu.Lock()
-	flow, ok := authFlows[accountID]
-	authFlowsMu.Unlock()
+	e.authFlowsMu.Lock()
+	flow, ok := e.authFlows[accountID]
+	e.authFlowsMu.Unlock()
 	if !ok {
 		return
 	}
@@ -211,21 +190,21 @@ func (e *Engine) onQRTokenUpdate(accountID string) {
 }
 
 func (e *Engine) CancelAuth(accountID string) {
-	authFlowsMu.Lock()
-	flow, ok := authFlows[accountID]
+	e.authFlowsMu.Lock()
+	flow, ok := e.authFlows[accountID]
 	if ok {
 		if flow.core != nil {
 			flow.core.Close()
 		}
-		delete(authFlows, accountID)
+		delete(e.authFlows, accountID)
 	}
-	authFlowsMu.Unlock()
+	e.authFlowsMu.Unlock()
 }
 
 func (e *Engine) GoBackAuth(accountID string) (*AuthState, bool) {
-	authFlowsMu.Lock()
-	flow, ok := authFlows[accountID]
-	authFlowsMu.Unlock()
+	e.authFlowsMu.Lock()
+	flow, ok := e.authFlows[accountID]
+	e.authFlowsMu.Unlock()
 	if !ok {
 		return nil, false
 	}
@@ -246,9 +225,9 @@ func (e *Engine) GoBackAuth(accountID string) (*AuthState, bool) {
 }
 
 func (e *Engine) SwitchAuthMethod(accountID, method string) (*AuthState, error) {
-	authFlowsMu.Lock()
-	flow, ok := authFlows[accountID]
-	authFlowsMu.Unlock()
+	e.authFlowsMu.Lock()
+	flow, ok := e.authFlows[accountID]
+	e.authFlowsMu.Unlock()
 	if !ok {
 		return nil, fmt.Errorf("no auth flow for %q", accountID)
 	}
@@ -324,9 +303,9 @@ func (e *Engine) finalizeAuth(accountID string, acc *Account, flow *AuthFlow) {
 		e.HandleUpdate(accountID, u)
 	})
 
-	authFlowsMu.Lock()
-	delete(authFlows, accountID)
-	authFlowsMu.Unlock()
+	e.authFlowsMu.Lock()
+	delete(e.authFlows, accountID)
+	e.authFlowsMu.Unlock()
 
 	e.emitConnState(accountID, ConnConnected, "")
 	e.emitAccountList()

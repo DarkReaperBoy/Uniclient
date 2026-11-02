@@ -58,6 +58,9 @@ type Engine struct {
 	accounts   map[string]*Account
 	accountsMu sync.RWMutex
 
+	authFlows   map[string]*AuthFlow
+	authFlowsMu sync.Mutex
+
 	eventCBs map[int]func([]byte)
 	cbSeq    int
 
@@ -151,6 +154,7 @@ type Engine struct {
 func New(db *sql.DB, vault *utils.Vault, config *utils.AppConfig) *Engine {
 	e := &Engine{
 		accounts:            make(map[string]*Account),
+		authFlows:           make(map[string]*AuthFlow),
 		db:                  db,
 		vault:               vault,
 		config:              config,

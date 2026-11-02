@@ -2434,11 +2434,11 @@ type LanguageInfo struct {
 func (e *Engine) GetLanguages(accountID string) ([]LanguageInfo, error) {
 	core := e.GetAccountCore(accountID)
 	if core == nil {
-		authFlowsMu.Lock()
-		if flow, ok := authFlows[accountID]; ok {
+		e.authFlowsMu.Lock()
+		if flow, ok := e.authFlows[accountID]; ok {
 			core = flow.core
 		}
-		authFlowsMu.Unlock()
+		e.authFlowsMu.Unlock()
 	}
 	if core == nil {
 		return nil, fmt.Errorf("account not found")
@@ -2482,11 +2482,11 @@ func (e *Engine) SetLanguage(accountID, langCode string) error {
 func (e *Engine) GetLangStrings(accountID, langCode string, keys []string) (map[string]string, error) {
 	core := e.GetAccountCore(accountID)
 	if core == nil {
-		authFlowsMu.Lock()
-		if flow, ok := authFlows[accountID]; ok {
+		e.authFlowsMu.Lock()
+		if flow, ok := e.authFlows[accountID]; ok {
 			core = flow.core
 		}
-		authFlowsMu.Unlock()
+		e.authFlowsMu.Unlock()
 	}
 	if core == nil {
 		return nil, fmt.Errorf("account not found")

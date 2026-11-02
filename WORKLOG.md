@@ -7,21 +7,21 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: H-1 iteration 5 EXECUTED — auth cluster: tests/engine/auth_xmpp_test.go
-  rewritten onto the REAL path (SetCoreFactory + New + AttachAccount + StartAuth +
-  SubmitAuthInput, test factory feeds a real XMPPCore + real SessionStore);
-  ForTestNewAuthFlow + ForTestCollected deleted (engine hooks 36→34)
-- next: authFlows is package-global → per-Engine scope (wrong-behavior: two Engines
-  in one process share/leak flows; engine/auth.go + cache_users.go touch the map) —
-  isolation test first, red→green; then remaining engine hook families by use-count
-  (ForTestMu / ForTestSet* setters ~20 uses)
+- front: session 348 landed TWO atomic changes — (1) H-1 iteration 5: auth tests on
+  the REAL path (SetCoreFactory + New + AttachAccount + StartAuth + SubmitAuthInput,
+  real XMPPCore + SessionStore); ForTestNewAuthFlow + ForTestCollected deleted (engine
+  hooks 36→34); (2) authFlows per-Engine: Engine owns authFlows/authFlowsMu (New
+  initializes them), engine/auth.go + cache_users.go read e.authFlows, dead package-level
+  CurrentAuthState deleted (zero users)
+- next: remaining engine hook families by use-count (ForTestMu / ForTestSet* setters
+  ~20 uses); close the verify.yml run for 3096c150 (dispatched, id pending) and record
+  it in STATE; then the next front
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: local gate green on this commit — gofmt clean; go vet -tags goolm EXIT 0
+- last-gate: local gate green on both commits — gofmt clean; go vet -tags goolm EXIT 0
   (engine, tests/engine, bootstrap, cmd/uniclient, tests/bootstrap); go test -count=1
-  tests/engine ok 5.144s + tests/bootstrap ok 0.863s; strip_comments.py --check clean
-  (293 files, 0 dropped); verify.yml dispatched post-push — run id lands in the next
-  STATE rewrite
+  tests/engine ok + tests/bootstrap ok; -race clean on the auth tests; comment-ban
+  clean (294 files, 0 dropped); verify.yml dispatched for 3096c150 — run id pending
 
 ## Open items
 
@@ -51,6 +51,21 @@ owner order — that history lives in git if ever needed.
   below when closed).
 - Next: authFlows package-global → per-Engine (isolation test red→green, touches
   engine/auth.go + engine/cache_users.go); then remaining hook families by use-count.
+
+### authFlows scoped per-Engine (same session, second atomic change)
+
+- Failing test first: TestAuthFlowsArePerEngine (tests/engine/authflows_test.go) — two
+  Engines via newAuthEngine, same accountID "acct", e2.CancelAuth kills e1's flow →
+  SEEN RED: `e1 lost its auth flow after e2 cancelled its own: no auth flow for "acct"`.
+- Fix: authFlows + authFlowsMu moved into Engine (engine.go struct + New literal); all
+  readers rewritten to e.authFlows/e.authFlowsMu (auth.go: StartAuth, SubmitAuthInput,
+  onQRTokenUpdate, CancelAuth, GoBackAuth, SwitchAuthMethod, finalizeAuth; cache_users.go:
+  GetLanguages, GetLangStrings auth-flow core fallback); dead package-level CurrentAuthState
+  deleted (zero users repo-wide — grep evidence in-session).
+- Evidence: TestAuthFlowsArePerEngine PASS + both XMPP journeys PASS; full
+  ./tests/engine/ ok 5.350s; ./tests/bootstrap/ ok 0.842s; vet EXIT 0; gofmt clean;
+  -race clean on the auth tests; strip_comments.py --check clean (294 files, 0 dropped).
+- Next: remaining engine hook families by use-count (ForTestMu / ForTestSet*).
 
 ## Session 347 — owner redirect: AGENTS.md §3 push law hardened — git is the checkpoint (2026-11-02)
 
