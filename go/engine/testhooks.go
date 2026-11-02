@@ -56,10 +56,6 @@ func (x *httpImageCache) ForTestGet(key string) []byte {
 	return x.get(key)
 }
 
-func (x *Engine) ForTestOpenMediaStream(accountID, chatID, msgID string, seq int, src partSource) (*MediaStream, string, int64, error) {
-	return x.openMediaStream(accountID, chatID, msgID, seq, src)
-}
-
 func (x *httpImageCache) ForTestLen() int {
 	return x.len()
 }

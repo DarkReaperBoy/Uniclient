@@ -248,10 +248,13 @@ func TestOpenMediaStreamPromotesRow(t *testing.T) {
 	}
 
 	data := streamPattern(16_384)
-	src := &fakePartSource{data: data}
+	core := &guardCore{part: &fakePartSource{data: data}}
+	if err := e.AttachAccount("a1", "telegram", core); err != nil {
+		t.Fatal(err)
+	}
 	seedStreamRow(t, e, int64(len(data)), DownloadNone, "")
 
-	s, pth, size, err := e.ForTestOpenMediaStream("a1", "c1", "m1", 0, src)
+	s, size, pth, err := e.OpenMediaStream("a1", "c1", "m1", 0)
 	if err != nil {
 		t.Fatalf("openMediaStream: %v", err)
 	}

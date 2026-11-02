@@ -112,7 +112,7 @@ func TestOpenMediaStreamRefusedWhileDownloadActive(t *testing.T) {
 func TestExecuteDownloadSkipsWhileStreamOpen(t *testing.T) {
 	e, core, _ := newGuardEngine(t)
 
-	s, _, _, err := e.ForTestOpenMediaStream("a1", "c1", "m1", 0, core)
+	s, _, _, err := e.OpenMediaStream("a1", "c1", "m1", 0)
 	if err != nil {
 		t.Fatalf("openMediaStream: %v", err)
 	}
