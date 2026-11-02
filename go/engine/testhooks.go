@@ -62,20 +62,12 @@ func (x *MediaManager) ForTestQueue() []*DownloadJob {
 	return x.queue
 }
 
-func (x *Engine) ForTestSetConfig(v *utils.AppConfig) {
-	x.config = v
-}
-
 func (x *Engine) ForTestSetMedia(v *MediaManager) {
 	x.media = v
 }
 
 func (x *Engine) ForTestSetDownloadDir(v string) {
 	x.downloadDir = v
-}
-
-func (x *Engine) ForTestSetVault(v *utils.Vault) {
-	x.vault = v
 }
 
 func (x *Engine) ForTestSetMediaDir(v string) {

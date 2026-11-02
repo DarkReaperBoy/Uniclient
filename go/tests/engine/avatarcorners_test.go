@@ -8,15 +8,13 @@ import (
 )
 
 func TestAvatarCornersSettingsRoundTrip(t *testing.T) {
-	e := newTestEngine(t)
 	dir := t.TempDir()
 	v, err := utils.CreateVault(dir+"/vault.db", "test")
 	if err != nil {
 		t.Fatal(err)
 	}
 	cfg := utils.DefaultConfig()
-	e.ForTestSetVault(v)
-	e.ForTestSetConfig(&cfg)
+	e := newTestEngineWith(t, v, &cfg)
 
 	if got := utils.EffectiveAvatarCorners(*e.GetConfig()); got != 23 {
 		t.Fatalf("default corners = %d, want 23", got)

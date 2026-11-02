@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"testing"
 	. "uniclient/engine"
+
+	"uniclient/utils"
 )
 
 type dbEngine struct {
@@ -12,6 +14,10 @@ type dbEngine struct {
 }
 
 func newTestEngine(t *testing.T) *dbEngine {
+	return newTestEngineWith(t, nil, nil)
+}
+
+func newTestEngineWith(t *testing.T, vault *utils.Vault, config *utils.AppConfig) *dbEngine {
 	db, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
 		t.Fatal(err)
@@ -20,7 +26,7 @@ func newTestEngine(t *testing.T) *dbEngine {
 	if err := MigrateDB(db); err != nil {
 		t.Fatal(err)
 	}
-	return &dbEngine{Engine: New(db, nil, nil), db: db}
+	return &dbEngine{Engine: New(db, vault, config), db: db}
 }
 
 func seedMessage(t *testing.T, e *dbEngine, msgID string, ts int64) {

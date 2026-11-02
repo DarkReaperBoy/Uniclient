@@ -8,16 +8,13 @@ import (
 )
 
 func newAntiRecallEngine(t *testing.T) *dbEngine {
-	e := newTestEngine(t)
 	dir := t.TempDir()
 	v, err := utils.CreateVault(dir+"/vault.db", "test")
 	if err != nil {
 		t.Fatal(err)
 	}
 	cfg := utils.DefaultConfig()
-	e.ForTestSetVault(v)
-	e.ForTestSetConfig(&cfg)
-	return e
+	return newTestEngineWith(t, v, &cfg)
 }
 
 func TestAntiRecallSettingsRoundTrip(t *testing.T) {
