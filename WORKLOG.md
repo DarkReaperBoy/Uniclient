@@ -7,28 +7,50 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: H-1 iterations 3+4 EXECUTED — iter 3: New + AttachAccount + ReplaceAccountCore
-  retire the account-injection cluster (engine 41→37); iter 4: the dbEngine test harness
-  retires ForTestDb — the test owns the sql.DB it already creates (engine 37→36)
-- next: H-1 iteration 5 — ForTestNewAuthFlow (1 use, auth cluster): rewrite
-  tests/engine/auth_xmpp_test.go onto the real path (SetCoreFactory+New+AttachAccount+
-  StartAuth+SubmitAuthInput; recon done — XMPP dial errors surface through SubmitAuthInput
-  as Recoverable error STATES, not returned errors); follow-up fix: authFlows is
-  package-global → per-Engine scope; then remaining hook families by use-count
+- front: H-1 iteration 5 EXECUTED — auth cluster: tests/engine/auth_xmpp_test.go
+  rewritten onto the REAL path (SetCoreFactory + New + AttachAccount + StartAuth +
+  SubmitAuthInput, test factory feeds a real XMPPCore + real SessionStore);
+  ForTestNewAuthFlow + ForTestCollected deleted (engine hooks 36→34)
+- next: authFlows is package-global → per-Engine scope (wrong-behavior: two Engines
+  in one process share/leak flows; engine/auth.go + cache_users.go touch the map) —
+  isolation test first, red→green; then remaining engine hook families by use-count
+  (ForTestMu / ForTestSet* setters ~20 uses)
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: verify.yml **41396012222 = SUCCESS on d9e472df** (iteration 4, closed at job+step
-  level: comment-ban/gofmt/vet/vet-live/test/race/headless smoke/nix with flake-version
-  tag-skip/windows/js-wasm all green) AND **41394693974 = SUCCESS on 5997a16b** (iteration 3,
-  same step-level shape); session 346 closed — engine hooks 41→36
+- last-gate: local gate green on this commit — gofmt clean; go vet -tags goolm EXIT 0
+  (engine, tests/engine, bootstrap, cmd/uniclient, tests/bootstrap); go test -count=1
+  tests/engine ok 5.144s + tests/bootstrap ok 0.863s; strip_comments.py --check clean
+  (293 files, 0 dropped); verify.yml dispatched post-push — run id lands in the next
+  STATE rewrite
 
 ## Open items
 
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
-| H-1 | cores/engine testhooks*.go | ForTest* hooks are debt (§5.3): ~222 hooks left after session 346 (engine 41→36) | session 346 entry | retire hooks as flows gain exported APIs; prune when a hook's last use dies |
+| H-1 | cores/engine testhooks*.go | ForTest* hooks are debt (§5.3): ~222 hooks left after session 346 (engine 41→36); session 348: engine 36→34 | session 348 entry | retire hooks as flows gain exported APIs; prune when a hook's last use dies |
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 302 identifiers exported purely for the tests move (API noise: TsParseInit1, ForTest-adjacent) | commit 27faa5a4 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
+
+## Session 348 — H-1 iteration 5: ForTestNewAuthFlow + ForTestCollected retired (2026-11-02)
+
+- Atomic change: tests/engine/auth_xmpp_test.go rewritten onto the REAL auth path — a test
+  core factory (SetCoreFactory, exported registration seam bootstrap uses in production)
+  feeds a real XMPPCore + real SessionStore from a test vault; the engine comes from
+  New(nil,nil,nil) + AttachAccount("xmpp-…", "xmpp", nil); the journeys drive StartAuth →
+  SubmitAuthInput and assert the same transitions black-box via returned AuthStates:
+  initial JID input → password → register offer (label pinned) → dial failure surfaces
+  as a RECOVERABLE ERROR STATE (the engine contract — SubmitAuthInput never returns the
+  dial error), both for "y" (register) and "" (straight-login retry). AdvanceXMPP white-box
+  tests and the ForTestCollected map assertions died with the hooks. engine/testhooks.go:
+  both hooks deleted (engine 36→34), orphaned cores import dropped. TestParseYesNo +
+  TestBuildAuthConfigXMPPRegister kept (exported pure functions, no hooks).
+- Evidence: gofmt clean; go vet -tags goolm EXIT 0 (engine, tests/engine, bootstrap,
+  cmd/uniclient, tests/bootstrap); go test -p 1 -tags goolm -count=1 ./tests/engine/ ok
+  5.144s (4/4 auth tests PASS), ./tests/bootstrap/ ok 0.863s; strip_comments.py --check
+  clean (go files=293, dropped=0). Gate of record: verify.yml dispatched post-push (id
+  below when closed).
+- Next: authFlows package-global → per-Engine (isolation test red→green, touches
+  engine/auth.go + engine/cache_users.go); then remaining hook families by use-count.
 
 ## Session 347 — owner redirect: AGENTS.md §3 push law hardened — git is the checkpoint (2026-11-02)
 

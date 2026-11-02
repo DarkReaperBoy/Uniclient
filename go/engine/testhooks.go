@@ -4,13 +4,8 @@ import (
 	"sync"
 	"time"
 
-	"uniclient/cores"
 	"uniclient/utils"
 )
-
-func (x *AuthFlow) ForTestCollected() map[string]string {
-	return x.collected
-}
 
 func (x *Engine) ForTestMedia() *MediaManager {
 	return x.media
@@ -146,8 +141,4 @@ func (x *MediaManager) ForTestExecuteDownload(job *DownloadJob) {
 
 func (x *Engine) ForTestSetAntiRecall(d, h, b bool) {
 	x.saveDeletedMessages, x.saveMessagesHistory, x.saveForBots = d, h, b
-}
-
-func ForTestNewAuthFlow(core cores.Core) *AuthFlow {
-	return &AuthFlow{collected: map[string]string{}, core: core}
 }

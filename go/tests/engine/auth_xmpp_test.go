@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"fmt"
 	"path/filepath"
 	"testing"
 	. "uniclient/engine"
@@ -9,7 +10,7 @@ import (
 	"uniclient/utils"
 )
 
-func newXMPPFlowForTest(t *testing.T) *AuthFlow {
+func newAuthEngine(t *testing.T) *Engine {
 	t.Helper()
 	dir := t.TempDir()
 	vault, err := utils.CreateVault(filepath.Join(dir, "test.vault"), "test")
@@ -17,8 +18,14 @@ func newXMPPFlowForTest(t *testing.T) *AuthFlow {
 		t.Fatalf("CreateVault: %v", err)
 	}
 	t.Cleanup(func() { vault.Close() })
-	store := utils.NewSessionStore(vault, "engine-auth-test")
-	return ForTestNewAuthFlow(cores.NewXMPPCore(store))
+	SetCoreFactory(func(platform, accountID string) (cores.Core, error) {
+		if platform != "xmpp" {
+			return nil, fmt.Errorf("test factory: unsupported platform %q", platform)
+		}
+		return cores.NewXMPPCore(utils.NewSessionStore(vault, "engine-auth-test")), nil
+	})
+	t.Cleanup(func() { SetCoreFactory(nil) })
+	return New(nil, nil, nil)
 }
 
 func TestBuildAuthConfigXMPPRegister(t *testing.T) {
@@ -53,61 +60,78 @@ func TestParseYesNo(t *testing.T) {
 	}
 }
 
-func TestAdvanceXMPPRegisterStep(t *testing.T) {
-	flow := newXMPPFlowForTest(t)
-	base := &AuthState{Platform: "xmpp"}
-
-	st, err := AdvanceXMPP(flow, "uc-test@invalid.example", base)
-	if err != nil {
-		t.Fatalf("step1: %v", err)
-	}
-	if flow.ForTestCollected()["jid"] != "uc-test@invalid.example" {
-		t.Fatalf("jid not collected: %v", flow.ForTestCollected())
-	}
-	if st.FieldType != "password" || st.Label != "Password" {
-		t.Fatalf("step1 state: %+v", st)
+func TestXMPPAuthJourneyRegisterOffer(t *testing.T) {
+	e := newAuthEngine(t)
+	if err := e.AttachAccount("xmpp-reg", "xmpp", nil); err != nil {
+		t.Fatalf("attach: %v", err)
 	}
 
-	st, err = AdvanceXMPP(flow, "s3cret", base)
+	st, err := e.StartAuth("xmpp-reg")
 	if err != nil {
-		t.Fatalf("step2 must not surface the dial error as terminal: %v", err)
+		t.Fatalf("start auth: %v", err)
 	}
-	if flow.ForTestCollected()["password"] != "s3cret" {
-		t.Fatalf("password not collected: %v", flow.ForTestCollected())
+	if st.State != AuthStateInput || st.FieldType != "text" || st.Label != "JID (user@server)" {
+		t.Fatalf("initial state: %+v", st)
+	}
+
+	st, err = e.SubmitAuthInput("xmpp-reg", "uc-test@invalid.example")
+	if err != nil {
+		t.Fatalf("jid step: %v", err)
+	}
+	if st.State != AuthStateInput || st.FieldType != "password" || st.Label != "Password" {
+		t.Fatalf("password step: %+v", st)
+	}
+
+	st, err = e.SubmitAuthInput("xmpp-reg", "s3cret")
+	if err != nil {
+		t.Fatalf("password step: %v", err)
 	}
 	if st.State != AuthStateInput {
-		t.Fatalf("step2 must stay an input state: %+v", st)
+		t.Fatalf("dial failure must stay an input state: %+v", st)
 	}
 	if want := "Create this account on the server? (y = register, empty = retry)"; st.Label != want {
 		t.Fatalf("register offer label: %q", st.Label)
 	}
 
-	_, err = AdvanceXMPP(flow, "y", base)
-	if err == nil {
-		t.Fatal("expected the (dial) auth error to surface for an invalid host")
+	st, err = e.SubmitAuthInput("xmpp-reg", "y")
+	if err != nil {
+		t.Fatalf("register step must return a state, not an error: %v", err)
 	}
-	if flow.ForTestCollected()["register"] != "true" {
-		t.Fatalf("register answer not collected: %v", flow.ForTestCollected())
+	if st.State != AuthStateError || !st.Recoverable {
+		t.Fatalf("dial failure must surface as a recoverable error state: %+v", st)
 	}
 }
 
-func TestAdvanceXMPPStraightLogin(t *testing.T) {
-	flow := newXMPPFlowForTest(t)
-	base := &AuthState{Platform: "xmpp"}
+func TestXMPPAuthJourneyStraightLoginRetry(t *testing.T) {
+	e := newAuthEngine(t)
+	if err := e.AttachAccount("xmpp-login", "xmpp", nil); err != nil {
+		t.Fatalf("attach: %v", err)
+	}
 
-	_, _ = AdvanceXMPP(flow, "uc2@invalid.example", base)
-	st, err := AdvanceXMPP(flow, "pw2", base)
+	if _, err := e.StartAuth("xmpp-login"); err != nil {
+		t.Fatalf("start auth: %v", err)
+	}
+	st, err := e.SubmitAuthInput("xmpp-login", "uc2@invalid.example")
 	if err != nil {
-		t.Fatalf("step2: %v", err)
+		t.Fatalf("jid step: %v", err)
 	}
-	if st.Label != "Create this account on the server? (y = register, empty = retry)" {
-		t.Fatalf("expected register offer: %+v", st)
+	if st.FieldType != "password" {
+		t.Fatalf("password step: %+v", st)
 	}
-	_, err = AdvanceXMPP(flow, "", base)
-	if err == nil {
-		t.Fatal("expected dial error for invalid host on retry")
+
+	st, err = e.SubmitAuthInput("xmpp-login", "pw2")
+	if err != nil {
+		t.Fatalf("password step: %v", err)
 	}
-	if flow.ForTestCollected()["register"] != "false" {
-		t.Fatalf("empty answer must map to false: %v", flow.ForTestCollected())
+	if want := "Create this account on the server? (y = register, empty = retry)"; st.Label != want {
+		t.Fatalf("register offer label: %q", st.Label)
+	}
+
+	st, err = e.SubmitAuthInput("xmpp-login", "")
+	if err != nil {
+		t.Fatalf("retry step must return a state, not an error: %v", err)
+	}
+	if st.State != AuthStateError || !st.Recoverable {
+		t.Fatalf("empty retry must surface the dial failure as a recoverable error state: %+v", st)
 	}
 }
