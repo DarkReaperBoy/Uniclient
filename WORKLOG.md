@@ -131,38 +131,17 @@ owner order — that history lives in git if ever needed.
 
 ## Session 350 — M-1 executed: monetary feature surfaces pruned engine-wide and core-wide (2026-11-02)
 
-- Slice 1 (engine, 5e64e5e, 1,680 lines): engine/earn.go gifts.go giveaways.go
-  premium_business.go sponsored.go deleted + tests/engine/{earn,gifts,giveaways,
-  sponsored}_test.go; engine.go lost sponsoredMu/sponsoredCache fields,
-  SetLocalPremium/localPremiumSnapshot/LocalPremiumFor, star-ref APIs,
-  UpdateChannelEmojiStatus, UpdatePaidMessagesPrice, boosts APIs, gift-code
-  options, GetGiveawayPeriodMax; cache_msgs.go lost star-gift fetch/pinned/send,
-  UnlockPaidMedia, stars/broadcast revenue + withdrawal URLs; cache_users.go lost
-  messages privacy/paid-messages config/stars-paid-post max/gift codes;
-  utils/config.go LocalPremium dropped; testhooks.go gift/sponsored hooks deleted
-  (engine 34→29). Zero non-test callers existed (grep evidence).
-- Slice 2a (cores files, d1d02e2): telegram_business/earn/gifts/giveaways/
-  sponsored.go deleted (Data*/Build* helpers were file-local); telegram_countries.go
-  orphaned + deleted; 5 test files died, TestStoryReactionEmoticon rescued to
-  telegram_story_test.go; freeze test table: 5 monetary entries excised.
-- Slice 2b (telegram.go cascade, 5db0adc, ~2,088 lines): fixpoint scan cut every
-  monetary decl with zero surviving users (~50 methods: stars balance/status/
-  txns/revenue/withdrawals, broadcast revenue, premium status/promo/plans, gift
-  settings/codes, boosts, sponsored wrappers, star-ref, paid messages/reactions/
-  auth, UnlockPaidMedia, business/quick-reply/emoji-status raw wrappers) + 15
-  orphan base.go types; SetChatReactionsMode paidEnabled branch removed at both
-  layers; telegram_premium/stars/countries tests deleted.
-- KEPT per rule wording (data mirroring, not features): is_premium/stars_to_send/
-  stars_per_message columns + Extra keys, received gift/paid-media message
-  conversion (telegram_gift_test.go, telegram_paidmedia_test.go),
-  ServiceActionText gift branches, timezoneOffsetNoLock (business-hours
-  rendering), folder/link limits, Get/SetMessagesPrivacy.
-- Evidence: quick gate GREEN after every slice (latest: tests/bootstrap 1.049s,
-  tests/cores 14.679s, tests/engine 5.312s, vet clean, gofmt clean); comment
-  check clean (2 stray comments in the rescued test stripped, ffd31b2); gate of
-  record verify.yml **41434129182 = SUCCESS on ffd31b2**.
-- Next: re-grep hook users (M-1 invalidated recon) → ForTestMu family by
-  use-count; ForTestSet* next.
+- Three slices (5e64e5e engine, 1,680 lines; d1d02e2 cores files; 5db0adc
+  telegram.go cascade, ~2,088 lines): earn/gifts/giveaways/premium_business/
+  sponsored deleted at both layers + ~50 zero-user monetary methods, 15
+  orphan base.go types, 13 test files; utils/config.go LocalPremium dropped;
+  SetChatReactionsMode paidEnabled branch removed at both layers; engine
+  hooks 34→29. KEPT as data mirroring per rule 19: is_premium/stars columns
+  + Extra keys, gift/paid-media message conversion, ServiceActionText gift
+  branches, timezoneOffsetNoLock, folder/link limits, Get/SetMessagesPrivacy.
+- Evidence: quick gate GREEN per slice (tests/cores 14.7s, tests/engine 5.3s,
+  tests/bootstrap 1.0s, vet/gofmt/comments clean); gate of record verify.yml
+  **41434129182 = SUCCESS on ffd31b2**.
 
 ### H-1 iteration 6: ForTestSetConfig + ForTestSetVault retired (same session)
 
