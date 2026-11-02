@@ -7,32 +7,66 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 352 — H-1 ENGINE SLICE COMPLETE: iteration 16 (media
-  lifecycle self-contained; ForTestMedia/-Queue/-ExecuteDownload dead) +
-  iteration 17 (VoiceVAD + httpImageCache hooks dead — voice journeys drive
-  the real mic pipeline via audio.SetDeviceFactory + JoinGroupCall, LRU pinned
-  through FetchHTTPImage hit-counting; NewHTTPImageCache de-exported) —
-  engine/testhooks.go DELETED, engine hooks 0
-- next: cores hooks (180 — census in the session 352 entry: MatrixCore 25,
-  TsConnection 18, TeamSpeakCore 14, mumble wire msgs ~35, …; first candidate
-  = the cross-core SetAuthed/SetCtx/Cancel/SaveSession injection family) —
-  retire by family; H-3 export noise folds into those reworks
+- front: session 353 — H-1 CORES FRONT OPENED: the cross-core injection
+  family (ForTestSetAuthed/SetCtx/Cancel/SaveSession, 37 defs) retired to 3 —
+  mumble Cancel ×4 + SaveSession ×1 onto the REAL Close() lifecycle; matrix
+  SetAuthed onto REAL Authenticate (bot token) vs a scripted homeserver
+  (whoami token-checked, keys/query+upload, hanging sync; Close drains);
+  29 orphans cut; only TelegramCore SetAuthed/SetCtx + TeamSpeakCore
+  SetAuthed remain (no unit-level real path — see H-1)
+- next: next cores hook families by census — state-mirror family
+  (ForTestRooms/Channels/Users/…) then construction family
+  (ForTestNewTsConnection/ForTestNewTeamSpeakCore/…); cores def-count
+  196→162 this session (rg 'func.*ForTest' on testhooks*.go)
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: verify.yml **41491975538 = SUCCESS on 8911e54b** (iteration 17;
-  all 3 jobs, every step incl. the CI race leg) AND **41489996615 = SUCCESS
-  on b8cfe27d** (iteration 16) AND **41482286310 = SUCCESS on a5f6566a**
-  (reconciled dead-session iters 13–15); local quick gate GREEN on every
-  iteration this session (tests/engine 5.6–6.4s, bootstrap ~0.9s,
-  vet/gofmt/comments clean, js/wasm + cmd ok, headless smoke rc=0)
+- last-gate: local quick gate GREEN on the working tree (tests/cores 15.5s
+  7/7 ok, tests/engine 6.5s, tests/bootstrap 1.0s, js/wasm + runner green,
+  gofmt + comment-ban clean, 271 files 0 dropped); -race = rung-7 (box too
+  small — CI leg gates); verify.yml dispatched on this iteration's push
+  (id in the session 353 entry once closed)
 
 ## Open items
 
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
-| H-1 | cores testhooks*.go | ForTest* hooks are debt (§5.3): 181 left (all cores — engine slice COMPLETE, 41→0 across sessions 346–352; engine/testhooks.go deleted in 352) | session 352 entry | receiver-qualified recon per core, then retire by family |
+| H-1 | cores testhooks*.go | ForTest* hooks are debt (§5.3): 162 left by def-count (session 353; the 180 census was occurrence-based) — injection family done except TelegramCore SetAuthed/SetCtx + TeamSpeakCore SetAuthed (6 sites, freeze/migrate/servername/talkpower) | session 353 entry | retire the trio via a scripted-server front (ts3j-style TS UDP handshake server; gotd tgtest/invoker adoption) — or fold into the GUI --script seam; then state-mirror + construction families |
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 302 identifiers exported purely for the tests move (API noise: TsParseInit1, ForTest-adjacent) | commit 27faa5a4 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
+| Q-1 | cores/matrix.go initCrypto | mautrix client logger set at DBG with a console writer — every request logs to stderr in production (now visible: mxAuthedCore drives Authenticate) | session 353 run log | gate to WRN or env (UNICLIENT_MATRIX_DEBUG, mirroring mumble) — tiny, needs its own commit |
+
+## Session 353 — H-1 cores front, family 1: the cross-core injection hooks (SetAuthed/SetCtx/Cancel/SaveSession) (2026-11-03)
+
+- Boot: fresh sandbox — toolchain + caches wiped again; env.sh recovery
+  recipe followed verbatim (go1.27.1, checksum-verified, TOOLCHAIN=
+  ../toolchain per the file; core.fileMode false re-set; /tmp tarballs
+  removed when the box filled). Baseline gate green before touching
+  anything (tests/engine 6.5s, bootstrap 1.0s on the unmodified head).
+- Family census corrected by def-count (rg 'func.*ForTest' testhooks*.go):
+  37 defs in the family, NOT 39; 12 used sites in 7 files, 25 orphan defs.
+  Design rating: mumble Close() retirement 9/10 (Close IS the persist+
+  cancel+drain lifecycle — the test now proves the real teardown);
+  matrix real-Authenticate journey 8/10 (whoami+keys+sync all real HTTP
+  through mautrix; crypto init genuinely succeeds — 51 OTKs uploaded);
+  telegram/TS trio DEFERRED 5/10 (no unit-level real path — needs scripted
+  servers, a separate front; hooks kept, path named in H-1).
+- RED first: all 34 doomed defs deleted → tool-proven compile failure ×6
+  (matrix_test.go:429 ForTestSetAuthed; mumble_tofu_connect 132/133/159/160
+  ForTestCancel; mumble_tofu_test 99 ForTestSaveSession).
+- GREEN: mumble tofu tests Close() mid-connect (cancel→ctx.Done unblocks
+  the ServerSync wait; probe conn closed; pins preserved — ResetEnv still
+  re-pins); TestServerPinSurvivesCertSave now persists via Close()
+  (saveSession under Session!=nil, assert through store.Load);
+  mxAuthedCore: httptest homeserver — whoami (401 unless Bearer
+  test-token), keys/query {"device_keys":{}}, keys/upload counts, sync
+  held open on r.Context().Done; Authenticate(AuthModeBot) drives the
+  real bot path; t.Cleanup LIFO closes core before server.
+- Evidence: quick gate GREEN (tests/cores 15.5s, tests/engine 6.5s,
+  tests/bootstrap 1.0s, utils/aacaud/voice ok, js/wasm audio leg green,
+  wasm-runner contracts green); gofmt clean; strip_comments --check clean
+  (271 files, 0 dropped); -race rung-7 (disk/RAM too small — CI gates).
+  Cores def-count 196→162. Matrix DBG stderr logging noted as Q-1.
+- verify.yml dispatched post-push (run id recorded at next boot).
 
 ## Session 352 — boot reconciliation + H-1 iterations 16–17: media lifecycle self-contained; engine hook quarantine deleted (2026-11-02)
 

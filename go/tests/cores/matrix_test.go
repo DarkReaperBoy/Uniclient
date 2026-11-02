@@ -3,6 +3,8 @@ package tests
 import (
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 	. "uniclient/cores"
@@ -14,6 +16,42 @@ import (
 func newTestMatrix() *MatrixCore {
 	m := NewMatrixCore(nil)
 	m.ForTestSetUserID(id.UserID("@me:test"))
+	return m
+}
+
+func mxAuthedCore(t *testing.T) *MatrixCore {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/_matrix/client/v3/account/whoami":
+			if r.Header.Get("Authorization") != "Bearer test-token" {
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"user_id":"@me:test","device_id":"TESTDEV"}`))
+		case "/_matrix/client/v3/keys/query":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"device_keys":{}}`))
+		case "/_matrix/client/v3/keys/upload":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"one_time_key_counts":{}}`))
+		case "/_matrix/client/v3/sync":
+			<-r.Context().Done()
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	m := NewMatrixCore(nil)
+	t.Cleanup(func() { _ = m.Close() })
+	if err := m.Authenticate(AuthConfig{
+		Mode:     AuthModeBot,
+		BotToken: "test-token",
+		Extra:    map[string]string{"homeserver": srv.URL},
+	}); err != nil {
+		t.Fatalf("authenticate: %v", err)
+	}
 	return m
 }
 
@@ -425,8 +463,7 @@ func TestMatrixGetDialogsRequiresAuth(t *testing.T) {
 }
 
 func TestMatrixGetDialogsSortsAndPaginates(t *testing.T) {
-	m := newTestMatrix()
-	m.ForTestSetAuthed(true)
+	m := mxAuthedCore(t)
 	base := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
 	mk := func(room string, offsetMin int, name string) {
 		m.ForTestRooms()[id.RoomID(room)] = &MatrixRoomState{

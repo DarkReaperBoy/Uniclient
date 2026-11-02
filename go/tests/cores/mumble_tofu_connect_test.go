@@ -129,13 +129,13 @@ func TestConnectProceedsOnMatchingPin(t *testing.T) {
 	case <-time.After(6 * time.Second):
 		t.Fatal("probe never saw the client's Version bytes")
 	}
-	if core.ForTestCancel() != nil {
-		core.ForTestCancel()()
+	if err := core.Close(); err != nil {
+		t.Fatalf("close: %v", err)
 	}
 	select {
 	case <-done:
 	case <-time.After(6 * time.Second):
-		t.Fatal("connect did not return after cancel")
+		t.Fatal("connect did not return after close")
 	}
 }
 
@@ -156,13 +156,13 @@ func TestConnectResetEnvRepins(t *testing.T) {
 	case <-time.After(6 * time.Second):
 		t.Fatal("probe never saw the client's Version bytes")
 	}
-	if core.ForTestCancel() != nil {
-		core.ForTestCancel()()
+	if err := core.Close(); err != nil {
+		t.Fatalf("close: %v", err)
 	}
 	select {
 	case <-done:
 	case <-time.After(6 * time.Second):
-		t.Fatal("connect did not return after cancel")
+		t.Fatal("connect did not return after close")
 	}
 	if got := core.ForTestServerPins()[addr]; got == "pre-seeded-wrong-fp" || got == "" {
 		t.Fatalf("pin not re-pinned after reset: %q", got)

@@ -38,50 +38,6 @@ func (x *DeltaChatCore) ForTestCallsMu() *sync.RWMutex {
 	return &x.callsMu
 }
 
-func (x *MumbleCore) ForTestCancel() context.CancelFunc {
-	return x.cancel
-}
-
-func (x *TeamSpeakCore) ForTestCancel() context.CancelFunc {
-	return x.cancel
-}
-
-func (x *MatrixCore) ForTestCancel() context.CancelFunc {
-	return x.cancel
-}
-
-func (x *MatrixCall) ForTestCancel() context.CancelFunc {
-	return x.cancel
-}
-
-func (x *BaleCore) ForTestCancel() context.CancelFunc {
-	return x.cancel
-}
-
-func (x *XMPPCore) ForTestCancel() context.CancelFunc {
-	return x.cancel
-}
-
-func (x *DeltaChatCore) ForTestCancel() context.CancelFunc {
-	return x.cancel
-}
-
-func (x *IRCCore) ForTestCancel() context.CancelFunc {
-	return x.cancel
-}
-
-func (x *GitHubCore) ForTestCancel() context.CancelFunc {
-	return x.cancel
-}
-
-func (x *TelegramCore) ForTestCancel() context.CancelFunc {
-	return x.cancel
-}
-
-func (x *tgCall) ForTestCancel() context.CancelFunc {
-	return x.cancel
-}
-
 func (x *MumbleCore) ForTestChannels() map[uint32]*mumbleChannel {
 	return x.channels
 }
@@ -322,35 +278,7 @@ func (x *TelegramCore) ForTestSetApi(v *tg.Client) {
 	x.api = v
 }
 
-func (x *MumbleCore) ForTestSetAuthed(v bool) {
-	x.authed = v
-}
-
 func (x *TeamSpeakCore) ForTestSetAuthed(v bool) {
-	x.authed = v
-}
-
-func (x *MatrixCore) ForTestSetAuthed(v bool) {
-	x.authed = v
-}
-
-func (x *BaleCore) ForTestSetAuthed(v bool) {
-	x.authed = v
-}
-
-func (x *XMPPCore) ForTestSetAuthed(v bool) {
-	x.authed = v
-}
-
-func (x *DeltaChatCore) ForTestSetAuthed(v bool) {
-	x.authed = v
-}
-
-func (x *IRCCore) ForTestSetAuthed(v bool) {
-	x.authed = v
-}
-
-func (x *GitHubCore) ForTestSetAuthed(v bool) {
 	x.authed = v
 }
 
@@ -368,38 +296,6 @@ func (x *TeamSpeakCore) ForTestSetChannels(v map[int]TsChannelInfo) {
 
 func (x *IRCCore) ForTestSetChannels(v map[string]*ircChannel) {
 	x.channels = v
-}
-
-func (x *MumbleCore) ForTestSetCtx(v context.Context) {
-	x.ctx = v
-}
-
-func (x *TeamSpeakCore) ForTestSetCtx(v context.Context) {
-	x.ctx = v
-}
-
-func (x *MatrixCore) ForTestSetCtx(v context.Context) {
-	x.ctx = v
-}
-
-func (x *BaleCore) ForTestSetCtx(v context.Context) {
-	x.ctx = v
-}
-
-func (x *XMPPCore) ForTestSetCtx(v context.Context) {
-	x.ctx = v
-}
-
-func (x *DeltaChatCore) ForTestSetCtx(v context.Context) {
-	x.ctx = v
-}
-
-func (x *IRCCore) ForTestSetCtx(v context.Context) {
-	x.ctx = v
-}
-
-func (x *GitHubCore) ForTestSetCtx(v context.Context) {
-	x.ctx = v
 }
 
 func (x *TelegramCore) ForTestSetCtx(v context.Context) {
@@ -568,34 +464,6 @@ func (x *mumbleContextActionMsg) ForTestMarshal() []byte {
 
 func (x *mumblePluginDataMsg) ForTestMarshal() []byte {
 	return x.marshal()
-}
-
-func (x *MumbleCore) ForTestSaveSession() error {
-	return x.saveSession()
-}
-
-func (x *MatrixCore) ForTestSaveSession() {
-	x.saveSession()
-}
-
-func (x *BaleCore) ForTestSaveSession() error {
-	return x.saveSession()
-}
-
-func (x *XMPPCore) ForTestSaveSession() {
-	x.saveSession()
-}
-
-func (x *DeltaChatCore) ForTestSaveSession() {
-	x.saveSession()
-}
-
-func (x *IRCCore) ForTestSaveSession() {
-	x.saveSession()
-}
-
-func (x *GitHubCore) ForTestSaveSession() {
-	x.saveSession()
 }
 
 func (x *TsConnection) ForTestTakeProofs() bool {

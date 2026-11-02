@@ -96,8 +96,8 @@ func TestServerPinSurvivesCertSave(t *testing.T) {
 		t.Fatalf("x509keypair: %v", err)
 	}
 	core.ForTestSetTlsCert(pair)
-	if err := core.ForTestSaveSession(); err != nil {
-		t.Fatalf("saveSession: %v", err)
+	if err := core.Close(); err != nil {
+		t.Fatalf("close: %v", err)
 	}
 
 	var sess MumbleSessionData
