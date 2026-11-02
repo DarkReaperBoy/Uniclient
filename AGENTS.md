@@ -127,8 +127,10 @@ WORKLOG → commit → push → next item
 
 - One concern per commit: fix, refactor, perf, deps, docs never travel together; state
   rides along with the change it describes.
-- **Push the moment it's green — every few turns at minimum.** The sandbox dies at
-  random; what is not on GitHub does not exist.
+- **Git is the checkpoint — push relentlessly.** The sandbox dies at any moment and
+  every unpushed change is then rebuilt from zero: push each atomic change the moment
+  its gate is green — never batched, never "later" — and re-push after every
+  WORKLOG/STATE rewrite. What is not on GitHub does not exist.
 - Green after every change, no exceptions. Red → fix or `git revert` immediately; never
   push red; never bank unpushed work (risky WIP → `git push origin HEAD:wip/<slug>`).
 - **3-strike rule:** the same approach failing 3× → revert, document repro + attempts

@@ -10,10 +10,11 @@ owner order — that history lives in git if ever needed.
 - front: H-1 iterations 3+4 EXECUTED — iter 3: New + AttachAccount + ReplaceAccountCore
   retire the account-injection cluster (engine 41→37); iter 4: the dbEngine test harness
   retires ForTestDb — the test owns the sql.DB it already creates (engine 37→36)
-- next: H-1 iteration 5 — ForTestNewAuthFlow (1 use, auth cluster: honest AuthFlow construction
-  story — StartAuth is the real path, needs recon); then the remaining engine hook families by
-  use-count (ForTestMu/Media/SetVault/SetConfig setters ~20 uses — candidate: real config/vault
-  APIs or harness-owned state)
+- next: H-1 iteration 5 — ForTestNewAuthFlow (1 use, auth cluster): rewrite
+  tests/engine/auth_xmpp_test.go onto the real path (SetCoreFactory+New+AttachAccount+
+  StartAuth+SubmitAuthInput; recon done — XMPP dial errors surface through SubmitAuthInput
+  as Recoverable error STATES, not returned errors); follow-up fix: authFlows is
+  package-global → per-Engine scope; then remaining hook families by use-count
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
 - last-gate: verify.yml **41396012222 = SUCCESS on d9e472df** (iteration 4, closed at job+step
@@ -28,6 +29,20 @@ owner order — that history lives in git if ever needed.
 | H-1 | cores/engine testhooks*.go | ForTest* hooks are debt (§5.3): ~222 hooks left after session 346 (engine 41→36) | session 346 entry | retire hooks as flows gain exported APIs; prune when a hook's last use dies |
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 302 identifiers exported purely for the tests move (API noise: TsParseInit1, ForTest-adjacent) | commit 27faa5a4 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
+
+## Session 347 — owner redirect: AGENTS.md §3 push law hardened — git is the checkpoint (2026-11-02)
+
+- Owner order (out-of-band, this session): keep rapidly pushing git — the sandbox dies at
+  any moment and every unpushed change is then redone from zero; git is the checkpoint.
+- Atomic change (docs only): AGENTS.md §3 bullet replaced — "Push the moment it's green —
+  every few turns at minimum" → "**Git is the checkpoint — push relentlessly**" (push each
+  atomic change the moment its gate is green, never batched, never "later"; re-push after
+  every WORKLOG/STATE rewrite). Law-only file preserved; 331→333 lines (owner-ordered
+  addition, noted here per the ≤~330 ceiling).
+- Evidence: this commit, pushed immediately per the new law itself.
+- Next: H-1 iteration 5 — retire ForTestNewAuthFlow by rewriting auth_xmpp_test.go onto
+  StartAuth/SubmitAuthInput; recon quotes in-session (auth.go: authFlows is a package-global
+  map — cross-Engine flow leakage is the follow-up atomic fix).
 
 ## Session 346 — H-1 iter 3: New + AttachAccount + ReplaceAccountCore retire the account-injection hook cluster (2026-11-02)
 
