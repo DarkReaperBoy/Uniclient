@@ -23,8 +23,8 @@ owner order — that history lives in git if ever needed.
   Telegram Desktop/Web/Android references, capability-projected, Gio)
 - last-gate: local quick gate GREEN on this change (tests/cores 14.5s,
   tests/engine 6.0s, tests/bootstrap 0.8s; gofmt + comment-ban clean,
-  271 files); CI: session-353 gate of record verify.yml 41526012096 =
-  SUCCESS on 5131fc1e; session-354 verify dispatch lands at next boot
+  271 files); CI: verify.yml 41548671934 dispatched on 3a0e6362 (in
+  flight); session-353 gate of record 41526012096 = SUCCESS on 5131fc1e
 
 ## Open items
 
