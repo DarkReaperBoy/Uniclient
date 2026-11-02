@@ -109,7 +109,3 @@ func (x *httpImageCache) ForTestLen() int {
 func (x *MediaManager) ForTestExecuteDownload(job *DownloadJob) {
 	x.executeDownload(job)
 }
-
-func (x *Engine) ForTestSetAntiRecall(d, h, b bool) {
-	x.saveDeletedMessages, x.saveMessagesHistory, x.saveForBots = d, h, b
-}

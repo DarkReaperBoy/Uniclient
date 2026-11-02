@@ -19,7 +19,6 @@ func newAntiRecallEngine(t *testing.T) *dbEngine {
 
 func TestAntiRecallSettingsRoundTrip(t *testing.T) {
 	e := newAntiRecallEngine(t)
-	e.ForTestSetAntiRecall(true, true, false)
 
 	d, h, b := e.GetAntiRecallSettings()
 	if !d || !h || b {
