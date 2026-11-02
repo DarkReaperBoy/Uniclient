@@ -4,7 +4,6 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
-	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
@@ -91,11 +90,17 @@ func TestServerPinSurvivesCertSave(t *testing.T) {
 		t.Fatalf("create cert: %v", err)
 	}
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
-	pair, err := tls.X509KeyPair(certPEM, keyPEM)
-	if err != nil {
-		t.Fatalf("x509keypair: %v", err)
+	certFile := filepath.Join(dir, "client-cert.pem")
+	keyFile := filepath.Join(dir, "client-key.pem")
+	if err := os.WriteFile(certFile, certPEM, 0o600); err != nil {
+		t.Fatalf("write cert: %v", err)
 	}
-	core.ForTestSetTlsCert(pair)
+	if err := os.WriteFile(keyFile, keyPEM, 0o600); err != nil {
+		t.Fatalf("write key: %v", err)
+	}
+	if err := core.LoadCertificate(certFile, keyFile); err != nil {
+		t.Fatalf("LoadCertificate: %v", err)
+	}
 	if err := core.Close(); err != nil {
 		t.Fatalf("close: %v", err)
 	}

@@ -20,10 +20,6 @@ func (x tsPacketState) ForTestWithNextRecvID(v uint16) tsPacketState {
 	return x
 }
 
-func ForTestNewMumbleCore(serverPins map[string]string) *MumbleCore {
-	return &MumbleCore{serverPins: serverPins}
-}
-
 func (x tsPacketState) ForTestRecvGenID() uint32 {
 	return x.recvGenID
 }

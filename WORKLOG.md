@@ -7,38 +7,61 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 353 — H-1 CORES FRONT: family 1 (injection hooks 37 defs
-  → 3: mumble onto real Close(), matrix onto real Authenticate, 29 orphans
-  cut) + family 2 (mumble wire codec: 35 Marshal/Unmarshal + PbEncoder
-  wrappers → 0 via exported MumbleMarshal/MumbleUnmarshal pair — the
-  MumbleVarintDecode pattern; CryptSetup test completed with real content
-  assertions) + family 3 (mumble crypt: ForTestMumbleCryptState alias +
-  ForTestInit/Encrypt/Decrypt + 2 orphans → 0, folded onto the existing
-  exported MumbleCryptState API) + family 4 (orphan sweep: 24 zero-user
-  defs cut — ForTestMu ×14 non-Telegram receivers, ActiveCalls ×2,
-  SetChannels ×2, SetUserID ×2, SetRooms/SetUsername/MyChannelID ×1 —
-  every survivor receiver-verified in-use). Cores def-count 196→98
-  (type aliases now 0).
-- next: next cores hook families by census — state-mirror family
-  (ForTestRooms/Channels/Users/…), then construction family
-  (ForTestNewTsConnection/ForTestNewTeamSpeakCore/…)
+- front: session 354 — H-1 CORES FRONT: mumble state-mirror family, 5 defs → 0
+  (ForTestChannels orphan-by-receiver cut; ForTestNewMumbleCore →
+  &MumbleCore{} + real StoreServerPin; ForTestConnect → real
+  Authenticate(AuthConfig) — the engine entry, now exercised with generated
+  client certs; ForTestServerPins → persisted-session assertion with exact
+  fingerprint; ForTestSetTlsCert → real LoadCertificate from PEM files).
+  Cores def-count 98→93; Mumble is now ForTest-free end to end.
+- next: remaining state-mirror slices by core: IRC (ForTestChannels/
+  ChannelsMu/Connect), XMPP (ForTestRooms/RoomsMu/Features), DeltaChat
+  (PeerStates/PeerKeysMu/CallsMu), Matrix rooms+group-call state cluster,
+  TS channels/my*/tsConn cluster, GitHub SetUsername; then construction
+  family (ForTestNewTsConnection/ForTestNewTeamSpeakCore/…)
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: verify.yml **41526012096 = SUCCESS on 5131fc1e** (all 3
-  jobs, every step incl. the CI race leg — covers iterations 2–4 + the
-  matrix startSync race fix); earlier: 41518425922 = SUCCESS on 9ad04fd8
-  (iteration 1); 41520169823/41520879579/41524204125 = the pre-fix race
-  failures (superseded). Local quick gate GREEN per iteration; gofmt +
-  comment-ban clean throughout
+- last-gate: local quick gate GREEN on this change (tests/cores 14.5s,
+  tests/engine 6.0s, tests/bootstrap 0.8s; gofmt + comment-ban clean,
+  271 files); CI: session-353 gate of record verify.yml 41526012096 =
+  SUCCESS on 5131fc1e; session-354 verify dispatch lands at next boot
 
 ## Open items
 
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
-| H-1 | cores testhooks*.go | ForTest* hooks are debt (§5.3): 98 left by def-count + 0 type aliases (session 353: injection, mumble-wire-codec, mumble-crypt families + 24-def orphan sweep done); TelegramCore SetAuthed/SetCtx + TeamSpeakCore SetAuthed (6 sites) still await a scripted-server front | session 353 entry | state-mirror family (ForTestRooms/Channels/Users/…) next, then construction family (ForTestNewTsConnection/ForTestNewTeamSpeakCore/…); the trio via ts3j-style TS server / gotd tgtest / GUI --script seam |
+| H-1 | cores testhooks*.go | ForTest* hooks are debt (§5.3): 93 left by def-count (session 354: mumble state-mirror family done — the 5-def slice; session 353: injection, mumble-wire-codec, mumble-crypt families + 24-def orphan sweep); TelegramCore SetAuthed/SetCtx + TeamSpeakCore SetAuthed (6 sites) still await a scripted-server front | session 354 entry | state-mirror slices by core (IRC/XMPP/DeltaChat/Matrix/TS/GitHub), then construction family; the trio via ts3j-style TS server / gotd tgtest / GUI --script seam |
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 302 identifiers exported purely for the tests move (API noise: TsParseInit1, ForTest-adjacent) | commit 27faa5a4 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
 | Q-1 | cores/matrix.go initCrypto | mautrix client logger set at DBG with a console writer — every request logs to stderr in production (now visible: mxAuthedCore drives Authenticate) | session 353 run log | gate to WRN or env (UNICLIENT_MATRIX_DEBUG, mirroring mumble) — tiny, needs its own commit |
+
+## Session 354 — H-1 cores front, mumble state-mirror family: the last 5 mumble hooks retired onto real APIs (2026-11-03)
+
+- Boot: fresh sandbox again — toolchain + caches wiped; env.sh recovery
+  followed verbatim (go1.27.1, checksum-verified; modcache ~990M;
+  cache-warm go build 5m29s). Census re-verified per-receiver: 98 defs /
+  87 names, ZERO orphans by name — but MumbleCore.ForTestChannels is an
+  orphan BY RECEIVER (name-level uses are all TeamSpeakCore's).
+- Slice: mumble state mirrors, 5 defs → 0, all onto production paths —
+  ForTestNewMumbleCore → &MumbleCore{} + exported StoreServerPin (the
+  reset test gets a real Session store); ForTestConnect → real
+  Authenticate(AuthConfig{Mode: AuthModeUser, Extra:{server,username}})
+  — the engine entry, now also proving mumbleGenerateCert on the wire;
+  ForTestServerPins → store.Load(&MumbleSessionData) + exact-fingerprint
+  equality (stronger than the old not-wrong/not-empty in-memory read) +
+  CertPEM persisted assertion; ForTestSetTlsCert → real LoadCertificate
+  from PEM files written to TempDir; ForTestChannels cut (orphan).
+  Design rating 9/10.
+- RED: 5 defs deleted → tool-proven `undefined: ForTestNewMumbleCore`
+  (vet, tests/cores) + one now-unused crypto/tls import cleaned.
+- GREEN: all rewritten tests PASS (refuse-before-send 0-byte proof,
+  proceed-on-match, reset-repins with persisted fp, pin-survives-cert-
+  save through LoadCertificate); full tests/cores 14.5s, tests/engine
+  6.0s, tests/bootstrap 0.8s; gofmt clean; strip_comments --check clean
+  (271 files, 0 dropped); def-count 98→93. Race analysis: pin/cert
+  writes happen-before the probe-read observation that gates every
+  Close() — CI race leg is the verdict (rung 7).
+- verify.yml dispatched post-push (run id recorded at next boot).
 
 ## Session 353 — H-1 cores front, family 1: the cross-core injection hooks (SetAuthed/SetCtx/Cancel/SaveSession) (2026-11-03)
 
@@ -259,55 +282,3 @@ owner order — that history lives in git if ever needed.
   M-1 opened at top of open items (§0.4 owner-reported): engine earn/gifts/
   giveaways/premium_business/sponsored + cores telegram_business/earn/gifts/
   giveaways/sponsored (+ paidmedia, stars) + 13 test files.
-
-## Session 348 — H-1 iteration 5: auth-flow hooks retired + authFlows scoped per-Engine (2026-11-02)
-
-- auth_xmpp_test.go rewritten onto the REAL auth path: test core factory
-  (SetCoreFactory, the registration seam bootstrap uses in production) feeds
-  a real XMPPCore + real SessionStore from a test vault; engine from
-  New(nil,nil,nil) + AttachAccount; journeys drive StartAuth →
-  SubmitAuthInput, assert AuthStates black-box (JID → password → register
-  offer → dial failure as a RECOVERABLE ERROR STATE, both retry paths).
-  ForTestNewAuthFlow + ForTestCollected deleted (engine 36→34).
-- Second atomic change: authFlows + authFlowsMu moved INTO Engine —
-  TestAuthFlowsArePerEngine RED first ("e1 lost its auth flow after e2
-  cancelled its own"), then green; dead package-level CurrentAuthState
-  deleted (zero users).
-- Evidence: tests/engine ok 5.14s / 5.35s, bootstrap 0.84s; vet EXIT 0;
-  -race clean on the auth tests; comment-ban clean.
-
-## Session 347 — owner redirect: AGENTS.md §3 push law hardened — git is the checkpoint (2026-11-02)
-
-- Owner order (out-of-band, this session): keep rapidly pushing git — the sandbox dies at
-  any moment and every unpushed change is then redone from zero; git is the checkpoint.
-- Atomic change (docs only): AGENTS.md §3 bullet replaced — "Push the moment it's green —
-  every few turns at minimum" → "**Git is the checkpoint — push relentlessly**" (push each
-  atomic change the moment its gate is green, never batched, never "later"; re-push after
-  every WORKLOG/STATE rewrite). Law-only file preserved; 331→333 lines (owner-ordered
-  addition, noted here per the ≤~330 ceiling).
-- Evidence: this commit, pushed immediately per the new law itself.
-- Next: H-1 iteration 5 — retire ForTestNewAuthFlow by rewriting auth_xmpp_test.go onto
-  StartAuth/SubmitAuthInput; recon quotes in-session (auth.go: authFlows is a package-global
-  map — cross-Engine flow leakage is the follow-up atomic fix).
-
-## Session 346 — H-1 iters 3–4: account-injection cluster + ForTestDb retired (2026-11-02)
-
-- Iter 3 (3 exported production-shaped APIs): `New(db, vault, config)` —
-  the engine's real assembly point (Init refactored to call it,
-  side-effect-order preserving; nil-map construction impossible now);
-  `AttachAccount(id, platform, core)` — the caller-owned install
-  (ConnectAccount's runtime-cache step, exported as the bot-supervisor/
-  --script seam); `ReplaceAccountCore(accountID, core)` — the hot-swap
-  ConnectAccount/DisconnectAccount perform internally. Retired (engine
-  41→37): ForTestNewEngine, ForTestSetAccounts (54 sites → AttachAccount),
-  ForTestAccounts, ForTestGetAccount (→ GetAccountCore). Platform labels
-  made honest (tg→telegram, a1→telegram/teamspeak). TRUE RED: `undefined:
-  New` ×5 pre-change; concurrent-hammer (8 writers + 16 same-id racers,
-  exactly-one-wins) clean under LOCAL -race.
-- Iter 4 (test-side only): `dbEngine{*Engine; db}` harness — newTestEngine
-  KEEPS the sql.DB it itself creates; 46 ForTestDb sites → e.db.Exec/
-  QueryRow; 6 constructors + 17 helpers retyped (engine →36).
-- Evidence: full native suite 7/7 ok; -race tests/engine 89.5s ok; js/wasm
-  + windows cross-build ok (windows = CI-gated OOM skip locally); headless
-  smoke exit 0 (engine ready, SIGTERM). verify.yml 41394693974 = SUCCESS
-  on 5997a16b, 41396012222 = SUCCESS on d9e472df (all 3 jobs, step-level).

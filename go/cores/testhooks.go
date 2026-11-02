@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"crypto/ecdsa"
-	"crypto/tls"
 	"github.com/ProtonMail/go-crypto/openpgp"
 	"github.com/gotd/td/tg"
 	"maunium.net/go/mautrix"
@@ -28,10 +27,6 @@ func (x *MatrixCore) ForTestCallsMu() *sync.RWMutex {
 
 func (x *DeltaChatCore) ForTestCallsMu() *sync.RWMutex {
 	return &x.callsMu
-}
-
-func (x *MumbleCore) ForTestChannels() map[uint32]*mumbleChannel {
-	return x.channels
 }
 
 func (x *TeamSpeakCore) ForTestChannels() map[int]TsChannelInfo {
@@ -178,10 +173,6 @@ func (x *XMPPCore) ForTestRoomsMu() *sync.RWMutex {
 	return &x.roomsMu
 }
 
-func (x *MumbleCore) ForTestServerPins() map[string]string {
-	return x.serverPins
-}
-
 func (x *TsChannelInfo) ForTestTalkPower() int {
 	return x.talkPower
 }
@@ -250,10 +241,6 @@ func (x *MatrixCore) ForTestSetRooms(v map[id.RoomID]*MatrixRoomState) {
 	x.rooms = v
 }
 
-func (x *MumbleCore) ForTestSetTlsCert(v tls.Certificate) {
-	x.tlsCert = v
-}
-
 func (x *TeamSpeakCore) ForTestSetTsConn(v *TsConnection) {
 	x.tsConn = v
 }
@@ -264,10 +251,6 @@ func (x *MatrixCore) ForTestSetUserID(v id.UserID) {
 
 func (x *GitHubCore) ForTestSetUsername(v string) {
 	x.username = v
-}
-
-func (x *MumbleCore) ForTestConnect(addr string, username, password string, tokens []string, isBot bool) error {
-	return x.connect(addr, username, password, tokens, isBot)
 }
 
 func (x *IRCCore) ForTestConnect() error {

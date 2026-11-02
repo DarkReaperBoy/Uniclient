@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 	. "uniclient/cores"
+
+	"uniclient/utils"
 )
 
 type tofuReadResult struct {
@@ -95,8 +97,11 @@ func TestConnectRefusesPinnedMismatchBeforeSending(t *testing.T) {
 	cert := newTestTLSCert(t)
 	addr, firstRead := startTofuProbe(t, cert)
 
-	core := ForTestNewMumbleCore(map[string]string{addr: "pre-seeded-wrong-fp"})
-	err := core.ForTestConnect(addr, "alice", "", nil, false)
+	core := &MumbleCore{}
+	if err := core.StoreServerPin(addr, "pre-seeded-wrong-fp"); err != nil {
+		t.Fatalf("StoreServerPin: %v", err)
+	}
+	err := core.Authenticate(AuthConfig{Mode: AuthModeUser, Extra: map[string]string{"server": addr, "username": "alice"}})
 	if err == nil || !strings.Contains(err.Error(), "changed since first use") {
 		t.Fatalf("connect err = %v, want certificate-changed refusal", err)
 	}
@@ -117,9 +122,14 @@ func TestConnectProceedsOnMatchingPin(t *testing.T) {
 	cert := newTestTLSCert(t)
 	addr, firstRead := startTofuProbe(t, cert)
 
-	core := ForTestNewMumbleCore(map[string]string{addr: fpOf(t, cert)})
+	core := &MumbleCore{}
+	if err := core.StoreServerPin(addr, fpOf(t, cert)); err != nil {
+		t.Fatalf("StoreServerPin: %v", err)
+	}
 	done := make(chan error, 1)
-	go func() { done <- core.ForTestConnect(addr, "alice", "", nil, false) }()
+	go func() {
+		done <- core.Authenticate(AuthConfig{Mode: AuthModeUser, Extra: map[string]string{"server": addr, "username": "alice"}})
+	}()
 
 	select {
 	case r := <-firstRead:
@@ -144,9 +154,15 @@ func TestConnectResetEnvRepins(t *testing.T) {
 	cert := newTestTLSCert(t)
 	addr, firstRead := startTofuProbe(t, cert)
 
-	core := ForTestNewMumbleCore(map[string]string{addr: "pre-seeded-wrong-fp"})
+	store := utils.NewSessionStore(newTestVaultSimple(t, t.TempDir()), "dc-mumble")
+	core := &MumbleCore{Session: store}
+	if err := core.StoreServerPin(addr, "pre-seeded-wrong-fp"); err != nil {
+		t.Fatalf("StoreServerPin: %v", err)
+	}
 	done := make(chan error, 1)
-	go func() { done <- core.ForTestConnect(addr, "alice", "", nil, false) }()
+	go func() {
+		done <- core.Authenticate(AuthConfig{Mode: AuthModeUser, Extra: map[string]string{"server": addr, "username": "alice"}})
+	}()
 
 	select {
 	case r := <-firstRead:
@@ -164,7 +180,14 @@ func TestConnectResetEnvRepins(t *testing.T) {
 	case <-time.After(6 * time.Second):
 		t.Fatal("connect did not return after close")
 	}
-	if got := core.ForTestServerPins()[addr]; got == "pre-seeded-wrong-fp" || got == "" {
-		t.Fatalf("pin not re-pinned after reset: %q", got)
+	var sess MumbleSessionData
+	if err := store.Load(&sess); err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if got := sess.ServerPins[addr]; got != fpOf(t, cert) {
+		t.Fatalf("pin not re-pinned after reset: got %q, want %q", got, fpOf(t, cert))
+	}
+	if sess.CertPEM == "" {
+		t.Fatal("generated client cert missing from session after close")
 	}
 }
