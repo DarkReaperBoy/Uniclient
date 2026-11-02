@@ -92,6 +92,16 @@ owner order — that history lives in git if ever needed.
   ok 0.60s; full tests/engine 6.4s + tests/bootstrap 0.9s; vet/gofmt/comment
   clean; js/wasm + cmd builds ok; -race = rung-7 gotd OOM skip (CI leg).
   Iteration 16 gate of record: verify.yml 41489996615 = SUCCESS on b8cfe27d.
+- Cores hook census for the next front (180 total, testhooks.go +
+  testhooks_manual.go): MatrixCore 25, TsConnection 18, TeamSpeakCore 14,
+  MumbleCore 11 + ~35 mumble wire-message Marshal/Unmarshal pairs, IRCCore
+  10, DeltaChat 9, XMPP 9, GitHub 7, Telegram 6, Bale 6, rest singles.
+  Cross-cutting construction/auth family first candidate: ForTestSetAuthed
+  ×10 + ForTestSetCtx ×10 + ForTestCancel ×11 + ForTestSaveSession ×8 across
+  every core — same shape as the engine's retired injection hooks (systemic
+  retirement via a real construction/dial-state path, not per-hook patches).
+  verify.yml 41491975538 dispatched on 8911e54b (in flight at yield; next
+  session's boot records the result).
 
 ## Session 351 — H-1 iterations 7–11: five engine hook retirements + a download-dir bug fixed red→green (2026-11-02)
 
