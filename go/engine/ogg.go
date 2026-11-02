@@ -37,15 +37,11 @@ func OggCRC(data []byte) uint32 {
 }
 
 type oggPage struct {
-	headerType byte
-	granule    int64
-	serial     uint32
-	seq        uint32
-	payload    []byte
-	lacing     []byte
+	payload []byte
+	lacing  []byte
 }
 
-func ReadOggPage(r io.Reader, scratch []byte) (oggPage, error) {
+func readOggPage(r io.Reader, scratch []byte) (oggPage, error) {
 	var head [OggHeaderLen]byte
 	if _, err := io.ReadFull(r, head[:]); err != nil {
 		if err == io.ErrUnexpectedEOF {
@@ -93,12 +89,8 @@ func ReadOggPage(r io.Reader, scratch []byte) (oggPage, error) {
 	}
 
 	return oggPage{
-		headerType: head[5],
-		granule:    int64(binary.LittleEndian.Uint64(head[6:14])),
-		serial:     binary.LittleEndian.Uint32(head[14:18]),
-		seq:        binary.LittleEndian.Uint32(head[18:22]),
-		payload:    payload,
-		lacing:     segTbl[:nsegs],
+		payload: payload,
+		lacing:  segTbl[:nsegs],
 	}, nil
 }
 
@@ -131,7 +123,7 @@ func (o *oggPacketReader) Next() ([]byte, error) {
 }
 
 func (o *oggPacketReader) readPage() error {
-	pg, err := ReadOggPage(o.r, o.scratch)
+	pg, err := readOggPage(o.r, o.scratch)
 	if err != nil {
 		return err
 	}

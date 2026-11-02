@@ -10,10 +10,6 @@ func (x *Engine) ForTestMedia() *MediaManager {
 	return x.media
 }
 
-func (x *oggPage) ForTestGranule() int64 {
-	return x.granule
-}
-
 func (x *httpImageCache) ForTestMu() *sync.Mutex {
 	return &x.mu
 }
