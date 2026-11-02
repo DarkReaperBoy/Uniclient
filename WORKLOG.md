@@ -18,7 +18,7 @@ owner order — that history lives in git if ever needed.
 - last-gate: local quick gate GREEN (scoped engine+importers: bootstrap/cmd/engine/tests, native
   test ok) + FULL native suite 7/7 ok + -race tests/engine 89.5s + tests/bootstrap ok + js/wasm
   build ok + headless smoke exit 0; windows cross-build = rung-7 gotd OOM skip → CI verify.yml
-  dispatched (run id below, pending at commit time — next session closes it at step level)
+  **41394693974 dispatched on 5997a16b** — next session closes it at job+step level
 
 ## Open items
 
