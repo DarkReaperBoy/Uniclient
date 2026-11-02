@@ -328,14 +328,6 @@ func (e *Engine) PushEvent(data []byte) {
 	}
 }
 
-func (e *Engine) SetAntiRecallSettings(saveDeleted, saveHistory, saveForBots bool) {
-	e.antiRecallMu.Lock()
-	defer e.antiRecallMu.Unlock()
-	e.saveDeletedMessages = saveDeleted
-	e.saveMessagesHistory = saveHistory
-	e.saveForBots = saveForBots
-}
-
 func (e *Engine) GetAntiRecallSettings() (saveDeleted, saveHistory, saveForBots bool) {
 	e.antiRecallMu.RLock()
 	defer e.antiRecallMu.RUnlock()
