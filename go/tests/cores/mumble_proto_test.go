@@ -9,7 +9,7 @@ import (
 	. "uniclient/cores"
 )
 
-func mumbleTestCryptPair(t *testing.T) (enc, dec *ForTestMumbleCryptState) {
+func mumbleTestCryptPair(t *testing.T) (enc, dec *MumbleCryptState) {
 	t.Helper()
 	key := make([]byte, 16)
 	encIV := make([]byte, 16)
@@ -19,12 +19,12 @@ func mumbleTestCryptPair(t *testing.T) (enc, dec *ForTestMumbleCryptState) {
 		encIV[i] = byte(i * 11)
 		decIV[i] = byte(i * 13)
 	}
-	enc = &ForTestMumbleCryptState{}
-	if err := enc.ForTestInit(key, encIV, decIV); err != nil {
+	enc = &MumbleCryptState{}
+	if err := enc.Init(key, encIV, decIV); err != nil {
 		t.Fatalf("enc init: %v", err)
 	}
-	dec = &ForTestMumbleCryptState{}
-	if err := dec.ForTestInit(key, decIV, encIV); err != nil {
+	dec = &MumbleCryptState{}
+	if err := dec.Init(key, decIV, encIV); err != nil {
 		t.Fatalf("dec init: %v", err)
 	}
 	return enc, dec
@@ -35,13 +35,13 @@ func TestMumbleOCB2RoundTrip(t *testing.T) {
 
 	secret := []byte("abcdefghi")
 	dst := make([]byte, 4+len(secret))
-	n := enc.ForTestEncrypt(dst, secret)
+	n := enc.Encrypt(dst, secret)
 	if n != 4+len(secret) {
 		t.Fatalf("encrypt returned %d, want %d", n, 4+len(secret))
 	}
 
 	plain := make([]byte, len(secret))
-	m, err := dec.ForTestDecrypt(plain, dst)
+	m, err := dec.Decrypt(plain, dst)
 	if err != nil {
 		t.Fatalf("decrypt: %v", err)
 	}
@@ -52,7 +52,7 @@ func TestMumbleOCB2RoundTrip(t *testing.T) {
 		t.Fatalf("round-trip mismatch: %q != %q", plain, secret)
 	}
 
-	if _, err := dec.ForTestDecrypt(plain, dst); err == nil {
+	if _, err := dec.Decrypt(plain, dst); err == nil {
 		t.Fatal("replayed packet accepted — replay protection broken")
 	}
 }
@@ -64,24 +64,24 @@ func TestMumbleOCB2OutOfOrderWindow(t *testing.T) {
 	pktLen := 4 + len(secret)
 	var crypted [128][13]byte
 	for i := 0; i < 128; i++ {
-		enc.ForTestEncrypt(crypted[i][:pktLen], secret)
+		enc.Encrypt(crypted[i][:pktLen], secret)
 	}
 
 	for i := 0; i < 30; i++ {
 		plain := make([]byte, len(secret))
-		if _, err := dec.ForTestDecrypt(plain, crypted[127-i][:pktLen]); err != nil {
+		if _, err := dec.Decrypt(plain, crypted[127-i][:pktLen]); err != nil {
 			t.Fatalf("in-window OOO packet %d rejected: %v", i, err)
 		}
 	}
 	for i := 30; i < 128; i++ {
 		plain := make([]byte, len(secret))
-		if _, err := dec.ForTestDecrypt(plain, crypted[127-i][:pktLen]); err == nil {
+		if _, err := dec.Decrypt(plain, crypted[127-i][:pktLen]); err == nil {
 			t.Fatalf("out-of-window OOO packet %d accepted", i)
 		}
 	}
 	for i := 0; i < 30; i++ {
 		plain := make([]byte, len(secret))
-		if _, err := dec.ForTestDecrypt(plain, crypted[127-i][:pktLen]); err == nil {
+		if _, err := dec.Decrypt(plain, crypted[127-i][:pktLen]); err == nil {
 			t.Fatalf("replayed packet %d accepted", i)
 		}
 	}
@@ -94,17 +94,17 @@ func TestMumbleOCB2ReplayAttack512(t *testing.T) {
 	pktLen := 4 + len(secret)
 	var crypted [512][13]byte
 	for i := 0; i < 512; i++ {
-		enc.ForTestEncrypt(crypted[i][:pktLen], secret)
+		enc.Encrypt(crypted[i][:pktLen], secret)
 	}
 	for i := 0; i < 512; i++ {
 		plain := make([]byte, len(secret))
-		if _, err := dec.ForTestDecrypt(plain, crypted[i][:pktLen]); err != nil {
+		if _, err := dec.Decrypt(plain, crypted[i][:pktLen]); err != nil {
 			t.Fatalf("packet %d rejected in-order: %v", i, err)
 		}
 	}
 	for i := 0; i < 512; i++ {
 		plain := make([]byte, len(secret))
-		if _, err := dec.ForTestDecrypt(plain, crypted[i][:pktLen]); err == nil {
+		if _, err := dec.Decrypt(plain, crypted[i][:pktLen]); err == nil {
 			t.Fatalf("replay of packet %d accepted", i)
 		}
 	}
@@ -115,11 +115,11 @@ func TestMumbleOCB2TamperDetection(t *testing.T) {
 
 	secret := []byte("attack at dawn")
 	dst := make([]byte, 4+len(secret))
-	enc.ForTestEncrypt(dst, secret)
+	enc.Encrypt(dst, secret)
 
 	dst[5] ^= 0xFF
 	plain := make([]byte, len(secret))
-	if _, err := dec.ForTestDecrypt(plain, dst); err == nil {
+	if _, err := dec.Decrypt(plain, dst); err == nil {
 		t.Fatal("tampered packet accepted — OCB2 tag not enforced")
 	}
 }
@@ -356,24 +356,24 @@ func TestOCB2ClientServerDirections(t *testing.T) {
 	rand.Read(clientNonce)
 	rand.Read(serverNonce)
 
-	client := &ForTestMumbleCryptState{}
-	if err := client.ForTestInit(key, clientNonce, serverNonce); err != nil {
+	client := &MumbleCryptState{}
+	if err := client.Init(key, clientNonce, serverNonce); err != nil {
 		t.Fatal(err)
 	}
-	server := &ForTestMumbleCryptState{}
-	if err := server.ForTestInit(key, serverNonce, clientNonce); err != nil {
+	server := &MumbleCryptState{}
+	if err := server.Init(key, serverNonce, clientNonce); err != nil {
 		t.Fatal(err)
 	}
 
 	for i := 0; i < 5; i++ {
 		plain := []byte{1, 0x08, byte(i), 0x01}
 		wire := make([]byte, MumbleCryptoOverhead+len(plain))
-		n := client.ForTestEncrypt(wire, plain)
+		n := client.Encrypt(wire, plain)
 		if n != len(wire) {
 			t.Fatalf("packet %d: encrypt wrote %d, want %d", i, n, len(wire))
 		}
 		got := make([]byte, len(wire))
-		pLen, err := server.ForTestDecrypt(got, wire)
+		pLen, err := server.Decrypt(got, wire)
 		if err != nil {
 			t.Fatalf("packet %d: server-side decrypt failed: %v (real murmur would silently drop it)", i, err)
 		}
@@ -385,9 +385,9 @@ func TestOCB2ClientServerDirections(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		plain := []byte{1, 0x08, byte(i), 0x01}
 		wire := make([]byte, MumbleCryptoOverhead+len(plain))
-		server.ForTestEncrypt(wire, plain)
+		server.Encrypt(wire, plain)
 		got := make([]byte, len(wire))
-		pLen, err := client.ForTestDecrypt(got, wire)
+		pLen, err := client.Decrypt(got, wire)
 		if err != nil {
 			t.Fatalf("reply %d: client-side decrypt failed: %v", i, err)
 		}

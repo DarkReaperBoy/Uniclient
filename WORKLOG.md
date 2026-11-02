@@ -12,11 +12,11 @@ owner order — that history lives in git if ever needed.
   cut) + family 2 (mumble wire codec: 35 Marshal/Unmarshal + PbEncoder
   wrappers → 0 via exported MumbleMarshal/MumbleUnmarshal pair — the
   MumbleVarintDecode pattern; CryptSetup test completed with real content
-  assertions). Cores def-count 196→127.
-- next: next cores hook families by census — mumble crypt hooks (obvious:
-  exported MumbleCryptState.Init/Encrypt/Decrypt already exist — the
-  ForTestMumbleCryptState family folds onto them), then the state-mirror
-  family (ForTestRooms/Channels/Users/…), then construction family
+  assertions) + family 3 (mumble crypt: ForTestMumbleCryptState alias +
+  ForTestInit/Encrypt/Decrypt + 2 orphans → 0, folded onto the existing
+  exported MumbleCryptState API). Cores def-count 196→121.
+- next: next cores hook families by census — state-mirror family
+  (ForTestRooms/Channels/Users/…), then construction family
   (ForTestNewTsConnection/ForTestNewTeamSpeakCore/…)
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
@@ -30,7 +30,7 @@ owner order — that history lives in git if ever needed.
 
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
-| H-1 | cores testhooks*.go | ForTest* hooks are debt (§5.3): 127 left by def-count (session 353) — injection + mumble-wire-codec families done; TelegramCore SetAuthed/SetCtx + TeamSpeakCore SetAuthed (6 sites) still await a scripted-server front | session 353 entry | mumble crypt hooks next (fold onto the existing exported MumbleCryptState API); then state-mirror + construction families; the trio via ts3j-style TS server / gotd tgtest / GUI --script seam |
+| H-1 | cores testhooks*.go | ForTest* hooks are debt (§5.3): 121 left by def-count (session 353) — injection, mumble-wire-codec and mumble-crypt families done; TelegramCore SetAuthed/SetCtx + TeamSpeakCore SetAuthed (6 sites) still await a scripted-server front | session 353 entry | state-mirror family (ForTestRooms/Channels/Users/…) next, then construction family (ForTestNewTsConnection/ForTestNewTeamSpeakCore/…); the trio via ts3j-style TS server / gotd tgtest / GUI --script seam |
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 302 identifiers exported purely for the tests move (API noise: TsParseInit1, ForTest-adjacent) | commit 27faa5a4 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
 | Q-1 | cores/matrix.go initCrypto | mautrix client logger set at DBG with a console writer — every request logs to stderr in production (now visible: mxAuthedCore drives Authenticate) | session 353 run log | gate to WRN or env (UNICLIENT_MATRIX_DEBUG, mirroring mumble) — tiny, needs its own commit |
@@ -87,6 +87,23 @@ owner order — that history lives in git if ever needed.
   def-count 162→127. NOTE: the edit tool writes space-indent — gofmt -w
   after EVERY edit, then re-diff to confirm only intended lines changed
   (bit me twice this session; gate self-heals but verify the diff).
+- Iteration 3 (same session) — mumble crypt family, 6 defs → 0: the
+  `type ForTestMumbleCryptState = mumbleCryptState` alias + ForTestInit/
+  ForTestEncrypt/ForTestDecrypt + 2 orphans (mumbleCryptState ForTestKey/
+  ForTestMu — zero users; ForTestMu/Key users are TelegramCore/groupPeer).
+  All 25 test sites folded onto the ALREADY-EXPORTED MumbleCryptState
+  wrapper (struct-embed + Init/Encrypt/Decrypt — the §5.2 real-API shape
+  that a prior session built but never migrated onto). Mechanical sed
+  migration; the 7 crypt tests (OCB2 roundtrip, OOO window, replay-512,
+  tamper, official vectors, client/server directions, exported wrappers)
+  all PASS unchanged in behavior.
+- Iteration 3 evidence: RED = undefined ForTestMumbleCryptState ×5 (then
+  the method sites); GREEN = crypt suite 7/7 PASS, tests/cores 15.5s,
+  tests/engine 6.7s, tests/bootstrap 1.1s, quick gate GREEN, comment-ban
+  clean. Cores def-count 162→121 cumulative this session.
+- Gates of record: iteration 1 verify.yml 41518425922 = SUCCESS on 9ad04fd8
+  (all jobs, step level). Iteration 2 dispatched (in flight at this edit);
+  iteration 3 dispatches post-push.
 
 ## Session 352 — boot reconciliation + H-1 iterations 16–17: media lifecycle self-contained; engine hook quarantine deleted (2026-11-02)
 

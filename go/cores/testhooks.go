@@ -114,10 +114,6 @@ func (x *MatrixCore) ForTestGroupRenew() context.CancelFunc {
 	return x.groupRenew
 }
 
-func (x *mumbleCryptState) ForTestKey() *[16]byte {
-	return &x.key
-}
-
 func (x *tsP256Identity) ForTestKey() *ecdsa.PrivateKey {
 	return x.key
 }
@@ -128,10 +124,6 @@ func (x *TsWant) ForTestKey() string {
 
 func (x *groupPeer) ForTestKey() string {
 	return x.key
-}
-
-func (x *mumbleCryptState) ForTestMu() *sync.Mutex {
-	return &x.mu
 }
 
 func (x *MumbleCore) ForTestMu() *sync.RWMutex {
@@ -378,24 +370,12 @@ func (x *IRCCore) ForTestConnect() error {
 	return x.connect()
 }
 
-func (x *mumbleCryptState) ForTestDecrypt(dst, src []byte) (int, error) {
-	return x.decrypt(dst, src)
-}
-
-func (x *mumbleCryptState) ForTestEncrypt(dst, src []byte) int {
-	return x.encrypt(dst, src)
-}
-
 func (x *TsConnection) ForTestFireProof(name string, fields map[string]string) {
 	x.fireProof(name, fields)
 }
 
 func (x *MatrixCore) ForTestHandleMemberEvent(evt *event.Event) {
 	x.handleMemberEvent(evt)
-}
-
-func (x *mumbleCryptState) ForTestInit(key, clientNonce, serverNonce []byte) error {
-	return x.init(key, clientNonce, serverNonce)
 }
 
 func (x *MatrixCallMemberCall) ForTestLiveDevices(now int64) []MatrixCallDevice {
@@ -457,8 +437,6 @@ func ForTestPbEncode(fields map[string]interface{}) []byte {
 func ForTestTruncate(s string, maxLen int) string {
 	return truncate(s, maxLen)
 }
-
-type ForTestMumbleCryptState = mumbleCryptState
 
 func ForTestNewTsIncomingCmd(name string, params map[string]string, raw string) *TsIncomingCmd {
 	return &TsIncomingCmd{name: name, params: params, raw: raw}
