@@ -9,7 +9,9 @@ import (
 
 func TestSendMessageNoWebpagePayload(t *testing.T) {
 	e := newTestEngine(t)
-	e.ForTestSetAccounts(map[string]*Account{"tg": {ID: "tg", Core: plainStub{}}})
+	if err := e.AttachAccount("tg", "telegram", plainStub{}); err != nil {
+		t.Fatal(err)
+	}
 
 	if _, err := e.SendMessage("tg", "10", "see https://example.com", "", nil, false, 0, "", "", false, false, false, false, true); err != nil {
 		t.Fatalf("send: %v", err)

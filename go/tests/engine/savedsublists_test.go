@@ -75,10 +75,12 @@ func newSavedSublistEngine(t *testing.T) *Engine {
 
 func TestSavedSublistsSupported(t *testing.T) {
 	e := newSavedSublistEngine(t)
-	e.ForTestSetAccounts(map[string]*Account{
-		"tg":  {ID: "tg", Core: savedDialogsStub{selfID: "42"}},
-		"irc": {ID: "irc", Core: plainStub{}},
-	})
+	if err := e.AttachAccount("tg", "telegram", savedDialogsStub{selfID: "42"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.AttachAccount("irc", "irc", plainStub{}); err != nil {
+		t.Fatal(err)
+	}
 	if !e.SavedSublistsSupported("tg") {
 		t.Error("saved-dialogs core reported unsupported")
 	}
@@ -99,7 +101,9 @@ func TestGetSavedSublistsPassthrough(t *testing.T) {
 			{PeerID: "42", PeerName: "My Notes", TopMessage: 7},
 		},
 	}
-	e.ForTestSetAccounts(map[string]*Account{"tg": {ID: "tg", Core: stub}})
+	if err := e.AttachAccount("tg", "telegram", stub); err != nil {
+		t.Fatal(err)
+	}
 
 	lists, total, err := e.GetSavedSublists("tg", 50, 0, 0, false)
 	if err != nil {
@@ -118,7 +122,9 @@ func TestGetSavedSublistsPassthrough(t *testing.T) {
 
 func TestGetSavedSublistsUnsupported(t *testing.T) {
 	e := newSavedSublistEngine(t)
-	e.ForTestSetAccounts(map[string]*Account{"irc": {ID: "irc", Core: plainStub{}}})
+	if err := e.AttachAccount("irc", "irc", plainStub{}); err != nil {
+		t.Fatal(err)
+	}
 	if _, _, err := e.GetSavedSublists("irc", 50, 0, 0, false); err == nil {
 		t.Fatal("plain core must not support sublists")
 	}
@@ -142,7 +148,9 @@ func TestGetSavedSublistMessages(t *testing.T) {
 			},
 		},
 	}
-	e.ForTestSetAccounts(map[string]*Account{"tg": {ID: "tg", Core: stub}})
+	if err := e.AttachAccount("tg", "telegram", stub); err != nil {
+		t.Fatal(err)
+	}
 
 	msgs, err := e.GetSavedSublistMessages("tg", "42", "-1000000001234", 0, 50)
 	if err != nil {
@@ -184,7 +192,9 @@ func TestGetSavedSublistMessages(t *testing.T) {
 
 func TestSavedPeerColumnRoundTrip(t *testing.T) {
 	e := newSavedSublistEngine(t)
-	e.ForTestSetAccounts(map[string]*Account{"tg": {ID: "tg", Core: plainStub{}}})
+	if err := e.AttachAccount("tg", "telegram", plainStub{}); err != nil {
+		t.Fatal(err)
+	}
 	e.CacheMessage("tg", "42", &cores.Message{ID: "9", ChatID: "42", Text: "saved note", Timestamp: timeOf(900), SavedPeerID: "77"})
 	msgs, err := e.GetSavedSublistMessages("tg", "42", "77", 0, 10)
 	if err != nil {
@@ -212,16 +222,18 @@ func (s savedDialogsStub) DeleteSavedHistory(peerID string) error {
 func TestSavedSublistReorder(t *testing.T) {
 	e := newSavedSublistEngine(t)
 	var log [][]string
-	stub := savedDialogsStub{selfID: "42"}
-	e.ForTestSetAccounts(map[string]*Account{"tg": {ID: "tg", Core: stub}})
-	e.ForTestAccounts()["tg"].Core = savedDialogsStub{selfID: "42", reorderLog: &log}
+	if err := e.AttachAccount("tg", "telegram", savedDialogsStub{selfID: "42", reorderLog: &log}); err != nil {
+		t.Fatal(err)
+	}
 	if err := e.ReorderSavedSublists("tg", []string{"a", "b", "c"}); err != nil {
 		t.Fatalf("ReorderSavedSublists: %v", err)
 	}
 	if len(log) != 1 || len(log[0]) != 3 || log[0][0] != "a" || log[0][2] != "c" {
 		t.Fatalf("reorder forwarded = %v", log)
 	}
-	e.ForTestAccounts()["irc"] = &Account{ID: "irc", Core: plainStub{}}
+	if err := e.AttachAccount("irc", "irc", plainStub{}); err != nil {
+		t.Fatal(err)
+	}
 	if err := e.ReorderSavedSublists("irc", []string{"a"}); err == nil {
 		t.Fatal("plain core must not support saved reorder")
 	}
@@ -233,7 +245,9 @@ func TestSavedSublistReorder(t *testing.T) {
 func TestSavedSublistDeletePurgesCache(t *testing.T) {
 	e := newSavedSublistEngine(t)
 	var del []string
-	e.ForTestSetAccounts(map[string]*Account{"tg": {ID: "tg", Core: savedDialogsStub{selfID: "42", delLog: &del}}})
+	if err := e.AttachAccount("tg", "telegram", savedDialogsStub{selfID: "42", delLog: &del}); err != nil {
+		t.Fatal(err)
+	}
 	self := e.SavedMessagesChatID("tg")
 	if self == "" {
 		t.Fatal("no saved chat id for the stub self account")

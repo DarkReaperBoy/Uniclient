@@ -187,10 +187,12 @@ type plainStub struct{ cores.StubCore }
 
 func TestSupportsTakeout(t *testing.T) {
 	e := newTestEngine(t)
-	e.ForTestSetAccounts(map[string]*Account{
-		"tg":  {ID: "tg", Core: takeoutStub{}},
-		"irc": {ID: "irc", Core: plainStub{}},
-	})
+	if err := e.AttachAccount("tg", "telegram", takeoutStub{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.AttachAccount("irc", "irc", plainStub{}); err != nil {
+		t.Fatal(err)
+	}
 	if !e.SupportsTakeout("tg") {
 		t.Error("takeout-capable core reported unsupported")
 	}

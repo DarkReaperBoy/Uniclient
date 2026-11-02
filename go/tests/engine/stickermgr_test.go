@@ -2,7 +2,6 @@ package tests
 
 import (
 	"testing"
-	. "uniclient/engine"
 
 	"uniclient/cores"
 )
@@ -30,10 +29,12 @@ func TestGetStickerSetSummariesPassthrough(t *testing.T) {
 		{SetID: 1, Title: "Kept", Installed: true},
 		{SetID: 2, Title: "Boxed", Archived: true},
 	}
-	e.ForTestSetAccounts(map[string]*Account{
-		"tg":  {ID: "tg", Core: &stickerMgrStub{summaries: want}},
-		"irc": {ID: "irc", Core: plainStub{}},
-	})
+	if err := e.AttachAccount("tg", "telegram", &stickerMgrStub{summaries: want}); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.AttachAccount("irc", "irc", plainStub{}); err != nil {
+		t.Fatal(err)
+	}
 	got, err := e.GetStickerSetSummaries("tg")
 	if err != nil || len(got) != 2 || got[1].Title != "Boxed" {
 		t.Fatalf("GetStickerSetSummaries = %+v err=%v", got, err)
@@ -49,10 +50,12 @@ func TestGetStickerSetSummariesPassthrough(t *testing.T) {
 func TestArchiveStickerSetPassthrough(t *testing.T) {
 	e := newTestEngine(t)
 	stub := &stickerMgrStub{}
-	e.ForTestSetAccounts(map[string]*Account{
-		"tg":  {ID: "tg", Core: stub},
-		"irc": {ID: "irc", Core: plainStub{}},
-	})
+	if err := e.AttachAccount("tg", "telegram", stub); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.AttachAccount("irc", "irc", plainStub{}); err != nil {
+		t.Fatal(err)
+	}
 	if err := e.ArchiveStickerSet("tg", 42, 4242, true); err != nil {
 		t.Fatalf("archive: %v", err)
 	}

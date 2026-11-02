@@ -14,7 +14,7 @@ func newLReadEngine(t *testing.T) *Engine {
 		t.Fatal(err)
 	}
 	cfg := utils.DefaultConfig()
-	return ForTestNewEngine(nil, v, &cfg)
+	return New(nil, v, &cfg)
 }
 
 func TestLocalReadMarkDefaultOn(t *testing.T) {

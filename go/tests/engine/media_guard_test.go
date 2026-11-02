@@ -54,7 +54,9 @@ func newGuardEngine(t *testing.T) (*Engine, *guardCore, []byte) {
 	e.ForTestSetMedia(NewMediaManager(e))
 	data := streamPattern(16_384)
 	core := &guardCore{part: &fakePartSource{data: data}}
-	e.ForTestSetAccounts(map[string]*Account{"a1": {ID: "a1", Core: core}})
+	if err := e.AttachAccount("a1", "telegram", core); err != nil {
+		t.Fatal(err)
+	}
 	seedStreamRow(t, e, int64(len(data)), DownloadNone, "")
 	return e, core, data
 }
@@ -210,11 +212,11 @@ func TestStreamGuardSurvivesDoubleClose(t *testing.T) {
 
 func getAccountCore(e *Engine, t *testing.T) *guardCore {
 	t.Helper()
-	acc, ok := e.ForTestGetAccount("a1")
-	if !ok || acc.Core == nil {
+	core := e.GetAccountCore("a1")
+	if core == nil {
 		t.Fatal("account a1 has no core")
 	}
-	c, ok := acc.Core.(*guardCore)
+	c, ok := core.(*guardCore)
 	if !ok {
 		t.Fatal("account core is not *guardCore")
 	}

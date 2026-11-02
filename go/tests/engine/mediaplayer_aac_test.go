@@ -259,7 +259,7 @@ func TestConfigChangesMediaVolumeApplies(t *testing.T) {
 		t.Fatalf("CreateVault: %v", err)
 	}
 	cfg := utils.DefaultConfig()
-	e := ForTestNewEngine(nil, v, &cfg)
+	e := New(nil, v, &cfg)
 	defer v.Close()
 
 	want := 0.3

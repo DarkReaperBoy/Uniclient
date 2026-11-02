@@ -190,6 +190,50 @@ func (e *Engine) AddAccount(platform string, testMode bool) (string, error) {
 	return id, nil
 }
 
+func (e *Engine) AttachAccount(id, platform string, core cores.Core) error {
+	if id == "" {
+		return fmt.Errorf("attach account: empty id")
+	}
+
+	e.accountsMu.Lock()
+	defer e.accountsMu.Unlock()
+
+	if _, exists := e.accounts[id]; exists {
+		return fmt.Errorf("account %q already attached", id)
+	}
+	if e.accounts == nil {
+		e.accounts = make(map[string]*Account)
+	}
+
+	maxOrder := 0
+	for _, acc := range e.accounts {
+		if acc.SortOrder >= maxOrder {
+			maxOrder = acc.SortOrder + 1
+		}
+	}
+
+	e.accounts[id] = &Account{
+		ID:        id,
+		Platform:  platform,
+		Core:      core,
+		ConnState: ConnConnected,
+		SortOrder: maxOrder,
+	}
+	return nil
+}
+
+func (e *Engine) ReplaceAccountCore(accountID string, core cores.Core) error {
+	e.accountsMu.Lock()
+	defer e.accountsMu.Unlock()
+
+	acc, ok := e.accounts[accountID]
+	if !ok {
+		return fmt.Errorf("account %q not found", accountID)
+	}
+	acc.Core = core
+	return nil
+}
+
 func (e *Engine) RemoveAccount(accountID string) error {
 	e.accountsMu.Lock()
 	acc, ok := e.accounts[accountID]

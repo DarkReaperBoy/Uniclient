@@ -148,21 +148,51 @@ type Engine struct {
 	experimentalFlags   map[string]bool
 }
 
-func Init(configDir, cacheDir, downloadDir, vaultPassword string) (*Engine, error) {
+func New(db *sql.DB, vault *utils.Vault, config *utils.AppConfig) *Engine {
 	e := &Engine{
 		accounts:            make(map[string]*Account),
-		configDir:           configDir,
-		cacheDir:            cacheDir,
-		downloadDir:         downloadDir,
-		mediaDir:            filepath.Join(cacheDir, "media"),
+		db:                  db,
+		vault:               vault,
+		config:              config,
 		maxCache:            1 << 30,
 		avatars:             newAvatarState(),
 		saveDeletedMessages: true,
 		saveMessagesHistory: true,
-		saveForBots:         false,
 	}
+	if config == nil {
+		return e
+	}
+	if config.MaxCacheSize > 0 {
+		e.maxCache = config.MaxCacheSize
+	}
+	if config.AyuSaveDeleted != nil {
+		e.saveDeletedMessages = *config.AyuSaveDeleted
+	}
+	if config.AyuSaveHistory != nil {
+		e.saveMessagesHistory = *config.AyuSaveHistory
+	}
+	if config.AyuSaveForBots != nil {
+		e.saveForBots = *config.AyuSaveForBots
+	}
+	if pc := config.ProxyConfig; pc.Host != "" || pc.Mode > 0 {
+		e.proxyMode = pc.Mode
+		e.proxyHost = pc.Host
+		e.proxyType = strings.ToLower(pc.Type)
+		e.proxyUser = pc.Username
+		e.proxyPass = pc.Password
+		if p, err := strconv.Atoi(strings.TrimSpace(pc.Port)); err == nil {
+			e.proxyPort = p
+		}
+	}
+	if config.DownloadDir != "" {
+		e.downloadDir = config.DownloadDir
+	}
+	return e
+}
 
-	for _, d := range []string{configDir, cacheDir, downloadDir, e.mediaDir} {
+func Init(configDir, cacheDir, downloadDir, vaultPassword string) (*Engine, error) {
+	mediaDir := filepath.Join(cacheDir, "media")
+	for _, d := range []string{configDir, cacheDir, downloadDir, mediaDir} {
 		if err := ensureDir(d); err != nil {
 			return nil, fmt.Errorf("create dir %s: %w", d, err)
 		}
@@ -173,16 +203,16 @@ func Init(configDir, cacheDir, downloadDir, vaultPassword string) (*Engine, erro
 	if err != nil {
 		return nil, err
 	}
-	e.lockFile = lf
 
 	vaultPath := filepath.Join(configDir, "uniclient.vault")
+	var vault *utils.Vault
 	if !utils.VaultExists(vaultPath) {
-		e.vault, err = utils.CreateVault(vaultPath, vaultPassword)
+		vault, err = utils.CreateVault(vaultPath, vaultPassword)
 		if err != nil {
 			return nil, fmt.Errorf("create vault: %w", err)
 		}
 	} else {
-		e.vault, err = utils.OpenVault(vaultPath, vaultPassword)
+		vault, err = utils.OpenVault(vaultPath, vaultPassword)
 		if err != nil {
 			return nil, fmt.Errorf("open vault: %w", err)
 		}
@@ -190,54 +220,34 @@ func Init(configDir, cacheDir, downloadDir, vaultPassword string) (*Engine, erro
 
 	uniConfigPath := filepath.Join(configDir, "uniconfig")
 	if _, statErr := os.Stat(uniConfigPath); statErr == nil {
-		_ = e.vault.MigrateUniConfig(uniConfigPath)
+		_ = vault.MigrateUniConfig(uniConfigPath)
 	}
 
 	oldCfgPath := filepath.Join(configDir, "config.json")
 	if _, statErr := os.Stat(oldCfgPath); statErr == nil {
 		if cfg, cfgErr := utils.LoadConfig(oldCfgPath); cfgErr == nil {
-			_ = e.vault.SetConfig(cfg)
+			_ = vault.SetConfig(cfg)
 		}
 		os.Remove(oldCfgPath)
 	}
 
-	cfg := e.vault.Config()
+	cfg := vault.Config()
 	utils.MergeDefaults(cfg)
-	e.config = cfg
 
-	if cfg.MaxCacheSize > 0 {
-		e.maxCache = cfg.MaxCacheSize
-	}
-
-	if cfg.AyuSaveDeleted != nil {
-		e.saveDeletedMessages = *cfg.AyuSaveDeleted
-	}
-	if cfg.AyuSaveHistory != nil {
-		e.saveMessagesHistory = *cfg.AyuSaveHistory
-	}
-	if cfg.AyuSaveForBots != nil {
-		e.saveForBots = *cfg.AyuSaveForBots
-	}
-
-	if pc := cfg.ProxyConfig; pc.Host != "" || pc.Mode > 0 {
-		e.proxyMode = pc.Mode
-		e.proxyHost = pc.Host
-		e.proxyType = strings.ToLower(pc.Type)
-		e.proxyUser = pc.Username
-		e.proxyPass = pc.Password
-		if p, err := strconv.Atoi(strings.TrimSpace(pc.Port)); err == nil {
-			e.proxyPort = p
-		}
-	}
-	if cfg.DownloadDir != "" {
-		e.downloadDir = cfg.DownloadDir
-	}
-
-	e.db, err = OpenDB(cacheDir)
+	db, err := OpenDB(cacheDir)
 	if err != nil {
-		e.vault.Close()
+		vault.Close()
 		return nil, fmt.Errorf("open db: %w", err)
 	}
+
+	e := New(db, vault, cfg)
+	e.configDir = configDir
+	e.cacheDir = cacheDir
+	e.mediaDir = mediaDir
+	if e.downloadDir == "" {
+		e.downloadDir = downloadDir
+	}
+	e.lockFile = lf
 
 	e.migrateAccountsToVault()
 

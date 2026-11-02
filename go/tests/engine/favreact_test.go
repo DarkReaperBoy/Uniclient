@@ -3,7 +3,6 @@ package tests
 import (
 	"errors"
 	"testing"
-	. "uniclient/engine"
 
 	"uniclient/cores"
 )
@@ -36,7 +35,9 @@ func (s *favReactStub) SetDefaultReaction(emoji string) error {
 func TestGetDefaultReactionSessionCache(t *testing.T) {
 	e := newTestEngine(t)
 	st := &favReactStub{fav: "🔥"}
-	e.ForTestSetAccounts(map[string]*Account{"a1": {ID: "a1", Core: st}})
+	if err := e.AttachAccount("a1", "telegram", st); err != nil {
+		t.Fatal(err)
+	}
 	for i := 0; i < 5; i++ {
 		got, err := e.GetDefaultReaction("a1")
 		if err != nil || got != "🔥" {
@@ -51,7 +52,9 @@ func TestGetDefaultReactionSessionCache(t *testing.T) {
 func TestGetDefaultReactionCustomKeyPassthrough(t *testing.T) {
 	e := newTestEngine(t)
 	st := &favReactStub{fav: "custom_7"}
-	e.ForTestSetAccounts(map[string]*Account{"a1": {ID: "a1", Core: st}})
+	if err := e.AttachAccount("a1", "telegram", st); err != nil {
+		t.Fatal(err)
+	}
 	got, err := e.GetDefaultReaction("a1")
 	if err != nil || got != "custom_7" {
 		t.Fatalf("custom favorite = (%q,%v), want (custom_7,nil)", got, err)
@@ -61,7 +64,9 @@ func TestGetDefaultReactionCustomKeyPassthrough(t *testing.T) {
 func TestGetDefaultReactionEmptyCaches(t *testing.T) {
 	e := newTestEngine(t)
 	st := &favReactStub{fav: ""}
-	e.ForTestSetAccounts(map[string]*Account{"a1": {ID: "a1", Core: st}})
+	if err := e.AttachAccount("a1", "telegram", st); err != nil {
+		t.Fatal(err)
+	}
 	for i := 0; i < 3; i++ {
 		if got, err := e.GetDefaultReaction("a1"); err != nil || got != "" {
 			t.Fatalf("empty favorite get #%d = (%q,%v)", i, got, err)
@@ -75,7 +80,9 @@ func TestGetDefaultReactionEmptyCaches(t *testing.T) {
 func TestGetDefaultReactionErrorDoesNotCache(t *testing.T) {
 	e := newTestEngine(t)
 	st := &favReactStub{err: errFavBoom}
-	e.ForTestSetAccounts(map[string]*Account{"a1": {ID: "a1", Core: st}})
+	if err := e.AttachAccount("a1", "telegram", st); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := e.GetDefaultReaction("a1"); err == nil {
 		t.Fatal("core error should propagate")
 	}
@@ -91,7 +98,9 @@ func TestGetDefaultReactionErrorDoesNotCache(t *testing.T) {
 func TestSetDefaultReactionWritesCache(t *testing.T) {
 	e := newTestEngine(t)
 	st := &favReactStub{}
-	e.ForTestSetAccounts(map[string]*Account{"a1": {ID: "a1", Core: st}})
+	if err := e.AttachAccount("a1", "telegram", st); err != nil {
+		t.Fatal(err)
+	}
 	if err := e.SetDefaultReaction("a1", "custom_9"); err != nil {
 		t.Fatal(err)
 	}

@@ -36,7 +36,9 @@ func newGiftEngine(t *testing.T, core cores.Core) *Engine {
                  VALUES ('tg', 'telegram', 'Test', 0, 0)`); err != nil {
 		t.Fatal(err)
 	}
-	e.ForTestSetAccounts(map[string]*Account{"tg": {ID: "tg", Core: core}})
+	if err := e.AttachAccount("tg", "telegram", core); err != nil {
+		t.Fatal(err)
+	}
 	return e
 }
 

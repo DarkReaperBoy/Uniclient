@@ -121,11 +121,12 @@ func newProfileMusicEngine(t *testing.T) *Engine {
 
 func TestProfileMusicSupported(t *testing.T) {
 	e := newProfileMusicEngine(t)
-	e.ForTestSetAccounts(map[string]*Account{
-
-		"tg":  {ID: "tg", Core: newProfileMusicStub()},
-		"irc": {ID: "irc", Core: plainStub{}},
-	})
+	if err := e.AttachAccount("tg", "telegram", newProfileMusicStub()); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.AttachAccount("irc", "irc", plainStub{}); err != nil {
+		t.Fatal(err)
+	}
 	if !e.ProfileMusicSupported("tg") {
 		t.Error("profile-music core reported unsupported")
 	}
@@ -146,7 +147,9 @@ func TestGetProfileMusicFeedsColdCache(t *testing.T) {
 		{DocID: "7002", Title: "Rampage", Performer: "Aphex Twin", Duration: 200, AccessHash: 6, FileRefB64: "AAAB", Size: 200, MimeType: "audio/mpeg"},
 	}
 	st.count["7"] = 2
-	e.ForTestSetAccounts(map[string]*Account{"tg": {ID: "tg", Core: st}})
+	if err := e.AttachAccount("tg", "telegram", st); err != nil {
+		t.Fatal(err)
+	}
 
 	tracks, err := e.GetProfileMusic("tg", "7")
 	if err != nil {
@@ -174,7 +177,9 @@ func TestGetProfileMusicEmptyHidesSection(t *testing.T) {
 	e := newProfileMusicEngine(t)
 	st := newProfileMusicStub()
 	st.selfID = "42"
-	e.ForTestSetAccounts(map[string]*Account{"tg": {ID: "tg", Core: st}})
+	if err := e.AttachAccount("tg", "telegram", st); err != nil {
+		t.Fatal(err)
+	}
 	tracks, err := e.GetProfileMusic("tg", "7")
 	if err != nil {
 		t.Fatal(err)
@@ -190,7 +195,9 @@ func TestSaveToProfileMusic(t *testing.T) {
 	st.selfID = "42"
 	st.tracks["42"] = []cores.MusicTrackInfo{{DocID: "7000", Title: "Seed"}}
 	*st.ownIDs = []string{"7000"}
-	e.ForTestSetAccounts(map[string]*Account{"tg": {ID: "tg", Core: st}})
+	if err := e.AttachAccount("tg", "telegram", st); err != nil {
+		t.Fatal(err)
+	}
 
 	track := MusicTrack{DocID: "7001", Title: "Nightcall", AccessHash: 5, FileRefB64: "AAAA", MimeType: "audio/mpeg", FileName: "n.mp3", Duration: 257}
 	if err := e.SaveToProfileMusic("tg", track); err != nil {
@@ -218,7 +225,9 @@ func TestRemoveProfileMusic(t *testing.T) {
 	st.selfID = "42"
 	st.tracks["42"] = []cores.MusicTrackInfo{{DocID: "7001"}, {DocID: "7002"}}
 	*st.ownIDs = []string{"7001", "7002"}
-	e.ForTestSetAccounts(map[string]*Account{"tg": {ID: "tg", Core: st}})
+	if err := e.AttachAccount("tg", "telegram", st); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := e.GetProfileMusic("tg", "42"); err != nil {
 		t.Fatal(err)
 	}
@@ -241,7 +250,9 @@ func TestReorderProfileMusic(t *testing.T) {
 	st.tracks["42"] = []cores.MusicTrackInfo{
 		{DocID: "7001"}, {DocID: "7002"}, {DocID: "7003"},
 	}
-	e.ForTestSetAccounts(map[string]*Account{"tg": {ID: "tg", Core: st}})
+	if err := e.AttachAccount("tg", "telegram", st); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := e.GetProfileMusic("tg", "42"); err != nil {
 		t.Fatal(err)
 	}
@@ -266,7 +277,9 @@ func TestReorderProfileMusicEdgeCases(t *testing.T) {
 	st := newProfileMusicStub()
 	st.selfID = "42"
 	st.tracks["42"] = []cores.MusicTrackInfo{{DocID: "7001"}, {DocID: "7002"}}
-	e.ForTestSetAccounts(map[string]*Account{"tg": {ID: "tg", Core: st}})
+	if err := e.AttachAccount("tg", "telegram", st); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := e.GetProfileMusic("tg", "42"); err != nil {
 		t.Fatal(err)
 	}
@@ -290,7 +303,9 @@ func TestOwnProfileMusicHashGating(t *testing.T) {
 	st := newProfileMusicStub()
 	st.selfID = "42"
 	*st.ownIDs = []string{"10", "20"}
-	e.ForTestSetAccounts(map[string]*Account{"tg": {ID: "tg", Core: st}})
+	if err := e.AttachAccount("tg", "telegram", st); err != nil {
+		t.Fatal(err)
+	}
 
 	if _, err := e.RefreshOwnProfileMusic("tg"); err != nil {
 		t.Fatal(err)
@@ -319,7 +334,9 @@ func TestProfileMusicSelfPeerGate(t *testing.T) {
 	st := newProfileMusicStub()
 	st.selfID = "42"
 	st.tracks["-1001234"] = nil
-	e.ForTestSetAccounts(map[string]*Account{"tg": {ID: "tg", Core: st}})
+	if err := e.AttachAccount("tg", "telegram", st); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := e.GetProfileMusic("tg", "-1001234"); err != nil {
 		t.Fatalf("engine must forward non-user peers to the core gate: %v", err)
 	}
@@ -344,7 +361,9 @@ func TestSavedMusicTracks(t *testing.T) {
 		{DocID: "7002", Title: "Rampage"},
 	}
 	st.count["42"] = 2
-	e.ForTestSetAccounts(map[string]*Account{"tg": {ID: "tg", Core: st}})
+	if err := e.AttachAccount("tg", "telegram", st); err != nil {
+		t.Fatal(err)
+	}
 
 	tracks, err := e.SavedMusicTracks("tg")
 	if err != nil {
@@ -355,7 +374,9 @@ func TestSavedMusicTracks(t *testing.T) {
 	}
 
 	e2 := newProfileMusicEngine(t)
-	e2.ForTestSetAccounts(map[string]*Account{"irc": {ID: "irc", Core: plainStub{}}})
+	if err := e2.AttachAccount("irc", "irc", plainStub{}); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := e2.SavedMusicTracks("irc"); err == nil {
 		t.Fatal("plain stub must report unsupported")
 	}
@@ -370,7 +391,9 @@ func TestSendSavedMusicTrack(t *testing.T) {
 		{DocID: "7001", AccessHash: 5, FileRefB64: "AAAA", Title: "Nightcall"},
 	}
 	st.count["42"] = 1
-	e.ForTestSetAccounts(map[string]*Account{"tg": {ID: "tg", Core: st}})
+	if err := e.AttachAccount("tg", "telegram", st); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := e.SavedMusicTracks("tg"); err != nil {
 		t.Fatal(err)
 	}
@@ -391,7 +414,9 @@ func TestSendSavedMusicTrack(t *testing.T) {
 	}
 
 	e2 := newProfileMusicEngine(t)
-	e2.ForTestSetAccounts(map[string]*Account{"irc": {ID: "irc", Core: plainStub{}}})
+	if err := e2.AttachAccount("irc", "irc", plainStub{}); err != nil {
+		t.Fatal(err)
+	}
 	if err := e2.SendSavedMusicTrack("irc", "c", "1", ""); err == nil {
 		t.Fatal("plain stub must not send")
 	}

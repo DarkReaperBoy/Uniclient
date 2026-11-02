@@ -21,7 +21,9 @@ func (f *fakeRestrictCore) BanMemberUntil(chatID, userID string, untilDate int) 
 func TestBanMemberUntil(t *testing.T) {
 	e := newTestEngine(t)
 	fc := &fakeRestrictCore{}
-	e.ForTestSetAccounts(map[string]*Account{"a1": {ID: "a1", Core: fc}})
+	if err := e.AttachAccount("a1", "telegram", fc); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := e.BanMemberUntil("a1", "g1", "7", 3600); err != nil {
 		t.Fatal(err)
@@ -37,7 +39,9 @@ func TestBanMemberUntil(t *testing.T) {
 	if err := e.BanMemberUntil("nope", "g1", "7", 3600); err == nil {
 		t.Error("missing account must error")
 	}
-	e.ForTestSetAccounts(map[string]*Account{"a1": {ID: "a1", Core: &cores.StubCore{}}})
+	if err := e.ReplaceAccountCore("a1", &cores.StubCore{}); err != nil {
+		t.Fatal(err)
+	}
 	if err := e.BanMemberUntil("a1", "g1", "7", 3600); err == nil {
 		t.Error("unsupported core must error")
 	}

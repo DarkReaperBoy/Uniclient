@@ -23,7 +23,9 @@ func (tpFakeCore) GetGroupCall(string) (*cores.CallSession, error) {
 
 func TestGroupCallInfoMapsTalkPowerBlocked(t *testing.T) {
 	e := &Engine{}
-	e.ForTestSetAccounts(map[string]*Account{"a1": {ID: "a1", Core: tpFakeCore{}}})
+	if err := e.AttachAccount("a1", "teamspeak", tpFakeCore{}); err != nil {
+		t.Fatal(err)
+	}
 
 	info, err := e.GetGroupCall("a1", "ch:7")
 	if err != nil {

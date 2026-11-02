@@ -3,7 +3,6 @@ package tests
 import (
 	"strings"
 	"testing"
-	. "uniclient/engine"
 
 	"uniclient/cores"
 )
@@ -34,10 +33,12 @@ func (s *storyLinkStub) ExportStoryLink(peerID string, storyID int) (string, err
 func TestEngineReactToStory(t *testing.T) {
 	e := newTestEngine(t)
 	stub := &storyLinkStub{}
-	e.ForTestSetAccounts(map[string]*Account{
-		"tg":  {ID: "tg", Core: stub},
-		"irc": {ID: "irc", Core: plainStub{}},
-	})
+	if err := e.AttachAccount("tg", "telegram", stub); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.AttachAccount("irc", "irc", plainStub{}); err != nil {
+		t.Fatal(err)
+	}
 	if err := e.ReactToStory("tg", "42", 7, "👍"); err != nil {
 		t.Fatalf("react: %v", err)
 	}
@@ -61,10 +62,12 @@ func TestEngineReactToStory(t *testing.T) {
 func TestEngineExportStoryLink(t *testing.T) {
 	e := newTestEngine(t)
 	stub := &storyLinkStub{link: "https://t.me/test/5"}
-	e.ForTestSetAccounts(map[string]*Account{
-		"tg":  {ID: "tg", Core: stub},
-		"irc": {ID: "irc", Core: plainStub{}},
-	})
+	if err := e.AttachAccount("tg", "telegram", stub); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.AttachAccount("irc", "irc", plainStub{}); err != nil {
+		t.Fatal(err)
+	}
 	link, err := e.ExportStoryLink("tg", "42", 7)
 	if err != nil {
 		t.Fatalf("export: %v", err)

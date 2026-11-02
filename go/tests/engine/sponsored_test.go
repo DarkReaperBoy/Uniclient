@@ -4,7 +4,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-	. "uniclient/engine"
 
 	"uniclient/cores"
 )
@@ -55,10 +54,12 @@ func TestGetSponsoredMessagesCachesFiveMinutes(t *testing.T) {
 	stub := &sponsoredStub{response: []cores.SponsoredMessageInfo{
 		{RandomID: "aabb", Title: "Ad", Message: "buy", ButtonText: "Open"},
 	}}
-	e.ForTestSetAccounts(map[string]*Account{
-		"tg":  {ID: "tg", Core: stub},
-		"irc": {ID: "irc", Core: plainStub{}},
-	})
+	if err := e.AttachAccount("tg", "telegram", stub); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.AttachAccount("irc", "irc", plainStub{}); err != nil {
+		t.Fatal(err)
+	}
 
 	items, posts, err := e.GetSponsoredMessages("tg", "-1001234")
 	if err != nil {
@@ -110,7 +111,9 @@ func TestMarkSponsoredViewedOncePerWindow(t *testing.T) {
 	stub := &sponsoredStub{response: []cores.SponsoredMessageInfo{
 		{RandomID: "aabb", Title: "Ad", Message: "buy"},
 	}}
-	e.ForTestSetAccounts(map[string]*Account{"tg": {ID: "tg", Core: stub}})
+	if err := e.AttachAccount("tg", "telegram", stub); err != nil {
+		t.Fatal(err)
+	}
 
 	if _, _, err := e.GetSponsoredMessages("tg", "-1001"); err != nil {
 		t.Fatal(err)
@@ -129,10 +132,12 @@ func TestMarkSponsoredViewedOncePerWindow(t *testing.T) {
 func TestSponsoredActionsRoute(t *testing.T) {
 	e := newTestEngine(t)
 	stub := &sponsoredStub{}
-	e.ForTestSetAccounts(map[string]*Account{
-		"tg":  {ID: "tg", Core: stub},
-		"irc": {ID: "irc", Core: plainStub{}},
-	})
+	if err := e.AttachAccount("tg", "telegram", stub); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.AttachAccount("irc", "irc", plainStub{}); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := e.ClickSponsoredMessage("tg", "aabb", false, false); err != nil {
 		t.Fatalf("click: %v", err)

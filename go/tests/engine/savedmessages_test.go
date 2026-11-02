@@ -2,7 +2,6 @@ package tests
 
 import (
 	"testing"
-	. "uniclient/engine"
 
 	"uniclient/cores"
 )
@@ -16,10 +15,12 @@ func (s selfStub) SelfUserID() string { return s.selfID }
 
 func TestSavedMessagesSupported(t *testing.T) {
 	e := newTestEngine(t)
-	e.ForTestSetAccounts(map[string]*Account{
-		"tg":  {ID: "tg", Core: selfStub{selfID: "42"}},
-		"irc": {ID: "irc", Core: plainStub{}},
-	})
+	if err := e.AttachAccount("tg", "telegram", selfStub{selfID: "42"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.AttachAccount("irc", "irc", plainStub{}); err != nil {
+		t.Fatal(err)
+	}
 	if !e.SavedMessagesSupported("tg") {
 		t.Error("self-capable core reported unsupported")
 	}
@@ -33,10 +34,12 @@ func TestSavedMessagesSupported(t *testing.T) {
 
 func TestSavedMessagesChatID(t *testing.T) {
 	e := newTestEngine(t)
-	e.ForTestSetAccounts(map[string]*Account{
-		"tg":  {ID: "tg", Core: selfStub{selfID: "42"}},
-		"irc": {ID: "irc", Core: plainStub{}},
-	})
+	if err := e.AttachAccount("tg", "telegram", selfStub{selfID: "42"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.AttachAccount("irc", "irc", plainStub{}); err != nil {
+		t.Fatal(err)
+	}
 	if got := e.SavedMessagesChatID("tg"); got != "42" {
 		t.Errorf("chatID = %q, want 42", got)
 	}
@@ -50,7 +53,9 @@ func TestSavedMessagesChatID(t *testing.T) {
 
 func TestOpenSavedMessagesIdempotent(t *testing.T) {
 	e := newTestEngine(t)
-	e.ForTestSetAccounts(map[string]*Account{"tg": {ID: "tg", Core: selfStub{selfID: "42"}}})
+	if err := e.AttachAccount("tg", "telegram", selfStub{selfID: "42"}); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := e.ForTestDb().Exec(
 		`INSERT OR IGNORE INTO accounts (id, platform, display_name, sort_order, created_at)
                  VALUES ('tg', 'telegram', 'Test', 0, 0)`); err != nil {

@@ -81,7 +81,9 @@ func TestGetDiscussionThreadCaches(t *testing.T) {
 		{ID: "r1", ChatID: "d1", Text: "root", ThreadRoot: "r1"},
 		{ID: "k1", ChatID: "d1", Text: "comment", ThreadRoot: "r1"},
 	}}
-	e.ForTestSetAccounts(map[string]*Account{"a1": {ID: "a1", Core: fc}})
+	if err := e.AttachAccount("a1", "telegram", fc); err != nil {
+		t.Fatal(err)
+	}
 
 	rows, err := e.GetDiscussionThread("a1", "c1", "m1")
 	if err != nil {
@@ -100,7 +102,9 @@ func TestGetDiscussionThreadCaches(t *testing.T) {
 	if _, err := e.GetDiscussionThread("nope", "c1", "m1"); err == nil {
 		t.Error("missing account must error")
 	}
-	e.ForTestSetAccounts(map[string]*Account{"a1": {ID: "a1", Core: &cores.StubCore{}}})
+	if err := e.ReplaceAccountCore("a1", &cores.StubCore{}); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := e.GetDiscussionThread("a1", "c1", "m1"); err == nil {
 		t.Error("unsupported core must error")
 	}

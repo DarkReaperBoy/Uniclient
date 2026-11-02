@@ -66,7 +66,9 @@ func TestRefreshMessageViews(t *testing.T) {
 		views:    map[string]int{"m1": 100, "m2": 500, "m3": 0},
 		forwards: map[string]int{"m1": 2, "m2": 0, "m3": 0},
 	}
-	e.ForTestSetAccounts(map[string]*Account{"a1": {ID: "a1", Core: fc}})
+	if err := e.AttachAccount("a1", "telegram", fc); err != nil {
+		t.Fatal(err)
+	}
 
 	changed, err := e.RefreshMessageViews("a1", "c1")
 	if err != nil {

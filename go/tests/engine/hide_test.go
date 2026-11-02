@@ -15,7 +15,7 @@ func newTestEngine(t *testing.T) *Engine {
 	if err := MigrateDB(db); err != nil {
 		t.Fatal(err)
 	}
-	return ForTestNewEngine(db, nil, nil)
+	return New(db, nil, nil)
 }
 
 func seedMessage(t *testing.T, e *Engine, msgID string, ts int64) {

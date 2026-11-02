@@ -96,10 +96,12 @@ func (r *eventRecorder) last(typ string) (EngineEvent, bool) {
 
 func TestTranscriptionSupported(t *testing.T) {
 	e := newTestEngine(t)
-	e.ForTestSetAccounts(map[string]*Account{
-		"tg":  {ID: "tg", Core: &transcribeStub{}},
-		"irc": {ID: "irc", Core: plainStub{}},
-	})
+	if err := e.AttachAccount("tg", "telegram", &transcribeStub{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.AttachAccount("irc", "irc", plainStub{}); err != nil {
+		t.Fatal(err)
+	}
 	if !e.TranscriptionSupported("tg") {
 		t.Error("transcriber core reported unsupported")
 	}
@@ -114,7 +116,9 @@ func TestTranscriptionSupported(t *testing.T) {
 func TestTranscribeVoiceNoteFinal(t *testing.T) {
 	e := newTestEngine(t)
 	stub := &transcribeStub{text: "hello world"}
-	e.ForTestSetAccounts(map[string]*Account{"tg": {ID: "tg", Core: stub}})
+	if err := e.AttachAccount("tg", "telegram", stub); err != nil {
+		t.Fatal(err)
+	}
 
 	text, pending, err := e.TranscribeVoiceNote("tg", "10", "500")
 	if err != nil {
@@ -139,7 +143,9 @@ func TestTranscribeVoiceNoteFinal(t *testing.T) {
 func TestTranscribeVoiceNotePendingRoundTrip(t *testing.T) {
 	e := newTestEngine(t)
 	stub := &transcribeStub{pend: true, text: ""}
-	e.ForTestSetAccounts(map[string]*Account{"tg": {ID: "tg", Core: stub}})
+	if err := e.AttachAccount("tg", "telegram", stub); err != nil {
+		t.Fatal(err)
+	}
 
 	text, pending, err := e.TranscribeVoiceNote("tg", "10", "501")
 	if err != nil {
@@ -162,7 +168,9 @@ func TestTranscribeVoiceNotePendingRoundTrip(t *testing.T) {
 
 func TestTranscribeVoiceNoteUnsupported(t *testing.T) {
 	e := newTestEngine(t)
-	e.ForTestSetAccounts(map[string]*Account{"irc": {ID: "irc", Core: plainStub{}}})
+	if err := e.AttachAccount("irc", "irc", plainStub{}); err != nil {
+		t.Fatal(err)
+	}
 	if _, _, err := e.TranscribeVoiceNote("irc", "10", "1"); err == nil {
 		t.Error("unsupported core: want honest error, got nil")
 	} else if !strings.Contains(err.Error(), "transcription") {
@@ -173,7 +181,9 @@ func TestTranscribeVoiceNoteUnsupported(t *testing.T) {
 func TestTranscribeVoiceNoteCoreError(t *testing.T) {
 	e := newTestEngine(t)
 	stub := &transcribeStub{rpcErr: errFake("VOICE_MESSAGES_FORBIDDEN")}
-	e.ForTestSetAccounts(map[string]*Account{"tg": {ID: "tg", Core: stub}})
+	if err := e.AttachAccount("tg", "telegram", stub); err != nil {
+		t.Fatal(err)
+	}
 	if _, _, err := e.TranscribeVoiceNote("tg", "10", "502"); err == nil {
 		t.Error("core error swallowed")
 	}
@@ -188,7 +198,9 @@ func TestHandleUpdateTranscriptionFlipsPending(t *testing.T) {
 	e.SetEventCallback(rec.record)
 
 	stub := &transcribeStub{pend: true}
-	e.ForTestSetAccounts(map[string]*Account{"tg": {ID: "tg", Core: stub}})
+	if err := e.AttachAccount("tg", "telegram", stub); err != nil {
+		t.Fatal(err)
+	}
 
 	if _, _, err := e.TranscribeVoiceNote("tg", "10", "503"); err != nil {
 		t.Fatal(err)

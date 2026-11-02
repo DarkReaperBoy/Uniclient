@@ -15,7 +15,7 @@ func newRecentsEngine(t *testing.T) *Engine {
 		t.Fatal(err)
 	}
 	cfg := utils.DefaultConfig()
-	return ForTestNewEngine(nil, v, &cfg)
+	return New(nil, v, &cfg)
 }
 
 func TestAddRecentSearchOrderAndCap(t *testing.T) {

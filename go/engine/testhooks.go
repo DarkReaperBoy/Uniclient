@@ -57,10 +57,6 @@ func (x *avatarState) ForTestMu() *sync.Mutex {
 	return &x.mu
 }
 
-func (x *Engine) ForTestAccounts() map[string]*Account {
-	return x.accounts
-}
-
 func (x *Engine) ForTestSponsoredMu() *sync.Mutex {
 	return &x.sponsoredMu
 }
@@ -75,6 +71,10 @@ func (x *httpImgFlight) ForTestDone() chan struct{} {
 
 func (x *MediaStream) ForTestDone() bool {
 	return x.done
+}
+
+func (x *MediaStream) ForTestComplete() bool {
+	return x.complete()
 }
 
 func (x *Engine) ForTestConfig() *utils.AppConfig {
@@ -95,10 +95,6 @@ func (x *Engine) ForTestSetMedia(v *MediaManager) {
 
 func (x *Engine) ForTestSetDownloadDir(v string) {
 	x.downloadDir = v
-}
-
-func (x *Engine) ForTestSetAccounts(v map[string]*Account) {
-	x.accounts = v
 }
 
 func (x *giftCache) ForTestSetByAcct(v map[string]GiftCacheEntry) {
@@ -149,14 +145,6 @@ func (x *httpImageCache) ForTestLen() int {
 	return x.len()
 }
 
-func (x *Engine) ForTestGetAccount(accountID string) (*Account, bool) {
-	return x.getAccount(accountID)
-}
-
-func (x *MediaStream) ForTestComplete() bool {
-	return x.complete()
-}
-
 func (x *MediaManager) ForTestExecuteDownload(job *DownloadJob) {
 	x.executeDownload(job)
 }
@@ -167,8 +155,4 @@ func (x *Engine) ForTestSetAntiRecall(d, h, b bool) {
 
 func ForTestNewAuthFlow(core cores.Core) *AuthFlow {
 	return &AuthFlow{collected: map[string]string{}, core: core}
-}
-
-func ForTestNewEngine(db *sql.DB, vault *utils.Vault, config *utils.AppConfig) *Engine {
-	return &Engine{db: db, vault: vault, config: config}
 }

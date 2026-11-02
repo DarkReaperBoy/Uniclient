@@ -138,14 +138,18 @@ func TestReorderPinnedForumTopics(t *testing.T) {
 		t.Fatal(err)
 	}
 	var log [][]int
-	e.ForTestSetAccounts(map[string]*Account{"tg": {ID: "tg", Core: forumTopicsStub{reorderLog: &log}}})
+	if err := e.AttachAccount("tg", "telegram", forumTopicsStub{reorderLog: &log}); err != nil {
+		t.Fatal(err)
+	}
 	if err := e.ReorderPinnedForumTopics("tg", "-1009", []int{3, 1, 2}); err != nil {
 		t.Fatalf("ReorderPinnedForumTopics: %v", err)
 	}
 	if len(log) != 1 || log[0][0] != 3 || log[0][2] != 2 {
 		t.Fatalf("reorder forwarded = %v", log)
 	}
-	e.ForTestAccounts()["irc"] = &Account{ID: "irc", Core: plainStub{}}
+	if err := e.AttachAccount("irc", "irc", plainStub{}); err != nil {
+		t.Fatal(err)
+	}
 	if err := e.ReorderPinnedForumTopics("irc", "-1009", []int{1}); err == nil {
 		t.Fatal("plain core must not support topic reorder")
 	}

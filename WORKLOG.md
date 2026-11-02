@@ -7,18 +7,70 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: H-1 iterations 1+2 EXECUTED + CI-GATED — audio.SetDeviceFactory seam retired the MediaPlayer + VoiceRecorder clusters (23 hooks dead, engine 64→41; dead micCh field removed); player + recorder tests drive real device journeys
-- next: H-1 iteration 3 — the ForTestSetAccounts cluster (54 uses, uniform shape: ForTestNewEngine + SetAccounts{ID, Core: stub} across ~20 files; recon: real AddAccount+SetCoreFactory+StartAuth is too heavy for unit tests — design an honest account-attach API, then sweep); then ForTestDb (46 uses)
-- owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop, Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: CI verify 41336426885 = SUCCESS on 3aa4cdda AND 41337215090 = SUCCESS on 912e7c06 — both all 3 jobs, every step green at step level (comment-ban/gofmt/vet/vet-live/test/race/headless smoke/nix/windows/js-wasm; flake-version step tag-only, skipped as designed); session 345 closed
+- front: H-1 iteration 3 EXECUTED — New + AttachAccount + ReplaceAccountCore retire the
+  ForTestSetAccounts/ForTestNewEngine/ForTestAccounts/ForTestGetAccount cluster (engine hooks
+  41→37; 54 map-injection sites + 4 constructor sites + 3 map-mutation sites + 1 getter site swept)
+- next: H-1 iteration 4 — ForTestDb (46 uses: raw db handle for seeding/assertions; honest shape
+  = exported read-only query accessors or a test-db seam on New); then ForTestNewAuthFlow (1 use,
+  auth cluster — needs an honest AuthFlow construction story, StartAuth is the real path)
+- owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
+  Telegram Desktop/Web/Android references, capability-projected, Gio)
+- last-gate: local quick gate GREEN (scoped engine+importers: bootstrap/cmd/engine/tests, native
+  test ok) + FULL native suite 7/7 ok + -race tests/engine 89.5s + tests/bootstrap ok + js/wasm
+  build ok + headless smoke exit 0; windows cross-build = rung-7 gotd OOM skip → CI verify.yml
+  dispatched (run id below, pending at commit time — next session closes it at step level)
 
 ## Open items
 
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
-| H-1 | cores/engine testhooks*.go | ForTest* hooks are debt (§5.3): ~227 hooks left after session 345 (engine 64→41) | session 345 entry | retire hooks as flows gain exported APIs; prune when a hook's last use dies |
+| H-1 | cores/engine testhooks*.go | ForTest* hooks are debt (§5.3): ~223 hooks left after session 346 (engine 41→37) | session 346 entry | retire hooks as flows gain exported APIs; prune when a hook's last use dies |
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 302 identifiers exported purely for the tests move (API noise: TsParseInit1, ForTest-adjacent) | commit 27faa5a4 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
+
+## Session 346 — H-1 iter 3: New + AttachAccount + ReplaceAccountCore retire the account-injection hook cluster (2026-11-02)
+
+- Atomic change (3 exported APIs, all production-shaped):
+  - `New(db, vault, config) *Engine` — the engine's real assembly point: accounts map,
+    avatar state, production defaults (saveDeleted/saveHistory true, maxCache 1<<30) + the
+    whole config application (Ayu flags, maxCache, proxy, downloadDir override) moved in
+    verbatim from Init's inline block; `Init` now acquires dirs/lock/vault/db and calls New
+    (downloadDir precedence preserved: cfg wins, param fills). New-init accounts map makes
+    `&Engine{}`-style nil maps impossible through the constructor.
+  - `AttachAccount(id, platform, core) error` — the caller-owned account install: empty-id
+    and duplicate-id errors, SortOrder = AddAccount's maxOrder+1 discipline, ConnConnected
+    (the core is live), nil-map guarded. The runtime-cache install ConnectAccount performs
+    at health.go:72-76, now an explicit embedding seam (bot-supervisor/future --script shape).
+  - `ReplaceAccountCore(accountID, core) error` — the core hot-swap ConnectAccount
+    (health.go:73) and DisconnectAccount (health.go:306) perform internally, exported: missing
+    account errors; account stays registered. Serves the mid-test core-swap journeys
+    (comments/restrict "unsupported core must error") that map-replacement used to provide.
+- Retired hooks (engine 41→37): ForTestNewEngine (constructor sites: hide/recentsearch/lread/
+  mediaplayer_aac → New), ForTestSetAccounts (54 sites across 19 files → AttachAccount, error
+  checked per call), ForTestAccounts (3 map-mutation sites → AttachAccount / the savedsublists
+  attach-then-swap restructured to one honest attach), ForTestGetAccount (media_guard helper →
+  GetAccountCore, the exported accessor that already existed). 4 test files dropped their now-
+  unused engine dot-import (favreact/savedmessages/sponsored/stickermgr/stories).
+- Platform labels made honest in the sweep: tg→telegram, irc→irc, a1→telegram (TG-flavored
+  features), groupcall a1→teamspeak (talk power).
+- TRUE tool-proven RED: tests/engine/attachaccount_test.go — `undefined: New` ×5 build failure
+  (compile seam, the R47/R51 class) against the pre-change tree. GREEN post-change: 5 tests
+  (New config+defaults contract; AttachAccount contract incl. dup/empty/coreless/caps;
+  ListAccounts shape incl. ConnState; ReplaceAccountCore contract incl. nil replace;
+  concurrent hammer — 8 writers + 4 readers + 16 same-id racers, exactly-one-wins) clean under
+  LOCAL -race.
+- Evidence: quick gate GREEN (scoped: bootstrap/cmd/engine/tests-bootstrap/tests-engine;
+  native vet leg = rung-7 gotd OOM skip per gate.sh, native test both ok); FULL native suite
+  7/7 ok (aacaud/audio/bootstrap/cores/engine/utils/voice, 16.2s cores); -race
+  tests/engine 89.5s + tests/bootstrap 6.2s ok (-gcflags=all=-c=1); gofmt clean;
+  strip_comments --check clean (293 files); js/wasm build ok; windows cross-build = rung-7
+  gotd OOM skip (CI gates it); headless smoke: `uniclient -dir X -password p -events` →
+  "engine ready", vault+cache+downloads created, timeout TERM → exit 0.
+- CI dispatched: verify.yml (run id recorded in next session's gate-of-record; local legs all
+  green or documented-skip). No behavior change to production paths (Init refactor is
+  side-effect-order-preserving; only the New-defaults flip saveDeleted/saveHistory false→true
+  on test-constructed engines — audited: no test exercises message_deleted/message_edited
+  update handlers without setting flags explicitly; suite proves it).
 
 ## Session 345 — H-1: audio device factory retires the MediaPlayer + VoiceRecorder hook clusters (2026-11-02)
 
