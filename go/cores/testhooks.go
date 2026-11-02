@@ -33,15 +33,7 @@ func (x *TeamSpeakCore) ForTestChannels() map[int]TsChannelInfo {
 	return x.channels
 }
 
-func (x *IRCCore) ForTestChannels() map[string]*ircChannel {
-	return x.channels
-}
-
 func (x *TeamSpeakCore) ForTestChannelsMu() *sync.RWMutex {
-	return &x.channelsMu
-}
-
-func (x *IRCCore) ForTestChannelsMu() *sync.RWMutex {
 	return &x.channelsMu
 }
 
@@ -251,10 +243,6 @@ func (x *MatrixCore) ForTestSetUserID(v id.UserID) {
 
 func (x *GitHubCore) ForTestSetUsername(v string) {
 	x.username = v
-}
-
-func (x *IRCCore) ForTestConnect() error {
-	return x.connect()
 }
 
 func (x *TsConnection) ForTestFireProof(name string, fields map[string]string) {
