@@ -42,14 +42,6 @@ func (x *httpImgFlight) ForTestDone() chan struct{} {
 	return x.done
 }
 
-func (x *MediaStream) ForTestDone() bool {
-	return x.done
-}
-
-func (x *MediaStream) ForTestComplete() bool {
-	return x.complete()
-}
-
 func (x *Engine) ForTestConfig() *utils.AppConfig {
 	return x.config
 }

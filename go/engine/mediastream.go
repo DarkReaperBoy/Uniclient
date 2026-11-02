@@ -89,12 +89,6 @@ func (s *MediaStream) Fetched() int64 {
 	return s.got
 }
 
-func (s *MediaStream) complete() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.done
-}
-
 func (s *MediaStream) finishFetchLocked(c int64) {
 	if ch, ok := s.fetching[c]; ok {
 		delete(s.fetching, c)

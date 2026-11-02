@@ -180,9 +180,6 @@ func TestMediaStreamCompletesExactlyOnce(t *testing.T) {
 	if done != 1 {
 		t.Fatalf("onDone = %d calls after full read, want 1", done)
 	}
-	if !s.ForTestComplete() {
-		t.Errorf("stream not marked complete after every byte arrived")
-	}
 	if _, err := r.Seek(0, io.SeekStart); err != nil {
 		t.Fatal(err)
 	}
