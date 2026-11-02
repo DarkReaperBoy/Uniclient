@@ -14,14 +14,15 @@ owner order — that history lives in git if ever needed.
   initializes them), engine/auth.go + cache_users.go read e.authFlows, dead package-level
   CurrentAuthState deleted (zero users)
 - next: remaining engine hook families by use-count (ForTestMu / ForTestSet* setters
-  ~20 uses); close the verify.yml run for 3096c150 (dispatched, id pending) and record
+  ~20 uses); close the verify.yml run for 8f595494 (41424762770, dispatched) and record
   it in STATE; then the next front
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: local gate green on both commits — gofmt clean; go vet -tags goolm EXIT 0
-  (engine, tests/engine, bootstrap, cmd/uniclient, tests/bootstrap); go test -count=1
-  tests/engine ok + tests/bootstrap ok; -race clean on the auth tests; comment-ban
-  clean (294 files, 0 dropped); verify.yml dispatched for 3096c150 — run id pending
+- last-gate: verify.yml **41423303029 = SUCCESS on 3096c150** (iteration 5, closed at job+step
+  level: Test/vet/gofmt/smoke 13 steps green, Nix 7 steps green + the expected non-tag
+  flake-version skip, cross-builds 9 steps green); local gate green on 8f595494 (gofmt/vet/
+  tests/engine+bootstrap/race-on-auth/comment-ban 294 files); run 41424762770 on 8f595494
+  dispatched — id pending
 
 ## Open items
 
