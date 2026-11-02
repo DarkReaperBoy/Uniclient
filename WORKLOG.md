@@ -141,70 +141,35 @@ owner order — that history lives in git if ever needed.
 
 ## Session 351 — H-1 iterations 7–11: five engine hook retirements + a download-dir bug fixed red→green (2026-11-02)
 
-- 7a (22434bc): ForTestSetAntiRecall retired — the hook forced true/true/false
-  onto the fields without the lock, but New+DefaultConfig already yields exactly
-  that (constructor defaults, Ayu* nil); the test now pins real constructor
-  defaults. 7b (8e9b289): SetAntiRecallSettings deleted — zero callers repo-wide,
-  the persisted mutation path is UpdateConfigFromBridge (Ayu* flags).
-- 8 (48280e2): ForTestGranule retired — oggPage granule/headerType/serial/seq had
-  zero production consumers (packet reader uses payload+lacing only); the fuzz
-  assertion contradicted the Ogg spec (high-bit granule positions are legal wire
-  data, e.g. -1 = no-position). ReadOggPage de-exported to readOggPage (last
-  external caller was the fuzz target); fuzz reworked onto the real read flow:
-  FuzzOggPacketReader over NewOggPacketReader with a sticky-error pin and valid
-  BuildOggPage seeds.
-- 9 (35fcbb1): MediaStream completion hooks retired — complete() had zero
-  production callers; ForTestComplete's assertion was redundant (onDone fires iff
-  done flips, exactly once, TestMediaStreamDoneOnlyAfterLastChunk pins timing);
-  ForTestDone was an orphan.
-- 10 (c930373): BUG, red→green — UpdateConfigFromBridge{DownloadDir} updated only
-  e.config.DownloadDir; the runtime e.downloadDir that savetodl.go reads never
-  moved, so saves kept landing in the old directory. Red:
-  TestBridgeDownloadDirChangeSteersSavePath failed "…/002, want
-  …/004/nested/downloads"; fix sets e.downloadDir under the held e.mu and
-  ensureDir's the new dir before locking. Dead SetDownloadDir (zero callers,
-  bridge-era orphan) deleted; the 5 savetodl hook sites moved onto real paths
-  (config construction via newSaveToDownloadsEngine + bridge changes).
-- 11 (1255350): three orphan hooks deleted — httpImgFlight.ForTestDone,
-  httpImgFlight.ForTestSetDone, MediaStream.ForTestSetDone (zero test users).
-- Evidence: quick gate GREEN after every iteration (latest: tests/bootstrap
-  0.869s, tests/engine 5.574s, vet/gofmt/comment checks clean); targeted runs
-  red→green for iteration 10; Ogg suite incl. TestOggRealOpusFile (ffmpeg
-  differential) green after iteration 8. verify.yml 41454716589 dispatched on
-  1255350 (204 accepted).
-- Engine hooks 27→19. Orphan-hook scan method: per-name user counts over
-  go/tests/ (rg -c), zero-count = cut.
+- 7a/7b (22434bc, 8e9b289): ForTestSetAntiRecall retired onto real New+
+  DefaultConfig defaults; dead SetAntiRecallSettings deleted (zero callers).
+  8 (48280e2): ForTestGranule retired — zero production consumers, fuzz
+  assertion contradicted the Ogg spec; ReadOggPage de-exported; fuzz reworked
+  onto the real read flow. 9 (35fcbb1): MediaStream completion hooks retired
+  (complete() had zero production callers). 10 (c930373): BUG red→green —
+  UpdateConfigFromBridge{DownloadDir} never moved runtime e.downloadDir
+  (saves landed in the old dir); fixed under e.mu + ensureDir; dead
+  SetDownloadDir deleted; 5 savetodl sites onto real paths. 11 (1255350):
+  three orphan hooks deleted.
+- Evidence: quick gate GREEN per iteration; verify.yml 41454716589 on
+  1255350. Engine hooks 27→19. Orphan-cut method: per-name user counts
+  over go/tests/.
 
 ## Session 350 — M-1 executed: monetary feature surfaces pruned engine-wide and core-wide (2026-11-02)
 
-- Three slices (5e64e5e engine, 1,680 lines; d1d02e2 cores files; 5db0adc
-  telegram.go cascade, ~2,088 lines): earn/gifts/giveaways/premium_business/
+- Three slices (5e64e5e engine 1,680 lines; d1d02e2 cores files; 5db0adc
+  telegram.go cascade ~2,088 lines): earn/gifts/giveaways/premium_business/
   sponsored deleted at both layers + ~50 zero-user monetary methods, 15
-  orphan base.go types, 13 test files; utils/config.go LocalPremium dropped;
-  SetChatReactionsMode paidEnabled branch removed at both layers; engine
-  hooks 34→29. KEPT as data mirroring per rule 19: is_premium/stars columns
-  + Extra keys, gift/paid-media message conversion, ServiceActionText gift
-  branches, timezoneOffsetNoLock, folder/link limits, Get/SetMessagesPrivacy.
+  orphan base.go types, 13 test files; engine hooks 34→29. KEPT as data
+  mirroring per rule 19 (is_premium/stars columns + Extra keys, gift
+  conversion, timezoneOffsetNoLock, folder/link limits, Get/SetMessagesPrivacy).
+- Same session, H-1 iteration 6 (93b0aa4): ForTestSetConfig + ForTestSetVault
+  retired via the REAL constructor — newTestEngineWith(t, vault, config) →
+  New(db, vault, config); engine hooks 29→27. Sandbox recycled mid-session
+  (SDK + caches wiped) — env.sh recovery proven.
 - Evidence: quick gate GREEN per slice (tests/cores 14.7s, tests/engine 5.3s,
-  tests/bootstrap 1.0s, vet/gofmt/comments clean); gate of record verify.yml
-  **41434129182 = SUCCESS on ffd31b2**.
-
-### H-1 iteration 6: ForTestSetConfig + ForTestSetVault retired (same session)
-
-- Atomic change (93b0aa4): the config/vault injection hooks (2 users each —
-  antirecall_test.go, avatarcorners_test.go) replaced by the REAL constructor
-  path: newTestEngineWith(t, vault, config) → New(db, vault, config);
-  newTestEngine delegates with nil/nil so 20+ existing call sites unchanged.
-  engine/testhooks.go: both setters deleted (engine hooks 29→27).
-- Evidence: scoped quick gate vet clean; go test -tags goolm -count=1
-  ./tests/engine/ ok 5.671s, ./tests/bootstrap/ ok 6.331s; gofmt clean;
-  comment check clean. Sandbox recycled mid-iteration (Go SDK + caches wiped,
-  file modes 100644→100755 — core.fileMode false set locally; content
-  untouched); reinstalled Go 1.27.0, re-ran gate green. verify.yml dispatched
-  post-push.
-- Next: singles (ForTestSetAntiRecall 1, ForTestGranule 1, ForTestComplete 1),
-  then the SetMedia/SetDownloadDir/SetMediaDir trio (needs downloadDir/
-  mediaDir on the real path), then ForTestMu cluster.
+  tests/bootstrap 1.0s); gate of record verify.yml 41434129182 = SUCCESS
+  on ffd31b2.
 
 ## Session 349 — owner directive: rule 19 extended — no gifts, nothing monetary (2026-11-02)
 
@@ -269,66 +234,24 @@ owner order — that history lives in git if ever needed.
   StartAuth/SubmitAuthInput; recon quotes in-session (auth.go: authFlows is a package-global
   map — cross-Engine flow leakage is the follow-up atomic fix).
 
-## Session 346 — H-1 iter 3: New + AttachAccount + ReplaceAccountCore retire the account-injection hook cluster (2026-11-02)
+## Session 346 — H-1 iters 3–4: account-injection cluster + ForTestDb retired (2026-11-02)
 
-- Atomic change (3 exported APIs, all production-shaped):
-  - `New(db, vault, config) *Engine` — the engine's real assembly point: accounts map,
-    avatar state, production defaults (saveDeleted/saveHistory true, maxCache 1<<30) + the
-    whole config application (Ayu flags, maxCache, proxy, downloadDir override) moved in
-    verbatim from Init's inline block; `Init` now acquires dirs/lock/vault/db and calls New
-    (downloadDir precedence preserved: cfg wins, param fills). New-init accounts map makes
-    `&Engine{}`-style nil maps impossible through the constructor.
-  - `AttachAccount(id, platform, core) error` — the caller-owned account install: empty-id
-    and duplicate-id errors, SortOrder = AddAccount's maxOrder+1 discipline, ConnConnected
-    (the core is live), nil-map guarded. The runtime-cache install ConnectAccount performs
-    at health.go:72-76, now an explicit embedding seam (bot-supervisor/future --script shape).
-  - `ReplaceAccountCore(accountID, core) error` — the core hot-swap ConnectAccount
-    (health.go:73) and DisconnectAccount (health.go:306) perform internally, exported: missing
-    account errors; account stays registered. Serves the mid-test core-swap journeys
-    (comments/restrict "unsupported core must error") that map-replacement used to provide.
-- Retired hooks (engine 41→37): ForTestNewEngine (constructor sites: hide/recentsearch/lread/
-  mediaplayer_aac → New), ForTestSetAccounts (54 sites across 19 files → AttachAccount, error
-  checked per call), ForTestAccounts (3 map-mutation sites → AttachAccount / the savedsublists
-  attach-then-swap restructured to one honest attach), ForTestGetAccount (media_guard helper →
-  GetAccountCore, the exported accessor that already existed). 4 test files dropped their now-
-  unused engine dot-import (favreact/savedmessages/sponsored/stickermgr/stories).
-- Platform labels made honest in the sweep: tg→telegram, irc→irc, a1→telegram (TG-flavored
-  features), groupcall a1→teamspeak (talk power).
-- TRUE tool-proven RED: tests/engine/attachaccount_test.go — `undefined: New` ×5 build failure
-  (compile seam, the R47/R51 class) against the pre-change tree. GREEN post-change: 5 tests
-  (New config+defaults contract; AttachAccount contract incl. dup/empty/coreless/caps;
-  ListAccounts shape incl. ConnState; ReplaceAccountCore contract incl. nil replace;
-  concurrent hammer — 8 writers + 4 readers + 16 same-id racers, exactly-one-wins) clean under
-  LOCAL -race.
-- Evidence: quick gate GREEN (scoped: bootstrap/cmd/engine/tests-bootstrap/tests-engine;
-  native vet leg = rung-7 gotd OOM skip per gate.sh, native test both ok); FULL native suite
-  7/7 ok (aacaud/audio/bootstrap/cores/engine/utils/voice, 16.2s cores); -race
-  tests/engine 89.5s + tests/bootstrap 6.2s ok (-gcflags=all=-c=1); gofmt clean;
-  strip_comments --check clean (293 files); js/wasm build ok; windows cross-build = rung-7
-  gotd OOM skip (CI gates it); headless smoke: `uniclient -dir X -password p -events` →
-  "engine ready", vault+cache+downloads created, timeout TERM → exit 0.
-- CI dispatched: verify.yml **41394693974** on 5997a16b — CLOSED: SUCCESS, all 3 jobs (test&vet&
-  gofmt&smoke / nix / windows+js-wasm), every step green at step level; the windows leg this box
-  could not compile (rung-7 gotd OOM) proved green there. No behavior change to production paths
-  (Init refactor is side-effect-order-preserving; only the New-defaults flip
-  saveDeleted/saveHistory false→true on test-constructed engines — audited: no test exercises
-  message_deleted/message_edited update handlers without setting flags explicitly; suite proves
-  it).
-
-### Iteration 4 — dbEngine harness retires ForTestDb (same session)
-
-- Atomic change (test-side only, zero new engine API): `dbEngine{*Engine; db *sql.DB}` in
-  hide_test.go — newTestEngine KEEPS the sql.DB it opens (the test owns the handle it already
-  creates, migrates, and hands to New; taking it back through a hook was backwards). 46 sites
-  (32 Exec seeds + 14 QueryRow assertions) → e.db.Exec/e.db.QueryRow; 6 local constructors and
-  17 db-touching helpers retyped to *dbEngine; newGuardEngine's NewMediaManager arg →
-  e.Engine; 4 files dropped now-unused engine dot-imports (earn/giveaways/pollresults/
-  savedsublists).
-- TRUE tool-proven RED: ForTestDb deleted FIRST — "e.ForTestDb undefined (type *engine.Engine
-  has no field or method ForTestDb)" compile seam across the 46 sites; then the harness landed
-  and the full suite went GREEN (5.8s).
-- Evidence: quick gate GREEN (scoped engine+importers, native test ok; vet leg = rung-7 gotd
-  OOM skip per gate.sh); FULL native suite 7/7 ok; -race tests/engine 89.9s + tests/bootstrap
-  6.2s ok; gofmt + strip_comments --check clean; js/wasm build ok; headless smoke exit 0
-  (engine ready, vault+cache+downloads, SIGTERM). CI gate of record: verify.yml
-  **41396012222 = SUCCESS on d9e472df** — all 3 jobs, every step green at step level.
+- Iter 3 (3 exported production-shaped APIs): `New(db, vault, config)` —
+  the engine's real assembly point (Init refactored to call it,
+  side-effect-order preserving; nil-map construction impossible now);
+  `AttachAccount(id, platform, core)` — the caller-owned install
+  (ConnectAccount's runtime-cache step, exported as the bot-supervisor/
+  --script seam); `ReplaceAccountCore(accountID, core)` — the hot-swap
+  ConnectAccount/DisconnectAccount perform internally. Retired (engine
+  41→37): ForTestNewEngine, ForTestSetAccounts (54 sites → AttachAccount),
+  ForTestAccounts, ForTestGetAccount (→ GetAccountCore). Platform labels
+  made honest (tg→telegram, a1→telegram/teamspeak). TRUE RED: `undefined:
+  New` ×5 pre-change; concurrent-hammer (8 writers + 16 same-id racers,
+  exactly-one-wins) clean under LOCAL -race.
+- Iter 4 (test-side only): `dbEngine{*Engine; db}` harness — newTestEngine
+  KEEPS the sql.DB it itself creates; 46 ForTestDb sites → e.db.Exec/
+  QueryRow; 6 constructors + 17 helpers retyped (engine →36).
+- Evidence: full native suite 7/7 ok; -race tests/engine 89.5s ok; js/wasm
+  + windows cross-build ok (windows = CI-gated OOM skip locally); headless
+  smoke exit 0 (engine ready, SIGTERM). verify.yml 41394693974 = SUCCESS
+  on 5997a16b, 41396012222 = SUCCESS on d9e472df (all 3 jobs, step-level).
