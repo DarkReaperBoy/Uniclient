@@ -381,19 +381,6 @@ func (e *Engine) GetProxySettings() (mode int, host string, port int, ptype, use
 	return e.proxyMode, e.proxyHost, e.proxyPort, e.proxyType, e.proxyUser, e.proxyPass
 }
 
-func (e *Engine) SetDownloadDir(dir string) error {
-	if dir == "" {
-		return nil
-	}
-	if err := ensureDir(dir); err != nil {
-		return err
-	}
-	e.mu.Lock()
-	e.downloadDir = dir
-	e.mu.Unlock()
-	return nil
-}
-
 func (e *Engine) currentProxyConfig() cores.ProxyConfig {
 	e.proxyMu.RLock()
 	defer e.proxyMu.RUnlock()
@@ -912,6 +899,11 @@ func (e *Engine) UpdateConfigFromBridge(changes *ConfigChanges) error {
 	if e.config == nil {
 		return fmt.Errorf("config: engine has no config to update")
 	}
+	if changes.DownloadDir != "" {
+		if err := ensureDir(changes.DownloadDir); err != nil {
+			return fmt.Errorf("download dir: %w", err)
+		}
+	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
@@ -978,6 +970,7 @@ func (e *Engine) UpdateConfigFromBridge(changes *ConfigChanges) error {
 	}
 	if changes.DownloadDir != "" {
 		e.config.DownloadDir = changes.DownloadDir
+		e.downloadDir = changes.DownloadDir
 	}
 	if changes.DrawerHiddenItems != nil {
 		e.config.DrawerHiddenItems = changes.DrawerHiddenItems

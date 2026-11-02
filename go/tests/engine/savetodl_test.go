@@ -9,6 +9,7 @@ import (
 	. "uniclient/engine"
 
 	"uniclient/cores"
+	"uniclient/utils"
 )
 
 func seedMediaRow(t *testing.T, e *dbEngine, msgID, localPath, fileName string) {
@@ -32,10 +33,10 @@ func writeTempFile(t *testing.T, dir, name, content string) string {
 }
 
 func TestSaveMessageMediaToDownloadsCopiesFile(t *testing.T) {
-	e := newTestEngine(t)
+	e := newSaveToDownloadsEngine(t, t.TempDir())
 	srcDir := t.TempDir()
 	dlDir := t.TempDir()
-	e.ForTestSetDownloadDir(dlDir)
+	e.UpdateConfigFromBridge(&ConfigChanges{DownloadDir: dlDir})
 
 	src := writeTempFile(t, srcDir, "cache.bin", "hello media")
 	seedMediaRow(t, e, "m1", src, "report.pdf")
@@ -63,10 +64,10 @@ func TestSaveMessageMediaToDownloadsCopiesFile(t *testing.T) {
 }
 
 func TestSaveMessageMediaDedupNeverOverwrites(t *testing.T) {
-	e := newTestEngine(t)
+	e := newSaveToDownloadsEngine(t, t.TempDir())
 	srcDir := t.TempDir()
 	dlDir := t.TempDir()
-	e.ForTestSetDownloadDir(dlDir)
+	e.UpdateConfigFromBridge(&ConfigChanges{DownloadDir: dlDir})
 
 	src := writeTempFile(t, srcDir, "cache.bin", "first")
 	seedMediaRow(t, e, "m1", src, "same.png")
@@ -95,8 +96,7 @@ func TestSaveMessageMediaDedupNeverOverwrites(t *testing.T) {
 }
 
 func TestSaveMessageMediaNotDownloadedSentinel(t *testing.T) {
-	e := newTestEngine(t)
-	e.ForTestSetDownloadDir(t.TempDir())
+	e := newSaveToDownloadsEngine(t, t.TempDir())
 	seedMediaRow(t, e, "m2", "", "doc.pdf")
 
 	_, err := e.SaveMessageMediaToDownloads("a1", "c1", "m2", 0)
@@ -106,18 +106,17 @@ func TestSaveMessageMediaNotDownloadedSentinel(t *testing.T) {
 }
 
 func TestSaveMessageMediaMissingRow(t *testing.T) {
-	e := newTestEngine(t)
-	e.ForTestSetDownloadDir(t.TempDir())
+	e := newSaveToDownloadsEngine(t, t.TempDir())
 	if _, err := e.SaveMessageMediaToDownloads("a1", "c1", "nope", 0); err == nil {
 		t.Fatal("missing media row must error")
 	}
 }
 
 func TestSaveMessageMediaFileNameFallbacks(t *testing.T) {
-	e := newTestEngine(t)
+	e := newSaveToDownloadsEngine(t, t.TempDir())
 	srcDir := t.TempDir()
 	dlDir := t.TempDir()
-	e.ForTestSetDownloadDir(dlDir)
+	e.UpdateConfigFromBridge(&ConfigChanges{DownloadDir: dlDir})
 
 	src := writeTempFile(t, srcDir, "9f2c.jpg", "img")
 	seedMediaRow(t, e, "m3", src, "")
@@ -141,6 +140,52 @@ func TestSaveMessageMediaFileNameFallbacks(t *testing.T) {
 	}
 	if base == "" || base == "." || base == ".." || base == "/" {
 		t.Fatalf("bad sanitized name %q", base)
+	}
+}
+
+func newSaveToDownloadsEngine(t *testing.T, dir string) *dbEngine {
+	t.Helper()
+	v, err := utils.CreateVault(filepath.Join(t.TempDir(), "vault.db"), "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := utils.DefaultConfig()
+	cfg.DownloadDir = dir
+	return newTestEngineWith(t, v, &cfg)
+}
+
+func TestBridgeDownloadDirChangeSteersSavePath(t *testing.T) {
+	v, err := utils.CreateVault(filepath.Join(t.TempDir(), "vault.db"), "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer v.Close()
+	oldDir := t.TempDir()
+	cfg := utils.DefaultConfig()
+	cfg.DownloadDir = oldDir
+	e := newTestEngineWith(t, v, &cfg)
+
+	src := writeTempFile(t, t.TempDir(), "cache.bin", "payload")
+	seedMediaRow(t, e, "m1", src, "file.bin")
+
+	dest, err := e.SaveMessageMediaToDownloads("a1", "c1", "m1", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filepath.Dir(dest) != oldDir {
+		t.Fatalf("initial save dir = %q, want %q", filepath.Dir(dest), oldDir)
+	}
+
+	fresh := filepath.Join(t.TempDir(), "nested", "downloads")
+	if err := e.UpdateConfigFromBridge(&ConfigChanges{DownloadDir: fresh}); err != nil {
+		t.Fatal(err)
+	}
+	dest2, err := e.SaveMessageMediaToDownloads("a1", "c1", "m1", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filepath.Dir(dest2) != fresh {
+		t.Fatalf("save after bridge change = %q, want %q (runtime download dir never moved)", filepath.Dir(dest2), fresh)
 	}
 }
 

@@ -54,10 +54,6 @@ func (x *Engine) ForTestSetMedia(v *MediaManager) {
 	x.media = v
 }
 
-func (x *Engine) ForTestSetDownloadDir(v string) {
-	x.downloadDir = v
-}
-
 func (x *Engine) ForTestSetMediaDir(v string) {
 	x.mediaDir = v
 }
