@@ -1,39 +1,7 @@
 package engine
 
-import (
-	"sync"
-)
-
 func (x *Engine) ForTestMedia() *MediaManager {
 	return x.media
-}
-
-func (x *httpImageCache) ForTestMu() *sync.Mutex {
-	return &x.mu
-}
-
-func (x *MediaManager) ForTestMu() *sync.Mutex {
-	return &x.mu
-}
-
-func (x *Engine) ForTestMu() *sync.RWMutex {
-	return &x.mu
-}
-
-func (x *exportState) ForTestMu() *sync.Mutex {
-	return &x.mu
-}
-
-func (x *suggestionDismiss) ForTestMu() *sync.Mutex {
-	return &x.mu
-}
-
-func (x *MediaStream) ForTestMu() *sync.Mutex {
-	return &x.mu
-}
-
-func (x *avatarState) ForTestMu() *sync.Mutex {
-	return &x.mu
 }
 
 func (x *MediaManager) ForTestQueue() []*DownloadJob {
