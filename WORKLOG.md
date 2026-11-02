@@ -24,11 +24,12 @@ owner order — that history lives in git if ever needed.
   (ForTestNewTsConnection/ForTestNewTeamSpeakCore/…)
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: local quick gate GREEN on the working tree (tests/cores 15.5s
-  7/7 ok, tests/engine 6.5s, tests/bootstrap 1.0s, js/wasm + runner green,
-  gofmt + comment-ban clean, 271 files 0 dropped); -race = rung-7 (box too
-  small — CI leg gates); verify.yml dispatched on this iteration's push
-  (id in the session 353 entry once closed)
+- last-gate: verify.yml **41526012096 = SUCCESS on 5131fc1e** (all 3
+  jobs, every step incl. the CI race leg — covers iterations 2–4 + the
+  matrix startSync race fix); earlier: 41518425922 = SUCCESS on 9ad04fd8
+  (iteration 1); 41520169823/41520879579/41524204125 = the pre-fix race
+  failures (superseded). Local quick gate GREEN per iteration; gofmt +
+  comment-ban clean throughout
 
 ## Open items
 
@@ -138,8 +139,10 @@ owner order — that history lives in git if ever needed.
   WithCancel on the cancelled parent → instant clean loop exit). Local
   scoped -race insensitive (scheduling window; CI is the reproducer);
   quick gate GREEN; CI re-dispatched = the verdict.
-- Race-fix dispatches: verify.yml on 329cdb58 (iteration 4, in flight at
-  edit) then the fix commit (id at push).
+- Race-fix dispatches: verify.yml on 329cdb58 (iteration 4) = failure (the
+  same pre-fix race, superseded); **the fix run 41526012096 on 5131fc1e =
+  SUCCESS — all 3 jobs, every step green at step level, race leg included**.
+  This is the gate of record for the whole session stack.
 
 ## Session 352 — boot reconciliation + H-1 iterations 16–17: media lifecycle self-contained; engine hook quarantine deleted (2026-11-02)
 
