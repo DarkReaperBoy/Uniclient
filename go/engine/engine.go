@@ -93,9 +93,6 @@ type Engine struct {
 	ownMusicIDs  map[string]map[string]bool
 	ownMusicHash map[string]int64
 
-	sponsoredMu    sync.Mutex
-	sponsoredCache map[string]*sponsoredCacheEntry
-
 	mediaMu     sync.Mutex
 	MediaPlayer *MediaPlayer
 
@@ -787,45 +784,6 @@ func (e *Engine) isActiveChat(accountID, chatID string) bool {
 	e.activeChat.mu.Lock()
 	defer e.activeChat.mu.Unlock()
 	return e.activeChat.accountID == accountID && e.activeChat.chatID == chatID
-}
-
-func (e *Engine) SetLocalPremium(accountID string, on bool) error {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if e.config == nil {
-		return fmt.Errorf("config not loaded")
-	}
-	if e.config.LocalPremium == nil {
-		e.config.LocalPremium = make(map[string]bool)
-	}
-	if on {
-		e.config.LocalPremium[accountID] = true
-	} else {
-		delete(e.config.LocalPremium, accountID)
-		if len(e.config.LocalPremium) == 0 {
-			e.config.LocalPremium = nil
-		}
-	}
-	return e.vault.SetConfig(e.config)
-}
-
-func (e *Engine) localPremiumSnapshot() map[string]bool {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	if e.config == nil || len(e.config.LocalPremium) == 0 {
-		return nil
-	}
-	out := make(map[string]bool, len(e.config.LocalPremium))
-	for k, v := range e.config.LocalPremium {
-		out[k] = v
-	}
-	return out
-}
-
-func (e *Engine) LocalPremiumFor(accountID string) bool {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	return e.config != nil && e.config.LocalPremium[accountID]
 }
 
 func (e *Engine) AddRecentSearch(query string) error {
@@ -2247,66 +2205,6 @@ func (e *Engine) GetInviteImportersList(accountID, chatID, link string, requeste
 	return g.GetInviteImportersList(chatID, link, requested, limit, offsetUserID, offsetDate)
 }
 
-func (e *Engine) GetSuggestedStarRefBots(accountID, chatID, offset string, limit int, orderByRevenue, orderByDate bool) (map[string]interface{}, error) {
-	acc, ok := e.getAccount(accountID)
-	if !ok || acc.Core == nil {
-		return nil, fmt.Errorf("account %q not found or not connected", accountID)
-	}
-	type getter interface {
-		GetSuggestedStarRefBots(chatID, offset string, limit int, orderByRevenue, orderByDate bool) (map[string]interface{}, error)
-	}
-	g, ok := acc.Core.(getter)
-	if !ok {
-		return nil, fmt.Errorf("platform does not support star-ref join")
-	}
-	return g.GetSuggestedStarRefBots(chatID, offset, limit, orderByRevenue, orderByDate)
-}
-
-func (e *Engine) GetConnectedStarRefBots(accountID, chatID string) ([]map[string]interface{}, error) {
-	acc, ok := e.getAccount(accountID)
-	if !ok || acc.Core == nil {
-		return nil, fmt.Errorf("account %q not found or not connected", accountID)
-	}
-	type getter interface {
-		GetConnectedStarRefBots(chatID string) ([]map[string]interface{}, error)
-	}
-	g, ok := acc.Core.(getter)
-	if !ok {
-		return nil, fmt.Errorf("platform does not support star-ref join")
-	}
-	return g.GetConnectedStarRefBots(chatID)
-}
-
-func (e *Engine) ConnectStarRefBot(accountID, chatID, botID string, revoked bool, link string) (map[string]interface{}, error) {
-	acc, ok := e.getAccount(accountID)
-	if !ok || acc.Core == nil {
-		return nil, fmt.Errorf("account %q not found or not connected", accountID)
-	}
-	type getter interface {
-		ConnectStarRefBot(chatID, botID string, revoked bool, link string) (map[string]interface{}, error)
-	}
-	g, ok := acc.Core.(getter)
-	if !ok {
-		return nil, fmt.Errorf("platform does not support star-ref join")
-	}
-	return g.ConnectStarRefBot(chatID, botID, revoked, link)
-}
-
-func (e *Engine) SetStarRefProgram(accountID, chatID string, commissionPermille, durationMonths int) error {
-	acc, ok := e.getAccount(accountID)
-	if !ok || acc.Core == nil {
-		return fmt.Errorf("account %q not found or not connected", accountID)
-	}
-	type setter interface {
-		SetStarRefProgram(chatID string, commissionPermille, durationMonths int) error
-	}
-	s, ok := acc.Core.(setter)
-	if !ok {
-		return fmt.Errorf("platform does not support star-ref program setup")
-	}
-	return s.SetStarRefProgram(chatID, commissionPermille, durationMonths)
-}
-
 type DefaultBannedRights struct {
 	SendPlain        bool  `json:"send_plain"`
 	SendPhotos       bool  `json:"send_photos"`
@@ -2628,118 +2526,6 @@ func (e *Engine) UpdateChannelColor(accountID, chatID string, colorIndex int, ba
 		return cu.UpdateChannelColorEx(chatID, colorIndex, backgroundEmojiID)
 	}
 	return fmt.Errorf("platform does not support channel color update")
-}
-
-func (e *Engine) UpdateChannelEmojiStatus(accountID, chatID string, documentID int64) error {
-	acc, ok := e.getAccount(accountID)
-	if !ok || acc.Core == nil {
-		return fmt.Errorf("account %q not found or not connected", accountID)
-	}
-	type emojiStatusUpdater interface {
-		UpdateChannelEmojiStatus(chatID string, documentID int64) error
-	}
-	if su, ok := acc.Core.(emojiStatusUpdater); ok {
-		return su.UpdateChannelEmojiStatus(chatID, documentID)
-	}
-	return fmt.Errorf("platform does not support channel emoji status update")
-}
-
-func (e *Engine) UpdatePaidMessagesPrice(accountID, chatID string, stars int64, broadcastEnabled bool) error {
-	acc, ok := e.getAccount(accountID)
-	if !ok || acc.Core == nil {
-		return fmt.Errorf("account %q not found or not connected", accountID)
-	}
-	type priceUpdater interface {
-		UpdatePaidMessagesPrice(chatID string, stars int64, broadcastEnabled bool) error
-	}
-	if pu, ok := acc.Core.(priceUpdater); ok {
-		return pu.UpdatePaidMessagesPrice(chatID, stars, broadcastEnabled)
-	}
-	return fmt.Errorf("platform does not support paid messages price")
-}
-
-func (e *Engine) SetBoostsUnrestrict(accountID, chatID string, boosts int) error {
-	acc, ok := e.getAccount(accountID)
-	if !ok || acc.Core == nil {
-		return fmt.Errorf("account %q not found or not connected", accountID)
-	}
-	type boostsUpdater interface {
-		SetBoostsUnrestrict(chatID string, boosts int) error
-	}
-	if bu, ok := acc.Core.(boostsUpdater); ok {
-		return bu.SetBoostsUnrestrict(chatID, boosts)
-	}
-	return fmt.Errorf("platform does not support boosts unrestrict")
-}
-
-func (e *Engine) ApplyBoost(accountID, chatID string) error {
-	acc, ok := e.getAccount(accountID)
-	if !ok || acc.Core == nil {
-		return fmt.Errorf("account %q not found or not connected", accountID)
-	}
-	type boostApplier interface {
-		ApplyBoost(chatID string) error
-	}
-	if b, ok := acc.Core.(boostApplier); ok {
-		return b.ApplyBoost(chatID)
-	}
-	return fmt.Errorf("platform does not support boosting")
-}
-
-func (e *Engine) GetBoosts(accountID, chatID string) (map[string]interface{}, error) {
-	acc, ok := e.getAccount(accountID)
-	if !ok || acc.Core == nil {
-		return nil, fmt.Errorf("account %q not found or not connected", accountID)
-	}
-	type boostsGetter interface {
-		GetBoostsJSON(chatID string) (map[string]interface{}, error)
-	}
-	if bg, ok := acc.Core.(boostsGetter); ok {
-		return bg.GetBoostsJSON(chatID)
-	}
-	return nil, fmt.Errorf("platform does not support boosts")
-}
-
-func (e *Engine) GetBoostsList(accountID, chatID string, isGifts bool, offset string) (map[string]interface{}, error) {
-	acc, ok := e.getAccount(accountID)
-	if !ok || acc.Core == nil {
-		return nil, fmt.Errorf("account %q not found or not connected", accountID)
-	}
-	type boostsLister interface {
-		GetBoostsListJSON(chatID string, isGifts bool, offset string) (map[string]interface{}, error)
-	}
-	if bl, ok := acc.Core.(boostsLister); ok {
-		return bl.GetBoostsListJSON(chatID, isGifts, offset)
-	}
-	return nil, fmt.Errorf("platform does not support boosts list")
-}
-
-func (e *Engine) GetGiftCodeOptions(accountID, chatID string) ([]map[string]interface{}, error) {
-	acc, ok := e.getAccount(accountID)
-	if !ok || acc.Core == nil {
-		return nil, fmt.Errorf("account %q not found or not connected", accountID)
-	}
-	type giftCodeOptionsGetter interface {
-		GetGiftCodeOptions(chatID string) ([]map[string]interface{}, error)
-	}
-	if g, ok := acc.Core.(giftCodeOptionsGetter); ok {
-		return g.GetGiftCodeOptions(chatID)
-	}
-	return nil, fmt.Errorf("platform does not support gift code options")
-}
-
-func (e *Engine) GetGiveawayPeriodMax(accountID string) (int, error) {
-	acc, ok := e.getAccount(accountID)
-	if !ok || acc.Core == nil {
-		return 604800, fmt.Errorf("account %q not found or not connected", accountID)
-	}
-	type giveawayPeriodMaxGetter interface {
-		GetGiveawayPeriodMax() (int, error)
-	}
-	if g, ok := acc.Core.(giveawayPeriodMaxGetter); ok {
-		return g.GetGiveawayPeriodMax()
-	}
-	return 604800, nil
 }
 
 func (e *Engine) GetFullChat(accountID, chatID string) (*cores.Dialog, error) {

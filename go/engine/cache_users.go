@@ -1557,54 +1557,6 @@ func (e *Engine) SetHideReadMarks(accountID string, hide bool) error {
 	return s.SetHideReadMarks(hide)
 }
 
-type messagesPrivacyGetter interface {
-	GetMessagesPrivacy() (option string, chargeStars int64, err error)
-}
-
-type messagesPrivacySetter interface {
-	SetMessagesPrivacy(option string, chargeStars int64) error
-}
-
-type paidMessagesConfigGetter interface {
-	GetPaidMessagesConfig() (maxStars int64, commissionPermille int32, withdrawRate float64, err error)
-}
-
-func (e *Engine) GetMessagesPrivacy(accountID string) (string, int64, error) {
-	acc, ok := e.getAccount(accountID)
-	if !ok || acc.Core == nil {
-		return "", 0, fmt.Errorf("account %q not connected", accountID)
-	}
-	g, ok := acc.Core.(messagesPrivacyGetter)
-	if !ok {
-		return "", 0, fmt.Errorf("platform does not support messages privacy")
-	}
-	return g.GetMessagesPrivacy()
-}
-
-func (e *Engine) SetMessagesPrivacy(accountID, option string, chargeStars int64) error {
-	acc, ok := e.getAccount(accountID)
-	if !ok || acc.Core == nil {
-		return fmt.Errorf("account %q not connected", accountID)
-	}
-	s, ok := acc.Core.(messagesPrivacySetter)
-	if !ok {
-		return fmt.Errorf("platform does not support messages privacy")
-	}
-	return s.SetMessagesPrivacy(option, chargeStars)
-}
-
-func (e *Engine) GetPaidMessagesConfig(accountID string) (int64, int32, float64, error) {
-	acc, ok := e.getAccount(accountID)
-	if !ok || acc.Core == nil {
-		return 0, 0, 0, fmt.Errorf("account %q not connected", accountID)
-	}
-	g, ok := acc.Core.(paidMessagesConfigGetter)
-	if !ok {
-		return 10000, 150, 0.013, nil
-	}
-	return g.GetPaidMessagesConfig()
-}
-
 type confcallSizeLimitGetter interface {
 	GetConfcallSizeLimit() (int, error)
 }
@@ -1619,22 +1571,6 @@ func (e *Engine) GetConfcallSizeLimit(accountID string) (int, error) {
 		return 200, nil
 	}
 	return g.GetConfcallSizeLimit()
-}
-
-type starsPaidPostAmountMaxGetter interface {
-	GetStarsPaidPostAmountMax() (int, error)
-}
-
-func (e *Engine) GetStarsPaidPostAmountMax(accountID string) (int, error) {
-	acc, ok := e.getAccount(accountID)
-	if !ok || acc.Core == nil {
-		return 10000, fmt.Errorf("account %q not connected", accountID)
-	}
-	g, ok := acc.Core.(starsPaidPostAmountMaxGetter)
-	if !ok {
-		return 10000, nil
-	}
-	return g.GetStarsPaidPostAmountMax()
 }
 
 type cloudThemesFetcher interface {
@@ -2820,36 +2756,4 @@ func (e *Engine) GetThemeBySlug(accountID, slug string, isDark bool) (*cores.Clo
 		return nil, fmt.Errorf("platform does not support theme resolution")
 	}
 	return g.GetThemeBySlug(slug, isDark)
-}
-
-type giftCodeChecker interface {
-	CheckGiftCode(slug string) (map[string]interface{}, error)
-}
-
-func (e *Engine) CheckGiftCode(accountID, slug string) (map[string]interface{}, error) {
-	acc, ok := e.getAccount(accountID)
-	if !ok || acc.Core == nil {
-		return nil, fmt.Errorf("account %q not connected", accountID)
-	}
-	g, ok := acc.Core.(giftCodeChecker)
-	if !ok {
-		return nil, fmt.Errorf("platform does not support gift codes")
-	}
-	return g.CheckGiftCode(slug)
-}
-
-type giftCodeApplier interface {
-	ApplyGiftCode(slug string) error
-}
-
-func (e *Engine) ApplyGiftCode(accountID, slug string) error {
-	acc, ok := e.getAccount(accountID)
-	if !ok || acc.Core == nil {
-		return fmt.Errorf("account %q not connected", accountID)
-	}
-	a, ok := acc.Core.(giftCodeApplier)
-	if !ok {
-		return fmt.Errorf("platform does not support gift codes")
-	}
-	return a.ApplyGiftCode(slug)
 }

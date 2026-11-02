@@ -29,9 +29,8 @@ type AppConfig struct {
 	ComposerSubmit string `json:"composer_submit,omitempty"`
 	SwipeAction    string `json:"swipe_action,omitempty"`
 
-	CornerReply    *bool           `json:"corner_reply,omitempty"`
-	CornerReaction *bool           `json:"corner_reaction,omitempty"`
-	LocalPremium   map[string]bool `json:"local_premium,omitempty"`
+	CornerReply    *bool `json:"corner_reply,omitempty"`
+	CornerReaction *bool `json:"corner_reaction,omitempty"`
 
 	AyuImproveLinkPreviews bool  `json:"ayu_improve_link_previews,omitempty"`
 	AyuMsgSeconds          *bool `json:"ayu_msg_seconds,omitempty"`

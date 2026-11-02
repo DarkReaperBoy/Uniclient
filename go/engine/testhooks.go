@@ -2,7 +2,6 @@ package engine
 
 import (
 	"sync"
-	"time"
 
 	"uniclient/utils"
 )
@@ -27,10 +26,6 @@ func (x *Engine) ForTestMu() *sync.RWMutex {
 	return &x.mu
 }
 
-func (x *giftCache) ForTestMu() *sync.Mutex {
-	return &x.mu
-}
-
 func (x *exportState) ForTestMu() *sync.Mutex {
 	return &x.mu
 }
@@ -45,14 +40,6 @@ func (x *MediaStream) ForTestMu() *sync.Mutex {
 
 func (x *avatarState) ForTestMu() *sync.Mutex {
 	return &x.mu
-}
-
-func (x *Engine) ForTestSponsoredMu() *sync.Mutex {
-	return &x.sponsoredMu
-}
-
-func (x *Engine) ForTestSponsoredCache() map[string]*sponsoredCacheEntry {
-	return x.sponsoredCache
 }
 
 func (x *httpImgFlight) ForTestDone() chan struct{} {
@@ -87,10 +74,6 @@ func (x *Engine) ForTestSetDownloadDir(v string) {
 	x.downloadDir = v
 }
 
-func (x *giftCache) ForTestSetByAcct(v map[string]GiftCacheEntry) {
-	x.byAcct = v
-}
-
 func (x *Engine) ForTestSetVault(v *utils.Vault) {
 	x.vault = v
 }
@@ -105,10 +88,6 @@ func (x *httpImgFlight) ForTestSetDone(v chan struct{}) {
 
 func (x *MediaStream) ForTestSetDone(v bool) {
 	x.done = v
-}
-
-func (x *sponsoredCacheEntry) ForTestSetFetchedAt(v time.Time) {
-	x.fetchedAt = v
 }
 
 func (x *VoiceVAD) ForTestGate(frame []byte) bool {

@@ -116,7 +116,6 @@ func (e *Engine) migrateAccountsToVault() {
 }
 
 func (e *Engine) ListAccounts() []AccountInfo {
-	localPrem := e.localPremiumSnapshot()
 	e.accountsMu.RLock()
 	defer e.accountsMu.RUnlock()
 
@@ -131,7 +130,7 @@ func (e *Engine) ListAccounts() []AccountInfo {
 			SortOrder:   acc.SortOrder,
 			ConnState:   int(acc.ConnState),
 			IsVerified:  acc.IsVerified,
-			IsPremium:   acc.IsPremium || localPrem[acc.ID],
+			IsPremium:   acc.IsPremium,
 		}
 		type selfIDer interface{ SelfUserID() string }
 		if s, ok := acc.Core.(selfIDer); ok {
