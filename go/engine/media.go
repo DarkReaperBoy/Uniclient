@@ -35,6 +35,8 @@ type MediaManager struct {
 	maxConc int
 	wg      sync.WaitGroup
 	notify  chan struct{}
+	ctx     context.Context
+	cancel  context.CancelFunc
 }
 
 func NewMediaManager(e *Engine) *MediaManager {
@@ -47,12 +49,19 @@ func NewMediaManager(e *Engine) *MediaManager {
 }
 
 func (mm *MediaManager) Start(ctx context.Context) {
+	mm.mu.Lock()
+	if mm.cancel != nil {
+		mm.mu.Unlock()
+		return
+	}
+	mm.ctx, mm.cancel = context.WithCancel(ctx)
+	mm.mu.Unlock()
 	mm.wg.Add(1)
 	go func() {
 		defer mm.wg.Done()
 		for {
 			select {
-			case <-ctx.Done():
+			case <-mm.ctx.Done():
 				return
 			case <-mm.notify:
 				mm.processQueue()
@@ -62,6 +71,13 @@ func (mm *MediaManager) Start(ctx context.Context) {
 }
 
 func (mm *MediaManager) Stop() {
+	mm.mu.Lock()
+	cancel := mm.cancel
+	mm.cancel = nil
+	mm.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
 	mm.wg.Wait()
 }
 
@@ -144,7 +160,9 @@ func (mm *MediaManager) executeDownload(job *DownloadJob) {
 	}
 	defer e.ReleaseDownload(key)
 
+	e.mu.RLock()
 	dir := filepath.Join(e.mediaDir, job.AccountID, "full")
+	e.mu.RUnlock()
 	os.MkdirAll(dir, 0o755)
 
 	ext := filepath.Ext(job.FileName)
@@ -309,11 +327,12 @@ func (e *Engine) RequestDownload(accountID, chatID, msgID string, seq, priority 
 		return ErrStreamActive
 	}
 
-	if e.media == nil {
+	mm := e.mediaManager()
+	if mm == nil {
 		return fmt.Errorf("media manager not initialized")
 	}
 
-	e.media.Enqueue(&DownloadJob{
+	mm.Enqueue(&DownloadJob{
 		AccountID: accountID,
 		ChatID:    chatID,
 		MsgID:     msgID,
@@ -327,9 +346,15 @@ func (e *Engine) RequestDownload(accountID, chatID, msgID string, seq, priority 
 	return nil
 }
 
+func (e *Engine) mediaManager() *MediaManager {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.media
+}
+
 func (e *Engine) CancelDownload(accountID, chatID, msgID string, seq int) {
-	if e.media != nil {
-		e.media.Cancel(accountID, chatID, msgID, seq)
+	if mm := e.mediaManager(); mm != nil {
+		mm.Cancel(accountID, chatID, msgID, seq)
 	}
 }
 

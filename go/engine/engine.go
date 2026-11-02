@@ -106,6 +106,8 @@ type Engine struct {
 	lockFile     *os.File
 	shuttingDown bool
 	wg           sync.WaitGroup
+	ctx          context.Context
+	ctxCancel    context.CancelFunc
 
 	antiRecallMu        sync.RWMutex
 	saveDeletedMessages bool
@@ -160,6 +162,7 @@ func New(db *sql.DB, vault *utils.Vault, config *utils.AppConfig) *Engine {
 		saveDeletedMessages: true,
 		saveMessagesHistory: true,
 	}
+	e.ctx, e.ctxCancel = context.WithCancel(context.Background())
 	if config == nil {
 		return e
 	}
@@ -267,7 +270,6 @@ func Init(configDir, cacheDir, downloadDir, vaultPassword string) (*Engine, erro
 		e.vault.Close()
 		return nil, err
 	}
-	e.media.Start(context.Background())
 
 	return e, nil
 }
@@ -277,6 +279,8 @@ func (e *Engine) Vault() *utils.Vault {
 }
 
 func (e *Engine) MediaDir() string {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
 	return e.mediaDir
 }
 
@@ -285,9 +289,18 @@ func (e *Engine) UseMediaDir(dir string) error {
 		return fmt.Errorf("media dir: %w", err)
 	}
 	e.mu.Lock()
-	e.mediaDir = dir
-	e.media = NewMediaManager(e)
+	old := e.media
+	e.media = nil
 	e.mu.Unlock()
+	if old != nil {
+		old.Stop()
+	}
+	e.mu.Lock()
+	e.mediaDir = dir
+	mm := NewMediaManager(e)
+	e.media = mm
+	e.mu.Unlock()
+	mm.Start(e.ctx)
 	return nil
 }
 
@@ -1141,6 +1154,20 @@ func (e *Engine) Shutdown() error {
 	if e.audioSession != nil {
 		e.audioSession.Close()
 		e.audioSession = nil
+	}
+
+	e.ctxCancel()
+
+	if mm := e.mediaManager(); mm != nil {
+		drained := make(chan struct{})
+		go func() {
+			mm.Stop()
+			close(drained)
+		}()
+		select {
+		case <-drained:
+		case <-time.After(5 * time.Second):
+		}
 	}
 
 	e.cancelAllExportSuggests()

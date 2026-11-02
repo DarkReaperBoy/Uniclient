@@ -341,8 +341,8 @@ func (e *Engine) OpenMediaStream(accountID, chatID, msgID string, seq int) (Medi
 	if err != nil {
 		return nil, 0, "", err
 	}
-	if e.media != nil {
-		e.media.Cancel(accountID, chatID, msgID, seq)
+	if mm := e.mediaManager(); mm != nil {
+		mm.Cancel(accountID, chatID, msgID, seq)
 	}
 	s, path, size, err := e.openMediaStream(accountID, chatID, msgID, seq, src)
 	if err != nil {

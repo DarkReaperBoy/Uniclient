@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
 	. "uniclient/engine"
 )
 
@@ -13,11 +14,14 @@ func TestExecuteDownloadRemovesPartialOnFailure(t *testing.T) {
 
 	core.dlErr = errors.New("simulated transfer failure")
 
-	job := &DownloadJob{
-		AccountID: "a1", ChatID: "c1", MsgID: "m1", Seq: 0,
-		RemoteRef: "REF-1", FileName: "clip.mp4", MimeType: "video/mp4", Extra: "777:Zm9v",
+	rec := &evRecorder{}
+	sub := e.Subscribe(rec.record)
+	defer sub.Unsubscribe()
+
+	if err := e.RequestDownload("a1", "c1", "m1", 0, 0); err != nil {
+		t.Fatalf("RequestDownload: %v", err)
 	}
-	e.ForTestMedia().ForTestExecuteDownload(job)
+	waitUntil(t, "download_failed event", func() bool { return rec.has(EventDownloadFailed) })
 
 	dir := filepath.Join(e.MediaDir(), "a1", "full")
 	entries, err := os.ReadDir(dir)

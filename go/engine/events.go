@@ -371,7 +371,7 @@ func (e *Engine) handleNewMessage(accountID, chatID string, msg *cores.Message) 
 }
 
 func (e *Engine) MaybeAutoDownload(accountID, chatID string, msg *cores.Message) {
-	if msg == nil || msg.IsOutgoing || len(msg.Attachments) == 0 || e.media == nil {
+	if msg == nil || msg.IsOutgoing || len(msg.Attachments) == 0 || e.mediaManager() == nil {
 		return
 	}
 	source := e.autoDownloadSourceForChat(accountID, chatID)

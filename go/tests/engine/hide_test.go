@@ -22,6 +22,7 @@ func newTestEngineWith(t *testing.T, vault *utils.Vault, config *utils.AppConfig
 	if err != nil {
 		t.Fatal(err)
 	}
+	db.SetMaxOpenConns(1)
 	t.Cleanup(func() { db.Close() })
 	if err := MigrateDB(db); err != nil {
 		t.Fatal(err)

@@ -1,13 +1,5 @@
 package engine
 
-func (x *Engine) ForTestMedia() *MediaManager {
-	return x.media
-}
-
-func (x *MediaManager) ForTestQueue() []*DownloadJob {
-	return x.queue
-}
-
 func (x *VoiceVAD) ForTestGate(frame []byte) bool {
 	return x.gate(frame)
 }
@@ -26,8 +18,4 @@ func (x *httpImageCache) ForTestGet(key string) []byte {
 
 func (x *httpImageCache) ForTestLen() int {
 	return x.len()
-}
-
-func (x *MediaManager) ForTestExecuteDownload(job *DownloadJob) {
-	x.executeDownload(job)
 }

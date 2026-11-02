@@ -7,39 +7,69 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 351 — H-1 hook retirement, six atomic commits: engine hooks
-  27→19 (7a SetAntiRecall — New+DefaultConfig already yields the forced state;
-  7b dead SetAntiRecallSettings deleted; 8 ForTestGranule + dead oggPage
-  read-fields + ReadOggPage de-export, fuzz reworked onto NewOggPacketReader;
-  9 MediaStream completion hooks — complete() had zero production callers;
-  10 ForTestSetDownloadDir + a real BUG fixed red→green: UpdateConfigFromBridge
-  {DownloadDir} never moved the runtime e.downloadDir savetodl.go reads, saves
-  kept landing in the old dir — branch now sets the runtime field + ensureDir
-  before locking, dead SetDownloadDir deleted, 5 test sites onto config/bridge
-  paths; 11 three orphan hooks deleted)
-- next: remaining engine hooks by user count — ForTestConfig ×2 (retire via real
-  config getters); ForTestMedia ×6 / ForTestSetMedia ×3 / ForTestSetMediaDir ×3 /
-  ForTestQueue ×3 / ForTestExecuteDownload ×3 / ForTestOpenMediaStream ×2 are
-  construction-state injection (Init wires mediaDir+media+manager; retirement
-  needs a New-level construction option — real API decision, H-1 row); ForTestMu
-  ×8 (receiver-qualified) after; VoiceVAD ×2 + httpImageCache ×4 with the
-  voice/img fronts; then cores (181 hooks, receiver-qualified recon first)
+- front: session 352 — boot reconciled the dead prior session (iters 12–15
+  pushed, WORKLOG never rewritten), then H-1 iteration 16: media lifecycle
+  made self-contained (Engine ctx; UseMediaDir stops-old/installs/starts-new;
+  Stop = cancel+drain; Shutdown cancels + 5s-capped media drain before db
+  close) — ForTestMedia/ForTestQueue/ForTestExecuteDownload deleted,
+  engine hooks 8→5
+- next: engine hooks VoiceVAD ×2 (voice front) + httpImageCache ×3 (img
+  front) — retire with their real APIs; then cores (181 hooks,
+  receiver-qualified recon first); H-3 export noise folds into those reworks
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: verify.yml **41454716589 = SUCCESS on 1255350** (session 351's six
-  commits; all 3 jobs, every step green — comment ban/gofmt/vet(+live)/test/
-  race/headless-smoke, nix build, windows + js/wasm) AND **41447518193 =
-  SUCCESS on 93b0aa4** (iteration 6) AND **41434129182 = SUCCESS on ffd31b2**
-  (M-1); local quick gate GREEN after every iteration (tests/engine 5.0–5.6s,
-  tests/bootstrap ~0.9s, vet/gofmt/comment checks clean)
+- last-gate: local quick gate GREEN on iteration 16 (tests/engine 6.3s,
+  tests/bootstrap 0.9s, vet/gofmt/comment-check clean, js/wasm + cmd builds
+  ok, headless smoke SIGTERM rc=0; -race = rung-7 gotd OOM skip, CI leg
+  gates); verify.yml dispatched on the iteration-16 head — id in the session
+  352 entry
 
 ## Open items
 
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
-| H-1 | cores/engine testhooks*.go | ForTest* hooks are debt (§5.3): ~200 left (engine 19, cores 181); engine 41→19 across sessions 346–351 (351: 27→19 — anti-recall, granule+ogg read-fields, mediastream completion, download-dir + its bridge bug, 3 orphans) | session 351 entry | retire hooks as flows gain exported APIs; prune when a hook's last use dies; media/manager hooks need the New-level construction-option decision |
+| H-1 | cores/engine testhooks*.go | ForTest* hooks are debt (§5.3): 186 left (engine 5, cores 181); engine 41→5 across sessions 346–352 (351: 27→19; dead-session iters 12–15 → 8; 352: media lifecycle → 5) | session 352 entry | retire hooks as flows gain exported APIs; prune when a hook's last use dies; VAD/imgCache with their fronts |
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 302 identifiers exported purely for the tests move (API noise: TsParseInit1, ForTest-adjacent) | commit 27faa5a4 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
+
+## Session 352 — boot reconciliation + H-1 iteration 16: media lifecycle self-contained, MediaManager hook family retired (2026-11-02)
+
+- Boot found head 4 commits past STATE (prior session died after push, before
+  the WORKLOG rewrite): iter 12 (8a10ad24 — ForTestConfig retired, real
+  MediaVolume getter), 13 (25b84cc1 — UseMediaDir construction option retired
+  ForTestSetMedia/-SetMediaDir), 14 (7feea8c5 — ForTestOpenMediaStream onto the
+  real OpenMediaStream), 15 (a5f6566a — seven orphan ForTestMu hooks deleted).
+  Local gate re-run green on that head (tests/engine 5.59s, bootstrap 0.87s,
+  vet/gofmt/comments clean); the missing gate-of-record dispatched: verify.yml
+  41482286310 on a5f6566a.
+- Iteration 16 — design flaw exposed while retiring ForTestMedia/
+  ForTestQueue/ForTestExecuteDownload: UseMediaDir installed a manager WITHOUT
+  starting it (Init had to remember Start(context.Background())), Stop() was
+  dead code, the worker LEAKED past Shutdown into a closed db, and
+  executeDownload raced e.mediaDir against a dir swap. Fix: Engine owns a
+  lifecycle ctx (New creates it; Shutdown cancels + drains media with a 5s cap
+  before db close); Start derives a child cancel (double-start guarded),
+  Stop() = cancel + wg.Wait; UseMediaDir self-contained (stops the old manager
+  outside e.mu, installs + starts the new one); executeDownload reads mediaDir
+  under e.mu.RLock; e.media readers go through a locked mediaManager()
+  (RequestDownload, CancelDownload, OpenMediaStream, MaybeAutoDownload).
+- Tests rewritten black-box onto the real flow (event-driven waitUntil +
+  evRecorder). The enqueue→stream→execute skip-race pinned deterministically
+  by maxConc saturation: 10 gate-blocked fillers hold every slot, m1 queued
+  11th, stream opens, gate releases → m1 must skip (started==10, state
+  DownloadNone), then after Close + re-request started==11 exactly — a broken
+  guard runs m1 during the stream and lands on 12. Harness fix riding along:
+  newTestEngineWith pins db.SetMaxOpenConns(1) — the :memory: pool opened
+  FRESH EMPTY dbs on the worker goroutines' first concurrent use ("no such
+  table: media"), masked until now by the sync hooks.
+- TRUE tool-proven RED pre-change (unmodified tree): 3 timeouts (download_failed
+  event; download_complete after Close; 10 filler downloads started). GREEN
+  post-change: tests/engine 6.3s + tests/bootstrap 0.9s (-count=1); vet/gofmt/
+  comment-check clean; js/wasm + cmd builds ok; headless smoke engine-ready,
+  vault+cache+downloads, SIGTERM rc=0 (drives the new Shutdown drain); -race =
+  rung-7 gotd OOM skip (even -gcflags=all=-c=1) — the CI race leg gates it.
+- Engine hooks 8→5, zero refs repo-wide. Remaining: VoiceVAD ×2 (voice front),
+  httpImageCache ×3 (img front).
 
 ## Session 351 — H-1 iterations 7–11: five engine hook retirements + a download-dir bug fixed red→green (2026-11-02)
 
