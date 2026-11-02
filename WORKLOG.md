@@ -13,16 +13,16 @@ owner order — that history lives in git if ever needed.
   hooks 36→34); (2) authFlows per-Engine: Engine owns authFlows/authFlowsMu (New
   initializes them), engine/auth.go + cache_users.go read e.authFlows, dead package-level
   CurrentAuthState deleted (zero users)
-- next: remaining engine hook families by use-count (ForTestMu / ForTestSet* setters
-  ~20 uses); close the verify.yml run for 8f595494 (41424762770, dispatched) and record
-  it in STATE; then the next front
+- next: remaining engine hook families by use-count — recon done: ForTestMu cluster tops
+  the list (tests/cores/telegram_freeze_test.go ×4, sponsored ×2, gifts ×2, audio ×4);
+  ForTestSet* setters next (SetConfig ×2, SetVault ×2, singles); then the next front
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: verify.yml **41423303029 = SUCCESS on 3096c150** (iteration 5, closed at job+step
-  level: Test/vet/gofmt/smoke 13 steps green, Nix 7 steps green + the expected non-tag
-  flake-version skip, cross-builds 9 steps green); local gate green on 8f595494 (gofmt/vet/
-  tests/engine+bootstrap/race-on-auth/comment-ban 294 files); run 41424762770 on 8f595494
-  dispatched — id pending
+- last-gate: verify.yml **41424762770 = SUCCESS on 8f595494** (authFlows fix; closed at
+  job+step level: Test/vet/gofmt/smoke 13 steps green, cross-builds 9 steps green, Nix
+  green + the expected non-tag flake-version skip) AND **41423303029 = SUCCESS on
+  3096c150** (iteration 5, same step-level shape); session 348 closed — two atomic
+  changes green, engine hooks 36→34, authFlows per-Engine
 
 ## Open items
 
