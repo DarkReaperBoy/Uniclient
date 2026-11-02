@@ -2,8 +2,6 @@ package engine
 
 import (
 	"sync"
-
-	"uniclient/utils"
 )
 
 func (x *Engine) ForTestMedia() *MediaManager {
@@ -36,10 +34,6 @@ func (x *MediaStream) ForTestMu() *sync.Mutex {
 
 func (x *avatarState) ForTestMu() *sync.Mutex {
 	return &x.mu
-}
-
-func (x *Engine) ForTestConfig() *utils.AppConfig {
-	return x.config
 }
 
 func (x *MediaManager) ForTestQueue() []*DownloadJob {

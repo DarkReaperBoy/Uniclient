@@ -74,6 +74,15 @@ func (e *Engine) Player() *MediaPlayer {
 	return p
 }
 
+func (e *Engine) MediaVolume() float64 {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.config == nil {
+		return 1
+	}
+	return e.config.MediaVolumeValue()
+}
+
 func IsOpusOgg(path string) bool {
 	f, err := os.Open(path)
 	if err != nil {

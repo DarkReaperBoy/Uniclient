@@ -266,13 +266,13 @@ func TestConfigChangesMediaVolumeApplies(t *testing.T) {
 	if err := e.UpdateConfigFromBridge(&ConfigChanges{MediaVolume: &want}); err != nil {
 		t.Fatalf("UpdateConfigFromBridge: %v", err)
 	}
-	if got := e.ForTestConfig().MediaVolumeValue(); got != 0.3 {
-		t.Errorf("config MediaVolume = %v, want 0.3", got)
+	if got := e.MediaVolume(); got != 0.3 {
+		t.Errorf("MediaVolume = %v, want 0.3", got)
 	}
 	if err := e.UpdateConfigFromBridge(&ConfigChanges{}); err != nil {
 		t.Fatalf("UpdateConfigFromBridge(empty): %v", err)
 	}
-	if got := e.ForTestConfig().MediaVolumeValue(); got != 0.3 {
+	if got := e.MediaVolume(); got != 0.3 {
 		t.Errorf("empty changes altered volume: %v", got)
 	}
 }
