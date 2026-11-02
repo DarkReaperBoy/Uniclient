@@ -13,9 +13,12 @@ owner order — that history lives in git if ever needed.
   hooks 36→34); (2) authFlows per-Engine: Engine owns authFlows/authFlowsMu (New
   initializes them), engine/auth.go + cache_users.go read e.authFlows, dead package-level
   CurrentAuthState deleted (zero users)
-- next: remaining engine hook families by use-count — recon done: ForTestMu cluster tops
-  the list (tests/cores/telegram_freeze_test.go ×4, sponsored ×2, gifts ×2, audio ×4);
-  ForTestSet* setters next (SetConfig ×2, SetVault ×2, singles); then the next front
+- next: **M-1 (owner ban, rule 19)** — prune monetary FEATURE surfaces (engine
+  earn/gifts/giveaways/premium_business/sponsored + cores telegram_* counterparts +
+  their tests); then remaining engine hook families by use-count — recon done:
+  ForTestMu cluster tops the list (tests/cores/telegram_freeze_test.go ×4, sponsored ×2
+  and gifts ×2 users die with M-1, audio ×4); ForTestSet* setters next (SetConfig ×2,
+  SetVault ×2, singles); then the next front
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
 - last-gate: verify.yml **41424762770 = SUCCESS on 8f595494** (authFlows fix; closed at
@@ -28,9 +31,25 @@ owner order — that history lives in git if ever needed.
 
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
+| M-1 (owner) | engine + cores + tests | rule 19 ban: prune all premium/gift/monetary FEATURE surfaces — engine: earn.go, gifts.go, giveaways.go, premium_business.go, sponsored.go; cores: telegram_business/earn/gifts/giveaways/sponsored.go (+ paidmedia/stars surfaces); 13 test files; remote data-mirror flags (is_premium, stars_to_send columns) may stay per rule wording | session 349 grep; AGENTS.md §1 rule 19 | atomic red→green prune, gate green each step; ForTestSponsored*/gift-cache hooks die with their features |
 | H-1 | cores/engine testhooks*.go | ForTest* hooks are debt (§5.3): ~222 hooks left after session 346 (engine 41→36); session 348: engine 36→34 | session 348 entry | retire hooks as flows gain exported APIs; prune when a hook's last use dies |
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 302 identifiers exported purely for the tests move (API noise: TsParseInit1, ForTest-adjacent) | commit 27faa5a4 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
+
+## Session 349 — owner directive: rule 19 extended — no gifts, nothing monetary (2026-11-02)
+
+- Owner order (intent, verbatim): "also ban premium, gift, and anything monetary."
+- Atomic change: AGENTS.md §1 rule 19 retitled **"No premium, no gifts, nothing
+  monetary, no bloat"** — explicit bans added: gifting, stars/credits/balance,
+  payments, transfers, boosts, sponsored/monetized surfaces; remote flags
+  (e.g. is_premium) may be mirrored as data for correctness, never built on or
+  gated by as features.
+- Evidence: rule 19 (lines 87–92 post-edit); repo grep for monetary surfaces →
+  M-1 opened at top of open items (§0.4 owner-reported): engine earn/gifts/
+  giveaways/premium_business/sponsored + cores telegram_business/earn/gifts/
+  giveaways/sponsored (+ paidmedia, stars) + 13 test files.
+- Next: M-1 pruning in atomic steps (feature files + their tests die together;
+  ForTestMu cluster shrinks as sponsored ×2 / gifts ×2 users die with M-1).
 
 ## Session 348 — H-1 iteration 5: ForTestNewAuthFlow + ForTestCollected retired (2026-11-02)
 

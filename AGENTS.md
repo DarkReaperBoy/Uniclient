@@ -84,9 +84,12 @@ product-surface laws).
     tsdeclarations) — never invent wire behavior.
 18. **100% certainty = differential proof:** official client/tool vs OUR build, bytes
     and behavior compared. "Matches the docs" is never 100%.
-19. **No premium, no bloat:** nothing premium/paid ever ships — no paid-tier feature,
-    no useless feature, no useless look; if it is not load-bearing for free chatting,
-    it does not exist in this product.
+19. **No premium, no gifts, nothing monetary, no bloat:** nothing premium/paid ever
+    ships — no paid-tier feature, no gifting, no stars/credits/balance, no payments,
+    transfers, or boosts, no sponsored or otherwise monetized surface; a remote flag
+    (e.g. `is_premium`) may be mirrored as data for correctness, but no feature is
+    ever built on it or gated by it; no useless feature, no useless look; if it is
+    not load-bearing for free chatting, it does not exist in this product.
 20. **Lean on every axis, every platform — phone, desktop, web alike:** least
     dependencies, least size, least hardware resource use, least latency — each one a
     hard budget, never an afterthought.
