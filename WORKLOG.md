@@ -14,7 +14,11 @@ owner order — that history lives in git if ever needed.
   MumbleVarintDecode pattern; CryptSetup test completed with real content
   assertions) + family 3 (mumble crypt: ForTestMumbleCryptState alias +
   ForTestInit/Encrypt/Decrypt + 2 orphans → 0, folded onto the existing
-  exported MumbleCryptState API). Cores def-count 196→121.
+  exported MumbleCryptState API) + family 4 (orphan sweep: 24 zero-user
+  defs cut — ForTestMu ×14 non-Telegram receivers, ActiveCalls ×2,
+  SetChannels ×2, SetUserID ×2, SetRooms/SetUsername/MyChannelID ×1 —
+  every survivor receiver-verified in-use). Cores def-count 196→98
+  (type aliases now 0).
 - next: next cores hook families by census — state-mirror family
   (ForTestRooms/Channels/Users/…), then construction family
   (ForTestNewTsConnection/ForTestNewTeamSpeakCore/…)
@@ -30,7 +34,7 @@ owner order — that history lives in git if ever needed.
 
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
-| H-1 | cores testhooks*.go | ForTest* hooks are debt (§5.3): 121 left by def-count (session 353) — injection, mumble-wire-codec and mumble-crypt families done; TelegramCore SetAuthed/SetCtx + TeamSpeakCore SetAuthed (6 sites) still await a scripted-server front | session 353 entry | state-mirror family (ForTestRooms/Channels/Users/…) next, then construction family (ForTestNewTsConnection/ForTestNewTeamSpeakCore/…); the trio via ts3j-style TS server / gotd tgtest / GUI --script seam |
+| H-1 | cores testhooks*.go | ForTest* hooks are debt (§5.3): 98 left by def-count + 0 type aliases (session 353: injection, mumble-wire-codec, mumble-crypt families + 24-def orphan sweep done); TelegramCore SetAuthed/SetCtx + TeamSpeakCore SetAuthed (6 sites) still await a scripted-server front | session 353 entry | state-mirror family (ForTestRooms/Channels/Users/…) next, then construction family (ForTestNewTsConnection/ForTestNewTeamSpeakCore/…); the trio via ts3j-style TS server / gotd tgtest / GUI --script seam |
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 302 identifiers exported purely for the tests move (API noise: TsParseInit1, ForTest-adjacent) | commit 27faa5a4 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
 | Q-1 | cores/matrix.go initCrypto | mautrix client logger set at DBG with a console writer — every request logs to stderr in production (now visible: mxAuthedCore drives Authenticate) | session 353 run log | gate to WRN or env (UNICLIENT_MATRIX_DEBUG, mirroring mumble) — tiny, needs its own commit |
@@ -104,6 +108,25 @@ owner order — that history lives in git if ever needed.
 - Gates of record: iteration 1 verify.yml 41518425922 = SUCCESS on 9ad04fd8
   (all jobs, step level). Iteration 2 dispatched (in flight at this edit);
   iteration 3 dispatches post-push.
+- Iteration 4 (same session) — orphan sweep, 24 defs → 0 users lost:
+  ForTestMu on 14 non-Telegram receivers (only TelegramCore's is used —
+  freeze test; the audio package's is a different file, untouched),
+  DeltaChat/Telegram ForTestActiveCalls (Matrix's is the used one), Mumble+IRC
+  ForTestSetChannels (TeamSpeak's used), Bale+GitHub ForTestSetUserID
+  (Matrix's used), XMPP ForTestSetRooms, IRC ForTestSetUsername, Mumble
+  ForTestMyChannelID — every cut verified by locating the name's actual use
+  sites and their receivers. Method per session 351; evidence = the census
+  greps in-session. Zero test edits; compile-green by construction.
+- Iteration 4 evidence: quick gate GREEN (tests/cores 17.2s after a full
+  cache-cold recompile, tests/engine 6.7s, tests/bootstrap 1.1s);
+  comment-ban clean; def-count 122→98 (the earlier "121" had counted the
+  now-dead type alias as a def — corrected).
+- Machine incident mid-iteration: rootfs hit 100% (build temp); the
+  transient PolarFS /tmp/my-project mount (which had held a previous
+  session's toolchain) vanished mid-move — symlinks also policy-blocked;
+  resolved via go clean -cache (4G) + one full recompile (~15 min, gotd
+  compiled clean with -gcflags=all=-c=1). If the box fills again: clean
+  the gocache, not the modcache.
 
 ## Session 352 — boot reconciliation + H-1 iterations 16–17: media lifecycle self-contained; engine hook quarantine deleted (2026-11-02)
 

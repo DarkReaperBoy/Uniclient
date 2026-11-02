@@ -22,14 +22,6 @@ func (x *MatrixCore) ForTestActiveCalls() map[string]*MatrixCall {
 	return x.activeCalls
 }
 
-func (x *DeltaChatCore) ForTestActiveCalls() map[string]*dcCall {
-	return x.activeCalls
-}
-
-func (x *TelegramCore) ForTestActiveCalls() map[int64]*tgCall {
-	return x.activeCalls
-}
-
 func (x *MatrixCore) ForTestCallsMu() *sync.RWMutex {
 	return &x.callsMu
 }
@@ -126,72 +118,8 @@ func (x *groupPeer) ForTestKey() string {
 	return x.key
 }
 
-func (x *MumbleCore) ForTestMu() *sync.RWMutex {
-	return &x.mu
-}
-
-func (x *mumbleIceClient) ForTestMu() *sync.Mutex {
-	return &x.mu
-}
-
-func (x *TsConnection) ForTestMu() *sync.Mutex {
-	return &x.mu
-}
-
-func (x *TeamSpeakCore) ForTestMu() *sync.RWMutex {
-	return &x.mu
-}
-
-func (x *tsBandwidthStats) ForTestMu() *sync.Mutex {
-	return &x.mu
-}
-
-func (x *MatrixCore) ForTestMu() *sync.RWMutex {
-	return &x.mu
-}
-
-func (x *MatrixCall) ForTestMu() *sync.Mutex {
-	return &x.mu
-}
-
-func (x *BaleCore) ForTestMu() *sync.RWMutex {
-	return &x.mu
-}
-
-func (x *XMPPCore) ForTestMu() *sync.RWMutex {
-	return &x.mu
-}
-
-func (x *DeltaChatCore) ForTestMu() *sync.RWMutex {
-	return &x.mu
-}
-
-func (x *IRCCore) ForTestMu() *sync.RWMutex {
-	return &x.mu
-}
-
-func (x *ghRateLimiter) ForTestMu() *sync.Mutex {
-	return &x.mu
-}
-
-func (x *ghCache) ForTestMu() *sync.RWMutex {
-	return &x.mu
-}
-
-func (x *GitHubCore) ForTestMu() *sync.RWMutex {
-	return &x.mu
-}
-
 func (x *TelegramCore) ForTestMu() *sync.RWMutex {
 	return &x.mu
-}
-
-func (x *tgCall) ForTestMu() *sync.Mutex {
-	return &x.mu
-}
-
-func (x *MumbleCore) ForTestMyChannelID() uint32 {
-	return x.myChannelID
 }
 
 func (x *TeamSpeakCore) ForTestMyChannelID() int {
@@ -278,15 +206,7 @@ func (x *TelegramCore) ForTestSetAuthed(v bool) {
 	x.authed = v
 }
 
-func (x *MumbleCore) ForTestSetChannels(v map[uint32]*mumbleChannel) {
-	x.channels = v
-}
-
 func (x *TeamSpeakCore) ForTestSetChannels(v map[int]TsChannelInfo) {
-	x.channels = v
-}
-
-func (x *IRCCore) ForTestSetChannels(v map[string]*ircChannel) {
 	x.channels = v
 }
 
@@ -330,10 +250,6 @@ func (x *MatrixCore) ForTestSetRooms(v map[id.RoomID]*MatrixRoomState) {
 	x.rooms = v
 }
 
-func (x *XMPPCore) ForTestSetRooms(v map[string]*xmppRoom) {
-	x.rooms = v
-}
-
 func (x *MumbleCore) ForTestSetTlsCert(v tls.Certificate) {
 	x.tlsCert = v
 }
@@ -344,18 +260,6 @@ func (x *TeamSpeakCore) ForTestSetTsConn(v *TsConnection) {
 
 func (x *MatrixCore) ForTestSetUserID(v id.UserID) {
 	x.userID = v
-}
-
-func (x *BaleCore) ForTestSetUserID(v int64) {
-	x.userID = v
-}
-
-func (x *GitHubCore) ForTestSetUserID(v int64) {
-	x.userID = v
-}
-
-func (x *IRCCore) ForTestSetUsername(v string) {
-	x.username = v
 }
 
 func (x *GitHubCore) ForTestSetUsername(v string) {
