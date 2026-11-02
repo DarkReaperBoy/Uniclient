@@ -38,10 +38,6 @@ func (x *avatarState) ForTestMu() *sync.Mutex {
 	return &x.mu
 }
 
-func (x *httpImgFlight) ForTestDone() chan struct{} {
-	return x.done
-}
-
 func (x *Engine) ForTestConfig() *utils.AppConfig {
 	return x.config
 }
@@ -56,14 +52,6 @@ func (x *Engine) ForTestSetMedia(v *MediaManager) {
 
 func (x *Engine) ForTestSetMediaDir(v string) {
 	x.mediaDir = v
-}
-
-func (x *httpImgFlight) ForTestSetDone(v chan struct{}) {
-	x.done = v
-}
-
-func (x *MediaStream) ForTestSetDone(v bool) {
-	x.done = v
 }
 
 func (x *VoiceVAD) ForTestGate(frame []byte) bool {
