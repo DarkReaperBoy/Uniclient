@@ -31,7 +31,7 @@ owner order — that history lives in git if ever needed.
   cluster after (receiver-qualified re-grep needed); then the next front
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: verify.yml dispatched post-93b0aa4 (iteration 6; id pending) AND
+- last-gate: verify.yml **41447518193 = SUCCESS on 93b0aa4** (H-1 iteration 6) AND
   **41434129182 = SUCCESS on ffd31b2** (M-1 prune complete;
   dispatch 204 at ~11:05Z, completed success) AND **41424762770 = SUCCESS on
   8f595494** (session 348 authFlows fix); local quick gate GREEN after every slice
