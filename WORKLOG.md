@@ -7,32 +7,32 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 352 — boot reconciled the dead prior session (iters 12–15
-  pushed, WORKLOG never rewritten), then H-1 iteration 16: media lifecycle
-  made self-contained (Engine ctx; UseMediaDir stops-old/installs/starts-new;
-  Stop = cancel+drain; Shutdown cancels + 5s-capped media drain before db
-  close) — ForTestMedia/ForTestQueue/ForTestExecuteDownload deleted,
-  engine hooks 8→5
-- next: engine hooks VoiceVAD ×2 (voice front) + httpImageCache ×3 (img
-  front) — retire with their real APIs; then cores (181 hooks,
-  receiver-qualified recon first); H-3 export noise folds into those reworks
+- front: session 352 — H-1 ENGINE SLICE COMPLETE: iteration 16 (media
+  lifecycle self-contained; ForTestMedia/-Queue/-ExecuteDownload dead) +
+  iteration 17 (VoiceVAD + httpImageCache hooks dead — voice journeys drive
+  the real mic pipeline via audio.SetDeviceFactory + JoinGroupCall, LRU pinned
+  through FetchHTTPImage hit-counting; NewHTTPImageCache de-exported) —
+  engine/testhooks.go DELETED, engine hooks 0
+- next: cores hooks (181) — receiver-qualified recon first (per-core files,
+  per-hook user counts), then retire by family; H-3 export noise folds into
+  those reworks
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: local quick gate GREEN on iteration 16 (tests/engine 6.3s,
-  tests/bootstrap 0.9s, vet/gofmt/comment-check clean, js/wasm + cmd builds
-  ok, headless smoke SIGTERM rc=0; -race = rung-7 gotd OOM skip, CI leg
-  gates); verify.yml dispatched on the iteration-16 head — id in the session
-  352 entry
+- last-gate: verify.yml **41489996615 = SUCCESS on b8cfe27d** (iteration 16;
+  all 3 jobs, every step incl. the CI race leg) AND **41482286310 = SUCCESS
+  on a5f6566a** (reconciled dead-session iters 13–15); local quick gate GREEN
+  on iteration 17 (tests/engine 6.4s, bootstrap 0.9s, vet/gofmt/comments
+  clean, js/wasm + cmd ok; -race = rung-7 gotd OOM skip, CI leg gates)
 
 ## Open items
 
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
-| H-1 | cores/engine testhooks*.go | ForTest* hooks are debt (§5.3): 186 left (engine 5, cores 181); engine 41→5 across sessions 346–352 (351: 27→19; dead-session iters 12–15 → 8; 352: media lifecycle → 5) | session 352 entry | retire hooks as flows gain exported APIs; prune when a hook's last use dies; VAD/imgCache with their fronts |
+| H-1 | cores testhooks*.go | ForTest* hooks are debt (§5.3): 181 left (all cores — engine slice COMPLETE, 41→0 across sessions 346–352; engine/testhooks.go deleted in 352) | session 352 entry | receiver-qualified recon per core, then retire by family |
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 302 identifiers exported purely for the tests move (API noise: TsParseInit1, ForTest-adjacent) | commit 27faa5a4 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
 
-## Session 352 — boot reconciliation + H-1 iteration 16: media lifecycle self-contained, MediaManager hook family retired (2026-11-02)
+## Session 352 — boot reconciliation + H-1 iterations 16–17: media lifecycle self-contained; engine hook quarantine deleted (2026-11-02)
 
 - Boot found head 4 commits past STATE (prior session died after push, before
   the WORKLOG rewrite): iter 12 (8a10ad24 — ForTestConfig retired, real
@@ -70,6 +70,28 @@ owner order — that history lives in git if ever needed.
   rung-7 gotd OOM skip (even -gcflags=all=-c=1) — the CI race leg gates it.
 - Engine hooks 8→5, zero refs repo-wide. Remaining: VoiceVAD ×2 (voice front),
   httpImageCache ×3 (img front).
+- Iteration 17 (engine slice complete): ForTestGate/ForTestNeedTerminator/
+  ForTestStore/ForTestGet/ForTestLen deleted and engine/testhooks.go removed
+  outright. Compile-seam RED first (undefined NewHTTPImageCache + ForTest*),
+  then the rewrites: voice_test drives the REAL pipeline — fake mic device
+  through the exported audio.SetDeviceFactory seam + journeyVoiceCore (full
+  cores.VoiceCore; StubCore does not implement it — SetVoiceMuted was the
+  missing method that silently skipped the runner); JoinGroupCall starts the
+  runner; per-frame feed→count waits pin speech/hangover-exact/
+  terminator-once/prolonged-silence-inert/cold-start, final exact counts are
+  the deterministic catchers and the loud-frame catcher proves pipeline
+  liveness (a dead pipeline cannot false-pass).
+  TestHTTPImageCacheEvictionThroughFetch pins cap-256 eviction + LRU touch
+  through real FetchHTTPImage roundtrips against a hit-counting server
+  (unique server per test isolates the package-global cache). The
+  store-on-existing-key branch keeps its defensive shape — reachable only
+  through the inflight-delete→store race window, not deterministically
+  testable via the real API; that coverage is consciously dropped with the
+  hooks. NewHTTPImageCache de-exported (H-3 −1, internal-only caller).
+- Iteration 17 evidence: scoped TestVoiceVAD*/TestHTTPImage*/TestFetchHTTPImage
+  ok 0.60s; full tests/engine 6.4s + tests/bootstrap 0.9s; vet/gofmt/comment
+  clean; js/wasm + cmd builds ok; -race = rung-7 gotd OOM skip (CI leg).
+  Iteration 16 gate of record: verify.yml 41489996615 = SUCCESS on b8cfe27d.
 
 ## Session 351 — H-1 iterations 7–11: five engine hook retirements + a download-dir bug fixed red→green (2026-11-02)
 

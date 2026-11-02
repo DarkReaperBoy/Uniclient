@@ -31,7 +31,7 @@ var (
 		},
 	}
 
-	httpImgCache = NewHTTPImageCache(httpImgCacheCap)
+	httpImgCache = newHTTPImageCache(httpImgCacheCap)
 
 	httpImgMu       sync.Mutex
 	httpImgInflight = map[string]*httpImgFlight{}
@@ -164,7 +164,7 @@ type httpImageCache struct {
 	vals map[string][]byte
 }
 
-func NewHTTPImageCache(cap int) *httpImageCache {
+func newHTTPImageCache(cap int) *httpImageCache {
 	if cap < 1 {
 		cap = 1
 	}

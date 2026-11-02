@@ -92,27 +92,52 @@ func TestClampMaxBytes(t *testing.T) {
 	}
 }
 
-func TestHTTPImageCacheLRU(t *testing.T) {
-	c := NewHTTPImageCache(3)
-	c.ForTestStore("a", []byte{1})
-	c.ForTestStore("b", []byte{2})
-	c.ForTestStore("c", []byte{3})
-	if got := c.ForTestGet("a"); got == nil || got[0] != 1 {
-		t.Fatalf("get(a) after 3 stores = %v", got)
+func TestHTTPImageCacheEvictionThroughFetch(t *testing.T) {
+	pngBytes := tinyPNG(t)
+	var hmu sync.Mutex
+	hits := map[string]int{}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		hmu.Lock()
+		hits[r.URL.Path]++
+		hmu.Unlock()
+		w.Header().Set("Content-Type", "image/png")
+		w.Write(pngBytes)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	e := &Engine{}
+	fetch := func(path string) {
+		t.Helper()
+		if _, err := e.FetchHTTPImage(srv.URL+path, 4096); err != nil {
+			t.Fatalf("fetch %s: %v", path, err)
+		}
 	}
-	c.ForTestStore("d", []byte{4})
-	if c.ForTestGet("b") != nil {
-		t.Error("b survived eviction (LRU order wrong)")
+	serverHits := func(path string) int {
+		hmu.Lock()
+		defer hmu.Unlock()
+		return hits[path]
 	}
-	if c.ForTestGet("a") == nil || c.ForTestGet("c") == nil || c.ForTestGet("d") == nil {
-		t.Error("wrong entry evicted")
+
+	const cacheCap = 256
+	for i := 0; i < cacheCap; i++ {
+		fetch(fmt.Sprintf("/k%03d", i))
 	}
-	c.ForTestStore("a", []byte{9})
-	if got := c.ForTestGet("a"); got == nil || got[0] != 9 {
-		t.Fatalf("overwrite get = %v", got)
+	fetch("/k000")
+
+	fetch("/k256")
+
+	if n := serverHits("/k001"); n != 1 {
+		t.Fatalf("LRU victim k001 served %d times before re-fetch, want 1", n)
 	}
-	if c.ForTestLen() != 3 {
-		t.Errorf("len after overwrite = %d, want 3", c.ForTestLen())
+	fetch("/k001")
+	if n := serverHits("/k001"); n != 2 {
+		t.Errorf("k001 re-fetch hit server %d times, want 2 (cap eviction broken)", n)
+	}
+	fetch("/k000")
+	if n := serverHits("/k000"); n != 1 {
+		t.Errorf("touched k000 hit server %d times, want 1 (LRU touch broken)", n)
 	}
 }
 
