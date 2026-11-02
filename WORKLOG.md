@@ -7,24 +7,26 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: H-1 iteration 3 EXECUTED — New + AttachAccount + ReplaceAccountCore retire the
-  ForTestSetAccounts/ForTestNewEngine/ForTestAccounts/ForTestGetAccount cluster (engine hooks
-  41→37; 54 map-injection sites + 4 constructor sites + 3 map-mutation sites + 1 getter site swept)
-- next: H-1 iteration 4 — ForTestDb (46 uses: raw db handle for seeding/assertions; honest shape
-  = exported read-only query accessors or a test-db seam on New); then ForTestNewAuthFlow (1 use,
-  auth cluster — needs an honest AuthFlow construction story, StartAuth is the real path)
+- front: H-1 iterations 3+4 EXECUTED — iter 3: New + AttachAccount + ReplaceAccountCore
+  retire the account-injection cluster (engine 41→37); iter 4: the dbEngine test harness
+  retires ForTestDb — the test owns the sql.DB it already creates (engine 37→36)
+- next: H-1 iteration 5 — ForTestNewAuthFlow (1 use, auth cluster: honest AuthFlow construction
+  story — StartAuth is the real path, needs recon); then the remaining engine hook families by
+  use-count (ForTestMu/Media/SetVault/SetConfig setters ~20 uses — candidate: real config/vault
+  APIs or harness-owned state)
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: local quick gate GREEN (scoped engine+importers: bootstrap/cmd/engine/tests, native
-  test ok) + FULL native suite 7/7 ok + -race tests/engine 89.5s + tests/bootstrap ok + js/wasm
-  build ok + headless smoke exit 0; windows cross-build = rung-7 gotd OOM skip → CI verify.yml
-  **41394693974 dispatched on 5997a16b** — next session closes it at job+step level
+- last-gate: verify.yml **41394693974 = SUCCESS on 5997a16b** (iteration 3) — all 3 jobs, every
+  step green at step level (comment-ban/gofmt/vet/vet-live/test/race/headless smoke/nix with
+  flake-version tag-skip/windows/js-wasm); iteration 4 (f356da7d) local legs all green (quick
+  scoped + FULL native 7/7 + -race engine 89.9s + wasm + smoke exit 0), verify.yml dispatched —
+  run id lands in the next session's gate-of-record
 
 ## Open items
 
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
-| H-1 | cores/engine testhooks*.go | ForTest* hooks are debt (§5.3): ~223 hooks left after session 346 (engine 41→37) | session 346 entry | retire hooks as flows gain exported APIs; prune when a hook's last use dies |
+| H-1 | cores/engine testhooks*.go | ForTest* hooks are debt (§5.3): ~222 hooks left after session 346 (engine 41→36) | session 346 entry | retire hooks as flows gain exported APIs; prune when a hook's last use dies |
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 302 identifiers exported purely for the tests move (API noise: TsParseInit1, ForTest-adjacent) | commit 27faa5a4 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
 
@@ -66,11 +68,30 @@ owner order — that history lives in git if ever needed.
   strip_comments --check clean (293 files); js/wasm build ok; windows cross-build = rung-7
   gotd OOM skip (CI gates it); headless smoke: `uniclient -dir X -password p -events` →
   "engine ready", vault+cache+downloads created, timeout TERM → exit 0.
-- CI dispatched: verify.yml (run id recorded in next session's gate-of-record; local legs all
-  green or documented-skip). No behavior change to production paths (Init refactor is
-  side-effect-order-preserving; only the New-defaults flip saveDeleted/saveHistory false→true
-  on test-constructed engines — audited: no test exercises message_deleted/message_edited
-  update handlers without setting flags explicitly; suite proves it).
+- CI dispatched: verify.yml **41394693974** on 5997a16b — CLOSED: SUCCESS, all 3 jobs (test&vet&
+  gofmt&smoke / nix / windows+js-wasm), every step green at step level; the windows leg this box
+  could not compile (rung-7 gotd OOM) proved green there. No behavior change to production paths
+  (Init refactor is side-effect-order-preserving; only the New-defaults flip
+  saveDeleted/saveHistory false→true on test-constructed engines — audited: no test exercises
+  message_deleted/message_edited update handlers without setting flags explicitly; suite proves
+  it).
+
+### Iteration 4 — dbEngine harness retires ForTestDb (same session)
+
+- Atomic change (test-side only, zero new engine API): `dbEngine{*Engine; db *sql.DB}` in
+  hide_test.go — newTestEngine KEEPS the sql.DB it opens (the test owns the handle it already
+  creates, migrates, and hands to New; taking it back through a hook was backwards). 46 sites
+  (32 Exec seeds + 14 QueryRow assertions) → e.db.Exec/e.db.QueryRow; 6 local constructors and
+  17 db-touching helpers retyped to *dbEngine; newGuardEngine's NewMediaManager arg →
+  e.Engine; 4 files dropped now-unused engine dot-imports (earn/giveaways/pollresults/
+  savedsublists).
+- TRUE tool-proven RED: ForTestDb deleted FIRST — "e.ForTestDb undefined (type *engine.Engine
+  has no field or method ForTestDb)" compile seam across the 46 sites; then the harness landed
+  and the full suite went GREEN (5.8s).
+- Evidence: quick gate GREEN (scoped engine+importers, native test ok; vet leg = rung-7 gotd
+  OOM skip per gate.sh); FULL native suite 7/7 ok; -race tests/engine 89.9s + tests/bootstrap
+  6.2s ok; gofmt + strip_comments --check clean; js/wasm build ok; headless smoke exit 0
+  (engine ready, vault+cache+downloads, SIGTERM). CI verify.yml dispatched on f356da7d.
 
 ## Session 345 — H-1: audio device factory retires the MediaPlayer + VoiceRecorder hook clusters (2026-11-02)
 
