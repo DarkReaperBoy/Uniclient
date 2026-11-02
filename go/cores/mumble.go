@@ -487,6 +487,14 @@ func MumbleVarintEncode(v int64) []byte {
 	return out
 }
 
+func MumbleMarshal(msg interface{ marshal() []byte }) []byte {
+	return msg.marshal()
+}
+
+func MumbleUnmarshal(data []byte, msg interface{ unmarshal([]byte) error }) error {
+	return msg.unmarshal(data)
+}
+
 func mumbleVarintEncodeTo(buf []byte, v int64) int {
 	if v < 0 {
 		if v >= -4 {

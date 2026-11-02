@@ -370,10 +370,6 @@ func (x *GitHubCore) ForTestSetUsername(v string) {
 	x.username = v
 }
 
-func (x *PbEncoder) ForTestBytes() []byte {
-	return x.bytes()
-}
-
 func (x *MumbleCore) ForTestConnect(addr string, username, password string, tokens []string, isBot bool) error {
 	return x.connect(addr, username, password, tokens, isBot)
 }
@@ -404,66 +400,6 @@ func (x *mumbleCryptState) ForTestInit(key, clientNonce, serverNonce []byte) err
 
 func (x *MatrixCallMemberCall) ForTestLiveDevices(now int64) []MatrixCallDevice {
 	return x.liveDevices(now)
-}
-
-func (x *MumbleVersion) ForTestMarshal() []byte {
-	return x.marshal()
-}
-
-func (x *MumbleAuthenticate) ForTestMarshal() []byte {
-	return x.marshal()
-}
-
-func (x *MumblePingMsg) ForTestMarshal() []byte {
-	return x.marshal()
-}
-
-func (x *mumbleChannelStateMsg) ForTestMarshal() []byte {
-	return x.marshal()
-}
-
-func (x *MumbleUserStateMsg) ForTestMarshal() []byte {
-	return x.marshal()
-}
-
-func (x *mumbleUserRemoveMsg) ForTestMarshal() []byte {
-	return x.marshal()
-}
-
-func (x *MumbleTextMsg) ForTestMarshal() []byte {
-	return x.marshal()
-}
-
-func (x *mumbleChannelRemoveMsg) ForTestMarshal() []byte {
-	return x.marshal()
-}
-
-func (x *MumbleCryptSetupMsg) ForTestMarshal() []byte {
-	return x.marshal()
-}
-
-func (x *mumblePermissionQueryMsg) ForTestMarshal() []byte {
-	return x.marshal()
-}
-
-func (x *mumbleBanListMsg) ForTestMarshal() []byte {
-	return x.marshal()
-}
-
-func (x *mumbleVoiceTargetMsg) ForTestMarshal() []byte {
-	return x.marshal()
-}
-
-func (x *mumbleRequestBlobMsg) ForTestMarshal() []byte {
-	return x.marshal()
-}
-
-func (x *mumbleContextActionMsg) ForTestMarshal() []byte {
-	return x.marshal()
-}
-
-func (x *mumblePluginDataMsg) ForTestMarshal() []byte {
-	return x.marshal()
 }
 
 func (x *TsConnection) ForTestTakeProofs() bool {
@@ -508,82 +444,6 @@ func (x *TsConnection) ForTestTsTrackRecvPID(pktType byte, pID uint16) uint32 {
 
 func (x *tsP256Identity) ForTestTsUID() string {
 	return x.tsUID()
-}
-
-func (x *MumbleVersion) ForTestUnmarshal(data []byte) error {
-	return x.unmarshal(data)
-}
-
-func (x *MumblePingMsg) ForTestUnmarshal(data []byte) error {
-	return x.unmarshal(data)
-}
-
-func (x *mumbleReject) ForTestUnmarshal(data []byte) error {
-	return x.unmarshal(data)
-}
-
-func (x *mumbleServerSync) ForTestUnmarshal(data []byte) error {
-	return x.unmarshal(data)
-}
-
-func (x *mumbleChannelStateMsg) ForTestUnmarshal(data []byte) error {
-	return x.unmarshal(data)
-}
-
-func (x *MumbleUserStateMsg) ForTestUnmarshal(data []byte) error {
-	return x.unmarshal(data)
-}
-
-func (x *mumbleUserRemoveMsg) ForTestUnmarshal(data []byte) error {
-	return x.unmarshal(data)
-}
-
-func (x *MumbleTextMsg) ForTestUnmarshal(data []byte) error {
-	return x.unmarshal(data)
-}
-
-func (x *mumbleChannelRemoveMsg) ForTestUnmarshal(data []byte) error {
-	return x.unmarshal(data)
-}
-
-func (x *MumbleCryptSetupMsg) ForTestUnmarshal(data []byte) error {
-	return x.unmarshal(data)
-}
-
-func (x *mumbleCodecVersionMsg) ForTestUnmarshal(data []byte) error {
-	return x.unmarshal(data)
-}
-
-func (x *MumbleServerConfig) ForTestUnmarshal(data []byte) error {
-	return x.unmarshal(data)
-}
-
-func (x *mumbleSuggestConfigMsg) ForTestUnmarshal(data []byte) error {
-	return x.unmarshal(data)
-}
-
-func (x *mumblePermissionDeniedMsg) ForTestUnmarshal(data []byte) error {
-	return x.unmarshal(data)
-}
-
-func (x *mumblePermissionQueryMsg) ForTestUnmarshal(data []byte) error {
-	return x.unmarshal(data)
-}
-
-func (x *mumbleBanListMsg) ForTestUnmarshal(data []byte) error {
-	return x.unmarshal(data)
-}
-
-func (x *mumbleContextActionModifyMsg) ForTestUnmarshal(data []byte) error {
-	return x.unmarshal(data)
-}
-
-func (x *mumblePluginDataMsg) ForTestUnmarshal(data []byte) error {
-	return x.unmarshal(data)
-}
-
-func (x *PbEncoder) ForTestWriteBytes(field int, v []byte) {
-	x.writeBytes(field, v)
 }
 
 func ForTestPbDecode(data []byte) map[string]interface{} {

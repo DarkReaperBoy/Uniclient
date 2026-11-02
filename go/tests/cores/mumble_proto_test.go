@@ -152,7 +152,7 @@ func TestMumbleVersionRoundTrip(t *testing.T) {
 		OSVersion: "6.1",
 	}
 	var v2 MumbleVersion
-	if err := v2.ForTestUnmarshal(v.ForTestMarshal()); err != nil {
+	if err := MumbleUnmarshal(MumbleMarshal(v), &v2); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
 	if v2.VersionV1 != v.VersionV1 || v2.VersionV2 != v.VersionV2 ||
@@ -168,7 +168,7 @@ func TestMumbleAuthenticateWire(t *testing.T) {
 		Tokens:   []string{"t1", "t2"},
 		Opus:     true,
 	}
-	wire := a.ForTestMarshal()
+	wire := MumbleMarshal(a)
 	if wire[0] != 0x0A {
 		t.Fatalf("Authenticate field 1 tag = %#x, want 0x0A", wire[0])
 	}
@@ -192,7 +192,7 @@ func TestMumbleTextMessageRoundTrip(t *testing.T) {
 		Message:   "hello <b>world</b>",
 	}
 	var m2 MumbleTextMsg
-	if err := m2.ForTestUnmarshal(m.ForTestMarshal()); err != nil {
+	if err := MumbleUnmarshal(MumbleMarshal(m), &m2); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
 	if m2.Actor != m.Actor || m2.Message != m.Message ||
@@ -231,7 +231,7 @@ func TestMumbleUserStateAllFields(t *testing.T) {
 		HasRecording:       true,
 	}
 	var m2 MumbleUserStateMsg
-	if err := m2.ForTestUnmarshal(m.ForTestMarshal()); err != nil {
+	if err := MumbleUnmarshal(MumbleMarshal(m), &m2); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
 	if m2.Session != 5 || m2.Actor != 6 || m2.Name != "alice" || m2.ChannelID != 1 ||
@@ -241,7 +241,6 @@ func TestMumbleUserStateAllFields(t *testing.T) {
 }
 
 func TestMumbleCryptSetupRoundTrip(t *testing.T) {
-	m := &MumbleCryptSetupMsg{}
 	key := make([]byte, 16)
 	cn := make([]byte, 16)
 	sn := make([]byte, 16)
@@ -250,33 +249,28 @@ func TestMumbleCryptSetupRoundTrip(t *testing.T) {
 		cn[i] = byte(200 - i)
 		sn[i] = byte(100 + i)
 	}
-	m2 := &MumbleCryptSetupMsg{}
-	wire := m.ForTestMarshal()
-	_ = wire
-	_ = key
-	_ = cn
-	_ = sn
-	_ = m2
-	cs := &MumbleCryptSetupMsg{}
-	var e PbEncoder
-	e.ForTestWriteBytes(1, key)
-	e.ForTestWriteBytes(2, cn)
-	e.ForTestWriteBytes(3, sn)
+	cs := &MumbleCryptSetupMsg{Key: key, ClientNonce: cn, ServerNonce: sn}
+	wire := MumbleMarshal(cs)
+	if len(wire) == 0 || wire[0] != 0x0A {
+		t.Fatalf("CryptSetup wire = %x, want field 1 (key) tag 0x0A first", wire)
+	}
 	var out MumbleCryptSetupMsg
-	if err := out.ForTestUnmarshal(e.ForTestBytes()); err != nil {
+	if err := MumbleUnmarshal(wire, &out); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	_ = cs
+	if !bytes.Equal(out.Key, key) || !bytes.Equal(out.ClientNonce, cn) || !bytes.Equal(out.ServerNonce, sn) {
+		t.Fatalf("CryptSetup round-trip mismatch: key=%x client=%x server=%x", out.Key, out.ClientNonce, out.ServerNonce)
+	}
 }
 
 func TestMumbleTCPPingWire(t *testing.T) {
 	p := &MumblePingMsg{Timestamp: 12345}
-	wire := p.ForTestMarshal()
+	wire := MumbleMarshal(p)
 	if len(wire) < 2 || wire[0] != 0x08 {
 		t.Fatalf("Ping wire = %x, want tag 0x08 (field 1 varint)", wire)
 	}
 	var p2 MumblePingMsg
-	if err := p2.ForTestUnmarshal(wire); err != nil {
+	if err := MumbleUnmarshal(wire, &p2); err != nil {
 		t.Fatalf("Ping unmarshal: %v", err)
 	}
 	if p2.Timestamp != 12345 {

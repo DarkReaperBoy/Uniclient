@@ -7,17 +7,17 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 353 — H-1 CORES FRONT OPENED: the cross-core injection
-  family (ForTestSetAuthed/SetCtx/Cancel/SaveSession, 37 defs) retired to 3 —
-  mumble Cancel ×4 + SaveSession ×1 onto the REAL Close() lifecycle; matrix
-  SetAuthed onto REAL Authenticate (bot token) vs a scripted homeserver
-  (whoami token-checked, keys/query+upload, hanging sync; Close drains);
-  29 orphans cut; only TelegramCore SetAuthed/SetCtx + TeamSpeakCore
-  SetAuthed remain (no unit-level real path — see H-1)
-- next: next cores hook families by census — state-mirror family
-  (ForTestRooms/Channels/Users/…) then construction family
-  (ForTestNewTsConnection/ForTestNewTeamSpeakCore/…); cores def-count
-  196→162 this session (rg 'func.*ForTest' on testhooks*.go)
+- front: session 353 — H-1 CORES FRONT: family 1 (injection hooks 37 defs
+  → 3: mumble onto real Close(), matrix onto real Authenticate, 29 orphans
+  cut) + family 2 (mumble wire codec: 35 Marshal/Unmarshal + PbEncoder
+  wrappers → 0 via exported MumbleMarshal/MumbleUnmarshal pair — the
+  MumbleVarintDecode pattern; CryptSetup test completed with real content
+  assertions). Cores def-count 196→127.
+- next: next cores hook families by census — mumble crypt hooks (obvious:
+  exported MumbleCryptState.Init/Encrypt/Decrypt already exist — the
+  ForTestMumbleCryptState family folds onto them), then the state-mirror
+  family (ForTestRooms/Channels/Users/…), then construction family
+  (ForTestNewTsConnection/ForTestNewTeamSpeakCore/…)
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
 - last-gate: local quick gate GREEN on the working tree (tests/cores 15.5s
@@ -30,7 +30,7 @@ owner order — that history lives in git if ever needed.
 
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
-| H-1 | cores testhooks*.go | ForTest* hooks are debt (§5.3): 162 left by def-count (session 353; the 180 census was occurrence-based) — injection family done except TelegramCore SetAuthed/SetCtx + TeamSpeakCore SetAuthed (6 sites, freeze/migrate/servername/talkpower) | session 353 entry | retire the trio via a scripted-server front (ts3j-style TS UDP handshake server; gotd tgtest/invoker adoption) — or fold into the GUI --script seam; then state-mirror + construction families |
+| H-1 | cores testhooks*.go | ForTest* hooks are debt (§5.3): 127 left by def-count (session 353) — injection + mumble-wire-codec families done; TelegramCore SetAuthed/SetCtx + TeamSpeakCore SetAuthed (6 sites) still await a scripted-server front | session 353 entry | mumble crypt hooks next (fold onto the existing exported MumbleCryptState API); then state-mirror + construction families; the trio via ts3j-style TS server / gotd tgtest / GUI --script seam |
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 302 identifiers exported purely for the tests move (API noise: TsParseInit1, ForTest-adjacent) | commit 27faa5a4 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
 | Q-1 | cores/matrix.go initCrypto | mautrix client logger set at DBG with a console writer — every request logs to stderr in production (now visible: mxAuthedCore drives Authenticate) | session 353 run log | gate to WRN or env (UNICLIENT_MATRIX_DEBUG, mirroring mumble) — tiny, needs its own commit |
@@ -67,6 +67,26 @@ owner order — that history lives in git if ever needed.
   (271 files, 0 dropped); -race rung-7 (disk/RAM too small — CI gates).
   Cores def-count 196→162. Matrix DBG stderr logging noted as Q-1.
 - verify.yml dispatched post-push (run id recorded at next boot).
+- Iteration 2 (same session) — mumble wire codec family, 35 defs → 0:
+  ForTestMarshal ×15 + ForTestUnmarshal ×18 (all thin delegates to
+  unexported marshal/unmarshal on the message structs) + PbEncoder
+  ForTestBytes/ForTestWriteBytes. Only 8 sites in mumble_proto_test.go
+  actually used them (6 exported types); 27 wrappers were orphans. Real API
+  added instead of per-type method exports (H-3 discipline): package-level
+  `MumbleMarshal(msg interface{ marshal() []byte })` + `MumbleUnmarshal(data,
+  msg interface{ unmarshal([]byte) error })` beside MumbleVarintEncode —
+  one consistent codec seam for every message type. TestMumbleCryptSetup-
+  RoundTrip was HALF-WRITTEN (dead `_ =` locals, hand-built PbEncoder wire,
+  zero content assertions) — rewritten onto the real roundtrip with
+  populated fields + bytes.Equal on Key/ClientNonce/ServerNonce + field-tag
+  pin. Design rating 9/10.
+- Iteration 2 evidence: RED = 10+ undefined ForTestMarshal/Unmarshal/
+  WriteBytes compile failures pre-rewrite; GREEN = the 6 codec tests PASS,
+  full tests/cores 15.9s, tests/engine 6.6s, tests/bootstrap 1.2s; gofmt +
+  comment-ban clean (271 files, 0 dropped); quick gate GREEN. Cores
+  def-count 162→127. NOTE: the edit tool writes space-indent — gofmt -w
+  after EVERY edit, then re-diff to confirm only intended lines changed
+  (bit me twice this session; gate self-heals but verify the diff).
 
 ## Session 352 — boot reconciliation + H-1 iterations 16–17: media lifecycle self-contained; engine hook quarantine deleted (2026-11-02)
 
