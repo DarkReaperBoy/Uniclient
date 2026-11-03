@@ -79,7 +79,7 @@ func TestLiveDevicesDropsExpired(t *testing.T) {
 			{DeviceID: "edge-alive", ExpiresTS: now + 1},
 		},
 	}
-	got := call.ForTestLiveDevices(now)
+	got := call.LiveDevices(now)
 	if len(got) != 2 {
 		t.Fatalf("live devices = %d, want 2 (%+v)", len(got), got)
 	}

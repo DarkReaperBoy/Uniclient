@@ -207,10 +207,6 @@ func (x *TsConnection) ForTestFireProof(name string, fields map[string]string) {
 	x.fireProof(name, fields)
 }
 
-func (x *MatrixCallMemberCall) ForTestLiveDevices(now int64) []MatrixCallDevice {
-	return x.liveDevices(now)
-}
-
 func (x *TsConnection) ForTestTakeProofs() bool {
 	return x.takeProofs()
 }

@@ -7,10 +7,11 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 356 — H-1 Matrix rooms+group-call state cluster (the
-  big one) in progress; iterations 1-3 done (HandleMemberEvent exported;
-  rooms family retired; seededMeshCore onto real JoinGroupCall), 79 defs
-- next: H-1 Matrix cluster iterations — members via
+- front: session 356 — H-1 Matrix rooms+group-call state cluster:
+  iterations 1-4 done (HandleMemberEvent exported; rooms family
+  retired; seededMeshCore onto real JoinGroupCall; LiveDevices
+  exported), 78 defs left — yielded at ~75% context
+- next: H-1 Matrix cluster continues — members via
   HandleGroupMemberEvent (ForTestSetGroupMembers in meshwire+audio),
   audio pair onto JoinGroupCall (kills SetGroupConfID/SetGroupRoomID/
   SetGroupSession defs), reads via GetGroupCall (ForTestGroupConfID →
@@ -19,16 +20,16 @@ owner order — that history lives in git if ever needed.
   ForTestNewMatrixCore)
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: local quick gate GREEN (iteration 3: tests/cores 18.6s,
-  engine 6.5s, bootstrap 0.9s; gofmt + comment-ban clean); CI:
-  41602626598 = SUCCESS on ade20b8 (iteration 2); iteration-3 dispatch
-  rides with its push
+- last-gate: local quick gate GREEN (iteration 4: tests/cores 17.0s,
+  engine 6.3s, bootstrap 0.9s; gofmt + comment-ban clean); CI:
+  iteration-3 dispatch in flight (ef733ab), iteration-4 dispatch rides
+  with its push
 
 ## Open items
 
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
-| H-1 | cores testhooks*.go | ForTest* hooks are debt (§5.3): 79 left by def-count (session 356 iters 1-2: HandleMemberEvent exported + rooms family retired onto real ingestion; session 354: mumble/IRC/DeltaChat/XMPP state-mirror slices — 15 defs; session 353: injection, mumble-wire-codec, mumble-crypt families + 24-def orphan sweep); TelegramCore SetAuthed/SetCtx + TeamSpeakCore SetAuthed (6 sites) + GitHub SetUsername/NewGitHubCore await a scripted-server front | session 356 entry | Matrix state cluster in progress, then TS cluster, then construction family; the scripted front via ts3j-style TS server / gotd tgtest / GUI --script seam |
+| H-1 | cores testhooks*.go | ForTest* hooks are debt (§5.3): 78 left by def-count (session 356 iters 1-4: HandleMemberEvent + LiveDevices exported, rooms family + seededMeshCore retired onto real journeys; session 354: mumble/IRC/DeltaChat/XMPP state-mirror slices — 15 defs; session 353: injection, mumble-wire-codec, mumble-crypt families + 24-def orphan sweep); TelegramCore SetAuthed/SetCtx + TeamSpeakCore SetAuthed (6 sites) + GitHub SetUsername/NewGitHubCore await a scripted-server front | session 356 entry | Matrix state cluster continues, then TS cluster, then construction family; the scripted front via ts3j-style TS server / gotd tgtest / GUI --script seam |
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 302 identifiers exported purely for the tests move (API noise: TsParseInit1, ForTest-adjacent) | commit 27faa5a4 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
 
@@ -102,6 +103,13 @@ owner order — that history lives in git if ever needed.
   gofmt clean; comment-ban clean. No production change (pure test
   harness retirement). Defs stay 79. CI 41602626598 = SUCCESS on
   ade20b8 (iteration-2 gate of record).
+- Iteration 4: ForTestLiveDevices retired — liveDevices exported as
+  LiveDevices on MatrixCallMemberCall (member-content semantics,
+  sibling of the exported MatrixNextRenewalAt/GroupPeersToConnect/
+  GroupPeerKey family); 2 production callers updated. RED: vet
+  `call.LiveDevices undefined ... unexported method liveDevices`.
+  GREEN: full quick gate (cores 17.0s, engine 6.3s, bootstrap 0.9s);
+  gofmt + comment-ban clean. Defs 79→78.
 
 ## Session 355 — boot reconciliation + Q-1 closed: matrix logger WRN/stderr with journey-pinned opt-in (2026-11-03)
 

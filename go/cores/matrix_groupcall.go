@@ -50,7 +50,7 @@ type MatrixCallMemberContent struct {
 	Calls []MatrixCallMemberCall `json:"m.calls"`
 }
 
-func (c MatrixCallMemberCall) liveDevices(now int64) []MatrixCallDevice {
+func (c MatrixCallMemberCall) LiveDevices(now int64) []MatrixCallDevice {
 	var out []MatrixCallDevice
 	for _, d := range c.Devices {
 		if d.ExpiresTS > now {
@@ -146,7 +146,7 @@ func GroupPeersToConnect(ownUserID id.UserID, ownDevice string, members map[id.U
 	var out []groupPeer
 	for uid, content := range members {
 		for _, call := range content.Calls {
-			for _, d := range call.liveDevices(now) {
+			for _, d := range call.LiveDevices(now) {
 				if uid == ownUserID && d.DeviceID == ownDevice {
 					continue
 				}
@@ -578,7 +578,7 @@ func (m *MatrixCore) GetGroupCall(chatID string) (*CallSession, error) {
 			if call.CallID != conf {
 				continue
 			}
-			if len(call.liveDevices(now)) == 0 {
+			if len(call.LiveDevices(now)) == 0 {
 				continue
 			}
 			seen[uid] = true
