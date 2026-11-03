@@ -77,25 +77,23 @@ func seedJoinedPair(t *testing.T) (a, b *MatrixCore) {
 
 	const conf = "conf_loop"
 	for _, c := range []*MatrixCore{a, b} {
+		fireGroupMemberEvent(t, c, "@alice:test", MatrixCallMemberContent{Calls: []MatrixCallMemberCall{{
+			CallID: conf,
+			Devices: []MatrixCallDevice{{
+				DeviceID: "DEV1", SessionID: "sa",
+				ExpiresTS: time.Now().UnixMilli() + 60_000,
+			}},
+		}}})
+		fireGroupMemberEvent(t, c, "@bob:test", MatrixCallMemberContent{Calls: []MatrixCallMemberCall{{
+			CallID: conf,
+			Devices: []MatrixCallDevice{{
+				DeviceID: "DEV2", SessionID: "sb",
+				ExpiresTS: time.Now().UnixMilli() + 60_000,
+			}},
+		}}})
 		c.ForTestSetGroupConfID(conf)
 		c.ForTestSetGroupRoomID("!room:test")
 		c.ForTestSetGroupSession("s-" + c.ForTestDeviceID().String())
-		c.ForTestSetGroupMembers(map[id.UserID]MatrixCallMemberContent{
-			id.UserID("@alice:test"): {Calls: []MatrixCallMemberCall{{
-				CallID: conf,
-				Devices: []MatrixCallDevice{{
-					DeviceID: "DEV1", SessionID: "sa",
-					ExpiresTS: time.Now().UnixMilli() + 60_000,
-				}},
-			}}},
-			id.UserID("@bob:test"): {Calls: []MatrixCallMemberCall{{
-				CallID: conf,
-				Devices: []MatrixCallDevice{{
-					DeviceID: "DEV2", SessionID: "sb",
-					ExpiresTS: time.Now().UnixMilli() + 60_000,
-				}},
-			}}},
-		})
 	}
 	startMeshRelay(t, putsA, id.UserID("@alice:test"), b)
 	startMeshRelay(t, putsB, id.UserID("@bob:test"), a)
@@ -197,22 +195,20 @@ func TestMatrixGetGroupCall(t *testing.T) {
 		t.Fatalf("not joined: cs=%v err=%v, want (nil, nil)", cs, err)
 	}
 
+	fireGroupMemberEvent(t, core, "@alice:test", MatrixCallMemberContent{Calls: []MatrixCallMemberCall{{
+		CallID:  "conf_x",
+		Devices: []MatrixCallDevice{{DeviceID: "DEV1", ExpiresTS: time.Now().UnixMilli() + 60_000}},
+	}}})
+	fireGroupMemberEvent(t, core, "@bob:test", MatrixCallMemberContent{Calls: []MatrixCallMemberCall{{
+		CallID:  "conf_x",
+		Devices: []MatrixCallDevice{{DeviceID: "DEV2", ExpiresTS: time.Now().UnixMilli() + 60_000}},
+	}}})
+	fireGroupMemberEvent(t, core, "@carol:test", MatrixCallMemberContent{Calls: []MatrixCallMemberCall{{
+		CallID:  "conf_x",
+		Devices: []MatrixCallDevice{{DeviceID: "C1", ExpiresTS: time.Now().UnixMilli() - 1}},
+	}}})
 	core.ForTestSetGroupConfID("conf_x")
 	core.ForTestSetGroupRoomID("!room:test")
-	core.ForTestSetGroupMembers(map[id.UserID]MatrixCallMemberContent{
-		"@alice:test": {Calls: []MatrixCallMemberCall{{
-			CallID:  "conf_x",
-			Devices: []MatrixCallDevice{{DeviceID: "DEV1", ExpiresTS: time.Now().UnixMilli() + 60_000}},
-		}}},
-		"@bob:test": {Calls: []MatrixCallMemberCall{{
-			CallID:  "conf_x",
-			Devices: []MatrixCallDevice{{DeviceID: "DEV2", ExpiresTS: time.Now().UnixMilli() + 60_000}},
-		}}},
-		"@carol:test": {Calls: []MatrixCallMemberCall{{
-			CallID:  "conf_x",
-			Devices: []MatrixCallDevice{{DeviceID: "C1", ExpiresTS: time.Now().UnixMilli() - 1}},
-		}}},
-	})
 
 	cs, err := core.GetGroupCall("!room:test")
 	if err != nil {

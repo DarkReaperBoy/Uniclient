@@ -182,9 +182,32 @@ func wrtcNewOpusTrack() (*wrtc.TrackLocalStaticRTP, error) {
 	)
 }
 
+func fireGroupMemberEvent(t *testing.T, core *MatrixCore, uid string, content MatrixCallMemberContent) {
+	t.Helper()
+	raw, err := json.Marshal(content)
+	if err != nil {
+		t.Fatalf("marshal member content: %v", err)
+	}
+	sk := uid
+	core.HandleGroupMemberEvent(&event.Event{
+		Type:     MatrixCallMemberStateType,
+		RoomID:   id.RoomID("!room:test"),
+		Sender:   id.UserID(uid),
+		StateKey: &sk,
+		Content:  event.Content{VeryRaw: raw},
+	})
+}
+
 func seededMeshCore(t *testing.T, srv *meshServer) *MatrixCore {
 	t.Helper()
 	core := newMeshTestCore(t, srv.URL)
+	fireGroupMemberEvent(t, core, "@bob:test", MatrixCallMemberContent{Calls: []MatrixCallMemberCall{{
+		CallID: "conf_x",
+		Devices: []MatrixCallDevice{{
+			DeviceID: "BOB1", SessionID: "bs",
+			ExpiresTS: time.Now().UnixMilli() + 60_000,
+		}},
+	}}})
 	srv.setCallConf("conf_x")
 	sess, err := core.JoinGroupCall("!room:test")
 	if err != nil {
@@ -193,15 +216,6 @@ func seededMeshCore(t *testing.T, srv *meshServer) *MatrixCore {
 	if sess.ID != "conf_x" {
 		t.Fatalf("conf = %q, want conf_x (adopted from server call state)", sess.ID)
 	}
-	core.ForTestSetGroupMembers(map[id.UserID]MatrixCallMemberContent{
-		"@bob:test": {Calls: []MatrixCallMemberCall{{
-			CallID: "conf_x",
-			Devices: []MatrixCallDevice{{
-				DeviceID: "BOB1", SessionID: "bs",
-				ExpiresTS: time.Now().UnixMilli() + 60_000,
-			}}},
-		}},
-	})
 	return core
 }
 
@@ -358,10 +372,10 @@ func TestGroupReconcileRemovesDepartedPeers(t *testing.T) {
 	core.ForTestSetGroupPeers(map[string]*MatrixCall{key: ForTestNewMatrixCall("conf_x", "conf_x", id.RoomID("!room:test"), "", pc)})
 	core.ForTestGroupMu().Unlock()
 
-	core.ForTestGroupMembers()["@bob:test"] = MatrixCallMemberContent{Calls: []MatrixCallMemberCall{{
+	fireGroupMemberEvent(t, core, "@bob:test", MatrixCallMemberContent{Calls: []MatrixCallMemberCall{{
 		CallID:  "conf_x",
 		Devices: []MatrixCallDevice{{DeviceID: "BOB1", ExpiresTS: time.Now().UnixMilli() - 1}},
-	}}}
+	}}})
 
 	if err := core.ReconcileGroupMesh(); err != nil {
 		t.Fatalf("reconcile: %v", err)

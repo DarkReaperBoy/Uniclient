@@ -167,10 +167,6 @@ func (x *MatrixCore) ForTestSetGroupConfID(v string) {
 	x.groupConfID = v
 }
 
-func (x *MatrixCore) ForTestSetGroupMembers(v map[id.UserID]MatrixCallMemberContent) {
-	x.groupMembers = v
-}
-
 func (x *MatrixCore) ForTestSetGroupPeers(v map[string]*MatrixCall) {
 	x.groupPeers = v
 }
