@@ -60,10 +60,6 @@ func (x *TsConnection) ForTestExecWait() bool {
 	return x.execWait
 }
 
-func (x *XMPPCore) ForTestFeatures() xmppFeatures {
-	return x.features
-}
-
 func (x *MatrixCore) ForTestGroupConfID() string {
 	return x.groupConfID
 }

@@ -4415,7 +4415,9 @@ func (c *XMPPCore) registerPreAuth() error {
 	if at := strings.Index(local, "@"); at > 0 {
 		local = local[:at]
 	}
-	_ = advertised
+	if !advertised {
+		return fmt.Errorf("xmpp: server does not advertise in-band registration (http://jabber.org/features/iq-register)")
+	}
 
 	if err := c.sendRawStanza(BuildIBRGetStanza(c.nextIQID())); err != nil {
 		return fmt.Errorf("ibr get send: %w", err)

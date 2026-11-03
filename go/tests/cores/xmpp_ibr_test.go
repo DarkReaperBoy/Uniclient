@@ -49,26 +49,6 @@ func TestXMPPParseIBRResponse(t *testing.T) {
 	}
 }
 
-func TestXMPPFeaturesAdvertiseIBR(t *testing.T) {
-	c := &XMPPCore{}
-	featXML := `<stream:features><mechanisms xmlns='urn:ietf:params:xml:ns:xmpp-sasl'><mechanism>SCRAM-SHA-256</mechanism></mechanisms><register xmlns='http://jabber.org/features/iq-register'/></stream:features>`
-	if err := c.ParseStreamFeatures(featXML); err != nil {
-		t.Fatalf("parse: %v", err)
-	}
-	if c.ForTestFeatures().IBR == nil {
-		t.Fatal("IBR not detected in features (http://jabber.org/features/iq-register)")
-	}
-
-	c2 := &XMPPCore{}
-	featXML2 := `<stream:features><mechanisms xmlns='urn:ietf:params:xml:ns:xmpp-sasl'><mechanism>PLAIN</mechanism></mechanisms></stream:features>`
-	if err := c2.ParseStreamFeatures(featXML2); err != nil {
-		t.Fatalf("parse: %v", err)
-	}
-	if c2.ForTestFeatures().IBR != nil {
-		t.Fatal("IBR must be nil when not advertised")
-	}
-}
-
 func TestXMPPParseIBRForm(t *testing.T) {
 	raw := `<iq id='f1' type='result'><query xmlns='jabber:iq:register'>` +
 		`<x xmlns='jabber:x:data' type='form'>` +

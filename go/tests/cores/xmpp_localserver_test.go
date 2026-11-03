@@ -23,6 +23,9 @@ type miniXMPPServer struct {
 	boundJID string
 	inbox    chan string
 	logFn    func(string)
+
+	advertiseIBR bool
+	registered   chan string
 }
 
 func startMiniXMPPServer(t *testing.T, user, pass string) (*miniXMPPServer, string) {
@@ -31,7 +34,7 @@ func startMiniXMPPServer(t *testing.T, user, pass string) (*miniXMPPServer, stri
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
-	s := &miniXMPPServer{ln: ln, user: user, pass: pass, inbox: make(chan string, 8)}
+	s := &miniXMPPServer{ln: ln, user: user, pass: pass, inbox: make(chan string, 8), registered: make(chan string, 4)}
 	go s.acceptLoop()
 	t.Cleanup(func() { ln.Close() })
 	return s, ln.Addr().String()
@@ -134,8 +137,11 @@ func (s *miniXMPPServer) handle(conn net.Conn) {
 		switch {
 		case stanza == "<stream:stream>":
 			if phase == 0 {
-				conn.Write([]byte("<?xml version='1.0'?><stream:stream xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams' id='mini1' from='localhost' version='1.0'>" +
-					"<stream:features><mechanisms xmlns='urn:ietf:params:xml:ns:xmpp-sasl'><mechanism>PLAIN</mechanism></mechanisms></stream:features>"))
+				feat := "<stream:features><mechanisms xmlns='urn:ietf:params:xml:ns:xmpp-sasl'><mechanism>PLAIN</mechanism></mechanisms>"
+				if s.advertiseIBR {
+					feat += "<register xmlns='http://jabber.org/features/iq-register'/>"
+				}
+				conn.Write([]byte("<?xml version='1.0'?><stream:stream xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams' id='mini1' from='localhost' version='1.0'>" + feat + "</stream:features>"))
 			} else {
 				conn.Write([]byte("<?xml version='1.0'?><stream:stream xmlns='jabber:client' xmlns:stream='http://etherx.jabber.org/streams' id='mini2' from='localhost' version='1.0'>" +
 					"<stream:features><bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'/><session xmlns='urn:ietf:params:xml:ns:xmpp-session'/></stream:features>"))
@@ -150,7 +156,19 @@ func (s *miniXMPPServer) handle(conn net.Conn) {
 			phase = 1
 		case strings.HasPrefix(stanza, "<iq"):
 			id := ExtractXMLAttr(stanza, "iq", "id")
-			if strings.Contains(stanza, NsBind) {
+			if strings.Contains(stanza, "jabber:iq:register") {
+				if strings.Contains(stanza, "type='get'") || strings.Contains(stanza, `type="get"`) {
+					conn.Write([]byte(fmt.Sprintf("<iq id='%s' type='result'><query xmlns='jabber:iq:register'/></iq>", id)))
+				} else {
+					user := ExtractXMLContent(stanza, "username")
+					pass := ExtractXMLContent(stanza, "password")
+					select {
+					case s.registered <- user + "\x00" + pass:
+					default:
+					}
+					conn.Write([]byte(fmt.Sprintf("<iq id='%s' type='result'><query xmlns='jabber:iq:register'/></iq>", id)))
+				}
+			} else if strings.Contains(stanza, NsBind) {
 				res := ExtractXMLContent(stanza, "resource")
 				if res == "" {
 					res = "mini"
@@ -261,4 +279,54 @@ func newTestVaultXMPP(t *testing.T) *utils.Vault {
 	}
 	t.Cleanup(func() { v.Close() })
 	return v
+}
+
+func TestXMPPRegisterJourneyAdvertised(t *testing.T) {
+	srv, addr := startMiniXMPPServer(t, "newbie", "s3cret")
+	srv.advertiseIBR = true
+
+	core := NewXMPPCore(utils.NewSessionStore(newTestVaultXMPP(t), "xmpp-ibr"))
+	defer core.Logout()
+
+	cfg := AuthConfig{
+		Extra: map[string]string{
+			"server":   addr,
+			"jid":      "newbie@localhost",
+			"password": "s3cret",
+			"tls":      "none",
+			"register": "true",
+		},
+	}
+	if err := core.Authenticate(cfg); err != nil {
+		t.Fatalf("register+auth journey: %v", err)
+	}
+	select {
+	case got := <-srv.registered:
+		if got != "newbie\x00s3cret" {
+			t.Fatalf("registered credentials = %q, want newbie/s3cret", got)
+		}
+	default:
+		t.Fatal("server never received the in-band registration stanza")
+	}
+}
+
+func TestXMPPRegisterRefusedWhenNotAdvertised(t *testing.T) {
+	_, addr := startMiniXMPPServer(t, "alice", "wonderland")
+
+	core := NewXMPPCore(utils.NewSessionStore(newTestVaultXMPP(t), "xmpp-ibr-refused"))
+	defer core.Logout()
+
+	cfg := AuthConfig{
+		Extra: map[string]string{
+			"server":   addr,
+			"jid":      "alice@localhost",
+			"password": "wonderland",
+			"tls":      "none",
+			"register": "true",
+		},
+	}
+	err := core.Authenticate(cfg)
+	if err == nil || !strings.Contains(err.Error(), "does not advertise in-band registration") {
+		t.Fatalf("register against non-advertising server must fail fast, got: %v", err)
+	}
 }
