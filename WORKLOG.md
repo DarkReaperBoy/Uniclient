@@ -7,30 +7,31 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 354 — H-1 CORES FRONT: mumble state-mirror family, 5 defs → 0
-  (ForTestChannels orphan-by-receiver cut; ForTestNewMumbleCore →
-  &MumbleCore{} + real StoreServerPin; ForTestConnect → real
-  Authenticate(AuthConfig) — the engine entry, now exercised with generated
-  client certs; ForTestServerPins → persisted-session assertion with exact
-  fingerprint; ForTestSetTlsCert → real LoadCertificate from PEM files).
-  Cores def-count 98→93; Mumble is now ForTest-free end to end.
-- next: remaining state-mirror slices by core: IRC (ForTestChannels/
-  ChannelsMu/Connect), XMPP (ForTestRooms/RoomsMu/Features), DeltaChat
-  (PeerStates/PeerKeysMu/CallsMu), Matrix rooms+group-call state cluster,
-  TS channels/my*/tsConn cluster, GitHub SetUsername; then construction
+- front: session 354 — H-1 CORES FRONT, 5 slices: mumble state-mirror
+  (5 defs → 0, Mumble now ForTest-free), IRC orphans (3 defs cut),
+  DeltaChat peer-key cluster (4 defs → real GetContactEncryptionInfo
+  fingerprint assertions), XMPP room orphans (2 defs cut), XMPP
+  ForTestFeatures retired by making IBR advertisement load-bearing
+  (fail-fast register gate + mini-server register journeys). Cores
+  def-count 98→83.
+- next: remaining state-mirror slices: Matrix rooms+group-call state
+  cluster (the big one), TS channels/my*/tsConn cluster + ClientInfoMu,
+  GitHub SetUsername+NewGitHubCore (deferred: needs scripted/live GH API
+  front — hard ghAPIBase constant, no unit seam); then construction
   family (ForTestNewTsConnection/ForTestNewTeamSpeakCore/…)
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: local quick gate GREEN on this change (tests/cores 14.5s,
-  tests/engine 6.0s, tests/bootstrap 0.8s; gofmt + comment-ban clean,
-  271 files); CI: verify.yml 41548671934 dispatched on 3a0e6362 (in
-  flight); session-353 gate of record 41526012096 = SUCCESS on 5131fc1e
+- last-gate: local quick gate GREEN per slice (latest: tests/cores 18.2s,
+  tests/engine 6.1s, tests/bootstrap 0.85s; gofmt + comment-ban clean
+  throughout); CI: 41548671934 = SUCCESS on 3a0e6362 (mumble slice,
+  gate of record closed); 41550641190 dispatched on b396c08a (in
+  flight — covers IRC/DeltaChat/XMPP slices)
 
 ## Open items
 
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
-| H-1 | cores testhooks*.go | ForTest* hooks are debt (§5.3): 93 left by def-count (session 354: mumble state-mirror family done — the 5-def slice; session 353: injection, mumble-wire-codec, mumble-crypt families + 24-def orphan sweep); TelegramCore SetAuthed/SetCtx + TeamSpeakCore SetAuthed (6 sites) still await a scripted-server front | session 354 entry | state-mirror slices by core (IRC/XMPP/DeltaChat/Matrix/TS/GitHub), then construction family; the trio via ts3j-style TS server / gotd tgtest / GUI --script seam |
+| H-1 | cores testhooks*.go | ForTest* hooks are debt (§5.3): 83 left by def-count (session 354: mumble/IRC/DeltaChat/XMPP state-mirror slices — 15 defs; session 353: injection, mumble-wire-codec, mumble-crypt families + 24-def orphan sweep); TelegramCore SetAuthed/SetCtx + TeamSpeakCore SetAuthed (6 sites) + GitHub SetUsername/NewGitHubCore await a scripted-server front | session 354 entry | Matrix state cluster next, then TS cluster, then construction family; the scripted front via ts3j-style TS server / gotd tgtest / GUI --script seam |
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 302 identifiers exported purely for the tests move (API noise: TsParseInit1, ForTest-adjacent) | commit 27faa5a4 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
 | Q-1 | cores/matrix.go initCrypto | mautrix client logger set at DBG with a console writer — every request logs to stderr in production (now visible: mxAuthedCore drives Authenticate) | session 353 run log | gate to WRN or env (UNICLIENT_MATRIX_DEBUG, mirroring mumble) — tiny, needs its own commit |
@@ -61,7 +62,43 @@ owner order — that history lives in git if ever needed.
   (271 files, 0 dropped); def-count 98→93. Race analysis: pin/cert
   writes happen-before the probe-read observation that gates every
   Close() — CI race leg is the verdict (rung 7).
-- verify.yml dispatched post-push (run id recorded at next boot).
+- verify.yml 41548671934 = SUCCESS on 3a0e6362 (mumble slice gate of
+  record; all jobs/step-level).
+- Iteration 2 (same session) — IRC orphans, 3 defs cut: IRCCore
+  ForTestChannels/ForTestChannelsMu/ForTestConnect — receiver-verified
+  zero users (ForTestChannels* uses are TeamSpeakCore's; mumble's
+  ForTestConnect uses died in iteration 1). Compile-green by
+  construction; census greps in-session are the evidence; full suites
+  green (14.8s/6.2s/0.8s).
+- Iteration 3 (same session) — DeltaChat peer-key cluster, 4 defs → 0:
+  ForTestPeerKeysMu/ForTestPeerStates/ForTestEntity retired onto real
+  GetContactEncryptionInfo with EXACT-fingerprint equality (same power
+  as the old byte-equality: different stored key ⇒ different
+  fingerprint ⇒ mismatch; unparsed ⇒ "(unparsed)" string ⇒ mismatch);
+  ForTestCallsMu (DeltaChat def) cut — its 2 users are MatrixCore's.
+  RED: undefined ForTestPeerKeysMu (vet). GREEN: both rewritten tests
+  PASS; full gate 14.3s/6.0s/0.9s; 86 defs.
+- Iteration 4 (same session) — XMPP room orphans, 2 defs cut
+  (ForTestRooms/ForTestRoomsMu on XMPPCore — all uses are MatrixCore's).
+- Iteration 5 (same session) — XMPP ForTestFeatures retired by making
+  the dead `advertised := c.features.IBR != nil; _ = advertised` read
+  LOAD-BEARING: registerPreAuth now fails fast ("server does not
+  advertise in-band registration") instead of sending a doomed stanza
+  — honest behavior + a real consumer for the parsed feature. Mini
+  XMPP server gained advertiseIBR mode + jabber:iq:register IQ
+  handling (get → empty query; set → recorded creds + echoed query —
+  ParseIBRResponse requires nsRegister in the result). Two behavioral
+  journeys replace the parsing pin: register+auth end-to-end with
+  exact registered-credential assertion, and refused-when-not-
+  advertised. Design rating 8/10 (fail-fast = honest error class).
+  RED: undefined ForTestFeatures. GREEN: all XMPP tests + engine auth
+  journeys PASS; full gate 18.2s/6.1s/0.85s; 83 defs.
+- verify.yml 41550641190 dispatched on b396c08a (covers iterations
+  2–5; result lands at next boot).
+- Machine note: the MultiEdit tool rewrites whole files with SPACE
+  indent — gofmt -w after EVERY edit + git diff -U0 review is now
+  routine (bit session 353 too). vet on tests/cores compiles the whole
+  test graph — first cold run ~7min, budget for it after wipes.
 
 ## Session 353 — H-1 cores front, family 1: the cross-core injection hooks (SetAuthed/SetCtx/Cancel/SaveSession) (2026-11-03)
 
