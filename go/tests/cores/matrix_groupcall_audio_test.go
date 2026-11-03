@@ -76,6 +76,8 @@ func seedJoinedPair(t *testing.T) (a, b *MatrixCore) {
 	b.ForTestSetDeviceID("DEV2")
 
 	const conf = "conf_loop"
+	srvA.setCallConf(conf)
+	srvB.setCallConf(conf)
 	for _, c := range []*MatrixCore{a, b} {
 		fireGroupMemberEvent(t, c, "@alice:test", MatrixCallMemberContent{Calls: []MatrixCallMemberCall{{
 			CallID: conf,
@@ -91,9 +93,13 @@ func seedJoinedPair(t *testing.T) (a, b *MatrixCore) {
 				ExpiresTS: time.Now().UnixMilli() + 60_000,
 			}},
 		}}})
-		c.ForTestSetGroupConfID(conf)
-		c.ForTestSetGroupRoomID("!room:test")
-		c.ForTestSetGroupSession("s-" + c.ForTestDeviceID().String())
+		sess, err := c.JoinGroupCall("!room:test")
+		if err != nil {
+			t.Fatalf("join group call: %v", err)
+		}
+		if sess.ID != conf {
+			t.Fatalf("conf = %q, want %s (adopted from server call state)", sess.ID, conf)
+		}
 	}
 	startMeshRelay(t, putsA, id.UserID("@alice:test"), b)
 	startMeshRelay(t, putsB, id.UserID("@bob:test"), a)
@@ -207,8 +213,14 @@ func TestMatrixGetGroupCall(t *testing.T) {
 		CallID:  "conf_x",
 		Devices: []MatrixCallDevice{{DeviceID: "C1", ExpiresTS: time.Now().UnixMilli() - 1}},
 	}}})
-	core.ForTestSetGroupConfID("conf_x")
-	core.ForTestSetGroupRoomID("!room:test")
+	srv.setCallConf("conf_x")
+	sess, err := core.JoinGroupCall("!room:test")
+	if err != nil {
+		t.Fatalf("join group call: %v", err)
+	}
+	if sess.ID != "conf_x" {
+		t.Fatalf("conf = %q, want conf_x (adopted from server call state)", sess.ID)
+	}
 
 	cs, err := core.GetGroupCall("!room:test")
 	if err != nil {

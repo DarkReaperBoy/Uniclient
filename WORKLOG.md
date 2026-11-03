@@ -7,31 +7,32 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 357 — H-1 Matrix group-call cluster: iteration 5 done
-  (ForTestSetGroupMembers retired — 4 sites onto the real
-  HandleGroupMemberEvent journey, pre-join seeding order), 77 defs
-  left — continuing the cluster
-- next: H-1 — audio pair onto JoinGroupCall (kills ForTestSetGroupConfID/
-  SetGroupRoomID/SetGroupSession in seedJoinedPair + GetGroupCall test),
-  reads via GetGroupCall (ForTestGroupConfID → cs.ID) + wire puts +
-  MatrixCall.State + Update events; then TS cluster; then construction
-  family (ForTestNewMatrixCall/ForTestNewMatrixCore)
+- front: session 357 — H-1 Matrix group-call cluster: iterations 5-6
+  done (iter 5: ForTestSetGroupMembers retired onto
+  HandleGroupMemberEvent; iter 6: audio pair + GetGroupCall seeding
+  onto real JoinGroupCall — conf/room/session setters + the orphaned
+  ForTestDeviceID getter cut), 73 defs left
+- next: H-1 — reads family: ForTestGroupConfID → cs.ID via GetGroupCall
+  (leave/teardown/rejoin assertion sites), ForTestGroupMembers →
+  GetGroupCall participants, + wire puts + MatrixCall.State + Update
+  events; then TS cluster; then construction family
+  (ForTestNewMatrixCall/ForTestNewMatrixCore)
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: local quick gate GREEN (iteration 5: tests/cores 17.8s,
+- last-gate: local quick gate GREEN (iteration 6: tests/cores 17.2s,
   engine 6.1s, bootstrap 0.9s; gofmt + comment-ban clean); CI:
-  41605805609 = SUCCESS on 8778e5a (iteration-4 gate of record);
-  iteration-5 dispatch 41706457218 in flight on 88f1940
+  iteration-5 dispatch 41706457218 in flight on 88f1940; iteration-6
+  dispatch rides with its push
 
 ## Open items
 
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
-| H-1 | cores testhooks*.go | ForTest* hooks are debt (§5.3): 77 left by def-count (session 357 iter 5: ForTestSetGroupMembers retired onto HandleGroupMemberEvent; session 356 iters 1-4: HandleMemberEvent + LiveDevices exported, rooms family + seededMeshCore retired onto real journeys; session 354: mumble/IRC/DeltaChat/XMPP state-mirror slices — 15 defs; session 353: injection, mumble-wire-codec, mumble-crypt families + 24-def orphan sweep); TelegramCore SetAuthed/SetCtx + TeamSpeakCore SetAuthed (6 sites) + GitHub SetUsername/NewGitHubCore await a scripted-server front | session 357 entry | Matrix state cluster continues, then TS cluster, then construction family; the scripted front via ts3j-style TS server / gotd tgtest / GUI --script seam |
+| H-1 | cores testhooks*.go | ForTest* hooks are debt (§5.3): 73 left by def-count (session 357 iters 5-6: ForTestSetGroupMembers retired onto HandleGroupMemberEvent + audio pair onto real JoinGroupCall, conf/room/session setters + ForTestDeviceID getter cut; session 356 iters 1-4: HandleMemberEvent + LiveDevices exported, rooms family + seededMeshCore retired onto real journeys; session 354: mumble/IRC/DeltaChat/XMPP state-mirror slices — 15 defs; session 353: injection, mumble-wire-codec, mumble-crypt families + 24-def orphan sweep); TelegramCore SetAuthed/SetCtx + TeamSpeakCore SetAuthed (6 sites) + GitHub SetUsername/NewGitHubCore await a scripted-server front | session 357 entry | reads family next (ForTestGroupConfID/ForTestGroupMembers → GetGroupCall), then TS cluster, then construction family; the scripted front via ts3j-style TS server / gotd tgtest / GUI --script seam |
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 302 identifiers exported purely for the tests move (API noise: TsParseInit1, ForTest-adjacent) | commit 27faa5a4 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
 
-## Session 357 — H-1 Matrix group-call cluster: iteration 5, ForTestSetGroupMembers retired onto HandleGroupMemberEvent (2026-11-04)
+## Session 357 — H-1 Matrix group-call cluster: iterations 5-6, member-event seeding + the audio pair onto real journeys (2026-11-04)
 
 - Boot: fresh sandbox — toolchain recovery per env.sh (go1.27.1
   checksum-verified via go.dev/dl?include=all — 1.27.1 is archived now,
@@ -61,6 +62,19 @@ owner order — that history lives in git if ever needed.
   0.9s); gofmt clean; strip_comments --check clean (271 files, 0
   dropped). ForTestGroupMembers (getter) survives on 2 member_test
   assertion sites — reads family, later slice. Design 9/10.
+- Iteration 6: audio pair onto the real JoinGroupCall journey —
+  ForTestSetGroupConfID/SetGroupRoomID/SetGroupSession deleted (3 defs,
+  5 sites): seedJoinedPair + TestMatrixGetGroupCall now join for real
+  (srv.setCallConf → join ADOPTS the conf from server m.call state,
+  asserted via sess.ID; real session id from matrixNewSessionID; real
+  publishGroupMembership PUT + renewal goroutine; member events still
+  pre-join). ForTestDeviceID getter orphaned by the retirement (its
+  last user was the session-pin line) — cut, grep census: def-only,
+  zero users repo-wide. Defs 77→73.
+- RED (iter 6): defs deleted → vet `c.ForTestSetGroupConfID undefined
+  (type *cores.MatrixCore has no field or method ...)`. GREEN: quick
+  gate GREEN over the import closure (cores 17.2s, engine 6.1s,
+  bootstrap 0.9s); gofmt + comment-ban clean (271 files, 0 dropped).
 - Pruned sessions 351-353 (git retains them) to hold §10's <300-line
   budget; the space-indent edit-tool lesson re-verified (gofmt -l
   caught all 3 edited files pre -w; diff -U0 reviewed, only intended
