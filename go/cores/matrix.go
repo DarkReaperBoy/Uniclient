@@ -3048,7 +3048,7 @@ func (m *MatrixCore) setupSyncer() {
 	})
 
 	syncer.OnEventType(event.StateMember, func(ctx context.Context, evt *event.Event) {
-		m.handleMemberEvent(evt)
+		m.HandleMemberEvent(evt)
 	})
 
 	syncer.OnEventType(event.StateRoomName, func(ctx context.Context, evt *event.Event) {
@@ -3256,7 +3256,7 @@ func (m *MatrixCore) HandleMessageEvent(evt *event.Event) {
 	}
 }
 
-func (m *MatrixCore) handleMemberEvent(evt *event.Event) {
+func (m *MatrixCore) HandleMemberEvent(evt *event.Event) {
 	evt.Content.ParseRaw(evt.Type)
 	mc, _ := evt.Content.Parsed.(*event.MemberEventContent)
 

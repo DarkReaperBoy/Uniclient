@@ -71,7 +71,7 @@ func TestHandleMemberEventDropsPeerWhenMemberLeavesRoom(t *testing.T) {
 		StateKey: &sk,
 		Content:  event.Content{VeryRaw: []byte(`{"membership":"leave"}`)},
 	}
-	core.ForTestHandleMemberEvent(evt)
+	core.HandleMemberEvent(evt)
 
 	core.ForTestGroupMu().Lock()
 	n = len(core.ForTestGroupPeers())

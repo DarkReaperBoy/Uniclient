@@ -6,7 +6,6 @@ import (
 	"crypto/ecdsa"
 	"github.com/gotd/td/tg"
 	"maunium.net/go/mautrix"
-	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
 	"net"
 	"net/http"
@@ -218,10 +217,6 @@ func (x *GitHubCore) ForTestSetUsername(v string) {
 
 func (x *TsConnection) ForTestFireProof(name string, fields map[string]string) {
 	x.fireProof(name, fields)
-}
-
-func (x *MatrixCore) ForTestHandleMemberEvent(evt *event.Event) {
-	x.handleMemberEvent(evt)
 }
 
 func (x *MatrixCallMemberCall) ForTestLiveDevices(now int64) []MatrixCallDevice {

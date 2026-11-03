@@ -155,7 +155,7 @@ func TestOwnMemberLeaveEndsGroupCall(t *testing.T) {
 		StateKey: &sk,
 		Content:  event.Content{VeryRaw: []byte(`{"membership":"leave"}`)},
 	}
-	core.ForTestHandleMemberEvent(evt)
+	core.HandleMemberEvent(evt)
 
 	assertCallTornDown(t, core, canceled, call, "own member-leave")
 }
@@ -173,7 +173,7 @@ func TestOwnMemberJoinKeepsGroupCall(t *testing.T) {
 		StateKey: &sk,
 		Content:  event.Content{VeryRaw: []byte(`{"membership":"join"}`)},
 	}
-	core.ForTestHandleMemberEvent(evt)
+	core.HandleMemberEvent(evt)
 
 	if !*canceled == false {
 		t.Fatal("renewal canceled by a join event")
@@ -208,7 +208,7 @@ func TestOwnMemberNonDepartureKeepsGroupCall(t *testing.T) {
 				StateKey: &sk,
 				Content:  event.Content{VeryRaw: []byte(`{"membership":"` + tc.membership + `"}`)},
 			}
-			core.ForTestHandleMemberEvent(evt)
+			core.HandleMemberEvent(evt)
 
 			if *canceled {
 				t.Fatalf("membership=%q event canceled the renewal — call torn down", tc.membership)
@@ -238,7 +238,7 @@ func TestOwnMemberBanEndsGroupCall(t *testing.T) {
 		StateKey: &sk,
 		Content:  event.Content{VeryRaw: []byte(`{"membership":"ban"}`)},
 	}
-	core.ForTestHandleMemberEvent(evt)
+	core.HandleMemberEvent(evt)
 
 	assertCallTornDown(t, core, canceled, call, "own member-ban")
 }
