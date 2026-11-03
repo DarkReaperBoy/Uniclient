@@ -22,7 +22,7 @@ owner order — that history lives in git if ever needed.
 - last-gate: local quick gate GREEN (iteration 6: tests/cores 17.2s,
   engine 6.1s, bootstrap 0.9s; gofmt + comment-ban clean); CI:
   iteration-5 dispatch 41706457218 in flight on 88f1940; iteration-6
-  dispatch rides with its push
+  dispatch 41707644864 in flight on a477fbf
 
 ## Open items
 
