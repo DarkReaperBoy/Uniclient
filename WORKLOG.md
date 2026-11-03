@@ -21,7 +21,7 @@ owner order — that history lives in git if ever needed.
 - last-gate: local quick gate GREEN (iteration 5: tests/cores 17.8s,
   engine 6.1s, bootstrap 0.9s; gofmt + comment-ban clean); CI:
   41605805609 = SUCCESS on 8778e5a (iteration-4 gate of record);
-  iteration-5 dispatch rides with its push
+  iteration-5 dispatch 41706457218 in flight on 88f1940
 
 ## Open items
 
