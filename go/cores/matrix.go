@@ -3728,7 +3728,12 @@ func (m *MatrixCore) initCrypto() error {
 		}
 	}
 
-	log := zerolog.New(zerolog.NewConsoleWriter()).With().Timestamp().Str("component", "matrix").Logger()
+	level := zerolog.WarnLevel
+	if os.Getenv("UNICLIENT_MATRIX_DEBUG") != "" {
+		level = zerolog.DebugLevel
+	}
+	log := zerolog.New(zerolog.NewConsoleWriter(func(w *zerolog.ConsoleWriter) { w.Out = os.Stderr })).
+		With().Timestamp().Str("component", "matrix").Logger().Level(level)
 	m.client.Log = log
 
 	m.cryptoStore = crypto.NewMemoryStore(func() error {

@@ -1,10 +1,14 @@
 package tests
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"strings"
 	"testing"
 	"time"
 	. "uniclient/cores"
@@ -19,7 +23,7 @@ func newTestMatrix() *MatrixCore {
 	return m
 }
 
-func mxAuthedCore(t *testing.T) *MatrixCore {
+func mxJourneyServer(t *testing.T) *httptest.Server {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -43,6 +47,11 @@ func mxAuthedCore(t *testing.T) *MatrixCore {
 		}
 	}))
 	t.Cleanup(srv.Close)
+	return srv
+}
+
+func mxAuthedCore(t *testing.T) *MatrixCore {
+	srv := mxJourneyServer(t)
 	m := NewMatrixCore(nil)
 	t.Cleanup(func() { _ = m.Close() })
 	if err := m.Authenticate(AuthConfig{
@@ -53,6 +62,92 @@ func mxAuthedCore(t *testing.T) *MatrixCore {
 		t.Fatalf("authenticate: %v", err)
 	}
 	return m
+}
+
+func mxRunCaptured(t *testing.T, fn func()) (stdout, stderr string) {
+	t.Helper()
+	or, ow, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("stdout pipe: %v", err)
+	}
+	er, ew, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("stderr pipe: %v", err)
+	}
+	oldOut, oldErr := os.Stdout, os.Stderr
+	os.Stdout, os.Stderr = ow, ew
+	var outBuf, errBuf bytes.Buffer
+	drained := make(chan struct{})
+	go func() { _, _ = io.Copy(&outBuf, or); drained <- struct{}{} }()
+	go func() { _, _ = io.Copy(&errBuf, er); drained <- struct{}{} }()
+	defer func() {
+		os.Stdout, os.Stderr = oldOut, oldErr
+		_ = ow.Close()
+		_ = ew.Close()
+	}()
+	fn()
+	os.Stdout, os.Stderr = oldOut, oldErr
+	_ = ow.Close()
+	_ = ew.Close()
+	<-drained
+	<-drained
+	_ = or.Close()
+	_ = er.Close()
+	return outBuf.String(), errBuf.String()
+}
+
+func mxAuthJourneyCaptured(t *testing.T, srv *httptest.Server) (stdout, stderr string, authErr error) {
+	t.Helper()
+	stdout, stderr = mxRunCaptured(t, func() {
+		m := NewMatrixCore(nil)
+		defer func() { _ = m.Close() }()
+		authErr = m.Authenticate(AuthConfig{
+			Mode:     AuthModeBot,
+			BotToken: "test-token",
+			Extra:    map[string]string{"homeserver": srv.URL},
+		})
+	})
+	return stdout, stderr, authErr
+}
+
+func TestMatrixAuthJourneyQuietByDefault(t *testing.T) {
+	srv := mxJourneyServer(t)
+	stdout, stderr, authErr := mxAuthJourneyCaptured(t, srv)
+	if authErr != nil {
+		t.Fatalf("authenticate: %v", authErr)
+	}
+	for name, captured := range map[string]string{"stdout": stdout, "stderr": stderr} {
+		for _, lvl := range []string{" DBG ", " TRC "} {
+			if strings.Contains(captured, lvl) {
+				i := strings.Index(captured, lvl)
+				start := i - 40
+				if start < 0 {
+					start = 0
+				}
+				end := i + 160
+				if end > len(captured) {
+					end = len(captured)
+				}
+				t.Errorf("%s carries debug/trace log noise by default: ...%s...", name, captured[start:end])
+			}
+		}
+	}
+}
+
+func TestMatrixAuthJourneyDebugOptIn(t *testing.T) {
+	t.Setenv("UNICLIENT_MATRIX_DEBUG", "1")
+	srv := mxJourneyServer(t)
+	stdout, stderr, authErr := mxAuthJourneyCaptured(t, srv)
+	if authErr != nil {
+		t.Fatalf("authenticate: %v", authErr)
+	}
+	if !strings.Contains(stderr, " DBG ") {
+		t.Errorf("opt-in debug logging must land on stderr, got: %.300s", stderr)
+	}
+	if strings.Contains(stdout, " DBG ") {
+		i := strings.Index(stdout, " DBG ")
+		t.Errorf("opt-in debug logging must never touch stdout (headless -events protocol stream): %.200s", stdout[i:])
+	}
 }
 
 func mxStr(s string) *string { return &s }

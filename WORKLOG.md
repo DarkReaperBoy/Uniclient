@@ -7,25 +7,20 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 354 — H-1 CORES FRONT, 5 slices: mumble state-mirror
-  (5 defs → 0, Mumble now ForTest-free), IRC orphans (3 defs cut),
-  DeltaChat peer-key cluster (4 defs → real GetContactEncryptionInfo
-  fingerprint assertions), XMPP room orphans (2 defs cut), XMPP
-  ForTestFeatures retired by making IBR advertisement load-bearing
-  (fail-fast register gate + mini-server register journeys). Cores
-  def-count 98→83.
-- next: remaining state-mirror slices: Matrix rooms+group-call state
-  cluster (the big one), TS channels/my*/tsConn cluster + ClientInfoMu,
-  GitHub SetUsername+NewGitHubCore (deferred: needs scripted/live GH API
-  front — hard ghAPIBase constant, no unit seam); then construction
-  family (ForTestNewTsConnection/ForTestNewTeamSpeakCore/…)
+- front: session 355 — Q-1 closed (matrix logger: WRN default, stderr
+  destination, UNICLIENT_MATRIX_DEBUG opt-in — journey tests pin both);
+  H-1 cores front continues with the Matrix state cluster next
+- next: H-1 Matrix rooms+group-call state cluster (the big one), then TS
+  channels/my*/tsConn cluster + ClientInfoMu, GitHub SetUsername+
+  NewGitHubCore (deferred: needs scripted/live GH API front — hard
+  ghAPIBase constant, no unit seam); then construction family
+  (ForTestNewTsConnection/ForTestNewTeamSpeakCore/…)
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: local quick gate GREEN per slice (latest: tests/cores 18.2s,
-  tests/engine 6.1s, tests/bootstrap 0.85s; gofmt + comment-ban clean
-  throughout); CI: 41548671934 = SUCCESS on 3a0e6362 (mumble slice,
-  gate of record closed); 41550641190 dispatched on b396c08a (in
-  flight — covers IRC/DeltaChat/XMPP slices)
+- last-gate: local quick gate GREEN (Q-1: tests/cores 24.9s, engine
+  22.7s, bootstrap 21.2s; gofmt + comment-ban clean); CI: 41550641190
+  = SUCCESS on b396c08a (session-354 slices 2–5, recorded at boot);
+  new dispatch rides with the Q-1 push
 
 ## Open items
 
@@ -34,7 +29,42 @@ owner order — that history lives in git if ever needed.
 | H-1 | cores testhooks*.go | ForTest* hooks are debt (§5.3): 83 left by def-count (session 354: mumble/IRC/DeltaChat/XMPP state-mirror slices — 15 defs; session 353: injection, mumble-wire-codec, mumble-crypt families + 24-def orphan sweep); TelegramCore SetAuthed/SetCtx + TeamSpeakCore SetAuthed (6 sites) + GitHub SetUsername/NewGitHubCore await a scripted-server front | session 354 entry | Matrix state cluster next, then TS cluster, then construction family; the scripted front via ts3j-style TS server / gotd tgtest / GUI --script seam |
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 302 identifiers exported purely for the tests move (API noise: TsParseInit1, ForTest-adjacent) | commit 27faa5a4 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
-| Q-1 | cores/matrix.go initCrypto | mautrix client logger set at DBG with a console writer — every request logs to stderr in production (now visible: mxAuthedCore drives Authenticate) | session 353 run log | gate to WRN or env (UNICLIENT_MATRIX_DEBUG, mirroring mumble) — tiny, needs its own commit |
+
+## Session 355 — boot reconciliation + Q-1 closed: matrix logger WRN/stderr with journey-pinned opt-in (2026-11-03)
+
+- Boot: fresh sandbox — toolchain + gocache survived, mod cache wiped
+  AND root-claimed (recycler artifact): old mod dir moved aside, fresh
+  mod2 download 21s. Rootfs hit 99% twice: stale /home/z/repos (4G,
+  deleted) was the real pig; PolarFS /tmp/my-project is too slow for
+  caches (0.5–5.5MB/s small-file) but fine as TMPDIR (build temp).
+  Session env: GOMODCACHE=toolchain/mod2, TMPDIR=/tmp/my-project/
+  buildtmp (scripts/ucenv.sh outside the repo). Baseline green before
+  any edit (cores 22.8s, engine 22.1s, bootstrap 25.6s). CI
+  41550641190 = SUCCESS on b396c08a — session-354 slices 2–5 closed.
+- Q-1 root cause worse than logged: zerolog.NewConsoleWriter() writes
+  to os.STDOUT (not stderr) at DBG, dumping full request bodies incl.
+  one-time-key material — the headless -events protocol stream gets
+  corrupted by any authed matrix account. Probe evidence: test binary
+  run directly showed " DBG Request completed … req_body=…" on stdout;
+  go test hides passing-binary stdout, which is why the noise was
+  invisible in earlier runs.
+- Fix (7 lines, matrix.go initCrypto): level WarnLevel default,
+  DebugLevel when UNICLIENT_MATRIX_DEBUG is set (read per-call so
+  t.Setenv can pin it); console writer moved to os.Stderr. Mirrors
+  mumble's UNICLIENT_MUMBLE_DEBUG shape.
+- RED→GREEN: TestMatrixAuthJourneyQuietByDefault (no DBG/TRC on either
+  standard stream through the real bot-token Authenticate journey,
+  captured via os.Stdout/os.Stderr pipe swap + drain) and
+  TestMatrixAuthJourneyDebugOptIn (opt-in DBG present on stderr,
+  never on stdout) both FAILed on the unmodified tree with the
+  captured noise as the failure message; both PASS after the fix.
+  Harness: mxJourneyServer extracted from mxAuthedCore (behavior
+  identical), mxRunCaptured/mxAuthJourneyCaptured reuse it; Close()
+  waits m.wg so the capture is deterministic (no post-restore writes).
+- Evidence: quick gate GREEN (tests/cores 24.9s, engine 22.7s,
+  bootstrap 21.2s, vet scoped set incl. cmd/bootstrap/engine); gofmt
+  clean; strip_comments --check clean (271 files, 0 dropped).
+  verify.yml dispatched post-push (id at next boot).
 
 ## Session 354 — H-1 cores front, mumble state-mirror family: the last 5 mumble hooks retired onto real APIs (2026-11-03)
 
