@@ -136,15 +136,7 @@ func (x *MatrixCore) ForTestRooms() map[id.RoomID]*MatrixRoomState {
 	return x.rooms
 }
 
-func (x *XMPPCore) ForTestRooms() map[string]*xmppRoom {
-	return x.rooms
-}
-
 func (x *MatrixCore) ForTestRoomsMu() *sync.RWMutex {
-	return &x.roomsMu
-}
-
-func (x *XMPPCore) ForTestRoomsMu() *sync.RWMutex {
 	return &x.roomsMu
 }
 
