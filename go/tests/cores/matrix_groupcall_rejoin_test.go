@@ -1,14 +1,13 @@
 package tests
 
 import (
-	"strings"
 	"testing"
 	. "uniclient/cores"
 )
 
 func TestJoinGroupCallClosesStaleConfPeers(t *testing.T) {
 	srv, _ := newMeshHomeserver(t)
-	core := seededMeshCore(t, srv.URL)
+	core := seededMeshCore(t, srv)
 	t.Cleanup(func() {
 		core.ForTestGroupMu().Lock()
 		if core.ForTestGroupRenew() != nil {
@@ -17,13 +16,14 @@ func TestJoinGroupCallClosesStaleConfPeers(t *testing.T) {
 		core.ForTestGroupMu().Unlock()
 	})
 	_, stale := seedCallState(t, core)
+	srv.setCallConf("conf_new")
 
 	sess, err := core.JoinGroupCall("!room:test")
 	if err != nil {
 		t.Fatalf("JoinGroupCall: %v", err)
 	}
-	if sess.ID == "conf_x" || strings.HasPrefix(sess.ID, "conf_x") {
-		t.Fatalf("setup: expected a DIFFERENT conf, got %s", sess.ID)
+	if sess.ID != "conf_new" {
+		t.Fatalf("setup: conf = %s, want conf_new (server started a new call)", sess.ID)
 	}
 
 	if stale.State != CallStateEnded {

@@ -51,11 +51,18 @@ type meshServer struct {
 	puts      *meshPuts
 	mu        sync.Mutex
 	roomState string
+	callConf  string
 }
 
 func (s *meshServer) setRoomState(state string) {
 	s.mu.Lock()
 	s.roomState = state
+	s.mu.Unlock()
+}
+
+func (s *meshServer) setCallConf(conf string) {
+	s.mu.Lock()
+	s.callConf = conf
 	s.mu.Unlock()
 }
 
@@ -77,6 +84,19 @@ func newMeshHomeserver(t *testing.T) (*meshServer, *meshPuts) {
 				return
 			}
 			_, _ = io.WriteString(w, state)
+		case strings.Contains(p, "/state/") && r.Method == http.MethodGet:
+			idx := strings.Index(p, "/state/")
+			evType := strings.SplitN(p[idx+len("/state/"):], "/", 2)[0]
+			mesh.mu.Lock()
+			conf := mesh.callConf
+			mesh.mu.Unlock()
+			if evType == MatrixCallEventType && conf != "" {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = io.WriteString(w, `{"m.call_id":"`+conf+`"}`)
+				return
+			}
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = io.WriteString(w, `{"errcode":"M_NOT_FOUND"}`)
 		case strings.Contains(p, "/state/") && r.Method == http.MethodPut:
 			idx := strings.Index(p, "/state/")
 			parts := strings.SplitN(p[idx+len("/state/"):], "/", 2)
@@ -162,27 +182,32 @@ func wrtcNewOpusTrack() (*wrtc.TrackLocalStaticRTP, error) {
 	)
 }
 
-func seededMeshCore(t *testing.T, srvURL string) *MatrixCore {
+func seededMeshCore(t *testing.T, srv *meshServer) *MatrixCore {
 	t.Helper()
-	core := newMeshTestCore(t, srvURL)
-	core.ForTestSetGroupConfID("conf_x")
-	core.ForTestSetGroupRoomID("!room:test")
-	core.ForTestSetGroupSession("sess1")
+	core := newMeshTestCore(t, srv.URL)
+	srv.setCallConf("conf_x")
+	sess, err := core.JoinGroupCall("!room:test")
+	if err != nil {
+		t.Fatalf("join group call: %v", err)
+	}
+	if sess.ID != "conf_x" {
+		t.Fatalf("conf = %q, want conf_x (adopted from server call state)", sess.ID)
+	}
 	core.ForTestSetGroupMembers(map[id.UserID]MatrixCallMemberContent{
 		"@bob:test": {Calls: []MatrixCallMemberCall{{
 			CallID: "conf_x",
 			Devices: []MatrixCallDevice{{
 				DeviceID: "BOB1", SessionID: "bs",
 				ExpiresTS: time.Now().UnixMilli() + 60_000,
-			}},
-		}}},
+			}}},
+		}},
 	})
 	return core
 }
 
 func TestGroupReconcileSendsConfTaggedOffer(t *testing.T) {
 	srv, puts := newMeshHomeserver(t)
-	core := seededMeshCore(t, srv.URL)
+	core := seededMeshCore(t, srv)
 
 	if err := core.ReconcileGroupMesh(); err != nil {
 		t.Fatalf("reconcile: %v", err)
@@ -229,7 +254,7 @@ func TestGroupReconcileSendsConfTaggedOffer(t *testing.T) {
 
 func TestGroupIncomingInviteRoutesToMesh(t *testing.T) {
 	srv, puts := newMeshHomeserver(t)
-	core := seededMeshCore(t, srv.URL)
+	core := seededMeshCore(t, srv)
 	sdp := makeOfferSDP(t, core)
 
 	raw := `{"call_id":"conf_x","version":"1","party_id":"BOB1","conf_id":"conf_x",` +
@@ -271,7 +296,7 @@ func TestGroupIncomingInviteRoutesToMesh(t *testing.T) {
 
 func TestGroupIncomingInviteWrongConfIgnored(t *testing.T) {
 	srv, _ := newMeshHomeserver(t)
-	core := seededMeshCore(t, srv.URL)
+	core := seededMeshCore(t, srv)
 	sdp := makeOfferSDP(t, core)
 
 	raw := `{"call_id":"conf_other","version":"1","party_id":"BOB1","conf_id":"conf_other",` +
@@ -295,7 +320,7 @@ func TestGroupIncomingInviteWrongConfIgnored(t *testing.T) {
 
 func TestSendICECandidatesConfTagged(t *testing.T) {
 	srv, puts := newMeshHomeserver(t)
-	core := seededMeshCore(t, srv.URL)
+	core := seededMeshCore(t, srv)
 
 	mid := "0"
 	idx := uint16(0)
@@ -322,7 +347,7 @@ func TestSendICECandidatesConfTagged(t *testing.T) {
 
 func TestGroupReconcileRemovesDepartedPeers(t *testing.T) {
 	srv, _ := newMeshHomeserver(t)
-	core := seededMeshCore(t, srv.URL)
+	core := seededMeshCore(t, srv)
 
 	pc, err := core.CreatePeerConnection()
 	if err != nil {

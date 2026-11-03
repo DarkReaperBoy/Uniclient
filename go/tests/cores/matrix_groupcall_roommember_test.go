@@ -25,7 +25,7 @@ func seedRoomMembership(t *testing.T, srv *meshServer, core *MatrixCore, mem map
 
 func TestReconcileDropsRoomDepartedMembers(t *testing.T) {
 	srv, puts := newMeshHomeserver(t)
-	core := seededMeshCore(t, srv.URL)
+	core := seededMeshCore(t, srv)
 	seedRoomMembership(t, srv, core, map[id.UserID]event.Membership{
 		"@alice:test": event.MembershipJoin,
 		"@bob:test":   event.MembershipLeave,
@@ -49,7 +49,7 @@ func TestReconcileDropsRoomDepartedMembers(t *testing.T) {
 
 func TestHandleMemberEventDropsPeerWhenMemberLeavesRoom(t *testing.T) {
 	srv, _ := newMeshHomeserver(t)
-	core := seededMeshCore(t, srv.URL)
+	core := seededMeshCore(t, srv)
 	seedRoomMembership(t, srv, core, map[id.UserID]event.Membership{
 		"@alice:test": event.MembershipJoin,
 		"@bob:test":   event.MembershipJoin,
@@ -85,7 +85,7 @@ func TestHandleMemberEventDropsPeerWhenMemberLeavesRoom(t *testing.T) {
 
 func TestGetGroupCallExcludesNonJoinMembers(t *testing.T) {
 	srv, _ := newMeshHomeserver(t)
-	core := seededMeshCore(t, srv.URL)
+	core := seededMeshCore(t, srv)
 
 	cs, err := core.GetGroupCall("!room:test")
 	if err != nil || cs == nil {

@@ -18,10 +18,16 @@ func seedCallState(t *testing.T, core *MatrixCore) (*bool, *MatrixCall) {
 	canceled := false
 	call := ForTestNewMatrixCall("conf_x", "conf_x", id.RoomID("!room:test"), CallStateConnecting, pc)
 	core.ForTestGroupMu().Lock()
+	prevRenew := core.ForTestGroupRenew()
 	core.ForTestSetGroupPeers(map[string]*MatrixCall{
 		GroupPeerKey("@bob:test", "BOB1"): call,
 	})
-	core.ForTestSetGroupRenew(func() { canceled = true })
+	core.ForTestSetGroupRenew(func() {
+		canceled = true
+		if prevRenew != nil {
+			prevRenew()
+		}
+	})
 	core.ForTestGroupMu().Unlock()
 	return &canceled, call
 }
@@ -65,7 +71,7 @@ func containsEmptyCalls(body string) bool {
 
 func TestLeaveChatWhileInCallTearsDown(t *testing.T) {
 	srv, puts := newMeshHomeserver(t)
-	core := seededMeshCore(t, srv.URL)
+	core := seededMeshCore(t, srv)
 	canceled, call := seedCallState(t, core)
 
 	if err := core.LeaveChat("!room:test"); err != nil {
@@ -94,7 +100,7 @@ func TestLeaveChatWhileInCallTearsDown(t *testing.T) {
 
 func TestLeaveChatOtherRoomKeepsCall(t *testing.T) {
 	srv, _ := newMeshHomeserver(t)
-	core := seededMeshCore(t, srv.URL)
+	core := seededMeshCore(t, srv)
 	canceled, _ := seedCallState(t, core)
 
 	if err := core.LeaveChat("!other:test"); err != nil {
@@ -114,7 +120,7 @@ func TestLeaveChatOtherRoomKeepsCall(t *testing.T) {
 
 func TestLogoutWhileInCallTearsDown(t *testing.T) {
 	srv, puts := newMeshHomeserver(t)
-	core := seededMeshCore(t, srv.URL)
+	core := seededMeshCore(t, srv)
 	canceled, call := seedCallState(t, core)
 
 	if err := core.Logout(); err != nil {
@@ -133,7 +139,7 @@ func TestLogoutWhileInCallTearsDown(t *testing.T) {
 
 func TestCloseWhileInCallTearsDown(t *testing.T) {
 	srv, _ := newMeshHomeserver(t)
-	core := seededMeshCore(t, srv.URL)
+	core := seededMeshCore(t, srv)
 	canceled, call := seedCallState(t, core)
 
 	if err := core.Close(); err != nil {
@@ -144,7 +150,7 @@ func TestCloseWhileInCallTearsDown(t *testing.T) {
 
 func TestOwnMemberLeaveEndsGroupCall(t *testing.T) {
 	srv, _ := newMeshHomeserver(t)
-	core := seededMeshCore(t, srv.URL)
+	core := seededMeshCore(t, srv)
 	canceled, call := seedCallState(t, core)
 
 	sk := "@alice:test"
@@ -162,7 +168,7 @@ func TestOwnMemberLeaveEndsGroupCall(t *testing.T) {
 
 func TestOwnMemberJoinKeepsGroupCall(t *testing.T) {
 	srv, _ := newMeshHomeserver(t)
-	core := seededMeshCore(t, srv.URL)
+	core := seededMeshCore(t, srv)
 	canceled, _ := seedCallState(t, core)
 
 	sk := "@alice:test"
@@ -197,7 +203,7 @@ func TestOwnMemberNonDepartureKeepsGroupCall(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			srv, _ := newMeshHomeserver(t)
-			core := seededMeshCore(t, srv.URL)
+			core := seededMeshCore(t, srv)
 			canceled, call := seedCallState(t, core)
 
 			sk := "@alice:test"
@@ -227,7 +233,7 @@ func TestOwnMemberNonDepartureKeepsGroupCall(t *testing.T) {
 
 func TestOwnMemberBanEndsGroupCall(t *testing.T) {
 	srv, _ := newMeshHomeserver(t)
-	core := seededMeshCore(t, srv.URL)
+	core := seededMeshCore(t, srv)
 	canceled, call := seedCallState(t, core)
 
 	sk := "@alice:test"

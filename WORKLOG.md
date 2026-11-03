@@ -8,20 +8,21 @@ owner order — that history lives in git if ever needed.
 ## STATE
 
 - front: session 356 — H-1 Matrix rooms+group-call state cluster (the
-  big one) in progress; iterations 1-2 done (HandleMemberEvent exported;
-  rooms family retired onto real ingestion), 79 defs left
-- next: H-1 Matrix cluster iterations — group-call state seeding via
-  real JoinGroupCall (SetGroupConfID/SetGroupRoomID/SetGroupSession/
-  SetGroupRenew), members via HandleGroupMemberEvent (SetGroupMembers),
-  reads via GetGroupCall (conf ID = cs.ID, participants) + wire puts +
-  MatrixCall.State; then TS cluster, then construction family
-  (ForTestNewMatrixCall/ForTestNewMatrixCore)
+  big one) in progress; iterations 1-3 done (HandleMemberEvent exported;
+  rooms family retired; seededMeshCore onto real JoinGroupCall), 79 defs
+- next: H-1 Matrix cluster iterations — members via
+  HandleGroupMemberEvent (ForTestSetGroupMembers in meshwire+audio),
+  audio pair onto JoinGroupCall (kills SetGroupConfID/SetGroupRoomID/
+  SetGroupSession defs), reads via GetGroupCall (ForTestGroupConfID →
+  cs.ID) + wire puts + MatrixCall.State + Update events; then TS
+  cluster, then construction family (ForTestNewMatrixCall/
+  ForTestNewMatrixCore)
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: local quick gate GREEN (iteration 2: tests/cores 17.5s,
-  engine 6.2s, bootstrap 0.9s; gofmt + comment-ban clean); CI:
-  iteration-1 dispatch in flight, iteration-2 dispatch rides with its
-  push
+- last-gate: local quick gate GREEN (iteration 3: tests/cores 18.6s,
+  engine 6.5s, bootstrap 0.9s; gofmt + comment-ban clean); CI:
+  41602626598 = SUCCESS on ade20b8 (iteration 2); iteration-3 dispatch
+  rides with its push
 
 ## Open items
 
@@ -83,6 +84,24 @@ owner order — that history lives in git if ever needed.
   comment-ban clean. Defs 82→79. Race note: sync goroutine now live
   in every mxAuthedCore test — all m.rooms access mutex-guarded; CI
   race leg is the verdict.
+- Iteration 3: seededMeshCore (the shared harness behind 11 mesh
+  tests) onto the REAL JoinGroupCall journey — meshServer serves the
+  m.call state GET (setCallConf) so the join ADOPTS conf_x from
+  server state (asserted via sess.ID), real publishGroupMembership
+  PUT on the wire, real runGroupRenewal goroutine; the Set* trio
+  (conf/room/session) is gone from the mesh path. Rejoin test now
+  drives a real server-side conf CHANGE between joins (setCallConf
+  "conf_new") — the actual rejoin-a-new-call scenario. seedCallState
+  now WRAPS the real renewal cancel (flag + delegate) instead of
+  replacing it — the old replace hung Close() forever once a real
+  renewal goroutine existed (wg.Wait blocked; test timeout evidence
+  at TestCloseWhileInCallTearsDown, 57s). ForTestSetGroupConfID/
+  RoomID/Session defs survive on the audio pair (next iteration).
+- GREEN (iter 3): mesh/teardown/rejoin/roommember sets PASS; full
+  quick gate GREEN (cores 18.6s, engine 6.5s, bootstrap 0.9s);
+  gofmt clean; comment-ban clean. No production change (pure test
+  harness retirement). Defs stay 79. CI 41602626598 = SUCCESS on
+  ade20b8 (iteration-2 gate of record).
 
 ## Session 355 — boot reconciliation + Q-1 closed: matrix logger WRN/stderr with journey-pinned opt-in (2026-11-03)
 

@@ -10,7 +10,7 @@ import (
 
 func TestEndCallLeavesGroupCall(t *testing.T) {
 	srv, puts := newMeshHomeserver(t)
-	core := seededMeshCore(t, srv.URL)
+	core := seededMeshCore(t, srv)
 
 	pc, err := core.CreatePeerConnection()
 	if err != nil {
@@ -60,7 +60,7 @@ func TestEndCallLeavesGroupCall(t *testing.T) {
 
 func TestSendVoiceFrameAfterLeaveIsNoop(t *testing.T) {
 	srv, _ := newMeshHomeserver(t)
-	core := seededMeshCore(t, srv.URL)
+	core := seededMeshCore(t, srv)
 	if err := core.ReconcileGroupMesh(); err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
