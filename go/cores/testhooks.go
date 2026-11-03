@@ -127,14 +127,6 @@ func (x *TsConnection) ForTestRecvQueueMu() *sync.Mutex {
 	return &x.recvQueueMu
 }
 
-func (x *MatrixCore) ForTestRooms() map[id.RoomID]*MatrixRoomState {
-	return x.rooms
-}
-
-func (x *MatrixCore) ForTestRoomsMu() *sync.RWMutex {
-	return &x.roomsMu
-}
-
 func (x *TsChannelInfo) ForTestTalkPower() int {
 	return x.talkPower
 }
@@ -197,10 +189,6 @@ func (x *MatrixCore) ForTestSetGroupSession(v string) {
 
 func (x *TeamSpeakCore) ForTestSetMyClientID(v int) {
 	x.myClientID = v
-}
-
-func (x *MatrixCore) ForTestSetRooms(v map[id.RoomID]*MatrixRoomState) {
-	x.rooms = v
 }
 
 func (x *TeamSpeakCore) ForTestSetTsConn(v *TsConnection) {
@@ -300,7 +288,18 @@ func ForTestNewTsConnection(addr *net.UDPAddr, cmdCh chan TsIncomingCmd, conn *n
 }
 
 func ForTestNewMatrixCore(authed bool, cancel context.CancelFunc, client *mautrix.Client, ctx context.Context, deviceID id.DeviceID, homeserver string, userID id.UserID) *MatrixCore {
-	return &MatrixCore{authed: authed, cancel: cancel, client: client, ctx: ctx, deviceID: deviceID, homeserver: homeserver, userID: userID}
+	return &MatrixCore{
+		authed:      authed,
+		cancel:      cancel,
+		client:      client,
+		ctx:         ctx,
+		deviceID:    deviceID,
+		homeserver:  homeserver,
+		userID:      userID,
+		rooms:       make(map[id.RoomID]*MatrixRoomState),
+		directChats: make(map[id.UserID][]id.RoomID),
+		activeCalls: make(map[string]*MatrixCall),
+	}
 }
 
 func ForTestNewTsWant(key string, name string, val string) *TsWant {

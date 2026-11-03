@@ -8,28 +8,26 @@ owner order — that history lives in git if ever needed.
 ## STATE
 
 - front: session 356 — H-1 Matrix rooms+group-call state cluster (the
-  big one) in progress; iteration 1 done (HandleMemberEvent exported,
-  ForTestHandleMemberEvent retired, 82 defs left)
-- next: H-1 Matrix cluster iterations — rooms family (ForTestRooms/
-  SetRooms/RoomsMu onto real ingestion: mxJourneyServer sync payloads
-  and/or GetChatInfo+fetchRoomState state GETs), group-call state
-  seeding via real JoinGroupCall (SetGroupConfID/SetGroupRoomID/
-  SetGroupSession/SetGroupRenew), members via HandleGroupMemberEvent
-  (SetGroupMembers), reads via GetGroupCall (conf ID = cs.ID,
-  participants) + wire puts + MatrixCall.State; then TS cluster, then
-  construction family (ForTestNewMatrixCall/ForTestNewMatrixCore)
+  big one) in progress; iterations 1-2 done (HandleMemberEvent exported;
+  rooms family retired onto real ingestion), 79 defs left
+- next: H-1 Matrix cluster iterations — group-call state seeding via
+  real JoinGroupCall (SetGroupConfID/SetGroupRoomID/SetGroupSession/
+  SetGroupRenew), members via HandleGroupMemberEvent (SetGroupMembers),
+  reads via GetGroupCall (conf ID = cs.ID, participants) + wire puts +
+  MatrixCall.State; then TS cluster, then construction family
+  (ForTestNewMatrixCall/ForTestNewMatrixCore)
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: local quick gate GREEN (iteration 1: tests/cores 16.9s,
-  engine 6.1s, bootstrap 0.8s; gofmt + comment-ban clean); CI:
-  41591878823 = SUCCESS on ae89c979 (Q-1 gate of record closed at
-  boot); new dispatch rides with the iteration-1 push
+- last-gate: local quick gate GREEN (iteration 2: tests/cores 17.5s,
+  engine 6.2s, bootstrap 0.9s; gofmt + comment-ban clean); CI:
+  iteration-1 dispatch in flight, iteration-2 dispatch rides with its
+  push
 
 ## Open items
 
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
-| H-1 | cores testhooks*.go | ForTest* hooks are debt (§5.3): 82 left by def-count (session 356 iter 1: ForTestHandleMemberEvent retired onto exported HandleMemberEvent; session 354: mumble/IRC/DeltaChat/XMPP state-mirror slices — 15 defs; session 353: injection, mumble-wire-codec, mumble-crypt families + 24-def orphan sweep); TelegramCore SetAuthed/SetCtx + TeamSpeakCore SetAuthed (6 sites) + GitHub SetUsername/NewGitHubCore await a scripted-server front | session 356 entry | Matrix state cluster in progress, then TS cluster, then construction family; the scripted front via ts3j-style TS server / gotd tgtest / GUI --script seam |
+| H-1 | cores testhooks*.go | ForTest* hooks are debt (§5.3): 79 left by def-count (session 356 iters 1-2: HandleMemberEvent exported + rooms family retired onto real ingestion; session 354: mumble/IRC/DeltaChat/XMPP state-mirror slices — 15 defs; session 353: injection, mumble-wire-codec, mumble-crypt families + 24-def orphan sweep); TelegramCore SetAuthed/SetCtx + TeamSpeakCore SetAuthed (6 sites) + GitHub SetUsername/NewGitHubCore await a scripted-server front | session 356 entry | Matrix state cluster in progress, then TS cluster, then construction family; the scripted front via ts3j-style TS server / gotd tgtest / GUI --script seam |
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 302 identifiers exported purely for the tests move (API noise: TsParseInit1, ForTest-adjacent) | commit 27faa5a4 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
 
@@ -62,6 +60,29 @@ owner order — that history lives in git if ever needed.
   method handleMemberEvent)`. GREEN: affected tests PASS; full quick
   gate GREEN (cores 16.9s, engine 6.1s, bootstrap 0.8s); gofmt clean;
   strip_comments --check clean (271 files, 0 dropped). Defs 83→82.
+- Iteration 2: rooms family retired — ForTestRooms/SetRooms/RoomsMu
+  deleted (3 defs, 6 user sites). Real paths: mxStateServer (journey
+  base + rooms-state GET) seeded via GetChatInfo (fetchRoomState →
+  ApplyStateEvent) for EventToMessage/PinnedEvents/membership tests;
+  mxSyncServer (first /sync response, then long-poll hang) through the
+  REAL sync loop for the GetDialogs timeline/LastEvent test (poll
+  until 3 dialogs); meshServer.setRoomState + GetChatInfo for the
+  roommember tests. Two defects exposed AND fixed: (1)
+  ForTestNewMatrixCore built cores with nil rooms/directChats/
+  activeCalls maps — real paths panicked (fetchRoomState
+  assignment-to-nil-map); the hook now mirrors NewMatrixCore's map
+  init. (2) the harness never served POST /user/{id}/filter —
+  mautrix SyncWithContext creates a filter BEFORE the first /sync and
+  the sync loop aborted on 404, so the hanging /sync handler was
+  never reached (request-probe evidence: filter POST x1, GET /sync
+  x0 before fix; x1 after). Q-1 logger quietness still holds under
+  real sync traffic.
+- RED (iter 2): defs deleted → vet undefined ForTestRoomsMu
+  (+ grep census: 6 sites). GREEN: 6 rewritten tests PASS; full quick
+  gate GREEN (cores 17.5s, engine 6.2s, bootstrap 0.9s); gofmt clean;
+  comment-ban clean. Defs 82→79. Race note: sync goroutine now live
+  in every mxAuthedCore test — all m.rooms access mutex-guarded; CI
+  race leg is the verdict.
 
 ## Session 355 — boot reconciliation + Q-1 closed: matrix logger WRN/stderr with journey-pinned opt-in (2026-11-03)
 

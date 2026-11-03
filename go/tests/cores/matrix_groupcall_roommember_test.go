@@ -1,6 +1,8 @@
 package tests
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 	. "uniclient/cores"
@@ -9,22 +11,22 @@ import (
 	"maunium.net/go/mautrix/id"
 )
 
-func seedRoomMembership(core *MatrixCore, mem map[id.UserID]event.Membership) {
-	core.ForTestRoomsMu().Lock()
-	members := make(map[id.UserID]*MatrixMember, len(mem))
+func seedRoomMembership(t *testing.T, srv *meshServer, core *MatrixCore, mem map[id.UserID]event.Membership) {
+	t.Helper()
+	events := make([]string, 0, len(mem))
 	for uid, m := range mem {
-		members[uid] = &MatrixMember{UserID: uid, Membership: m}
+		events = append(events, fmt.Sprintf(`{"type":"m.room.member","state_key":%q,"content":{"membership":%q}}`, string(uid), string(m)))
 	}
-	core.ForTestSetRooms(map[id.RoomID]*MatrixRoomState{
-		id.RoomID("!room:test"): {ID: id.RoomID("!room:test"), Members: members},
-	})
-	core.ForTestRoomsMu().Unlock()
+	srv.setRoomState("[" + strings.Join(events, ",") + "]")
+	if _, err := core.GetChatInfo("!room:test"); err != nil {
+		t.Fatalf("seed room membership: %v", err)
+	}
 }
 
 func TestReconcileDropsRoomDepartedMembers(t *testing.T) {
 	srv, puts := newMeshHomeserver(t)
 	core := seededMeshCore(t, srv.URL)
-	seedRoomMembership(core, map[id.UserID]event.Membership{
+	seedRoomMembership(t, srv, core, map[id.UserID]event.Membership{
 		"@alice:test": event.MembershipJoin,
 		"@bob:test":   event.MembershipLeave,
 	})
@@ -48,7 +50,7 @@ func TestReconcileDropsRoomDepartedMembers(t *testing.T) {
 func TestHandleMemberEventDropsPeerWhenMemberLeavesRoom(t *testing.T) {
 	srv, _ := newMeshHomeserver(t)
 	core := seededMeshCore(t, srv.URL)
-	seedRoomMembership(core, map[id.UserID]event.Membership{
+	seedRoomMembership(t, srv, core, map[id.UserID]event.Membership{
 		"@alice:test": event.MembershipJoin,
 		"@bob:test":   event.MembershipJoin,
 	})
@@ -93,7 +95,7 @@ func TestGetGroupCallExcludesNonJoinMembers(t *testing.T) {
 		t.Fatalf("unknown membership: count = %q, want 1", cs.Meta["participants_count"])
 	}
 
-	seedRoomMembership(core, map[id.UserID]event.Membership{
+	seedRoomMembership(t, srv, core, map[id.UserID]event.Membership{
 		"@alice:test": event.MembershipJoin,
 		"@bob:test":   event.MembershipLeave,
 	})

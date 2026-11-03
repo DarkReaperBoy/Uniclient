@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 	. "uniclient/cores"
@@ -23,9 +25,22 @@ func newTestMatrix() *MatrixCore {
 	return m
 }
 
-func mxJourneyServer(t *testing.T) *httptest.Server {
+func mxHarnessServer(t *testing.T, override func(r *http.Request) (int, string)) *httptest.Server {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if override != nil {
+			if code, body := override(r); code != 0 {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(code)
+				_, _ = w.Write([]byte(body))
+				return
+			}
+		}
+		if strings.HasSuffix(r.URL.Path, "/filter") && r.Method == http.MethodPost {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"filter_id":"f1"}`))
+			return
+		}
 		switch r.URL.Path {
 		case "/_matrix/client/v3/account/whoami":
 			if r.Header.Get("Authorization") != "Bearer test-token" {
@@ -50,8 +65,34 @@ func mxJourneyServer(t *testing.T) *httptest.Server {
 	return srv
 }
 
-func mxAuthedCore(t *testing.T) *MatrixCore {
-	srv := mxJourneyServer(t)
+func mxJourneyServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	return mxHarnessServer(t, nil)
+}
+
+func mxStateServer(t *testing.T, state string) *httptest.Server {
+	t.Helper()
+	return mxHarnessServer(t, func(r *http.Request) (int, string) {
+		if r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/state") {
+			return http.StatusOK, state
+		}
+		return 0, ""
+	})
+}
+
+func mxSyncServer(t *testing.T, firstSync string) *httptest.Server {
+	t.Helper()
+	var served atomic.Bool
+	return mxHarnessServer(t, func(r *http.Request) (int, string) {
+		if strings.HasSuffix(r.URL.Path, "/sync") && !served.Swap(true) {
+			return http.StatusOK, firstSync
+		}
+		return 0, ""
+	})
+}
+
+func mxAuthedCoreAt(t *testing.T, srv *httptest.Server) *MatrixCore {
+	t.Helper()
 	m := NewMatrixCore(nil)
 	t.Cleanup(func() { _ = m.Close() })
 	if err := m.Authenticate(AuthConfig{
@@ -62,6 +103,11 @@ func mxAuthedCore(t *testing.T) *MatrixCore {
 		t.Fatalf("authenticate: %v", err)
 	}
 	return m
+}
+
+func mxAuthedCore(t *testing.T) *MatrixCore {
+	t.Helper()
+	return mxAuthedCoreAt(t, mxJourneyServer(t))
 }
 
 func mxRunCaptured(t *testing.T, fn func()) (stdout, stderr string) {
@@ -279,16 +325,13 @@ func TestMatrixEventToMessageNonMessageReturnsNil(t *testing.T) {
 }
 
 func TestMatrixEventToMessageUsesRoomState(t *testing.T) {
-	m := newTestMatrix()
-	sk := "@alice:server"
-	m.ForTestRooms()[id.RoomID("!room:server")] = &MatrixRoomState{
-		ID:          id.RoomID("!room:server"),
-		IsEncrypted: true,
-		Members: map[id.UserID]*MatrixMember{
-			id.UserID(sk): {UserID: id.UserID(sk), DisplayName: "Alice", Membership: event.MembershipJoin},
-		},
+	srv := mxStateServer(t, `[
+                {"type":"m.room.member","state_key":"@alice:server","content":{"membership":"join","displayname":"Alice"}},
+                {"type":"m.room.encryption","state_key":"","content":{"algorithm":"m.megolm.v1.aes-sha2"}}]`)
+	m := mxAuthedCoreAt(t, srv)
+	if _, err := m.GetChatInfo("!room:server"); err != nil {
+		t.Fatalf("seed room state: %v", err)
 	}
-	_ = sk
 	evt := mxMessageEvt(t, `{"msgtype":"m.text","body":"secret"}`)
 
 	msg := m.EventToMessage(evt)
@@ -558,25 +601,34 @@ func TestMatrixGetDialogsRequiresAuth(t *testing.T) {
 }
 
 func TestMatrixGetDialogsSortsAndPaginates(t *testing.T) {
-	m := mxAuthedCore(t)
 	base := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
-	mk := func(room string, offsetMin int, name string) {
-		m.ForTestRooms()[id.RoomID(room)] = &MatrixRoomState{
-			ID:        id.RoomID(room),
-			Name:      name,
-			LastEvent: base.Add(time.Duration(offsetMin) * time.Minute),
-			Members:   map[id.UserID]*MatrixMember{},
-		}
+	mk := func(room string, offsetMin int, name string) string {
+		ts := base.Add(time.Duration(offsetMin) * time.Minute).UnixMilli()
+		return fmt.Sprintf(`%q:{"state":{"events":[{"type":"m.room.name","state_key":"","content":{"name":%q}}]},`+
+			`"timeline":{"events":[{"type":"m.room.message","event_id":"$ev:%s","sender":"@u:s","origin_server_ts":%d,"content":{"msgtype":"m.text","body":"x"}}]}}`,
+			room, name, name, ts)
 	}
-	mk("!old:s", 0, "Old")
-	mk("!new:s", 30, "New")
-	mk("!mid:s", 10, "Mid")
+	sync := `{"next_batch":"s1","rooms":{"join":{` +
+		mk("!old:s", 0, "Old") + `,` + mk("!new:s", 30, "New") + `,` + mk("!mid:s", 10, "Mid") + `}}}`
+	m := mxAuthedCoreAt(t, mxSyncServer(t, sync))
 
-	all, err := m.GetDialogs(PaginationOpts{Limit: 10})
-	if err != nil {
-		t.Fatal(err)
+	var all []Dialog
+	deadline := time.Now().Add(8 * time.Second)
+	for {
+		var err error
+		all, err = m.GetDialogs(PaginationOpts{Limit: 10})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(all) == 3 || time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
 	}
-	if len(all) != 3 || all[0].Title != "New" || all[1].Title != "Mid" || all[2].Title != "Old" {
+	if len(all) != 3 {
+		t.Fatalf("rooms not ingested from sync: %d", len(all))
+	}
+	if all[0].Title != "New" || all[1].Title != "Mid" || all[2].Title != "Old" {
 		t.Fatalf("order wrong: %v %v %v", all[0].Title, all[1].Title, all[2].Title)
 	}
 
@@ -598,14 +650,13 @@ func TestMatrixGetDialogsSortsAndPaginates(t *testing.T) {
 }
 
 func TestMatrixGetPinnedEvents(t *testing.T) {
-	m := newTestMatrix()
+	srv := mxStateServer(t, `[{"type":"m.room.pinned_events","state_key":"","content":{"pinned":["$pin:s"]}}]`)
+	m := mxAuthedCoreAt(t, srv)
 	if pins := m.GetPinnedEvents("!r:s"); pins != nil {
 		t.Errorf("unknown room pins = %v, want nil", pins)
 	}
-	m.ForTestRooms()[id.RoomID("!r:s")] = &MatrixRoomState{
-		ID:        id.RoomID("!r:s"),
-		PinnedIDs: []id.EventID{"$pin:s"},
-		Members:   map[id.UserID]*MatrixMember{},
+	if _, err := m.GetChatInfo("!r:s"); err != nil {
+		t.Fatalf("seed room state: %v", err)
 	}
 	pins := m.GetPinnedEvents("!r:s")
 	if len(pins) != 1 || pins[0] != "$pin:s" {

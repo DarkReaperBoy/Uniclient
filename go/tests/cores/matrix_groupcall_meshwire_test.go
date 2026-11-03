@@ -46,12 +46,37 @@ func (p *meshPuts) snapshot() []meshPut {
 	return out
 }
 
-func newMeshHomeserver(t *testing.T) (*httptest.Server, *meshPuts) {
+type meshServer struct {
+	*httptest.Server
+	puts      *meshPuts
+	mu        sync.Mutex
+	roomState string
+}
+
+func (s *meshServer) setRoomState(state string) {
+	s.mu.Lock()
+	s.roomState = state
+	s.mu.Unlock()
+}
+
+func newMeshHomeserver(t *testing.T) (*meshServer, *meshPuts) {
 	t.Helper()
 	puts := &meshPuts{}
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mesh := &meshServer{puts: puts}
+	mesh.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		p := r.URL.Path
 		switch {
+		case strings.HasSuffix(p, "/state") && r.Method == http.MethodGet:
+			mesh.mu.Lock()
+			state := mesh.roomState
+			mesh.mu.Unlock()
+			w.Header().Set("Content-Type", "application/json")
+			if state == "" {
+				w.WriteHeader(http.StatusNotFound)
+				_, _ = io.WriteString(w, `{"errcode":"M_NOT_FOUND"}`)
+				return
+			}
+			_, _ = io.WriteString(w, state)
 		case strings.Contains(p, "/state/") && r.Method == http.MethodPut:
 			idx := strings.Index(p, "/state/")
 			parts := strings.SplitN(p[idx+len("/state/"):], "/", 2)
@@ -75,8 +100,8 @@ func newMeshHomeserver(t *testing.T) (*httptest.Server, *meshPuts) {
 			_, _ = io.WriteString(w, `{"errcode":"M_NOT_FOUND"}`)
 		}
 	}))
-	t.Cleanup(srv.Close)
-	return srv, puts
+	t.Cleanup(mesh.Close)
+	return mesh, puts
 }
 
 func readBody(r *http.Request) string { b, _ := io.ReadAll(r.Body); return string(b) }
