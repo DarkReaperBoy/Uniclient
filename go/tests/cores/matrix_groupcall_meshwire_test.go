@@ -128,6 +128,121 @@ func writeEventID(w http.ResponseWriter) {
 	_, _ = io.WriteString(w, `{"event_id":"$ev"}`)
 }
 
+type updateCapture struct {
+	mu   sync.Mutex
+	seen []Update
+}
+
+func newUpdateCapture(core *MatrixCore) *updateCapture {
+	uc := &updateCapture{}
+	core.OnUpdate(func(u Update) {
+		uc.mu.Lock()
+		uc.seen = append(uc.seen, u)
+		uc.mu.Unlock()
+	})
+	return uc
+}
+
+func (uc *updateCapture) groupPeerEnded(user string) bool {
+	uc.mu.Lock()
+	defer uc.mu.Unlock()
+	for _, u := range uc.seen {
+		if u.Type != UpdateCallState || u.Call == nil || !u.Call.IsGroup {
+			continue
+		}
+		if u.Call.State != CallStateEnded {
+			continue
+		}
+		for _, p := range u.Call.Participants {
+			if p.UserID == user {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+const meshRenewInterval = 120 * time.Millisecond
+
+func shortenRenewal(t *testing.T) {
+	t.Helper()
+	old := MatrixRenewInterval
+	MatrixRenewInterval = meshRenewInterval
+	t.Cleanup(func() { MatrixRenewInterval = old })
+}
+
+func countMembershipPuts(puts *meshPuts) int {
+	n := 0
+	for _, p := range puts.snapshot() {
+		if p.Kind == "state" && p.Type == MatrixCallMemberEventType {
+			n++
+		}
+	}
+	return n
+}
+
+func waitForRenewalTicks(t *testing.T, puts *meshPuts, want int) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if countMembershipPuts(puts) >= want {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatalf("renewal loop not publishing: %d membership PUTs, want >= %d", countMembershipPuts(puts), want)
+}
+
+func assertRenewalStopped(t *testing.T, puts *meshPuts, what string) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		left := false
+		for _, p := range puts.snapshot() {
+			if p.Kind == "state" && p.Type == MatrixCallMemberEventType && strings.Contains(p.Body, `"m.calls":[]`) {
+				left = true
+			}
+		}
+		if left {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	mark := countMembershipPuts(puts)
+	if mark == 0 {
+		t.Fatalf("%s: no membership PUTs observed at all", what)
+	}
+	time.Sleep(4 * meshRenewInterval)
+	if after := countMembershipPuts(puts); after != mark {
+		for _, p := range puts.snapshot()[mark:] {
+			t.Errorf("%s: post-leave membership PUT: kind=%s type=%s body=%.200s", what, p.Kind, p.Type, p.Body)
+		}
+		t.Fatalf("%s: renewal kept publishing after teardown: %d -> %d", what, mark, after)
+	}
+}
+
+func countConfInvites(puts *meshPuts, conf string) int {
+	n := 0
+	for _, p := range puts.snapshot() {
+		if p.Kind == "send" && p.Type == event.CallInvite.Type && strings.Contains(p.Body, `"conf_id":"`+conf+`"`) {
+			n++
+		}
+	}
+	return n
+}
+
+func waitForCond(t *testing.T, cond func() bool, what string) {
+	t.Helper()
+	deadline := time.Now().Add(8 * time.Second)
+	for time.Now().Before(deadline) {
+		if cond() {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatal(what)
+}
+
 func newMeshTestCore(t *testing.T, srvURL string) *MatrixCore {
 	t.Helper()
 	core := NewMatrixCore(nil)
@@ -188,6 +303,7 @@ func fireGroupMemberEvent(t *testing.T, core *MatrixCore, uid string, content Ma
 
 func seededMeshCore(t *testing.T, srv *meshServer) *MatrixCore {
 	t.Helper()
+	shortenRenewal(t)
 	core := newMeshTestCore(t, srv.URL)
 	fireGroupMemberEvent(t, core, "@bob:test", MatrixCallMemberContent{Calls: []MatrixCallMemberCall{{
 		CallID: "conf_x",
@@ -213,13 +329,6 @@ func TestGroupReconcileSendsConfTaggedOffer(t *testing.T) {
 
 	if err := core.ReconcileGroupMesh(); err != nil {
 		t.Fatalf("reconcile: %v", err)
-	}
-
-	core.ForTestGroupMu().Lock()
-	peer := core.ForTestGroupPeers()[GroupPeerKey("@bob:test", "BOB1")]
-	core.ForTestGroupMu().Unlock()
-	if peer == nil || peer.ForTestPc() == nil {
-		t.Fatal("peer not registered after reconcile")
 	}
 
 	var invite meshPut
@@ -252,6 +361,9 @@ func TestGroupReconcileSendsConfTaggedOffer(t *testing.T) {
 	if body.Offer.Type != "offer" || !strings.HasPrefix(body.Offer.SDP, "v=0") {
 		t.Fatalf("offer = %+v, want real SDP", body.Offer)
 	}
+	if !strings.Contains(body.Offer.SDP, "m=audio") || !strings.Contains(body.Offer.SDP, "a=fingerprint:") {
+		t.Fatalf("offer SDP not pc-generated: %q", body.Offer.SDP)
+	}
 }
 
 func TestGroupIncomingInviteRoutesToMesh(t *testing.T) {
@@ -270,17 +382,8 @@ func TestGroupIncomingInviteRoutesToMesh(t *testing.T) {
 
 	core.HandleCallInvite(evt)
 
-	core.ForTestGroupMu().Lock()
-	peer := core.ForTestGroupPeers()[GroupPeerKey("@bob:test", "BOB1")]
-	core.ForTestGroupMu().Unlock()
-	if peer == nil {
-		t.Fatalf("group invite not routed to mesh; peers=%+v", core.ForTestGroupPeers())
-	}
-	core.ForTestCallsMu().RLock()
-	_, in1x1 := core.ForTestActiveCalls()["conf_x"]
-	core.ForTestCallsMu().RUnlock()
-	if in1x1 {
-		t.Fatal("group invite leaked into the 1:1 activeCalls table")
+	if _, err := core.AcceptCall("conf_x"); err == nil {
+		t.Fatal("group invite leaked into the 1:1 call table: AcceptCall(conf_x) succeeded")
 	}
 
 	deadline := time.Now().Add(8 * time.Second)
@@ -297,7 +400,7 @@ func TestGroupIncomingInviteRoutesToMesh(t *testing.T) {
 }
 
 func TestGroupIncomingInviteWrongConfIgnored(t *testing.T) {
-	srv, _ := newMeshHomeserver(t)
+	srv, puts := newMeshHomeserver(t)
 	core := seededMeshCore(t, srv)
 	sdp := makeOfferSDP(t, core)
 
@@ -310,64 +413,73 @@ func TestGroupIncomingInviteWrongConfIgnored(t *testing.T) {
 		Content: event.Content{VeryRaw: json.RawMessage(raw)},
 	}
 
+	before := len(puts.snapshot())
 	core.HandleCallInvite(evt)
 
-	core.ForTestGroupMu().Lock()
-	n := len(core.ForTestGroupPeers())
-	core.ForTestGroupMu().Unlock()
-	if n != 0 {
-		t.Fatalf("foreign conf accepted: %d peers", n)
+	for _, p := range puts.snapshot()[before:] {
+		if p.Kind == "send" && (p.Type == event.CallInvite.Type || p.Type == event.CallAnswer.Type || p.Type == event.CallCandidates.Type) {
+			t.Fatalf("foreign conf produced call traffic: %+v", p)
+		}
 	}
+
+	raw = `{"call_id":"conf_x","version":"1","party_id":"BOB1","conf_id":"conf_x",` +
+		`"offer":{"type":"offer","sdp":` + strconv.Quote(sdp) + `}}`
+	evt = &event.Event{
+		Type:    event.CallInvite,
+		RoomID:  id.RoomID("!room:test"),
+		Sender:  id.UserID("@bob:test"),
+		Content: event.Content{VeryRaw: json.RawMessage(raw)},
+	}
+	core.HandleCallInvite(evt)
+
+	waitForCond(t, func() bool {
+		for _, p := range puts.snapshot() {
+			if p.Kind == "send" && p.Type == event.CallAnswer.Type && strings.Contains(p.Body, `"conf_id":"conf_x"`) {
+				return true
+			}
+		}
+		return false
+	}, "no conf-tagged answer after foreign-conf invite; foreign peer blocked the mesh")
 }
 
 func TestSendICECandidatesConfTagged(t *testing.T) {
 	srv, puts := newMeshHomeserver(t)
 	core := seededMeshCore(t, srv)
 
-	mid := "0"
-	idx := uint16(0)
 	if err := core.ReconcileGroupMesh(); err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
-	core.ForTestGroupMu().Lock()
-	call := core.ForTestGroupPeers()[GroupPeerKey("@bob:test", "BOB1")]
-	core.ForTestGroupMu().Unlock()
-	if call == nil {
-		t.Fatal("setup: bob peer not created by reconcile")
-	}
-	core.SendICECandidates(call, []webrtc.ICECandidateInit{{
-		Candidate:     "candidate:1 1 UDP 2122252543 192.0.2.1 3478 typ host generation 0",
-		SDPMid:        &mid,
-		SDPMLineIndex: &idx,
-	}})
 
-	found := false
+	waitForCond(t, func() bool {
+		for _, p := range puts.snapshot() {
+			if p.Kind == "send" && p.Type == event.CallCandidates.Type {
+				return true
+			}
+		}
+		return false
+	}, "no candidates event sent by real ICE gathering; puts absent")
 	for _, p := range puts.snapshot() {
 		if p.Kind == "send" && p.Type == event.CallCandidates.Type {
 			if !strings.Contains(p.Body, `"conf_id":"conf_x"`) {
 				t.Fatalf("candidates not conf-tagged: %s", p.Body)
 			}
-			found = true
+			if !strings.Contains(p.Body, `"call_id":"conf_x"`) {
+				t.Fatalf("candidates not call-tagged: %s", p.Body)
+			}
 		}
-	}
-	if !found {
-		t.Fatalf("no candidates event sent; puts=%+v (mid=%s)", puts.snapshot(), mid)
 	}
 }
 
 func TestGroupReconcileRemovesDepartedPeers(t *testing.T) {
-	srv, _ := newMeshHomeserver(t)
+	srv, puts := newMeshHomeserver(t)
 	core := seededMeshCore(t, srv)
+	uc := newUpdateCapture(core)
 
 	if err := core.ReconcileGroupMesh(); err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
-	core.ForTestGroupMu().Lock()
-	live := len(core.ForTestGroupPeers())
-	core.ForTestGroupMu().Unlock()
-	if live != 1 {
-		t.Fatalf("setup: want 1 live bob peer, got %d", live)
-	}
+	waitForCond(t, func() bool { return countConfInvites(puts, "conf_x") == 1 },
+		"setup: no conf-tagged invite sent for the live bob peer")
 
 	fireGroupMemberEvent(t, core, "@bob:test", MatrixCallMemberContent{Calls: []MatrixCallMemberCall{{
 		CallID:  "conf_x",
@@ -375,12 +487,21 @@ func TestGroupReconcileRemovesDepartedPeers(t *testing.T) {
 	}}})
 
 	if err := core.ReconcileGroupMesh(); err != nil {
-		t.Fatalf("reconcile: %v", err)
+		t.Fatalf("reconcile after expiry: %v", err)
 	}
-	core.ForTestGroupMu().Lock()
-	n := len(core.ForTestGroupPeers())
-	core.ForTestGroupMu().Unlock()
-	if n != 0 {
-		t.Fatalf("departed peer still registered: %d", n)
+	if !uc.groupPeerEnded("@bob:test") {
+		t.Fatal("departed peer not torn down (no per-peer Ended update)")
 	}
+
+	fireGroupMemberEvent(t, core, "@bob:test", MatrixCallMemberContent{Calls: []MatrixCallMemberCall{{
+		CallID: "conf_x",
+		Devices: []MatrixCallDevice{{DeviceID: "BOB1", SessionID: "bs2",
+			ExpiresTS: time.Now().UnixMilli() + 60_000}},
+	}}})
+
+	if err := core.ReconcileGroupMesh(); err != nil {
+		t.Fatalf("reconcile after re-add: %v", err)
+	}
+	waitForCond(t, func() bool { return countConfInvites(puts, "conf_x") == 2 },
+		"re-added peer not re-invited — the departed peer was never dropped from the mesh")
 }

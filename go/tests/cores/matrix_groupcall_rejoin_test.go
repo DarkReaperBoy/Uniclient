@@ -2,13 +2,14 @@ package tests
 
 import (
 	"testing"
+	"time"
 	. "uniclient/cores"
 )
 
 func TestJoinGroupCallClosesStaleConfPeers(t *testing.T) {
-	srv, _ := newMeshHomeserver(t)
+	srv, puts := newMeshHomeserver(t)
 	core := seededMeshCore(t, srv)
-	_, stale := seedCallState(t, core)
+	uc := seedCallState(t, srv, core)
 	srv.setCallConf("conf_new")
 
 	sess, err := core.JoinGroupCall("!room:test")
@@ -19,13 +20,18 @@ func TestJoinGroupCallClosesStaleConfPeers(t *testing.T) {
 		t.Fatalf("setup: conf = %s, want conf_new (server started a new call)", sess.ID)
 	}
 
-	if stale.State != CallStateEnded {
-		t.Errorf("stale peer not closed after conf change: state=%v", stale.State)
+	if !uc.groupPeerEnded("@bob:test") {
+		t.Error("stale peer not closed after conf change (no per-peer Ended update)")
 	}
-	core.ForTestGroupMu().Lock()
-	_, survived := core.ForTestGroupPeers()[GroupPeerKey("@bob:test", "BOB1")]
-	core.ForTestGroupMu().Unlock()
-	if survived {
-		t.Errorf("stale conf_x peer still registered after joining %s", sess.ID)
+
+	fireGroupMemberEvent(t, core, "@bob:test", MatrixCallMemberContent{Calls: []MatrixCallMemberCall{{
+		CallID: "conf_new",
+		Devices: []MatrixCallDevice{{DeviceID: "BOB1", SessionID: "bs2",
+			ExpiresTS: time.Now().UnixMilli() + 60_000}},
+	}}})
+	if err := core.ReconcileGroupMesh(); err != nil {
+		t.Fatalf("reconcile on the new conf: %v", err)
 	}
+	waitForCond(t, func() bool { return countConfInvites(puts, "conf_new") == 1 },
+		"mesh not re-established on the new conf after the stale sweep")
 }

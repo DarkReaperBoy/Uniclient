@@ -34,12 +34,6 @@ func TestReconcileDropsRoomDepartedMembers(t *testing.T) {
 	if err := core.ReconcileGroupMesh(); err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
-	core.ForTestGroupMu().Lock()
-	peers := len(core.ForTestGroupPeers())
-	core.ForTestGroupMu().Unlock()
-	if peers != 0 {
-		t.Fatalf("mesh peer kept for a member who left the room: %d", peers)
-	}
 	for _, p := range puts.snapshot() {
 		if p.Kind == "send" && p.Type == event.CallInvite.Type {
 			t.Fatalf("invite sent to a departed member: %s", p.Body)
@@ -48,22 +42,19 @@ func TestReconcileDropsRoomDepartedMembers(t *testing.T) {
 }
 
 func TestHandleMemberEventDropsPeerWhenMemberLeavesRoom(t *testing.T) {
-	srv, _ := newMeshHomeserver(t)
+	srv, puts := newMeshHomeserver(t)
 	core := seededMeshCore(t, srv)
 	seedRoomMembership(t, srv, core, map[id.UserID]event.Membership{
 		"@alice:test": event.MembershipJoin,
 		"@bob:test":   event.MembershipJoin,
 	})
 
+	uc := newUpdateCapture(core)
 	if err := core.ReconcileGroupMesh(); err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
-	core.ForTestGroupMu().Lock()
-	n := len(core.ForTestGroupPeers())
-	core.ForTestGroupMu().Unlock()
-	if n != 1 {
-		t.Fatalf("setup: peers = %d, want 1", n)
-	}
+	waitForCond(t, func() bool { return countConfInvites(puts, "conf_x") == 1 },
+		"setup: bob peer not invited")
 
 	sk := "@bob:test"
 	evt := &event.Event{
@@ -75,11 +66,8 @@ func TestHandleMemberEventDropsPeerWhenMemberLeavesRoom(t *testing.T) {
 	}
 	core.HandleMemberEvent(evt)
 
-	core.ForTestGroupMu().Lock()
-	n = len(core.ForTestGroupPeers())
-	core.ForTestGroupMu().Unlock()
-	if n != 0 {
-		t.Fatalf("peer to the departed member still open: %d (reconcile not triggered by the member event)", n)
+	if !uc.groupPeerEnded("@bob:test") {
+		t.Fatal("peer to the departed member still open (no per-peer Ended update from the member event)")
 	}
 }
 

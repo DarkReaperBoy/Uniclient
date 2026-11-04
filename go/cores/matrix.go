@@ -1226,7 +1226,7 @@ func (m *MatrixCore) JoinGroupCall(chatID string) (*CallSession, error) {
 	m.groupMu.Unlock()
 	for _, c := range stalePeers {
 		if c != nil {
-			m.cleanupCall(c)
+			m.teardownGroupPeer(c)
 		}
 	}
 

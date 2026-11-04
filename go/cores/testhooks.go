@@ -11,16 +11,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-	"uniclient/wrtc"
 )
-
-func (x *MatrixCore) ForTestActiveCalls() map[string]*MatrixCall {
-	return x.activeCalls
-}
-
-func (x *MatrixCore) ForTestCallsMu() *sync.RWMutex {
-	return &x.callsMu
-}
 
 func (x *TsConnection) ForTestClientID() *atomic.Uint32 {
 	return &x.clientID
@@ -46,18 +37,6 @@ func (x *TsConnection) ForTestExecWait() bool {
 	return x.execWait
 }
 
-func (x *MatrixCore) ForTestGroupMu() *sync.Mutex {
-	return &x.groupMu
-}
-
-func (x *MatrixCore) ForTestGroupPeers() map[string]*MatrixCall {
-	return x.groupPeers
-}
-
-func (x *MatrixCore) ForTestGroupRenew() context.CancelFunc {
-	return x.groupRenew
-}
-
 func (x *tsP256Identity) ForTestKey() *ecdsa.PrivateKey {
 	return x.key
 }
@@ -76,14 +55,6 @@ func (x *TelegramCore) ForTestMu() *sync.RWMutex {
 
 func (x *TeamSpeakCore) ForTestMyClientID() int {
 	return x.myClientID
-}
-
-func (x *MatrixCall) ForTestPc() *wrtc.PeerConnection {
-	return x.pc
-}
-
-func (x *tgCall) ForTestPc() *wrtc.PeerConnection {
-	return x.pc
 }
 
 func (x *TsConnection) ForTestPktState() *[9]tsPacketState {
@@ -120,10 +91,6 @@ func (x *TelegramCore) ForTestSetCtx(v context.Context) {
 
 func (x *MatrixCore) ForTestSetDeviceID(v id.DeviceID) {
 	x.deviceID = v
-}
-
-func (x *MatrixCore) ForTestSetGroupRenew(v context.CancelFunc) {
-	x.groupRenew = v
 }
 
 func (x *TeamSpeakCore) ForTestSetMyClientID(v int) {

@@ -9,46 +9,36 @@ import (
 	"maunium.net/go/mautrix/id"
 )
 
-func seedCallState(t *testing.T, core *MatrixCore) (*bool, *MatrixCall) {
+func seedCallState(t *testing.T, srv *meshServer, core *MatrixCore) *updateCapture {
 	t.Helper()
-	canceled := false
-	core.ForTestGroupMu().Lock()
-	prevRenew := core.ForTestGroupRenew()
-	core.ForTestSetGroupRenew(func() {
-		canceled = true
-		if prevRenew != nil {
-			prevRenew()
-		}
-	})
-	core.ForTestGroupMu().Unlock()
+	uc := newUpdateCapture(core)
 	if err := core.ReconcileGroupMesh(); err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
-	core.ForTestGroupMu().Lock()
-	call := core.ForTestGroupPeers()[GroupPeerKey("@bob:test", "BOB1")]
-	core.ForTestGroupMu().Unlock()
-	if call == nil {
-		t.Fatal("setup: bob peer not created by reconcile")
-	}
-	return &canceled, call
+	waitForRenewalTicks(t, srv.puts, 3)
+	return uc
 }
 
-func assertCallTornDown(t *testing.T, core *MatrixCore, canceled *bool, call *MatrixCall, what string) {
+func assertCallTornDown(t *testing.T, srv *meshServer, core *MatrixCore, uc *updateCapture, what string) {
 	t.Helper()
-	if !*canceled {
-		t.Errorf("%s: renewal not canceled — membership would publish forever", what)
+	if !uc.groupPeerEnded("@bob:test") {
+		t.Errorf("%s: mesh peer not torn down (no per-peer Ended update)", what)
 	}
-	core.ForTestGroupMu().Lock()
-	peers := len(core.ForTestGroupPeers())
-	core.ForTestGroupMu().Unlock()
 	if cs, _ := core.GetGroupCall("!room:test"); cs != nil {
 		t.Errorf("%s: call still observable through GetGroupCall: %s", what, cs.ID)
 	}
-	if peers != 0 {
-		t.Errorf("%s: %d mesh peers still open", what, peers)
+	assertRenewalStopped(t, srv.puts, what)
+}
+
+func assertCallKept(t *testing.T, srv *meshServer, core *MatrixCore, uc *updateCapture, what string) {
+	t.Helper()
+	mark := countMembershipPuts(srv.puts)
+	waitForRenewalTicks(t, srv.puts, mark+2)
+	if uc.groupPeerEnded("@alice:test") || uc.groupPeerEnded("@bob:test") {
+		t.Errorf("%s: peer torn down", what)
 	}
-	if call.State != CallStateEnded {
-		t.Errorf("%s: peer call state = %v, want ended", what, call.State)
+	if cs, err := core.GetGroupCall("!room:test"); err != nil || cs == nil || cs.ID != "conf_x" {
+		t.Errorf("%s: call no longer observable: cs=%+v err=%v", what, cs, err)
 	}
 }
 
@@ -72,12 +62,12 @@ func containsEmptyCalls(body string) bool {
 func TestLeaveChatWhileInCallTearsDown(t *testing.T) {
 	srv, puts := newMeshHomeserver(t)
 	core := seededMeshCore(t, srv)
-	canceled, call := seedCallState(t, core)
+	uc := seedCallState(t, srv, core)
 
 	if err := core.LeaveChat("!room:test"); err != nil {
 		t.Fatalf("LeaveChat: %v", err)
 	}
-	assertCallTornDown(t, core, canceled, call, "LeaveChat")
+	assertCallTornDown(t, srv, core, uc, "LeaveChat")
 
 	if err := core.SendVoiceFrame([]byte{0xf8, 0xff, 0xfe}); err != nil {
 		t.Fatalf("SendVoiceFrame after LeaveChat: %v", err)
@@ -98,35 +88,23 @@ func TestLeaveChatWhileInCallTearsDown(t *testing.T) {
 func TestLeaveChatOtherRoomKeepsCall(t *testing.T) {
 	srv, _ := newMeshHomeserver(t)
 	core := seededMeshCore(t, srv)
-	canceled, _ := seedCallState(t, core)
+	uc := seedCallState(t, srv, core)
 
 	if err := core.LeaveChat("!other:test"); err != nil {
 		t.Fatalf("LeaveChat(other): %v", err)
 	}
-	if *canceled {
-		t.Fatal("leaving an unrelated room canceled the call's renewal")
-	}
-	cs, err := core.GetGroupCall("!room:test")
-	if err != nil || cs == nil || cs.ID != "conf_x" {
-		t.Fatalf("unrelated LeaveChat tore the call down: cs=%+v err=%v", cs, err)
-	}
-	core.ForTestGroupMu().Lock()
-	peers := len(core.ForTestGroupPeers())
-	core.ForTestGroupMu().Unlock()
-	if peers != 1 {
-		t.Fatalf("unrelated LeaveChat tore the call down: peers=%d", peers)
-	}
+	assertCallKept(t, srv, core, uc, "unrelated LeaveChat")
 }
 
 func TestLogoutWhileInCallTearsDown(t *testing.T) {
 	srv, puts := newMeshHomeserver(t)
 	core := seededMeshCore(t, srv)
-	canceled, call := seedCallState(t, core)
+	uc := seedCallState(t, srv, core)
 
 	if err := core.Logout(); err != nil {
 		t.Fatalf("Logout: %v", err)
 	}
-	assertCallTornDown(t, core, canceled, call, "Logout")
+	assertCallTornDown(t, srv, core, uc, "Logout")
 
 	stateIdx, logoutIdx := putOrder(puts, "logout")
 	if stateIdx < 0 || logoutIdx < 0 {
@@ -140,18 +118,18 @@ func TestLogoutWhileInCallTearsDown(t *testing.T) {
 func TestCloseWhileInCallTearsDown(t *testing.T) {
 	srv, _ := newMeshHomeserver(t)
 	core := seededMeshCore(t, srv)
-	canceled, call := seedCallState(t, core)
+	uc := seedCallState(t, srv, core)
 
 	if err := core.Close(); err != nil {
 		t.Fatalf("Close: %v", err)
 	}
-	assertCallTornDown(t, core, canceled, call, "Close")
+	assertCallTornDown(t, srv, core, uc, "Close")
 }
 
 func TestOwnMemberLeaveEndsGroupCall(t *testing.T) {
 	srv, _ := newMeshHomeserver(t)
 	core := seededMeshCore(t, srv)
-	canceled, call := seedCallState(t, core)
+	uc := seedCallState(t, srv, core)
 
 	sk := "@alice:test"
 	evt := &event.Event{
@@ -163,13 +141,13 @@ func TestOwnMemberLeaveEndsGroupCall(t *testing.T) {
 	}
 	core.HandleMemberEvent(evt)
 
-	assertCallTornDown(t, core, canceled, call, "own member-leave")
+	assertCallTornDown(t, srv, core, uc, "own member-leave")
 }
 
 func TestOwnMemberJoinKeepsGroupCall(t *testing.T) {
 	srv, _ := newMeshHomeserver(t)
 	core := seededMeshCore(t, srv)
-	canceled, _ := seedCallState(t, core)
+	uc := seedCallState(t, srv, core)
 
 	sk := "@alice:test"
 	evt := &event.Event{
@@ -181,18 +159,7 @@ func TestOwnMemberJoinKeepsGroupCall(t *testing.T) {
 	}
 	core.HandleMemberEvent(evt)
 
-	if *canceled {
-		t.Fatal("renewal canceled by a join event")
-	}
-	if cs, err := core.GetGroupCall("!room:test"); err != nil || cs == nil || cs.ID != "conf_x" {
-		t.Fatalf("join event tore the call down: cs=%+v err=%v", cs, err)
-	}
-	core.ForTestGroupMu().Lock()
-	peers := len(core.ForTestGroupPeers())
-	core.ForTestGroupMu().Unlock()
-	if peers != 1 {
-		t.Fatalf("join event tore the call down: peers=%d", peers)
-	}
+	assertCallKept(t, srv, core, uc, "join event")
 }
 
 func TestOwnMemberNonDepartureKeepsGroupCall(t *testing.T) {
@@ -206,7 +173,7 @@ func TestOwnMemberNonDepartureKeepsGroupCall(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			srv, _ := newMeshHomeserver(t)
 			core := seededMeshCore(t, srv)
-			canceled, call := seedCallState(t, core)
+			uc := seedCallState(t, srv, core)
 
 			sk := "@alice:test"
 			evt := &event.Event{
@@ -218,19 +185,7 @@ func TestOwnMemberNonDepartureKeepsGroupCall(t *testing.T) {
 			}
 			core.HandleMemberEvent(evt)
 
-			if *canceled {
-				t.Fatalf("membership=%q event canceled the renewal — call torn down", tc.membership)
-			}
-			if cs, err := core.GetGroupCall("!room:test"); err != nil || cs == nil || cs.ID != "conf_x" {
-				t.Fatalf("membership=%q event tore the call down: cs=%+v err=%v", tc.membership, cs, err)
-			}
-			core.ForTestGroupMu().Lock()
-			peers := len(core.ForTestGroupPeers())
-			core.ForTestGroupMu().Unlock()
-			if peers != 1 || call.State == CallStateEnded {
-				t.Fatalf("membership=%q event tore the call down: peers=%d state=%v",
-					tc.membership, peers, call.State)
-			}
+			assertCallKept(t, srv, core, uc, "membership="+tc.membership)
 		})
 	}
 }
@@ -238,7 +193,7 @@ func TestOwnMemberNonDepartureKeepsGroupCall(t *testing.T) {
 func TestOwnMemberBanEndsGroupCall(t *testing.T) {
 	srv, _ := newMeshHomeserver(t)
 	core := seededMeshCore(t, srv)
-	canceled, call := seedCallState(t, core)
+	uc := seedCallState(t, srv, core)
 
 	sk := "@alice:test"
 	evt := &event.Event{
@@ -250,5 +205,5 @@ func TestOwnMemberBanEndsGroupCall(t *testing.T) {
 	}
 	core.HandleMemberEvent(evt)
 
-	assertCallTornDown(t, core, canceled, call, "own member-ban")
+	assertCallTornDown(t, srv, core, uc, "own member-ban")
 }

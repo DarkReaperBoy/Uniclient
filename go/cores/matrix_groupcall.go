@@ -193,13 +193,29 @@ func peekGroupConf(evt *event.Event) string {
 	return ConfIDFromRaw(raw)
 }
 
+func (m *MatrixCore) teardownGroupPeer(call *MatrixCall) {
+	m.cleanupCall(call)
+	m.fireUpdate(Update{
+		Type:   UpdateCallState,
+		ChatID: call.RoomID.String(),
+		Call: &CallSession{
+			ID:           call.ID,
+			ChatID:       call.RoomID.String(),
+			IsGroup:      true,
+			State:        CallStateEnded,
+			Participants: []CallParticipant{{UserID: call.GroupSender.String()}},
+		},
+		Platform: MxPlatform,
+	})
+}
+
 func (m *MatrixCore) dropGroupPeer(key string) {
 	m.groupMu.Lock()
 	call := m.groupPeers[key]
 	delete(m.groupPeers, key)
 	m.groupMu.Unlock()
 	if call != nil {
-		m.cleanupCall(call)
+		m.teardownGroupPeer(call)
 	}
 }
 
@@ -266,7 +282,7 @@ func (m *MatrixCore) ReconcileGroupMesh() error {
 	m.groupMu.Unlock()
 
 	for _, c := range toClose {
-		m.cleanupCall(c)
+		m.teardownGroupPeer(c)
 	}
 	var firstErr error
 	for _, p := range toOffer {
@@ -619,7 +635,7 @@ func (m *MatrixCore) leaveGroupCallInternal() (id.RoomID, string, error) {
 	}
 	for _, c := range peers {
 		if c != nil {
-			m.cleanupCall(c)
+			m.teardownGroupPeer(c)
 		}
 	}
 

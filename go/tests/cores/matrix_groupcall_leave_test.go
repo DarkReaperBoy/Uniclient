@@ -9,36 +9,23 @@ import (
 func TestEndCallLeavesGroupCall(t *testing.T) {
 	srv, puts := newMeshHomeserver(t)
 	core := seededMeshCore(t, srv)
+	uc := newUpdateCapture(core)
 
-	renewCanceled := false
-	core.ForTestGroupMu().Lock()
-	prevRenew := core.ForTestGroupRenew()
-	core.ForTestSetGroupRenew(func() {
-		renewCanceled = true
-		if prevRenew != nil {
-			prevRenew()
-		}
-	})
-	core.ForTestGroupMu().Unlock()
 	if err := core.ReconcileGroupMesh(); err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
+	waitForRenewalTicks(t, puts, 3)
 
 	if err := core.EndCall("conf_x"); err != nil {
 		t.Fatalf("EndCall(conf) = %v, want nil (leave the group call)", err)
 	}
-	if !renewCanceled {
-		t.Fatal("renewal was not canceled — membership would renew forever")
-	}
-	core.ForTestGroupMu().Lock()
-	peers := len(core.ForTestGroupPeers())
-	core.ForTestGroupMu().Unlock()
-	if peers != 0 {
-		t.Fatalf("%d mesh peers still open after EndCall", peers)
+	if !uc.groupPeerEnded("@bob:test") {
+		t.Fatal("mesh peer not torn down after EndCall (no per-peer Ended update)")
 	}
 	if cs, err := core.GetGroupCall("!room:test"); err != nil || cs != nil {
 		t.Fatalf("GetGroupCall after leave: cs=%v err=%v, want (nil,nil)", cs, err)
 	}
+	assertRenewalStopped(t, puts, "EndCall")
 
 	var leaveBody string
 	for _, p := range puts.snapshot() {
