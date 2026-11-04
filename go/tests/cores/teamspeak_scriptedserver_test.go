@@ -193,6 +193,16 @@ func (s *tsScriptedServer) PushAtGen(gen uint32, line string) {
 	s.sendCommandGen(gen, []byte(line))
 }
 
+func (s *tsScriptedServer) PushAtPID(pID uint16, line string) {
+	s.sendCmdPkt(pID, byte(TsPktCommand)|TsFlagNewprotocol, []byte(line))
+}
+
+func (s *tsScriptedServer) NextPID() uint16 {
+	s.wireMu.Lock()
+	defer s.wireMu.Unlock()
+	return s.cmdPID
+}
+
 func (s *tsScriptedServer) PushPing(pingID uint16) {
 	pkt := make([]byte, 11)
 	binary.BigEndian.PutUint16(pkt[8:10], pingID)
@@ -713,6 +723,57 @@ func (s *tsScriptedServer) sendCommandGen(gen uint32, plain []byte) {
 	s.conn.WriteToUDP(pkt, client)
 }
 
+type tsS2CFrag struct {
+	pID     uint16
+	flags   byte
+	payload []byte
+}
+
+func (s *tsScriptedServer) FragmentsAtPID(pID uint16, line string, chunkSize int, compressed bool) []tsS2CFrag {
+	data := []byte(line)
+	didCompress := false
+	if compressed {
+		if qz, ok := TsQuickLZCompress(data); ok && len(qz) < len(data) {
+			data = qz
+			didCompress = true
+		}
+	}
+	var frags []tsS2CFrag
+	for off := 0; off < len(data); off += chunkSize {
+		end := off + chunkSize
+		if end > len(data) {
+			end = len(data)
+		}
+		frags = append(frags, tsS2CFrag{pID: pID, flags: byte(TsPktCommand) | TsFlagNewprotocol, payload: data[off:end]})
+		pID++
+	}
+	if len(frags) == 1 {
+		if didCompress {
+			frags[0].flags |= TsFlagCompressed
+		}
+		return frags
+	}
+	for i := range frags {
+		if i == 0 || i == len(frags)-1 {
+			frags[i].flags |= TsFlagFragmented
+		}
+	}
+	if didCompress {
+		frags[0].flags |= TsFlagCompressed
+	}
+	return frags
+}
+
+func (s *tsScriptedServer) SendS2CFragment(f tsS2CFrag) {
+	s.sendCmdPkt(f.pID, f.flags, f.payload)
+}
+
+func (s *tsScriptedServer) PushFragmentedAtPID(pID uint16, line string, chunkSize int, compressed bool) {
+	for _, f := range s.FragmentsAtPID(pID, line, chunkSize, compressed) {
+		s.SendS2CFragment(f)
+	}
+}
+
 func (s *tsScriptedServer) sendAck(ackedPID uint16) {
 	s.wireMu.Lock()
 	cryptoOn := s.cryptoOn
@@ -733,6 +794,29 @@ func (s *tsScriptedServer) sendAck(ackedPID uint16) {
 	copy(pkt[:8], mac[:])
 	binary.BigEndian.PutUint16(pkt[8:10], pID)
 	pkt[10] = tsScriptedPktAck
+	copy(pkt[11:], ct)
+	s.conn.WriteToUDP(pkt, client)
+}
+
+func (s *tsScriptedServer) sendCmdPkt(pID uint16, flags byte, plain []byte) {
+	s.wireMu.Lock()
+	cryptoOn := s.cryptoOn
+	if pID >= s.cmdPID {
+		s.cmdPID = pID + 1
+	}
+	iv := s.sharedIV
+	client := s.client
+	s.wireMu.Unlock()
+	if !cryptoOn || client == nil {
+		return
+	}
+	header := []byte{byte(pID >> 8), byte(pID & 0xff), flags}
+	key, nonce := TsCreateKeyNonce(TsPktCommand, pID, 0, 0x30, iv[:])
+	mac, ct := TsEAXEncrypt(key[:], nonce[:], header, plain)
+	pkt := make([]byte, 11+len(ct))
+	copy(pkt[:8], mac[:])
+	binary.BigEndian.PutUint16(pkt[8:10], pID)
+	pkt[10] = flags
 	copy(pkt[11:], ct)
 	s.conn.WriteToUDP(pkt, client)
 }

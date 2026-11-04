@@ -7,31 +7,86 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 362 — the TS constructor/setter cluster retired onto
-  the scripted server: 11 defs cut (45→34, largest single retirement),
-  11 tests across 7 files now drive real Authenticate journeys with
-  server-side evidence (voice packets decrypted+codec-asserted,
-  command reassembly/decompression byte-exact, ping/pong on the wire,
-  gen+1 decrypt fallback proven end-to-end); zero production changes
-- next: H-1 — the queuegap family onto S2C fragmented sending
-  (scripted server gains sendFragmented/out-of-order pushes), then
-  gotd tgtest for Telegram SetAuthed/SetCtx, then the GitHub cluster
+- front: session 363 — the queuegap family retired onto S2C
+  out-of-order + fragmented wire journeys: 5 defs cut (34→29),
+  2 tests → 3 incl. four S2C-fragment sub-journeys (the client's
+  fragBuf reassembly + single-compressed receive paths covered for
+  the first time), held-vs-delivered and ordered-drain asserted
+  through ServerName with ack evidence; a latent harness race
+  (unsynchronized log capture) found by TSan and fixed; zero
+  production changes
+- next: H-1 — gotd tgtest for TelegramCore SetAuthed/SetCtx, then
+  the GitHub cluster (SetUsername/NewGitHubCore)
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: CI 41869786730 SUCCESS at job AND step level (comment
-  ban, gofmt, vet+live, test, RACE subset, headless smoke, windows,
-  js/wasm, nix) on 9c278442; local quick gate GREEN (tests/cores
-  47.8s, engine 6.2s, bootstrap 0.9s); local -race CI-subset shape
-  GREEN 28.2s, 0 races; 10× count=5 zero fails — session 362 closed
-  green
+- last-gate: local full make test GREEN (cores 53.1s, engine 6.0s,
+  bootstrap 0.9s, utils 1.2s); local -race CI-subset shape GREEN
+  43s, 0 races; count=10 ×2 zero fails; gofmt + comment ban clean;
+  verify.yml dispatch pending — recorded below when run
 
 ## Open items
 
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
-| H-1 | cores testhooks*.go | ForTest* hooks are debt (§5.3): 34 left by def-count (session 362: TS constructor/setter cluster — 11 defs onto the scripted server — ForTestNewTsConnection/NewTeamSpeakCore/SetAuthed(TS)/SetMyClientID/SetTsConn + orphaned getters ForTestClientID/ClientInfoMu/TsSendAck/TsSendCommand/TsSendPong/NewTsChannelInfo; voice receive + C2S reassembly/decompress + ping/pong + PushAtGen + SharedIV landed in the harness; session 361: exec-harness pump + proof injection — 7 defs; session 360: group-call assertion family — 8 defs; session 359: ForTestNewMatrixCore → real Authenticate via mxAuthSurface, ForTestSetGroupPeers → real Close teardown; session 358: reads family → GetGroupCall projection, TS state-mirror family, ForTestNewMatrixCall → real ReconcileGroupMesh; sessions 356-357: rooms/members/audio pairs onto real journeys; sessions 353-355: mumble/IRC/DeltaChat/XMPP slices + orphan sweeps); remaining: queuegap family (needs S2C fragmented sending), TelegramCore SetAuthed/SetCtx (gotd tgtest), GitHub SetUsername/NewGitHubCore | session 362 entry | queuegap onto server-side fragmented S2C sends, then gotd tgtest, then the GitHub cluster |
+| H-1 | cores testhooks*.go | ForTest* hooks are debt (§5.3): 29 left by def-count (session 363: queuegap family — 5 defs onto S2C out-of-order/fragmented wire journeys, first coverage of the client's S2C fragment reassembly + single-compressed receive; session 362: TS constructor/setter cluster — 11 defs onto the scripted server; session 361: exec-harness pump + proof injection — 7 defs; session 360: group-call assertion family — 8 defs; session 359: ForTestNewMatrixCore → real Authenticate via mxAuthSurface, ForTestSetGroupPeers → real Close teardown; session 358: reads family → GetGroupCall projection, TS state-mirror family, ForTestNewMatrixCall → real ReconcileGroupMesh; sessions 356-357: rooms/members/audio pairs onto real journeys; sessions 353-355: mumble/IRC/DeltaChat/XMPP slices + orphan sweeps); remaining: TelegramCore SetAuthed/SetCtx (gotd tgtest), GitHub SetUsername/NewGitHubCore | session 363 entry | gotd tgtest for the Telegram pair, then the GitHub cluster |
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 302 identifiers exported purely for the tests move (API noise: TsParseInit1, ForTest-adjacent) | commit 27faa5a4 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
+
+## Session 363 — H-1: queuegap family onto S2C out-of-order + fragmented wire sends — 5 defs, first S2C fragment-reassembly coverage (2026-11-04)
+
+- Boot: full-wipe recycle (workspace AND toolchain gone); PAT
+  re-verified, fresh clone (remote URL kept token-free), env.sh
+  recovery verbatim: go1.27.1 sha256 63d339f0… matches the record,
+  modcache 990M, cold baseline 7m28s GREEN before any edit (cores
+  48.0s, engine 6.0s, bootstrap 0.9s, utils 1.2s).
+- RED: 5 defs deleted → vet `ForTestRecvQueue undefined` at the
+  first queuegap site.
+- Retired (5 defs, 34→29): ForTestRecvQueue, ForTestRecvQueueMu,
+  ForTestTsProcessCommandQueue, ForTestNewTsDecryptedPkt
+  (testhooks.go) + ForTestWithNextRecvID (testhooks_manual.go) —
+  the whole synthetic queue-surgery family. ForTestPktState
+  survives (the decrypt-level gen-retry test still owns it).
+- Harness gains (scriptedserver_test.go): sendCmdPkt primitive
+  (explicit pID, real-key EAX 0x30, cmdPID advanced past the pID —
+  real-server retransmit semantics, pIDs never reused),
+  NextPID/PushAtPID (out-of-order pushes), FragmentsAtPID /
+  SendS2CFragment / PushFragmentedAtPID (S2C fragmented sends:
+  FR on first+last, Compressed rides the first and only when
+  QuickLZ actually shrank — mirror of the client's C2S scheme).
+- Rewrites (2 tests → 3, all real Authenticate journeys, named to
+  ride the CI -race pin): gap-log ids — pushes at base+4/base+2,
+  exact line parsing (expected id + queued-id set), fill at base
+  proves held-vs-delivered (name becomes the fill's, second line
+  lists both held ids). B-43 once-per-gap — 8 paced out-of-order
+  arrivals → ONE line; ordered-drain proof: pID base+2 hit the
+  wire FIRST yet ServerName lands "B2" (delivery strictly in pID
+  order); fill order engineered (base+1 first, settle, then base)
+  so the drain is atomic; new gap re-logs, same-gap extra packet
+  does not. S2C fragment reassembly — FIRST coverage of the
+  client's fragBuf + single-compressed receive paths: plain
+  3-fragment, compressed 16-byte-chunk fragments (flag pins:
+  first C+F, middles bare, last F-only), single compressed packet,
+  delayed-first-fragment reassembling through a queue gap.
+- First-run flaws (mine, not production): (1) journey-transient
+  gap lines — initserver/channellistfinished back-to-back
+  datagrams processed by racing per-packet goroutines fire an
+  innocent transient gap log; fixed by installing the capture
+  AFTER the journey (Authenticate's drain loop guarantees full
+  delivery at return). (2) TSan: reading the capture buffer raced
+  the receive loop's log.Printf — the old tests serialized via
+  recvQueueMu, which wire journeys can't hold; fixed with a
+  mutex-guarded tsGapLog writer (the SharedIV-class harness-race
+  pattern). Zero production defects found this round.
+- Evidence: family GREEN; count=10 ZERO fails (×2, before and
+  after the race fix); local -race CI-subset shape GREEN 43s,
+  ZERO races; full make test GREEN (cores 53.1s, engine 6.0s,
+  bootstrap 0.9s, utils 1.2s); gofmt clean; strip_comments
+  --check clean (272 files, 0 dropped); census ZERO refs to all
+  5 deleted names; defs 34→29.
+- Design rating 9/10: assertions moved from queue-map surgery to
+  public-API consequence (ServerName through held/ordered
+  delivery) + server-side ack evidence; the S2C fragment paths go
+  from zero coverage to four sub-journeys.
 
 ## Session 362 — H-1: TS constructor/setter cluster onto the scripted server — 11 defs, zero production changes (2026-11-04)
 
@@ -94,105 +149,28 @@ owner order — that history lives in git if ever needed.
 - Design rating 9/10: every assertion moved to server-side decrypted
   evidence; zero new hooks; zero production diff.
 
-## Session 361 — H-1 scripted-server front opened: TS scripted server drives the REAL Authenticate journey (2026-11-04)
+## Session 361 — H-1 scripted-server front opened: TS scripted server drives the REAL Authenticate journey (2026-11-04) — condensed
 
-- Boot: full-wipe recycle (workspace, toolchain and caches all
-  gone); env.sh recovery verbatim — go1.27.1 checksum-verified
-  (63d339f0…), modcache 990M, cold baseline 7m15s GREEN before any
-  edit (cores 23.5s, engine 6.4s, bootstrap 0.9s). Session-360 CI
-  already green in STATE (iter-1 + iter-2 SUCCESS).
-- The front (the STATE next-pointer from 358's research): an
-  in-process scripted TS server in go/tests/cores/
-  teamspeak_scriptedserver_test.go speaking the REAL wire —
-  init0/1/2/3/4 (server verifies the client's y == x^(2^level) mod n
-  AND the random echoes), license proof (P256 omega, DER ECDSA over
-  a 1-byte license so TsDeriveLicenseKey lands on the custom root),
-  clientek ECDH (root = s·G with known s; sharedIV =
-  SHA512(s·ekPub) ⊕ alpha‖beta — same value the client derives),
-  real-key EAX command traffic both directions (0x30/0x31, gen
-  tracking mirrored from tsTrackRecvPID incl. ±1 fallback), S2C
-  acks, and a scriptable responder (SetResponder / Push /
-  WaitCommand) for arbitrary journeys. S2C's 11-byte header (no cID)
-  vs C2S's 13-byte mirrored exactly.
-- Journey test (TestTeamSpeakScriptedServerAuthenticateJourney,
-  named to ride the CI -race subset): real NewTeamSpeakCore + real
-  Authenticate (vault-backed session store) → GREEN 0.68s,
-  deterministic at -count=10 (6.7s). Asserts public API +
-  server-side evidence: ServerName, GetDialogs ch:7 Lobby from the
-  real channellist, TsExec round-trip over the encrypted wire,
-  clientinit nickname on the server side, init2 echo valid, init4
-  y valid, clientek identity proof valid (server verifies the
-  client's P256 signature over ekPub‖beta with the omega from
-  clientinitiv), client acks ≥1.
-- REAL DEFECT FOUND+FIXED on first contact — the front's whole
-  point: the handshake's initserver branch consumed the command
-  without dispatching to TsHandleServerCommand, so
-  virtualserver_name NEVER reached setServerName on the real wire
-  path (the B-16 fix was only reachable synthetically; ServerName()
-  stays "" after a real connect). Fix: t.TsHandleServerCommand(cmd)
-  in the branch — one line, idempotent handler. RED seen live
-  (ServerName = "" failure), GREEN after.
-- Evidence: focused TS family GREEN (6.5s); quick gate GREEN (cores
-  25.8s, engine 6.3s, bootstrap 0.9s); gofmt clean;
-  strip_comments --check clean (272 files, 0 dropped). Def count
-  unchanged at 52 — this iteration is the retirement vehicle; the
-  TS internals hooks (ForTestCmdCh 19+ sites, the exec-harness
-  pump, constructors, SetAuthed/SetMyClientID/SetTsConn,
-  identity-race) start retiring onto it next iteration.
-- Design rating 9/10: every server-side check (echo / y / proof)
-  independently verifies OUR client's wire behavior; the responder
-  surface turns every future TS test into a real journey.
-- Iteration 2 (same session) — the exec-harness pump + proof
-  injection RETIRED onto the scripted server: 7 defs deleted
-  (ForTestCmdCh/ExecCh/ExecMu/ExecWait — the pump; ForTestFireProof/
-  TakeProofs — proof injection; ForTestNewTsWant → NewTsWant
-  exported constructor, the shape production already uses),
-  newExecHarness + tsResp deleted. 18 tests rewritten across 7 files
-  onto real journeys: exec silent/data/error, split-terminator,
-  data-timeout (new pin), concurrent execs (B-35 on the real wire),
-  TsExecVerified read-back family, servergroupclientlist read-back,
-  talk-power capture (foreign clid security case via ordered pushes),
-  join-refresh, proof channel/wrong-clid/wrong-name/stale-drain
-  (observable sync: the stale notifyclientmoved must move self into
-  ch:9 before the exec — the proof provably landed)/fields/mismatch.
-  The pump's determinism regression test (CI 41790936340) retired
-  WITH the pump — its subject was the synthetic injection ordering;
-  the real-wire successors pin the same collection semantics
-  (delayed terminator + quiet-timeout). TestTakeProofsDrainsStaleProof
-  (unit pin) folded into the stale-drain journey.
-- RED: defs deleted → vet `tc.ForTestCmdCh undefined (type
-  *cores.TsConnection …)`.
-- FLAKE HUNT → SECOND PRODUCTION DEFECT: -count=5 flaked ~1/3 runs
-  (TestJoinChannelRefreshesTalkPower: talk_power never left unknown).
-  Root cause: TsExecProof's proof path returned the instant a
-  matching proof fired, abandoning the command's trailing terminator
-  — the NEXT exec consumed the straggler error-ok as ITS response
-  (empty-result cross-talk, B-35 family; triggerable against real
-  servers whenever a notify push beats the error line — exactly what
-  a real server does on clientmove). Deterministic RED pin:
-  TestTSExecProofWaitsForTerminator (straggler 80ms, own response
-  250ms → rows=[] proven live). Fix: a matching proof records its
-  fields and the exec keeps collecting until the terminator or the
-  500ms quiet window (finish() closure); the deadline path now also
-  returns proof-only rows. After the fix: 3 × count=5 = 15
-  consecutive full-family runs ZERO fails.
-- Evidence: quick gate GREEN (cores 37.8s, engine 6.2s, bootstrap
-  0.9s); gofmt clean; comment-ban clean; census ZERO refs to all 7
-  deleted names + newExecHarness + tsResp. Defs 52→45.
-- CI iter-2 41842704637 FAILED at the Race step → THIRD PRODUCTION
-  DEFECT (pre-existing, only reachable once tests really run
-  tsCommandLoop + Logout together): tsCommandLoop's `tc := t.tsConn`
-  was an unsynchronized read racing Logout's `t.tsConn = nil` under
-  t.mu (race report: Logout write vs tsCommandLoop read). The field
-  has a whole class of such accesses (7 notify-case reads in
-  TsHandleServerCommand reached from untracked exec-notify goroutines,
-  tsSendVoicePacket, the reconnect teardown, Close, tsSaveSession).
-  Fix: dedicated tsConnMu sync.RWMutex + tsConnGet/tsConnSet helpers;
-  EVERY t.tsConn access in the file now flows through them (sweep
-  script, exact-match asserts; mutex held only around the field
-  access — mutex law clean; no lock inversion: tsConnMu never wraps
-  t.mu). Post-fix: full family GREEN 19.1s, count=3 GREEN 54.7s,
-  quick gate GREEN (37.2s/6.2s/0.9s), comment-ban clean.
+- Boot: full-wipe recycle; env.sh recovery verbatim (go1.27.1
+  checksum-verified, modcache 990M), cold baseline 7m15s GREEN.
+- The front: an in-process scripted TS server speaking the REAL
+  wire — init0/1/2/3/4 with server-side y/echo verification,
+  license proof, clientek ECDH to a known sharedIV, real-key EAX
+  both directions with gen tracking + ±1 fallback, S2C acks, and a
+  scriptable responder (SetResponder/Push/WaitCommand).
+- REAL DEFECT FOUND+FIXED on first contact: the handshake's
+  initserver branch never dispatched to TsHandleServerCommand, so
+  virtualserver_name never reached setServerName on the real wire
+  (B-16 only reachable synthetically). One-line fix, RED seen
+  live. verify.yml legs 41790936340 + 41801710239 SUCCESS.
+- Iteration 2: exec-harness pump + proof injection retired (7
+  defs, 18 tests onto real journeys) and a SECOND production
+  defect fixed — TsExecProof's proof path returned before the
+  command terminator, so a straggler error-ok cross-talked into
+  the next exec's result (B-35 family, triggerable on real
+  servers when a notify push beats the error line). tsConn access
+  race also fixed (dedicated tsConnMu, iter 3 CI 41846284509
+  SUCCESS).
 
 ## Session 360 — H-1: group-call assertion family retired onto wire + update evidence (2026-11-04)
 

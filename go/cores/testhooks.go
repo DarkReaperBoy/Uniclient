@@ -36,14 +36,6 @@ func (x *TsConnection) ForTestPktState() *[9]tsPacketState {
 	return &x.pktState
 }
 
-func (x *TsConnection) ForTestRecvQueue() *[2]map[uint16]*TsDecryptedPkt {
-	return &x.recvQueue
-}
-
-func (x *TsConnection) ForTestRecvQueueMu() *sync.Mutex {
-	return &x.recvQueueMu
-}
-
 func (x *TeamSpeakCore) ForTestTsConn() *TsConnection {
 	return x.tsConn
 }
@@ -80,10 +72,6 @@ func (x *tsP256Identity) ForTestTsOmega() string {
 	return x.tsOmega()
 }
 
-func (x *TsConnection) ForTestTsProcessCommandQueue(cmdI int) {
-	x.tsProcessCommandQueue(cmdI)
-}
-
 func (x *tsP256Identity) ForTestTsSign(data []byte) ([]byte, error) {
 	return x.tsSign(data)
 }
@@ -118,10 +106,6 @@ func ForTestNewXMPPCore(conn net.Conn, ctx context.Context, reader *bufio.Reader
 
 func ForTestNewGitHubCore(authed bool, client *http.Client, ctx context.Context, token string) *GitHubCore {
 	return &GitHubCore{authed: authed, client: client, ctx: ctx, token: token}
-}
-
-func ForTestNewTsDecryptedPkt(flags byte, pID uint16, plaintext []byte) *TsDecryptedPkt {
-	return &TsDecryptedPkt{flags: flags, pID: pID, plaintext: plaintext}
 }
 
 func ForTestNewRpcGuard(next tg.Invoker, timeout time.Duration) *RpcGuard {

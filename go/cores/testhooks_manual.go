@@ -15,11 +15,6 @@ func (x tsPacketState) ForTestWithRecvGenID(v uint32) tsPacketState {
 	return x
 }
 
-func (x tsPacketState) ForTestWithNextRecvID(v uint16) tsPacketState {
-	x.nextRecvID = v
-	return x
-}
-
 func (x tsPacketState) ForTestRecvGenID() uint32 {
 	return x.recvGenID
 }
