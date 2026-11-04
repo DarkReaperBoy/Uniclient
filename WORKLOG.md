@@ -7,30 +7,31 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 361 — the scripted-server front OPENED: an
-  in-process TS server speaking the real wire (init crypto with
-  y/echo verification, license proof, clientek ECDH, real-key EAX
-  command traffic both ways, scripted responder) drives the REAL
-  Authenticate journey; first-contact defect fixed (initserver's
-  virtualserver_name never reached setServerName on the wire path)
-- next: H-1 — retire the TS internals cluster onto the scripted
-  server: ForTestCmdCh/ExecCh/ExecMu/ExecWait (exec-harness
-  backbone, 19+ sites), ForTestSetAuthed/SetMyClientID/SetTsConn/
-  NewTeamSpeakCore/NewTsConnection family, the identity-race
-  rewrite (358 research: 5/10 synthetic on both sides); then gotd
-  tgtest for Telegram SetAuthed/SetCtx, then the GitHub cluster
+- front: session 361 — the scripted-server front OPENED and the exec
+  cluster retired onto it: an in-process TS server speaking the real
+  wire (init crypto with y/echo verification, license proof, clientek
+  ECDH, real-key EAX command traffic both ways, scripted responder)
+  drives the REAL Authenticate journey; TWO first-contact production
+  defects found+fixed (initserver's name never reached setServerName
+  on the wire path; TsExecProof's straggler-terminator cross-talk)
+- next: H-1 — the remaining TS cluster onto the scripted server:
+  ForTestNewTsConnection/NewTeamSpeakCore family (voice trio,
+  queuegap, sendcomp, identity-race, servername, move-race) +
+  ForTestSetAuthed/SetMyClientID/SetTsConn; then gotd tgtest for
+  Telegram SetAuthed/SetCtx, then the GitHub cluster
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: local quick gate GREEN (session 361: tests/cores 25.8s,
-  engine 6.3s, bootstrap 0.9s; gofmt + comment-ban clean — 272
-  files); CI: session-361 dispatch 41837816519 (bac31816) in flight;
-  session-360 iter-1 41825704688 + iter-2 41827255692 both SUCCESS
+- last-gate: local quick gate GREEN (session 361 iter-2: tests/cores
+  37.8s, engine 6.2s, bootstrap 0.9s; gofmt + comment-ban clean —
+  272 files); CI: iter-1 41837816519 SUCCESS (job+step level, race
+  leg green, reconciled in-session); session-360 iter-1 + iter-2
+  both SUCCESS
 
 ## Open items
 
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
-| H-1 | cores testhooks*.go | ForTest* hooks are debt (§5.3): 52 left by def-count (session 361: scripted TS server built — the retirement vehicle for the TS cluster; session 360: group-call assertion family — 8 defs onto wire/update evidence, teardownGroupPeer = per-peer Ended updates, ForTestSetDeviceID → whoami identity; session 359 iters 4-5: ForTestNewMatrixCore → real NewMatrixCore+Authenticate via mxAuthSurface, ForTestSetGroupPeers → real Close teardown; session 358 iters 1-3: reads family → GetGroupCall projection, TS state-mirror family, ForTestNewMatrixCall → real ReconcileGroupMesh peers; session 357 iters 5-6: ForTestSetGroupMembers retired onto HandleGroupMemberEvent + audio pair onto real JoinGroupCall; session 356 iters 1-4: HandleMemberEvent + LiveDevices exported, rooms family + seededMeshCore retired onto real journeys; session 354: mumble/IRC/DeltaChat/XMPP state-mirror slices — 15 defs; session 353: injection, mumble-wire-codec, mumble-crypt families + 24-def orphan sweep); TelegramCore SetAuthed/SetCtx + TeamSpeakCore SetAuthed + TS internals (ForTestCmdCh = exec-harness backbone, 19+ sites) + GitHub SetUsername/NewGitHubCore retire onto the scripted fronts | session 361 entry | TS cluster retirement onto the scripted server (ForTestCmdCh family first), then gotd tgtest, then the remaining matrix Set*/constructor defs |
+| H-1 | cores testhooks*.go | ForTest* hooks are debt (§5.3): 45 left by def-count (session 361 iter-2: scripted TS server built + the exec-harness pump and proof injection retired onto it — 7 defs; iter-1:; session 360: group-call assertion family — 8 defs onto wire/update evidence, teardownGroupPeer = per-peer Ended updates, ForTestSetDeviceID → whoami identity; session 359 iters 4-5: ForTestNewMatrixCore → real NewMatrixCore+Authenticate via mxAuthSurface, ForTestSetGroupPeers → real Close teardown; session 358 iters 1-3: reads family → GetGroupCall projection, TS state-mirror family, ForTestNewMatrixCall → real ReconcileGroupMesh peers; session 357 iters 5-6: ForTestSetGroupMembers retired onto HandleGroupMemberEvent + audio pair onto real JoinGroupCall; session 356 iters 1-4: HandleMemberEvent + LiveDevices exported, rooms family + seededMeshCore retired onto real journeys; session 354: mumble/IRC/DeltaChat/XMPP state-mirror slices — 15 defs; session 353: injection, mumble-wire-codec, mumble-crypt families + 24-def orphan sweep); TelegramCore SetAuthed/SetCtx + TeamSpeakCore SetAuthed + TS internals (ForTestCmdCh = exec-harness backbone, 19+ sites) + GitHub SetUsername/NewGitHubCore retire onto the scripted fronts | session 361 entry | TS cluster retirement onto the scripted server (ForTestCmdCh family first), then gotd tgtest, then the remaining matrix Set*/constructor defs |
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 302 identifiers exported purely for the tests move (API noise: TsParseInit1, ForTest-adjacent) | commit 27faa5a4 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
 
@@ -82,6 +83,43 @@ owner order — that history lives in git if ever needed.
 - Design rating 9/10: every server-side check (echo / y / proof)
   independently verifies OUR client's wire behavior; the responder
   surface turns every future TS test into a real journey.
+- Iteration 2 (same session) — the exec-harness pump + proof
+  injection RETIRED onto the scripted server: 7 defs deleted
+  (ForTestCmdCh/ExecCh/ExecMu/ExecWait — the pump; ForTestFireProof/
+  TakeProofs — proof injection; ForTestNewTsWant → NewTsWant
+  exported constructor, the shape production already uses),
+  newExecHarness + tsResp deleted. 18 tests rewritten across 7 files
+  onto real journeys: exec silent/data/error, split-terminator,
+  data-timeout (new pin), concurrent execs (B-35 on the real wire),
+  TsExecVerified read-back family, servergroupclientlist read-back,
+  talk-power capture (foreign clid security case via ordered pushes),
+  join-refresh, proof channel/wrong-clid/wrong-name/stale-drain
+  (observable sync: the stale notifyclientmoved must move self into
+  ch:9 before the exec — the proof provably landed)/fields/mismatch.
+  The pump's determinism regression test (CI 41790936340) retired
+  WITH the pump — its subject was the synthetic injection ordering;
+  the real-wire successors pin the same collection semantics
+  (delayed terminator + quiet-timeout). TestTakeProofsDrainsStaleProof
+  (unit pin) folded into the stale-drain journey.
+- RED: defs deleted → vet `tc.ForTestCmdCh undefined (type
+  *cores.TsConnection …)`.
+- FLAKE HUNT → SECOND PRODUCTION DEFECT: -count=5 flaked ~1/3 runs
+  (TestJoinChannelRefreshesTalkPower: talk_power never left unknown).
+  Root cause: TsExecProof's proof path returned the instant a
+  matching proof fired, abandoning the command's trailing terminator
+  — the NEXT exec consumed the straggler error-ok as ITS response
+  (empty-result cross-talk, B-35 family; triggerable against real
+  servers whenever a notify push beats the error line — exactly what
+  a real server does on clientmove). Deterministic RED pin:
+  TestTSExecProofWaitsForTerminator (straggler 80ms, own response
+  250ms → rows=[] proven live). Fix: a matching proof records its
+  fields and the exec keeps collecting until the terminator or the
+  500ms quiet window (finish() closure); the deadline path now also
+  returns proof-only rows. After the fix: 3 × count=5 = 15
+  consecutive full-family runs ZERO fails.
+- Evidence: quick gate GREEN (cores 37.8s, engine 6.2s, bootstrap
+  0.9s); gofmt clean; comment-ban clean; census ZERO refs to all 7
+  deleted names + newExecHarness + tsResp. Defs 52→45.
 
 ## Session 360 — H-1: group-call assertion family retired onto wire + update evidence (2026-11-04)
 

@@ -21,22 +21,6 @@ func (x *TeamSpeakCore) ForTestClientInfoMu() *sync.RWMutex {
 	return &x.clientInfoMu
 }
 
-func (x *TsConnection) ForTestCmdCh() chan TsIncomingCmd {
-	return x.cmdCh
-}
-
-func (x *TsConnection) ForTestExecCh() chan TsIncomingCmd {
-	return x.execCh
-}
-
-func (x *TsConnection) ForTestExecMu() *sync.Mutex {
-	return &x.execMu
-}
-
-func (x *TsConnection) ForTestExecWait() bool {
-	return x.execWait
-}
-
 func (x *tsP256Identity) ForTestKey() *ecdsa.PrivateKey {
 	return x.key
 }
@@ -105,14 +89,6 @@ func (x *GitHubCore) ForTestSetUsername(v string) {
 	x.username = v
 }
 
-func (x *TsConnection) ForTestFireProof(name string, fields map[string]string) {
-	x.fireProof(name, fields)
-}
-
-func (x *TsConnection) ForTestTakeProofs() bool {
-	return x.takeProofs()
-}
-
 func (x *TsConnection) ForTestTsDecryptRecv(pktType byte, pID uint16, meta, data []byte, mac [8]byte) ([]byte, error) {
 	return x.tsDecryptRecv(pktType, pID, meta, data, mac)
 }
@@ -179,10 +155,6 @@ func ForTestNewGitHubCore(authed bool, client *http.Client, ctx context.Context,
 
 func ForTestNewTsConnection(addr *net.UDPAddr, cmdCh chan TsIncomingCmd, conn *net.UDPConn, cryptoOK bool, owner *TeamSpeakCore, pendingCmds map[uint16]*TsPendingCmd, proofs chan TsProof, recvQueue [2]map[uint16]*TsDecryptedPkt, sharedIV [64]byte) *TsConnection {
 	return &TsConnection{addr: addr, cmdCh: cmdCh, conn: conn, cryptoOK: cryptoOK, owner: owner, pendingCmds: pendingCmds, proofs: proofs, recvQueue: recvQueue, sharedIV: sharedIV}
-}
-
-func ForTestNewTsWant(key string, name string, val string) *TsWant {
-	return &TsWant{key: key, name: name, val: val}
 }
 
 func ForTestNewTeamSpeakCore(authed bool, channels map[int]TsChannelInfo, clientInfo map[int]TsClientInfo, ctx context.Context, myChannelID int, myClientID int, myTalkPower int, tsConn *TsConnection) *TeamSpeakCore {

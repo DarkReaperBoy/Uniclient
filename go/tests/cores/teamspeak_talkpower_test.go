@@ -4,24 +4,29 @@ import (
 	"errors"
 	"net"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
+
 	. "uniclient/cores"
 )
+
+func tsTalkPowerChannels() []string {
+	return []string{"cid=7 pid=0 channel_name=Lobby channel_topic= total_clients=0 channel_order=0"}
+}
 
 func TestNotifyClientUpdatedCapturesOwnTalkPower(t *testing.T) {
 	old := TsExecVoidTimeout
 	TsExecVoidTimeout = 2 * time.Second
 	t.Cleanup(func() { TsExecVoidTimeout = old })
 
-	core, tc, done := newExecHarness(t)
-	defer done()
-	core.ForTestSetAuthed(true)
-	core.ForTestSetMyClientID(1)
-	core.TsHandleServerCommand(tsResp(t, "channellist cid=7 pid=0 channel_name=Lobby channel_topic= total_clients=0 channel_order=0"))
-	tc.ForTestCmdCh() <- tsResp(t, "channel_id=7 channel_needed_talk_power=9999")
-	tc.ForTestCmdCh() <- tsResp(t, "error id=0 msg=ok")
-	core.TsRefreshChannelTalkPower(7)
+	core, srv := newScriptedTSCore(t, tsScriptedConfig{ClientID: 1, ChannelLines: tsTalkPowerChannels()})
+	srv.SetResponder(func(line string) []string {
+		if strings.HasPrefix(line, "channelinfo") {
+			return []string{"channel_id=7 channel_needed_talk_power=9999", "error id=0 msg=ok"}
+		}
+		return nil
+	})
 
 	cs, err := core.GetGroupCall("ch:7")
 	if err != nil {
@@ -31,14 +36,27 @@ func TestNotifyClientUpdatedCapturesOwnTalkPower(t *testing.T) {
 		t.Errorf("before any own talk power: meta = %q, want unknown", cs.Meta["talk_power"])
 	}
 
-	core.TsHandleServerCommand(tsResp(t, "notifyclientupdated clid=99 client_talk_power=20 client_servergroups=10"))
+	core.TsRefreshChannelTalkPower(7)
 	if cs, _ = core.GetGroupCall("ch:7"); cs.Meta["talk_power"] != "unknown" {
-		t.Errorf("another client's talk power captured as ours (clid mismatch): meta = %q", cs.Meta["talk_power"])
+		t.Errorf("channel power known but own power still absent: meta = %q, want unknown", cs.Meta["talk_power"])
 	}
 
-	core.TsHandleServerCommand(tsResp(t, "notifyclientupdated clid=1 client_talk_power=20 client_servergroups=10"))
-	if cs, _ = core.GetGroupCall("ch:7"); cs.Meta["talk_power"] != "blocked" {
-		t.Errorf("own notifyclientupdated talk power not captured (B-26): meta = %q, want blocked (20 < 9999)", cs.Meta["talk_power"])
+	srv.Push("notifyclientupdated clid=99 client_talk_power=99999 client_servergroups=10")
+	srv.Push("notifyclientupdated clid=1 client_talk_power=20 client_servergroups=10")
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		cs, err := core.GetGroupCall("ch:7")
+		if err != nil {
+			t.Fatalf("GetGroupCall: %v", err)
+		}
+		if cs.Meta["talk_power"] == "blocked" {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("own notifyclientupdated talk power not captured (B-26): meta = %q, want blocked (20 < 9999) — and NOT ok, which a captured foreign clid=99 power of 99999 would produce", cs.Meta["talk_power"])
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 }
 
@@ -47,19 +65,17 @@ func TestJoinChannelRefreshesTalkPower(t *testing.T) {
 	TsExecVoidTimeout = 2 * time.Second
 	t.Cleanup(func() { TsExecVoidTimeout = old })
 
-	core, tc, done := newExecHarness(t)
-	defer done()
-	core.ForTestSetAuthed(true)
-	core.ForTestSetMyClientID(1)
-	core.TsHandleServerCommand(tsResp(t, "notifyclientupdated clid=1 client_talk_power=20"))
-
-	go func() {
-		time.Sleep(30 * time.Millisecond)
-		tc.ForTestCmdCh() <- tsResp(t, "error id=0 msg=ok")
-		time.Sleep(40 * time.Millisecond)
-		tc.ForTestCmdCh() <- tsResp(t, "channel_id=7 channel_needed_talk_power=50")
-		tc.ForTestCmdCh() <- tsResp(t, "error id=0 msg=ok")
-	}()
+	core, srv := newScriptedTSCore(t, tsScriptedConfig{ClientID: 1, ChannelLines: tsTalkPowerChannels()})
+	srv.SetResponder(func(line string) []string {
+		if strings.HasPrefix(line, "clientmove") {
+			return []string{"notifyclientmoved clid=1 ctid=7", "error id=0 msg=ok"}
+		}
+		if strings.HasPrefix(line, "channelinfo") {
+			return []string{"channel_id=7 channel_needed_talk_power=50", "error id=0 msg=ok"}
+		}
+		return nil
+	})
+	srv.Push("notifyclientupdated clid=1 client_talk_power=20")
 
 	if err := core.JoinChannel(7, ""); err != nil {
 		t.Fatalf("JoinChannel: %v", err)
@@ -144,12 +160,9 @@ func TestGetGroupCallReportsTalkPowerBlocked(t *testing.T) {
 	TsExecVoidTimeout = 2 * time.Second
 	t.Cleanup(func() { TsExecVoidTimeout = old })
 
-	core, tc, done := newExecHarness(t)
-	defer done()
-	core.ForTestSetAuthed(true)
-	core.ForTestSetMyClientID(1)
-	core.TsHandleServerCommand(tsResp(t, "notifyclientupdated clid=1 client_talk_power=20"))
-	core.TsHandleServerCommand(tsResp(t, "channellist cid=7 pid=0 channel_name=Lobby channel_topic= total_clients=0 channel_order=0"))
+	core, srv := newScriptedTSCore(t, tsScriptedConfig{ClientID: 1, ChannelLines: tsTalkPowerChannels()})
+	var q tsScriptedQueue
+	srv.SetResponder(func(string) []string { return q.take() })
 
 	cs, err := core.GetGroupCall("ch:7")
 	if err != nil {
@@ -159,24 +172,43 @@ func TestGetGroupCallReportsTalkPowerBlocked(t *testing.T) {
 		t.Errorf("unfetched channel Meta = %q, want unknown — the polled UI path must see the dead-room state (B-26)", cs.Meta["talk_power"])
 	}
 
-	tc.ForTestCmdCh() <- tsResp(t, "channel_id=7 channel_needed_talk_power=9999")
-	tc.ForTestCmdCh() <- tsResp(t, "error id=0 msg=ok")
+	q.add("channel_id=7 channel_needed_talk_power=9999", "error id=0 msg=ok")
 	core.TsRefreshChannelTalkPower(7)
 	if cs, err = core.GetGroupCall("ch:7"); err != nil {
 		t.Fatal(err)
 	}
-	if cs.Meta["talk_power"] != "blocked" {
-		t.Errorf("insufficient power Meta = %q, want blocked", cs.Meta["talk_power"])
+	if cs.Meta["talk_power"] != "unknown" {
+		t.Errorf("channel power fetched but own power still absent: meta = %q, want unknown", cs.Meta["talk_power"])
 	}
 
-	tc.ForTestCmdCh() <- tsResp(t, "channel_id=7 channel_needed_talk_power=5")
-	tc.ForTestCmdCh() <- tsResp(t, "error id=0 msg=ok")
+	srv.Push("notifyclientupdated clid=1 client_talk_power=20")
+	waitTalkPower(t, core, "blocked")
+
+	q.add("channel_id=7 channel_needed_talk_power=5", "error id=0 msg=ok")
 	core.TsRefreshChannelTalkPower(7)
 	if cs, err = core.GetGroupCall("ch:7"); err != nil {
 		t.Fatal(err)
 	}
 	if cs.Meta["talk_power"] != "ok" {
 		t.Errorf("sufficient power Meta = %q, want ok", cs.Meta["talk_power"])
+	}
+}
+
+func waitTalkPower(t *testing.T, core *TeamSpeakCore, want string) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		cs, err := core.GetGroupCall("ch:7")
+		if err != nil {
+			t.Fatalf("GetGroupCall: %v", err)
+		}
+		if cs.Meta["talk_power"] == want {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("talk power meta never settled on %q: %q", want, cs.Meta["talk_power"])
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 }
 

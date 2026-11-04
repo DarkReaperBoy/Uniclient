@@ -6,15 +6,17 @@ import (
 	"strings"
 	"testing"
 	"time"
+
 	. "uniclient/cores"
 )
 
 func TestTSExecVerifiedReadbackRescuesSilentSuccess(t *testing.T) {
-	core, _, cleanup := newExecHarness(t)
-	defer cleanup()
 	old := TsExecVoidTimeout
 	TsExecVoidTimeout = 150 * time.Millisecond
 	t.Cleanup(func() { TsExecVoidTimeout = old })
+
+	core, srv := newScriptedTSCore(t, tsScriptedConfig{})
+	srv.SetResponder(func(string) []string { return nil })
 
 	rows, err := core.TsExecVerified("bandel banid=5", func() (bool, error) { return true, nil })
 	if err != nil {
@@ -24,11 +26,12 @@ func TestTSExecVerifiedReadbackRescuesSilentSuccess(t *testing.T) {
 }
 
 func TestTSExecVerifiedKeepsRealError(t *testing.T) {
-	core, _, cleanup := newExecHarness(t)
-	defer cleanup()
 	old := TsExecVoidTimeout
 	TsExecVoidTimeout = 150 * time.Millisecond
 	t.Cleanup(func() { TsExecVoidTimeout = old })
+
+	core, srv := newScriptedTSCore(t, tsScriptedConfig{})
+	srv.SetResponder(func(string) []string { return nil })
 
 	_, err := core.TsExecVerified("bandel banid=5", func() (bool, error) { return false, nil })
 	if err == nil || !errors.Is(err, ErrNetwork) {
@@ -37,13 +40,10 @@ func TestTSExecVerifiedKeepsRealError(t *testing.T) {
 }
 
 func TestTSExecVerifiedPermissionDeniedNeedsDoneState(t *testing.T) {
-	core, tc, cleanup := newExecHarness(t)
-	defer cleanup()
-
-	go func() {
-		time.Sleep(30 * time.Millisecond)
-		tc.ForTestCmdCh() <- tsResp(t, "error id=2568 msg=insufficient\\sclient\\spermissions failed_permid=214")
-	}()
+	core, srv := newScriptedTSCore(t, tsScriptedConfig{})
+	srv.SetResponder(func(string) []string {
+		return []string{"error id=2568 msg=insufficient\\sclient\\spermissions failed_permid=214"}
+	})
 
 	_, err := core.TsExecVerified("bandel banid=5", func() (bool, error) { return false, nil })
 	if err == nil || !errors.Is(err, ErrPermission) {
@@ -57,42 +57,35 @@ func TestTSExecVerifiedPermissionDeniedNeedsDoneState(t *testing.T) {
 }
 
 func TestServerGroupContainsReadBackLogic(t *testing.T) {
-	core, tc, cleanup := newExecHarness(t)
-	defer cleanup()
 	old := TsExecVoidTimeout
-	TsExecVoidTimeout = 150 * time.Millisecond
+	TsExecVoidTimeout = 2 * time.Second
 	t.Cleanup(func() { TsExecVoidTimeout = old })
 
-	inject := func(rows ...string) {
-		go func() {
-			time.Sleep(20 * time.Millisecond)
-			for _, r := range rows {
-				tc.ForTestCmdCh() <- tsResp(t, r)
-			}
-		}()
-	}
+	core, srv := newScriptedTSCore(t, tsScriptedConfig{})
+	var q tsScriptedQueue
+	srv.SetResponder(func(string) []string { return q.take() })
 
-	inject("cldbid=5|cldbid=77", "error id=0 msg=ok")
+	q.add("cldbid=5|cldbid=77", "error id=0 msg=ok")
 	if ok, err := core.ServerGroupContains(4, 77, true)(); err != nil || !ok {
 		t.Fatalf("present/want: ok=%v err=%v", ok, err)
 	}
-	inject("cldbid=5|cldbid=77", "error id=0 msg=ok")
+	q.add("cldbid=5|cldbid=77", "error id=0 msg=ok")
 	if ok, err := core.ServerGroupContains(4, 77, false)(); err != nil || ok {
 		t.Fatalf("present/want-absent: ok=%v err=%v", ok, err)
 	}
-	inject("cldbid=5", "error id=0 msg=ok")
+	q.add("cldbid=5", "error id=0 msg=ok")
 	if ok, err := core.ServerGroupContains(4, 77, false)(); err != nil || !ok {
 		t.Fatalf("absent/want-absent: ok=%v err=%v", ok, err)
 	}
-	inject("error id=1281 msg=database\\sempty\\sresult\\sset")
+	q.add("error id=1281 msg=database\\sempty\\sresult\\sset")
 	if ok, err := core.ServerGroupContains(4, 77, false)(); err != nil || !ok {
 		t.Fatalf("empty/want-absent: ok=%v err=%v", ok, err)
 	}
-	inject("error id=1281 msg=database\\sempty\\sresult\\sset")
+	q.add("error id=1281 msg=database\\sempty\\sresult\\sset")
 	if ok, err := core.ServerGroupContains(4, 77, true)(); err != nil || ok {
 		t.Fatalf("empty/want-present: ok=%v err=%v", ok, err)
 	}
-	inject("error id=2568 msg=insufficient\\sclient\\spermissions")
+	q.add("error id=2568 msg=insufficient\\sclient\\spermissions")
 	if _, err := core.ServerGroupContains(4, 77, true)(); err == nil {
 		t.Fatal("unavailable read-back must error, not decide")
 	}

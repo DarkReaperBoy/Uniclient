@@ -1,33 +1,24 @@
 package tests
 
 import (
+	"strings"
 	"testing"
 	"time"
+
 	. "uniclient/cores"
 )
 
-func TestTakeProofsDrainsStaleProof(t *testing.T) {
-	tc := ForTestNewTsConnection(nil, nil, nil, false, nil, map[uint16]*TsPendingCmd{}, make(chan TsProof, 8), [2]map[uint16]*TsDecryptedPkt{}, [64]byte{})
-	tc.ForTestFireProof("notifytextmessage", map[string]string{"invokerid": "5"})
-	if !tc.ForTestTakeProofs() {
-		t.Fatal("stale proof not drained")
-	}
-	if tc.ForTestTakeProofs() {
-		t.Fatal("second take on empty channel reported a proof")
-	}
-}
-
 func TestTSExecProofChannelSucceedsWithoutReply(t *testing.T) {
-	core, tc, cleanup := newExecHarness(t)
-	defer cleanup()
-
-	go func() {
-		time.Sleep(30 * time.Millisecond)
-		tc.ForTestFireProof("notifytextmessage", map[string]string{"invokerid": "5"})
-	}()
+	core, srv := newScriptedTSCore(t, tsScriptedConfig{ClientID: 5})
+	srv.SetResponder(func(line string) []string {
+		if strings.HasPrefix(line, "sendtextmessage") {
+			return []string{"notifytextmessage targetmode=1 msg=proof invokerid=5 invokername=alice"}
+		}
+		return nil
+	})
 
 	rows, err := core.TsExecProof("sendtextmessage targetmode=2 target=1 msg=proof",
-		ForTestNewTsWant("invokerid", "notifytextmessage", "5"))
+		NewTsWant("notifytextmessage", "invokerid", "5"))
 	if err != nil {
 		t.Fatalf("proof channel must count as success: %v", err)
 	}
@@ -37,11 +28,12 @@ func TestTSExecProofChannelSucceedsWithoutReply(t *testing.T) {
 }
 
 func TestTSExecProofNilKeepsSilenceAnError(t *testing.T) {
-	core, _, cleanup := newExecHarness(t)
-	defer cleanup()
 	old := TsExecVoidTimeout
 	TsExecVoidTimeout = 150 * time.Millisecond
 	t.Cleanup(func() { TsExecVoidTimeout = old })
+
+	core, srv := newScriptedTSCore(t, tsScriptedConfig{})
+	srv.SetResponder(func(string) []string { return nil })
 
 	if _, err := core.TsExec("clientupdate client_nickname=x"); err == nil {
 		t.Fatal("silent server with no proof returned success — B-24 regression")

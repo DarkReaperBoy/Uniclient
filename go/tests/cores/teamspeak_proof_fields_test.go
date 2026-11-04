@@ -1,23 +1,23 @@
 package tests
 
 import (
+	"strings"
 	"testing"
 	"time"
+
 	. "uniclient/cores"
 )
 
 func TestProofFieldsRowProvidesResultCID(t *testing.T) {
-	core, tc, cleanup := newExecHarness(t)
-	defer cleanup()
-
-	go func() {
-		time.Sleep(30 * time.Millisecond)
-		tc.ForTestFireProof("notifychannelcreated", map[string]string{
-			"invokerid": "7", "cid": "42", "channel_name": "new-chan",
-		})
-	}()
+	core, srv := newScriptedTSCore(t, tsScriptedConfig{})
+	srv.SetResponder(func(line string) []string {
+		if strings.HasPrefix(line, "channelcreate") {
+			return []string{"notifychannelcreated cid=42 cpid=1 channel_order=0 channel_name=new-chan invokerid=7"}
+		}
+		return nil
+	})
 	rows, err := core.TsExecProof("channelcreate channel_name=new-chan",
-		ForTestNewTsWant("invokerid", "notifychannelcreated", "7"))
+		NewTsWant("notifychannelcreated", "invokerid", "7"))
 	if err != nil {
 		t.Fatalf("proof must count as success: %v", err)
 	}
@@ -27,18 +27,19 @@ func TestProofFieldsRowProvidesResultCID(t *testing.T) {
 }
 
 func TestProofKeyMismatchRejected(t *testing.T) {
-	core, tc, cleanup := newExecHarness(t)
-	defer cleanup()
 	old := TsExecVoidTimeout
 	TsExecVoidTimeout = 200 * time.Millisecond
 	t.Cleanup(func() { TsExecVoidTimeout = old })
 
-	go func() {
-		time.Sleep(30 * time.Millisecond)
-		tc.ForTestFireProof("notifychannelcreated", map[string]string{"cid": "7"})
-	}()
+	core, srv := newScriptedTSCore(t, tsScriptedConfig{})
+	srv.SetResponder(func(line string) []string {
+		if strings.HasPrefix(line, "channelcreate") {
+			return []string{"notifychannelcreated cid=7 cpid=1 channel_order=0 channel_name=x"}
+		}
+		return nil
+	})
 	if _, err := core.TsExecProof("channelcreate channel_name=x",
-		ForTestNewTsWant("invokerid", "notifychannelcreated", "7")); err == nil {
+		NewTsWant("notifychannelcreated", "invokerid", "7")); err == nil {
 		t.Fatal("mismatched proof accepted — false ack (B-24)")
 	}
 }

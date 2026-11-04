@@ -1,8 +1,10 @@
 package tests
 
 import (
+	"strings"
 	"testing"
 	"time"
+
 	. "uniclient/cores"
 )
 
@@ -11,17 +13,16 @@ func TestTSExecConcurrentCallsKeepTheirOwnResponses(t *testing.T) {
 	TsExecVoidTimeout = 2 * time.Second
 	t.Cleanup(func() { TsExecVoidTimeout = old })
 
-	core, tc, done := newExecHarness(t)
-	defer done()
-
-	go func() {
-		time.Sleep(30 * time.Millisecond)
-		tc.ForTestCmdCh() <- tsResp(t, "who=first")
-		tc.ForTestCmdCh() <- tsResp(t, "error id=0 msg=ok")
-		time.Sleep(60 * time.Millisecond)
-		tc.ForTestCmdCh() <- tsResp(t, "who=second")
-		tc.ForTestCmdCh() <- tsResp(t, "error id=0 msg=ok")
-	}()
+	core, srv := newScriptedTSCore(t, tsScriptedConfig{})
+	srv.SetResponder(func(line string) []string {
+		if strings.Contains(line, "command-one") {
+			return []string{"who=first", "error id=0 msg=ok"}
+		}
+		if strings.Contains(line, "command-two") {
+			return []string{"who=second", "error id=0 msg=ok"}
+		}
+		return nil
+	})
 
 	type result struct {
 		rows []map[string]string
@@ -33,7 +34,6 @@ func TestTSExecConcurrentCallsKeepTheirOwnResponses(t *testing.T) {
 		rows, err := core.TsExec("command-one")
 		c1 <- result{rows, err}
 	}()
-	time.Sleep(10 * time.Millisecond)
 	go func() {
 		rows, err := core.TsExec("command-two")
 		c2 <- result{rows, err}

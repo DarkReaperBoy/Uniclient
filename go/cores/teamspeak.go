@@ -2548,6 +2548,10 @@ type TsWant struct {
 	val  string
 }
 
+func NewTsWant(name string, key string, val string) *TsWant {
+	return &TsWant{name: name, key: key, val: val}
+}
+
 func (tc *TsConnection) fireProof(name string, fields map[string]string) {
 	select {
 	case tc.proofs <- TsProof{name: name, fields: fields}:
@@ -2631,6 +2635,17 @@ func (t *TeamSpeakCore) TsExecProof(cmd string, want *TsWant) ([]map[string]stri
 	deadline := time.After(TsExecVoidTimeout)
 	var dataLines []string
 	var dataTimeout <-chan time.Time
+	var proofFields map[string]string
+	finish := func() []map[string]string {
+		var result []map[string]string
+		for _, dl := range dataLines {
+			result = append(result, tsParseKVList(dl)...)
+		}
+		if proofFields != nil {
+			result = append(result, proofFields)
+		}
+		return result
+	}
 	for {
 		select {
 		case resp := <-tc.execCh:
@@ -2642,11 +2657,7 @@ func (t *TeamSpeakCore) TsExecProof(cmd string, want *TsWant) ([]map[string]stri
 				if errID != 0 {
 					return nil, tsMapError(&tsError{ID: errID, Msg: resp.params["msg"]})
 				}
-				var result []map[string]string
-				for _, dl := range dataLines {
-					result = append(result, tsParseKVList(dl)...)
-				}
-				return result, nil
+				return finish(), nil
 			}
 			if strings.HasPrefix(resp.name, "notify") {
 				go t.TsHandleServerCommand(resp)
@@ -2655,29 +2666,17 @@ func (t *TeamSpeakCore) TsExecProof(cmd string, want *TsWant) ([]map[string]stri
 				dataTimeout = time.After(500 * time.Millisecond)
 			}
 		case <-dataTimeout:
-			var result []map[string]string
-			for _, dl := range dataLines {
-				result = append(result, tsParseKVList(dl)...)
-			}
-			return result, nil
+			return finish(), nil
 		case p := <-proofs:
-			if want != nil && p.name == want.name && p.fields[want.key] == want.val {
-				var result []map[string]string
-				for _, dl := range dataLines {
-					result = append(result, tsParseKVList(dl)...)
-				}
-				result = append(result, p.fields)
-				return result, nil
+			if want != nil && proofFields == nil && p.name == want.name && p.fields[want.key] == want.val {
+				proofFields = p.fields
+				dataTimeout = time.After(500 * time.Millisecond)
 			}
 		case <-deadline:
-			if len(dataLines) == 0 {
+			if len(dataLines) == 0 && proofFields == nil {
 				return nil, fmt.Errorf("%w: no response to command within %s (response lost)", ErrNetwork, TsExecVoidTimeout)
 			}
-			var result []map[string]string
-			for _, dl := range dataLines {
-				result = append(result, tsParseKVList(dl)...)
-			}
-			return result, nil
+			return finish(), nil
 		case <-t.ctx.Done():
 			return nil, fmt.Errorf("%w: context cancelled", ErrNetwork)
 		}

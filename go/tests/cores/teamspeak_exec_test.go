@@ -1,82 +1,21 @@
 package tests
 
 import (
-	"context"
 	"errors"
-	"net"
+	"strings"
 	"testing"
 	"time"
+
 	. "uniclient/cores"
 )
-
-func newExecHarness(t *testing.T) (*TeamSpeakCore, *TsConnection, func()) {
-	t.Helper()
-	ua, err := net.ResolveUDPAddr("udp", "127.0.0.1:9")
-	if err != nil {
-		t.Fatal(err)
-	}
-	conn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0})
-	if err != nil {
-		t.Fatal(err)
-	}
-	tc := ForTestNewTsConnection(ua, make(chan TsIncomingCmd, 16), conn, false, nil, map[uint16]*TsPendingCmd{}, make(chan TsProof, 8), [2]map[uint16]*TsDecryptedPkt{}, [64]byte{})
-	core := ForTestNewTeamSpeakCore(false, nil, nil, context.Background(), 0, 0, 0, tc)
-	stop := make(chan struct{})
-	go func() {
-		idle := time.NewTicker(200 * time.Microsecond)
-		defer idle.Stop()
-		var pending []TsIncomingCmd
-		flush := func() {
-			for len(pending) > 0 {
-				select {
-				case tc.ForTestExecCh() <- pending[0]:
-					pending = pending[1:]
-				default:
-					return
-				}
-			}
-		}
-		for {
-			select {
-			case cmd := <-tc.ForTestCmdCh():
-				tc.ForTestExecMu().Lock()
-				if tc.ForTestExecWait() {
-					flush()
-					select {
-					case tc.ForTestExecCh() <- cmd:
-					default:
-					}
-				} else {
-					pending = append(pending, cmd)
-				}
-				tc.ForTestExecMu().Unlock()
-			case <-idle.C:
-				tc.ForTestExecMu().Lock()
-				if tc.ForTestExecWait() {
-					flush()
-				}
-				tc.ForTestExecMu().Unlock()
-			case <-stop:
-				return
-			}
-		}
-	}()
-	return core, tc, func() { close(stop); conn.Close() }
-}
-
-func tsResp(t *testing.T, line string) TsIncomingCmd {
-	t.Helper()
-	name, params := TsParseCommand([]byte(line))
-	return *ForTestNewTsIncomingCmd(name, params, line)
-}
 
 func TestTSExecSilentServerIsAnErrorNotFalseAck(t *testing.T) {
 	old := TsExecVoidTimeout
 	TsExecVoidTimeout = 150 * time.Millisecond
 	t.Cleanup(func() { TsExecVoidTimeout = old })
 
-	core, _, done := newExecHarness(t)
-	defer done()
+	core, srv := newScriptedTSCore(t, tsScriptedConfig{})
+	srv.SetResponder(func(string) []string { return nil })
 
 	rows, err := core.TsExec("clientmove clid=1 cid=2")
 	if err == nil {
@@ -92,14 +31,13 @@ func TestTSExecConsumesDataThenOk(t *testing.T) {
 	TsExecVoidTimeout = 2 * time.Second
 	t.Cleanup(func() { TsExecVoidTimeout = old })
 
-	core, tc, done := newExecHarness(t)
-	defer done()
-
-	go func() {
-		time.Sleep(30 * time.Millisecond)
-		tc.ForTestCmdCh() <- tsResp(t, "channel_id=42 channel_name=Lobby")
-		tc.ForTestCmdCh() <- tsResp(t, "error id=0 msg=ok")
-	}()
+	core, srv := newScriptedTSCore(t, tsScriptedConfig{})
+	srv.SetResponder(func(line string) []string {
+		if strings.HasPrefix(line, "channelinfo") {
+			return []string{"channel_id=42 channel_name=Lobby", "error id=0 msg=ok"}
+		}
+		return nil
+	})
 
 	rows, err := core.TsExec("channelinfo cid=42")
 	if err != nil {
@@ -115,13 +53,10 @@ func TestTSExecMapsErrorResponse(t *testing.T) {
 	TsExecVoidTimeout = 2 * time.Second
 	t.Cleanup(func() { TsExecVoidTimeout = old })
 
-	core, tc, done := newExecHarness(t)
-	defer done()
-
-	go func() {
-		time.Sleep(30 * time.Millisecond)
-		tc.ForTestCmdCh() <- tsResp(t, "error id=2568 msg=insufficient\\sclient\\spermissions")
-	}()
+	core, srv := newScriptedTSCore(t, tsScriptedConfig{})
+	srv.SetResponder(func(string) []string {
+		return []string{"error id=2568 msg=insufficient\\sclient\\spermissions"}
+	})
 
 	_, err := core.TsExec("clientmove clid=1 cid=2")
 	if !errors.Is(err, ErrPermission) {
@@ -129,31 +64,23 @@ func TestTSExecMapsErrorResponse(t *testing.T) {
 	}
 }
 
-func TestTSExecDeliversResponsesQueuedBeforeTheCall(t *testing.T) {
+func TestTSExecWaitsForDelayedTerminator(t *testing.T) {
 	old := TsExecVoidTimeout
 	TsExecVoidTimeout = 2 * time.Second
 	t.Cleanup(func() { TsExecVoidTimeout = old })
 
-	core, tc, done := newExecHarness(t)
-	defer done()
-
-	tc.ForTestCmdCh() <- tsResp(t, "channel_id=7 channel_needed_talk_power=9999")
-	landed := make(chan struct{})
-	go func() {
-		for i := 0; i < 16; i++ {
-			tc.ForTestCmdCh() <- tsResp(t, "who=filler")
+	core, srv := newScriptedTSCore(t, tsScriptedConfig{})
+	srv.SetResponder(func(line string) []string {
+		if strings.HasPrefix(line, "channelinfo") {
+			time.AfterFunc(60*time.Millisecond, func() { srv.Push("error id=0 msg=ok") })
+			return []string{"channel_id=7 channel_needed_talk_power=9999"}
 		}
-		close(landed)
-		tc.ForTestCmdCh() <- tsResp(t, "error id=0 msg=ok")
-	}()
-	select {
-	case <-landed:
-	case <-time.After(200 * time.Millisecond):
-	}
+		return nil
+	})
 
 	rows, err := core.TsExec("channelinfo cid=7")
 	if err != nil {
-		t.Fatalf("TsExec: %v — responses queued before the call never reached the exec (the pump drops cmds consumed while execWait is false; CI run 41790936340)", err)
+		t.Fatalf("TsExec: %v — the data line landed but the delayed terminator never completed the exchange", err)
 	}
 	power := ""
 	for _, r := range rows {
@@ -162,6 +89,61 @@ func TestTSExecDeliversResponsesQueuedBeforeTheCall(t *testing.T) {
 		}
 	}
 	if power != "9999" {
-		t.Errorf("pre-queued channelinfo row lost by the harness pump: channel_needed_talk_power = %q, want 9999 (CI run 41790936340: TestGetGroupCallReportsTalkPowerBlocked)", power)
+		t.Errorf("data row lost while waiting for the delayed terminator: channel_needed_talk_power = %q, want 9999", power)
+	}
+}
+
+func TestTSExecDataTimeoutReturnsRows(t *testing.T) {
+	old := TsExecVoidTimeout
+	TsExecVoidTimeout = 2 * time.Second
+	t.Cleanup(func() { TsExecVoidTimeout = old })
+
+	core, srv := newScriptedTSCore(t, tsScriptedConfig{})
+	srv.SetResponder(func(line string) []string {
+		if strings.HasPrefix(line, "channelinfo") {
+			return []string{"channel_id=7 channel_needed_talk_power=5"}
+		}
+		return nil
+	})
+
+	rows, err := core.TsExec("channelinfo cid=7")
+	if err != nil {
+		t.Fatalf("TsExec: %v — a data-only response must resolve via the quiet timeout, not error", err)
+	}
+	if len(rows) == 0 || rows[0]["channel_needed_talk_power"] != "5" {
+		t.Errorf("data-only rows = %v, want channel_needed_talk_power=5", rows)
+	}
+}
+
+func TestTSExecProofWaitsForTerminator(t *testing.T) {
+	old := TsExecVoidTimeout
+	TsExecVoidTimeout = 2 * time.Second
+	t.Cleanup(func() { TsExecVoidTimeout = old })
+
+	core, srv := newScriptedTSCore(t, tsScriptedConfig{})
+	srv.SetResponder(func(line string) []string {
+		if strings.HasPrefix(line, "command-a") {
+			time.AfterFunc(80*time.Millisecond, func() { srv.Push("error id=0 msg=ok") })
+			return []string{"notifyclientmoved clid=7 ctid=2"}
+		}
+		if strings.HasPrefix(line, "command-b") {
+			time.AfterFunc(250*time.Millisecond, func() {
+				srv.Push("who=mine")
+				srv.Push("error id=0 msg=ok")
+			})
+			return nil
+		}
+		return nil
+	})
+
+	if _, err := core.TsExecProof("command-a", NewTsWant("notifyclientmoved", "clid", "7")); err != nil {
+		t.Fatalf("command-a: %v", err)
+	}
+	rows, err := core.TsExec("command-b")
+	if err != nil {
+		t.Fatalf("command-b: %v", err)
+	}
+	if len(rows) == 0 || rows[0]["who"] != "mine" {
+		t.Fatalf("command-b rows = %v — the previous command's straggler terminator satisfied this exec (cross-talk, B-35 family: the proof path must consume its own terminator)", rows)
 	}
 }

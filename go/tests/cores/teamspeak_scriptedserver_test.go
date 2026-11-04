@@ -146,6 +146,28 @@ func (s *tsScriptedServer) SetResponder(fn func(string) []string) {
 	s.mu.Unlock()
 }
 
+type tsScriptedQueue struct {
+	mu   sync.Mutex
+	next [][]string
+}
+
+func (q *tsScriptedQueue) add(lines ...string) {
+	q.mu.Lock()
+	q.next = append(q.next, lines)
+	q.mu.Unlock()
+}
+
+func (q *tsScriptedQueue) take() []string {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if len(q.next) == 0 {
+		return nil
+	}
+	group := q.next[0]
+	q.next = q.next[1:]
+	return group
+}
+
 func (s *tsScriptedServer) Push(line string) {
 	s.sendCommand([]byte(line))
 }
@@ -489,15 +511,13 @@ func (s *tsScriptedServer) dispatch(line string) {
 	respond := s.respond
 	s.mu.Unlock()
 	var lines []string
-	if respond != nil {
+	if respond == nil {
+		lines = []string{"error id=0 msg=ok"}
+	} else {
 		lines = respond(line)
 	}
-	needOK := len(lines) == 0 || !strings.HasPrefix(lines[len(lines)-1], "error ")
 	for _, l := range lines {
 		s.sendCommand([]byte(l))
-	}
-	if needOK {
-		s.sendCommand([]byte("error id=0 msg=ok"))
 	}
 }
 
@@ -624,6 +644,12 @@ func newScriptedTSCore(t *testing.T, cfg tsScriptedConfig) (*TeamSpeakCore, *tsS
 	store := utils.NewSessionStore(newTestVaultSimple(t, t.TempDir()), "ts-scripted")
 	core := NewTeamSpeakCore(store)
 	t.Cleanup(func() { _ = core.Logout() })
+	if err := core.Authenticate(AuthConfig{Mode: AuthModeUser, Extra: map[string]string{
+		"server_address": srv.Addr(),
+		"nickname":       "alice",
+	}}); err != nil {
+		t.Fatalf("Authenticate against the scripted TS server: %v", err)
+	}
 	return core, srv
 }
 
@@ -642,18 +668,10 @@ func TestTeamSpeakScriptedServerAuthenticateJourney(t *testing.T) {
 	})
 	srv.SetResponder(func(line string) []string {
 		if strings.HasPrefix(line, "channelinfo") {
-			return []string{"channel_id=7 channel_needed_talk_power=9999"}
+			return []string{"channel_id=7 channel_needed_talk_power=9999", "error id=0 msg=ok"}
 		}
-		return nil
+		return []string{"error id=0 msg=ok"}
 	})
-
-	err := core.Authenticate(AuthConfig{Mode: AuthModeUser, Extra: map[string]string{
-		"server_address": srv.Addr(),
-		"nickname":       "alice",
-	}})
-	if err != nil {
-		t.Fatalf("Authenticate against the scripted TS server: %v", err)
-	}
 
 	if got := core.ServerName(); got != "Scripted HQ" {
 		t.Errorf("ServerName = %q, want %q — initserver not ingested through the real wire", got, "Scripted HQ")
