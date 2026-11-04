@@ -15,8 +15,14 @@ owner order — that history lives in git if ever needed.
   through ServerName with ack evidence; a latent harness race
   (unsynchronized log capture) found by TSan and fixed; zero
   production changes
-- next: H-1 — gotd tgtest for TelegramCore SetAuthed/SetCtx, then
-  the GitHub cluster (SetUsername/NewGitHubCore)
+- next: H-1 — gotd tgtest for TelegramCore SetAuthed/SetCtx
+  (research done: public TelegramConfig.DialFunc is the seam —
+  dcs.Plain resolver, zero new hooks; freeze family's 45 subtests
+  must share a SessionStorage so each core re-authenticates from
+  the saved session, else the family's runtime explodes; probe
+  becomes a second public API call observed server-side while the
+  first RPC is stuck — may also retire TelegramCore ForTestMu),
+  then the GitHub cluster (SetUsername/NewGitHubCore)
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
 - last-gate: CI 41895227385 SUCCESS at job AND step level (comment
