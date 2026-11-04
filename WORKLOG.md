@@ -7,34 +7,65 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 359 — CI reconciliation + harness
-  determinism fix: iter-2 run 41790936340 FAILED (race step,
-  TestGetGroupCallReportsTalkPowerBlocked — newExecHarness pump
-  dropped pre-queued responses); fixed + regression-tested, iter-3
-  41792038420 SUCCESS on 1fc3924e; H-1 resumes with 64 defs left
-- next: H-1 — ForTestNewMatrixCore retirement (7 harness sites onto
-  real NewMatrixCore+Authenticate; mxAuthedCoreAt proves the shape),
-  then the TS internals + Telegram SetAuthed/SetCtx + GitHub cluster
-  (all blocked on the scripted-server front: ts3j-style TS server /
-  gotd tgtest — the myClientID sole write site is the initserver
-  handshake, research done, see session 358 entry)
+- front: session 359 — CI reconciliation + harness determinism fix
+  (iter-2 FAILURE root-caused and fixed; fix run 41798479929 SUCCESS
+  on 6e847895 incl. the race step) + H-1 iter 4: ForTestNewMatrixCore
+  retired (7 sites onto real NewMatrixCore+Authenticate via
+  mxAuthSurface whoami/keys/sync-hang wrapper), 63 defs left
+- next: H-1 — next Matrix hook family (groupPeers/renewal/mu cluster
+  used by mesh harness cleanups), then the TS internals + Telegram
+  SetAuthed/SetCtx + GitHub cluster (all blocked on the
+  scripted-server front: ts3j-style TS server / gotd tgtest — the
+  myClientID sole write site is the initserver handshake, research
+  done, see session 358 entry)
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: local quick gate GREEN (tests/cores 19.6s; gofmt +
-  comment-ban clean; RED seen: new harness test 2.00s response-lost;
-  count=20 harness family GREEN 138.9s — local -race BLOCKED: gotd
-  tg race compile OOM-killed at 4G sandbox RAM, race leg rides the
-  CI dispatch); CI: iter-1 41785092110 SUCCESS; iter-2 41790936340
-  FAILURE→fixed this session; iter-3 41792038420 SUCCESS on 1fc3924e;
-  fix dispatch pending
+- last-gate: local quick gate GREEN (iter 4: tests/cores 18.3s,
+  engine 6.6s, bootstrap 1.1s; gofmt + comment-ban clean; RED
+  vet-undefined seen; download cleanup-order fix: hostile test 180s →
+  0.03s); CI: fix run 41798479929 SUCCESS on 6e847895; iter-4
+  dispatch pending
 
 ## Open items
 
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
-| H-1 | cores testhooks*.go | ForTest* hooks are debt (§5.3): 64 left by def-count (session 358 iters 1-3: reads family → GetGroupCall projection, TS state-mirror family — 7 defs, ForTestNewMatrixCall → real ReconcileGroupMesh peers; session 357 iters 5-6: ForTestSetGroupMembers retired onto HandleGroupMemberEvent + audio pair onto real JoinGroupCall; session 356 iters 1-4: HandleMemberEvent + LiveDevices exported, rooms family + seededMeshCore retired onto real journeys; session 354: mumble/IRC/DeltaChat/XMPP state-mirror slices — 15 defs; session 353: injection, mumble-wire-codec, mumble-crypt families + 24-def orphan sweep); TelegramCore SetAuthed/SetCtx + TeamSpeakCore SetAuthed + TS internals (myClientID's sole write site = initserver handshake) + GitHub SetUsername/NewGitHubCore await a scripted-server front | session 358 entry | ForTestNewMatrixCore next, then the scripted front via ts3j-style TS server / gotd tgtest / GUI --script seam |
+| H-1 | cores testhooks*.go | ForTest* hooks are debt (§5.3): 63 left by def-count (session 359 iter 4: ForTestNewMatrixCore → real NewMatrixCore+Authenticate via mxAuthSurface; session 358 iters 1-3: reads family → GetGroupCall projection, TS state-mirror family — 7 defs, ForTestNewMatrixCall → real ReconcileGroupMesh peers; session 357 iters 5-6: ForTestSetGroupMembers retired onto HandleGroupMemberEvent + audio pair onto real JoinGroupCall; session 356 iters 1-4: HandleMemberEvent + LiveDevices exported, rooms family + seededMeshCore retired onto real journeys; session 354: mumble/IRC/DeltaChat/XMPP state-mirror slices — 15 defs; session 353: injection, mumble-wire-codec, mumble-crypt families + 24-def orphan sweep); TelegramCore SetAuthed/SetCtx + TeamSpeakCore SetAuthed + TS internals (myClientID's sole write site = initserver handshake) + GitHub SetUsername/NewGitHubCore await a scripted-server front | session 358 entry | ForTestNewMatrixCore next, then the scripted front via ts3j-style TS server / gotd tgtest / GUI --script seam |
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 302 identifiers exported purely for the tests move (API noise: TsParseInit1, ForTest-adjacent) | commit 27faa5a4 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
+
+## Session 359 — H-1 iter 4: ForTestNewMatrixCore retired onto real construction (2026-11-04)
+
+- CI reconciliation: harness-fix dispatch 41798479929 SUCCESS on
+  6e847895 (race step green — closes the iter-2 41790936340 FAILURE).
+- RED: deleted ForTestNewMatrixCore from cores/testhooks.go (+ its
+  now-unused mautrix import) → vet: "undefined: ForTestNewMatrixCore"
+  at matrix_download_test.go:32.
+- Migration (7 sites): newMeshTestCore (meshwire), renewTestCore
+  (renew), newGroupTestCore (join), newCreateRoomTestCore (pl),
+  download ×2 — all now NewMatrixCore(nil) + real
+  Authenticate(AuthModeBot, tok, homeserver). Identity comes from the
+  server: new shared mxAuthSurface(user, device, next) wrapper
+  (matrix_test.go, mirrors the proven mxHarnessServer surface:
+  POST */filter → f1, whoami → per-site user+device, keys/query →
+  empty, keys/upload → empty counts, GET /sync → hang on
+  r.Context().Done() so the syncer parks silently until Close).
+  deviceID stays load-bearing (PartyID self-detection throughout the
+  call code) so each server's whoami returns its DEV1.
+- Defect found by migration: download tests used `defer hs.Close()`,
+  which runs BEFORE t.Cleanup(core.Close) — the real-auth sync
+  goroutine then retried against a dead server (hostile test
+  180.01s). Fixed to t.Cleanup(hs.Close) registered before the core
+  cleanup → 0.03s/0.01s. Scratch-probed the auth journey first:
+  Authenticate itself 12ms; the stall was pure cleanup ordering.
+- Evidence: full matrix family run ok 1.947s (download/mesh/join/pl/
+  renew/reconcile/auth-journey/event/message); quick gate GREEN
+  (tests/cores 18.3s, engine 6.6s, bootstrap 1.1s); gofmt + comment
+  ban clean; ForTestNewMatrixCore zero refs tree-wide; census
+  `rg -o '^func (\([^)]*\) )?ForTest\w+' go/ --glob '*.go'` = 63.
+- Next: dispatch CI, then the groupPeers/renewal/mu hook cluster
+  (mesh harness cleanups still lean on ForTestGroupMu/GroupPeers/
+  SetGroupPeers/GroupRenew/Pc).
 
 ## Session 359 — CI reconciliation + exec-harness determinism fix (2026-11-04)
 

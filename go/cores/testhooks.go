@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"github.com/gotd/td/tg"
-	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/id"
 	"net"
 	"net/http"
@@ -221,21 +220,6 @@ func ForTestNewGitHubCore(authed bool, client *http.Client, ctx context.Context,
 
 func ForTestNewTsConnection(addr *net.UDPAddr, cmdCh chan TsIncomingCmd, conn *net.UDPConn, cryptoOK bool, owner *TeamSpeakCore, pendingCmds map[uint16]*TsPendingCmd, proofs chan TsProof, recvQueue [2]map[uint16]*TsDecryptedPkt, sharedIV [64]byte) *TsConnection {
 	return &TsConnection{addr: addr, cmdCh: cmdCh, conn: conn, cryptoOK: cryptoOK, owner: owner, pendingCmds: pendingCmds, proofs: proofs, recvQueue: recvQueue, sharedIV: sharedIV}
-}
-
-func ForTestNewMatrixCore(authed bool, cancel context.CancelFunc, client *mautrix.Client, ctx context.Context, deviceID id.DeviceID, homeserver string, userID id.UserID) *MatrixCore {
-	return &MatrixCore{
-		authed:      authed,
-		cancel:      cancel,
-		client:      client,
-		ctx:         ctx,
-		deviceID:    deviceID,
-		homeserver:  homeserver,
-		userID:      userID,
-		rooms:       make(map[id.RoomID]*MatrixRoomState),
-		directChats: make(map[id.UserID][]id.RoomID),
-		activeCalls: make(map[string]*MatrixCall),
-	}
 }
 
 func ForTestNewTsWant(key string, name string, val string) *TsWant {

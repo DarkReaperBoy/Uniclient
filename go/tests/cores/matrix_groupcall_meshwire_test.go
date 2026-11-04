@@ -1,7 +1,6 @@
 package tests
 
 import (
-	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -14,7 +13,6 @@ import (
 	. "uniclient/cores"
 
 	"github.com/pion/webrtc/v4"
-	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
 
@@ -70,7 +68,7 @@ func newMeshHomeserver(t *testing.T) (*meshServer, *meshPuts) {
 	t.Helper()
 	puts := &meshPuts{}
 	mesh := &meshServer{puts: puts}
-	mesh.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mesh.Server = httptest.NewServer(mxAuthSurface(id.UserID("@alice:test"), id.DeviceID("DEV1"), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		p := r.URL.Path
 		switch {
 		case strings.HasSuffix(p, "/state") && r.Method == http.MethodGet:
@@ -119,7 +117,7 @@ func newMeshHomeserver(t *testing.T) (*meshServer, *meshPuts) {
 			w.WriteHeader(http.StatusNotFound)
 			_, _ = io.WriteString(w, `{"errcode":"M_NOT_FOUND"}`)
 		}
-	}))
+	})))
 	t.Cleanup(mesh.Close)
 	return mesh, puts
 }
@@ -132,11 +130,15 @@ func writeEventID(w http.ResponseWriter) {
 
 func newMeshTestCore(t *testing.T, srvURL string) *MatrixCore {
 	t.Helper()
-	client, err := mautrix.NewClient(srvURL, id.UserID("@alice:test"), "tok")
-	if err != nil {
-		t.Fatalf("NewClient: %v", err)
+	core := NewMatrixCore(nil)
+	t.Cleanup(func() { _ = core.Close() })
+	if err := core.Authenticate(AuthConfig{
+		Mode:     AuthModeBot,
+		BotToken: "tok",
+		Extra:    map[string]string{"homeserver": srvURL},
+	}); err != nil {
+		t.Fatalf("authenticate: %v", err)
 	}
-	core := ForTestNewMatrixCore(true, func() {}, client, context.Background(), "DEV1", srvURL, id.UserID("@alice:test"))
 	t.Cleanup(func() {
 		core.ForTestGroupMu().Lock()
 		peers := core.ForTestGroupPeers()

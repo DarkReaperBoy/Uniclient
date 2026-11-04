@@ -1,7 +1,6 @@
 package tests
 
 import (
-	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -11,7 +10,6 @@ import (
 	. "uniclient/cores"
 
 	"github.com/pion/webrtc/v4"
-	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/id"
 )
 
@@ -22,7 +20,7 @@ type createRoomCapture struct {
 func newCreateRoomServer(t *testing.T) (*httptest.Server, *createRoomCapture) {
 	t.Helper()
 	cap := &createRoomCapture{}
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(mxAuthSurface(id.UserID("@alice:localhost"), id.DeviceID("DEV1"), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, "/createRoom") && r.Method == http.MethodPost {
 			b, _ := io.ReadAll(r.Body)
 			cap.Body = string(b)
@@ -32,18 +30,23 @@ func newCreateRoomServer(t *testing.T) (*httptest.Server, *createRoomCapture) {
 		}
 		w.WriteHeader(http.StatusNotFound)
 		_, _ = io.WriteString(w, `{"errcode":"M_NOT_FOUND"}`)
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	return srv, cap
 }
 
 func newCreateRoomTestCore(t *testing.T, srvURL string) *MatrixCore {
 	t.Helper()
-	client, err := mautrix.NewClient(srvURL, id.UserID("@alice:localhost"), "tok")
-	if err != nil {
-		t.Fatalf("NewClient: %v", err)
+	core := NewMatrixCore(nil)
+	t.Cleanup(func() { _ = core.Close() })
+	if err := core.Authenticate(AuthConfig{
+		Mode:     AuthModeBot,
+		BotToken: "tok",
+		Extra:    map[string]string{"homeserver": srvURL},
+	}); err != nil {
+		t.Fatalf("authenticate: %v", err)
 	}
-	return ForTestNewMatrixCore(true, nil, client, context.Background(), "DEV1", srvURL, id.UserID("@alice:localhost"))
+	return core
 }
 
 func TestCreateGroupGrantsMSC3401PowerLevels(t *testing.T) {

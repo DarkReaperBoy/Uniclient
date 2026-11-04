@@ -1,7 +1,6 @@
 package tests
 
 import (
-	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -11,7 +10,6 @@ import (
 	"time"
 	. "uniclient/cores"
 
-	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/id"
 )
 
@@ -25,7 +23,7 @@ type renewFlakyServer struct {
 func newRenewFlakyServer(t *testing.T) (*httptest.Server, *renewFlakyServer) {
 	t.Helper()
 	f := &renewFlakyServer{}
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(mxAuthSurface(id.UserID("@alice:localhost"), id.DeviceID("DEV1"), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		p := r.URL.Path
 		if r.Method == http.MethodGet && strings.Contains(p, MatrixCallEventType) {
 			w.WriteHeader(http.StatusNotFound)
@@ -54,7 +52,7 @@ func newRenewFlakyServer(t *testing.T) (*httptest.Server, *renewFlakyServer) {
 		}
 		w.WriteHeader(http.StatusNotFound)
 		_, _ = io.WriteString(w, `{"errcode":"M_NOT_FOUND"}`)
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	return srv, f
 }
@@ -96,11 +94,15 @@ func renewTestCore(t *testing.T, srvURL string) (*MatrixCore, *endedRecorder) {
 	MatrixRenewInterval = 20 * time.Millisecond
 	t.Cleanup(func() { MatrixRenewInterval = old })
 
-	client, err := mautrix.NewClient(srvURL, id.UserID("@alice:localhost"), "tok")
-	if err != nil {
-		t.Fatalf("NewClient: %v", err)
+	core := NewMatrixCore(nil)
+	t.Cleanup(func() { _ = core.Close() })
+	if err := core.Authenticate(AuthConfig{
+		Mode:     AuthModeBot,
+		BotToken: "tok",
+		Extra:    map[string]string{"homeserver": srvURL},
+	}); err != nil {
+		t.Fatalf("authenticate: %v", err)
 	}
-	core := ForTestNewMatrixCore(true, func() {}, client, context.Background(), "DEV1", srvURL, id.UserID("@alice:localhost"))
 	rec := &endedRecorder{}
 	core.OnUpdate(func(u Update) {
 		if u.Type == UpdateCallState && u.Call != nil && u.Call.IsGroup && u.Call.State == CallStateEnded {

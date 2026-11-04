@@ -1,7 +1,6 @@
 package tests
 
 import (
-	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -11,7 +10,6 @@ import (
 	"time"
 	. "uniclient/cores"
 
-	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/id"
 )
 
@@ -24,7 +22,7 @@ type statePut struct {
 func newMiniHomeserver(t *testing.T, existingCallState string) (*httptest.Server, *[]statePut) {
 	t.Helper()
 	var puts []statePut
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(mxAuthSurface(id.UserID("@alice:test"), id.DeviceID("DEV1"), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		p := r.URL.Path
 		const marker = "/state/"
 		if idx := strings.Index(p, marker); idx >= 0 && strings.Contains(p, "/rooms/") {
@@ -55,18 +53,22 @@ func newMiniHomeserver(t *testing.T, existingCallState string) (*httptest.Server
 		}
 		w.WriteHeader(http.StatusNotFound)
 		_, _ = io.WriteString(w, `{"errcode":"M_NOT_FOUND"}`)
-	}))
+	})))
 	t.Cleanup(srv.Close)
 	return srv, &puts
 }
 
 func newGroupTestCore(t *testing.T, srvURL string) *MatrixCore {
 	t.Helper()
-	client, err := mautrix.NewClient(srvURL, id.UserID("@alice:test"), "tok")
-	if err != nil {
-		t.Fatalf("NewClient: %v", err)
+	core := NewMatrixCore(nil)
+	t.Cleanup(func() { _ = core.Close() })
+	if err := core.Authenticate(AuthConfig{
+		Mode:     AuthModeBot,
+		BotToken: "tok",
+		Extra:    map[string]string{"homeserver": srvURL},
+	}); err != nil {
+		t.Fatalf("authenticate: %v", err)
 	}
-	core := ForTestNewMatrixCore(true, nil, client, context.Background(), "DEV1", srvURL, id.UserID("@alice:test"))
 	t.Cleanup(func() {
 		core.ForTestGroupMu().Lock()
 		if core.ForTestGroupRenew() != nil {

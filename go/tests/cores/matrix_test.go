@@ -65,6 +65,31 @@ func mxHarnessServer(t *testing.T, override func(r *http.Request) (int, string))
 	return srv
 }
 
+func mxAuthSurface(user id.UserID, device id.DeviceID, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/filter") && r.Method == http.MethodPost {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"filter_id":"f1"}`)
+			return
+		}
+		switch r.URL.Path {
+		case "/_matrix/client/v3/account/whoami":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"user_id":"`+user.String()+`","device_id":"`+device.String()+`"}`)
+		case "/_matrix/client/v3/keys/query":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"device_keys":{}}`)
+		case "/_matrix/client/v3/keys/upload":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"one_time_key_counts":{}}`)
+		case "/_matrix/client/v3/sync":
+			<-r.Context().Done()
+		default:
+			next.ServeHTTP(w, r)
+		}
+	})
+}
+
 func mxJourneyServer(t *testing.T) *httptest.Server {
 	t.Helper()
 	return mxHarnessServer(t, nil)
