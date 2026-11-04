@@ -24,7 +24,7 @@ owner order — that history lives in git if ever needed.
   engine 6.6s, bootstrap 1.1s; gofmt + comment-ban clean; RED
   vet-undefined seen; download cleanup-order fix: hostile test 180s →
   0.03s); CI: fix run 41798479929 SUCCESS on 6e847895; iter-4
-  dispatch pending
+  dispatch 41801127829 in flight on 9b49eb0f
 
 ## Open items
 
