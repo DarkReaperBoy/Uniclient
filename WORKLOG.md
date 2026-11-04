@@ -24,7 +24,8 @@ owner order — that history lives in git if ever needed.
 - last-gate: local quick gate GREEN (iter 5: tests/cores 19.0s,
   engine 6.4s, bootstrap 1.0s; gofmt + comment-ban clean; RED
   vet-undefined seen); CI: fix run 41798479929 SUCCESS on 6e847895;
-  iter-4 41801127829 in flight on 9b49eb0f; iter-5 dispatch pending
+  iter-4 41801127829 in flight on 9b49eb0f; iter-5 41801860069
+  in flight on 73e1de52
 
 ## Open items
 
