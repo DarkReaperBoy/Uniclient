@@ -38,11 +38,10 @@ func assertCallTornDown(t *testing.T, core *MatrixCore, canceled *bool, call *Ma
 		t.Errorf("%s: renewal not canceled — membership would publish forever", what)
 	}
 	core.ForTestGroupMu().Lock()
-	conf := core.ForTestGroupConfID()
 	peers := len(core.ForTestGroupPeers())
 	core.ForTestGroupMu().Unlock()
-	if conf != "" {
-		t.Errorf("%s: call still joined: %s", what, conf)
+	if cs, _ := core.GetGroupCall("!room:test"); cs != nil {
+		t.Errorf("%s: call still observable through GetGroupCall: %s", what, cs.ID)
 	}
 	if peers != 0 {
 		t.Errorf("%s: %d mesh peers still open", what, peers)
@@ -79,9 +78,6 @@ func TestLeaveChatWhileInCallTearsDown(t *testing.T) {
 	}
 	assertCallTornDown(t, core, canceled, call, "LeaveChat")
 
-	if cs, err := core.GetGroupCall("!room:test"); err != nil || cs != nil {
-		t.Fatalf("GetGroupCall after LeaveChat: cs=%v err=%v, want (nil,nil)", cs, err)
-	}
 	if err := core.SendVoiceFrame([]byte{0xf8, 0xff, 0xfe}); err != nil {
 		t.Fatalf("SendVoiceFrame after LeaveChat: %v", err)
 	}
@@ -109,12 +105,15 @@ func TestLeaveChatOtherRoomKeepsCall(t *testing.T) {
 	if *canceled {
 		t.Fatal("leaving an unrelated room canceled the call's renewal")
 	}
+	cs, err := core.GetGroupCall("!room:test")
+	if err != nil || cs == nil || cs.ID != "conf_x" {
+		t.Fatalf("unrelated LeaveChat tore the call down: cs=%+v err=%v", cs, err)
+	}
 	core.ForTestGroupMu().Lock()
-	conf := core.ForTestGroupConfID()
 	peers := len(core.ForTestGroupPeers())
 	core.ForTestGroupMu().Unlock()
-	if conf != "conf_x" || peers != 1 {
-		t.Fatalf("unrelated LeaveChat tore the call down: conf=%q peers=%d", conf, peers)
+	if peers != 1 {
+		t.Fatalf("unrelated LeaveChat tore the call down: peers=%d", peers)
 	}
 }
 
@@ -181,15 +180,17 @@ func TestOwnMemberJoinKeepsGroupCall(t *testing.T) {
 	}
 	core.HandleMemberEvent(evt)
 
-	if !*canceled == false {
+	if *canceled {
 		t.Fatal("renewal canceled by a join event")
 	}
+	if cs, err := core.GetGroupCall("!room:test"); err != nil || cs == nil || cs.ID != "conf_x" {
+		t.Fatalf("join event tore the call down: cs=%+v err=%v", cs, err)
+	}
 	core.ForTestGroupMu().Lock()
-	conf := core.ForTestGroupConfID()
 	peers := len(core.ForTestGroupPeers())
 	core.ForTestGroupMu().Unlock()
-	if conf != "conf_x" || peers != 1 {
-		t.Fatalf("join event tore the call down: conf=%q peers=%d", conf, peers)
+	if peers != 1 {
+		t.Fatalf("join event tore the call down: peers=%d", peers)
 	}
 }
 
@@ -219,13 +220,15 @@ func TestOwnMemberNonDepartureKeepsGroupCall(t *testing.T) {
 			if *canceled {
 				t.Fatalf("membership=%q event canceled the renewal — call torn down", tc.membership)
 			}
+			if cs, err := core.GetGroupCall("!room:test"); err != nil || cs == nil || cs.ID != "conf_x" {
+				t.Fatalf("membership=%q event tore the call down: cs=%+v err=%v", tc.membership, cs, err)
+			}
 			core.ForTestGroupMu().Lock()
-			conf := core.ForTestGroupConfID()
 			peers := len(core.ForTestGroupPeers())
 			core.ForTestGroupMu().Unlock()
-			if conf != "conf_x" || peers != 1 || call.State == CallStateEnded {
-				t.Fatalf("membership=%q event tore the call down: conf=%q peers=%d state=%v",
-					tc.membership, conf, peers, call.State)
+			if peers != 1 || call.State == CallStateEnded {
+				t.Fatalf("membership=%q event tore the call down: peers=%d state=%v",
+					tc.membership, peers, call.State)
 			}
 		})
 	}

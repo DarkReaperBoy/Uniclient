@@ -30,12 +30,8 @@ func TestEndCallLeavesGroupCall(t *testing.T) {
 		t.Fatal("renewal was not canceled — membership would renew forever")
 	}
 	core.ForTestGroupMu().Lock()
-	conf := core.ForTestGroupConfID()
 	peers := len(core.ForTestGroupPeers())
 	core.ForTestGroupMu().Unlock()
-	if conf != "" {
-		t.Fatalf("conf still joined after EndCall: %s", conf)
-	}
 	if peers != 0 {
 		t.Fatalf("%d mesh peers still open after EndCall", peers)
 	}

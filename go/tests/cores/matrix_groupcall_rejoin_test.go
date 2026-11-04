@@ -31,9 +31,8 @@ func TestJoinGroupCallClosesStaleConfPeers(t *testing.T) {
 	}
 	core.ForTestGroupMu().Lock()
 	_, survived := core.ForTestGroupPeers()[GroupPeerKey("@bob:test", "BOB1")]
-	confNow := core.ForTestGroupConfID()
 	core.ForTestGroupMu().Unlock()
 	if survived {
-		t.Errorf("stale conf_x peer still registered after joining %s", confNow)
+		t.Errorf("stale conf_x peer still registered after joining %s", sess.ID)
 	}
 }

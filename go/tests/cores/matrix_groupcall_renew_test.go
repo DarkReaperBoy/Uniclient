@@ -118,9 +118,11 @@ func renewTestCore(t *testing.T, srvURL string) (*MatrixCore, *endedRecorder) {
 }
 
 func joinedConf(core *MatrixCore) string {
-	core.ForTestGroupMu().Lock()
-	defer core.ForTestGroupMu().Unlock()
-	return core.ForTestGroupConfID()
+	cs, _ := core.GetGroupCall("!room:test")
+	if cs == nil {
+		return ""
+	}
+	return cs.ID
 }
 
 func TestRenewalFailuresEndTheZombieCall(t *testing.T) {

@@ -55,14 +55,6 @@ func (x *TsConnection) ForTestExecWait() bool {
 	return x.execWait
 }
 
-func (x *MatrixCore) ForTestGroupConfID() string {
-	return x.groupConfID
-}
-
-func (x *MatrixCore) ForTestGroupMembers() map[id.UserID]MatrixCallMemberContent {
-	return x.groupMembers
-}
-
 func (x *MatrixCore) ForTestGroupMu() *sync.Mutex {
 	return &x.groupMu
 }
