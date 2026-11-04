@@ -18,10 +18,12 @@ owner order — that history lives in git if ever needed.
   gotd tgtest for Telegram SetAuthed/SetCtx, then the GitHub cluster
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: local quick gate GREEN (session 362: tests/cores 47.8s,
-  engine 6.2s, bootstrap 0.9s; gofmt + comment-ban clean — 272
-  files); local -race CI-subset shape GREEN 28.2s, 0 races; 10×
-  count=5 zero fails; CI dispatch pending this push
+- last-gate: CI 41869786730 SUCCESS at job AND step level (comment
+  ban, gofmt, vet+live, test, RACE subset, headless smoke, windows,
+  js/wasm, nix) on 9c278442; local quick gate GREEN (tests/cores
+  47.8s, engine 6.2s, bootstrap 0.9s); local -race CI-subset shape
+  GREEN 28.2s, 0 races; 10× count=5 zero fails — session 362 closed
+  green
 
 ## Open items
 
