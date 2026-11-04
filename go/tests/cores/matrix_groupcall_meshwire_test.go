@@ -65,10 +65,14 @@ func (s *meshServer) setCallConf(conf string) {
 }
 
 func newMeshHomeserver(t *testing.T) (*meshServer, *meshPuts) {
+	return newMeshHomeserverAs(t, id.UserID("@alice:test"), id.DeviceID("DEV1"))
+}
+
+func newMeshHomeserverAs(t *testing.T, user id.UserID, device id.DeviceID) (*meshServer, *meshPuts) {
 	t.Helper()
 	puts := &meshPuts{}
 	mesh := &meshServer{puts: puts}
-	mesh.Server = httptest.NewServer(mxAuthSurface(id.UserID("@alice:test"), id.DeviceID("DEV1"), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mesh.Server = httptest.NewServer(mxAuthSurface(user, device, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		p := r.URL.Path
 		switch {
 		case strings.HasSuffix(p, "/state") && r.Method == http.MethodGet:

@@ -70,10 +70,9 @@ func startMeshRelay(t *testing.T, puts *meshPuts, sender id.UserID, to *MatrixCo
 func seedJoinedPair(t *testing.T) (a, b *MatrixCore) {
 	t.Helper()
 	srvA, putsA := newMeshHomeserver(t)
-	srvB, putsB := newMeshHomeserver(t)
+	srvB, putsB := newMeshHomeserverAs(t, id.UserID("@alice:test"), id.DeviceID("DEV2"))
 	a = newMeshTestCore(t, srvA.URL)
 	b = newMeshTestCore(t, srvB.URL)
-	b.ForTestSetDeviceID("DEV2")
 
 	const conf = "conf_loop"
 	srvA.setCallConf(conf)

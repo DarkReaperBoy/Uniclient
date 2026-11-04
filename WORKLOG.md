@@ -11,7 +11,8 @@ owner order — that history lives in git if ever needed.
   retired (8 defs: GroupPeers/GroupMu/GroupRenew/SetGroupRenew/
   CallsMu/ActiveCalls/Pc×2, 56 use sites) onto wire + update-channel
   + GetGroupCall evidence; teardownGroupPeer now fires per-peer Ended
-  updates on every real peer-teardown path (UI-facing); 53 defs left
+  updates on every real peer-teardown path (UI-facing); 52 defs left
+  (iter 2: ForTestSetDeviceID → server-driven whoami identity)
 - next: H-1 — the scripted-server front (ts3j-style TS server for the
   TS internals cluster incl. ForTestCmdCh harness backbone; gotd
   tgtest for Telegram SetAuthed/SetCtx), then GitHub cluster + the
@@ -89,6 +90,14 @@ owner order — that history lives in git if ever needed.
 - Design rating 9/10: the update channel is UI-load-bearing; every
   wire proof is stronger than the state peek it replaces (the spy
   proved a func was called; silence proves the publishing stopped).
+- Iteration 2 (same session) — ForTestSetDeviceID deleted (1 def, 1
+  site): seedJoinedPair's second core now gets its DEV2 identity from
+  its own homeserver's whoami (newMeshHomeserverAs(user, device)
+  wrapper; newMeshHomeserver keeps the alice/DEV1 default) instead of
+  a field injection — the mxAuthSurface pattern generalized. RED: vet
+  `b.ForTestSetDeviceID undefined`. GREEN: mesh audio loopback family
+  + full quick gate (cores 25.3s, engine 6.6s, bootstrap 1.0s);
+  census zero. 52 defs.
 
 ## Session 359 — H-1 iters 4-5 + CI reconciliation + harness determinism fix (2026-11-04)
 

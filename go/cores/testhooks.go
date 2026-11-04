@@ -89,10 +89,6 @@ func (x *TelegramCore) ForTestSetCtx(v context.Context) {
 	x.ctx = v
 }
 
-func (x *MatrixCore) ForTestSetDeviceID(v id.DeviceID) {
-	x.deviceID = v
-}
-
 func (x *TeamSpeakCore) ForTestSetMyClientID(v int) {
 	x.myClientID = v
 }
