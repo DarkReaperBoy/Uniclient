@@ -22,7 +22,8 @@ owner order — that history lives in git if ever needed.
 - last-gate: local quick gate GREEN (iter 2: tests/cores 19.1s, engine
   6.8s, bootstrap 1.0s; gofmt + comment-ban clean; surgical RED
   reproduced — hooks-only patch on HEAD → vet undefined); CI: iter-1
-  41785092110 = SUCCESS on 87a43f4e; iter-2 dispatch pending post-push
+  41785092110 = SUCCESS on 87a43f4e; iter-2 dispatch 41790936340 in
+  flight on 0baccdad
 
 ## Open items
 
