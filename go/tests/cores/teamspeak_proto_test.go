@@ -9,6 +9,7 @@ import (
 	"filippo.io/edwards25519"
 	"math/big"
 	"testing"
+	"time"
 	. "uniclient/cores"
 )
 
@@ -480,11 +481,13 @@ func TestTS3RecvGenerationDupAndJitter(t *testing.T) {
 }
 
 func TestTS3DecryptRecvGenerationRetry(t *testing.T) {
-	var iv [64]byte
-	for i := range iv {
-		iv[i] = byte(i * 7)
-	}
-	tc := ForTestNewTsConnection(nil, nil, nil, false, nil, nil, nil, [2]map[uint16]*TsDecryptedPkt{}, iv)
+	old := TsExecVoidTimeout
+	TsExecVoidTimeout = 2 * time.Second
+	t.Cleanup(func() { TsExecVoidTimeout = old })
+
+	core, srv := newScriptedTSCore(t, tsScriptedConfig{ClientID: 1})
+	tc := core.ForTestTsConn()
+	iv := srv.SharedIV()
 
 	pktType := byte(TsPktVoice)
 	pID := uint16(0x1234)
@@ -525,5 +528,25 @@ func TestTS3DecryptRecvGenerationRetry(t *testing.T) {
 	badMac[0] ^= 0xFF
 	if _, err := tc.ForTestTsDecryptRecv(pktType, pID, meta, ciphertext, badMac); err == nil {
 		t.Fatal("tampered packet accepted")
+	}
+}
+
+func TestTS3DecryptGenRetryOnWire(t *testing.T) {
+	old := TsExecVoidTimeout
+	TsExecVoidTimeout = 2 * time.Second
+	t.Cleanup(func() { TsExecVoidTimeout = old })
+
+	core, srv := newScriptedTSCore(t, tsScriptedConfig{ServerName: "Before Retry"})
+
+	srv.PushAtGen(1, "initserver virtualserver_name="+TsEscape("GenRetry Worked"))
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		if got := core.ServerName(); got == "GenRetry Worked" {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("ServerName = %q — the future-generation command never landed, so the receive path's gen+1 decrypt fallback is broken", core.ServerName())
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 }

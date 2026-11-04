@@ -9,17 +9,8 @@ import (
 	"net"
 	"net/http"
 	"sync"
-	"sync/atomic"
 	"time"
 )
-
-func (x *TsConnection) ForTestClientID() *atomic.Uint32 {
-	return &x.clientID
-}
-
-func (x *TeamSpeakCore) ForTestClientInfoMu() *sync.RWMutex {
-	return &x.clientInfoMu
-}
 
 func (x *tsP256Identity) ForTestKey() *ecdsa.PrivateKey {
 	return x.key
@@ -61,24 +52,12 @@ func (x *TelegramCore) ForTestSetApi(v *tg.Client) {
 	x.api = v
 }
 
-func (x *TeamSpeakCore) ForTestSetAuthed(v bool) {
-	x.authed = v
-}
-
 func (x *TelegramCore) ForTestSetAuthed(v bool) {
 	x.authed = v
 }
 
 func (x *TelegramCore) ForTestSetCtx(v context.Context) {
 	x.ctx = v
-}
-
-func (x *TeamSpeakCore) ForTestSetMyClientID(v int) {
-	x.myClientID = v
-}
-
-func (x *TeamSpeakCore) ForTestSetTsConn(v *TsConnection) {
-	x.tsConn = v
 }
 
 func (x *MatrixCore) ForTestSetUserID(v id.UserID) {
@@ -103,18 +82,6 @@ func (x *tsP256Identity) ForTestTsOmega() string {
 
 func (x *TsConnection) ForTestTsProcessCommandQueue(cmdI int) {
 	x.tsProcessCommandQueue(cmdI)
-}
-
-func (x *TsConnection) ForTestTsSendAck(pID uint16) error {
-	return x.tsSendAck(pID)
-}
-
-func (x *TsConnection) ForTestTsSendCommand(cmdStr string) (uint16, error) {
-	return x.tsSendCommand(cmdStr)
-}
-
-func (x *TsConnection) ForTestTsSendPong(pingID uint16) error {
-	return x.tsSendPong(pingID)
 }
 
 func (x *tsP256Identity) ForTestTsSign(data []byte) ([]byte, error) {
@@ -153,27 +120,8 @@ func ForTestNewGitHubCore(authed bool, client *http.Client, ctx context.Context,
 	return &GitHubCore{authed: authed, client: client, ctx: ctx, token: token}
 }
 
-func ForTestNewTsConnection(addr *net.UDPAddr, cmdCh chan TsIncomingCmd, conn *net.UDPConn, cryptoOK bool, owner *TeamSpeakCore, pendingCmds map[uint16]*TsPendingCmd, proofs chan TsProof, recvQueue [2]map[uint16]*TsDecryptedPkt, sharedIV [64]byte) *TsConnection {
-	return &TsConnection{addr: addr, cmdCh: cmdCh, conn: conn, cryptoOK: cryptoOK, owner: owner, pendingCmds: pendingCmds, proofs: proofs, recvQueue: recvQueue, sharedIV: sharedIV}
-}
-
-func ForTestNewTeamSpeakCore(authed bool, channels map[int]TsChannelInfo, clientInfo map[int]TsClientInfo, ctx context.Context, myChannelID int, myClientID int, myTalkPower int, tsConn *TsConnection) *TeamSpeakCore {
-	core := &TeamSpeakCore{authed: authed, channels: make(map[int]TsChannelInfo), clientInfo: make(map[int]TsClientInfo), msgBuffer: make(map[string][]Message), eventHandlers: make(map[string][]func(map[string]string)), ctx: ctx, myChannelID: myChannelID, myClientID: myClientID, myTalkPower: myTalkPower, tsConn: tsConn}
-	if channels != nil {
-		core.channels = channels
-	}
-	if clientInfo != nil {
-		core.clientInfo = clientInfo
-	}
-	return core
-}
-
 func ForTestNewTsDecryptedPkt(flags byte, pID uint16, plaintext []byte) *TsDecryptedPkt {
 	return &TsDecryptedPkt{flags: flags, pID: pID, plaintext: plaintext}
-}
-
-func ForTestNewTsChannelInfo(cid int, talkPower int, talkPowerKnown bool) *TsChannelInfo {
-	return &TsChannelInfo{cid: cid, talkPower: talkPower, talkPowerKnown: talkPowerKnown}
 }
 
 func ForTestNewRpcGuard(next tg.Invoker, timeout time.Duration) *RpcGuard {

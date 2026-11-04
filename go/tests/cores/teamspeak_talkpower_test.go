@@ -2,8 +2,6 @@ package tests
 
 import (
 	"errors"
-	"net"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -97,61 +95,98 @@ func TestJoinChannelRefreshesTalkPower(t *testing.T) {
 	}
 }
 
-func udpVoicePair(t *testing.T) (*net.UDPConn, *net.UDPConn) {
+func newVoiceJourneyCore(t *testing.T, neededPower string) (*TeamSpeakCore, *tsScriptedServer) {
 	t.Helper()
-	rx, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
-	if err != nil {
-		t.Fatal(err)
+	old := TsExecVoidTimeout
+	TsExecVoidTimeout = 2 * time.Second
+	t.Cleanup(func() { TsExecVoidTimeout = old })
+	core, srv := newScriptedTSCore(t, tsScriptedConfig{ClientID: 1, ChannelLines: tsTalkPowerChannels()})
+	var q tsScriptedQueue
+	srv.SetResponder(func(line string) []string {
+		if strings.HasPrefix(line, "channelinfo") {
+			return q.take()
+		}
+		return nil
+	})
+	srv.Push("notifyclientmoved clid=1 ctid=7")
+	waitSelfInChannel(t, core)
+	q.add("channel_id=7 channel_needed_talk_power="+neededPower, "error id=0 msg=ok")
+	core.TsRefreshChannelTalkPower(7)
+	return core, srv
+}
+
+func waitSelfInChannel(t *testing.T, core *TeamSpeakCore) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		cs, err := core.GetGroupCall("ch:7")
+		if err != nil {
+			t.Fatalf("GetGroupCall: %v", err)
+		}
+		for _, p := range cs.Participants {
+			if p.UserID == "1" {
+				return
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("self never landed in ch:7 participants: %+v", cs.Participants)
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
-	tx, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
-	if err != nil {
-		rx.Close()
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { rx.Close(); tx.Close() })
-	return tx, rx
 }
 
 func TestSendVoiceBlockedWhenTalkPowerInsufficient(t *testing.T) {
-	tx, rx := udpVoicePair(t)
-	core := ForTestNewTeamSpeakCore(true, map[int]TsChannelInfo{7: *ForTestNewTsChannelInfo(7, 100, true)}, make(map[int]TsClientInfo), nil, 7, 1, 20, ForTestNewTsConnection(rx.LocalAddr().(*net.UDPAddr), nil, tx, true, nil, map[uint16]*TsPendingCmd{}, nil, [2]map[uint16]*TsDecryptedPkt{}, [64]byte{}))
+	core, srv := newVoiceJourneyCore(t, "9999")
+	srv.Push("notifyclientupdated clid=1 client_talk_power=20")
+	waitTalkPower(t, core, "blocked")
 
-	err := core.SendVoice(4, []byte("opus-frame"))
-	if !errors.Is(err, ErrPermission) {
+	if err := core.SendVoice(4, []byte("opus-frame")); !errors.Is(err, ErrPermission) {
 		t.Errorf("SendVoice into a known-blocked room returned %v — want ErrPermission (B-26): audio would die silently server-side", err)
 	}
-	rx.SetReadDeadline(time.Now().Add(150 * time.Millisecond))
-	buf := make([]byte, 1500)
-	if _, _, rerr := rx.ReadFromUDP(buf); rerr == nil {
-		t.Errorf("a voice packet was still sent into the blocked room (B-26)")
+	time.Sleep(150 * time.Millisecond)
+	if got := srv.VoiceCount(); got != 0 {
+		t.Errorf("a voice packet was still sent into the blocked room (B-26): the server received %d", got)
 	}
 }
 
 func TestSendVoiceFailsOpenWhileUnknown(t *testing.T) {
-	tx, rx := udpVoicePair(t)
-	core := ForTestNewTeamSpeakCore(true, map[int]TsChannelInfo{7: *ForTestNewTsChannelInfo(7, 100, false)}, make(map[int]TsClientInfo), nil, 7, 1, 0, ForTestNewTsConnection(rx.LocalAddr().(*net.UDPAddr), nil, tx, true, nil, map[uint16]*TsPendingCmd{}, nil, [2]map[uint16]*TsDecryptedPkt{}, [64]byte{}))
+	core, srv := newVoiceJourneyCore(t, "9999")
 
 	if err := core.SendVoice(4, []byte("opus-frame")); err != nil {
 		t.Fatalf("SendVoice with unknown talk power = %v — must fail open until channelinfo lands", err)
 	}
-	rx.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
-	buf := make([]byte, 1500)
-	if _, _, err := rx.ReadFromUDP(buf); err != nil {
-		t.Errorf("fail-open send produced no packet: %v", err)
+	deadline := time.Now().Add(2 * time.Second)
+	for srv.VoiceCount() < 1 && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
 	}
+	if got := srv.VoiceCount(); got < 1 {
+		t.Fatalf("fail-open send produced no packet on the wire: server received %d", got)
+	}
+	assertOpusFrame(t, srv.LastVoicePayload())
 }
 
 func TestSendVoiceAllowedWhenPowerSufficient(t *testing.T) {
-	tx, rx := udpVoicePair(t)
-	core := ForTestNewTeamSpeakCore(true, map[int]TsChannelInfo{7: *ForTestNewTsChannelInfo(7, 20, true)}, make(map[int]TsClientInfo), nil, 7, 1, 100, ForTestNewTsConnection(rx.LocalAddr().(*net.UDPAddr), nil, tx, true, nil, map[uint16]*TsPendingCmd{}, nil, [2]map[uint16]*TsDecryptedPkt{}, [64]byte{}))
+	core, srv := newVoiceJourneyCore(t, "20")
+	srv.Push("notifyclientupdated clid=1 client_talk_power=100")
+	waitTalkPower(t, core, "ok")
 
 	if err := core.SendVoice(4, []byte("opus-frame")); err != nil {
 		t.Fatalf("SendVoice with sufficient power = %v", err)
 	}
-	rx.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
-	buf := make([]byte, 1500)
-	if _, _, err := rx.ReadFromUDP(buf); err != nil {
-		t.Errorf("allowed send produced no packet: %v", err)
+	deadline := time.Now().Add(2 * time.Second)
+	for srv.VoiceCount() < 1 && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if got := srv.VoiceCount(); got < 1 {
+		t.Fatalf("allowed send produced no packet on the wire: server received %d", got)
+	}
+	assertOpusFrame(t, srv.LastVoicePayload())
+}
+
+func assertOpusFrame(t *testing.T, voice []byte) {
+	t.Helper()
+	if len(voice) != 3+len("opus-frame") || voice[2] != 4 || string(voice[3:]) != "opus-frame" {
+		t.Errorf("server decoded voice payload %q — want codec byte 4 followed by the opus frame", voice)
 	}
 }
 
@@ -213,29 +248,44 @@ func waitTalkPower(t *testing.T, core *TeamSpeakCore, want string) {
 }
 
 func TestMyChannelIDConcurrentMoveAndReadRace(t *testing.T) {
-	m := ForTestNewTeamSpeakCore(true, make(map[int]TsChannelInfo), make(map[int]TsClientInfo), nil, 0, 1, 0, nil)
+	old := TsExecVoidTimeout
+	TsExecVoidTimeout = 2 * time.Second
+	t.Cleanup(func() { TsExecVoidTimeout = old })
+
+	core, srv := newScriptedTSCore(t, tsScriptedConfig{ClientID: 1, ChannelLines: tsTalkPowerChannels()})
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
 		for i := 0; i < 2000; i++ {
-			m.TsHandleClientMoved(map[string]string{"clid": "1", "ctid": strconv.Itoa(7)})
+			srv.Push("notifyclientmoved clid=1 ctid=7")
+			if i%25 == 24 {
+				time.Sleep(2 * time.Millisecond)
+			}
 		}
 	}()
 	for i := 0; i < 2000; i++ {
-		_, _ = m.GetGroupCall("ch:7")
+		_, _ = core.GetGroupCall("ch:7")
 	}
 	<-done
-	cs, err := m.GetGroupCall("ch:7")
-	if err != nil {
-		t.Fatalf("GetGroupCall: %v", err)
-	}
-	selfInRoom := false
-	for _, p := range cs.Participants {
-		if p.UserID == "1" {
-			selfInRoom = true
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		cs, err := core.GetGroupCall("ch:7")
+		if err != nil {
+			t.Fatalf("GetGroupCall: %v", err)
 		}
-	}
-	if !selfInRoom {
-		t.Fatalf("self not among ch:7 participants after 2000 moves (move handler must be live): %+v", cs.Participants)
+		selfInRoom := false
+		for _, p := range cs.Participants {
+			if p.UserID == "1" {
+				selfInRoom = true
+			}
+		}
+		if selfInRoom {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("self not among ch:7 participants after 2000 wire moves (move handler must be live): %+v", cs.Participants)
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 }

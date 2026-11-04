@@ -29,6 +29,7 @@ const (
 	tsScriptedPktInit      = 0x08
 	tsScriptedPktAck       = 0x06
 	tsScriptedPktPing      = 0x04
+	tsScriptedPktPong      = 0x05
 	tsScriptedPktCommandLo = 0x03
 	tsScriptedFlagUnenc    = 0x80
 )
@@ -36,15 +37,22 @@ const (
 const tsScriptedLevel = uint32(8)
 
 type tsScriptedConfig struct {
-	ServerName   string
-	ClientID     int
-	ChannelLines []string
+	ServerName     string
+	ClientID       int
+	ChannelLines   []string
+	OmitServerName bool
+	FloodCommands  int
 }
 
 type tsScriptedGen struct {
 	init bool
 	last uint16
 	gen  uint32
+}
+
+type tsCmdPkt struct {
+	pID   uint16
+	flags byte
 }
 
 type tsScriptedServer struct {
@@ -87,31 +95,40 @@ type tsScriptedServer struct {
 	ekProofValid   bool
 	ackedCount     int
 
+	voiceCount int
+	lastVoice  []byte
+	pongCount  int
+	cmdPkts    []tsCmdPkt
+
+	fragActive     bool
+	fragBuf        []byte
+	fragCompressed bool
+
 	wg sync.WaitGroup
 }
 
-func startTSScriptedServer(t *testing.T, cfg tsScriptedConfig) *tsScriptedServer {
-	t.Helper()
+func startTSScriptedServer(tb testing.TB, cfg tsScriptedConfig) *tsScriptedServer {
+	tb.Helper()
 	conn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 0})
 	if err != nil {
-		t.Fatalf("listen udp: %v", err)
+		tb.Fatalf("listen udp: %v", err)
 	}
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		conn.Close()
-		t.Fatalf("gen p256: %v", err)
+		tb.Fatalf("gen p256: %v", err)
 	}
 	seed := make([]byte, 32)
 	if _, err := rand.Read(seed); err != nil {
 		conn.Close()
-		t.Fatalf("read seed: %v", err)
+		tb.Fatalf("read seed: %v", err)
 	}
 	rootScalar, err := new(edwards25519.Scalar).SetBytesWithClamping(seed)
 	if err != nil {
 		conn.Close()
-		t.Fatalf("root scalar: %v", err)
+		tb.Fatalf("root scalar: %v", err)
 	}
-	if cfg.ServerName == "" {
+	if cfg.ServerName == "" && !cfg.OmitServerName {
 		cfg.ServerName = "Scripted HQ"
 	}
 	if cfg.ClientID == 0 {
@@ -129,7 +146,7 @@ func startTSScriptedServer(t *testing.T, cfg tsScriptedConfig) *tsScriptedServer
 	rand.Read(s.beta[:])
 	s.wg.Add(1)
 	go s.loop()
-	t.Cleanup(s.Close)
+	tb.Cleanup(s.Close)
 	return s
 }
 
@@ -172,6 +189,17 @@ func (s *tsScriptedServer) Push(line string) {
 	s.sendCommand([]byte(line))
 }
 
+func (s *tsScriptedServer) PushAtGen(gen uint32, line string) {
+	s.sendCommandGen(gen, []byte(line))
+}
+
+func (s *tsScriptedServer) PushPing(pingID uint16) {
+	pkt := make([]byte, 11)
+	binary.BigEndian.PutUint16(pkt[8:10], pingID)
+	pkt[10] = tsScriptedPktPing | tsScriptedFlagUnenc
+	s.sendRaw(pkt)
+}
+
 func (s *tsScriptedServer) ClientInitLine() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -200,6 +228,46 @@ func (s *tsScriptedServer) AckedCount() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.ackedCount
+}
+
+func (s *tsScriptedServer) SharedIV() [64]byte {
+	s.wireMu.Lock()
+	defer s.wireMu.Unlock()
+	return s.sharedIV
+}
+
+func (s *tsScriptedServer) VoiceCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.voiceCount
+}
+
+func (s *tsScriptedServer) LastVoicePayload() []byte {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]byte, len(s.lastVoice))
+	copy(out, s.lastVoice)
+	return out
+}
+
+func (s *tsScriptedServer) PongCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.pongCount
+}
+
+func (s *tsScriptedServer) CmdPackets() []tsCmdPkt {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]tsCmdPkt, len(s.cmdPkts))
+	copy(out, s.cmdPkts)
+	return out
+}
+
+func (s *tsScriptedServer) ResetCmdPackets() {
+	s.mu.Lock()
+	s.cmdPkts = nil
+	s.mu.Unlock()
 }
 
 func (s *tsScriptedServer) WaitCommand(t *testing.T, prefix string) string {
@@ -246,6 +314,8 @@ func (s *tsScriptedServer) handle(raw []byte) {
 	flags := pType & 0xf0
 	typ := pType & 0x0f
 	switch typ {
+	case TsPktVoice:
+		s.handleC2SVoice(pID, mac, raw, data)
 	case tsScriptedPktInit:
 		if len(data) < 5 {
 			return
@@ -262,6 +332,10 @@ func (s *tsScriptedServer) handle(raw []byte) {
 		s.handleC2SCommand(typ, pID, flags, mac, raw, data)
 	case tsScriptedPktAck:
 		s.handleC2SAck(pID, mac, raw, data)
+	case tsScriptedPktPong:
+		s.mu.Lock()
+		s.pongCount++
+		s.mu.Unlock()
 	case tsScriptedPktPing:
 	}
 }
@@ -382,14 +456,14 @@ func (s *tsScriptedServer) handleClientek(pID uint16, mac [8]byte, raw, data []b
 	proofOK := s.clientOmegaX != nil && TsVerifyP256(s.clientOmegaX, s.clientOmegaY, proofData, proof)
 	shared := new(edwards25519.Point).ScalarMult(s.rootScalar, ekPub)
 	iv := sha512.Sum512(shared.Bytes())
-	copy(s.sharedIV[:], iv[:])
 	for i := 0; i < 10; i++ {
-		s.sharedIV[i] ^= s.alpha[i]
+		iv[i] ^= s.alpha[i]
 	}
 	for i := 0; i < 54; i++ {
-		s.sharedIV[i+10] ^= s.beta[i]
+		iv[i+10] ^= s.beta[i]
 	}
 	s.wireMu.Lock()
+	copy(s.sharedIV[:], iv[:])
 	s.cryptoOn = true
 	s.wireMu.Unlock()
 	s.mu.Lock()
@@ -437,6 +511,21 @@ func (s *tsScriptedServer) decryptC2S(typ byte, pID uint16, gen uint32, meta, da
 	return nil, fmt.Errorf("scripted server: c2s decrypt failed for pID=%d gen=%d", pID, gen)
 }
 
+func (s *tsScriptedServer) handleC2SVoice(pID uint16, mac [8]byte, raw, data []byte) {
+	meta := raw[8:13]
+	s.wireMu.Lock()
+	gen := s.trackGen(TsPktVoice, pID)
+	s.wireMu.Unlock()
+	plain, err := s.decryptC2S(TsPktVoice, pID, gen, meta, data, mac)
+	if err != nil {
+		return
+	}
+	s.mu.Lock()
+	s.voiceCount++
+	s.lastVoice = append(s.lastVoice[:0], plain...)
+	s.mu.Unlock()
+}
+
 func (s *tsScriptedServer) handleC2SCommand(typ byte, pID uint16, flags byte, mac [8]byte, raw, data []byte) {
 	meta := raw[8:13]
 	s.wireMu.Lock()
@@ -458,7 +547,34 @@ func (s *tsScriptedServer) handleC2SCommand(typ byte, pID uint16, flags byte, ma
 		return
 	}
 	s.sendAck(pID)
-	for _, line := range strings.Split(string(plain), "\n") {
+	s.mu.Lock()
+	s.cmdPkts = append(s.cmdPkts, tsCmdPkt{pID: pID, flags: raw[12]})
+	s.mu.Unlock()
+	payload := plain
+	compressed := flags&TsFlagCompressed != 0
+	if flags&TsFlagFragmented != 0 {
+		if !s.fragActive {
+			s.fragActive = true
+			s.fragBuf = append(s.fragBuf[:0], plain...)
+			s.fragCompressed = compressed
+			return
+		}
+		payload = append(s.fragBuf, plain...)
+		s.fragActive = false
+		s.fragBuf = nil
+		compressed = s.fragCompressed
+	} else if s.fragActive {
+		s.fragBuf = append(s.fragBuf, plain...)
+		return
+	}
+	if compressed {
+		out, err := TsQuickLZDecompress(payload)
+		if err != nil {
+			return
+		}
+		payload = out
+	}
+	for _, line := range strings.Split(string(payload), "\n") {
 		line = strings.TrimRight(line, "\x00\r\n")
 		if line == "" {
 			continue
@@ -522,15 +638,23 @@ func (s *tsScriptedServer) dispatch(line string) {
 }
 
 func (s *tsScriptedServer) sendInitserver(cfg tsScriptedConfig) {
-	line := "initserver aclid=" + strconv.Itoa(cfg.ClientID) +
-		" virtualserver_name=" + TsEscape(cfg.ServerName) +
-		" virtualserver_platform=Linux virtualserver_version=3.13.7" +
+	line := "initserver aclid=" + strconv.Itoa(cfg.ClientID)
+	if !cfg.OmitServerName {
+		line += " virtualserver_name=" + TsEscape(cfg.ServerName)
+	}
+	line += " virtualserver_platform=Linux virtualserver_version=3.13.7" +
 		" virtualserver_maxclients=32 virtualserver_clientsonline=1 virtualserver_channelsonline=" + strconv.Itoa(len(cfg.ChannelLines))
 	s.sendCommand([]byte(line))
 	if len(cfg.ChannelLines) > 0 {
 		s.sendCommand([]byte("channellist " + strings.Join(cfg.ChannelLines, "|")))
 	}
 	s.sendCommand([]byte("channellistfinished"))
+	for i := 0; i < cfg.FloodCommands; i++ {
+		s.sendCommand([]byte("error id=0 msg=ok"))
+		if i%20 == 19 {
+			time.Sleep(time.Millisecond)
+		}
+	}
 }
 
 func (s *tsScriptedServer) sendInit(data []byte) {
@@ -563,6 +687,10 @@ func (s *tsScriptedServer) sendFakeCommand(plain []byte) {
 }
 
 func (s *tsScriptedServer) sendCommand(plain []byte) {
+	s.sendCommandGen(0, plain)
+}
+
+func (s *tsScriptedServer) sendCommandGen(gen uint32, plain []byte) {
 	s.wireMu.Lock()
 	cryptoOn := s.cryptoOn
 	pID := s.cmdPID
@@ -575,7 +703,7 @@ func (s *tsScriptedServer) sendCommand(plain []byte) {
 	}
 	flags := byte(TsPktCommand) | TsFlagNewprotocol
 	header := []byte{byte(pID >> 8), byte(pID & 0xff), flags}
-	key, nonce := TsCreateKeyNonce(TsPktCommand, pID, 0, 0x30, iv[:])
+	key, nonce := TsCreateKeyNonce(TsPktCommand, pID, gen, 0x30, iv[:])
 	mac, ct := TsEAXEncrypt(key[:], nonce[:], header, plain)
 	pkt := make([]byte, 11+len(ct))
 	copy(pkt[:8], mac[:])
@@ -638,17 +766,17 @@ func tsScriptedOmega(x, y *big.Int) string {
 	return base64.StdEncoding.EncodeToString(seq)
 }
 
-func newScriptedTSCore(t *testing.T, cfg tsScriptedConfig) (*TeamSpeakCore, *tsScriptedServer) {
-	t.Helper()
-	srv := startTSScriptedServer(t, cfg)
-	store := utils.NewSessionStore(newTestVaultSimple(t, t.TempDir()), "ts-scripted")
+func newScriptedTSCore(tb testing.TB, cfg tsScriptedConfig) (*TeamSpeakCore, *tsScriptedServer) {
+	tb.Helper()
+	srv := startTSScriptedServer(tb, cfg)
+	store := utils.NewSessionStore(newTestVaultSimple(tb, tb.TempDir()), "ts-scripted")
 	core := NewTeamSpeakCore(store)
-	t.Cleanup(func() { _ = core.Logout() })
+	tb.Cleanup(func() { _ = core.Logout() })
 	if err := core.Authenticate(AuthConfig{Mode: AuthModeUser, Extra: map[string]string{
 		"server_address": srv.Addr(),
 		"nickname":       "alice",
 	}}); err != nil {
-		t.Fatalf("Authenticate against the scripted TS server: %v", err)
+		tb.Fatalf("Authenticate against the scripted TS server: %v", err)
 	}
 	return core, srv
 }

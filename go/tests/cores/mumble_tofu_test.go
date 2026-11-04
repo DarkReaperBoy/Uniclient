@@ -140,12 +140,12 @@ func TestConnectVerifiesServerCertBeforeHandshake(t *testing.T) {
 	t.Logf("dial=%d check=%d send=%d", dial, check, send)
 }
 
-func newTestVaultSimple(t *testing.T, dir string) *utils.Vault {
-	t.Helper()
+func newTestVaultSimple(tb testing.TB, dir string) *utils.Vault {
+	tb.Helper()
 	v, err := utils.CreateVault(filepath.Join(dir, "v.vault"), "pw")
 	if err != nil {
-		t.Fatalf("CreateVault: %v", err)
+		tb.Fatalf("CreateVault: %v", err)
 	}
-	t.Cleanup(func() { v.Close() })
+	tb.Cleanup(func() { v.Close() })
 	return v
 }

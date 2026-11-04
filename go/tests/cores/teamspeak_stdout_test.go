@@ -7,7 +7,8 @@ import (
 )
 
 func TestTSReceivePathSilentOnBadPackets(t *testing.T) {
-	_, tc := newWireFuzzCore(t)
+	core := newWireFuzzCore(t)
+	tc := core.ForTestTsConn()
 
 	old := os.Stdout
 	r, w, err := os.Pipe()

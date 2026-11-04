@@ -1,11 +1,10 @@
 package tests
 
 import (
-	"net"
 	"testing"
-	. "uniclient/cores"
+	"time"
 
-	"uniclient/utils"
+	. "uniclient/cores"
 )
 
 func FuzzTSCommand(f *testing.F) {
@@ -57,13 +56,10 @@ func FuzzTSHandleServerCommand(f *testing.F) {
 	f.Add([]byte("channellist cid=1 channel_name=a|cid=2 channel_name=b"))
 	f.Add([]byte("initserver virtualserver_name=x aclid=7"))
 
-	core, _ := newWireFuzzCore(f)
+	core := newWireFuzzCore(f)
 
 	f.Fuzz(func(t *testing.T, data []byte) {
 		name, params := TsParseCommand(data)
-		if name == "notifyconnectioninforequest" {
-			t.Skip()
-		}
 		core.TsHandleServerCommand(*ForTestNewTsIncomingCmd(name, params, string(data)))
 	})
 }
@@ -80,24 +76,11 @@ func FuzzMumbleURL(f *testing.F) {
 	})
 }
 
-func newWireFuzzCore(t testing.TB) (*TeamSpeakCore, *TsConnection) {
-	t.Helper()
-	vault, err := utils.CreateVault(t.TempDir()+"/fuzz.vault", "fuzz")
-	if err != nil {
-		t.Fatal(err)
-	}
-	core := NewTeamSpeakCore(utils.NewSessionStore(vault, "fuzz"))
-	rx, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
-	if err != nil {
-		t.Fatal(err)
-	}
-	tx, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
-	if err != nil {
-		rx.Close()
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { rx.Close(); tx.Close(); vault.Close() })
-	core.ForTestSetTsConn(ForTestNewTsConnection(rx.LocalAddr().(*net.UDPAddr), make(chan TsIncomingCmd, 64), tx, false, core, make(map[uint16]*TsPendingCmd), nil, [2]map[uint16]*TsDecryptedPkt{make(map[uint16]*TsDecryptedPkt), make(map[uint16]*TsDecryptedPkt)}, [64]byte{}))
-	core.ForTestSetMyClientID(7)
-	return core, core.ForTestTsConn()
+func newWireFuzzCore(tb testing.TB) *TeamSpeakCore {
+	tb.Helper()
+	old := TsExecVoidTimeout
+	TsExecVoidTimeout = 2 * time.Second
+	tb.Cleanup(func() { TsExecVoidTimeout = old })
+	core, _ := newScriptedTSCore(tb, tsScriptedConfig{ClientID: 7})
+	return core
 }
