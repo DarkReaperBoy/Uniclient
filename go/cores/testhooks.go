@@ -122,10 +122,6 @@ func (x *MatrixCore) ForTestSetDeviceID(v id.DeviceID) {
 	x.deviceID = v
 }
 
-func (x *MatrixCore) ForTestSetGroupPeers(v map[string]*MatrixCall) {
-	x.groupPeers = v
-}
-
 func (x *MatrixCore) ForTestSetGroupRenew(v context.CancelFunc) {
 	x.groupRenew = v
 }

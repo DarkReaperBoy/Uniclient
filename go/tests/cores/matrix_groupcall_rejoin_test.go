@@ -8,13 +8,6 @@ import (
 func TestJoinGroupCallClosesStaleConfPeers(t *testing.T) {
 	srv, _ := newMeshHomeserver(t)
 	core := seededMeshCore(t, srv)
-	t.Cleanup(func() {
-		core.ForTestGroupMu().Lock()
-		if core.ForTestGroupRenew() != nil {
-			core.ForTestGroupRenew()
-		}
-		core.ForTestGroupMu().Unlock()
-	})
 	_, stale := seedCallState(t, core)
 	srv.setCallConf("conf_new")
 

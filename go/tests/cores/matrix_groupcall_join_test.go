@@ -69,13 +69,6 @@ func newGroupTestCore(t *testing.T, srvURL string) *MatrixCore {
 	}); err != nil {
 		t.Fatalf("authenticate: %v", err)
 	}
-	t.Cleanup(func() {
-		core.ForTestGroupMu().Lock()
-		if core.ForTestGroupRenew() != nil {
-			core.ForTestGroupRenew()
-		}
-		core.ForTestGroupMu().Unlock()
-	})
 	return core
 }
 

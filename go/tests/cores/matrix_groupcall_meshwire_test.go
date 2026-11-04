@@ -139,20 +139,6 @@ func newMeshTestCore(t *testing.T, srvURL string) *MatrixCore {
 	}); err != nil {
 		t.Fatalf("authenticate: %v", err)
 	}
-	t.Cleanup(func() {
-		core.ForTestGroupMu().Lock()
-		peers := core.ForTestGroupPeers()
-		core.ForTestSetGroupPeers(nil)
-		if core.ForTestGroupRenew() != nil {
-			core.ForTestGroupRenew()
-		}
-		core.ForTestGroupMu().Unlock()
-		for _, p := range peers {
-			if p != nil && p.ForTestPc() != nil {
-				p.ForTestPc().Close()
-			}
-		}
-	})
 	return core
 }
 
