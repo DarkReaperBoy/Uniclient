@@ -24,7 +24,8 @@ owner order — that history lives in git if ever needed.
   vet-undefined seen; local -race OOM-skipped on gotd compile —
   machine truth, CI is the verdict); CI: iter-4 41801127829 +
   iter-5 41801860069 both SUCCESS (race step green) — session 359
-  closed; session-360 dispatch 41825704688 in flight on ed99c981
+  closed; session-360 iter-1 41825704688 in flight on ed99c981,
+iter-2 41827255692 in flight on 05915ce3
 
 ## Open items
 
