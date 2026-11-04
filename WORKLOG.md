@@ -23,8 +23,8 @@ owner order — that history lives in git if ever needed.
   Telegram Desktop/Web/Android references, capability-projected, Gio)
 - last-gate: local quick gate GREEN (session 361: tests/cores 25.8s,
   engine 6.3s, bootstrap 0.9s; gofmt + comment-ban clean — 272
-  files); CI: session-360 iter-1 41825704688 + iter-2 41827255692
-  both SUCCESS; session-361 dispatch recorded below
+  files); CI: session-361 dispatch 41837816519 (bac31816) in flight;
+  session-360 iter-1 41825704688 + iter-2 41827255692 both SUCCESS
 
 ## Open items
 
