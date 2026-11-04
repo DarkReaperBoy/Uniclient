@@ -20,12 +20,10 @@ owner order — that history lives in git if ever needed.
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
 - last-gate: local quick gate GREEN (session 360: tests/cores 25.3s,
-  engine 6.7s, bootstrap 1.3s; gofmt + comment-ban clean; RED
-  vet-undefined seen; local -race OOM-skipped on gotd compile —
-  machine truth, CI is the verdict); CI: iter-4 41801127829 +
-  iter-5 41801860069 both SUCCESS (race step green) — session 359
-  closed; session-360 iter-1 41825704688 in flight on ed99c981,
-iter-2 41827255692 in flight on 05915ce3
+  engine 6.6s, bootstrap 1.0s; gofmt + comment-ban clean; RED
+  vet-undefined seen); CI: session-360 iter-1 41825704688 (ed99c981)
+  + iter-2 41827255692 (05915ce3) both SUCCESS at job AND step level
+  — race steps green; session 359 closed green the same way
 
 ## Open items
 
