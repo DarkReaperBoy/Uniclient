@@ -7,11 +7,11 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 358 — H-1 three iterations: Matrix reads family
-  (iter 1: ForTestGroupConfID/GroupMembers → GetGroupCall), TS
-  state-mirror family (iter 2: 7 defs onto real ingestion + meta),
-  Matrix construction (iter 3: ForTestNewMatrixCall cut — all peer-call
-  seeding onto the REAL ReconcileGroupMesh journey), 64 defs left
+- front: session 359 — CI reconciliation + harness
+  determinism fix: iter-2 run 41790936340 FAILED (race step,
+  TestGetGroupCallReportsTalkPowerBlocked — newExecHarness pump
+  dropped pre-queued responses); fixed + regression-tested, iter-3
+  41792038420 SUCCESS on 1fc3924e; H-1 resumes with 64 defs left
 - next: H-1 — ForTestNewMatrixCore retirement (7 harness sites onto
   real NewMatrixCore+Authenticate; mxAuthedCoreAt proves the shape),
   then the TS internals + Telegram SetAuthed/SetCtx + GitHub cluster
@@ -20,11 +20,13 @@ owner order — that history lives in git if ever needed.
   handshake, research done, see session 358 entry)
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: local quick gate GREEN (iter 3: tests/cores 20.6s, engine
-  6.7s, bootstrap 1.1s; gofmt + comment-ban clean; RED vet-undefined
-  seen); CI: iter-1 41785092110 SUCCESS on 87a43f4e; iter-2
-  41790936340 in flight on 0baccdad; iter-3 41792038420 queued
-  on 1fc3924e
+- last-gate: local quick gate GREEN (tests/cores 19.6s; gofmt +
+  comment-ban clean; RED seen: new harness test 2.00s response-lost;
+  count=20 harness family GREEN 138.9s — local -race BLOCKED: gotd
+  tg race compile OOM-killed at 4G sandbox RAM, race leg rides the
+  CI dispatch); CI: iter-1 41785092110 SUCCESS; iter-2 41790936340
+  FAILURE→fixed this session; iter-3 41792038420 SUCCESS on 1fc3924e;
+  fix dispatch pending
 
 ## Open items
 
@@ -33,6 +35,45 @@ owner order — that history lives in git if ever needed.
 | H-1 | cores testhooks*.go | ForTest* hooks are debt (§5.3): 64 left by def-count (session 358 iters 1-3: reads family → GetGroupCall projection, TS state-mirror family — 7 defs, ForTestNewMatrixCall → real ReconcileGroupMesh peers; session 357 iters 5-6: ForTestSetGroupMembers retired onto HandleGroupMemberEvent + audio pair onto real JoinGroupCall; session 356 iters 1-4: HandleMemberEvent + LiveDevices exported, rooms family + seededMeshCore retired onto real journeys; session 354: mumble/IRC/DeltaChat/XMPP state-mirror slices — 15 defs; session 353: injection, mumble-wire-codec, mumble-crypt families + 24-def orphan sweep); TelegramCore SetAuthed/SetCtx + TeamSpeakCore SetAuthed + TS internals (myClientID's sole write site = initserver handshake) + GitHub SetUsername/NewGitHubCore await a scripted-server front | session 358 entry | ForTestNewMatrixCore next, then the scripted front via ts3j-style TS server / gotd tgtest / GUI --script seam |
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 302 identifiers exported purely for the tests move (API noise: TsParseInit1, ForTest-adjacent) | commit 27faa5a4 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
+
+## Session 359 — CI reconciliation + exec-harness determinism fix (2026-11-04)
+
+- Boot: token 401 with `token` prefix, works as `Bearer` (use Bearer).
+  Reconciled: iter-2 run 41790936340 FAILURE — job 126443899068 step 9
+  "Race (core subsets)": `TestGetGroupCallReportsTalkPowerBlocked:
+  insufficient power Meta = "unknown", want blocked` (0.00s — no
+  timeout, so not the 2s deadline: a row was dropped, not late);
+  iter-3 41792038420 SUCCESS 8m47s on 1fc3924e (superset code) →
+  latent harness race, not a product regression.
+- Root cause: newExecHarness pump consumed cmdCh continuously and
+  DROPPED cmds arriving while execWait=false. Tests queue responses
+  BEFORE the exec call (talkpower_test does; older tests hide the race
+  behind 30ms sleep-goroutines). Under -race on a slow CI runner the
+  pump outruns the exec: data row dropped, error row forwarded first
+  → empty rows → tsParseNeededTalkPower known=false → "unknown".
+  Production tsCommandLoop never sees this window (a real server
+  cannot respond before the request) — harness-only defect.
+- Fix (tests/cores/teamspeak_exec_test.go, +59): pump buffers cmds
+  received while unwaited and flushes them in order into the current
+  execCh when a waiter exists (200µs ticker + flush-before-forward
+  on the receive path; in-order via pending slice, non-blocking
+  sends against the 64-buffer execCh).
+- RED first: TestTSExecDeliversResponsesQueuedBeforeTheCall — row1 +
+  16 fillers + late row + terminator; the 17th send proves (FIFO
+  capacity arithmetic) row1 was consumed while unwaited → seen FAIL
+  2.00s "no response to command within 2s (response lost)".
+- First pump attempt (poll-until-waited) FAILED count=20 itself:
+  `Meta = "blocked", want ok` — pre-committed receive fired into a
+  dead execCh between execs. Buffer+flush design then passed count=20
+  ×22 harness-family tests (exec/execseq/verified/talkpower/proof)
+  138.9s GREEN.
+- Race proof: local -race BLOCKED-env — gotd tg race-instrumented
+  compile OOM-killed (4G RAM, even GOGC=10 GOMEMLIMIT=3GiB, 3.3G
+  free); race leg = CI dispatch step 9 (unchanged product code since
+  iter-3's green race run; only test files changed).
+- Gate: quick GREEN (tests/cores 19.6s), gofmt clean, comment-ban
+  clean (271 files). Next: dispatch verify.yml, then H-1
+  ForTestNewMatrixCore.
 
 ## Session 358 — H-1 reads family: ForTestGroupConfID/ForTestGroupMembers retired onto GetGroupCall (2026-11-04)
 

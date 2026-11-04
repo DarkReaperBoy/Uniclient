@@ -23,15 +23,37 @@ func newExecHarness(t *testing.T) (*TeamSpeakCore, *TsConnection, func()) {
 	core := ForTestNewTeamSpeakCore(false, nil, nil, context.Background(), 0, 0, 0, tc)
 	stop := make(chan struct{})
 	go func() {
+		idle := time.NewTicker(200 * time.Microsecond)
+		defer idle.Stop()
+		var pending []TsIncomingCmd
+		flush := func() {
+			for len(pending) > 0 {
+				select {
+				case tc.ForTestExecCh() <- pending[0]:
+					pending = pending[1:]
+				default:
+					return
+				}
+			}
+		}
 		for {
 			select {
 			case cmd := <-tc.ForTestCmdCh():
 				tc.ForTestExecMu().Lock()
 				if tc.ForTestExecWait() {
+					flush()
 					select {
 					case tc.ForTestExecCh() <- cmd:
 					default:
 					}
+				} else {
+					pending = append(pending, cmd)
+				}
+				tc.ForTestExecMu().Unlock()
+			case <-idle.C:
+				tc.ForTestExecMu().Lock()
+				if tc.ForTestExecWait() {
+					flush()
 				}
 				tc.ForTestExecMu().Unlock()
 			case <-stop:
@@ -104,5 +126,42 @@ func TestTSExecMapsErrorResponse(t *testing.T) {
 	_, err := core.TsExec("clientmove clid=1 cid=2")
 	if !errors.Is(err, ErrPermission) {
 		t.Fatalf("err = %v, want ErrPermission", err)
+	}
+}
+
+func TestTSExecDeliversResponsesQueuedBeforeTheCall(t *testing.T) {
+	old := TsExecVoidTimeout
+	TsExecVoidTimeout = 2 * time.Second
+	t.Cleanup(func() { TsExecVoidTimeout = old })
+
+	core, tc, done := newExecHarness(t)
+	defer done()
+
+	tc.ForTestCmdCh() <- tsResp(t, "channel_id=7 channel_needed_talk_power=9999")
+	landed := make(chan struct{})
+	go func() {
+		for i := 0; i < 16; i++ {
+			tc.ForTestCmdCh() <- tsResp(t, "who=filler")
+		}
+		close(landed)
+		tc.ForTestCmdCh() <- tsResp(t, "error id=0 msg=ok")
+	}()
+	select {
+	case <-landed:
+	case <-time.After(200 * time.Millisecond):
+	}
+
+	rows, err := core.TsExec("channelinfo cid=7")
+	if err != nil {
+		t.Fatalf("TsExec: %v — responses queued before the call never reached the exec (the pump drops cmds consumed while execWait is false; CI run 41790936340)", err)
+	}
+	power := ""
+	for _, r := range rows {
+		if v, ok := r["channel_needed_talk_power"]; ok {
+			power = v
+		}
+	}
+	if power != "9999" {
+		t.Errorf("pre-queued channelinfo row lost by the harness pump: channel_needed_talk_power = %q, want 9999 (CI run 41790936340: TestGetGroupCallReportsTalkPowerBlocked)", power)
 	}
 }
