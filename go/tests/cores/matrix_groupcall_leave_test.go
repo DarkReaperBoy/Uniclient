@@ -4,24 +4,25 @@ import (
 	"strings"
 	"testing"
 	. "uniclient/cores"
-
-	"maunium.net/go/mautrix/id"
 )
 
 func TestEndCallLeavesGroupCall(t *testing.T) {
 	srv, puts := newMeshHomeserver(t)
 	core := seededMeshCore(t, srv)
 
-	pc, err := core.CreatePeerConnection()
-	if err != nil {
-		t.Fatalf("pc: %v", err)
-	}
-	key := GroupPeerKey("@bob:test", "BOB1")
 	renewCanceled := false
 	core.ForTestGroupMu().Lock()
-	core.ForTestSetGroupPeers(map[string]*MatrixCall{key: ForTestNewMatrixCall("conf_x", "conf_x", id.RoomID("!room:test"), "", pc)})
-	core.ForTestSetGroupRenew(func() { renewCanceled = true })
+	prevRenew := core.ForTestGroupRenew()
+	core.ForTestSetGroupRenew(func() {
+		renewCanceled = true
+		if prevRenew != nil {
+			prevRenew()
+		}
+	})
 	core.ForTestGroupMu().Unlock()
+	if err := core.ReconcileGroupMesh(); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
 
 	if err := core.EndCall("conf_x"); err != nil {
 		t.Fatalf("EndCall(conf) = %v, want nil (leave the group call)", err)

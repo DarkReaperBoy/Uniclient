@@ -211,10 +211,6 @@ func ForTestNewTsIncomingCmd(name string, params map[string]string, raw string) 
 	return &TsIncomingCmd{name: name, params: params, raw: raw}
 }
 
-func ForTestNewMatrixCall(GroupConf string, ID string, RoomID id.RoomID, State CallState, pc *wrtc.PeerConnection) *MatrixCall {
-	return &MatrixCall{GroupConf: GroupConf, ID: ID, RoomID: RoomID, State: State, pc: pc}
-}
-
 func ForTestNewXMPPCore(conn net.Conn, ctx context.Context, reader *bufio.Reader) *XMPPCore {
 	return &XMPPCore{conn: conn, ctx: ctx, reader: reader}
 }

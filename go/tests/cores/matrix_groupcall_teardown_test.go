@@ -11,17 +11,9 @@ import (
 
 func seedCallState(t *testing.T, core *MatrixCore) (*bool, *MatrixCall) {
 	t.Helper()
-	pc, err := core.CreatePeerConnection()
-	if err != nil {
-		t.Fatalf("pc: %v", err)
-	}
 	canceled := false
-	call := ForTestNewMatrixCall("conf_x", "conf_x", id.RoomID("!room:test"), CallStateConnecting, pc)
 	core.ForTestGroupMu().Lock()
 	prevRenew := core.ForTestGroupRenew()
-	core.ForTestSetGroupPeers(map[string]*MatrixCall{
-		GroupPeerKey("@bob:test", "BOB1"): call,
-	})
 	core.ForTestSetGroupRenew(func() {
 		canceled = true
 		if prevRenew != nil {
@@ -29,6 +21,15 @@ func seedCallState(t *testing.T, core *MatrixCore) (*bool, *MatrixCall) {
 		}
 	})
 	core.ForTestGroupMu().Unlock()
+	if err := core.ReconcileGroupMesh(); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	core.ForTestGroupMu().Lock()
+	call := core.ForTestGroupPeers()[GroupPeerKey("@bob:test", "BOB1")]
+	core.ForTestGroupMu().Unlock()
+	if call == nil {
+		t.Fatal("setup: bob peer not created by reconcile")
+	}
 	return &canceled, call
 }
 

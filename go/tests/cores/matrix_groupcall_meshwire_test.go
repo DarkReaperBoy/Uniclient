@@ -338,7 +338,15 @@ func TestSendICECandidatesConfTagged(t *testing.T) {
 
 	mid := "0"
 	idx := uint16(0)
-	call := ForTestNewMatrixCall("conf_x", "conf_x", id.RoomID("!room:test"), "", nil)
+	if err := core.ReconcileGroupMesh(); err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	core.ForTestGroupMu().Lock()
+	call := core.ForTestGroupPeers()[GroupPeerKey("@bob:test", "BOB1")]
+	core.ForTestGroupMu().Unlock()
+	if call == nil {
+		t.Fatal("setup: bob peer not created by reconcile")
+	}
 	core.SendICECandidates(call, []webrtc.ICECandidateInit{{
 		Candidate:     "candidate:1 1 UDP 2122252543 192.0.2.1 3478 typ host generation 0",
 		SDPMid:        &mid,
@@ -363,14 +371,15 @@ func TestGroupReconcileRemovesDepartedPeers(t *testing.T) {
 	srv, _ := newMeshHomeserver(t)
 	core := seededMeshCore(t, srv)
 
-	pc, err := core.CreatePeerConnection()
-	if err != nil {
-		t.Fatalf("pc: %v", err)
+	if err := core.ReconcileGroupMesh(); err != nil {
+		t.Fatalf("reconcile: %v", err)
 	}
-	key := GroupPeerKey("@bob:test", "BOB1")
 	core.ForTestGroupMu().Lock()
-	core.ForTestSetGroupPeers(map[string]*MatrixCall{key: ForTestNewMatrixCall("conf_x", "conf_x", id.RoomID("!room:test"), "", pc)})
+	live := len(core.ForTestGroupPeers())
 	core.ForTestGroupMu().Unlock()
+	if live != 1 {
+		t.Fatalf("setup: want 1 live bob peer, got %d", live)
+	}
 
 	fireGroupMemberEvent(t, core, "@bob:test", MatrixCallMemberContent{Calls: []MatrixCallMemberCall{{
 		CallID:  "conf_x",
