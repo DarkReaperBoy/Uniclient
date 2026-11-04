@@ -19,11 +19,12 @@ owner order — that history lives in git if ever needed.
   the GitHub cluster (SetUsername/NewGitHubCore)
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: verify.yml dispatch 41895227385 on f80c667c in
-  progress (local pre-push: full make test GREEN — cores 53.1s,
-  engine 6.0s, bootstrap 0.9s, utils 1.2s; local -race CI-subset
-  shape GREEN 43s, 0 races; count=10 ×2 zero fails; gofmt +
-  comment ban clean)
+- last-gate: CI 41895227385 SUCCESS at job AND step level (comment
+  ban, gofmt, vet+live, test, RACE subset, headless smoke, windows,
+  js/wasm, nix) on f80c667c; local full make test GREEN (cores
+  53.1s, engine 6.0s, bootstrap 0.9s, utils 1.2s); local -race
+  CI-subset shape GREEN 43s, 0 races; count=10 ×2 zero fails —
+  session 363 closed green
 
 ## Open items
 
