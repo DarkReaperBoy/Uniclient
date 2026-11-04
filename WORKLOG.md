@@ -198,11 +198,10 @@ owner order — that history lives in git if ever needed.
   73/71 figures logged at the time were off by one; re-derived at
   iter 2 from a per-file HEAD census).
 - Sandbox recycle mid-session (after the first GREEN, before commit):
-  toolchain+caches+repo wiped; iteration re-applied from context via a
-  deterministic python-replace script (exact-match asserts, tabs
-  preserved — diff 55+/45- vs the edit-tool's 247+/237- whole-file
-  rewrite) and re-gated GREEN before push. Lesson re-confirmed: commit
-  the moment the gate is green — the sandbox owes nothing.
+  iteration re-applied from context via a deterministic python-replace
+  script (exact-match asserts, tabs preserved) and re-gated GREEN
+  before push. Lesson re-confirmed: commit the moment the gate is
+  green — the sandbox owes nothing.
 - Iteration 2: TS state-mirror family — 7 defs deleted
   (TeamSpeakCore ForTestChannels/ChannelsMu/MyChannelID/MyTalkPower/
   SetChannels + TsChannelInfo ForTestTalkPower/TalkPowerKnown),
@@ -226,17 +225,14 @@ owner order — that history lives in git if ever needed.
   files, 0 dropped). Defs 72→65 (HEAD count re-derived: the old 71/73
   figures were off by one; all defs live in the 3 quarantine files,
   census method: rg '^func (\([^)]*\) )?ForTest' over testhooks*).
-- TS-internals research (for the scripted-server front, next
-  session): the ONLY production write to myClientID is the initserver
-  branch inside Authenticate's handshake loop (teamspeak.go ~2200,
-  reading tc.cmdCh directly — NOT reachable via TsHandleServerCommand);
-  real reads live in the notifyclientupdated handler under clientInfoMu
-  (~2390). The identity-race tests are currently synthetic on BOTH
-  sides (5/10 — they prove the mutex works, not that production uses
-  it); their honest rewrite needs the scripted TS server driving real
-  Authenticate. ForTestCmdCh (19 sites) is the exec-harness backbone —
-  same front. All TS internals + constructors therefore park as one
-  cluster behind it.
+- TS-internals research (for the scripted-server front): myClientID's
+  only production write is the initserver branch of the handshake
+  (NOT reachable via TsHandleServerCommand); the identity-race tests
+  are synthetic on BOTH sides (5/10); their honest rewrite needs the
+  scripted TS server driving real Authenticate. ForTestCmdCh (19
+  sites) is the exec-harness backbone — same front. All TS internals
+  + constructors park as one cluster behind it. (Front landed in
+  session 361.)
 - Iteration 3: ForTestNewMatrixCall deleted (1 def, 4 sites) — every
   peer-call seeding now goes through the REAL ReconcileGroupMesh
   journey (the production MatrixCall constructor: pc + audioTrack +
