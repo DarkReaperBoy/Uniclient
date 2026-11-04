@@ -24,9 +24,9 @@ owner order — that history lives in git if ever needed.
   Telegram Desktop/Web/Android references, capability-projected, Gio)
 - last-gate: local quick gate GREEN (session 361 iter-2: tests/cores
   37.8s, engine 6.2s, bootstrap 0.9s; gofmt + comment-ban clean —
-  272 files); CI: iter-2 41842704637 FAILED at Race → tsConn race
-  FIXED (third defect) → iter-3 re-dispatch pending; iter-1
-  41837816519 SUCCESS; session-360 iter-1 + iter-2 both SUCCESS
+  272 files); CI: iter-3 41846284509 (0b97be8e, the tsConn race
+  fix) in flight; iter-2 41842704637 FAILED at Race (defect fixed
+  in iter-3); iter-1 41837816519 SUCCESS
 
 ## Open items
 
