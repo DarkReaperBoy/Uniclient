@@ -13,7 +13,8 @@ owner order — that history lives in git if ever needed.
   ECDH, real-key EAX command traffic both ways, scripted responder)
   drives the REAL Authenticate journey; TWO first-contact production
   defects found+fixed (initserver's name never reached setServerName
-  on the wire path; TsExecProof's straggler-terminator cross-talk)
+  on the wire path; TsExecProof's straggler-terminator cross-talk;
+  the t.tsConn access family now behind a dedicated tsConnMu)
 - next: H-1 — the remaining TS cluster onto the scripted server:
   ForTestNewTsConnection/NewTeamSpeakCore family (voice trio,
   queuegap, sendcomp, identity-race, servername, move-race) +
@@ -23,9 +24,9 @@ owner order — that history lives in git if ever needed.
   Telegram Desktop/Web/Android references, capability-projected, Gio)
 - last-gate: local quick gate GREEN (session 361 iter-2: tests/cores
   37.8s, engine 6.2s, bootstrap 0.9s; gofmt + comment-ban clean —
-  272 files); CI: iter-2 41842704637 (4aaf30b8) in flight; iter-1
-  41837816519 SUCCESS (job+step level, race leg green, reconciled
-  in-session); session-360 iter-1 + iter-2 both SUCCESS
+  272 files); CI: iter-2 41842704637 FAILED at Race → tsConn race
+  FIXED (third defect) → iter-3 re-dispatch pending; iter-1
+  41837816519 SUCCESS; session-360 iter-1 + iter-2 both SUCCESS
 
 ## Open items
 
@@ -120,6 +121,20 @@ owner order — that history lives in git if ever needed.
 - Evidence: quick gate GREEN (cores 37.8s, engine 6.2s, bootstrap
   0.9s); gofmt clean; comment-ban clean; census ZERO refs to all 7
   deleted names + newExecHarness + tsResp. Defs 52→45.
+- CI iter-2 41842704637 FAILED at the Race step → THIRD PRODUCTION
+  DEFECT (pre-existing, only reachable once tests really run
+  tsCommandLoop + Logout together): tsCommandLoop's `tc := t.tsConn`
+  was an unsynchronized read racing Logout's `t.tsConn = nil` under
+  t.mu (race report: Logout write vs tsCommandLoop read). The field
+  has a whole class of such accesses (7 notify-case reads in
+  TsHandleServerCommand reached from untracked exec-notify goroutines,
+  tsSendVoicePacket, the reconnect teardown, Close, tsSaveSession).
+  Fix: dedicated tsConnMu sync.RWMutex + tsConnGet/tsConnSet helpers;
+  EVERY t.tsConn access in the file now flows through them (sweep
+  script, exact-match asserts; mutex held only around the field
+  access — mutex law clean; no lock inversion: tsConnMu never wraps
+  t.mu). Post-fix: full family GREEN 19.1s, count=3 GREEN 54.7s,
+  quick gate GREEN (37.2s/6.2s/0.9s), comment-ban clean.
 
 ## Session 360 — H-1: group-call assertion family retired onto wire + update evidence (2026-11-04)
 

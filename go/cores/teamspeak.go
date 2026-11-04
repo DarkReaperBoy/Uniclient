@@ -1148,7 +1148,8 @@ type TsIncomingCmd struct {
 type TeamSpeakCore struct {
 	mu sync.RWMutex
 
-	tsConn *TsConnection
+	tsConn   *TsConnection
+	tsConnMu sync.RWMutex
 
 	authed   bool
 	nickname string
@@ -1792,6 +1793,18 @@ func (tc *TsConnection) tsKeepaliveLoop(ctx context.Context) {
 	}
 }
 
+func (t *TeamSpeakCore) tsConnGet() *TsConnection {
+	t.tsConnMu.RLock()
+	defer t.tsConnMu.RUnlock()
+	return t.tsConn
+}
+
+func (t *TeamSpeakCore) tsConnSet(tc *TsConnection) {
+	t.tsConnMu.Lock()
+	t.tsConn = tc
+	t.tsConnMu.Unlock()
+}
+
 func (t *TeamSpeakCore) tsConnect(addr string) error {
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
@@ -1825,7 +1838,7 @@ func (t *TeamSpeakCore) tsConnect(addr string) error {
 		tc.pktState[i].nextRecvID = 0
 	}
 
-	t.tsConn = tc
+	t.tsConnSet(tc)
 	return nil
 }
 
@@ -1834,7 +1847,7 @@ func (t *TeamSpeakCore) tsHandshake(nickname string) error {
 }
 
 func (t *TeamSpeakCore) tsHandshakeRetry(nickname string, restartsLeft int) error {
-	tc := t.tsConn
+	tc := t.tsConnGet()
 
 	if tc.identity == nil {
 		id, err := TsNewIdentity()
@@ -2274,12 +2287,12 @@ func (t *TeamSpeakCore) TsHandleServerCommand(cmd TsIncomingCmd) {
 	case "notifycliententerview":
 		t.tsHandleClientEnter(cmd.params)
 	case "notifyclientleftview":
-		if tc := t.tsConn; tc != nil {
+		if tc := t.tsConnGet(); tc != nil {
 			tc.fireProof("notifyclientleftview", cmd.params)
 		}
 		t.tsHandleClientLeave(cmd.params)
 	case "notifyclientmoved":
-		if tc := t.tsConn; tc != nil {
+		if tc := t.tsConnGet(); tc != nil {
 			tc.fireProof("notifyclientmoved", cmd.params)
 		}
 		t.TsHandleClientMoved(cmd.params)
@@ -2316,7 +2329,7 @@ func (t *TeamSpeakCore) TsHandleServerCommand(cmd TsIncomingCmd) {
 		t.channelsMu.Unlock()
 	case "channellistfinished":
 	case "notifychannelcreated":
-		if tc := t.tsConn; tc != nil {
+		if tc := t.tsConnGet(); tc != nil {
 			tc.fireProof("notifychannelcreated", cmd.params)
 		}
 		cid, err := strconv.Atoi(cmd.params["cid"])
@@ -2351,7 +2364,7 @@ func (t *TeamSpeakCore) TsHandleServerCommand(cmd TsIncomingCmd) {
 			Platform: ts3Platform,
 		})
 	case "notifychanneledited", "notifychannelmoved":
-		if tc := t.tsConn; tc != nil {
+		if tc := t.tsConnGet(); tc != nil {
 			tc.fireProof(cmd.name, cmd.params)
 		}
 		cid, err := strconv.Atoi(cmd.params["cid"])
@@ -2384,7 +2397,7 @@ func (t *TeamSpeakCore) TsHandleServerCommand(cmd TsIncomingCmd) {
 		if err != nil {
 			return
 		}
-		if tc := t.tsConn; tc != nil {
+		if tc := t.tsConnGet(); tc != nil {
 			tc.fireProof("notifyclientupdated", cmd.params)
 		}
 		t.clientInfoMu.Lock()
@@ -2469,7 +2482,7 @@ func (t *TeamSpeakCore) TsHandleServerCommand(cmd TsIncomingCmd) {
 		})
 	case "notifyclientneededpermissions":
 	case "notifyclientchatcomposing":
-		if tc := t.tsConn; tc != nil {
+		if tc := t.tsConnGet(); tc != nil {
 			tc.fireProof("notifyclientchatcomposing", cmd.params)
 		}
 		clid, err := strconv.Atoi(cmd.params["clid"])
@@ -2517,7 +2530,10 @@ func (t *TeamSpeakCore) TsHandleServerCommand(cmd TsIncomingCmd) {
 }
 
 func (t *TeamSpeakCore) tsCommandLoop() {
-	tc := t.tsConn
+	tc := t.tsConnGet()
+	if tc == nil {
+		return
+	}
 	for {
 		select {
 		case <-t.ctx.Done():
@@ -2604,7 +2620,7 @@ func (t *TeamSpeakCore) TsExec(cmd string) ([]map[string]string, error) {
 }
 
 func (t *TeamSpeakCore) TsExecProof(cmd string, want *TsWant) ([]map[string]string, error) {
-	tc := t.tsConn
+	tc := t.tsConnGet()
 	if tc == nil {
 		return nil, ErrAuth
 	}
@@ -2736,7 +2752,7 @@ func (t *TeamSpeakCore) tsHandleTextMessage(kv map[string]string) {
 	isSelfEcho := invokerID == t.myClientID
 	t.clientInfoMu.RUnlock()
 	if isSelfEcho {
-		if tc := t.tsConn; tc != nil {
+		if tc := t.tsConnGet(); tc != nil {
 			tc.fireProof("notifytextmessage", kv)
 		}
 		return
@@ -2920,9 +2936,9 @@ func (t *TeamSpeakCore) tsReconnectLoop() {
 		t.wg.Wait()
 
 		t.mu.Lock()
-		if t.tsConn != nil {
-			t.tsConn.conn.Close()
-			t.tsConn = nil
+		if tc := t.tsConnGet(); tc != nil {
+			tc.conn.Close()
+			t.tsConnSet(nil)
 		}
 		t.authed = false
 		addr := t.serverAddr
@@ -3004,12 +3020,13 @@ func (t *TeamSpeakCore) tsSaveSession() error {
 		ServerAddr: t.serverAddr,
 		Nickname:   t.myName,
 	}
-	if t.tsConn != nil && t.tsConn.identity != nil {
-		key := t.tsConn.identity.key
+	tc := t.tsConnGet()
+	if tc != nil && tc.identity != nil {
+		key := tc.identity.key
 		sess.IdentityD = base64.StdEncoding.EncodeToString(key.D.Bytes())
 		sess.IdentityX = base64.StdEncoding.EncodeToString(key.PublicKey.X.Bytes())
 		sess.IdentityY = base64.StdEncoding.EncodeToString(key.PublicKey.Y.Bytes())
-		sess.KeyOffset = t.tsConn.identity.keyOffset
+		sess.KeyOffset = tc.identity.keyOffset
 	}
 	if t.session == nil {
 		return nil
@@ -3046,7 +3063,9 @@ func (t *TeamSpeakCore) tsLoadIdentity(sess *tsSession) error {
 	if id.keyOffset == 0 {
 		id.keyOffset = tsHashCash(id.tsOmega(), 8)
 	}
-	t.tsConn.identity = id
+	if tc := t.tsConnGet(); tc != nil {
+		tc.identity = id
+	}
 	return nil
 }
 
@@ -3086,8 +3105,8 @@ func (t *TeamSpeakCore) Authenticate(cfg AuthConfig) error {
 	t.nickname = nickname
 
 	if err := t.tsHandshake(nickname); err != nil {
-		t.tsConn.conn.Close()
-		t.tsConn = nil
+		t.tsConnGet().conn.Close()
+		t.tsConnSet(nil)
 		return err
 	}
 
@@ -3116,11 +3135,11 @@ func (t *TeamSpeakCore) Logout() error {
 
 	t.autoReconnect = false
 
-	if t.tsConn != nil {
-		t.tsConn.tsSendCommand("clientdisconnect")
+	if tc := t.tsConnGet(); tc != nil {
+		tc.tsSendCommand("clientdisconnect")
 		time.Sleep(100 * time.Millisecond)
-		t.tsConn.conn.Close()
-		t.tsConn = nil
+		tc.conn.Close()
+		t.tsConnSet(nil)
 	}
 
 	t.authed = false
@@ -3673,10 +3692,10 @@ func (t *TeamSpeakCore) Close() error {
 	t.autoReconnect = false
 	t.tsSaveSession()
 	t.cancel()
-	if t.tsConn != nil {
-		t.tsConn.tsSendCommand("clientdisconnect")
-		t.tsConn.conn.Close()
-		t.tsConn = nil
+	if tc := t.tsConnGet(); tc != nil {
+		tc.tsSendCommand("clientdisconnect")
+		tc.conn.Close()
+		t.tsConnSet(nil)
 	}
 	t.authed = false
 	t.mu.Unlock()
@@ -5899,7 +5918,7 @@ func (t *TeamSpeakCore) tsHandleVoicePacket(packetType byte, flags byte, plainte
 }
 
 func (t *TeamSpeakCore) tsSendVoicePacket(pktType byte, flags byte, body []byte) error {
-	tc := t.tsConn
+	tc := t.tsConnGet()
 	if tc == nil {
 		return ErrAuth
 	}
