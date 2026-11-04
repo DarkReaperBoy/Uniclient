@@ -7,25 +7,28 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 358 — H-1 Matrix reads family retired (iter 1:
-  ForTestGroupConfID + ForTestGroupMembers → real GetGroupCall
-  projection, 2 defs / 9 sites), 71 defs left
-- next: H-1 — TS cluster (TeamSpeakCore ForTestChannels/ChannelsMu/
-  ClientInfoMu + TsConnection hooks), then Matrix construction family
-  (ForTestNewMatrixCall/ForTestNewMatrixCore), then Telegram SetAuthed/
-  SetCtx cluster (scripted-server front)
+- front: session 358 — H-1 TS state-mirror family: iteration 2 done
+  (7 defs: TeamSpeakCore ForTestChannels/ChannelsMu/MyChannelID/
+  MyTalkPower/SetChannels + TsChannelInfo TalkPower/TalkPowerKnown cut;
+  tsRefreshChannelTalkPower exported as TsRefreshChannelTalkPower;
+  ForTestNewTeamSpeakCore nil-map defect fixed), 65 defs left
+- next: H-1 — rate the remaining TS internals (TsConnection
+  ForTestClientID/CmdCh/ExecCh/ExecMu/ExecWait/RecvQueueMu +
+  ForTestMyClientID/ClientInfoMu/TsConn mirrors), then Matrix
+  construction family (ForTestNewMatrixCall/NewMatrixCore), then
+  Telegram SetAuthed/SetCtx + GitHub cluster (scripted-server front)
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: local quick gate GREEN (iteration 1 redo: tests/cores 21.1s,
-  engine 8.6s, bootstrap 1.5s, cold gocache; gofmt + comment-ban clean);
-  CI: iteration-5/6 dispatches 41706457218 + 41707644864 = SUCCESS
-  (session-357 stack closed green); iter-1 dispatch pending post-push
+- last-gate: local quick gate GREEN (iter 2: tests/cores 19.1s, engine
+  6.8s, bootstrap 1.0s; gofmt + comment-ban clean; surgical RED
+  reproduced — hooks-only patch on HEAD → vet undefined); CI: iter-1
+  41785092110 = SUCCESS on 87a43f4e; iter-2 dispatch pending post-push
 
 ## Open items
 
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
-| H-1 | cores testhooks*.go | ForTest* hooks are debt (§5.3): 71 left by def-count (session 358 iter 1: reads family ForTestGroupConfID/ForTestGroupMembers → GetGroupCall projection; session 357 iters 5-6: ForTestSetGroupMembers retired onto HandleGroupMemberEvent + audio pair onto real JoinGroupCall, conf/room/session setters + ForTestDeviceID getter cut; session 356 iters 1-4: HandleMemberEvent + LiveDevices exported, rooms family + seededMeshCore retired onto real journeys; session 354: mumble/IRC/DeltaChat/XMPP state-mirror slices — 15 defs; session 353: injection, mumble-wire-codec, mumble-crypt families + 24-def orphan sweep); TelegramCore SetAuthed/SetCtx + TeamSpeakCore SetAuthed (6 sites) + GitHub SetUsername/NewGitHubCore await a scripted-server front | session 358 entry | TS cluster next (TeamSpeakCore mirrors + TsConnection internals), then Matrix construction family, then the scripted front via ts3j-style TS server / gotd tgtest / GUI --script seam |
+| H-1 | cores testhooks*.go | ForTest* hooks are debt (§5.3): 65 left by def-count (session 358 iter 2: TS state-mirror family — 7 defs onto real channellist/channelinfo ingestion + GetGroupCall meta; session 358 iter 1: reads family → GetGroupCall projection; session 357 iters 5-6: ForTestSetGroupMembers retired onto HandleGroupMemberEvent + audio pair onto real JoinGroupCall, conf/room/session setters + ForTestDeviceID getter cut; session 356 iters 1-4: HandleMemberEvent + LiveDevices exported, rooms family + seededMeshCore retired onto real journeys; session 354: mumble/IRC/DeltaChat/XMPP state-mirror slices — 15 defs; session 353: injection, mumble-wire-codec, mumble-crypt families + 24-def orphan sweep); TelegramCore SetAuthed/SetCtx + TeamSpeakCore SetAuthed (6 sites) + GitHub SetUsername/NewGitHubCore await a scripted-server front | session 358 entry | remaining TS internals, then Matrix construction family, then the scripted front via ts3j-style TS server / gotd tgtest / GUI --script seam |
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 302 identifiers exported purely for the tests move (API noise: TsParseInit1, ForTest-adjacent) | commit 27faa5a4 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
 
@@ -55,13 +58,38 @@ owner order — that history lives in git if ever needed.
   *cores.MatrixCore has no field or method ForTestGroupConfID)`.
   GREEN: quick gate over the import closure (cores 21.1s, engine 8.6s,
   bootstrap 1.5s — cold gocache); gofmt clean; strip_comments --check
-  clean (271 files, 0 dropped); census ZERO refs. Defs 73→71.
+  clean (271 files, 0 dropped); census ZERO refs. Defs 74→72 (the
+  73/71 figures logged at the time were off by one; re-derived at
+  iter 2 from a per-file HEAD census).
 - Sandbox recycle mid-session (after the first GREEN, before commit):
   toolchain+caches+repo wiped; iteration re-applied from context via a
   deterministic python-replace script (exact-match asserts, tabs
   preserved — diff 55+/45- vs the edit-tool's 247+/237- whole-file
   rewrite) and re-gated GREEN before push. Lesson re-confirmed: commit
   the moment the gate is green — the sandbox owes nothing.
+- Iteration 2: TS state-mirror family — 7 defs deleted
+  (TeamSpeakCore ForTestChannels/ChannelsMu/MyChannelID/MyTalkPower/
+  SetChannels + TsChannelInfo ForTestTalkPower/TalkPowerKnown),
+  tsRefreshChannelTalkPower exported as TsRefreshChannelTalkPower
+  (JoinChannel's real refresh path; sibling of TsExec/
+  TsHandleServerCommand); ForTestNewTeamSpeakCore now mirrors real
+  construction (msgBuffer/eventHandlers/channels/clientInfo maps —
+  same nil-map class session 356 fixed on Matrix). 4 tests onto real
+  journeys through the exec harness: talk-power capture asserted via
+  GetGroupCall meta transitions (unknown→blocked→ok) over real
+  channellist + channelinfo ingestion; the clid-mismatch security
+  case (another client's power must NOT be captured); the concurrent
+  move/read race now proves the move handler is live via
+  self-in-participants through GetGroupCall. Census: ZERO refs.
+  Design 9/10.
+- RED (iter 2, reproduced surgically after a context-loss recycle:
+  hooks-only patch on HEAD → vet `m.ForTestMyTalkPower undefined (type
+  *cores.TeamSpeakCore has no field or method ForTestMyTalkPower)`);
+  GREEN: quick gate over the import closure (cores 19.1s, engine 6.8s,
+  bootstrap 1.0s); gofmt clean; strip_comments --check clean (271
+  files, 0 dropped). Defs 72→65 (HEAD count re-derived: the old 71/73
+  figures were off by one; all defs live in the 3 quarantine files,
+  census method: rg '^func (\([^)]*\) )?ForTest' over testhooks*).
 
 ## Session 357 — H-1 Matrix group-call cluster: iterations 5-6, member-event seeding + the audio pair onto real journeys (2026-11-04)
 
@@ -189,49 +217,18 @@ owner order — that history lives in git if ever needed.
   GREEN: full quick gate (cores 17.0s, engine 6.3s, bootstrap 0.9s);
   gofmt + comment-ban clean. Defs 79→78.
 
-## Session 355 — boot reconciliation + Q-1 closed: matrix logger WRN/stderr with journey-pinned opt-in (2026-11-03)
+## Session 355 — Q-1 matrix logger quietness (2026-11-03) — condensed
 
-- Boot: fresh sandbox — toolchain + gocache survived, mod cache wiped
-  AND root-claimed (recycler artifact): old mod dir moved aside, fresh
-  mod2 download 21s. Rootfs hit 99% twice: stale /home/z/repos (4G,
-  deleted) was the real pig; PolarFS /tmp/my-project is too slow for
-  caches (0.5–5.5MB/s small-file) but fine as TMPDIR (build temp).
-  Session env: GOMODCACHE=toolchain/mod2, TMPDIR=/tmp/my-project/
-  buildtmp (scripts/ucenv.sh outside the repo). Baseline green before
-  any edit (cores 22.8s, engine 22.1s, bootstrap 25.6s). CI
-  41550641190 = SUCCESS on b396c08a — session-354 slices 2–5 closed.
-- Q-1 root cause worse than logged: zerolog.NewConsoleWriter() writes
-  to os.STDOUT (not stderr) at DBG, dumping full request bodies incl.
-  one-time-key material — the headless -events protocol stream gets
-  corrupted by any authed matrix account. Probe evidence: test binary
-  run directly showed " DBG Request completed … req_body=…" on stdout;
-  go test hides passing-binary stdout, which is why the noise was
-  invisible in earlier runs.
-- Fix (7 lines, matrix.go initCrypto): level WarnLevel default,
-  DebugLevel when UNICLIENT_MATRIX_DEBUG is set (read per-call so
-  t.Setenv can pin it); console writer moved to os.Stderr. Mirrors
-  mumble's UNICLIENT_MUMBLE_DEBUG shape.
-- RED→GREEN: TestMatrixAuthJourneyQuietByDefault (no DBG/TRC on either
-  standard stream through the real bot-token Authenticate journey,
-  captured via os.Stdout/os.Stderr pipe swap + drain) and
-  TestMatrixAuthJourneyDebugOptIn (opt-in DBG present on stderr,
-  never on stdout) both FAILed on the unmodified tree with the
-  captured noise as the failure message; both PASS after the fix.
-  Harness: mxJourneyServer extracted from mxAuthedCore (behavior
-  identical), mxRunCaptured/mxAuthJourneyCaptured reuse it; Close()
-  waits m.wg so the capture is deterministic (no post-restore writes).
-- Evidence: quick gate GREEN (tests/cores 24.9s, engine 22.7s,
-  bootstrap 21.2s, vet scoped set incl. cmd/bootstrap/engine); gofmt
-  clean; strip_comments --check clean (271 files, 0 dropped).
-  verify.yml dispatched post-push (id at next boot).
+- zerolog console writer hit STDOUT at DBG (corrupting the headless
+  -events stream, leaking one-time keys); fixed in initCrypto: WRN
+  default + stderr, DBG via UNICLIENT_MATRIX_DEBUG. Two journey tests
+  pin it (quiet-by-default + opt-in) via stdout/stderr capture.
+  Quick gate GREEN; CI 41591878823 SUCCESS.
 
-## Session 354 — H-1 cores front, mumble state-mirror family: the last 5 mumble hooks retired onto real APIs (2026-11-03)
+## Session 354 — H-1 mumble/IRC/DeltaChat/XMPP state-mirror slices (2026-11-03)
 
-- Boot: fresh sandbox again — toolchain + caches wiped; env.sh recovery
-  followed verbatim (go1.27.1, checksum-verified; modcache ~990M;
-  cache-warm go build 5m29s). Census re-verified per-receiver: 98 defs /
-  87 names, ZERO orphans by name — but MumbleCore.ForTestChannels is an
-  orphan BY RECEIVER (name-level uses are all TeamSpeakCore's).
+- Boot: fresh sandbox — env.sh recovery followed verbatim (go1.27.1
+  checksum-verified; modcache ~990M; cache-warm go build 5m29s).
 - Slice: mumble state mirrors, 5 defs → 0, all onto production paths —
   ForTestNewMumbleCore → &MumbleCore{} + exported StoreServerPin (the
   reset test gets a real Session store); ForTestConnect → real

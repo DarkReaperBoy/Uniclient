@@ -10,14 +10,35 @@ import (
 )
 
 func TestNotifyClientUpdatedCapturesOwnTalkPower(t *testing.T) {
-	m := ForTestNewTeamSpeakCore(false, nil, nil, nil, 0, 7, 0, nil)
-	m.TsHandleServerCommand(tsResp(t, "notifyclientupdated clid=7 client_talk_power=20 client_servergroups=10"))
+	old := TsExecVoidTimeout
+	TsExecVoidTimeout = 2 * time.Second
+	t.Cleanup(func() { TsExecVoidTimeout = old })
 
-	m.ForTestClientInfoMu().RLock()
-	got := m.ForTestMyTalkPower()
-	m.ForTestClientInfoMu().RUnlock()
-	if got != 20 {
-		t.Errorf("myTalkPower = %d — notifyclientupdated carries client_talk_power for our clid and it must be captured (B-26)", got)
+	core, tc, done := newExecHarness(t)
+	defer done()
+	core.ForTestSetAuthed(true)
+	core.ForTestSetMyClientID(1)
+	core.TsHandleServerCommand(tsResp(t, "channellist cid=7 pid=0 channel_name=Lobby channel_topic= total_clients=0 channel_order=0"))
+	tc.ForTestCmdCh() <- tsResp(t, "channel_id=7 channel_needed_talk_power=9999")
+	tc.ForTestCmdCh() <- tsResp(t, "error id=0 msg=ok")
+	core.TsRefreshChannelTalkPower(7)
+
+	cs, err := core.GetGroupCall("ch:7")
+	if err != nil {
+		t.Fatalf("GetGroupCall: %v", err)
+	}
+	if cs.Meta["talk_power"] != "unknown" {
+		t.Errorf("before any own talk power: meta = %q, want unknown", cs.Meta["talk_power"])
+	}
+
+	core.TsHandleServerCommand(tsResp(t, "notifyclientupdated clid=99 client_talk_power=20 client_servergroups=10"))
+	if cs, _ = core.GetGroupCall("ch:7"); cs.Meta["talk_power"] != "unknown" {
+		t.Errorf("another client's talk power captured as ours (clid mismatch): meta = %q", cs.Meta["talk_power"])
+	}
+
+	core.TsHandleServerCommand(tsResp(t, "notifyclientupdated clid=1 client_talk_power=20 client_servergroups=10"))
+	if cs, _ = core.GetGroupCall("ch:7"); cs.Meta["talk_power"] != "blocked" {
+		t.Errorf("own notifyclientupdated talk power not captured (B-26): meta = %q, want blocked (20 < 9999)", cs.Meta["talk_power"])
 	}
 }
 
@@ -30,7 +51,7 @@ func TestJoinChannelRefreshesTalkPower(t *testing.T) {
 	defer done()
 	core.ForTestSetAuthed(true)
 	core.ForTestSetMyClientID(1)
-	core.ForTestSetChannels(make(map[int]TsChannelInfo))
+	core.TsHandleServerCommand(tsResp(t, "notifyclientupdated clid=1 client_talk_power=20"))
 
 	go func() {
 		time.Sleep(30 * time.Millisecond)
@@ -46,17 +67,15 @@ func TestJoinChannelRefreshesTalkPower(t *testing.T) {
 
 	deadline := time.Now().Add(2500 * time.Millisecond)
 	for {
-		core.ForTestChannelsMu().RLock()
-		ch := core.ForTestChannels()[7]
-		core.ForTestChannelsMu().RUnlock()
-		if ch.ForTestTalkPowerKnown() {
-			if ch.ForTestTalkPower() != 50 {
-				t.Fatalf("talkPower = %d, want 50", ch.ForTestTalkPower())
-			}
+		cs, err := core.GetGroupCall("ch:7")
+		if err != nil {
+			t.Fatalf("GetGroupCall: %v", err)
+		}
+		if cs.Meta["talk_power"] == "blocked" {
 			return
 		}
 		if time.Now().After(deadline) {
-			t.Fatalf("channel talk power never populated after join (B-26): %+v — channel_needed_talk_power requires channelinfo, which nobody fetched", ch)
+			t.Fatalf("channel talk power never populated after join (B-26): meta = %q — channel_needed_talk_power requires channelinfo, which nobody fetched", cs.Meta["talk_power"])
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
@@ -121,30 +140,43 @@ func TestSendVoiceAllowedWhenPowerSufficient(t *testing.T) {
 }
 
 func TestGetGroupCallReportsTalkPowerBlocked(t *testing.T) {
-	m := ForTestNewTeamSpeakCore(true, map[int]TsChannelInfo{7: *ForTestNewTsChannelInfo(7, 9999, true)}, make(map[int]TsClientInfo), nil, 7, 1, 20, nil)
-	cs, err := m.GetGroupCall("ch:7")
+	old := TsExecVoidTimeout
+	TsExecVoidTimeout = 2 * time.Second
+	t.Cleanup(func() { TsExecVoidTimeout = old })
+
+	core, tc, done := newExecHarness(t)
+	defer done()
+	core.ForTestSetAuthed(true)
+	core.ForTestSetMyClientID(1)
+	core.TsHandleServerCommand(tsResp(t, "notifyclientupdated clid=1 client_talk_power=20"))
+	core.TsHandleServerCommand(tsResp(t, "channellist cid=7 pid=0 channel_name=Lobby channel_topic= total_clients=0 channel_order=0"))
+
+	cs, err := core.GetGroupCall("ch:7")
 	if err != nil {
 		t.Fatalf("GetGroupCall: %v", err)
 	}
-	if cs.Meta["talk_power"] != "blocked" {
-		t.Errorf("Meta[\"talk_power\"] = %q, want \"blocked\" — the polled UI path must see the dead-room state (B-26)", cs.Meta["talk_power"])
+	if cs.Meta["talk_power"] != "unknown" {
+		t.Errorf("unfetched channel Meta = %q, want unknown — the polled UI path must see the dead-room state (B-26)", cs.Meta["talk_power"])
 	}
 
-	m.ForTestChannels()[7] = *ForTestNewTsChannelInfo(7, 5, true)
-	cs, err = m.GetGroupCall("ch:7")
-	if err != nil {
+	tc.ForTestCmdCh() <- tsResp(t, "channel_id=7 channel_needed_talk_power=9999")
+	tc.ForTestCmdCh() <- tsResp(t, "error id=0 msg=ok")
+	core.TsRefreshChannelTalkPower(7)
+	if cs, err = core.GetGroupCall("ch:7"); err != nil {
+		t.Fatal(err)
+	}
+	if cs.Meta["talk_power"] != "blocked" {
+		t.Errorf("insufficient power Meta = %q, want blocked", cs.Meta["talk_power"])
+	}
+
+	tc.ForTestCmdCh() <- tsResp(t, "channel_id=7 channel_needed_talk_power=5")
+	tc.ForTestCmdCh() <- tsResp(t, "error id=0 msg=ok")
+	core.TsRefreshChannelTalkPower(7)
+	if cs, err = core.GetGroupCall("ch:7"); err != nil {
 		t.Fatal(err)
 	}
 	if cs.Meta["talk_power"] != "ok" {
 		t.Errorf("sufficient power Meta = %q, want ok", cs.Meta["talk_power"])
-	}
-	m.ForTestChannels()[7] = *ForTestNewTsChannelInfo(7, 0, false)
-	cs, err = m.GetGroupCall("ch:7")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if cs.Meta["talk_power"] != "unknown" {
-		t.Errorf("unfetched channel Meta = %q, want unknown", cs.Meta["talk_power"])
 	}
 }
 
@@ -161,10 +193,17 @@ func TestMyChannelIDConcurrentMoveAndReadRace(t *testing.T) {
 		_, _ = m.GetGroupCall("ch:7")
 	}
 	<-done
-	m.ForTestClientInfoMu().RLock()
-	got := m.ForTestMyChannelID()
-	m.ForTestClientInfoMu().RUnlock()
-	if got != 7 {
-		t.Fatalf("myChannelID = %d, want 7 (move handler must be live)", got)
+	cs, err := m.GetGroupCall("ch:7")
+	if err != nil {
+		t.Fatalf("GetGroupCall: %v", err)
+	}
+	selfInRoom := false
+	for _, p := range cs.Participants {
+		if p.UserID == "1" {
+			selfInRoom = true
+		}
+	}
+	if !selfInRoom {
+		t.Fatalf("self not among ch:7 participants after 2000 moves (move handler must be live): %+v", cs.Participants)
 	}
 }

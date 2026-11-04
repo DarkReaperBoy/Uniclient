@@ -5230,7 +5230,7 @@ func (t *TeamSpeakCore) JoinChannel(cid int, password string) error {
 	if _, err := t.TsExecProof(cmd, &TsWant{name: "notifyclientmoved", key: "clid", val: strconv.Itoa(selfClid)}); err != nil {
 		return err
 	}
-	go t.tsRefreshChannelTalkPower(cid)
+	go t.TsRefreshChannelTalkPower(cid)
 	return nil
 }
 
@@ -5249,7 +5249,7 @@ func tsParseNeededTalkPower(rows []map[string]string) (power int, known bool) {
 	return 0, false
 }
 
-func (t *TeamSpeakCore) tsRefreshChannelTalkPower(cid int) {
+func (t *TeamSpeakCore) TsRefreshChannelTalkPower(cid int) {
 	rows, err := t.TsExec(fmt.Sprintf("channelinfo cid=%d", cid))
 	if err != nil {
 		return

@@ -23,14 +23,6 @@ func (x *MatrixCore) ForTestCallsMu() *sync.RWMutex {
 	return &x.callsMu
 }
 
-func (x *TeamSpeakCore) ForTestChannels() map[int]TsChannelInfo {
-	return x.channels
-}
-
-func (x *TeamSpeakCore) ForTestChannelsMu() *sync.RWMutex {
-	return &x.channelsMu
-}
-
 func (x *TsConnection) ForTestClientID() *atomic.Uint32 {
 	return &x.clientID
 }
@@ -83,16 +75,8 @@ func (x *TelegramCore) ForTestMu() *sync.RWMutex {
 	return &x.mu
 }
 
-func (x *TeamSpeakCore) ForTestMyChannelID() int {
-	return x.myChannelID
-}
-
 func (x *TeamSpeakCore) ForTestMyClientID() int {
 	return x.myClientID
-}
-
-func (x *TeamSpeakCore) ForTestMyTalkPower() int {
-	return x.myTalkPower
 }
 
 func (x *MatrixCall) ForTestPc() *wrtc.PeerConnection {
@@ -115,14 +99,6 @@ func (x *TsConnection) ForTestRecvQueueMu() *sync.Mutex {
 	return &x.recvQueueMu
 }
 
-func (x *TsChannelInfo) ForTestTalkPower() int {
-	return x.talkPower
-}
-
-func (x *TsChannelInfo) ForTestTalkPowerKnown() bool {
-	return x.talkPowerKnown
-}
-
 func (x *TeamSpeakCore) ForTestTsConn() *TsConnection {
 	return x.tsConn
 }
@@ -137,10 +113,6 @@ func (x *TeamSpeakCore) ForTestSetAuthed(v bool) {
 
 func (x *TelegramCore) ForTestSetAuthed(v bool) {
 	x.authed = v
-}
-
-func (x *TeamSpeakCore) ForTestSetChannels(v map[int]TsChannelInfo) {
-	x.channels = v
 }
 
 func (x *TelegramCore) ForTestSetCtx(v context.Context) {
@@ -275,7 +247,14 @@ func ForTestNewTsWant(key string, name string, val string) *TsWant {
 }
 
 func ForTestNewTeamSpeakCore(authed bool, channels map[int]TsChannelInfo, clientInfo map[int]TsClientInfo, ctx context.Context, myChannelID int, myClientID int, myTalkPower int, tsConn *TsConnection) *TeamSpeakCore {
-	return &TeamSpeakCore{authed: authed, channels: channels, clientInfo: clientInfo, ctx: ctx, myChannelID: myChannelID, myClientID: myClientID, myTalkPower: myTalkPower, tsConn: tsConn}
+	core := &TeamSpeakCore{authed: authed, channels: make(map[int]TsChannelInfo), clientInfo: make(map[int]TsClientInfo), msgBuffer: make(map[string][]Message), eventHandlers: make(map[string][]func(map[string]string)), ctx: ctx, myChannelID: myChannelID, myClientID: myClientID, myTalkPower: myTalkPower, tsConn: tsConn}
+	if channels != nil {
+		core.channels = channels
+	}
+	if clientInfo != nil {
+		core.clientInfo = clientInfo
+	}
+	return core
 }
 
 func ForTestNewTsDecryptedPkt(flags byte, pID uint16, plaintext []byte) *TsDecryptedPkt {
