@@ -2204,6 +2204,7 @@ func (t *TeamSpeakCore) tsHandshakeRetry(nickname string, restartsLeft int) erro
 				t.clientInfoMu.Lock()
 				t.myName = nickname
 				t.clientInfoMu.Unlock()
+				t.TsHandleServerCommand(cmd)
 				gotInitServer = true
 			} else if cmd.name == "error" {
 				errID, err := strconv.Atoi(cmd.params["id"])

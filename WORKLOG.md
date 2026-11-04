@@ -7,31 +7,81 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 360 — H-1: the whole group-call assertion family
-  retired (8 defs: GroupPeers/GroupMu/GroupRenew/SetGroupRenew/
-  CallsMu/ActiveCalls/Pc×2, 56 use sites) onto wire + update-channel
-  + GetGroupCall evidence; teardownGroupPeer now fires per-peer Ended
-  updates on every real peer-teardown path (UI-facing); 52 defs left
-  (iter 2: ForTestSetDeviceID → server-driven whoami identity)
-- next: H-1 — the scripted-server front (ts3j-style TS server for the
-  TS internals cluster incl. ForTestCmdCh harness backbone; gotd
-  tgtest for Telegram SetAuthed/SetCtx), then GitHub cluster + the
-  remaining matrix Set*/constructor defs
+- front: session 361 — the scripted-server front OPENED: an
+  in-process TS server speaking the real wire (init crypto with
+  y/echo verification, license proof, clientek ECDH, real-key EAX
+  command traffic both ways, scripted responder) drives the REAL
+  Authenticate journey; first-contact defect fixed (initserver's
+  virtualserver_name never reached setServerName on the wire path)
+- next: H-1 — retire the TS internals cluster onto the scripted
+  server: ForTestCmdCh/ExecCh/ExecMu/ExecWait (exec-harness
+  backbone, 19+ sites), ForTestSetAuthed/SetMyClientID/SetTsConn/
+  NewTeamSpeakCore/NewTsConnection family, the identity-race
+  rewrite (358 research: 5/10 synthetic on both sides); then gotd
+  tgtest for Telegram SetAuthed/SetCtx, then the GitHub cluster
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: local quick gate GREEN (session 360: tests/cores 25.3s,
-  engine 6.6s, bootstrap 1.0s; gofmt + comment-ban clean; RED
-  vet-undefined seen); CI: session-360 iter-1 41825704688 (ed99c981)
-  + iter-2 41827255692 (05915ce3) both SUCCESS at job AND step level
-  — race steps green; session 359 closed green the same way
+- last-gate: local quick gate GREEN (session 361: tests/cores 25.8s,
+  engine 6.3s, bootstrap 0.9s; gofmt + comment-ban clean — 272
+  files); CI: session-360 iter-1 41825704688 + iter-2 41827255692
+  both SUCCESS; session-361 dispatch recorded below
 
 ## Open items
 
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
-| H-1 | cores testhooks*.go | ForTest* hooks are debt (§5.3): 53 left by def-count (session 360: group-call assertion family — 8 defs onto wire/update evidence, teardownGroupPeer = per-peer Ended updates; session 359 iters 4-5: ForTestNewMatrixCore → real NewMatrixCore+Authenticate via mxAuthSurface, ForTestSetGroupPeers → real Close teardown; session 358 iters 1-3: reads family → GetGroupCall projection, TS state-mirror family, ForTestNewMatrixCall → real ReconcileGroupMesh peers; session 357 iters 5-6: ForTestSetGroupMembers retired onto HandleGroupMemberEvent + audio pair onto real JoinGroupCall; session 356 iters 1-4: HandleMemberEvent + LiveDevices exported, rooms family + seededMeshCore retired onto real journeys; session 354: mumble/IRC/DeltaChat/XMPP state-mirror slices — 15 defs; session 353: injection, mumble-wire-codec, mumble-crypt families + 24-def orphan sweep); TelegramCore SetAuthed/SetCtx + TeamSpeakCore SetAuthed + TS internals (myClientID's sole write site = initserver handshake; ForTestCmdCh = exec-harness backbone) + GitHub SetUsername/NewGitHubCore await a scripted-server front | session 360 entry | the scripted front via ts3j-style TS server / gotd tgtest, then the remaining matrix Set*/constructor defs |
+| H-1 | cores testhooks*.go | ForTest* hooks are debt (§5.3): 52 left by def-count (session 361: scripted TS server built — the retirement vehicle for the TS cluster; session 360: group-call assertion family — 8 defs onto wire/update evidence, teardownGroupPeer = per-peer Ended updates, ForTestSetDeviceID → whoami identity; session 359 iters 4-5: ForTestNewMatrixCore → real NewMatrixCore+Authenticate via mxAuthSurface, ForTestSetGroupPeers → real Close teardown; session 358 iters 1-3: reads family → GetGroupCall projection, TS state-mirror family, ForTestNewMatrixCall → real ReconcileGroupMesh peers; session 357 iters 5-6: ForTestSetGroupMembers retired onto HandleGroupMemberEvent + audio pair onto real JoinGroupCall; session 356 iters 1-4: HandleMemberEvent + LiveDevices exported, rooms family + seededMeshCore retired onto real journeys; session 354: mumble/IRC/DeltaChat/XMPP state-mirror slices — 15 defs; session 353: injection, mumble-wire-codec, mumble-crypt families + 24-def orphan sweep); TelegramCore SetAuthed/SetCtx + TeamSpeakCore SetAuthed + TS internals (ForTestCmdCh = exec-harness backbone, 19+ sites) + GitHub SetUsername/NewGitHubCore retire onto the scripted fronts | session 361 entry | TS cluster retirement onto the scripted server (ForTestCmdCh family first), then gotd tgtest, then the remaining matrix Set*/constructor defs |
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 302 identifiers exported purely for the tests move (API noise: TsParseInit1, ForTest-adjacent) | commit 27faa5a4 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
+
+## Session 361 — H-1 scripted-server front opened: TS scripted server drives the REAL Authenticate journey (2026-11-04)
+
+- Boot: full-wipe recycle (workspace, toolchain and caches all
+  gone); env.sh recovery verbatim — go1.27.1 checksum-verified
+  (63d339f0…), modcache 990M, cold baseline 7m15s GREEN before any
+  edit (cores 23.5s, engine 6.4s, bootstrap 0.9s). Session-360 CI
+  already green in STATE (iter-1 + iter-2 SUCCESS).
+- The front (the STATE next-pointer from 358's research): an
+  in-process scripted TS server in go/tests/cores/
+  teamspeak_scriptedserver_test.go speaking the REAL wire —
+  init0/1/2/3/4 (server verifies the client's y == x^(2^level) mod n
+  AND the random echoes), license proof (P256 omega, DER ECDSA over
+  a 1-byte license so TsDeriveLicenseKey lands on the custom root),
+  clientek ECDH (root = s·G with known s; sharedIV =
+  SHA512(s·ekPub) ⊕ alpha‖beta — same value the client derives),
+  real-key EAX command traffic both directions (0x30/0x31, gen
+  tracking mirrored from tsTrackRecvPID incl. ±1 fallback), S2C
+  acks, and a scriptable responder (SetResponder / Push /
+  WaitCommand) for arbitrary journeys. S2C's 11-byte header (no cID)
+  vs C2S's 13-byte mirrored exactly.
+- Journey test (TestTeamSpeakScriptedServerAuthenticateJourney,
+  named to ride the CI -race subset): real NewTeamSpeakCore + real
+  Authenticate (vault-backed session store) → GREEN 0.68s,
+  deterministic at -count=10 (6.7s). Asserts public API +
+  server-side evidence: ServerName, GetDialogs ch:7 Lobby from the
+  real channellist, TsExec round-trip over the encrypted wire,
+  clientinit nickname on the server side, init2 echo valid, init4
+  y valid, clientek identity proof valid (server verifies the
+  client's P256 signature over ekPub‖beta with the omega from
+  clientinitiv), client acks ≥1.
+- REAL DEFECT FOUND+FIXED on first contact — the front's whole
+  point: the handshake's initserver branch consumed the command
+  without dispatching to TsHandleServerCommand, so
+  virtualserver_name NEVER reached setServerName on the real wire
+  path (the B-16 fix was only reachable synthetically; ServerName()
+  stays "" after a real connect). Fix: t.TsHandleServerCommand(cmd)
+  in the branch — one line, idempotent handler. RED seen live
+  (ServerName = "" failure), GREEN after.
+- Evidence: focused TS family GREEN (6.5s); quick gate GREEN (cores
+  25.8s, engine 6.3s, bootstrap 0.9s); gofmt clean;
+  strip_comments --check clean (272 files, 0 dropped). Def count
+  unchanged at 52 — this iteration is the retirement vehicle; the
+  TS internals hooks (ForTestCmdCh 19+ sites, the exec-harness
+  pump, constructors, SetAuthed/SetMyClientID/SetTsConn,
+  identity-race) start retiring onto it next iteration.
+- Design rating 9/10: every server-side check (echo / y / proof)
+  independently verifies OUR client's wire behavior; the responder
+  surface turns every future TS test into a real journey.
 
 ## Session 360 — H-1: group-call assertion family retired onto wire + update evidence (2026-11-04)
 
@@ -219,19 +269,15 @@ owner order — that history lives in git if ever needed.
 
 ## Session 356 — H-1 Matrix rooms+group-call state cluster (2026-11-03)
 
-- Iter 1: ForTestHandleMemberEvent retired — handleMemberEvent exported
-  as HandleMemberEvent (sibling of the syncer's exported handlers).
-- Iter 2: rooms family cut (ForTestRooms/SetRooms/RoomsMu, 6 sites)
-  onto real GetChatInfo/fetchRoomState + the real /sync loop; exposed
-  AND fixed: ForTestNewMatrixCore nil-map defect + the harness never
-  served POST /user/{id}/filter (mautrix creates a filter before the
-  first /sync — request-probe evidence x1/x0 → x1).
-- Iter 3: seededMeshCore onto the REAL JoinGroupCall — conf adopted
-  from server m.call state, real publishGroupMembership + renewal;
-  seedCallState WRAPS the real renewal cancel (the replace-hang on
-  Close, 57s test-timeout evidence).
-- Iter 4: liveDevices exported as LiveDevices (member-content
-  semantics). CI 41602626598 SUCCESS on ade20b8. Defs 83→78.
+- Iter 1: handleMemberEvent exported as HandleMemberEvent. Iter 2:
+  rooms family cut (ForTestRooms/SetRooms/RoomsMu, 6 sites) onto real
+  GetChatInfo/fetchRoomState + the real /sync loop; exposed AND fixed:
+  ForTestNewMatrixCore nil-map defect + the harness never served POST
+  /user/{id}/filter. Iter 3: seededMeshCore onto the REAL JoinGroupCall
+  (conf adopted from server m.call state; seedCallState WRAPS the real
+  renewal cancel — the replace-hang on Close, 57s timeout evidence).
+  Iter 4: liveDevices exported as LiveDevices. CI 41602626598 SUCCESS
+  on ade20b8. Defs 83→78.
 
 ## Session 355 — Q-1 matrix logger quietness (2026-11-03) — condensed
 
@@ -241,44 +287,23 @@ owner order — that history lives in git if ever needed.
   pin it (quiet-by-default + opt-in) via stdout/stderr capture.
   Quick gate GREEN; CI 41591878823 SUCCESS.
 
-## Session 354 — H-1 mumble/IRC/DeltaChat/XMPP state-mirror slices (2026-11-03)
+## Session 354 — H-1 mumble/IRC/DeltaChat/XMPP state-mirror slices (2026-11-03) — condensed
 
-- Boot: fresh sandbox — env.sh recovery followed verbatim (go1.27.1
-  checksum-verified; modcache ~990M; cache-warm go build 5m29s).
-- Slice: mumble state mirrors, 5 defs → 0, all onto production paths —
-  ForTestNewMumbleCore → &MumbleCore{} + exported StoreServerPin (the
-  reset test gets a real Session store); ForTestConnect → real
-  Authenticate(AuthConfig{Mode: AuthModeUser, Extra:{server,username}})
-  — the engine entry, now also proving mumbleGenerateCert on the wire;
-  ForTestServerPins → store.Load(&MumbleSessionData) + exact-fingerprint
-  equality (stronger than the old not-wrong/not-empty in-memory read) +
-  CertPEM persisted assertion; ForTestSetTlsCert → real LoadCertificate
-  from PEM files written to TempDir; ForTestChannels cut (orphan).
-  Design rating 9/10.
-- RED: 5 defs deleted → tool-proven `undefined: ForTestNewMumbleCore`
-  (vet, tests/cores) + one now-unused crypto/tls import cleaned.
-- GREEN: all rewritten tests PASS (refuse-before-send 0-byte proof,
-  proceed-on-match, reset-repins with persisted fp, pin-survives-cert-
-  save through LoadCertificate); full tests/cores 14.5s, tests/engine
-  6.0s, tests/bootstrap 0.8s; gofmt clean; strip_comments --check clean
-  (271 files, 0 dropped); def-count 98→93. Race analysis: pin/cert
-  writes happen-before the probe-read observation that gates every
-  Close() — CI race leg is the verdict (rung 7).
-- verify.yml 41548671934 = SUCCESS on 3a0e6362 (mumble slice gate of
-  record; all jobs/step-level).
-- Iteration 2 (same session) — IRC orphans, 3 defs cut: IRCCore
-  ForTestChannels/ForTestChannelsMu/ForTestConnect — receiver-verified
-  zero users (ForTestChannels* uses are TeamSpeakCore's; mumble's
-  ForTestConnect uses died in iteration 1). Compile-green by
-  construction; census greps in-session are the evidence; full suites
-  green (14.8s/6.2s/0.8s).
-- Iterations 3-5 (same session) — DeltaChat peer-key cluster (4 defs
-  → real GetContactEncryptionInfo, exact-fingerprint equality), XMPP
-  room orphans (2 defs cut), XMPP ForTestFeatures made load-bearing
-  (registerPreAuth fails fast when IBR not advertised; mini XMPP
-  server gained advertiseIBR + jabber:iq:register handling; two
-  behavioral journeys). 93→83 defs; full gates green each time.
-  verify.yml 41550641190 covered iterations 2-5.
+- Boot: fresh sandbox — env.sh recovery verbatim (go1.27.1
+  checksum-verified; modcache ~990M).
+- Mumble slice, 5 defs → 0, onto production paths: ForTestNewMumbleCore
+  → &MumbleCore{} + exported StoreServerPin; ForTestConnect → real
+  Authenticate (proving mumbleGenerateCert on the wire);
+  ForTestServerPins → store.Load + exact-fingerprint equality;
+  ForTestSetTlsCert → real LoadCertificate from TempDir PEMs;
+  ForTestChannels cut (orphan). RED: vet undefined. GREEN: full suites
+  14.5s/6.0s/0.8s; gofmt + comment-ban clean; 98→93 defs. verify.yml
+  41548671934 SUCCESS on 3a0e6362.
+- IRC orphans 3 defs cut (receiver-verified zero users); DeltaChat
+  peer-key cluster 4 defs → real GetContactEncryptionInfo; XMPP room
+  orphans 2 defs; ForTestFeatures made load-bearing (registerPreAuth
+  fails fast without IBR; mini XMPP server gained advertiseIBR +
+  jabber:iq:register). 93→83 defs; verify.yml 41550641190 SUCCESS.
 - Machine note: the MultiEdit tool rewrites whole files with SPACE
   indent — gofmt -w after EVERY edit + git diff -U0 review is routine
   (bit 353+354). vet on tests/cores compiles the whole test graph —
