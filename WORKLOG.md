@@ -20,11 +20,14 @@ owner order — that history lives in git if ever needed.
   ForTestNewGitHubCore onto a scripted HTTPS GitHub API)
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: local full make test GREEN (cores 51.4s, engine
-  6.5s, bootstrap 1.2s, utils 1.5s); family count=10 ×2 zero
-  fails; gofmt + strip_comments clean; quick gate GREEN (test
-  leg §9-rung-7 OOM skip — machine truth); CI dispatch
-  42023904650 on 7e9e7221 — watching
+- last-gate: CI 42025733121 SUCCESS at job AND step level
+  (comment ban, gofmt, vet+live, test, RACE subset incl. the new
+  telegram family, headless smoke, windows, js/wasm, nix) on
+  2450d2c9 — after flake.yml 42025269748 pinned the vendorHash
+  (first dispatch 42023904650 failed on the stale go-modules
+  hash, the known §8 flow after dependency changes); local full
+  make test GREEN (cores 51.4s); family count=10 ×2 zero fails
+  — session 364 closed green
 
 ## Open items
 
@@ -91,7 +94,11 @@ owner order — that history lives in git if ever needed.
   ZERO refs to all 4 deleted names; defs 29→25; go mod tidy
   (xxhash demoted to indirect — zero direct importers, stale
   direct since before; testify + nhooyr websocket ride along as
-  tgtest's indirect deps).
+  tgtest's indirect deps). CI: first dispatch failed on the
+  stale nix vendorHash (go.mod changed deps — the known §8
+  flow); flake.yml 42025269748 pinned it; re-dispatch
+  42025733121 SUCCESS at job AND step level — race leg green
+  with the new family in the pin.
 - Design rating 8/10: assertions moved from mutex surgery to
   server-side wire evidence; the DC+10000/read-loop/racing-dial
   discoveries are real protocol knowledge now pinned by the
