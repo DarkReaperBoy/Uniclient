@@ -1,7 +1,6 @@
 package tests
 
 import (
-	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	. "uniclient/cores"
+
+	"uniclient/utils"
 )
 
 func TestBoundedCopyWithinLimit(t *testing.T) {
@@ -72,7 +73,19 @@ func TestXMPPDownloadHTTPCapsBody(t *testing.T) {
 	defer srv.Close()
 
 	dest := filepath.Join(t.TempDir(), "dl.bin")
-	c := ForTestNewXMPPCore(nil, context.Background(), nil)
+	_, addr := startMiniXMPPServer(t, "alice", "wonderland")
+	c := NewXMPPCore(utils.NewSessionStore(newTestVaultXMPP(t), "xmpp-dl-cap"))
+	defer c.Logout()
+	if err := c.Authenticate(AuthConfig{
+		Extra: map[string]string{
+			"server":   addr,
+			"jid":      "alice@localhost",
+			"password": "wonderland",
+			"tls":      "none",
+		},
+	}); err != nil {
+		t.Fatalf("authenticate against mini server: %v", err)
+	}
 	err := c.DownloadFileHTTP(srv.URL, dest, nil)
 	if err == nil {
 		t.Fatal("hostile endless stream accepted")

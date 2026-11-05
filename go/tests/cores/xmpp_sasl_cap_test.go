@@ -1,47 +1,42 @@
 package tests
 
 import (
-	"bufio"
 	"encoding/base64"
 	"fmt"
-	"io"
-	"net"
 	"strings"
 	"testing"
 	"time"
 	. "uniclient/cores"
+
+	"uniclient/utils"
 )
 
-type infiniteByteReader struct{ b byte }
-
-func (r *infiniteByteReader) Read(p []byte) (int, error) {
-	for i := range p {
-		p[i] = r.b
-	}
-	return len(p), nil
-}
-
-type deadlineConn struct{ r io.Reader }
-
-func (c *deadlineConn) Read(p []byte) (int, error)         { return c.r.Read(p) }
-func (c *deadlineConn) Write(p []byte) (int, error)        { return len(p), nil }
-func (c *deadlineConn) Close() error                       { return nil }
-func (c *deadlineConn) LocalAddr() net.Addr                { return nil }
-func (c *deadlineConn) RemoteAddr() net.Addr               { return nil }
-func (c *deadlineConn) SetDeadline(t time.Time) error      { return nil }
-func (c *deadlineConn) SetReadDeadline(t time.Time) error  { return nil }
-func (c *deadlineConn) SetWriteDeadline(t time.Time) error { return nil }
-
 func TestReadSASLElementCapsHostileStream(t *testing.T) {
-	conn := &deadlineConn{r: &infiniteByteReader{b: 'x'}}
-	x := ForTestNewXMPPCore(conn, nil, bufio.NewReaderSize(conn, 8192))
-	_, _, err := x.ReadSASLElement()
+	srv, addr := startMiniXMPPServer(t, "alice", "wonderland")
+	srv.floodSASL = true
+
+	core := NewXMPPCore(utils.NewSessionStore(newTestVaultXMPP(t), "xmpp-sasl-flood"))
+	defer core.Logout()
+
+	cfg := AuthConfig{
+		Extra: map[string]string{
+			"server":   addr,
+			"jid":      "alice@localhost",
+			"password": "wonderland",
+			"tls":      "none",
+		},
+	}
+	start := time.Now()
+	err := core.Authenticate(cfg)
 	if err == nil {
 		t.Fatal("endless SASL element accepted")
 	}
 	want := fmt.Sprintf("exceeds %d bytes", SaslElementMax)
 	if !strings.Contains(err.Error(), want) {
 		t.Fatalf("err = %v, want %q", err, want)
+	}
+	if elapsed := time.Since(start); elapsed > 10*time.Second {
+		t.Fatalf("SASL cap took %v — the flood was absorbed instead of capped", elapsed)
 	}
 }
 
@@ -50,7 +45,6 @@ func scramChallenge(t *testing.T, clientNonce, saltPlain, iterations string) str
 	return "r=" + clientNonce + "srv,s=" +
 		base64.StdEncoding.EncodeToString([]byte(saltPlain)) + ",i=" + iterations
 }
-
 func TestParseScramServerFirstValid(t *testing.T) {
 	snonce, salt, iters, err := ParseScramServerFirst(
 		scramChallenge(t, "cn123", "saltysalt", "4096"), "cn123")

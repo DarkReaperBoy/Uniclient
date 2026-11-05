@@ -7,34 +7,88 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 365 — the GitHub cluster retired onto the
-  scripted GitHub API server: 2 defs cut (25→23:
-  ForTestSetUsername/NewGitHubCore), CommentToMessage
-  outgoing-ness + DownloadFile ceiling onto real Authenticate
-  journeys; api_base config seam added (GitHub Enterprise
-  support, gh-CLI/go-github class); 5 new wire journeys (whoami,
-  profile-repo bootstrap, session resume, 401 terminal, 429
-  retry)
-- next: H-1 — orphan sweeps toward zero (TS packet-state quartet,
-  ForTestNewXMPPCore, ForTestSetUserID, pb/truncate helpers,
-  ForTestNewRpcGuard)
+- front: session 366 — the H-1 orphan sweeps: 16 defs cut
+  (23→7) — the five STATE-listed targets (TS packet-state
+  quartet, ForTestNewXMPPCore, ForTestSetUserID, pb/truncate
+  helpers, ForTestNewRpcGuard) + 6 rewrite-orphaned TS hooks;
+  TS quartet/XMPP/Matrix/RpcGuard families onto real wire
+  journeys; github truncate wrapper inlined; RpcTimeout →
+  public var; race pin: dead TestTruncate → TestRPCGuard|
+  TestTSReceive
+- next: H-1 — the final 7 defs to zero (TS identity trio
+  ForTestTsSign/Omega/UID, ForTestTsTrackRecvPID cluster,
+  ForTestNewTsIncomingCmd, ForTestMyClientID, groupPeer
+  ForTestKey)
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: CI 42033866337 SUCCESS at job AND step level
-  (comment ban, gofmt, vet+live, test, RACE subset incl. the
-  GitHub family, headless smoke, windows, js/wasm, nix) on
-  b928af14; local full gate GREEN before dispatch — make test
-  (cores 52.8s), vet, lint, quick gate, census zero, defs 23,
-  2 × count=10 zero fails; go.mod unchanged (no repin needed)
-  — session 365 closed green
+- last-gate: local full gate GREEN — focused family 11.9s, 2 ×
+  count=10 zero fails, make test (cores 58.1s), vet, gofmt,
+  strip check, js/wasm, census zero, defs 7; CI dispatch
+  pending (session 366 open)
 
 ## Open items
 
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
-| H-1 | cores testhooks*.go | ForTest* hooks are debt (§5.3): 23 left by def-count (session 365: GitHub cluster — 2 defs onto the scripted GitHub API server via the api_base seam, 5 new wire journeys incl. first Authenticate/session-resume coverage; session 364: Telegram setter cluster — 4 defs onto the gotd tgtest scripted server; session 363: queuegap family — 5 defs onto S2C out-of-order/fragmented wire journeys; session 362: TS constructor/setter cluster — 11 defs onto the scripted server; session 361: exec-harness pump + proof injection — 7 defs; session 360: group-call assertion family — 8 defs; session 359: ForTestNewMatrixCore → real Authenticate via mxAuthSurface, ForTestSetGroupPeers → real Close teardown; session 358: reads family → GetGroupCall projection, TS state-mirror family, ForTestNewMatrixCall → real ReconcileGroupMesh; sessions 356-357: rooms/members/audio pairs onto real journeys; sessions 353-355: mumble/IRC/DeltaChat/XMPP slices + orphan sweeps); remaining: TS packet-state quartet, ForTestNewXMPPCore, ForTestSetUserID, pb/truncate helpers, ForTestNewRpcGuard | session 365 entry | orphan sweeps to zero |
+| H-1 | cores testhooks*.go | ForTest* hooks are debt (§5.3): 7 left by def-count (session 366: orphan sweeps — 16 defs onto real wire journeys, testhooks_manual.go deleted; session 365: GitHub cluster — 2 defs onto the scripted GitHub API server via the api_base seam, 5 new wire journeys incl. first Authenticate/session-resume coverage; session 364: Telegram setter cluster — 4 defs onto the gotd tgtest scripted server; session 363: queuegap family — 5 defs onto S2C out-of-order/fragmented wire journeys; session 362: TS constructor/setter cluster — 11 defs onto the scripted server; session 361: exec-harness pump + proof injection — 7 defs; session 360: group-call assertion family — 8 defs; session 359: ForTestNewMatrixCore → real Authenticate via mxAuthSurface, ForTestSetGroupPeers → real Close teardown; session 358: reads family → GetGroupCall projection, TS state-mirror family, ForTestNewMatrixCall → real ReconcileGroupMesh; sessions 356-357: rooms/members/audio pairs onto real journeys; sessions 353-355: mumble/IRC/DeltaChat/XMPP slices + orphan sweeps); remaining: TS identity trio (ForTestTsSign/Omega/UID), ForTestTsTrackRecvPID cluster, ForTestNewTsIncomingCmd, ForTestMyClientID, groupPeer ForTestKey | session 366 entry | final sweeps to zero |
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 302 identifiers exported purely for the tests move (API noise: TsParseInit1, ForTest-adjacent) | commit 27faa5a4 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
+
+## Session 366 — H-1: orphan sweeps onto real journeys — 16 defs, testhooks_manual.go deleted (2026-11-05)
+
+- Boot: session recycle landed mid-WIP — the sweep (hook
+  deletions + test rewrites) was recovered intact from the
+  uncommitted working tree; PAT re-verified (HTTP 200), env.sh
+  recovery verbatim (go1.27.1), origin == 15c74a34 (365 closed
+  green) — no cold baseline needed. Census-first recovery: every
+  identifier the rewrites reference (PbEncode/PbDecode, NewXMPPCore,
+  newTestVaultXMPP, mxAuthedCore, stickNext/authedCore/
+  waitStuckEntered, PushAtGen/PushAtPID/NextPID/sendRaw) verified
+  present before running anything.
+- 16 defs cut (23→7): the five STATE targets — TS packet-state
+  quartet (ForTestWithRecvInit/WithLastRecvPID/WithRecvGenID/
+  RecvGenID, testhooks_manual.go gone), ForTestNewXMPPCore,
+  ForTestSetUserID, pb/truncate helpers (ForTestPbEncode/
+  PbDecode/Truncate), ForTestNewRpcGuard — plus 6 orphans the
+  rewrites obsoleted (ForTestPktState, ForTestTsConn,
+  ForTestTsDecryptRecv, ForTestTsHandlePacket, ForTestKey ×2).
+- Production (2 files, minimal): github.go's truncate() wrapper
+  deleted — all 8 sites call utils.TruncateEllipsis directly;
+  telegram.go RpcTimeout const→var (the established
+  TsExecVoidTimeout public-knob pattern). PbEncode/PbDecode were
+  ALREADY exported in bale.go — those hooks were redundant
+  wrappers, pure deletion. Zero other production changes.
+- Rewrites onto real journeys: TS quartet — generation climb
+  (PushAtGen 1→2 observed as ServerName transitions), tampered
+  MAC (new PushCorruptAtPID: MAC-bit-flipped packet dropped,
+  next good command still lands), replay (same-pID resend
+  absorbed, pID+1 lands), hostile-silence (50 garbage packets
+  via srv.sendRaw, zero stdout, good command survives); XMPP —
+  SASL flood + download-cap tests now ride a real Authenticate
+  against the mini server (new floodSASL server knob, 10s cap
+  asserted on the clock); Matrix — newTestMatrix = mxAuthedCore
+  (real whoami @me:test, 17 sites), unauthed case → plain
+  NewMatrixCore(nil); RpcGuard trio — real stuck
+  UsersGetFullUser on the tgtest wire: bounded by RpcTimeout,
+  caller deadline preserved (50ms beats the 60s default),
+  default applied (250ms enforced) — hungInvoker deleted.
+- CI race pin: TestTruncate entry dead (its file deleted,
+  coverage lives in ./tests/utils) → replaced with
+  TestRPCGuard|TestTSReceive (the new concurrency-heavy wire
+  families).
+- Evidence: focused family GREEN (11.9s); 2 × count=10 = 20
+  consecutive runs ZERO fails; full make test GREEN (cores
+  58.1s, engine 6.7s, bootstrap 1.0s, utils 1.5s); go vet ./...
+  GREEN; gofmt tree clean; strip_comments --check clean (272
+  files, 0 dropped); census ZERO refs to all 16 deleted names;
+  defs 23→7; js/wasm compile check GREEN. Local -race and
+  windows crossbuild OOM-skipped on the gotd compile (env.sh
+  machine truth) — the CI race leg carries the new families in
+  the pin.
+- Design rating 9/10: three slices were pure deletion of
+  redundant wrappers; every rewrite moved assertions from
+  struct surgery to wire/server-side evidence; RpcTimeout-as-var
+  rides an established pattern, not a new seam.
 
 ## Session 365 — H-1: GitHub cluster onto the scripted GitHub API — 2 defs, api_base seam (GHE) (2026-11-05)
 
@@ -218,67 +272,24 @@ owner order — that history lives in git if ever needed.
   race also fixed (dedicated tsConnMu, iter 3 CI 41846284509
   SUCCESS).
 
-## Session 360 — H-1: group-call assertion family retired onto wire + update evidence (2026-11-04)
+## Session 360 — H-1: group-call assertion family retired onto wire + update evidence (2026-11-04) — condensed
 
-- Boot: fresh sandbox — env.sh recovery; the toolchain go survived but
-  toolchain/mod + toolchain/gocache were wiped; the previous session's
-  gomodcache (990M) + gocache (3.6G) survived at my-project level, so
-  GOMODCACHE/GOCACHE were re-pointed there (cache-warm builds ~2s).
-  CI reconciliation: iter-4 41801127829 + iter-5 41801860069 both
-  SUCCESS at job AND step level (race steps green) — session 359
-  fully closed.
-- Probes before design (scratch test, deleted after): real pion ICE
-  gathering in the mesh harness puts conf-tagged m.call.candidates on
-  the wire DURING sendGroupOffer's GatheringCompletePromise wait
-  (host + srflx observed, 0.05s); at MatrixRenewInterval=120ms the
-  renewal loop publishes membership PUTs ~8/s and goes fully silent
-  after EndCall (4×interval window, 0.94s probe). Both probe outcomes
-  became the new assertions.
-- RED: 8 defs deleted from cores/testhooks.go (ForTestGroupPeers,
-  ForTestGroupMu, ForTestGroupRenew, ForTestSetGroupRenew,
-  ForTestCallsMu, ForTestActiveCalls, ForTestPc ×2 — tgCall's Pc was
-  a zero-use orphan) + the now-unused wrtc import → vet
-  `core.ForTestGroupMu undefined (type *cores.MatrixCore …)`.
-- Production change (real observability, not test scaffolding):
-  teardownGroupPeer(call) = cleanupCall + UpdateCallState(Ended)
-  with Participants carrying the dropped peer's user — wired into
-  every real group-peer teardown path: dropGroupPeer, reconcile's
-  toClose sweep, joinGroupCall's stale-conf sweep,
-  leaveGroupCallInternal's peer loop. A call UI needs exactly this
-  signal to drop participants as their media paths die.
-- Test rewrites (5 files; 17 GroupPeers reads, 33 GroupMu wraps, the
-  renew spy, the 1:1 leak peek, the pc peek): peer+pc existence →
-  pc-generated SDP markers on the wire invite (v=0/m=audio/
-  a:fingerprint — an SDP cannot exist without the pc); candidates →
-  REAL gathering-driven conf-tagged events; 1:1 leak →
-  AcceptCall("conf_x") must stay ErrNotFound (public path); foreign
-  conf → zero call traffic + a non-interference journey (correct-conf
-  invite still gets answered — a foreign-conf peer would have
-  occupied the peerKey and blocked it); departed peer → per-peer
-  Ended update + re-add re-invite (the SECOND invite proves the map
-  emptied; sendGroupOffer short-circuits on an open peer); renew spy
-  → consequence-level wire proof (liveness precondition ≥3 membership
-  PUTs at the shortened public MatrixRenewInterval knob, then
-  4×interval silence after the empty-membership leave); "kept" cases
-  → renewal STILL publishing + no Ended update + GetGroupCall alive.
-  seededMeshCore shortens the interval (join-time capture; renew_test
-  already used the same public knob at 20ms).
-- Evidence: full matrix group-call family GREEN (17 rewritten tests +
-  untouched neighbors, 7.0s focused run); quick gate GREEN via
-  scripts/gate.sh (tests/cores 25.3s, engine 6.7s, bootstrap 1.3s;
-  gofmt tree clean; strip_comments --check clean — 271 files, 0
-  dropped); census ZERO refs to all 7 deleted names; defs 61→53
-  (testhooks* def lines), 50 distinct names tree-wide. Local -race
-  OOM-skipped on the gotd tg compile (env.sh machine truth) — the CI
-  race leg is the verdict.
-- Design rating 9/10: the update channel is UI-load-bearing; every
-  wire proof is stronger than the state peek it replaces (the spy
-  proved a func was called; silence proves the publishing stopped).
-- Iteration 2 (same session) — ForTestSetDeviceID deleted (1 def, 1
-  site): seedJoinedPair's second core now gets its DEV2 identity from
-  its own homeserver's whoami (newMeshHomeserverAs(user, device)
-  wrapper; newMeshHomeserver keeps the alice/DEV1 default) instead of
-  a field injection — the mxAuthSurface pattern generalized. RED: vet
-  `b.ForTestSetDeviceID undefined`. GREEN: mesh audio loopback family
-  + full quick gate (cores 25.3s, engine 6.6s, bootstrap 1.0s);
-  census zero. 52 defs.
+- 8 defs cut (61→53) + the unused wrtc import; 5 files / 17 tests
+  onto wire evidence; iteration 2 deleted ForTestSetDeviceID (52
+  defs, DEV2 identity from its own homeserver's whoami).
+- Probes became assertions: real pion ICE gathering puts
+  conf-tagged candidates on the wire DURING sendGroupOffer's
+  GatheringCompletePromise wait; the renewal loop publishes
+  membership PUTs at the MatrixRenewInterval knob rate and goes
+  silent 4×interval after EndCall.
+- Production (real observability): teardownGroupPeer = cleanupCall
+  + UpdateCallState(Ended) with the dropped peer's user — wired
+  into every group-peer teardown path (dropGroupPeer, reconcile
+  toClose, joinGroupCall stale-conf, leaveGroupCallInternal).
+- Proof patterns: pc existence → SDP markers on the invite; renew
+  spy → ≥3 membership PUTs then silence; departed peer → per-peer
+  Ended + re-add re-invite; foreign conf → zero traffic +
+  non-interference journey.
+- Evidence: family + full quick gate GREEN (cores 25.3s); census
+  zero; local -race OOM-skipped (CI verdict); iter-4/5 CI runs
+  41801127829 + 41801860069 SUCCESS. Design 9/10.

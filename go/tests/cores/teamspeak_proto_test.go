@@ -480,55 +480,74 @@ func TestTS3RecvGenerationDupAndJitter(t *testing.T) {
 	}
 }
 
-func TestTS3DecryptRecvGenerationRetry(t *testing.T) {
+func tsWaitServerName(t *testing.T, core *TeamSpeakCore, want, what string) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		if got := core.ServerName(); got == want {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("%s: ServerName = %q, want %q", what, core.ServerName(), want)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+func tsQuietServerName(t *testing.T, core *TeamSpeakCore, want string, quiet time.Duration, what string) {
+	t.Helper()
+	deadline := time.Now().Add(quiet)
+	for {
+		if got := core.ServerName(); got != want {
+			t.Fatalf("%s: ServerName changed to %q — the hostile packet was delivered", what, got)
+		}
+		if time.Now().After(deadline) {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+func TestTS3DecryptGenerationClimbOnWire(t *testing.T) {
 	old := TsExecVoidTimeout
 	TsExecVoidTimeout = 2 * time.Second
 	t.Cleanup(func() { TsExecVoidTimeout = old })
 
-	core, srv := newScriptedTSCore(t, tsScriptedConfig{ClientID: 1})
-	tc := core.ForTestTsConn()
-	iv := srv.SharedIV()
+	core, srv := newScriptedTSCore(t, tsScriptedConfig{ServerName: "Base"})
 
-	pktType := byte(TsPktVoice)
-	pID := uint16(0x1234)
-	meta := []byte{0x34, 0x12, 0x00}
-	payload := []byte("audio-frame-payload")
+	srv.PushAtGen(1, "initserver virtualserver_name="+TsEscape("GenOne"))
+	tsWaitServerName(t, core, "GenOne", "first ahead-generation command")
+	srv.PushAtGen(2, "initserver virtualserver_name="+TsEscape("GenTwo"))
+	tsWaitServerName(t, core, "GenTwo", "second ahead-generation command — only reachable if the gen-1 packet fast-forwarded the tracked generation")
+}
 
-	key, nonce := TsCreateKeyNonce(pktType, pID, 2, 0x30, iv[:])
-	mac, ciphertext := TsEAXEncrypt(key[:], nonce[:], meta, payload)
+func TestTS3TamperedMACDroppedOnWire(t *testing.T) {
+	old := TsExecVoidTimeout
+	TsExecVoidTimeout = 2 * time.Second
+	t.Cleanup(func() { TsExecVoidTimeout = old })
 
-	ps := tc.ForTestPktState()
-	ps[pktType] = ps[pktType].ForTestWithRecvInit(true)
-	ps = tc.ForTestPktState()
-	ps[pktType] = ps[pktType].ForTestWithLastRecvPID(pID - 1)
-	ps = tc.ForTestPktState()
-	ps[pktType] = ps[pktType].ForTestWithRecvGenID(1)
+	core, srv := newScriptedTSCore(t, tsScriptedConfig{ServerName: "Intact"})
 
-	plain, err := tc.ForTestTsDecryptRecv(pktType, pID, meta, ciphertext, mac)
-	if err != nil {
-		t.Fatalf("retry decrypt failed: %v", err)
-	}
-	if string(plain) != string(payload) {
-		t.Fatalf("payload mismatch: %q", plain)
-	}
-	if tc.ForTestPktState()[pktType].ForTestRecvGenID() != 2 {
-		t.Fatalf("generation not fast-forwarded: %d", tc.ForTestPktState()[pktType].ForTestRecvGenID())
-	}
+	srv.PushCorruptAtPID(srv.NextPID()-1, "initserver virtualserver_name="+TsEscape("Pwned"))
+	tsQuietServerName(t, core, "Intact", 300*time.Millisecond, "tampered-MAC replay")
+	srv.PushAtGen(0, "initserver virtualserver_name="+TsEscape("Still Alive"))
+	tsWaitServerName(t, core, "Still Alive", "post-tamper good command")
+}
 
-	plain2, err := tc.ForTestTsDecryptRecv(pktType, pID, meta, ciphertext, mac)
-	if err != nil {
-		t.Fatalf("ahead-retry decrypt failed: %v", err)
-	}
-	if string(plain2) != string(payload) {
-		t.Fatalf("payload mismatch 2: %q", plain2)
-	}
+func TestTS3ReplayAbsorbedOnWire(t *testing.T) {
+	old := TsExecVoidTimeout
+	TsExecVoidTimeout = 2 * time.Second
+	t.Cleanup(func() { TsExecVoidTimeout = old })
 
-	var badMac [8]byte
-	copy(badMac[:], mac[:])
-	badMac[0] ^= 0xFF
-	if _, err := tc.ForTestTsDecryptRecv(pktType, pID, meta, ciphertext, badMac); err == nil {
-		t.Fatal("tampered packet accepted")
-	}
+	core, srv := newScriptedTSCore(t, tsScriptedConfig{ServerName: "Base"})
+
+	pID := srv.NextPID()
+	srv.PushAtPID(pID, "initserver virtualserver_name="+TsEscape("Once"))
+	tsWaitServerName(t, core, "Once", "first delivery")
+	srv.PushAtPID(pID, "initserver virtualserver_name="+TsEscape("Twice"))
+	tsQuietServerName(t, core, "Once", 300*time.Millisecond, "replayed pID")
+	srv.PushAtPID(pID+1, "initserver virtualserver_name="+TsEscape("After"))
+	tsWaitServerName(t, core, "After", "post-replay next pID")
 }
 
 func TestTS3DecryptGenRetryOnWire(t *testing.T) {
@@ -539,14 +558,5 @@ func TestTS3DecryptGenRetryOnWire(t *testing.T) {
 	core, srv := newScriptedTSCore(t, tsScriptedConfig{ServerName: "Before Retry"})
 
 	srv.PushAtGen(1, "initserver virtualserver_name="+TsEscape("GenRetry Worked"))
-	deadline := time.Now().Add(2 * time.Second)
-	for {
-		if got := core.ServerName(); got == "GenRetry Worked" {
-			return
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("ServerName = %q — the future-generation command never landed, so the receive path's gen+1 decrypt fallback is broken", core.ServerName())
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
+	tsWaitServerName(t, core, "GenRetry Worked", "future-generation command — the receive path's gen+1 decrypt fallback is broken if it never lands")
 }

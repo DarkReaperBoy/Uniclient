@@ -19,10 +19,9 @@ import (
 	"maunium.net/go/mautrix/id"
 )
 
-func newTestMatrix() *MatrixCore {
-	m := NewMatrixCore(nil)
-	m.ForTestSetUserID(id.UserID("@me:test"))
-	return m
+func newTestMatrix(t *testing.T) *MatrixCore {
+	t.Helper()
+	return mxAuthedCore(t)
 }
 
 func mxHarnessServer(t *testing.T, override func(r *http.Request) (int, string)) *httptest.Server {
@@ -234,7 +233,7 @@ func mxMessageEvt(t *testing.T, contentJSON string) *event.Event {
 }
 
 func TestMatrixEventToMessagePlain(t *testing.T) {
-	m := newTestMatrix()
+	m := newTestMatrix(t)
 	evt := mxMessageEvt(t, `{"msgtype":"m.text","body":"hello world"}`)
 
 	msg := m.EventToMessage(evt)
@@ -265,7 +264,7 @@ func TestMatrixEventToMessagePlain(t *testing.T) {
 }
 
 func TestMatrixEventToMessageOutgoing(t *testing.T) {
-	m := newTestMatrix()
+	m := newTestMatrix(t)
 	evt := mxMessageEvt(t, `{"msgtype":"m.text","body":"mine"}`)
 	evt.Sender = id.UserID("@me:test")
 
@@ -275,7 +274,7 @@ func TestMatrixEventToMessageOutgoing(t *testing.T) {
 }
 
 func TestMatrixEventToMessageEditUsesNewContent(t *testing.T) {
-	m := newTestMatrix()
+	m := newTestMatrix(t)
 	evt := mxMessageEvt(t, `{"msgtype":"m.text","body":"* corrected text","m.new_content":{"msgtype":"m.text","body":"corrected text"}}`)
 
 	msg := m.EventToMessage(evt)
@@ -288,7 +287,7 @@ func TestMatrixEventToMessageEditUsesNewContent(t *testing.T) {
 }
 
 func TestMatrixEventToMessageReplyID(t *testing.T) {
-	m := newTestMatrix()
+	m := newTestMatrix(t)
 	evt := mxMessageEvt(t, `{"msgtype":"m.text","body":"re: hi","m.relates_to":{"m.in_reply_to":{"event_id":"$orig:server"}}}`)
 
 	msg := m.EventToMessage(evt)
@@ -301,7 +300,7 @@ func TestMatrixEventToMessageReplyID(t *testing.T) {
 }
 
 func TestMatrixEventToMessageEncryptedFileAttachment(t *testing.T) {
-	m := newTestMatrix()
+	m := newTestMatrix(t)
 	evt := mxMessageEvt(t, `{"msgtype":"m.file","body":"secret.pdf","file":{"url":"mxc://server/enc1"},"info":{"mimetype":"application/pdf","size":4321,"w":10,"h":20,"duration":3}}`)
 
 	msg := m.EventToMessage(evt)
@@ -324,7 +323,7 @@ func TestMatrixEventToMessageEncryptedFileAttachment(t *testing.T) {
 }
 
 func TestMatrixEventToMessagePlainURLAttachment(t *testing.T) {
-	m := newTestMatrix()
+	m := newTestMatrix(t)
 	evt := mxMessageEvt(t, `{"msgtype":"m.image","body":"pic.png","url":"mxc://server/x1","info":{"mimetype":"image/png","size":99,"w":640,"h":480}}`)
 
 	msg := m.EventToMessage(evt)
@@ -338,7 +337,7 @@ func TestMatrixEventToMessagePlainURLAttachment(t *testing.T) {
 }
 
 func TestMatrixEventToMessageNonMessageReturnsNil(t *testing.T) {
-	m := newTestMatrix()
+	m := newTestMatrix(t)
 	full := `{"event_id":"$st:server","room_id":"!room:server","type":"m.room.name","content":{"name":"New name"}}`
 	var evt event.Event
 	if err := json.Unmarshal([]byte(full), &evt); err != nil {
@@ -372,7 +371,7 @@ func TestMatrixEventToMessageUsesRoomState(t *testing.T) {
 }
 
 func TestMatrixRoomToDialogClassification(t *testing.T) {
-	m := newTestMatrix()
+	m := newTestMatrix(t)
 	base := func() *MatrixRoomState {
 		return &MatrixRoomState{ID: id.RoomID("!r:s"), Members: map[id.UserID]*MatrixMember{}}
 	}
@@ -417,7 +416,7 @@ func TestMatrixRoomToDialogClassification(t *testing.T) {
 }
 
 func TestMatrixRoomToDialogMemberCountCountsJoinsAndInvitesOnly(t *testing.T) {
-	m := newTestMatrix()
+	m := newTestMatrix(t)
 	rs := &MatrixRoomState{ID: id.RoomID("!r:s"), Name: "N", Members: map[id.UserID]*MatrixMember{
 		"@a:s": {UserID: "@a:s", Membership: event.MembershipJoin},
 		"@b:s": {UserID: "@b:s", Membership: event.MembershipInvite},
@@ -430,7 +429,7 @@ func TestMatrixRoomToDialogMemberCountCountsJoinsAndInvitesOnly(t *testing.T) {
 }
 
 func TestMatrixRoomToDialogTitleFallback(t *testing.T) {
-	m := newTestMatrix()
+	m := newTestMatrix(t)
 	rs := &MatrixRoomState{ID: id.RoomID("!r:s"), Members: map[id.UserID]*MatrixMember{
 		"@me:test": {UserID: "@me:test", DisplayName: "Me", Membership: event.MembershipJoin},
 		"@x:s":     {UserID: "@x:s", DisplayName: "Xavier", Membership: event.MembershipJoin},
@@ -442,7 +441,7 @@ func TestMatrixRoomToDialogTitleFallback(t *testing.T) {
 }
 
 func TestMatrixGenerateRoomName(t *testing.T) {
-	m := newTestMatrix()
+	m := newTestMatrix(t)
 	empty := &MatrixRoomState{ID: id.RoomID("!r:s"), Members: map[id.UserID]*MatrixMember{
 		"@me:test": {UserID: "@me:test", DisplayName: "Me", Membership: event.MembershipJoin},
 	}}
@@ -471,7 +470,7 @@ func TestMatrixGenerateRoomName(t *testing.T) {
 }
 
 func TestMatrixIsSpace(t *testing.T) {
-	m := newTestMatrix()
+	m := newTestMatrix(t)
 	rs := &MatrixRoomState{ID: id.RoomID("!r:s")}
 	if m.IsSpace(rs) {
 		t.Error("plain room classified as space")
@@ -488,7 +487,7 @@ func TestMatrixIsSpace(t *testing.T) {
 }
 
 func TestMatrixApplyStateEventFields(t *testing.T) {
-	m := newTestMatrix()
+	m := newTestMatrix(t)
 	rs := &MatrixRoomState{ID: id.RoomID("!r:s"), Members: map[id.UserID]*MatrixMember{}}
 
 	nameEvt := &event.Event{Type: event.StateRoomName, Content: event.Content{Parsed: &event.RoomNameEventContent{Name: "Renamed"}}}
@@ -537,7 +536,7 @@ func TestMatrixApplyStateEventFields(t *testing.T) {
 }
 
 func TestMatrixApplyStateEventMember(t *testing.T) {
-	m := newTestMatrix()
+	m := newTestMatrix(t)
 	rs := &MatrixRoomState{ID: id.RoomID("!r:s"), Members: map[id.UserID]*MatrixMember{}}
 
 	evt := &event.Event{
@@ -554,7 +553,7 @@ func TestMatrixApplyStateEventMember(t *testing.T) {
 }
 
 func TestMatrixApplyStateEventNilStateKeyDoesNotPanic(t *testing.T) {
-	m := newTestMatrix()
+	m := newTestMatrix(t)
 	rs := &MatrixRoomState{ID: id.RoomID("!r:s"), Members: map[id.UserID]*MatrixMember{}}
 
 	evt := &event.Event{
@@ -575,7 +574,7 @@ func TestMatrixApplyStateEventNilStateKeyDoesNotPanic(t *testing.T) {
 }
 
 func TestMatrixHandleMessageEventFiresNewMessage(t *testing.T) {
-	m := newTestMatrix()
+	m := newTestMatrix(t)
 	var got []Update
 	m.OnUpdate(func(u Update) { got = append(got, u) })
 
@@ -595,7 +594,7 @@ func TestMatrixHandleMessageEventFiresNewMessage(t *testing.T) {
 }
 
 func TestMatrixHandleMessageEventEditRewritesID(t *testing.T) {
-	m := newTestMatrix()
+	m := newTestMatrix(t)
 	var got []Update
 	m.OnUpdate(func(u Update) { got = append(got, u) })
 
@@ -618,7 +617,7 @@ func TestMatrixHandleMessageEventEditRewritesID(t *testing.T) {
 }
 
 func TestMatrixGetDialogsRequiresAuth(t *testing.T) {
-	m := newTestMatrix()
+	m := NewMatrixCore(nil)
 	_, err := m.GetDialogs(PaginationOpts{Limit: 10})
 	if !errors.Is(err, ErrAuth) {
 		t.Fatalf("err = %v, want ErrAuth", err)

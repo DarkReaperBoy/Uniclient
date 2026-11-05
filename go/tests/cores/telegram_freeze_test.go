@@ -3,30 +3,15 @@ package tests
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
-	"sync/atomic"
 	"testing"
 	"time"
 	. "uniclient/cores"
 
-	"github.com/gotd/td/bin"
 	"github.com/gotd/td/tg"
 )
-
-type hungInvoker struct {
-	entered  int32
-	deadline *time.Time
-}
-
-func (h *hungInvoker) Invoke(ctx context.Context, input bin.Encoder, output bin.Decoder) error {
-	atomic.AddInt32(&h.entered, 1)
-	if d, ok := ctx.Deadline(); ok {
-		h.deadline = &d
-	}
-	<-ctx.Done()
-	return ctx.Err()
-}
 
 func TestChatOpenHotPathsDoNotPinMutex(t *testing.T) {
 	s := newTGScriptedServer(t)
@@ -96,15 +81,33 @@ func TestLogoutDoesNotHoldWriteLockAcrossRPC(t *testing.T) {
 	}
 }
 
+func tgStuckGetFullUser(t *testing.T, s *tgScriptedServer, core *TelegramCore) error {
+	t.Helper()
+	client, baseCtx, err := core.WithAPI()
+	if err != nil {
+		t.Fatalf("WithAPI: %v", err)
+	}
+	stuck := s.stickNext(tg.UsersGetFullUserRequestTypeID)
+	t.Cleanup(func() { close(stuck.release) })
+	_, err = client.UsersGetFullUser(baseCtx, &tg.InputUserSelf{})
+	waitStuckEntered(t, stuck, "guarded UsersGetFullUser")
+	return err
+}
+
 func TestRPCGuardBoundsHungRPC(t *testing.T) {
-	hung := &hungInvoker{}
-	guard := *ForTestNewRpcGuard(hung, 60*time.Millisecond)
+	old := RpcTimeout
+	RpcTimeout = 100 * time.Millisecond
+	defer func() { RpcTimeout = old }()
+
+	s := newTGScriptedServer(t)
+	core := s.authedCore(t)
+
 	start := time.Now()
-	err := guard.Invoke(context.Background(), nil, nil)
+	err := tgStuckGetFullUser(t, s, core)
 	if err == nil {
 		t.Fatal("guarded invoke of a dead connection unexpectedly succeeded")
 	}
-	if err != context.DeadlineExceeded {
+	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("guarded invoke error = %v, want context.DeadlineExceeded", err)
 	}
 	if elapsed := time.Since(start); elapsed > 5*time.Second {
@@ -113,36 +116,45 @@ func TestRPCGuardBoundsHungRPC(t *testing.T) {
 }
 
 func TestRPCGuardPreservesCallerDeadline(t *testing.T) {
-	hung := &hungInvoker{}
-	guard := *ForTestNewRpcGuard(hung, time.Hour)
-	deadline := time.Now().Add(50 * time.Millisecond)
-	ctx, cancel := context.WithDeadline(context.Background(), deadline)
-	defer cancel()
-	_ = guard.Invoke(ctx, nil, nil)
-	if hung.deadline == nil {
-		t.Fatal("invoker saw no deadline")
+	s := newTGScriptedServer(t)
+	core := s.authedCore(t)
+	client, baseCtx, err := core.WithAPI()
+	if err != nil {
+		t.Fatalf("WithAPI: %v", err)
 	}
-	if !hung.deadline.Equal(deadline) {
-		t.Fatalf("guard overrode caller deadline: got %v, want %v", *hung.deadline, deadline)
+	deadline := time.Now().Add(50 * time.Millisecond)
+	ctx, cancel := context.WithDeadline(baseCtx, deadline)
+	defer cancel()
+
+	stuck := s.stickNext(tg.UsersGetFullUserRequestTypeID)
+	t.Cleanup(func() { close(stuck.release) })
+
+	start := time.Now()
+	_, _ = client.UsersGetFullUser(ctx, &tg.InputUserSelf{})
+	waitStuckEntered(t, stuck, "caller-deadline UsersGetFullUser")
+	if elapsed := time.Since(start); elapsed > 2*time.Second {
+		t.Fatalf("invoke took %v — the guard overrode the caller's 50ms deadline with its 60s default", elapsed)
 	}
 }
 
 func TestRPCGuardAppliesDefaultDeadline(t *testing.T) {
-	hung := &hungInvoker{}
-	guard := *ForTestNewRpcGuard(hung, 0)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go func() {
-		time.Sleep(50 * time.Millisecond)
-		cancel()
-	}()
-	_ = guard.Invoke(ctx, nil, nil)
-	if hung.deadline == nil {
-		t.Fatal("invoker saw no deadline — guard did not apply the default")
+	old := RpcTimeout
+	RpcTimeout = 250 * time.Millisecond
+	defer func() { RpcTimeout = old }()
+
+	s := newTGScriptedServer(t)
+	core := s.authedCore(t)
+
+	start := time.Now()
+	err := tgStuckGetFullUser(t, s, core)
+	if err == nil || !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("guarded invoke error = %v, want context.DeadlineExceeded", err)
 	}
-	remaining := time.Until(*hung.deadline)
-	if remaining < 55*time.Second || remaining > 65*time.Second {
-		t.Fatalf("default deadline = %v from now, want ~%v", remaining, RpcTimeout)
+	if elapsed := time.Since(start); elapsed < 240*time.Millisecond {
+		t.Fatalf("invoke returned after %v — the default deadline was not applied", elapsed)
+	}
+	if elapsed := time.Since(start); elapsed > 5*time.Second {
+		t.Fatalf("invoke took %v — deadline not enforced", elapsed)
 	}
 }
 

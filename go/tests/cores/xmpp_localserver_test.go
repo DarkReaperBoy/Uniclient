@@ -26,6 +26,8 @@ type miniXMPPServer struct {
 
 	advertiseIBR bool
 	registered   chan string
+
+	floodSASL bool
 }
 
 func startMiniXMPPServer(t *testing.T, user, pass string) (*miniXMPPServer, string) {
@@ -147,6 +149,10 @@ func (s *miniXMPPServer) handle(conn net.Conn) {
 					"<stream:features><bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'/><session xmlns='urn:ietf:params:xml:ns:xmpp-session'/></stream:features>"))
 			}
 		case strings.HasPrefix(stanza, "<auth"):
+			if s.floodSASL {
+				go s.floodSASLStream(conn)
+				continue
+			}
 			user, pass, ok := decodeSASLPlain(stanza)
 			if !ok || user != s.user || pass != s.pass {
 				conn.Write([]byte("<failure xmlns='urn:ietf:params:xml:ns:xmpp-sasl'><not-authorized/></failure>"))
@@ -198,6 +204,18 @@ func (s *miniXMPPServer) handle(conn net.Conn) {
 			case s.inbox <- body:
 			default:
 			}
+		}
+	}
+}
+
+func (s *miniXMPPServer) floodSASLStream(conn net.Conn) {
+	chunk := make([]byte, 8192)
+	for i := range chunk {
+		chunk[i] = 'x'
+	}
+	for {
+		if _, err := conn.Write(chunk); err != nil {
+			return
 		}
 	}
 }

@@ -700,6 +700,19 @@ func (s *tsScriptedServer) sendCommand(plain []byte) {
 	s.sendCommandGen(0, plain)
 }
 
+func tsScriptedCmdPkt(pID uint16, gen uint32, iv [64]byte, plain []byte) []byte {
+	flags := byte(TsPktCommand) | TsFlagNewprotocol
+	header := []byte{byte(pID >> 8), byte(pID & 0xff), flags}
+	key, nonce := TsCreateKeyNonce(TsPktCommand, pID, gen, 0x30, iv[:])
+	mac, ct := TsEAXEncrypt(key[:], nonce[:], header, plain)
+	pkt := make([]byte, 11+len(ct))
+	copy(pkt[:8], mac[:])
+	binary.BigEndian.PutUint16(pkt[8:10], pID)
+	pkt[10] = flags
+	copy(pkt[11:], ct)
+	return pkt
+}
+
 func (s *tsScriptedServer) sendCommandGen(gen uint32, plain []byte) {
 	s.wireMu.Lock()
 	cryptoOn := s.cryptoOn
@@ -711,15 +724,20 @@ func (s *tsScriptedServer) sendCommandGen(gen uint32, plain []byte) {
 	if !cryptoOn || client == nil {
 		return
 	}
-	flags := byte(TsPktCommand) | TsFlagNewprotocol
-	header := []byte{byte(pID >> 8), byte(pID & 0xff), flags}
-	key, nonce := TsCreateKeyNonce(TsPktCommand, pID, gen, 0x30, iv[:])
-	mac, ct := TsEAXEncrypt(key[:], nonce[:], header, plain)
-	pkt := make([]byte, 11+len(ct))
-	copy(pkt[:8], mac[:])
-	binary.BigEndian.PutUint16(pkt[8:10], pID)
-	pkt[10] = flags
-	copy(pkt[11:], ct)
+	s.conn.WriteToUDP(tsScriptedCmdPkt(pID, gen, iv, plain), client)
+}
+
+func (s *tsScriptedServer) PushCorruptAtPID(pID uint16, line string) {
+	s.wireMu.Lock()
+	cryptoOn := s.cryptoOn
+	iv := s.sharedIV
+	client := s.client
+	s.wireMu.Unlock()
+	if !cryptoOn || client == nil {
+		return
+	}
+	pkt := tsScriptedCmdPkt(pID, 0, iv, []byte(line))
+	pkt[0] ^= 0xFF
 	s.conn.WriteToUDP(pkt, client)
 }
 

@@ -7,8 +7,8 @@ import (
 
 func TestPbEncodeDecodeVarints(t *testing.T) {
 	for _, v := range []uint64{0, 1, 127, 128, 300, 16383, 16384, 1<<32 - 1, 1 << 32} {
-		enc := ForTestPbEncode(map[string]interface{}{"1": int64(v)})
-		dec := ForTestPbDecode(enc)
+		enc := PbEncode(map[string]interface{}{"1": int64(v)})
+		dec := PbDecode(enc)
 		got, ok := dec["1"].(int64)
 		if !ok || got != int64(v) {
 			t.Fatalf("varint %d: got %#v, want int64(%d)", v, dec["1"], v)
@@ -17,8 +17,8 @@ func TestPbEncodeDecodeVarints(t *testing.T) {
 }
 
 func TestPbEncodeDecodeBool(t *testing.T) {
-	enc := ForTestPbEncode(map[string]interface{}{"2": true})
-	dec := ForTestPbDecode(enc)
+	enc := PbEncode(map[string]interface{}{"2": true})
+	dec := PbDecode(enc)
 	got, ok := dec["2"].(int64)
 	if !ok || got != 1 {
 		t.Fatalf("bool true: got %#v, want int64(1)", dec["2"])
@@ -26,13 +26,13 @@ func TestPbEncodeDecodeBool(t *testing.T) {
 }
 
 func TestPbEncodeDecodeNested(t *testing.T) {
-	enc := ForTestPbEncode(map[string]interface{}{
+	enc := PbEncode(map[string]interface{}{
 		"3": map[string]interface{}{
 			"1": int64(1),
 			"2": int64(2),
 		},
 	})
-	dec := ForTestPbDecode(enc)
+	dec := PbDecode(enc)
 	nested, ok := dec["3"].(map[string]interface{})
 	if !ok {
 		t.Fatalf("nested field not decoded as map: %#v", dec["3"])
@@ -47,8 +47,8 @@ func TestPbEncodeDecodeNested(t *testing.T) {
 
 func TestPbEncodeDecodeOpaqueBytes(t *testing.T) {
 	payload := []byte{0xDE, 0xAD, 0xBE, 0xEF}
-	enc := ForTestPbEncode(map[string]interface{}{"4": payload})
-	dec := ForTestPbDecode(enc)
+	enc := PbEncode(map[string]interface{}{"4": payload})
+	dec := PbDecode(enc)
 	got, ok := dec["4"].(string)
 	if !ok {
 		t.Fatalf("opaque bytes not decoded as string fallback: %#v", dec["4"])
@@ -60,16 +60,16 @@ func TestPbEncodeDecodeOpaqueBytes(t *testing.T) {
 
 func TestPbEncodeDecodePlainString(t *testing.T) {
 	s := "?? not protobuf ??"
-	enc := ForTestPbEncode(map[string]interface{}{"5": s})
-	dec := ForTestPbDecode(enc)
+	enc := PbEncode(map[string]interface{}{"5": s})
+	dec := PbDecode(enc)
 	if dec["5"] != s {
 		t.Fatalf("string field: got %#v, want %q", dec["5"], s)
 	}
 }
 
 func TestPbEncodeDecodeRepeatedVarint(t *testing.T) {
-	enc := ForTestPbEncode(map[string]interface{}{"1": []interface{}{int64(7), int64(8), int64(9)}})
-	dec := ForTestPbDecode(enc)
+	enc := PbEncode(map[string]interface{}{"1": []interface{}{int64(7), int64(8), int64(9)}})
+	dec := PbDecode(enc)
 	got, ok := dec["1"].([]interface{})
 	if !ok || len(got) != 3 {
 		t.Fatalf("repeated varint: got %#v", dec["1"])
@@ -80,13 +80,13 @@ func TestPbEncodeDecodeRepeatedVarint(t *testing.T) {
 }
 
 func TestPbEncodeDecodeHandshake(t *testing.T) {
-	enc := ForTestPbEncode(map[string]interface{}{
+	enc := PbEncode(map[string]interface{}{
 		"3": map[string]interface{}{
 			"1": int64(1),
 			"2": int64(1),
 		},
 	})
-	dec := ForTestPbDecode(enc)
+	dec := PbDecode(enc)
 	frame, ok := dec["3"].(map[string]interface{})
 	if !ok {
 		t.Fatalf("handshake frame: %#v", dec["3"])
@@ -97,15 +97,15 @@ func TestPbEncodeDecodeHandshake(t *testing.T) {
 }
 
 func TestPbDecodeEmpty(t *testing.T) {
-	dec := ForTestPbDecode(nil)
+	dec := PbDecode(nil)
 	if dec == nil || len(dec) != 0 {
 		t.Fatalf("decode(nil) = %#v, want empty map", dec)
 	}
 }
 
 func TestPbEncodeDeterministicFieldOrder(t *testing.T) {
-	one := ForTestPbEncode(map[string]interface{}{"1": int64(1), "5": int64(5), "9": int64(9)})
-	other := ForTestPbEncode(map[string]interface{}{"9": int64(9), "1": int64(1), "5": int64(5)})
+	one := PbEncode(map[string]interface{}{"1": int64(1), "5": int64(5), "9": int64(9)})
+	other := PbEncode(map[string]interface{}{"9": int64(9), "1": int64(1), "5": int64(5)})
 	if string(one) != string(other) {
 		t.Fatalf("encoding is not deterministic:\n%x\n%x", one, other)
 	}

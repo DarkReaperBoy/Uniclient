@@ -11045,7 +11045,7 @@ func (t *TelegramCore) withPeer(chatID string) (tg.InputPeerClass, func(), error
 	return inputPeer, func() {}, nil
 }
 
-const RpcTimeout = 60 * time.Second
+var RpcTimeout = 60 * time.Second
 
 type RpcGuard struct {
 	next    tg.Invoker

@@ -2193,7 +2193,7 @@ func (g *GitHubCore) apiGet(path string, params map[string]string) (json.RawMess
 	case status == 403:
 		return nil, ErrPermission
 	case status >= 400:
-		return nil, fmt.Errorf("github API error %d: %s", status, truncate(string(body), 200))
+		return nil, fmt.Errorf("github API error %d: %s", status, utils.TruncateEllipsis(string(body), 200))
 	}
 
 	g.cache.set(url, body, 2*time.Minute)
@@ -2227,7 +2227,7 @@ func (g *GitHubCore) apiGetConditional(path string, params map[string]string, ca
 		return nil, errNotModified
 	}
 	if status >= 400 {
-		return nil, fmt.Errorf("github API error %d: %s", status, truncate(string(body), 200))
+		return nil, fmt.Errorf("github API error %d: %s", status, utils.TruncateEllipsis(string(body), 200))
 	}
 	return body, nil
 }
@@ -2261,7 +2261,7 @@ func (g *GitHubCore) apiDelete(path string) (json.RawMessage, error) {
 		return nil, err
 	}
 	if status >= 400 {
-		return nil, fmt.Errorf("github API error %d: %s", status, truncate(string(body), 200))
+		return nil, fmt.Errorf("github API error %d: %s", status, utils.TruncateEllipsis(string(body), 200))
 	}
 	return body, nil
 }
@@ -2281,9 +2281,9 @@ func (g *GitHubCore) apiMutate(method, path string, payload any) (json.RawMessag
 	case status == 404:
 		return nil, ErrNotFound
 	case status == 422:
-		return nil, fmt.Errorf("%w: %s", ErrInvalidInput, truncate(string(body), 200))
+		return nil, fmt.Errorf("%w: %s", ErrInvalidInput, utils.TruncateEllipsis(string(body), 200))
 	case status >= 400:
-		return nil, fmt.Errorf("github API error %d: %s", status, truncate(string(body), 200))
+		return nil, fmt.Errorf("github API error %d: %s", status, utils.TruncateEllipsis(string(body), 200))
 	}
 
 	g.cache.invalidatePrefix(g.apiBase + path)
@@ -2887,10 +2887,6 @@ func strOf(v any) string {
 	}
 }
 
-func truncate(s string, maxLen int) string {
-	return utils.TruncateEllipsis(s, maxLen)
-}
-
 var trailingNumberRe = regexp.MustCompile(`/(\d+)$`)
 
 func ExtractTrailingNumber(url string) string {
@@ -3243,7 +3239,7 @@ func (g *GitHubCore) UploadReleaseAsset(owner, repo string, releaseID int, name 
 		return nil, err
 	}
 	if status >= 400 {
-		return nil, fmt.Errorf("github upload error %d: %s", status, truncate(string(body), 200))
+		return nil, fmt.Errorf("github upload error %d: %s", status, utils.TruncateEllipsis(string(body), 200))
 	}
 	return body, nil
 }
@@ -3379,7 +3375,7 @@ func (g *GitHubCore) ghGraphQL(query string, variables map[string]any) (json.Raw
 		return nil, err
 	}
 	if status >= 400 {
-		return nil, fmt.Errorf("github graphql error %d: %s", status, truncate(string(body), 200))
+		return nil, fmt.Errorf("github graphql error %d: %s", status, utils.TruncateEllipsis(string(body), 200))
 	}
 	return body, nil
 }
@@ -3459,7 +3455,7 @@ func (g *GitHubCore) DeleteEmail(emails []string) error {
 		return err
 	}
 	if status >= 400 {
-		return fmt.Errorf("github API error %d: %s", status, truncate(string(body), 200))
+		return fmt.Errorf("github API error %d: %s", status, utils.TruncateEllipsis(string(body), 200))
 	}
 	return nil
 }
@@ -3479,7 +3475,7 @@ func (g *GitHubCore) DeleteSocialAccount(accountURLs []string) error {
 		return err
 	}
 	if status >= 400 {
-		return fmt.Errorf("github API error %d: %s", status, truncate(string(body), 200))
+		return fmt.Errorf("github API error %d: %s", status, utils.TruncateEllipsis(string(body), 200))
 	}
 	return nil
 }
