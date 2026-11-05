@@ -23,7 +23,7 @@ owner order — that history lives in git if ever needed.
 - last-gate: local full gate GREEN — make test (cores 52.8s),
   vet, lint, quick gate, js/wasm check, census zero, defs 23,
   2 × count=10 zero fails; go.mod unchanged (no repin needed);
-  CI dispatch pending (recorded below on completion)
+  CI dispatch 42033866337 (verify.yml on b928af14) in flight
 
 ## Open items
 
