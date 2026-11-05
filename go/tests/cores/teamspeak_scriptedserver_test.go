@@ -42,6 +42,7 @@ type tsScriptedConfig struct {
 	ChannelLines   []string
 	OmitServerName bool
 	FloodCommands  int
+	InitialCmdPID  uint16
 }
 
 type tsScriptedGen struct {
@@ -74,8 +75,9 @@ type tsScriptedServer struct {
 	init3N   [64]byte
 	init3Rnd [100]byte
 
-	clientOmegaX *big.Int
-	clientOmegaY *big.Int
+	clientOmegaX   *big.Int
+	clientOmegaY   *big.Int
+	clientOmegaB64 string
 
 	wireMu   sync.Mutex
 	client   *net.UDPAddr
@@ -142,6 +144,7 @@ func startTSScriptedServer(tb testing.TB, cfg tsScriptedConfig) *tsScriptedServe
 		cfg:        cfg,
 		received:   make(chan string, 64),
 		omegaB64:   tsScriptedOmega(key.PublicKey.X, key.PublicKey.Y),
+		cmdPID:     cfg.InitialCmdPID,
 	}
 	rand.Read(s.beta[:])
 	s.wg.Add(1)
@@ -197,6 +200,21 @@ func (s *tsScriptedServer) PushAtPID(pID uint16, line string) {
 	s.sendCmdPkt(pID, byte(TsPktCommand)|TsFlagNewprotocol, []byte(line))
 }
 
+func (s *tsScriptedServer) PushAtPIDGen(pID uint16, gen uint32, line string) {
+	s.wireMu.Lock()
+	cryptoOn := s.cryptoOn
+	if pID >= s.cmdPID {
+		s.cmdPID = pID + 1
+	}
+	iv := s.sharedIV
+	client := s.client
+	s.wireMu.Unlock()
+	if !cryptoOn || client == nil {
+		return
+	}
+	s.conn.WriteToUDP(tsScriptedCmdPkt(pID, gen, iv, []byte(line)), client)
+}
+
 func (s *tsScriptedServer) NextPID() uint16 {
 	s.wireMu.Lock()
 	defer s.wireMu.Unlock()
@@ -214,6 +232,12 @@ func (s *tsScriptedServer) ClientInitLine() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.clientinitLine
+}
+
+func (s *tsScriptedServer) ClientOmega() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.clientOmegaB64
 }
 
 func (s *tsScriptedServer) Init2EchoValid() bool {
@@ -420,6 +444,9 @@ func (s *tsScriptedServer) handleClientInitIV(cmd []byte) {
 	}
 	copy(s.alpha[:], alpha)
 	s.clientOmegaX, s.clientOmegaY, _ = TsParseOmega(params["omega"])
+	s.mu.Lock()
+	s.clientOmegaB64 = params["omega"]
+	s.mu.Unlock()
 }
 
 func (s *tsScriptedServer) sendInitivExpand2() {

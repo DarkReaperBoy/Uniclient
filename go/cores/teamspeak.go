@@ -1145,6 +1145,10 @@ type TsIncomingCmd struct {
 	raw    string
 }
 
+func TsNewIncomingCmd(name string, params map[string]string, raw string) *TsIncomingCmd {
+	return &TsIncomingCmd{name: name, params: params, raw: raw}
+}
+
 type TeamSpeakCore struct {
 	mu sync.RWMutex
 
@@ -1295,7 +1299,7 @@ func (tc *TsConnection) tsNextPktID(pType byte) uint16 {
 	return id
 }
 
-func (tc *TsConnection) tsTrackRecvPID(pktType byte, pID uint16) uint32 {
+func (tc *TsConnection) TsTrackRecvPID(pktType byte, pID uint16) uint32 {
 	tc.genMu.Lock()
 	defer tc.genMu.Unlock()
 	idx := pktType & 0x0f
@@ -1320,7 +1324,7 @@ func (tc *TsConnection) tsTrackRecvPID(pktType byte, pID uint16) uint32 {
 }
 
 func (tc *TsConnection) tsDecryptRecv(pktType byte, pID uint16, meta, data []byte, mac [8]byte) ([]byte, error) {
-	gen := tc.tsTrackRecvPID(pktType, pID)
+	gen := tc.TsTrackRecvPID(pktType, pID)
 	key := tsRecvKey(pktType, pID, gen, tc.sharedIV[:])
 	nonce := tsRecvNonce(pktType, pID, gen, tc.sharedIV[:])
 	plain, err := TsEAXDecrypt(key[:], nonce[:], meta, data, mac)
@@ -1772,7 +1776,7 @@ func (tc *TsConnection) tsProcessCommandQueue(cmdI int) {
 			name, params := TsParseCommand(line)
 			tsLogf("RX cmd: %s", line)
 			select {
-			case tc.cmdCh <- TsIncomingCmd{name: name, params: params, raw: string(line)}:
+			case tc.cmdCh <- *TsNewIncomingCmd(name, params, string(line)):
 			default:
 				tsLogf("CMD cmdCh FULL, dropping: %s", name)
 			}
@@ -2042,7 +2046,7 @@ func (t *TeamSpeakCore) tsHandshakeRetry(nickname string, restartsLeft int) erro
 			}
 
 			name, params := TsParseCommand(plaintext)
-			initivCmd = TsIncomingCmd{name: name, params: params, raw: string(plaintext)}
+			initivCmd = *TsNewIncomingCmd(name, params, string(plaintext))
 			break
 		} else if pktType == tsPktPing {
 			_ = tc.tsSendPong(pID)

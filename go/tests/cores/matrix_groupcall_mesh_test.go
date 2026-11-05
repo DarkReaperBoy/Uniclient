@@ -52,11 +52,11 @@ func TestGroupPeersToConnect(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("peers = %+v, want ALICE2 + BOB1", got)
 	}
-	if got[0].ForTestKey() != GroupPeerKey("@alice:test", "ALICE2") || got[1].ForTestKey() != GroupPeerKey("@bob:test", "BOB1") {
+	if GroupPeerKey(string(got[0].UserID), got[0].Device) != GroupPeerKey("@alice:test", "ALICE2") || GroupPeerKey(string(got[1].UserID), got[1].Device) != GroupPeerKey("@bob:test", "BOB1") {
 		t.Fatalf("order must be sorted by key: %+v", got)
 	}
 	for _, p := range got {
-		if p.ForTestKey() == GroupPeerKey("@alice:test", "SELF") {
+		if GroupPeerKey(string(p.UserID), p.Device) == GroupPeerKey("@alice:test", "SELF") {
 			t.Fatal("own device must not be a peer")
 		}
 	}

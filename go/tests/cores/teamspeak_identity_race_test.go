@@ -83,7 +83,50 @@ func TestHandshakeMyClientIDWriteDoesNotRaceReceiveHandlers(t *testing.T) {
 		}
 	}
 
-	if got := core.ForTestMyClientID(); got != 42 {
-		t.Fatalf("myClientID = %d, want 42 (the initserver write site must be live)", got)
+	var evMu sync.Mutex
+	var incoming []Message
+	core.OnUpdate(func(u Update) {
+		if u.Type != UpdateNewMessage || u.Message == nil {
+			return
+		}
+		evMu.Lock()
+		incoming = append(incoming, *u.Message)
+		evMu.Unlock()
+	})
+
+	srv.Push("notifytextmessage targetmode=3 invokerid=42 invokername=alice msg=" + TsEscape("self echo"))
+	quiet := time.Now().Add(300 * time.Millisecond)
+	for time.Now().Before(quiet) {
+		evMu.Lock()
+		n := len(incoming)
+		evMu.Unlock()
+		if n > 0 {
+			t.Fatalf("our own clid-42 message surfaced as incoming (myClientID never took the initserver value): %+v", incoming[0])
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	srv.Push("notifytextmessage targetmode=3 invokerid=7 invokername=bob msg=" + TsEscape("peer hello"))
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		evMu.Lock()
+		n := len(incoming)
+		evMu.Unlock()
+		if n == 1 {
+			evMu.Lock()
+			sender := incoming[0].SenderID
+			evMu.Unlock()
+			if sender != "7" {
+				t.Fatalf("peer message sender = %q, want 7", sender)
+			}
+			break
+		}
+		if n > 1 {
+			t.Fatalf("surfaces = %d, want exactly the peer message", n)
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the clid-7 peer message never surfaced — the positive control failed, the suppression above proves nothing")
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 }

@@ -60,7 +60,7 @@ func FuzzTSHandleServerCommand(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, data []byte) {
 		name, params := TsParseCommand(data)
-		core.TsHandleServerCommand(*ForTestNewTsIncomingCmd(name, params, string(data)))
+		core.TsHandleServerCommand(*TsNewIncomingCmd(name, params, string(data)))
 	})
 }
 

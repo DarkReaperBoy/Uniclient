@@ -3,11 +3,13 @@ package tests
 import (
 	"bytes"
 	"crypto/rand"
+	"crypto/sha1"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
 	"filippo.io/edwards25519"
 	"math/big"
+	"strings"
 	"testing"
 	"time"
 	. "uniclient/cores"
@@ -330,44 +332,56 @@ func TestTS3RSAPuzzleSolution(t *testing.T) {
 	}
 }
 
-func TestTS3IdentitySignVerify(t *testing.T) {
-	id, err := TsNewIdentity()
+func TestTS3IdentityProofAndUIDOnWire(t *testing.T) {
+	old := TsExecVoidTimeout
+	TsExecVoidTimeout = 2 * time.Second
+	t.Cleanup(func() { TsExecVoidTimeout = old })
+
+	core, srv := newScriptedTSCore(t, tsScriptedConfig{ServerName: "Identity HQ", ClientID: 42})
+	srv.SetResponder(func(line string) []string {
+		if strings.HasPrefix(line, "whoami") {
+			return []string{"clid=42", "error id=0 msg=ok"}
+		}
+		return []string{"error id=0 msg=ok"}
+	})
+
+	if !srv.EKProofValid() {
+		t.Fatal("the clientek proof never verified server-side against the omega observed in clientinitiv — the identity sign/omega roundtrip is broken")
+	}
+	omega := srv.ClientOmega()
+	if omega == "" {
+		t.Fatal("the scripted server never observed an omega in clientinitiv")
+	}
+	if _, _, err := TsParseOmega(omega); err != nil {
+		t.Fatalf("omega observed on the wire does not parse: %v", err)
+	}
+
+	info, err := core.WhoAmI()
 	if err != nil {
-		t.Fatalf("identity: %v", err)
+		t.Fatalf("WhoAmI: %v", err)
 	}
-	data := []byte("sign me please")
-	sig, err := id.ForTestTsSign(data)
-	if err != nil {
-		t.Fatalf("sign: %v", err)
-	}
-	x, y, err := TsParseOmega(id.ForTestTsOmega())
-	if err != nil {
-		t.Fatalf("parse own omega: %v", err)
-	}
-	if !TsVerifyP256(x, y, data, sig) {
-		t.Fatal("own signature does not verify")
-	}
-	if TsVerifyP256(x, y, []byte("other data"), sig) {
-		t.Fatal("signature verifies against different data")
+	sum := sha1.Sum([]byte(omega))
+	wantUID := base64.StdEncoding.EncodeToString(sum[:])
+	if got := info["client_unique_identifier"]; got != wantUID {
+		t.Fatalf("WhoAmI unique id = %q, want the sha1-of-omega UID %q derived from the wire-observed identity", got, wantUID)
 	}
 }
 
-func TestTS3IdentityUID(t *testing.T) {
-	id, err := TsNewIdentity()
-	if err != nil {
-		t.Fatalf("identity: %v", err)
+func TestTS3WrapClimbOnWire(t *testing.T) {
+	old := TsExecVoidTimeout
+	TsExecVoidTimeout = 2 * time.Second
+	t.Cleanup(func() { TsExecVoidTimeout = old })
+
+	core, srv := newScriptedTSCore(t, tsScriptedConfig{ServerName: "Base", InitialCmdPID: 0xFFFD})
+	if got := core.ServerName(); got != "Base" {
+		t.Fatalf("baseline ServerName = %q, want %q — the high-pID handshake journey must complete", got, "Base")
 	}
-	uid := id.ForTestTsUID()
-	if uid == "" {
-		t.Fatal("empty UID")
-	}
-	decoded, err := base64.StdEncoding.DecodeString(uid)
-	if err != nil {
-		t.Fatalf("UID not base64: %v", err)
-	}
-	if len(decoded) != 20 {
-		t.Fatalf("UID decoded length %d, want 20 (sha1)", len(decoded))
-	}
+
+	srv.PushAtPIDGen(0x0000, 2, "initserver virtualserver_name="+TsEscape("WrapSkip"))
+	tsWaitServerName(t, core, "WrapSkip", "first post-wrap pID with a generation skip — decryptable only if the tracker proactively bumped the generation on the wrap jump")
+
+	srv.PushAtPIDGen(0x0001, 2, "initserver virtualserver_name="+TsEscape("AfterWrap"))
+	tsWaitServerName(t, core, "AfterWrap", "follow-up command after wrap adoption")
 }
 
 func TestTS3LicenseDerivationVector(t *testing.T) {
@@ -416,66 +430,66 @@ func TestTS3LicenseDerivationVector(t *testing.T) {
 func TestTS3RecvGenerationTracking(t *testing.T) {
 	tc := &TsConnection{}
 
-	if g := tc.ForTestTsTrackRecvPID(TsPktVoice, 0); g != 0 {
+	if g := tc.TsTrackRecvPID(TsPktVoice, 0); g != 0 {
 		t.Fatalf("first packet gen = %d", g)
 	}
 	for id := uint16(1); id < 200; id++ {
-		if g := tc.ForTestTsTrackRecvPID(TsPktVoice, id); g != 0 {
+		if g := tc.TsTrackRecvPID(TsPktVoice, id); g != 0 {
 			t.Fatalf("id %d: gen = %d, want 0", id, g)
 		}
 	}
-	if g := tc.ForTestTsTrackRecvPID(TsPktVoice, 0xFF00); g != 0 {
+	if g := tc.TsTrackRecvPID(TsPktVoice, 0xFF00); g != 0 {
 		t.Fatalf("pre-wrap gen = %d", g)
 	}
-	if g := tc.ForTestTsTrackRecvPID(TsPktVoice, 0x0010); g != 1 {
+	if g := tc.TsTrackRecvPID(TsPktVoice, 0x0010); g != 1 {
 		t.Fatalf("post-wrap gen = %d, want 1", g)
 	}
 	for id := uint16(0x0011); id < 0x0100; id++ {
-		if g := tc.ForTestTsTrackRecvPID(TsPktVoice, id); g != 1 {
+		if g := tc.TsTrackRecvPID(TsPktVoice, id); g != 1 {
 			t.Fatalf("gen1 id %d: gen = %d", id, g)
 		}
 	}
-	if g := tc.ForTestTsTrackRecvPID(TsPktVoice, 0xFFF0); g != 1 {
+	if g := tc.TsTrackRecvPID(TsPktVoice, 0xFFF0); g != 1 {
 		t.Fatalf("late pre-wrap packet gen = %d, want 1 (retry resolves)", g)
 	}
-	if g := tc.ForTestTsTrackRecvPID(TsPktVoice, 0xFFE0); g != 1 {
+	if g := tc.TsTrackRecvPID(TsPktVoice, 0xFFE0); g != 1 {
 		t.Fatalf("second pre-wrap gen = %d, want 1", g)
 	}
-	if g := tc.ForTestTsTrackRecvPID(TsPktVoice, 0x0005); g != 2 {
+	if g := tc.TsTrackRecvPID(TsPktVoice, 0x0005); g != 2 {
 		t.Fatalf("second post-wrap gen = %d, want 2", g)
 	}
 }
 
 func TestTS3RecvGenerationPerType(t *testing.T) {
 	tc := &TsConnection{}
-	if g := tc.ForTestTsTrackRecvPID(TsPktVoice, 0xFF00); g != 0 {
+	if g := tc.TsTrackRecvPID(TsPktVoice, 0xFF00); g != 0 {
 		t.Fatalf("voice pre-wrap gen = %d", g)
 	}
-	if g := tc.ForTestTsTrackRecvPID(TsPktVoice, 0x0020); g != 1 {
+	if g := tc.TsTrackRecvPID(TsPktVoice, 0x0020); g != 1 {
 		t.Fatalf("voice post-wrap gen = %d", g)
 	}
-	if g := tc.ForTestTsTrackRecvPID(TsPktCommand, 5); g != 0 {
+	if g := tc.TsTrackRecvPID(TsPktCommand, 5); g != 0 {
 		t.Fatalf("command gen = %d", g)
 	}
-	if g := tc.ForTestTsTrackRecvPID(TsPktCommand, 6); g != 0 {
+	if g := tc.TsTrackRecvPID(TsPktCommand, 6); g != 0 {
 		t.Fatalf("command gen = %d", g)
 	}
 }
 
 func TestTS3RecvGenerationDupAndJitter(t *testing.T) {
 	tc := &TsConnection{}
-	if g := tc.ForTestTsTrackRecvPID(TsPktVoice, 0xFF00); g != 0 {
+	if g := tc.TsTrackRecvPID(TsPktVoice, 0xFF00); g != 0 {
 		t.Fatalf("dup base gen = %d", g)
 	}
 	for i := 0; i < 5; i++ {
-		if g := tc.ForTestTsTrackRecvPID(TsPktVoice, 0xFF00); g != 0 {
+		if g := tc.TsTrackRecvPID(TsPktVoice, 0xFF00); g != 0 {
 			t.Fatalf("dup %d gen = %d", i, g)
 		}
 	}
-	if g := tc.ForTestTsTrackRecvPID(TsPktVoice, 0x0010); g != 1 {
+	if g := tc.TsTrackRecvPID(TsPktVoice, 0x0010); g != 1 {
 		t.Fatalf("post-dup wrap gen = %d, want 1", g)
 	}
-	if g := tc.ForTestTsTrackRecvPID(TsPktVoice, 0x0008); g != 1 {
+	if g := tc.TsTrackRecvPID(TsPktVoice, 0x0008); g != 1 {
 		t.Fatalf("jitter gen = %d", g)
 	}
 }
