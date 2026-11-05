@@ -91,7 +91,8 @@ type TelegramCore struct {
 
 	sessionStorage telegram.SessionStorage
 
-	dialFunc dcs.DialFunc
+	dialFunc   dcs.DialFunc
+	publicKeys []telegram.PublicKey
 
 	proxyMu  sync.RWMutex
 	proxyCfg ProxyConfig
@@ -182,6 +183,7 @@ type TelegramConfig struct {
 	UseTestDC         bool
 	SessionStorage    telegram.SessionStorage
 	DialFunc          dcs.DialFunc
+	PublicKeys        []telegram.PublicKey
 	ForceRelayICE     bool
 	ForceV2Sig        bool
 	ForceV2Impl       bool
@@ -212,6 +214,7 @@ func NewTelegramCore(cfg TelegramConfig) *TelegramCore {
 		minCallVersion:        cfg.MinCallVersion,
 		sessionStorage:        cfg.SessionStorage,
 		dialFunc:              cfg.DialFunc,
+		publicKeys:            cfg.PublicKeys,
 		authSetupDone:         make(chan struct{}),
 		userAccessHash:        make(map[int64]int64),
 		channelAccessHash:     make(map[int64]int64),
@@ -258,6 +261,10 @@ func (t *TelegramCore) initClient() {
 	opts := telegram.Options{
 		SessionStorage: t.sessionStorage,
 		UpdateHandler:  dispatcher,
+	}
+
+	if t.publicKeys != nil {
+		opts.PublicKeys = t.publicKeys
 	}
 
 	if t.customDeviceModel != "" {

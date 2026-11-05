@@ -8,7 +8,6 @@ import (
 	"maunium.net/go/mautrix/id"
 	"net"
 	"net/http"
-	"sync"
 	"time"
 )
 
@@ -24,10 +23,6 @@ func (x *groupPeer) ForTestKey() string {
 	return x.key
 }
 
-func (x *TelegramCore) ForTestMu() *sync.RWMutex {
-	return &x.mu
-}
-
 func (x *TeamSpeakCore) ForTestMyClientID() int {
 	return x.myClientID
 }
@@ -38,18 +33,6 @@ func (x *TsConnection) ForTestPktState() *[9]tsPacketState {
 
 func (x *TeamSpeakCore) ForTestTsConn() *TsConnection {
 	return x.tsConn
-}
-
-func (x *TelegramCore) ForTestSetApi(v *tg.Client) {
-	x.api = v
-}
-
-func (x *TelegramCore) ForTestSetAuthed(v bool) {
-	x.authed = v
-}
-
-func (x *TelegramCore) ForTestSetCtx(v context.Context) {
-	x.ctx = v
 }
 
 func (x *MatrixCore) ForTestSetUserID(v id.UserID) {
