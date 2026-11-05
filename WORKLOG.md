@@ -93,19 +93,17 @@ owner order — that history lives in git if ever needed.
   redundant wrappers; every rewrite moved assertions from
   struct surgery to wire/server-side evidence; RpcTimeout-as-var
   rides an established pattern, not a new seam.
-- CI: dispatch needed 3 tries (GitHub 500/502 incident; run
-  created on the third, 204) and the state-commit push bounced
-  once on the same incident (remote commit_refs fatal, green
-  after 90s); run 42062309084 SUCCESS at job AND step level —
-  race leg green with TestRPCGuard|TestTSReceive in the pin —
-  session 366 closed green.
+- CI: dispatch + one push bounced by a transient GitHub 500/502
+  incident (3rd try 204; push green after 90s); run 42062309084
+  SUCCESS at job AND step level — race leg green with
+  TestRPCGuard|TestTSReceive in the pin — session 366 closed
+  green.
 
 ## Session 365 — H-1: GitHub cluster onto the scripted GitHub API — 2 defs, api_base seam (GHE) (2026-11-05)
 
 - Boot: session recycle landed between turns; PAT re-verified
-  (HTTP 200), env.sh recovery verbatim (go1.27.1, modcache 1.1G,
-  gocache 2.9G), repo clean at 5d6f6960 (364 closed green) — no
-  cold baseline needed, nothing committed since.
+  (HTTP 200), env.sh recovery verbatim (go1.27.1), repo clean at
+  5d6f6960 (364 closed green) — no cold baseline needed.
 - RED: 2 defs deleted from testhooks.go (ForTestSetUsername,
   ForTestNewGitHubCore) → vet `ForTestNewGitHubCore undefined`.
 - Production seam: GitHubCore.apiBase + AuthConfig.Extra
@@ -138,15 +136,11 @@ owner order — that history lives in git if ever needed.
   (exactly 1 request, ErrAuth, core stays unauthed); 429 →
   Retry-After: 0 → retried on the wire (exactly 2 GET /user).
 - Evidence: focused family GREEN (1.1s); 2 × count=10 = 20
-  consecutive runs ZERO fails; full make test GREEN (cores 52.8s,
-  engine 6.6s, bootstrap 1.0s, utils 1.5s); make vet + lint
-  GREEN; quick gate GREEN via scripts/gate.sh; js/wasm compile
-  check GREEN; census ZERO refs to both deleted names; defs
-  25→23; gofmt clean; strip_comments --check clean (274 files);
-  go.mod unchanged (stdlib only — no flake.yml repin needed).
-  Local -race and windows crossbuild OOM-skipped on the gotd
-  compile (env.sh machine truth) — the CI race leg carries
-  TestGitHub in the pin.
+  consecutive runs ZERO fails; full make test GREEN (cores 52.8s);
+  vet + lint + quick gate + js/wasm GREEN; census ZERO; defs
+  25→23; gofmt + strip check clean (274 files); go.mod unchanged
+  (no flake repin). Local -race/windows crossbuild OOM-skipped
+  (env.sh truth) — the CI race leg carries TestGitHub.
 - Design rating 8/10: assertions moved from field injection to
   server-side wire evidence; the api_base seam is a genuine
   product capability (GHE), not test scaffolding; the graphql
