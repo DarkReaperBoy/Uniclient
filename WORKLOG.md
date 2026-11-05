@@ -19,8 +19,12 @@ owner order — that history lives in git if ever needed.
 - next: H-1 audio tail (audio/testhooks_audio.go ForTestMu, js/wasm leg) or the next front per owner; H-3 fold at GUI rebuild
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: CI dispatch pending this session; local full gate GREEN before it — focused family 12.0s,
-  2 × count=10 zero fails, make test (cores 59.1s), vet, gofmt, strip, census cores zero, wasm
+- last-gate: CI 42075019094 SUCCESS at job AND step level
+  (comment ban, gofmt, vet+live, test, race with the
+  TestTS3*/TestHandshake* families in the pin, headless
+  smoke, windows, js/wasm, nix; version==tag correctly
+  skipped) on db994451; local full gate GREEN before
+  dispatch — session 367 closed green
 
 ## Open items
 
@@ -93,6 +97,10 @@ owner order — that history lives in git if ever needed.
   the wrap journey pins previously unpinned protocol
   semantics through a realistic high-counter boot instead of
   state surgery.
+- CI: 42075019094 SUCCESS at job AND step level — race leg
+  green with the new TestTS3IdentityProofAndUIDOnWire/
+  TestTS3WrapClimbOnWire/TestHandshake* in the pin —
+  session 367 closed green.
 
 ## Session 366 — H-1: orphan sweeps onto real journeys — 16 defs, testhooks_manual.go deleted (2026-11-05)
 
