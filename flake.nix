@@ -33,7 +33,7 @@
           doCheck = false; # run `make test` in the dev shell
           # Reported by the first real build (the placeholder hash fails
           # the go-modules fixed-output derivation with the correct one).
-          vendorHash = "sha256-xovj9KGTuYb5ip1Hv4n7sUZ1JbHWy3QLs8PV2NKt6lI=";
+          vendorHash = "sha256-F0u1N0VnU96e6GQjMlwtecdc3UAAjZImtdA5rsz1SLw=";
           # -trimpath belongs to `go build`, NOT to the linker: `go tool link`
           # dies with "flag provided but not defined: -trimpath". nixpkgs
           # already injects -trimpath through GOFLAGS (module.nix adds it when
