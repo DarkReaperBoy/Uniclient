@@ -24,7 +24,7 @@ owner order — that history lives in git if ever needed.
 - last-gate: local full gate GREEN — focused family 11.9s, 2 ×
   count=10 zero fails, make test (cores 58.1s), vet, gofmt,
   strip check, js/wasm, census zero, defs 7; CI dispatch
-  pending (session 366 open)
+  42062309084 in flight on 8947538c (session 366 open)
 
 ## Open items
 
