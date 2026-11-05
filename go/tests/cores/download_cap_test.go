@@ -2,6 +2,7 @@ package tests
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -89,18 +90,31 @@ func TestGitHubDownloadCapsBody(t *testing.T) {
 	DownloadCeiling = 1024
 	defer func() { DownloadCeiling = old }()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		for i := 0; i < 100; i++ {
-			if _, err := w.Write(make([]byte, 64<<10)); err != nil {
-				return
+	s := newGhScripted(t, func(w http.ResponseWriter, r *http.Request, _ []byte) {
+		switch r.URL.Path {
+		case "/user":
+			w.Header().Set("Content-Type", "application/json")
+			io.WriteString(w, `{"login":"octocat","id":5823,"type":"User"}`)
+		case "/repos/octocat/octocat":
+			w.Header().Set("Content-Type", "application/json")
+			io.WriteString(w, `{"full_name":"octocat/octocat"}`)
+		case "/notifications":
+			w.Header().Set("Content-Type", "application/json")
+			io.WriteString(w, `[]`)
+		case "/dl":
+			for i := 0; i < 100; i++ {
+				if _, err := w.Write(make([]byte, 64<<10)); err != nil {
+					return
+				}
 			}
+		default:
+			w.WriteHeader(404)
 		}
-	}))
-	defer srv.Close()
+	})
+	g := s.authed(t, "ghp_dl")
 
 	dest := filepath.Join(t.TempDir(), "dl.bin")
-	g := ForTestNewGitHubCore(true, srv.Client(), context.Background(), "t")
-	err := g.DownloadFile(FileRef{URL: srv.URL}, dest, nil)
+	err := g.DownloadFile(FileRef{URL: s.srv.URL + "/dl"}, dest, nil)
 	if err == nil {
 		t.Fatal("hostile endless stream accepted")
 	}
@@ -109,6 +123,20 @@ func TestGitHubDownloadCapsBody(t *testing.T) {
 	}
 	if _, statErr := os.Stat(dest); statErr == nil {
 		t.Fatal("partial file left behind after the rejected download")
+	}
+
+	var dl *ghServedReq
+	reqs := s.served()
+	for i := range reqs {
+		if reqs[i].Path == "/dl" {
+			dl = &reqs[i]
+		}
+	}
+	if dl == nil {
+		t.Fatal("download request never reached the server")
+	}
+	if dl.Auth != "Bearer ghp_dl" {
+		t.Errorf("download Authorization = %q, want the authenticated token", dl.Auth)
 	}
 }
 

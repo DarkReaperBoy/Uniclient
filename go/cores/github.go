@@ -104,6 +104,7 @@ type GitHubCore struct {
 	authed   bool
 	token    string
 	username string
+	apiBase  string
 	userID   int64
 
 	client *http.Client
@@ -187,6 +188,7 @@ type ghSession struct {
 	Token        string                    `json:"token"`
 	Username     string                    `json:"username"`
 	UserID       int64                     `json:"user_id"`
+	APIBase      string                    `json:"api_base,omitempty"`
 	Blocked      []string                  `json:"blocked,omitempty"`
 	Pinned       map[string][]string       `json:"pinned,omitempty"`
 	MarkedUnread map[string]bool           `json:"marked_unread,omitempty"`
@@ -203,6 +205,7 @@ func NewGitHubCore(session *utils.SessionStore) *GitHubCore {
 			readDelay:  100 * time.Millisecond,
 			writeDelay: 1500 * time.Millisecond,
 		},
+		apiBase:        ghAPIBase,
 		cache:          &ghCache{items: make(map[string]*ghCacheItem)},
 		dialogs:        make(map[string]*GhDialog),
 		messages:       make(map[string][]*Message),
@@ -235,6 +238,10 @@ func (g *GitHubCore) Capabilities() []string {
 func (g *GitHubCore) Authenticate(cfg AuthConfig) error {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+
+	if base := strings.TrimSuffix(cfg.Extra["api_base"], "/"); base != "" {
+		g.apiBase = base
+	}
 
 	if err := g.loadSession(); err == nil && g.token != "" {
 		g.client = g.makeHTTPClient(g.token)
@@ -1974,7 +1981,7 @@ func (g *GitHubCore) pollNotifications() {
 		headers["If-None-Match"] = g.notifEtag
 	}
 
-	req, _ := http.NewRequestWithContext(g.ctx, "GET", ghAPIBase+"/notifications", nil)
+	req, _ := http.NewRequestWithContext(g.ctx, "GET", g.apiBase+"/notifications", nil)
 	req.Header.Set("Authorization", "Bearer "+g.token)
 	req.Header.Set("Accept", "application/vnd.github+json")
 	for k, v := range headers {
@@ -2157,7 +2164,7 @@ func (g *GitHubCore) doAPI(method, url string, body []byte, extraHeaders map[str
 }
 
 func (g *GitHubCore) buildURL(path string, params map[string]string) string {
-	u := ghAPIBase + path
+	u := g.apiBase + path
 	if len(params) > 0 {
 		v := neturl.Values{}
 		for k, val := range params {
@@ -2249,7 +2256,7 @@ func (g *GitHubCore) apiPut(path string, payload any) (json.RawMessage, error) {
 }
 
 func (g *GitHubCore) apiDelete(path string) (json.RawMessage, error) {
-	body, status, _, err := g.doAPI("DELETE", ghAPIBase+path, nil, nil)
+	body, status, _, err := g.doAPI("DELETE", g.apiBase+path, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -2265,7 +2272,7 @@ func (g *GitHubCore) apiMutate(method, path string, payload any) (json.RawMessag
 		data, _ = json.Marshal(payload)
 	}
 
-	body, status, _, err := g.doAPI(method, ghAPIBase+path, data, nil)
+	body, status, _, err := g.doAPI(method, g.apiBase+path, data, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -2279,7 +2286,7 @@ func (g *GitHubCore) apiMutate(method, path string, payload any) (json.RawMessag
 		return nil, fmt.Errorf("github API error %d: %s", status, truncate(string(body), 200))
 	}
 
-	g.cache.invalidatePrefix(ghAPIBase + path)
+	g.cache.invalidatePrefix(g.apiBase + path)
 
 	return body, nil
 }
@@ -2495,6 +2502,9 @@ func (g *GitHubCore) loadSession() error {
 	g.token = sess.Token
 	g.username = sess.Username
 	g.userID = sess.UserID
+	if sess.APIBase != "" && g.apiBase == ghAPIBase {
+		g.apiBase = sess.APIBase
+	}
 
 	for _, b := range sess.Blocked {
 		g.blocked[b] = true
@@ -2530,6 +2540,7 @@ func (g *GitHubCore) saveSession() {
 		Token:    g.token,
 		Username: g.username,
 		UserID:   g.userID,
+		APIBase:  g.apiBase,
 	}
 
 	g.blockedMu.RLock()
@@ -3350,13 +3361,20 @@ func (g *GitHubCore) GetFeeds() (json.RawMessage, error) {
 	return g.apiGet("/feeds", nil)
 }
 
+func (g *GitHubCore) graphqlURL() string {
+	if base, ok := strings.CutSuffix(g.apiBase, "/api/v3"); ok {
+		return base + "/api/graphql"
+	}
+	return strings.TrimSuffix(g.apiBase, "/") + "/graphql"
+}
+
 func (g *GitHubCore) ghGraphQL(query string, variables map[string]any) (json.RawMessage, error) {
 	payload := map[string]any{"query": query}
 	if variables != nil {
 		payload["variables"] = variables
 	}
 	data, _ := json.Marshal(payload)
-	body, status, _, err := g.doAPI("POST", "https://api.github.com/graphql", data, nil)
+	body, status, _, err := g.doAPI("POST", g.graphqlURL(), data, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -3436,7 +3454,7 @@ func (g *GitHubCore) AddEmail(emails []string) (json.RawMessage, error) {
 
 func (g *GitHubCore) DeleteEmail(emails []string) error {
 	data, _ := json.Marshal(map[string]any{"emails": emails})
-	body, status, _, err := g.doAPI("DELETE", ghAPIBase+"/user/emails", data, nil)
+	body, status, _, err := g.doAPI("DELETE", g.apiBase+"/user/emails", data, nil)
 	if err != nil {
 		return err
 	}
@@ -3456,7 +3474,7 @@ func (g *GitHubCore) AddSocialAccount(accountURLs []string) (json.RawMessage, er
 
 func (g *GitHubCore) DeleteSocialAccount(accountURLs []string) error {
 	data, _ := json.Marshal(map[string]any{"account_urls": accountURLs})
-	body, status, _, err := g.doAPI("DELETE", ghAPIBase+"/user/social_accounts", data, nil)
+	body, status, _, err := g.doAPI("DELETE", g.apiBase+"/user/social_accounts", data, nil)
 	if err != nil {
 		return err
 	}

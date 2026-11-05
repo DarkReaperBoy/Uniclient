@@ -7,35 +7,84 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 364 — the Telegram setter cluster retired onto
-  the gotd tgtest scripted server: 4 defs cut (29→25: ForTestMu/
-  SetApi/SetAuthed/SetCtx), freeze + migrate families onto real
-  Authenticate journeys with server-side stuck-RPC probes; one
-  real seam added (TelegramConfig.PublicKeys); three harness
-  battles won (warm listener vs gotd's racing dials, DC+10000
-  exchange vs ThisDC=2 config, async stuck response vs the
-  blocked server read loop); zero production changes beyond
-  the seam
-- next: H-1 — the GitHub cluster (ForTestSetUsername/
-  ForTestNewGitHubCore onto a scripted HTTPS GitHub API)
+- front: session 365 — the GitHub cluster retired onto the
+  scripted GitHub API server: 2 defs cut (25→23:
+  ForTestSetUsername/NewGitHubCore), CommentToMessage
+  outgoing-ness + DownloadFile ceiling onto real Authenticate
+  journeys; api_base config seam added (GitHub Enterprise
+  support, gh-CLI/go-github class); 5 new wire journeys (whoami,
+  profile-repo bootstrap, session resume, 401 terminal, 429
+  retry)
+- next: H-1 — orphan sweeps toward zero (TS packet-state quartet,
+  ForTestNewXMPPCore, ForTestSetUserID, pb/truncate helpers,
+  ForTestNewRpcGuard)
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: CI 42025733121 SUCCESS at job AND step level
-  (comment ban, gofmt, vet+live, test, RACE subset incl. the new
-  telegram family, headless smoke, windows, js/wasm, nix) on
-  2450d2c9 — after flake.yml 42025269748 pinned the vendorHash
-  (first dispatch 42023904650 failed on the stale go-modules
-  hash, the known §8 flow after dependency changes); local full
-  make test GREEN (cores 51.4s); family count=10 ×2 zero fails
-  — session 364 closed green
+- last-gate: local full gate GREEN — make test (cores 52.8s),
+  vet, lint, quick gate, js/wasm check, census zero, defs 23,
+  2 × count=10 zero fails; go.mod unchanged (no repin needed);
+  CI dispatch pending (recorded below on completion)
 
 ## Open items
 
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
-| H-1 | cores testhooks*.go | ForTest* hooks are debt (§5.3): 25 left by def-count (session 364: Telegram setter cluster — 4 defs onto the gotd tgtest scripted server, freeze/migrate probes now server-side; session 363: queuegap family — 5 defs onto S2C out-of-order/fragmented wire journeys, first coverage of the client's S2C fragment reassembly + single-compressed receive; session 362: TS constructor/setter cluster — 11 defs onto the scripted server; session 361: exec-harness pump + proof injection — 7 defs; session 360: group-call assertion family — 8 defs; session 359: ForTestNewMatrixCore → real Authenticate via mxAuthSurface, ForTestSetGroupPeers → real Close teardown; session 358: reads family → GetGroupCall projection, TS state-mirror family, ForTestNewMatrixCall → real ReconcileGroupMesh; sessions 356-357: rooms/members/audio pairs onto real journeys; sessions 353-355: mumble/IRC/DeltaChat/XMPP slices + orphan sweeps); remaining: GitHub SetUsername/NewGitHubCore | session 364 entry | the GitHub cluster, then orphan sweeps to zero |
+| H-1 | cores testhooks*.go | ForTest* hooks are debt (§5.3): 23 left by def-count (session 365: GitHub cluster — 2 defs onto the scripted GitHub API server via the api_base seam, 5 new wire journeys incl. first Authenticate/session-resume coverage; session 364: Telegram setter cluster — 4 defs onto the gotd tgtest scripted server; session 363: queuegap family — 5 defs onto S2C out-of-order/fragmented wire journeys; session 362: TS constructor/setter cluster — 11 defs onto the scripted server; session 361: exec-harness pump + proof injection — 7 defs; session 360: group-call assertion family — 8 defs; session 359: ForTestNewMatrixCore → real Authenticate via mxAuthSurface, ForTestSetGroupPeers → real Close teardown; session 358: reads family → GetGroupCall projection, TS state-mirror family, ForTestNewMatrixCall → real ReconcileGroupMesh; sessions 356-357: rooms/members/audio pairs onto real journeys; sessions 353-355: mumble/IRC/DeltaChat/XMPP slices + orphan sweeps); remaining: TS packet-state quartet, ForTestNewXMPPCore, ForTestSetUserID, pb/truncate helpers, ForTestNewRpcGuard | session 365 entry | orphan sweeps to zero |
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 302 identifiers exported purely for the tests move (API noise: TsParseInit1, ForTest-adjacent) | commit 27faa5a4 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
+
+## Session 365 — H-1: GitHub cluster onto the scripted GitHub API — 2 defs, api_base seam (GHE) (2026-11-05)
+
+- Boot: session recycle landed between turns; PAT re-verified
+  (HTTP 200), env.sh recovery verbatim (go1.27.1, modcache 1.1G,
+  gocache 2.9G), repo clean at 5d6f6960 (364 closed green) — no
+  cold baseline needed, nothing committed since.
+- RED: 2 defs deleted from testhooks.go (ForTestSetUsername,
+  ForTestNewGitHubCore) → vet `ForTestNewGitHubCore undefined`.
+- Production seam: GitHubCore.apiBase + AuthConfig.Extra
+  ["api_base"] — GitHub Enterprise support, the gh-CLI GH_HOST /
+  go-github BaseURL class: all 8 hardcoded ghAPIBase sites route
+  through it (buildURL, apiDelete, apiMutate + cache
+  invalidation, notifications poll, emails/social DELETEs,
+  graphql); graphqlURL() maps a /api/v3 GHE base to the
+  documented /api/graphql pairing, dotcom default unchanged;
+  persisted in ghSession so resume works against GHE; explicit
+  cfg beats the saved base. Zero other production changes.
+- Harness (github_scriptedserver_test.go): httptest GitHub API —
+  mutex-guarded wire recorder (method/path/query/bearer/Accept/
+  API-version/body), per-test handlers, authed-core factory; the
+  poll loop never ticks under the 10s notif interval and Close()
+  reaps it.
+- Rewrites: CommentToMessage — username from a REAL whoami
+  (octocat via GET /user); own comment outgoing + peer comment
+  (mona) not-outgoing, the negative case is NEW. Download
+  ceiling — the client is the real makeHTTPClient product and
+  the download request's bearer is asserted server-side.
+- New wire journeys (first real coverage of the GitHub
+  Authenticate path): whoami (Authorization/Accept/
+  X-GitHub-Api-Version pinned, no bootstrap POST when the
+  profile repo exists, GetProfile's username-driven
+  /users/octocat request); profile-repo bootstrap (404 → POST
+  /user/repos with the exact 4-field body asserted); session
+  resume through a real vault (saved token on the wire ×2, no
+  token in cfg, no re-bootstrap); bad-token 401 terminal
+  (exactly 1 request, ErrAuth, core stays unauthed); 429 →
+  Retry-After: 0 → retried on the wire (exactly 2 GET /user).
+- Evidence: focused family GREEN (1.1s); 2 × count=10 = 20
+  consecutive runs ZERO fails; full make test GREEN (cores 52.8s,
+  engine 6.6s, bootstrap 1.0s, utils 1.5s); make vet + lint
+  GREEN; quick gate GREEN via scripts/gate.sh; js/wasm compile
+  check GREEN; census ZERO refs to both deleted names; defs
+  25→23; gofmt clean; strip_comments --check clean (274 files);
+  go.mod unchanged (stdlib only — no flake.yml repin needed).
+  Local -race and windows crossbuild OOM-skipped on the gotd
+  compile (env.sh machine truth) — the CI race leg carries
+  TestGitHub in the pin.
+- Design rating 8/10: assertions moved from field injection to
+  server-side wire evidence; the api_base seam is a genuine
+  product capability (GHE), not test scaffolding; the graphql
+  derivation rides the documented /api/v3 ↔ /api/graphql
+  pairing.
 
 ## Session 364 — H-1: Telegram setter cluster onto the gotd tgtest scripted server — 4 defs, server-side freeze probes (2026-11-05)
 
@@ -130,66 +179,18 @@ owner order — that history lives in git if ever needed.
 - Design rating 9/10: public-API consequence + server-side ack
   evidence replaces queue-map surgery.
 
-## Session 362 — H-1: TS constructor/setter cluster onto the scripted server — 11 defs, zero production changes (2026-11-04)
+## Session 362 — H-1: TS constructor/setter cluster onto the scripted server — 11 defs (2026-11-04) — condensed
 
-- Boot: full-wipe recycle (workspace AND toolchain gone); PAT
-  re-verified (admin/push), fresh clone (remote URL kept token-free —
-  credential-helper push instead), env.sh recovery verbatim: go1.27.1
-  sha256 63d339f0… matches the 361 record, modcache 990M/1m26s, cold
-  baseline 7m25s GREEN before any edit (cores 37.3s, engine 6.2s,
-  bootstrap 0.9s, utils 1.3s).
-- RED: 11 defs deleted from testhooks.go → vet `ForTestSetTsConn
-  undefined` at the first site.
-- Retired (11 defs, 45→34): ForTestNewTsConnection,
-  ForTestNewTeamSpeakCore, ForTestSetAuthed(TeamSpeakCore),
-  ForTestSetMyClientID, ForTestSetTsConn + the six hooks the rewrites
-  orphaned: ForTestClientID, ForTestClientInfoMu,
-  ForTestTsSendAck/TsSendCommand/TsSendPong, ForTestNewTsChannelInfo.
-  ForTestTsConn + ForTestMyClientID survive with real users (the IV
-  reuse + the write-landed assertion).
-- Harness (scriptedserver_test.go): C2S fragment reassembly (first+
-  last carry 0x10, compressed flag rides the first) + QuickLZ
-  decompress + per-packet (pID, raw type byte) evidence; voice-packet
-  receive (decrypt, count, last payload); S2C ping + C2S pong count
-  (tsSendPong's first coverage); PushAtGen (S2C command under an
-  arbitrary generation); SharedIV() + handleClientek's sharedIV writes
-  moved under wireMu (latent harness race); OmitServerName +
-  FloodCommands (paced 1ms/20) knobs; the harness chain TB-ified so
-  the fuzz core rides the journey.
-- Rewrites (11 tests / 7 files): identity-race pair — clientID via a
-  paced 120-command flood during the handshake (the reader's per-packet
-  acks read clientID HB-unordered against the initserver Store; TSan is
-  the verifier) + 100 pings→pongs; myClientID via 100 SendMessage
-  hammers (public clientInfoMu read) concurrent with the handshake
-  write, write-landed asserted == 42. servername pair — real journey +
-  rename through a real-wire initserver push (TsEscape'd), fallback via
-  OmitServerName. sendcomp (6 cases) — SendMessage public path with
-  server-side evidence: byte-exact decoded line, single-compressed vs
-  raw-fragmented flags, sequential fragment pIDs. voice trio —
-  server-side voice receive (codec byte 4 + opus frame asserted inside
-  the decrypted payload — stronger than the old un-decryptable UDP
-  peek). move-race — 2000 paced wire pushes vs a GetGroupCall hammer.
-  fuzz core — real journey (the notifyconnectioninforequest skip
-  removed: the harness now serves it). proto gen-retry unit test reuses
-  the REAL handshake IV via srv.SharedIV() (zero new hooks) + NEW
-  TestTS3DecryptGenRetryOnWire pins the gen+1 fallback end-to-end.
-- First-run flaws (mine, not production): unescaped spaces in pushed
-  initserver values (TsParseCommand correctly drops them — values ride
-  \s); evidence recorded the masked high nibble instead of raw[12];
-  unpaced 2000-push bursts overwhelmed the per-packet-goroutine receive
-  chain (`go tsHandlePacket` per packet — out-of-order processing is a
-  DESIGN property, the recvQueue reorders) → 2.7s stalls + B-43
-  gap-log spam. Fixed by pacing + right-sizing the flood to 120 (TSan
-  needs HB-unordered pairs, not volume). tsTrackRecvPID verified
-  genMu-synchronized — no production defect found this round.
-- Evidence: focused family GREEN; full suite GREEN (cores 47.8s,
-  engine 6.2s, bootstrap 0.9s, utils 1.2s); 2 × count=5 = 10
-  consecutive runs ZERO fails; local -race CI-subset shape GREEN
-  28.2s, 0 races; quick gate GREEN via scripts/gate.sh; gofmt clean;
-  strip_comments --check clean (272 files, 0 dropped); census ZERO
-  refs to all 11 deleted names; defs 45→34.
-- Design rating 9/10: every assertion moved to server-side decrypted
-  evidence; zero new hooks; zero production diff.
+- 11 defs cut (45→34) incl. 6 hooks orphaned by the rewrites; 11
+  tests / 7 files onto real journeys: identity-race pairs (paced
+  floods, TSan the verifier), servername rename/fallback,
+  sendcomp 6-case byte-exact, voice trio (decrypted codec+frame),
+  move-race, fuzz core on the real chain, gen+1 decrypt fallback
+  end-to-end. Harness: C2S fragment reassembly + QuickLZ, voice
+  receive, S2C ping/C2S pong, PushAtGen, SharedIV, paced knobs.
+  My flaws (not production): unescaped \s values, masked-nibble
+  evidence, unpaced 2000-push bursts. Full suite + 2 × count=5
+  zero fails; census zero. Design 9/10, zero production diff.
 
 ## Session 361 — H-1 scripted-server front opened: TS scripted server drives the REAL Authenticate journey (2026-11-04) — condensed
 

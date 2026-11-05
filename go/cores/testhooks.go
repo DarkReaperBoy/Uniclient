@@ -7,7 +7,6 @@ import (
 	"github.com/gotd/td/tg"
 	"maunium.net/go/mautrix/id"
 	"net"
-	"net/http"
 	"time"
 )
 
@@ -37,10 +36,6 @@ func (x *TeamSpeakCore) ForTestTsConn() *TsConnection {
 
 func (x *MatrixCore) ForTestSetUserID(v id.UserID) {
 	x.userID = v
-}
-
-func (x *GitHubCore) ForTestSetUsername(v string) {
-	x.username = v
 }
 
 func (x *TsConnection) ForTestTsDecryptRecv(pktType byte, pID uint16, meta, data []byte, mac [8]byte) ([]byte, error) {
@@ -85,10 +80,6 @@ func ForTestNewTsIncomingCmd(name string, params map[string]string, raw string) 
 
 func ForTestNewXMPPCore(conn net.Conn, ctx context.Context, reader *bufio.Reader) *XMPPCore {
 	return &XMPPCore{conn: conn, ctx: ctx, reader: reader}
-}
-
-func ForTestNewGitHubCore(authed bool, client *http.Client, ctx context.Context, token string) *GitHubCore {
-	return &GitHubCore{authed: authed, client: client, ctx: ctx, token: token}
 }
 
 func ForTestNewRpcGuard(next tg.Invoker, timeout time.Duration) *RpcGuard {

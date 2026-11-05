@@ -102,16 +102,15 @@ func TestGitHubExtractTrailingNumber(t *testing.T) {
 }
 
 func TestGitHubCommentToMessage(t *testing.T) {
-	g := NewGitHubCore(nil)
-	g.ForTestSetUsername("octocat")
+	g := newGhOctoCore(t)
 
 	raw := json.RawMessage(`{
-		"id": 1234567890,
-		"body": "hello from the issue",
-		"created_at": "2026-09-20T10:00:00Z",
-		"updated_at": "2026-09-20T10:00:00Z",
-		"user": {"login": "octocat"}
-	}`)
+                "id": 1234567890,
+                "body": "hello from the issue",
+                "created_at": "2026-09-20T10:00:00Z",
+                "updated_at": "2026-09-20T10:00:00Z",
+                "user": {"login": "octocat"}
+        }`)
 	msg := g.CommentToMessage("issue:o/r/1", raw)
 	if msg == nil {
 		t.Fatal("nil message")
@@ -137,17 +136,32 @@ func TestGitHubCommentToMessage(t *testing.T) {
 	if msg.Platform != GhPlatform || msg.Status != MessageStatusSent {
 		t.Errorf("platform/status = %q/%v", msg.Platform, msg.Status)
 	}
+
+	peer := json.RawMessage(`{
+                "id": 1234567891,
+                "body": "reply from a peer",
+                "created_at": "2026-09-20T10:05:00Z",
+                "updated_at": "2026-09-20T10:05:00Z",
+                "user": {"login": "mona"}
+        }`)
+	peerMsg := g.CommentToMessage("issue:o/r/1", peer)
+	if peerMsg == nil {
+		t.Fatal("nil peer message")
+	}
+	if peerMsg.IsOutgoing {
+		t.Error("comment by another user must not be outgoing")
+	}
 }
 
 func TestGitHubCommentToMessageEditedFlag(t *testing.T) {
 	g := NewGitHubCore(nil)
 	raw := json.RawMessage(`{
-		"id": 5,
-		"body": "v2",
-		"created_at": "2026-09-20T10:00:00Z",
-		"updated_at": "2026-09-21T11:30:00Z",
-		"user": {"login": "someone"}
-	}`)
+                "id": 5,
+                "body": "v2",
+                "created_at": "2026-09-20T10:00:00Z",
+                "updated_at": "2026-09-21T11:30:00Z",
+                "user": {"login": "someone"}
+        }`)
 	msg := g.CommentToMessage("issue:o/r/5", raw)
 	if msg.EditedAt == nil {
 		t.Fatal("updated_at != created_at must set EditedAt")
@@ -160,12 +174,12 @@ func TestGitHubCommentToMessageEditedFlag(t *testing.T) {
 func TestGitHubCommentToMessageIssueFallsBackToTitle(t *testing.T) {
 	g := NewGitHubCore(nil)
 	raw := json.RawMessage(`{
-		"id": 9,
-		"title": "Bug: crash on start",
-		"body": "",
-		"created_at": "2026-09-19T08:00:00Z",
-		"author": {"login": "reporter"}
-	}`)
+                "id": 9,
+                "title": "Bug: crash on start",
+                "body": "",
+                "created_at": "2026-09-19T08:00:00Z",
+                "author": {"login": "reporter"}
+        }`)
 	msg := g.CommentToMessage("issue:o/r/9", raw)
 	if msg == nil {
 		t.Fatal("nil message")
@@ -181,12 +195,12 @@ func TestGitHubCommentToMessageIssueFallsBackToTitle(t *testing.T) {
 func TestGitHubCommentReactionsFromNestedObject(t *testing.T) {
 	g := NewGitHubCore(nil)
 	raw := json.RawMessage(`{
-		"id": 11,
-		"body": "nice",
-		"created_at": "2026-09-20T10:00:00Z",
-		"user": {"login": "u"},
-		"reactions": {"+1": 3, "heart": 1, "-1": 0}
-	}`)
+                "id": 11,
+                "body": "nice",
+                "created_at": "2026-09-20T10:00:00Z",
+                "user": {"login": "u"},
+                "reactions": {"+1": 3, "heart": 1, "-1": 0}
+        }`)
 	msg := g.CommentToMessage("issue:o/r/11", raw)
 	byEmoji := map[string]int{}
 	for _, r := range msg.Reactions {
@@ -260,11 +274,11 @@ func TestGitHubParseRepoAndIssueChats(t *testing.T) {
 
 func TestGitHubGjsonHelpers(t *testing.T) {
 	raw := json.RawMessage(`{
-		"user": {"login": "octocat", "id": 55},
-		"name": "Hello",
-		"count": 3,
-		"list": [1,2]
-	}`)
+                "user": {"login": "octocat", "id": 55},
+                "name": "Hello",
+                "count": 3,
+                "list": [1,2]
+        }`)
 	if got := GjsonStr(raw, "user.login"); got != "octocat" {
 		t.Errorf("nested string = %q", got)
 	}
