@@ -21,10 +21,14 @@ owner order — that history lives in git if ever needed.
   ForTestKey)
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: local full gate GREEN — focused family 11.9s, 2 ×
-  count=10 zero fails, make test (cores 58.1s), vet, gofmt,
-  strip check, js/wasm, census zero, defs 7; CI dispatch
-  42062309084 in flight on 8947538c (session 366 open)
+- last-gate: CI 42062309084 SUCCESS at job AND step level
+  (comment ban, gofmt, vet+live, test, RACE subset incl.
+  TestRPCGuard/TestTSReceive in the new pin, headless smoke,
+  windows, js/wasm, nix; the version==tag step is tag-only and
+  correctly skipped) on 8947538c; local full gate GREEN before
+  dispatch — focused family 11.9s, 2 × count=10 zero fails,
+  make test (cores 58.1s), vet, gofmt, strip check, census
+  zero, defs 7 — session 366 closed green
 
 ## Open items
 
@@ -89,6 +93,12 @@ owner order — that history lives in git if ever needed.
   redundant wrappers; every rewrite moved assertions from
   struct surgery to wire/server-side evidence; RpcTimeout-as-var
   rides an established pattern, not a new seam.
+- CI: dispatch needed 3 tries (GitHub 500/502 incident; run
+  created on the third, 204) and the state-commit push bounced
+  once on the same incident (remote commit_refs fatal, green
+  after 90s); run 42062309084 SUCCESS at job AND step level —
+  race leg green with TestRPCGuard|TestTSReceive in the pin —
+  session 366 closed green.
 
 ## Session 365 — H-1: GitHub cluster onto the scripted GitHub API — 2 defs, api_base seam (GHE) (2026-11-05)
 
