@@ -20,10 +20,13 @@ owner order — that history lives in git if ever needed.
   ForTestNewRpcGuard)
 - owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
   Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: local full gate GREEN — make test (cores 52.8s),
-  vet, lint, quick gate, js/wasm check, census zero, defs 23,
-  2 × count=10 zero fails; go.mod unchanged (no repin needed);
-  CI dispatch 42033866337 (verify.yml on b928af14) in flight
+- last-gate: CI 42033866337 SUCCESS at job AND step level
+  (comment ban, gofmt, vet+live, test, RACE subset incl. the
+  GitHub family, headless smoke, windows, js/wasm, nix) on
+  b928af14; local full gate GREEN before dispatch — make test
+  (cores 52.8s), vet, lint, quick gate, census zero, defs 23,
+  2 × count=10 zero fails; go.mod unchanged (no repin needed)
+  — session 365 closed green
 
 ## Open items
 
