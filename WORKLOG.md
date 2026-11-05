@@ -23,7 +23,8 @@ owner order — that history lives in git if ever needed.
 - last-gate: local full make test GREEN (cores 51.4s, engine
   6.5s, bootstrap 1.2s, utils 1.5s); family count=10 ×2 zero
   fails; gofmt + strip_comments clean; quick gate GREEN (test
-  leg §9-rung-7 OOM skip — machine truth); CI dispatch pending
+  leg §9-rung-7 OOM skip — machine truth); CI dispatch
+  42023904650 on 7e9e7221 — watching
 
 ## Open items
 
