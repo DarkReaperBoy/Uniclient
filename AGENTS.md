@@ -274,6 +274,8 @@ go/
   audio/           PulseAudio (Linux), winmm (Win), WebAudio (js), OpenSL (Android)
   utils/           vault (Argon2id+AES-GCM), config, crypto
   wrtc/            WebRTC shim: pion native, browser API on js/wasm
+  ui/              the rebuilt GUI (§6, Elm loop); tokens/ = the pinned AyuGram
+                   geometry table (§6.8, measured from the reference source)
   tests/           ALL tests (§5): per-package mirrors + live tests
   testhooks*.go    ForTest* quarantine, one file set per package (§5.3)
 ```

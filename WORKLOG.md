@@ -7,20 +7,18 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 369 — owner redirect encoded in law: GUI =
-  AyuGram Desktop layout 1:1 (measured geometry table,
-  §6.8) under a Material Design skin, zero jank (§6.9),
-  scenario-complete testing; desktop master design, mobile
-  adapts it, web = same WASM app; AGENTS.md line ceiling
-  removed (owner: never verbose either)
-- next: the GUI build order (owner); first GUI-rebuild move
-  per §6.8: the AyuGram geometry-table front; H-3 fold and
-  H-2 legs ride with the GUI rebuild
-- owner-waiting: the GUI build order
-- last-gate: docs-only session, no gate legs applicable;
-  prior green: CI 42167382870 on 128fbbf5 (session 368);
-  898d390c + this reconciliation pushed to origin/main
-  (fast-forward, no force)
+- front: session 370 — GUI front OPENED: geometry-table
+  slice 1 pinned (window, panes, dialogs row, main-menu
+  drawer, type scale) from AyuGram Desktop v7.2.9 source
+  into go/ui/tokens; 7 invariant tests green
+- next: table slice 2 — history/compose styles (bubbles,
+  composer) from chat.style/chat_style.style/history_view;
+  then slice 3 (settings/boxes/menus); then the Gio
+  skeleton (dep bump → full gate + CI)
+- owner-waiting: none new (GUI build ordered 2026-11-06)
+- last-gate: local legs green this session (gofmt, comment
+  ban, vet, tests/ui 7/7); CI verify.yml dispatch pending
+  (id below)
 
 ## Open items
 
@@ -28,6 +26,39 @@ owner order — that history lives in git if ever needed.
 |---|---|---|---|---|
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
+
+## Session 370 — GUI front opened: geometry-table slice 1 pinned from AyuGram v7.2.9 (2026-11-06)
+
+- Boot: full-wipe recycle #3 — fresh clone at 223a89ac
+  (369 closed green), toolchain rebuilt verbatim from the
+  env.sh recipe (go1.27.1); no modcache refill needed
+  (stdlib-only slice); gotd legs ride CI as ever.
+- Reference acquisition: AyuGramDesktop v7.2.9 source
+  tarball (GPLv3; measurements only, zero code copying,
+  §6.8) + the pinned lib_ui submodule @ e3d0582 for the
+  font tokens; kept OUTSIDE the repo (ayu-ref, untracked).
+- Slice 1 pinned into go/ui/tokens (new package): window
+  min/default/big-default (380×480 / 800×600 / 1024×768,
+  window.style:13-17); pane columns (left 260–540, main
+  ≥380, third 292–392, adaptiveChatWide 880, :34-39);
+  dialogs row (62h, pad 10/8/10/8, photo 46, name/text
+  x68 y10/y34, search block 38, dialogs.style:91-101,471);
+  main-menu drawer (width 274, cover 134, userpic 48@24,20,
+  name 26/84, status 26/103, skip 6, footer ≥80, button
+  pad 61/11/20/9 icon 21 toggle 19, window.style:108-126 +
+  window_main_menu.style:10-50); type scale (fsize 13,
+  box 14, emoji 18, lib_ui basic.style:53-58); breakpoints
+  (600/1000dp, §6.4 law).
+- Drawer tree pinned: exact default entries + order +
+  icons + labels (lang.strings) incl. the AyuGram toggles
+  (SRead "Read on Server", Ghost Mode) with defaults from
+  ayu_settings.h:675-691 (LRead/Streamer OFF, rest ON);
+  bots = dynamic list slot (menu_main_menu_helpers.cpp).
+- RED→GREEN: tests/ui/tokens_test.go first (compile fail:
+  package not in std — RED seen), then the package; 7/7
+  PASS. gofmt + comment ban + vet clean. AGENTS.md §7 tree
+  gains the ui/ line (same commit, §10). No CI-dispatch
+  blockers; dispatch id lands in the state commit.
 
 ## Session 369 — owner redirect: GUI design law rewritten (2026-11-06)
 
@@ -265,27 +296,3 @@ owner order — that history lives in git if ever needed.
   CI race pin extended to the new family. go mod tidy (xxhash
   → indirect). vendorHash repinned (flake.yml 42025269748);
   CI 42025733121 SUCCESS. Design 8/10.
-
-## Session 363 — H-1: queuegap family onto S2C out-of-order + fragmented wire sends — 5 defs (2026-11-04) — condensed
-
-- 5 defs cut (34→29): the synthetic queue-surgery family;
-  2 tests → 3 real journeys: gap-log ids (held-vs-delivered
-  through the fill), B-43 once-per-gap with ordered-drain
-  proof, first S2C fragment-reassembly coverage (plain/
-  compressed/delayed-first-fragment). Harness: sendCmdPkt,
-  NextPID/PushAtPID, FragmentsAtPID/SendS2CFragment;
-  TSan-fixed log capture (mutex-guarded writer). Zero
-  production defects. Family + full gate GREEN; census zero;
-  CI 41895227385 SUCCESS. Design 9/10.
-
-## Session 362 — H-1: TS constructor/setter cluster onto the scripted server — 11 defs (2026-11-04) — condensed
-
-- 11 defs cut (45→34) incl. 6 hooks orphaned by the rewrites;
-  11 tests / 7 files onto real journeys: identity-race pairs
-  (paced floods, TSan the verifier), servername rename/
-  fallback, sendcomp 6-case byte-exact, voice trio (decrypted
-  codec+frame), move-race, fuzz core on the real chain, gen+1
-  decrypt fallback end-to-end. Harness: C2S fragment
-  reassembly + QuickLZ, voice receive, S2C ping/C2S pong,
-  PushAtGen, SharedIV, paced knobs. Full suite + 2 × count=5
-  zero fails; census zero. Design 9/10, zero production diff.
