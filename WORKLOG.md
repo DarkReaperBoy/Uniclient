@@ -15,12 +15,11 @@ owner order — that history lives in git if ever needed.
 - next: H-3 fold at GUI rebuild; H-2 with the GUI legs; or
   the next front per owner
 - owner-waiting: the next direction; the GUI build order
-- last-gate: CI 42167382870 DISPATCHED on 128fbbf5 (the
-  gate of record — env.sh truth: the native importer
-  closure is cold-cache gotd-slow on this box); local js
-  leg GREEN before push (audio ×3, count=10, vet,
-  whole-module js compile, runner contracts, gofmt, strip,
-  census zero)
+- last-gate: CI 42167382870 SUCCESS at job AND step level
+  (comment ban, gofmt, vet+live, test, race, headless
+  smoke, windows, js/wasm compile, nix; version==tag
+  correctly skipped) on 128fbbf5 — session 368 closed
+  green
 
 ## Open items
 
@@ -88,6 +87,9 @@ owner order — that history lives in git if ever needed.
   + oracle re-placement onto the public API; the
   retirement probe found and fixed a real wrong-behavior
   defect first — the pin strengthened, not weakened.
+- CI: 42167382870 SUCCESS at job AND step level — race
+  leg green, headless smoke green, js/wasm compile green
+  — session 368 closed green.
 
 ## Session 367 — H-1: the cores final sweep — testhooks.go deleted, 7 defs cut (2026-11-06)
 
