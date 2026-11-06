@@ -7,26 +7,55 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 368 — H-1 COMPLETE, whole tree: audio tail
-  retired (testhooks_audio.go deleted, ForTestMu gone,
-  MicStop → micStop, tests onto the Device interface with
-  public-API oracles); settle-race fixed first (the
-  StopMic-before-getUserMedia-settle console.error)
-- next: H-3 fold at GUI rebuild; H-2 with the GUI legs; or
-  the next front per owner
-- owner-waiting: the next direction; the GUI build order
-- last-gate: CI 42167382870 SUCCESS at job AND step level
-  (comment ban, gofmt, vet+live, test, race, headless
-  smoke, windows, js/wasm compile, nix; version==tag
-  correctly skipped) on 128fbbf5 — session 368 closed
-  green
+- front: session 369 — owner redirect encoded in law: GUI =
+  AyuGram Desktop layout 1:1 (measured geometry table,
+  §6.8) under a Material Design skin, zero jank (§6.9),
+  scenario-complete testing; desktop master design, mobile
+  adapts it, web = same WASM app; AGENTS.md line ceiling
+  removed (owner: never verbose either)
+- next: the GUI build order (owner); first GUI-rebuild move
+  per §6.8: the AyuGram geometry-table front; H-3 fold and
+  H-2 legs ride with the GUI rebuild
+- owner-waiting: GUI build order; a live push token
+  (session-369 commit is local-only — token 401)
+- last-gate: docs-only session, no gate legs applicable;
+  prior green: CI 42167382870 on 128fbbf5 (session 368)
 
 ## Open items
 
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
+| T-1 | repo push | session-369 docs commit is local-only: owner token rejected (GitHub 401 Bad credentials), no GH_TOKEN in sandbox env | curl 401 this session | NEEDS_OWNER: fresh token out-of-band, then push |
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
+
+## Session 369 — owner redirect: GUI design law rewritten (2026-11-06)
+
+- Owner redirect (recorded, then executed): the rebuilt GUI
+  targets **AyuGram Desktop's layout, 1:1** — window sizes,
+  menus and their contents, spacing — under a **Material
+  Design skin** (not AyuGram's pixel look), with **none of
+  the reference's jank** and **every scenario tested**;
+  desktop is the master design, mobile adapts it (Telegram
+  Android explicitly rejected as a reference), web is the
+  same WASM app (no separate web look), **no paid anything**
+  (tools/assets/fonts free-open only). AGENTS.md line
+  ceiling removed — the file must stay non-verbose instead.
+- AGENTS.md: Direction + §6 rewritten — the 2026-11-01
+  Telegram-references mandate (incl. "never AyuGram") is
+  superseded; §6 gains the measured-1:1 mapping method
+  (§6.8: geometry table as a pinned Go tokens file, golden
+  overlay diffs, zero code copying — the GPLv3 C++/Qt
+  reference contributes measurements only) and the cons-ban
+  (§6.9); jank budget made hard law in §6.6 (60fps,
+  one-frame input-to-paint, wrong-behavior severity);
+  scenario completeness in §6.7; ceilings struck from
+  §10/§11. README design-reference line synced.
+- Docs-only change: no Go touched, no gate legs applicable.
+  Commit is LOCAL — push blocked (owner token 401 Bad
+  credentials; no GH_TOKEN in env) → open item T-1,
+  NEEDS_OWNER. Build order still owner-only (§11); H-2/H-3
+  unchanged, they ride with the GUI rebuild.
 
 ## Session 368 — H-1 audio tail: settle-race fix, then the ForTestMu retirement (2026-11-06)
 
@@ -257,31 +286,3 @@ owner order — that history lives in git if ever needed.
   reassembly + QuickLZ, voice receive, S2C ping/C2S pong,
   PushAtGen, SharedIV, paced knobs. Full suite + 2 × count=5
   zero fails; census zero. Design 9/10, zero production diff.
-
-## Session 361 — H-1 scripted-server front opened: TS scripted server drives the REAL Authenticate journey (2026-11-04) — condensed
-
-- The front: an in-process scripted TS server speaking the
-  REAL wire — init0-4 with server-side y/echo verification,
-  license proof, clientek ECDH to a known sharedIV, real-key
-  EAX both directions with gen tracking + ±1 fallback, S2C
-  acks, scriptable responder.
-- REAL DEFECTS FOUND+FIXED on first contact: the handshake's
-  initserver branch never dispatched to TsHandleServerCommand
-  (B-16 only reachable synthetically) — one-line fix, RED
-  seen live; TsExecProof's proof path returned before the
-  command terminator (straggler error-ok cross-talk, B-35
-  family); tsConn access race (dedicated tsConnMu). CI runs
-  41790936340 + 41801710239 + 41846284509 SUCCESS.
-
-## Session 360 — H-1: group-call assertion family retired onto wire + update evidence (2026-11-04) — condensed
-
-- 8 defs cut (61→53) + the unused wrtc import; 5 files / 17
-  tests onto wire evidence; iteration 2 deleted
-  ForTestSetDeviceID (DEV2 identity from its own homeserver's
-  whoami). Probes became assertions: real pion ICE
-  candidates on the wire DURING sendGroupOffer's gather
-  wait; the renewal loop publishes membership PUTs at the
-  knob rate and goes silent 4×interval after EndCall.
-  Production: teardownGroupPeer wired into every group-peer
-  teardown path. CI 41801127829 + 41801860069 SUCCESS.
-  Design 9/10.

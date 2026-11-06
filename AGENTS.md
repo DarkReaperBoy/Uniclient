@@ -18,16 +18,20 @@ Uniclient is one pure-Go, cross-platform (PC / mobile / web), multi-backend mess
 one frontend over many chat and voice backends — Telegram, Matrix, IRC, GitHub, XMPP,
 Delta Chat, Bale, TeamSpeak, Mumble — each added and switched as easily as an account.
 
-**Direction (owner, 2026-11-01):** the old GUI (AyuGram-flavored) was **removed
-entirely** — it was not 1:1 with AyuGram Desktop and is being **rebuilt from scratch**
-with **Telegram Desktop / Telegram Web / Telegram Android as the design references**,
-on **Gio** (§6). Until the owner orders the build, the shipped binary is the headless
-engine host. The cores and the engine are the product.
+**Direction (owner, 2026-11-06 — supersedes the 2026-11-01 reference mandate):**
+the old GUI was **removed entirely** and is being **rebuilt from scratch** on **Gio**
+(§6). Design law: **AyuGram Desktop is the layout reference, mapped 1:1** (window
+sizes, pane geometry, menu trees, spacing) under a **Material Design skin**, **fully
+tested with every scenario considered, polished with zero jank**; mobile adapts the
+desktop design (Telegram Android is NOT a reference); web is the same app in WASM,
+never a separate look; no paid anything, on any axis. Until the owner orders the
+build, the shipped binary is the headless engine host. The cores and the engine are
+the product.
 
 This file is **law + reference only** — history and session state live in WORKLOG.md,
 never here. If the code contradicts anything here, the code wins: fix this file in the
-same commit. Hard ceiling ~330 lines (raised 2026-11-01 for the tests + GUI-rebuild +
-product-surface laws).
+same commit. No line ceiling (owner, 2026-11-06) — but never verbose either: every
+line must be load-bearing law or reference; padding and repetition are defects.
 
 ## 0. Boot — every session, in order
 
@@ -188,11 +192,19 @@ Not optional, not delegable to the unit suite.
 4. `go test ./...` runs everything; `scripts/dev-test.sh` = small-machine shape
    (native `./tests/...` + js `./tests/audio/...` via the wasm runner).
 
-## 6. The rebuilt GUI (direction set 2026-11-01 — build NOT yet ordered)
+## 6. The rebuilt GUI (direction set 2026-11-06 — build NOT yet ordered)
 
-The references: **Telegram Desktop** (three-pane, keyboard-first, dense),
-**Telegram Web** (route-driven, responsive, virtualized), **Telegram Android**
-(Material, back-stack, bottom sheets). Never AyuGram — that mandate is revoked forever.
+**Owner redirect 2026-11-06** — supersedes the 2026-11-01 references (its "never
+AyuGram" clause included). The target: **AyuGram Desktop's layout, 1:1** — window
+default/min sizes, three-pane geometry and proportions, every menu and dialog with
+exact items/order/shortcuts/sizes, row heights, paddings — **measured and replicated
+exactly** (§6.8); the **skin is Material Design** (tokens, type, elevation, ripple,
+motion), not AyuGram's pixel look; **none of the reference's cons cross over** (§6.9).
+Platform targets, all to perfection: **desktop is the master design**; **mobile
+adapts the desktop design** to touch and one-pane navigation — Telegram Android is
+NOT a reference, its look is rejected; **web renders the same WASM app** (§1.4) — the
+design copies over by construction, a separate web-style UI is banned (web is lowest
+priority, desktop look first).
 
 1. **Elm loop is the only pattern.** One `Model` holds all app state and ONE goroutine
    owns it. Every input is a `Msg` (gesture, engine event, tick, resize).
@@ -206,21 +218,48 @@ The references: **Telegram Desktop** (three-pane, keyboard-first, dense),
    voice/replies/presence/typing…); the view renders only what the active account's
    core supports (§1.8/§1.9). Zero per-core UI code — one widget kit for every core.
 4. **Layout is a pure function of (Model, window size):** ≥1000dp three-pane
-   (Desktop), 600–1000dp two-pane, <600dp one-pane + back stack (Android).
+   (Desktop), 600–1000dp two-pane, <600dp one-pane + back stack — the mobile shape
+   carries the desktop design language, never a Telegram-Android imitation.
    Navigation is a typed route stack in Model; panes are projections; deep links push
    routes. Windows are views over the one Model — per-window package state is
    forbidden (the old separate.go bug class, made impossible).
-5. **Design system:** Telegram-flavored Material tokens — day/night/AMOLED palettes,
-   type scale, 12dp bubbles, dense vs touch density by breakpoint. Kit on gio/material:
-   chat-list row, message bubble (tails, reply quote, ticks, reactions), auto-growing
-   composer (attach sheet, voice-hold), context menu, bottom sheet, FAB, unread
-   divider, typing indicator.
+5. **Design system:** Material Design skin over the §6.8 geometry — day/night/AMOLED
+   palettes, type scale, shape/elevation/ripple/motion tokens, dense vs touch density
+   by breakpoint. Kit on gio/material: chat-list row, message bubble (tails, reply
+   quote, ticks, reactions), auto-growing composer (attach sheet, voice-hold), context
+   menu, bottom sheet, FAB, unread divider, typing indicator — dimensions from the
+   measured table, looks from Material. Layout 1:1, skin Material, nothing in between.
 6. **Performance laws:** virtualized history (O(visible) work), keyed diffing by
    (chatID, msgID), image decode off-loop with size-keyed cache, zero steady-state
-   allocs in view, one animation clock.
+   allocs in view, one animation clock. **Jank budget (hard):** sustained 60fps on
+   scroll/resize/animation, input-to-paint within one frame, zero dropped-frame runs
+   in the CI legs — visible jank on a core journey is wrong-behavior severity (§1.10),
+   never cosmetic.
 7. **Testing (§4):** journeys are Msg-sequence scenario tests in `tests/gui`; the real
    app gains a `--script` action channel (tap/type/wait/screenshot) so the agent
-   drives it like a human; Xvfb + Puppeteer CI legs return with it.
+   drives it like a human; Xvfb + Puppeteer CI legs return with it. **Scenario
+   completeness is the bar:** every screen × {empty, loading, error, offline, slow,
+   full, oversize} × every breakpoint × every theme × {mouse, keyboard, touch}, plus
+   resize/back/refresh mid-action, double-submit, and rapid repeats; visual golden
+   tests pin layout parity against the §6.8 table.
+8. **The 1:1 mapping method (measured, never eyeballed):** run the free AyuGram
+   Desktop release at a known scale factor; capture every window, pane, menu, dialog,
+   and list; extract the **geometry table** (px→dp: default/min window sizes, pane
+   widths + collapse thresholds, row heights, bubble metrics, menu trees with item
+   order/separators/shortcuts, dialog/sheet sizes, paddings, type/icon sizes,
+   animation timings). The table lands as a pinned Go tokens file — the code IS the
+   table — with measurement provenance in the WORKLOG entry that built it (§10: no
+   new doc files); the Gio layout reads it verbatim; golden overlay diffs keep the
+   tree pinned to it. **Zero code copying** — the reference is GPLv3 C++/Qt, this is
+   pure Go: only measurements and behavior cross over. Every tool, font, icon set,
+   and asset in the pipeline is free/open-licensed — paid anything is banned on every
+   axis (§1.19).
+9. **None of the reference's cons:** the copy is layout-only. Banned jank classes, by
+   design: blocking the UI on network/disk, focus stealing, flicker on theme change
+   or resize, animation stutter, dead-looking controls on slow machines, modal traps,
+   state loss on navigation, inconsistent timing between similar actions. When a
+   measured behavior IS a jank class, the geometry crosses over and the jank does
+   not — the polish bar is SOTA, not parity.
 
 ## 7. Architecture
 
@@ -307,7 +346,8 @@ pre-tag.
 ## 10. Files, formats & context hygiene
 
 - **AGENTS.md** — this file; law + reference only; no history or session state; fix or
-  cut anything the code disproves, in the same commit; ≤ ~330 lines.
+  cut anything the code disproves, in the same commit; no line ceiling (owner,
+  2026-11-06) — zero padding, every line load-bearing, shorter always wins.
 - **WORKLOG.md** — the ONLY state file: **STATE block** (≤8 lines: front | next |
   owner-waiting | last-gate), rewritten every session; then open items (topmost first,
   severity order: `| ID | where | what | evidence | next step |`; OPEN / BLOCKED /
@@ -333,4 +373,5 @@ prerelease off, ordering the GUI build, setting the next direction.
 **Before every push, verify:** every ladder tier your change touches is green; the
 comment ban holds (`strip_comments.py --check` clean); no TODO/FIXME/placeholder
 markers and no dead UI; no secrets/tokens anywhere; error messages leak no internals;
-WORKLOG STATE current; AGENTS.md still ≤ ~330 lines; repo stats still Go.
+WORKLOG STATE current; AGENTS.md lean and true (no ceiling, no padding); repo stats
+still Go.

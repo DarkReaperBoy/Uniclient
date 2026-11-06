@@ -6,9 +6,9 @@ TeamSpeak, Mumble — each added and switched as easily as an account.
 
 **Status: pre-release, GUI rebuild in progress.** The previous GUI was
 removed (2026-11-01) and is being rebuilt from scratch with
-[Gio](https://gioui.org), taking **Telegram Desktop / Telegram Web /
-Telegram Android** as the design references. Until it lands, the shipped
-binary is the **headless engine host** (`uniclient` boots the engine,
+[Gio](https://gioui.org), taking **AyuGram Desktop's layout (mapped 1:1)
+under a Material Design skin** as the design reference. Until it lands, the
+shipped binary is the **headless engine host** (`uniclient` boots the engine,
 serves accounts, and — with `-events` — prints the engine event stream to
 stdout). Everything under the hood works against real backends with real
 accounts — no demo data, no placeholder screens. What a backend cannot do
