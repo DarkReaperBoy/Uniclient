@@ -15,11 +15,12 @@ owner order — that history lives in git if ever needed.
 - next: H-3 fold at GUI rebuild; H-2 with the GUI legs; or
   the next front per owner
 - owner-waiting: the next direction; the GUI build order
-- last-gate: local js leg GREEN (audio ×3, count=10, vet,
+- last-gate: CI 42167382870 DISPATCHED on 128fbbf5 (the
+  gate of record — env.sh truth: the native importer
+  closure is cold-cache gotd-slow on this box); local js
+  leg GREEN before push (audio ×3, count=10, vet,
   whole-module js compile, runner contracts, gofmt, strip,
-  census zero); native importer-closure leg CI-dispatched
-  per env.sh truth (cold-cache gotd) — verify.yml run
-  recorded below when watched
+  census zero)
 
 ## Open items
 
