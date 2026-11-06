@@ -12,7 +12,8 @@
 #
 # Machine truths: 4GiB cgroup — gotd native compiles OOM here, so gate.sh falls
 # back to CI dispatch (verify.yml; AGENTS.md §9). No root — gio's cgo X11/
-# Wayland client libs (libxkbcommon-dev, libwayland-dev) cannot be installed:
+# Wayland/Vulkan client libs (libxkbcommon-dev, libwayland-dev,
+# libvulkan-dev) cannot be installed:
 # gate.sh routes gio-importing packages through windows cross-vet, Linux-native
 # rides CI. Long processes are reaped between tool calls — run foreground; the
 # build cache carries progress across calls.

@@ -129,7 +129,7 @@ partition_gio() {
 
 run_gio_legs() {
         [ -n "$GIO_PKGS" ] || return 0
-        echo "== gio cgo legs (no root on this VM for libxkbcommon/libwayland;"
+        echo "== gio cgo legs (no root on this VM for xkbcommon/wayland/vulkan;"
         echo "   Linux-native compiles ride CI verify.yml — AGENTS.md §7/§9):$GIO_PKGS =="
         echo "== windows vet (local substitute) =="
         go_run env GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go vet -tags "$TAGS" -gcflags="$GCFLAGS" $GIO_PKGS
