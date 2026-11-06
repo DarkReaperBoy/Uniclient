@@ -14,9 +14,9 @@ owner order — that history lives in git if ever needed.
   sizes, button icon boxes) + scrollbars/toasts if any; then
   the Gio skeleton (dep bump → full gate + CI)
 - owner-waiting: none new (GUI build ordered 2026-11-06)
-- last-gate: local legs green (15/15, gofmt, comment ban,
-  vet); CI 42186245433 on 5380141b (slice 2) still running
-  at session open; slice-3 dispatch recorded below
+- last-gate: local legs green (15/15); CI 42186245433
+  (slice 2, 5380141b) + 42187083372 (slice 3, eb014073) in
+  flight — reconcile both at boot
 
 ## Open items
 
