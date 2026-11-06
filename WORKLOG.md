@@ -16,9 +16,9 @@ owner order — that history lives in git if ever needed.
   then slice 3 (settings/boxes/menus); then the Gio
   skeleton (dep bump → full gate + CI)
 - owner-waiting: none new (GUI build ordered 2026-11-06)
-- last-gate: local legs green (gofmt, comment ban, vet,
-  tests/ui 7/7); CI 42181695686 on 1e9d03ea pending
-  reconciliation + this session's dispatch
+- last-gate: CI 42181695686 SUCCESS on 1e9d03ea (slice 1,
+  job and step level); 42183334673 dispatched on d49f0c2b
+  (the fix) — reconcile at boot
 
 ## Open items
 
