@@ -16,16 +16,16 @@ owner order — that history lives in git if ever needed.
 - next: the GUI build order (owner); first GUI-rebuild move
   per §6.8: the AyuGram geometry-table front; H-3 fold and
   H-2 legs ride with the GUI rebuild
-- owner-waiting: GUI build order; a live push token
-  (session-369 commit is local-only — token 401)
+- owner-waiting: the GUI build order
 - last-gate: docs-only session, no gate legs applicable;
-  prior green: CI 42167382870 on 128fbbf5 (session 368)
+  prior green: CI 42167382870 on 128fbbf5 (session 368);
+  898d390c + this reconciliation pushed to origin/main
+  (fast-forward, no force)
 
 ## Open items
 
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
-| T-1 | repo push | session-369 docs commit is local-only: owner token rejected (GitHub 401 Bad credentials), no GH_TOKEN in sandbox env | curl 401 this session | NEEDS_OWNER: fresh token out-of-band, then push |
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
 
@@ -52,9 +52,12 @@ owner order — that history lives in git if ever needed.
   scenario completeness in §6.7; ceilings struck from
   §10/§11. README design-reference line synced.
 - Docs-only change: no Go touched, no gate legs applicable.
-  Commit is LOCAL — push blocked (owner token 401 Bad
-  credentials; no GH_TOKEN in env) → open item T-1,
-  NEEDS_OWNER. Build order still owner-only (§11); H-2/H-3
+  Push initially blocked (owner's first token 401 Bad
+  credentials — dead, confirmed by the owner) → T-1 opened;
+  owner supplied a fresh token out-of-band → 898d390c pushed
+  (fast-forward onto 8863a8e9), T-1 resolved here. Token
+  used transiently in the push URL only, never stored
+  (§0.2). Build order still owner-only (§11); H-2/H-3
   unchanged, they ride with the GUI rebuild.
 
 ## Session 368 — H-1 audio tail: settle-race fix, then the ForTestMu retirement (2026-11-06)
