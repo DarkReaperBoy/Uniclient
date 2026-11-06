@@ -16,9 +16,9 @@ owner order — that history lives in git if ever needed.
   the context-menu/popup metrics (widgets.style menu
   geometry); then the Gio skeleton (dep bump → full gate)
 - owner-waiting: none new (GUI build ordered 2026-11-06)
-- last-gate: CI 42183334673 SUCCESS on d49f0c2b (slice-1
-  fix, job and step level — session 371 closed green);
-  slice-2 dispatch recorded below
+- last-gate: local legs green (11/11, gofmt, comment ban,
+  vet); CI 42186245433 dispatched on 5380141b (slice 2) —
+  reconcile at boot
 
 ## Open items
 
