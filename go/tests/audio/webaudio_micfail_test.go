@@ -17,10 +17,9 @@ func TestStartMicFailureCleansUp(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenDevice: %v", err)
 	}
-	web := dev.(*WebDevice)
-	defer web.Close()
+	defer dev.Close()
 
-	frames, err := web.StartMic()
+	frames, err := dev.StartMic()
 	if err != nil {
 		t.Fatalf("startMic: %v", err)
 	}
@@ -34,16 +33,9 @@ func TestStartMicFailureCleansUp(t *testing.T) {
 		t.Fatal("rejected getUserMedia must close the frames channel")
 	}
 
-	web.ForTestMu().Lock()
-	stopArmed := web.MicStop != nil
-	web.ForTestMu().Unlock()
-	if stopArmed {
-		t.Fatal("failed mic attempt left the stop channel armed — the cleanup goroutine never runs and the js.Funcs leak (R2)")
-	}
-
-	frames2, err := web.StartMic()
+	frames2, err := dev.StartMic()
 	if err != nil {
-		t.Fatalf("second startMic after a failed attempt: %v", err)
+		t.Fatalf("failed attempt leaked its stop channel (R2: the cleanup goroutine never runs and the js.Funcs leak — a stale armed attempt fails startMic with 'mic already running'): %v", err)
 	}
 	select {
 	case _, ok := <-frames2:
@@ -53,5 +45,5 @@ func TestStartMicFailureCleansUp(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("second attempt: frames channel never closed")
 	}
-	web.StopMic()
+	dev.StopMic()
 }

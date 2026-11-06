@@ -16,10 +16,9 @@ func TestStartMicResamplesNon48kContextRate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenDevice: %v", err)
 	}
-	web := dev.(*WebDevice)
-	defer web.Close()
+	defer dev.Close()
 
-	frames, err := web.StartMic()
+	frames, err := dev.StartMic()
 	if err != nil {
 		t.Fatalf("startMic: %v", err)
 	}
@@ -61,13 +60,7 @@ func TestStartMicResamplesNon48kContextRate(t *testing.T) {
 		t.Fatalf("captured 0.4s at %d Hz: got %d frames, want 19 (resampled 20 ms framing at 48 kHz; a non-resampling slicer yields 18)", inRate, got)
 	}
 
-	web.StopMic()
-	web.ForTestMu().Lock()
-	stopped := web.MicStop == nil
-	web.ForTestMu().Unlock()
-	if !stopped {
-		t.Fatal("stopMic left the attempt armed")
-	}
+	dev.StopMic()
 }
 
 func TestStartMicPassthroughAt48k(t *testing.T) {
@@ -78,10 +71,9 @@ func TestStartMicPassthroughAt48k(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OpenDevice: %v", err)
 	}
-	web := dev.(*WebDevice)
-	defer web.Close()
+	defer dev.Close()
 
-	frames, err := web.StartMic()
+	frames, err := dev.StartMic()
 	if err != nil {
 		t.Fatalf("startMic: %v", err)
 	}
@@ -127,5 +119,5 @@ func TestStartMicPassthroughAt48k(t *testing.T) {
 	if first != wantFirst {
 		t.Fatalf("identity path output[0] = %d, want %d (bit-exact passthrough)", first, wantFirst)
 	}
-	web.StopMic()
+	dev.StopMic()
 }

@@ -22,7 +22,7 @@ type WebDevice struct {
 	playFnSet bool
 	playFill  func(out []int16)
 
-	MicStop chan struct{}
+	micStop chan struct{}
 	micDone chan struct{}
 }
 
@@ -118,7 +118,7 @@ func (d *WebDevice) StopPlayback() {
 func (d *WebDevice) StartMic() (<-chan []byte, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	if d.MicStop != nil {
+	if d.micStop != nil {
 		return nil, fmt.Errorf("audio: mic already running")
 	}
 
@@ -138,13 +138,13 @@ func (d *WebDevice) StartMic() (<-chan []byte, error) {
 	frames := make(chan []byte, 8)
 	stop := make(chan struct{})
 	done := make(chan struct{})
-	d.MicStop, d.micDone = stop, done
+	d.micStop, d.micDone = stop, done
 
 	endMicAttempt := func() {
 		d.mu.Lock()
 		defer d.mu.Unlock()
-		if d.MicStop == stop {
-			d.MicStop, d.micDone = nil, nil
+		if d.micStop == stop {
+			d.micStop, d.micDone = nil, nil
 			close(stop)
 		}
 	}
@@ -254,9 +254,9 @@ func (d *WebDevice) StartMic() (<-chan []byte, error) {
 
 func (d *WebDevice) StopMic() {
 	d.mu.Lock()
-	stop := d.MicStop
+	stop := d.micStop
 	done := d.micDone
-	d.MicStop, d.micDone = nil, nil
+	d.micStop, d.micDone = nil, nil
 	d.mu.Unlock()
 	if stop != nil {
 		close(stop)

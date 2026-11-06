@@ -7,32 +7,26 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 367 — H-1 cores retirement COMPLETE:
-  testhooks.go deleted, 7 defs cut (7→0 in cores; whole-tree
-  census keeps audio's js-only ForTestMu — 1 def left);
-  identity trio onto wire evidence (EKProofValid + WhoAmI
-  sha1-of-omega cross-derivation), myClientID via self-echo
-  suppression + clid-7 positive control, wrap-bump pinned by
-  the InitialCmdPID high-counter boot + gen-skipping first
-  post-wrap pID, TsNewIncomingCmd constructor at both
-  production wire sites, TsTrackRecvPID exported
-- next: H-1 audio tail (audio/testhooks_audio.go ForTestMu, js/wasm leg) or the next front per owner; H-3 fold at GUI rebuild
-- owner-waiting: the next direction; the GUI build order (design is law in AGENTS.md §6 — Elm loop,
-  Telegram Desktop/Web/Android references, capability-projected, Gio)
-- last-gate: CI 42075019094 SUCCESS at job AND step level
-  (comment ban, gofmt, vet+live, test, race with the
-  TestTS3*/TestHandshake* families in the pin, headless
-  smoke, windows, js/wasm, nix; version==tag correctly
-  skipped) on db994451; local full gate GREEN before
-  dispatch — session 367 closed green
+- front: session 368 — H-1 COMPLETE, whole tree: audio tail
+  retired (testhooks_audio.go deleted, ForTestMu gone,
+  MicStop → micStop, tests onto the Device interface with
+  public-API oracles); settle-race fixed first (the
+  StopMic-before-getUserMedia-settle console.error)
+- next: H-3 fold at GUI rebuild; H-2 with the GUI legs; or
+  the next front per owner
+- owner-waiting: the next direction; the GUI build order
+- last-gate: local js leg GREEN (audio ×3, count=10, vet,
+  whole-module js compile, runner contracts, gofmt, strip,
+  census zero); native importer-closure leg CI-dispatched
+  per env.sh truth (cold-cache gotd) — verify.yml run
+  recorded below when watched
 
 ## Open items
 
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
-| H-1 | cores testhooks*.go | ForTest* hooks are debt (§5.3): cores at ZERO (session 367 deleted testhooks.go — the final 7: groupPeer key pure-deletion, TsNewIncomingCmd constructor, self-echo myClientID journey, identity trio onto EKProofValid + WhoAmI cross-derivation, TsTrackRecvPID export + InitialCmdPID wrap journey; sessions 358-366 cut the other 61). Whole-tree remainder: audio/testhooks_audio.go ForTestMu (js/wasm-only mutex hook, §5.3 lock-and-mutate class) | session 367 entry | retire the audio tail with the WebDevice failure-injection API |
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
-| H-3 | engine/cores API | 302+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID) | commit 27faa5a4, session 367 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
+| H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
 
 ## Session 368 — H-1 audio tail: settle-race fix, then the ForTestMu retirement (2026-11-06)
 
@@ -66,8 +60,33 @@ owner order — that history lives in git if ever needed.
   live (2 errors), GREEN after the fix.
 - Evidence: focused RED then GREEN; full audio leg GREEN
   (0.72s); count=10 GREEN (6.3s); js vet OK; gofmt clean;
-  strip clean; runner contracts green. Retirement of
-  testhooks_audio.go follows in this session.
+  strip clean; runner contracts green.
+- Retirement (1 def → 0, WHOLE TREE ZERO):
+  testhooks_audio.go deleted; MicStop de-exported to
+  micStop (folded — exported in 27faa5a4 for the tests
+  move; H-3 count 302+1 → 301+1); both webaudio tests
+  dropped the *WebDevice type assertion (the Device
+  interface carries every method they use). The
+  armed-state assertions ride the public API: the R2
+  leak pin moved into the second-StartMic oracle
+  ("mic already running" = attempt still armed), the
+  stop-disarm pin into TestStopMicBeforeSettleCleansUp.
+- Census: ZERO ForTest in production packages — the only
+  remaining matches are test-LOCAL helpers named *ForTest
+  in tests/engine (never hooks); no testhooks* files left
+  anywhere. The §5.3 lock-and-mutate hook class is
+  extinct. H-1 CLOSED.
+- Evidence (retirement): RED (vet: ForTestMu undefined)
+  then GREEN; full audio leg GREEN ×2 (0.72s) + count=10
+  (6.3s); js vet OK; js whole-module compile OK; native
+  audio vet + native tests/audio OK; gofmt clean; strip
+  clean. The quick-gate native importer-closure leg is
+  cold-cache gotd-slow on this box (env.sh truth) — CI
+  verify.yml dispatch is the gate of record.
+- Design rating 9/10: the last hook died by pure deletion
+  + oracle re-placement onto the public API; the
+  retirement probe found and fixed a real wrong-behavior
+  defect first — the pin strengthened, not weakened.
 
 ## Session 367 — H-1: the cores final sweep — testhooks.go deleted, 7 defs cut (2026-11-06)
 
