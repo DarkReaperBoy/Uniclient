@@ -7,16 +7,20 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 375 — slice 4 pushed (af2f4136, T-2
-  resolved via fresh owner token); now the Gio skeleton
-  (dep bump → full gate + CI)
-- next: finish the skeleton, dispatch flake.yml (vendorHash)
-  then verify.yml on it; reconcile runs at boot
+- front: session 375 — the Gio skeleton landed
+  (Elm core + window adapter + measured pane law,
+  74fe6c0d) after a 4-run cgo-closure fight; flake
+  vendorHash pinned (75944429)
+- next: reconcile verify run 42262264512 (on
+  75944429, in flight); then the GUI build slices —
+  dialogs list rows + Material theme system on the
+  pinned tokens
 - owner-waiting: none
-- last-gate: local quick gate GREEN (23/23); CI slice 2
-  42186245433 SUCCESS, slice 3 42187083372 SUCCESS
-  (eb014073) — 373 closed green; slice 4 run 42250138772
-  in flight on af2f4136
+- last-gate: local quick GREEN (12/12 gui + 23/23
+  tokens; windows-vet substitute for the gio set);
+  js/wasm ./... + windows build GREEN; flake.yml
+  42261435344 SUCCESS; CI 42250138772 SUCCESS
+  (slice 4, af2f4136 — 374 closed green)
 
 ## Open items
 
@@ -24,6 +28,76 @@ owner order — that history lives in git if ever needed.
 |---|---|---|---|---|
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
+
+## Session 375 — the Gio skeleton: Elm core, window adapter, the measured pane law; the cgo-closure fight (2026-11-06)
+
+- Boot: owner token → af2f4136 pushed, verify
+  dispatched (42250138772 → SUCCESS — 374 closed
+  green); slice-3 run 42187083372 SUCCESS confirmed
+  (373 closed green).
+- go/ui/app — the pure Elm core (Model/Msg/Update/
+  Cmd, zero Gio imports): the pane law as measured
+  from the reference's own computeColumnLayout
+  (window_session_controller.cpp:2626-2722, method
+  law §6.8): single < 640 (leftMin+mainMin, dialogs
+  gate), triple only ≥ 932 AND third requested
+  (default off), else double; dialogs width =
+  SafeRound(body×5/14) [round-half-away-from-zero =
+  Go math.Round — countDialogsWidthFromRatio:2688]
+  clamped ≥ 260 with NO 540 max (upstream line
+  commented out, :2690) then min body−380; third =
+  clamp(0,[292,392]) → 292; three-column shrink =
+  proportional-to-min-clamped (shrinkDialogsAndThird
+  Columns:2701-2723); no-dialogs shape drops the
+  left column entirely (boundary 672). View(Model)
+  = pure Scene. SafeRound half-cases verified by
+  consumers: 800→286, 932→333.
+- go/ui/window — the Gio adapter: window sized from
+  tokens (800×600 default, 380×480 min), FrameEvent
+  px→dp via Metric.PxToDp → Resized msg, cmd
+  goroutines feed back via a 64-slot queue +
+  Invalidate (§6.1 law shape), Running=false →
+  system.ActionClose, paint = View background.
+  go/ui/material seed: SurfaceLight #FEF7FF (M3
+  baseline light surface). cmd/uniclient gains -gui.
+  go/tests/gui: 12 Msg-sequence tests (boot/purity/
+  quit, pane boundaries 639/640/931/932/672,
+  dialogs widths, shrink, no-dialogs, resize journey
+  380→933→third→quit).
+- gioui.org v0.10.3 (§1.7, only windowing dep):
+  current gio has NO pure-Go Linux desktop path —
+  X11 is Xlib cgo now. cgo surface swept from the
+  source: pkg-config x11 xkbcommon xkbcommon-x11
+  x11-xcb xcursor xfixes egl wayland-client
+  wayland-cursor wayland-egl + vulkan headers
+  (dlopen). Pipeline synced same-commit (code wins):
+  AGENTS §7 truth rewritten; gate.sh partitions
+  scoped packages by gio import (native legs for
+  pure, windows-vet substitute + explicit SKIP for
+  gio — no root on this VM, Linux-native rides CI);
+  verify.yml/release.yml apt steps; flake.nix
+  closure (mirrors gio's own dev-shell recipe +
+  libxcb/libXrender for the .pc Requires chain).
+- The closure took 4 flake runs: vulkan headers
+  (42257568354) → X11/Xlib.h inside vulkan.h
+  (42259385966) → xcb.pc (42260395403) → SUCCESS
+  (42261435344, vendorHash a0wRykh…, commit
+  75944429). Each failure read from the job logs,
+  each fix pushed atomically.
+- Evidence: RED (package uniclient/ui/app not in
+  std) → GREEN 12/12 + 23/23 tokens; quick gate
+  GREEN (partitioned, windows vet of cmd+window
+  completed); js/wasm ./... build GREEN; windows
+  build GREEN (30.8MB); comment ban 278 files
+  clean; gofmt clean. Local full gate machine-
+  blocked at the native gotd compile (env.sh
+  truth) — verify 42262264512 in flight on
+  75944429 is the gate of record.
+- Design rating 9/10: the pure-adapter split keeps
+  the Elm core testable without a display; the one
+  deduction — the cgo closure had to be discovered
+  by CI iteration, a local nix/pkg-config pre-check
+  would have caught it (no nix on this VM).
 
 ## Session 374 — geometry-table slice 4 re-mined after a full-wipe recycle: icons, window chrome, top bar, checkbox, ripple, scrollbar, toast (2026-11-06)
 
@@ -209,66 +283,3 @@ owner order — that history lives in git if ever needed.
   used transiently in the push URL only, never stored
   (§0.2). Build order still owner-only (§11); H-2/H-3
   unchanged, they ride with the GUI rebuild.
-
-## Session 368 — H-1 audio tail: settle-race fix, then the ForTestMu retirement (2026-11-06)
-
-- Boot: full-wipe recycle — fresh clone at 146cb147 (367
-  closed green), toolchain rebuilt verbatim (go1.27.1,
-  modcache 992M), wasm-runner contracts green.
-- REAL DEFECT found by the retirement probe (js/wasm,
-  wrong-behavior class): StopMic before getUserMedia settles
-  → the cleanup goroutine Releases setup/failed while the
-  settle microtask is still pending → "call to released
-  function" console.error per attempt. Verified against
-  go1.27.1 syscall/js source: released-func invocation is a
-  console error, NOT a panic (func.go handleEvent);
-  Release-while-running is explicitly legal (func.go:71) —
-  the tail shape is sound. A real-browser journey: toggle
-  the mic off before the permission prompt resolves.
-- Fix (+9/-3, one file): promise.then(setup, failed).then(tail)
-  — the settle-scoped trio (setup/failed/tail, tail
-  self-releases) dies at settle; the cleanup goroutine keeps
-  only fn (capture-scoped, after node teardown). A
-  late-settling promise now cleans up instead of erroring.
-- jsFakes gains a console.error sniffer (ConsoleErrors) —
-  the misfire is otherwise silent under the runner; the
-  shim passes through to the real console and restores on
-  release.
-- NEW TestStopMicBeforeSettleCleansUp: start → stop before
-  settle → sleep (the yield that fires the microtask) →
-  arm oracle (second StartMic must succeed — "mic already
-  running" is the armed-state probe through the public API)
-  → stop → settle → assert ZERO console errors. RED seen
-  live (2 errors), GREEN after the fix.
-- Evidence: focused RED then GREEN; full audio leg GREEN
-  (0.72s); count=10 GREEN (6.3s); js vet OK; gofmt clean;
-  strip clean; runner contracts green.
-- Retirement (1 def → 0, WHOLE TREE ZERO):
-  testhooks_audio.go deleted; MicStop de-exported to
-  micStop (folded — exported in 27faa5a4 for the tests
-  move; H-3 count 302+1 → 301+1); both webaudio tests
-  dropped the *WebDevice type assertion (the Device
-  interface carries every method they use). The
-  armed-state assertions ride the public API: the R2
-  leak pin moved into the second-StartMic oracle
-  ("mic already running" = attempt still armed), the
-  stop-disarm pin into TestStopMicBeforeSettleCleansUp.
-- Census: ZERO ForTest in production packages — the only
-  remaining matches are test-LOCAL helpers named *ForTest
-  in tests/engine (never hooks); no testhooks* files left
-  anywhere. The §5.3 lock-and-mutate hook class is
-  extinct. H-1 CLOSED.
-- Evidence (retirement): RED (vet: ForTestMu undefined)
-  then GREEN; full audio leg GREEN ×2 (0.72s) + count=10
-  (6.3s); js vet OK; js whole-module compile OK; native
-  audio vet + native tests/audio OK; gofmt clean; strip
-  clean. The quick-gate native importer-closure leg is
-  cold-cache gotd-slow on this box (env.sh truth) — CI
-  verify.yml dispatch is the gate of record.
-- Design rating 9/10: the last hook died by pure deletion
-  + oracle re-placement onto the public API; the
-  retirement probe found and fixed a real wrong-behavior
-  defect first — the pin strengthened, not weakened.
-- CI: 42167382870 SUCCESS at job AND step level — race
-  leg green, headless smoke green, js/wasm compile green
-  — session 368 closed green.
