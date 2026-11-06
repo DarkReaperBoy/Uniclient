@@ -26,7 +26,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Gio client libs (cgo shims, AGENTS.md §7)
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq libxkbcommon-dev libwayland-dev libvulkan-dev
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libxkbcommon-dev libxkbcommon-x11-dev libx11-dev libxcursor-dev libxfixes-dev libegl-dev libwayland-dev libvulkan-dev
       - name: Comment ban (AGENTS.md §2)
         run: python3 scripts/strip_comments.py --check
       - uses: actions/setup-go@v5

@@ -32,7 +32,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Gio client libs (cgo shims, AGENTS.md §7)
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq libxkbcommon-dev libwayland-dev libvulkan-dev
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libxkbcommon-dev libxkbcommon-x11-dev libx11-dev libxcursor-dev libxfixes-dev libegl-dev libwayland-dev libvulkan-dev
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
@@ -115,7 +115,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Gio client libs (cgo shims, AGENTS.md §7)
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq libxkbcommon-dev libwayland-dev libvulkan-dev
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libxkbcommon-dev libxkbcommon-x11-dev libx11-dev libxcursor-dev libxfixes-dev libegl-dev libwayland-dev libvulkan-dev
       - uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}

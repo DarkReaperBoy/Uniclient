@@ -30,10 +30,20 @@
           src = builtins.path { path = ./go; name = "uniclient-src"; };
           subPackages = [ "cmd/uniclient" ];
           tags = [ "goolm" ];
-          # The Gio windowing dep compiles its Linux X11/Wayland/Vulkan
+          # The Gio windowing dep compiles its Linux X11/Wayland/EGL/Vulkan
           # shims with cgo — the client libs and headers come from nixpkgs
-          # (vulkan is dlopen'd: headers only, no loader link).
-          buildInputs = with pkgs; [ libxkbcommon wayland vulkan-headers ];
+          # (vulkan is dlopen'd: headers only, no loader link; pkg-config
+          # names: x11 xkbcommon xkbcommon-x11 x11-xcb xcursor xfixes egl
+          # wayland-client wayland-cursor wayland-egl).
+          buildInputs = with pkgs; [
+            libxkbcommon
+            wayland
+            libglvnd
+            vulkan-headers
+            xorg.libX11
+            xorg.libXcursor
+            xorg.libXfixes
+          ];
           nativeBuildInputs = [ pkgs.pkg-config ];
           doCheck = false; # run `make test` in the dev shell
           # Reported by the first real build (the placeholder hash fails
