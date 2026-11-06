@@ -17,8 +17,8 @@ owner order — that history lives in git if ever needed.
   skeleton (dep bump → full gate + CI)
 - owner-waiting: none new (GUI build ordered 2026-11-06)
 - last-gate: local legs green this session (gofmt, comment
-  ban, vet, tests/ui 7/7); CI verify.yml dispatch pending
-  (id below)
+  ban, vet, tests/ui 7/7); CI 42181695686 dispatched on
+  1e9d03ea — reconcile at boot (§0.4)
 
 ## Open items
 
