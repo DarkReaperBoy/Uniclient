@@ -4,6 +4,7 @@ package tests
 
 import (
 	"math"
+	"strings"
 	"syscall/js"
 	"testing"
 )
@@ -16,6 +17,10 @@ type jsFakes struct {
 	gum      js.Func
 	gumMode  string
 	lastNode js.Value
+
+	consoleErrs []string
+	consoleErr  js.Func
+	realErr     js.Value
 }
 
 func NewJSFakes(t *testing.T) *jsFakes {
@@ -81,6 +86,20 @@ func NewJSFakes(t *testing.T) *jsFakes {
 	nav.Set("mediaDevices", media)
 	g.Set("AudioContext", ctxCtor)
 
+	console := g.Get("console")
+	f.realErr = console.Get("error")
+	f.consoleErr = js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+		parts := make([]string, len(args))
+		passthrough := make([]any, len(args))
+		for i, a := range args {
+			parts[i] = a.String()
+			passthrough[i] = a
+		}
+		f.consoleErrs = append(f.consoleErrs, strings.Join(parts, " "))
+		return f.realErr.Invoke(passthrough...)
+	})
+	console.Set("error", f.consoleErr)
+
 	f.ctxCtor = ctxCtor
 	f.gum = gum
 	f.keepFuncs = append(f.keepFuncs, ctxCtor, ctxClose, createMediaStreamSource, createScriptProcessor, createGain, gum)
@@ -88,11 +107,17 @@ func NewJSFakes(t *testing.T) *jsFakes {
 }
 
 func (f *jsFakes) release() {
+	js.Global().Get("console").Set("error", f.realErr)
+	f.consoleErr.Release()
 	for _, fn := range f.keepFuncs {
 		fn.Release()
 	}
 	js.Global().Get("navigator").Delete("mediaDevices")
 	js.Global().Delete("AudioContext")
+}
+
+func (f *jsFakes) ConsoleErrors() []string {
+	return f.consoleErrs
 }
 
 func (f *jsFakes) reject() { f.gumMode = "reject" }

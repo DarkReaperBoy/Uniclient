@@ -34,6 +34,41 @@ owner order — that history lives in git if ever needed.
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 302+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID) | commit 27faa5a4, session 367 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
 
+## Session 368 — H-1 audio tail: settle-race fix, then the ForTestMu retirement (2026-11-06)
+
+- Boot: full-wipe recycle — fresh clone at 146cb147 (367
+  closed green), toolchain rebuilt verbatim (go1.27.1,
+  modcache 992M), wasm-runner contracts green.
+- REAL DEFECT found by the retirement probe (js/wasm,
+  wrong-behavior class): StopMic before getUserMedia settles
+  → the cleanup goroutine Releases setup/failed while the
+  settle microtask is still pending → "call to released
+  function" console.error per attempt. Verified against
+  go1.27.1 syscall/js source: released-func invocation is a
+  console error, NOT a panic (func.go handleEvent);
+  Release-while-running is explicitly legal (func.go:71) —
+  the tail shape is sound. A real-browser journey: toggle
+  the mic off before the permission prompt resolves.
+- Fix (+9/-3, one file): promise.then(setup, failed).then(tail)
+  — the settle-scoped trio (setup/failed/tail, tail
+  self-releases) dies at settle; the cleanup goroutine keeps
+  only fn (capture-scoped, after node teardown). A
+  late-settling promise now cleans up instead of erroring.
+- jsFakes gains a console.error sniffer (ConsoleErrors) —
+  the misfire is otherwise silent under the runner; the
+  shim passes through to the real console and restores on
+  release.
+- NEW TestStopMicBeforeSettleCleansUp: start → stop before
+  settle → sleep (the yield that fires the microtask) →
+  arm oracle (second StartMic must succeed — "mic already
+  running" is the armed-state probe through the public API)
+  → stop → settle → assert ZERO console errors. RED seen
+  live (2 errors), GREEN after the fix.
+- Evidence: focused RED then GREEN; full audio leg GREEN
+  (0.72s); count=10 GREEN (6.3s); js vet OK; gofmt clean;
+  strip clean; runner contracts green. Retirement of
+  testhooks_audio.go follows in this session.
+
 ## Session 367 — H-1: the cores final sweep — testhooks.go deleted, 7 defs cut (2026-11-06)
 
 - Boot: full-wipe recycle — the whole sandbox (repo +

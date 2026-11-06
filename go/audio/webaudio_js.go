@@ -225,7 +225,14 @@ func (d *WebDevice) StartMic() (<-chan []byte, error) {
 		endMicAttempt()
 		return nil
 	})
-	promise.Call("then", setup, failed)
+	var tail js.Func
+	tail = js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+		setup.Release()
+		failed.Release()
+		tail.Release()
+		return nil
+	})
+	promise.Call("then", setup, failed).Call("then", tail)
 
 	go func() {
 		defer close(done)
@@ -241,8 +248,6 @@ func (d *WebDevice) StartMic() (<-chan []byte, error) {
 			}
 		}
 		fn.Release()
-		setup.Release()
-		failed.Release()
 	}()
 	return frames, nil
 }
