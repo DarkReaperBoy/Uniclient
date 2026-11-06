@@ -11,10 +11,11 @@ owner order — that history lives in git if ever needed.
   (Elm core + window adapter + measured pane law,
   74fe6c0d) after a 4-run cgo-closure fight; flake
   vendorHash pinned (75944429)
-- next: reconcile verify run 42262264512 (on
-  75944429, in flight); then the GUI build slices —
-  dialogs list rows + Material theme system on the
-  pinned tokens
+- next: reconcile verify run 42264110055 (on
+  d4b02222, in flight — first run 42262264512
+  FAILED at vet: x11-xcb.pc; fixed via libx11-xcb-dev);
+  then the GUI build slices — dialogs list rows +
+  Material theme system on the pinned tokens
 - owner-waiting: none
 - last-gate: local quick GREEN (12/12 gui + 23/23
   tokens; windows-vet substitute for the gio set);
