@@ -85,10 +85,28 @@ func TestTypeScaleSane(t *testing.T) {
 	}
 }
 
-func TestBreakpointsSane(t *testing.T) {
-	if TwoPaneMinDp <= 0 || ThreePaneMinDp <= TwoPaneMinDp {
-		t.Fatalf("breakpoints out of order: two-pane %d, three-pane %d",
-			TwoPaneMinDp, ThreePaneMinDp)
+func TestLayoutDerivedFromPanes(t *testing.T) {
+	if LayoutOneColumnMaxWidth != ColumnMinWidthLeft+ColumnMinWidthMain {
+		t.Fatalf("one-column boundary %d != left+main %d+%d",
+			LayoutOneColumnMaxWidth, ColumnMinWidthLeft, ColumnMinWidthMain)
+	}
+	if LayoutThreeColumnMinWidth != ColumnMinWidthLeft+ColumnMinWidthMain+ColumnMinWidthThird {
+		t.Fatalf("three-column minimum %d != left+main+third %d+%d+%d",
+			LayoutThreeColumnMinWidth, ColumnMinWidthLeft, ColumnMinWidthMain, ColumnMinWidthThird)
+	}
+	if LayoutOneColumnMaxWidth != 640 || LayoutThreeColumnMinWidth != 932 {
+		t.Fatalf("measured boundaries drifted: one-col %d (want 640), three-col %d (want 932)",
+			LayoutOneColumnMaxWidth, LayoutThreeColumnMinWidth)
+	}
+	if LayoutOneColumnMaxWidth >= LayoutThreeColumnMinWidth {
+		t.Fatalf("boundaries inverted: %d >= %d", LayoutOneColumnMaxWidth, LayoutThreeColumnMinWidth)
+	}
+	if DialogsWidthRatioDefault <= 0 || DialogsWidthRatioDefault >= 1 {
+		t.Fatalf("dialogs ratio out of range: %v", DialogsWidthRatioDefault)
+	}
+	if ThirdColumnWidthDefault >= ColumnMinWidthThird {
+		t.Fatalf("third column default %d must clamp up to min %d when shown",
+			ThirdColumnWidthDefault, ColumnMinWidthThird)
 	}
 }
 

@@ -7,18 +7,18 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 370 — GUI front OPENED: geometry-table
-  slice 1 pinned (window, panes, dialogs row, main-menu
-  drawer, type scale) from AyuGram Desktop v7.2.9 source
-  into go/ui/tokens; 7 invariant tests green
+- front: session 371 — slice-1 breakpoints corrected onto
+  the measured layout algorithm (640/932 derived, ratio
+  5/14) after the owner challenge audit; tokens now pin
+  derivations, not magic numbers
 - next: table slice 2 — history/compose styles (bubbles,
   composer) from chat.style/chat_style.style/history_view;
   then slice 3 (settings/boxes/menus); then the Gio
   skeleton (dep bump → full gate + CI)
 - owner-waiting: none new (GUI build ordered 2026-11-06)
-- last-gate: local legs green this session (gofmt, comment
-  ban, vet, tests/ui 7/7); CI 42181695686 dispatched on
-  1e9d03ea — reconcile at boot (§0.4)
+- last-gate: local legs green (gofmt, comment ban, vet,
+  tests/ui 7/7); CI 42181695686 on 1e9d03ea pending
+  reconciliation + this session's dispatch
 
 ## Open items
 
@@ -26,6 +26,33 @@ owner order — that history lives in git if ever needed.
 |---|---|---|---|---|
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
+
+## Session 371 — owner-challenge audit: slice-1 breakpoints were assumptions — fixed onto the measured algorithm (2026-11-06)
+
+- Owner challenged the 1:1 method ("would the style know the
+  window inside a window?") → re-audit against the reference's
+  LAYOUT CODE, not just styles. Confirmed the in-window model:
+  MainMenu is a Ui::LayerWidget (window_main_menu.h:49); boxes
+  (Ui::show) and PopupMenu context menus are layers too — styles
+  mined/scheduled for all of them. But the audit caught a REAL
+  defect: TwoPaneMinDp=600/ThreePaneMinDp=1000 were assumption
+  leftovers from the pre-redirect §6 — never measurements.
+- The reference computes boundaries (window_session_controller.
+  cpp:2626-2676 computeColumnLayout): one-column when body <
+  leftMin+mainMin (640); three-column only ≥ left+main+third
+  (932) AND a third section requested (default OFF; window
+  auto-extends when it can); dialogs = body×ratio clamped
+  [260, body−380], default ratio 5/14 (core_settings.h:1083,
+  non-MacStore path :1786); third default 0 → clamps to 292.
+- Fix: TwoPaneMinDp/ThreePaneMinDp deleted; LayoutOneColumn-
+  MaxWidth (640) + LayoutThreeColumnMinWidth (932) pinned as
+  DERIVED consts (formula IS the pin); DialogsWidthRatioDefault
+  =5/14, ThirdColumnWidthDefault=0. Test rewritten to pin the
+  derivation + values; RED (undefined: LayoutThreeColumnMinWidth)
+  then GREEN 7/7; gofmt/comment-ban/vet clean. AGENTS.md §6.4
+  rewritten onto the measured semantics.
+- Method law for the front: every slice mines styles AND the
+  code that consumes them; derived constants stay derivations.
 
 ## Session 370 — GUI front opened: geometry-table slice 1 pinned from AyuGram v7.2.9 (2026-11-06)
 
@@ -254,45 +281,3 @@ owner order — that history lives in git if ever needed.
   make test GREEN (cores 58.1s); vet/gofmt/strip clean;
   census zero; defs 23→7; wasm GREEN. CI 42062309084
   SUCCESS at job AND step level — session closed green.
-
-## Session 365 — H-1: GitHub cluster onto the scripted GitHub API — 2 defs, api_base seam (GHE) (2026-11-05)
-
-- 2 defs cut (25→23: ForTestSetUsername,
-  ForTestNewGitHubCore) onto a new httptest GitHub API
-  harness (mutex-guarded wire recorder, per-test handlers).
-- Production seam: GitHubCore.apiBase + AuthConfig.Extra
-  ["api_base"] — GitHub Enterprise support: all 8 hardcoded
-  ghAPIBase sites route through it, graphqlURL() maps /api/v3
-  GHE bases to the documented /api/graphql, persisted in
-  ghSession for GHE resume; dotcom default unchanged.
-- 5 new wire journeys — the GitHub Authenticate path's first
-  real coverage: whoami headers pinned, profile-repo
-  bootstrap 404→POST /user/repos exact body, session resume
-  through a real vault, bad-token 401 terminal, 429
-  Retry-After retried on the wire. CommentToMessage
-  outgoing-ness + DownloadFile ceiling onto real journeys.
-- Evidence: family GREEN (1.1s); count=10 ×2 zero fails;
-  make test GREEN (cores 52.8s); census zero; go.mod
-  unchanged. CI 42033866337 SUCCESS. Design 8/10.
-
-## Session 364 — H-1: Telegram setter cluster onto the gotd tgtest scripted server — 4 defs (2026-11-05)
-
-- 4 defs cut (29→25: ForTestMu/ForTestSetApi/
-  ForTestSetAuthed/ForTestSetCtx) onto a real tgtest
-  MTProto server (RSA-keyed exchange, real-key encrypted
-  RPCs, scripted auth journey, upload.getFile scripting).
-- Three harness battles (all harness bugs, not production):
-  gotd's racing dial vs tgtest auto-detect (warm listener
-  absorbing probe conns); test-DC wire truth (exchange
-  validates DC+10000 while served config must say ThisDC=2
-  — own config handler); stuck RPC blocking the read loop
-  (async SendErr from a goroutine).
-- Rewrites: freeze family — ForTestMu mutex probe became a
-  second public API call (Logout) observed SERVER-SIDE while
-  the first RPC is stuck; migrate family — FILE_MIGRATE as
-  parsed Type+Argument, gotd's redirect proven server-side,
-  byte-exact upload.getFile assertions.
-- Production: TelegramConfig.PublicKeys — the only seam.
-  CI race pin extended to the new family. go mod tidy (xxhash
-  → indirect). vendorHash repinned (flake.yml 42025269748);
-  CI 42025733121 SUCCESS. Design 8/10.

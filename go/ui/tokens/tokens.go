@@ -51,8 +51,10 @@ const (
 	FontBox   = 14
 	EmojiSize = 18
 
-	TwoPaneMinDp   = 600
-	ThreePaneMinDp = 1000
+	LayoutOneColumnMaxWidth   = ColumnMinWidthLeft + ColumnMinWidthMain
+	LayoutThreeColumnMinWidth = ColumnMinWidthLeft + ColumnMinWidthMain + ColumnMinWidthThird
+	DialogsWidthRatioDefault  = 5.0 / 14.0
+	ThirdColumnWidthDefault   = 0
 )
 
 type MainMenuEntryKind int

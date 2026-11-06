@@ -217,12 +217,16 @@ priority, desktop look first).
 3. **Capabilities project the UI:** cores declare capabilities (send/edit/react/files/
    voice/replies/presence/typing…); the view renders only what the active account's
    core supports (§1.8/§1.9). Zero per-core UI code — one widget kit for every core.
-4. **Layout is a pure function of (Model, window size):** ≥1000dp three-pane
-   (Desktop), 600–1000dp two-pane, <600dp one-pane + back stack — the mobile shape
-   carries the desktop design language, never a Telegram-Android imitation.
-   Navigation is a typed route stack in Model; panes are projections; deep links push
-   routes. Windows are views over the one Model — per-window package state is
-   forbidden (the old separate.go bug class, made impossible).
+4. **Layout is a pure function of (Model, window size):** boundaries measured from
+   the reference's own algorithm (§6.8, `computeColumnLayout`): <640dp
+   (= leftMin+mainMin) one-pane + back stack; 640–931dp two-pane; ≥932dp
+   (= leftMin+mainMin+thirdMin) three-pane — the third pane on demand, the window
+   auto-extending when it can; dialogs pane = width × 5/14, clamped to the pane
+   minimums; the mobile shape carries the desktop design language, never a
+   Telegram-Android imitation. Navigation is a typed route stack in Model; panes
+   are projections; deep links push routes. Windows are views over the one Model —
+   per-window package state is forbidden (the old separate.go bug class, made
+   impossible).
 5. **Design system:** Material Design skin over the §6.8 geometry — day/night/AMOLED
    palettes, type scale, shape/elevation/ripple/motion tokens, dense vs touch density
    by breakpoint. Kit on gio/material: chat-list row, message bubble (tails, reply
