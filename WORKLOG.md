@@ -7,23 +7,73 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 373 — geometry-table slice 3 pinned: boxes
-  (dialogs), popup menus, toggles, settings rows — derived
-  row-height helpers added; 15 invariant tests green
-- next: table slice 4 — icons/dimensions audit (menu icon
-  sizes, button icon boxes) + scrollbars/toasts if any; then
-  the Gio skeleton (dep bump → full gate + CI)
-- owner-waiting: none new (GUI build ordered 2026-11-06)
-- last-gate: local legs green (15/15); CI 42186245433
-  (slice 2, 5380141b) + 42187083372 (slice 3, eb014073) in
-  flight — reconcile both at boot
+- front: session 374 — geometry-table slice 4 pinned
+  (icons, window chrome, top bar, checkbox, ripple,
+  scrollbar, toast) after a full-wipe recycle rebuilt
+  repo+toolchain+reference; 23 invariant tests green
+- next: push 374 + dispatch slice-4 CI (token needed);
+  then the Gio skeleton (dep bump → full gate + CI)
+- owner-waiting: T-2 — fresh GitHub token (push blocked
+  since the wipe); slice-3 CI 42187083372 in flight,
+  reconcile at boot
+- last-gate: local quick gate GREEN (23/23 + vet + gofmt
+  + comment ban); CI 42186245433 (slice 2, 5380141b)
+  SUCCESS; 42187083372 (slice 3, eb014073) in flight
 
 ## Open items
 
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
+| T-2 | auth | push blocked: the GitHub token died with the 374 sandbox wipe (never stored, by law §0.2) | this session: anonymous clone/read fine, push+dispatch impossible | owner supplies a fresh token out-of-band → push session 374, dispatch verify.yml, reconcile 42187083372 |
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
+
+## Session 374 — geometry-table slice 4 re-mined after a full-wipe recycle: icons, window chrome, top bar, checkbox, ripple, scrollbar, toast (2026-11-06)
+
+- Boot: full-wipe recycle (repo, toolchain AND ayu-ref
+  lost) — the previous session's finished slice 4 was
+  unpushed (token already dead) and died with it: rebuilt
+  from zero per §3. Fresh clone at 910d959f, go1.27.1
+  from the env.sh recipe, reference re-acquired (AyuGram
+  v7.2.9 tarball + lib_ui @ e3d0582, full SHA
+  e3d058223aea0b68938a07a7d436d67aaf2b1b30, AyuGram
+  fork). Baseline 15/15 re-verified before any edit.
+- Slice 4 mined: menu icons — sprite audit 582 files,
+  base 24×24 (+@2x/@3x); menuWithIcons icon pos 15/5, pad
+  54/8/17/8 (widgets.style:1699-1703). Window chrome —
+  title height 24, button 36×24 sprite-filling, title
+  font semibold 12 (widgets.style:1571-1595). Top bar —
+  height 54, buttons 40/44/52, ripple 40 (y 7), icons
+  32×32, title 24/17 max 20 semibold 14; dialogs buttons
+  40 / calendar 32×35 / search-from 29 (info.style:137-
+  256,905-959; dialogs.style:284-309). Checkbox — check
+  22ø border 2 dur 120 (=universalDuration, basic.style:
+  135) ripple pad 8, mark 14×10 at 4/7, margin 8, text
+  10/2, check 8/8, disabled 0.5 (widgets.style:839-900);
+  text-skip law from checkbox.cpp:750: 8+22+10=40. Ripple
+  show 650 / hide 200 (widgets.style:703-707). Scrollbar
+  — width 10, radius 2, min height 20, thumb min 40,
+  insets 3/3/3, duration 150, hiding 1000, scrollBarMin
+  40 (widgets.style:807-828). Toast — padding 19/13/19/
+  12, margin 13, maxWidth 480, radius 8, fadeIn 200,
+  fadeOut 1000, slide 160 (widgets.style:1552-1564).
+- VerticalCenterOffset(container, content) added as a
+  DERIVED helper — the reference's centering law
+  (menu_action.cpp:131 top = (height-glyph)/2), proven
+  by consumers: topBarSearch icon (4,11), dialogs menu
+  icon (4,4), top-bar ripple y 7, back button 12, menu
+  arrow 2.
+- RED (undefined: MenuIconSize + 40 more identifiers) →
+  GREEN 23/23 — same count as the lost session, the
+  re-derivation converged. gofmt, comment ban (274
+  files), vet clean (one tautology suspect-or split
+  into two checks, session-373 class).
+- CI: 42186245433 (slice 2, 5380141b) SUCCESS
+  re-confirmed from the run page (13 min, all three
+  jobs). 42187083372 (slice 3, eb014073, Verify #370)
+  still in flight at commit time — reconcile at next
+  boot. Push blocked → T-2 NEEDS_OWNER (fresh token
+  out-of-band; §11 — never block on it).
 
 ## Session 373 — geometry-table slice 3: boxes, menus, toggles, settings rows (2026-11-06)
 

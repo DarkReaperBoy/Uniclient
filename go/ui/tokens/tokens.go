@@ -174,6 +174,75 @@ const (
 	SettingsChatPadRight   = 22
 	SettingsChatPadBottom  = 10
 	SettingsChatIconLeft   = 20
+
+	MenuIconSize           = 24
+	MenuIconPosX           = 15
+	MenuIconPosY           = 5
+	MenuWithIconsPadLeft   = 54
+	MenuWithIconsPadTop    = 8
+	MenuWithIconsPadRight  = 17
+	MenuWithIconsPadBottom = 8
+
+	WindowTitleHeight      = 24
+	WindowTitleButtonWidth = 36
+	FontWindowTitle        = 12
+
+	TopBarHeight          = 54
+	TopBarButtonWidth     = 40
+	TopBarMenuButtonWidth = 44
+	TopBarBackButtonWidth = 52
+	TopBarRippleSize      = 40
+	TopBarIconSize        = 32
+	TopBarTitleLeft       = 24
+	TopBarTitleTop        = 17
+	TopBarTitleMaxHeight  = 20
+	FontTopBarTitle       = 14
+
+	DialogsMenuButtonSize  = 40
+	DialogsCalendarWidth   = 32
+	DialogsCalendarHeight  = 35
+	DialogsSearchFromWidth = 29
+
+	CheckDiameter   = 22
+	CheckThickness  = 2
+	CheckDurationMs = 120
+	CheckRipplePad  = 8
+
+	CheckIconWidth  = 14
+	CheckIconHeight = 10
+	CheckIconPosX   = 4
+	CheckIconPosY   = 7
+
+	CheckboxMargin          = 8
+	CheckboxTextPosX        = 10
+	CheckboxTextPosY        = 2
+	CheckboxCheckPosX       = 8
+	CheckboxCheckPosY       = 8
+	CheckboxDisabledOpacity = 0.5
+
+	RippleShowDurationMs = 650
+	RippleHideDurationMs = 200
+
+	ScrollBarWidth     = 10
+	ScrollBarRadius    = 2
+	ScrollBarMinHeight = 20
+	ScrollBarDeltax    = 3
+	ScrollBarDeltat    = 3
+	ScrollBarDeltab    = 3
+	ScrollBarThumbMin  = 40
+	ScrollDurationMs   = 150
+	ScrollHidingMs     = 1000
+
+	ToastPadLeft   = 19
+	ToastPadTop    = 13
+	ToastPadRight  = 19
+	ToastPadBottom = 12
+	ToastMargin    = 13
+	ToastMaxWidth  = 480
+	ToastRadius    = 8
+	ToastFadeInMs  = 200
+	ToastFadeOutMs = 1000
+	ToastSlideMs   = 160
 )
 
 type MainMenuEntryKind int
@@ -209,6 +278,10 @@ var DefaultMainMenu = []MainMenuEntry{
 
 func MenuItemHeightFor(fontPx int) int {
 	return fontPx + MenuItemPadTop + MenuItemPadBottom
+}
+
+func VerticalCenterOffset(containerHeight, contentHeight int) int {
+	return (containerHeight - contentHeight) / 2
 }
 
 func MainMenuRowHeight() int {
