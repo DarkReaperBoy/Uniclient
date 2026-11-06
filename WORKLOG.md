@@ -11,17 +11,17 @@ owner order — that history lives in git if ever needed.
   (Elm core + window adapter + measured pane law,
   74fe6c0d) after a 4-run cgo-closure fight; flake
   vendorHash pinned (75944429)
-- next: reconcile verify run 42264110055 (on
-  d4b02222, in flight — first run 42262264512
-  FAILED at vet: x11-xcb.pc; fixed via libx11-xcb-dev);
-  then the GUI build slices — dialogs list rows +
-  Material theme system on the pinned tokens
+- next: the GUI build slices — dialogs list rows +
+  Material theme system on the pinned tokens (the
+  skeleton is CI-green end to end)
 - owner-waiting: none
 - last-gate: local quick GREEN (12/12 gui + 23/23
   tokens; windows-vet substitute for the gio set);
   js/wasm ./... + windows build GREEN; flake.yml
   42261435344 SUCCESS; CI 42250138772 SUCCESS
-  (slice 4, af2f4136 — 374 closed green)
+  (slice 4); verify 42264110055 SUCCESS at job AND
+  step level on d4b02222 (after the x11-xcb.pc fix)
+  — session 375 closed green
 
 ## Open items
 
