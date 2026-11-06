@@ -55,6 +55,69 @@ const (
 	LayoutThreeColumnMinWidth = ColumnMinWidthLeft + ColumnMinWidthMain + ColumnMinWidthThird
 	DialogsWidthRatioDefault  = 5.0 / 14.0
 	ThirdColumnWidthDefault   = 0
+
+	MsgPaddingLeft   = 11
+	MsgPaddingTop    = 8
+	MsgPaddingRight  = 11
+	MsgPaddingBottom = 8
+
+	MsgMarginLeft        = 16
+	MsgMarginTop         = 6
+	MsgMarginRight       = 56
+	MsgMarginBottom      = 2
+	MsgMarginTopAttached = 0
+
+	MsgPhotoSize = 33
+	MsgPhotoSkip = 40
+	MsgMaxWidth  = 430
+
+	BubbleRadiusSmall             = 6
+	BubbleRadiusLarge             = 16
+	BubbleRadiusSliderMax         = 16
+	AyuMessageBubbleRadiusDefault = 16
+	MsgFileThumbRadiusSmall       = 4
+	MsgFileThumbRadiusLarge       = 12
+
+	BubbleWideMaxWidth = MsgMaxWidth + 2*MsgPhotoSkip + 2*MsgMarginLeft
+
+	MsgServicePadLeft   = 12
+	MsgServicePadTop    = 3
+	MsgServicePadRight  = 12
+	MsgServicePadBottom = 4
+
+	MsgServiceMarginLeft   = 10
+	MsgServiceMarginTop    = 10
+	MsgServiceMarginRight  = 10
+	MsgServiceMarginBottom = 2
+
+	FontMsgName    = 13
+	FontMsgService = 13
+	FontMsgDate    = 13
+
+	HistoryPaddingBottom       = 8
+	HistoryUnreadBarHeight     = 32
+	HistoryUnreadBarMargin     = 3
+	HistoryPhotoBubbleMinWidth = 200
+
+	ComposeFieldHeightMin  = 36
+	ComposeFieldHeightMax  = 72
+	ComposeFieldRichMax    = 224
+	ComposeFieldFadeHeight = 6
+	ComposeAnimDurationMs  = 100
+
+	HistorySendSizeW   = 44
+	HistorySendSizeH   = 46
+	HistorySendRight   = 2
+	HistorySendPadding = 9
+	HistoryAttachSizeW = 44
+	HistoryAttachSizeH = 46
+
+	ComposePadLeft   = 2
+	ComposePadTop    = 9
+	ComposePadRight  = 2
+	ComposePadBottom = 9
+
+	ComposerRestHeight = ComposePadTop + ComposeFieldHeightMin + ComposePadBottom
 )
 
 type MainMenuEntryKind int

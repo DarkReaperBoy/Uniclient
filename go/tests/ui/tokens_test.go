@@ -169,3 +169,87 @@ func TestDefaultMainMenuTree(t *testing.T) {
 		t.Fatalf("entry 1 must be the dynamic bot list, got kind %d", DefaultMainMenu[1].Kind)
 	}
 }
+
+func TestHistoryBubblesSane(t *testing.T) {
+	if MsgPaddingLeft != MsgPaddingRight || MsgPaddingLeft <= 0 || MsgPaddingTop <= 0 {
+		t.Fatalf("bubble padding asymmetric or non-positive: %d/%d/%d/%d",
+			MsgPaddingLeft, MsgPaddingTop, MsgPaddingRight, MsgPaddingBottom)
+	}
+	if MsgMarginRight <= MsgMarginLeft {
+		t.Fatalf("right margin %d must exceed left %d (date+ticks reserve)",
+			MsgMarginRight, MsgMarginLeft)
+	}
+	if MsgMarginTopAttached >= MsgMarginTop {
+		t.Fatalf("attached top margin %d must be tighter than %d",
+			MsgMarginTopAttached, MsgMarginTop)
+	}
+	if MsgPhotoSkip < MsgPhotoSize {
+		t.Fatalf("photo skip %d smaller than photo %d", MsgPhotoSkip, MsgPhotoSize)
+	}
+	if BubbleWideMaxWidth != MsgMaxWidth+2*MsgPhotoSkip+2*MsgMarginLeft {
+		t.Fatalf("wide bubble width %d != formula", BubbleWideMaxWidth)
+	}
+	if BubbleWideMaxWidth != 542 || MsgMaxWidth != 430 {
+		t.Fatalf("measured bubble widths drifted: max %d (want 430), wide %d (want 542)",
+			MsgMaxWidth, BubbleWideMaxWidth)
+	}
+}
+
+func TestBubbleRadiusSane(t *testing.T) {
+	if BubbleRadiusSmall >= BubbleRadiusLarge {
+		t.Fatalf("radius order inverted: small %d, large %d",
+			BubbleRadiusSmall, BubbleRadiusLarge)
+	}
+	if MsgFileThumbRadiusSmall >= MsgFileThumbRadiusLarge {
+		t.Fatalf("thumb radius order inverted: %d, %d",
+			MsgFileThumbRadiusSmall, MsgFileThumbRadiusLarge)
+	}
+	if BubbleRadiusSliderMax != BubbleRadiusLarge || AyuMessageBubbleRadiusDefault != BubbleRadiusSliderMax {
+		t.Fatalf("ayu default %d must sit at slider max %d == large %d",
+			AyuMessageBubbleRadiusDefault, BubbleRadiusSliderMax, BubbleRadiusLarge)
+	}
+	if BubbleRadiusSmall != 6 || BubbleRadiusLarge != 16 {
+		t.Fatalf("measured radii drifted: small %d (want 6), large %d (want 16)",
+			BubbleRadiusSmall, BubbleRadiusLarge)
+	}
+}
+
+func TestServiceMessagesSane(t *testing.T) {
+	if MsgServiceMarginBottom >= MsgServiceMarginTop {
+		t.Fatalf("service margin bottom %d must be tighter than top %d",
+			MsgServiceMarginBottom, MsgServiceMarginTop)
+	}
+	if MsgServicePadLeft != MsgServicePadRight || MsgServicePadLeft <= 0 {
+		t.Fatalf("service padding asymmetric or non-positive: %d/%d",
+			MsgServicePadLeft, MsgServicePadRight)
+	}
+	if HistoryUnreadBarHeight <= 0 || HistoryUnreadBarMargin <= 0 || HistoryPaddingBottom <= 0 {
+		t.Fatalf("history list metrics non-positive: bar %d, margin %d, bottom %d",
+			HistoryUnreadBarHeight, HistoryUnreadBarMargin, HistoryPaddingBottom)
+	}
+}
+
+func TestComposerSane(t *testing.T) {
+	if !(ComposeFieldHeightMin < ComposeFieldHeightMax && ComposeFieldHeightMax < ComposeFieldRichMax) {
+		t.Fatalf("field growth chain broken: %d/%d/%d",
+			ComposeFieldHeightMin, ComposeFieldHeightMax, ComposeFieldRichMax)
+	}
+	if HistorySendSizeW != HistoryAttachSizeW || HistorySendSizeH != HistoryAttachSizeH {
+		t.Fatalf("send %dx%d and attach %dx%d differ",
+			HistorySendSizeW, HistorySendSizeH, HistoryAttachSizeW, HistoryAttachSizeH)
+	}
+	if ComposePadLeft != ComposePadRight {
+		t.Fatalf("composer padding asymmetric: %d/%d", ComposePadLeft, ComposePadRight)
+	}
+	if ComposePadLeft != HistorySendRight {
+		t.Fatalf("composer horizontal rhythm broken: pad %d, sendRight %d",
+			ComposePadLeft, HistorySendRight)
+	}
+	if ComposerRestHeight != ComposePadTop+ComposeFieldHeightMin+ComposePadBottom {
+		t.Fatalf("composer rest height %d != formula", ComposerRestHeight)
+	}
+	if ComposerRestHeight != 54 || ComposeFieldHeightMin != 36 || HistorySendSizeH != 46 {
+		t.Fatalf("measured composer metrics drifted: rest %d (want 54), field %d (want 36), sendH %d (want 46)",
+			ComposerRestHeight, ComposeFieldHeightMin, HistorySendSizeH)
+	}
+}

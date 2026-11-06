@@ -7,18 +7,18 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 371 — slice-1 breakpoints corrected onto
-  the measured layout algorithm (640/932 derived, ratio
-  5/14) after the owner challenge audit; tokens now pin
-  derivations, not magic numbers
-- next: table slice 2 — history/compose styles (bubbles,
-  composer) from chat.style/chat_style.style/history_view;
-  then slice 3 (settings/boxes/menus); then the Gio
-  skeleton (dep bump → full gate + CI)
+- front: session 372 — geometry-table slice 2 pinned: the
+  chat view (bubble padding/margins, radius system with the
+  AyuGram default, service messages, composer growth chain,
+  wide-mode width formula) — 11 invariant tests green
+- next: table slice 3 — settings/boxes (settings.style,
+  boxes.style: box paddings, section rows, toggle sizes) and
+  the context-menu/popup metrics (widgets.style menu
+  geometry); then the Gio skeleton (dep bump → full gate)
 - owner-waiting: none new (GUI build ordered 2026-11-06)
-- last-gate: CI 42181695686 SUCCESS on 1e9d03ea (slice 1,
-  job and step level); 42183334673 dispatched on d49f0c2b
-  (the fix) — reconcile at boot
+- last-gate: CI 42183334673 SUCCESS on d49f0c2b (slice-1
+  fix, job and step level — session 371 closed green);
+  slice-2 dispatch recorded below
 
 ## Open items
 
@@ -26,6 +26,31 @@ owner order — that history lives in git if ever needed.
 |---|---|---|---|---|
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
+
+## Session 372 — geometry-table slice 2: the chat view (bubbles, radius system, composer) pinned (2026-11-06)
+
+- Boot: workspace survived (no recycle); CI 42183334673
+  reconciled SUCCESS on d49f0c2b — 371 closed green.
+- Slice 2 mined from v7.2.9 (styles + consuming code, per
+  the session-371 method law): bubbles — msgPadding
+  11/8/11/8, msgMargin 16/6/56/2 (right reserves date+
+  ticks), attached-top 0, photo 33 skip 40, msgMaxWidth 430,
+  wide-mode formula max+2·skip+2·marginLeft = 542 (element.
+  cpp:810-820); radius system — bubbleRadiusSmall 6
+  (=roundRadiusLarge), large 16, slider max 16, AyuGram
+  default 16 → both at max (chat_style_radius.cpp,
+  ayu_settings.h:641), thumb radii 4/12; service — padding
+  12/3/12/4, margin 10/10/10/2; fonts — name/service/date
+  13 (semibold/semibold/regular); history list — bottom pad
+  8, unread bar 32+3, photo-bubble min 200; composer —
+  field 36→72 (rich 224, fade 6, anim 100ms), send/attach
+  44×46, sendRight 2, pad 2/9/2/9, rest height 9+36+9=54
+  (chat_helpers.style:1281-1310,1626-1648, compose
+  controls cpp:5794-5810).
+- RED (undefined: MsgMarginLeft) → GREEN 11/11; gofmt,
+  comment ban, vet clean (one vet-suspect compound test
+  condition split into two checks). No production code
+  outside tokens; no AGENTS.md drift.
 
 ## Session 371 — owner-challenge audit: slice-1 breakpoints were assumptions — fixed onto the measured algorithm (2026-11-06)
 
@@ -248,36 +273,3 @@ owner order — that history lives in git if ever needed.
   green with the new TestTS3IdentityProofAndUIDOnWire/
   TestTS3WrapClimbOnWire/TestHandshake* in the pin —
   session 367 closed green.
-
-## Session 366 — H-1: orphan sweeps onto real journeys — 16 defs, testhooks_manual.go deleted (2026-11-05)
-
-- Boot: session recycle landed mid-WIP — the sweep recovered
-  intact from the uncommitted working tree; PAT re-verified,
-  env.sh verbatim (go1.27.1), origin == 15c74a34 (365
-  green). Census-first recovery: every identifier the
-  rewrites reference verified present before running.
-- 16 defs cut (23→7): the five STATE targets — TS
-  packet-state quartet (testhooks_manual.go gone),
-  ForTestNewXMPPCore, ForTestSetUserID, pb/truncate
-  helpers, ForTestNewRpcGuard — plus 6 rewrite-orphaned TS
-  hooks (ForTestPktState/TsConn/TsDecryptRecv/
-  TsHandlePacket/ForTestKey ×2).
-- Rewrites onto real journeys: TS quartet — gen climb
-  (PushAtGen 1→2 as ServerName transitions), tampered MAC
-  (new PushCorruptAtPID: dropped, next good command lands),
-  replay (same-pID absorbed), hostile silence (50 garbage
-  packets, zero stdout); XMPP SASL-flood + download-cap on
-  a real Authenticate (new floodSASL knob, 10s cap on the
-  clock); Matrix newTestMatrix = mxAuthedCore (17 sites);
-  RpcGuard trio on a real stuck UsersGetFullUser — bounded
-  by RpcTimeout, caller deadline preserved, default applied.
-- Production (2 files, minimal): github.go truncate()
-  wrapper inlined to utils.TruncateEllipsis (8 sites);
-  telegram.go RpcTimeout const→var (the established
-  public-knob pattern). PbEncode/PbDecode were already
-  exported — pure deletion. CI race pin: dead TestTruncate →
-  TestRPCGuard|TestTSReceive.
-- Evidence: family GREEN (11.9s); 2 × count=10 zero fails;
-  make test GREEN (cores 58.1s); vet/gofmt/strip clean;
-  census zero; defs 23→7; wasm GREEN. CI 42062309084
-  SUCCESS at job AND step level — session closed green.
