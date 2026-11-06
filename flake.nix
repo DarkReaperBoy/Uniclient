@@ -38,11 +38,13 @@
           buildInputs = with pkgs; [
             libxkbcommon
             wayland
-            libglvnd
+            libGL
             vulkan-headers
             xorg.libX11
             xorg.libXcursor
             xorg.libXfixes
+            xorg.libxcb
+            xorg.libXrender
           ];
           nativeBuildInputs = [ pkgs.pkg-config ];
           doCheck = false; # run `make test` in the dev shell
