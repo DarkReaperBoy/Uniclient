@@ -7,24 +7,21 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 374 — geometry-table slice 4 pinned
-  (icons, window chrome, top bar, checkbox, ripple,
-  scrollbar, toast) after a full-wipe recycle rebuilt
-  repo+toolchain+reference; 23 invariant tests green
-- next: push 374 + dispatch slice-4 CI (token needed);
-  then the Gio skeleton (dep bump → full gate + CI)
-- owner-waiting: T-2 — fresh GitHub token (push blocked
-  since the wipe); slice-3 CI 42187083372 in flight,
-  reconcile at boot
-- last-gate: local quick gate GREEN (23/23 + vet + gofmt
-  + comment ban); CI 42186245433 (slice 2, 5380141b)
-  SUCCESS; 42187083372 (slice 3, eb014073) in flight
+- front: session 375 — slice 4 pushed (af2f4136, T-2
+  resolved via fresh owner token); now the Gio skeleton
+  (dep bump → full gate + CI)
+- next: finish the skeleton, dispatch flake.yml (vendorHash)
+  then verify.yml on it; reconcile runs at boot
+- owner-waiting: none
+- last-gate: local quick gate GREEN (23/23); CI slice 2
+  42186245433 SUCCESS, slice 3 42187083372 SUCCESS
+  (eb014073) — 373 closed green; slice 4 run 42250138772
+  in flight on af2f4136
 
 ## Open items
 
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
-| T-2 | auth | push blocked: the GitHub token died with the 374 sandbox wipe (never stored, by law §0.2) | this session: anonymous clone/read fine, push+dispatch impossible | owner supplies a fresh token out-of-band → push session 374, dispatch verify.yml, reconcile 42187083372 |
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
 
@@ -71,9 +68,10 @@ owner order — that history lives in git if ever needed.
 - CI: 42186245433 (slice 2, 5380141b) SUCCESS
   re-confirmed from the run page (13 min, all three
   jobs). 42187083372 (slice 3, eb014073, Verify #370)
-  still in flight at commit time — reconcile at next
-  boot. Push blocked → T-2 NEEDS_OWNER (fresh token
-  out-of-band; §11 — never block on it).
+  completed SUCCESS (2026-11-06T08:30Z) — session 373
+  closed green. Push unblocked next session by a fresh
+  owner token (§0.2 transient use): af2f4136 on main,
+  verify.yml dispatched → run 42250138772; T-2 closed.
 
 ## Session 373 — geometry-table slice 3: boxes, menus, toggles, settings rows (2026-11-06)
 
