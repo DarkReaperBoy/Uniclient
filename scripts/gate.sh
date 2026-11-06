@@ -114,6 +114,27 @@ run_js() {
         GOOS=js GOARCH=wasm CGO_ENABLED=0 go test -tags "$TAGS" -count=1 -exec "$RUNNER" "$@"
 }
 
+partition_gio() {
+        GIO_PKGS=""
+        PURE_PKGS=""
+        for p in "$@"; do
+                [ -n "$p" ] || continue
+                if go list -tags "$TAGS" -deps "$p" 2>/dev/null | grep -q '^gioui\.org/'; then
+                        GIO_PKGS="$GIO_PKGS $p"
+                else
+                        PURE_PKGS="$PURE_PKGS $p"
+                fi
+        done
+}
+
+run_gio_legs() {
+        [ -n "$GIO_PKGS" ] || return 0
+        echo "== gio cgo legs (no root on this VM for libxkbcommon/libwayland;"
+        echo "   Linux-native compiles ride CI verify.yml — AGENTS.md §7/§9):$GIO_PKGS =="
+        echo "== windows vet (local substitute) =="
+        go_run env GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go vet -tags "$TAGS" -gcflags="$GCFLAGS" $GIO_PKGS
+}
+
 quick() {
         changed_go=$( {
                 git -C "$ROOT" diff --name-only "$BASE" -- go/
@@ -137,8 +158,10 @@ quick() {
                         *) nat="$nat $p" ;;
                 esac
         done
+        partition_gio $nat
         # shellcheck disable=SC2086
-        run_native $nat
+        run_native $PURE_PKGS
+        run_gio_legs
         # A runner change gates itself even when no Go package did (run_js
         # already self-tests whenever it runs; this covers the js-empty case).
         if [ -z "$js" ] && { git -C "$ROOT" diff --name-only "$BASE" -- scripts/wasm-test-runner.sh scripts/test-wasm-runner.sh | grep -q . \
@@ -155,17 +178,24 @@ full() {
         echo "== gofmt (all) =="
         bad=$(gofmt -l .) || true
         [ -z "$bad" ] || { echo "$bad"; fail "gofmt needed"; }
-        echo "== native test: all =="
-        go_run env CGO_ENABLED=1 go test -tags "$TAGS" -count=1 -gcflags="$GCFLAGS" ./...
+        all_pkgs=$(go list ./...)
+        # shellcheck disable=SC2086
+        partition_gio $all_pkgs
+        echo "== native test: all (pure set) =="
+        # shellcheck disable=SC2086
+        go_run env CGO_ENABLED=1 go test -tags "$TAGS" -count=1 -gcflags="$GCFLAGS" $PURE_PKGS
+        run_gio_legs
         echo "== js test: audio =="
         "$ROOT/scripts/test-wasm-runner.sh"
         GOOS=js GOARCH=wasm CGO_ENABLED=0 go test -tags "$TAGS" -count=1 \
                 -exec "$RUNNER" ./audio/...
         echo "== vet: native + js split =="
-        nat=$(go list ./... | grep -vE '/(audio)(/|$)' | tr '\n' ' ')
+        nat=$(echo $PURE_PKGS | tr ' ' '\n' | grep -vE '/(audio)(/|$)' | tr '\n' ' ')
         # shellcheck disable=SC2086
         go_run env CGO_ENABLED=0 go vet -tags "$TAGS" -gcflags="$GCFLAGS" $nat
         GOOS=js GOARCH=wasm CGO_ENABLED=0 go vet -tags "$TAGS" ./audio/...
+        echo "== js/wasm compile: all (mirrors CI) =="
+        go_run env GOOS=js GOARCH=wasm CGO_ENABLED=0 go build -tags "$TAGS" ./...
         echo "== cross-build: windows =="
         mkdir -p "$ROOT/dist"
         go_run env GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -tags "$TAGS" -gcflags="$GCFLAGS" \

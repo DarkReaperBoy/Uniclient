@@ -25,6 +25,8 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
+      - name: Gio client libs (cgo shims, AGENTS.md §7)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libxkbcommon-dev libwayland-dev
       - name: Comment ban (AGENTS.md §2)
         run: python3 scripts/strip_comments.py --check
       - uses: actions/setup-go@v5

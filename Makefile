@@ -1,5 +1,5 @@
-# Uniclient — pure-Go messenger build system (engine + cores; the GUI is
-# parked for a from-scratch rebuild — see AGENTS.md)
+# Uniclient — messenger build system (pure-Go engine + cores; the Gio GUI
+# rebuild rides along — its Linux shims need libxkbcommon-dev + libwayland-dev)
 #
 # Requirements: Go 1.27+. Pure Go: no cgo, no system dev headers needed.
 # NixOS users: `nix run` — no local toolchain needed.

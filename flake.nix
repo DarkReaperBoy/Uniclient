@@ -10,8 +10,8 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs { inherit system; };
-        # Pure Go: no cgo, no system libraries — the tree is engine + cores
-        # only (the GUI is parked for a from-scratch rebuild, AGENTS.md).
+        # Pure Go engine + cores; the rebuilt Gio GUI rides along — its
+        # Linux X11/Wayland shims are the only cgo in the tree (§7).
         # Go 1.27: go.mod requires >= 1.27 and buildGoModule hardcodes
         # GOTOOLCHAIN="local", so nixpkgs' default Go 1.26 toolchain
         # (buildGoModule = buildGo126Module) can never build this. The 1.27
@@ -30,6 +30,10 @@
           src = builtins.path { path = ./go; name = "uniclient-src"; };
           subPackages = [ "cmd/uniclient" ];
           tags = [ "goolm" ];
+          # The Gio windowing dep compiles its Linux X11/Wayland shims with
+          # cgo — the client libs come from nixpkgs.
+          buildInputs = with pkgs; [ libxkbcommon wayland ];
+          nativeBuildInputs = [ pkgs.pkg-config ];
           doCheck = false; # run `make test` in the dev shell
           # Reported by the first real build (the placeholder hash fails
           # the go-modules fixed-output derivation with the correct one).

@@ -10,6 +10,7 @@ import (
 	"syscall"
 
 	"uniclient/bootstrap"
+	"uniclient/ui/window"
 )
 
 func main() {
@@ -17,7 +18,15 @@ func main() {
 	dir := flag.String("dir", home, "config directory (vault + cache + downloads)")
 	password := flag.String("password", defaultVaultPassword(), "vault password")
 	events := flag.Bool("events", false, "print engine events as JSON lines on stdout")
+	gui := flag.Bool("gui", false, "run the GUI window instead of the headless engine loop")
 	flag.Parse()
+
+	if *gui {
+		if err := window.Run(); err != nil {
+			log.Fatalf("gui: %v", err)
+		}
+		return
+	}
 
 	eng, err := bootstrap.Init(
 		*dir,

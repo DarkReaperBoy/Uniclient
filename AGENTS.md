@@ -286,9 +286,11 @@ go/
 
 Event flow: `cores → engine (caches+normalizes) → EngineEvent JSON →
 SetEventCallback/Subscribe → UI`. Core interface: `go/cores/base.go`; unsupported
-actions return `ErrNotSupported` and the UI hides them. Platform truth (go 1.27,
-pure Go since the GUI removal): Linux/Windows/Android `CGO_ENABLED=0` (race needs
-cgo); Web `GOOS=js GOARCH=wasm`; macOS/iOS banned.
+actions return `ErrNotSupported` and the UI hides them. Platform truth (go 1.27):
+our code is pure Go on every axis (§1.1); the Gio windowing dep (§1.7) contributes
+the only cgo — Linux desktop needs the X11/Wayland client libs
+(`libxkbcommon-dev`, `libwayland-dev`), Android is cgo-via-gogio; Windows and
+Web stay `CGO_ENABLED=0`; race needs cgo; macOS/iOS banned.
 
 **Web truth** (no raw sockets in browsers): GitHub + Matrix over HTTPS; Bale via
 gRPC-Web WebSocket (`ErrNotSupported` on web); Telegram/IRC/XMPP/DeltaChat/TeamSpeak/
