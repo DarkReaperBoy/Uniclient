@@ -118,6 +118,62 @@ const (
 	ComposePadBottom = 9
 
 	ComposerRestHeight = ComposePadTop + ComposeFieldHeightMin + ComposePadBottom
+
+	BoxWidth            = 320
+	BoxWideWidth        = 364
+	BoxPadLeft          = 24
+	BoxPadTop           = 14
+	BoxPadRight         = 24
+	BoxPadBottom        = 8
+	BoxRadius           = 6
+	BoxTitlePosX        = 24
+	BoxTitlePosY        = 13
+	BoxTitleHeight      = 48
+	BoxTitleMaxHeight   = 24
+	BoxTitleAddSkip     = 9
+	FontBoxTitle        = 16
+	BoxButtonHeight     = 34
+	BoxButtonTextTop    = 7
+	BoxButtonPadLeft    = 6
+	BoxButtonPadTop     = 10
+	BoxButtonPadRight   = 10
+	BoxButtonPadBottom  = 10
+	BoxRowPadLeft       = 24
+	BoxRowPadRight      = 24
+	BoxTopMargin        = 8
+	BoxMaxListHeight    = 492
+	BoxLittleSkip       = 10
+	BoxMediumSkip       = 20
+	BoxCheckboxTextPosX = 12
+
+	MenuItemPadLeft    = 17
+	MenuItemPadTop     = 8
+	MenuItemPadRight   = 17
+	MenuItemPadBottom  = 7
+	MenuItemRightSkip  = 6
+	MenuWidthMin       = 156
+	MenuWidthMax       = 300
+	MenuRadius         = 6
+	MenuScrollPad      = 8
+	MenuDurationMs     = 150
+	MenuShowDurationMs = 200
+
+	ToggleDiameter   = 14
+	ToggleBorder     = 2
+	ToggleShift      = -2
+	ToggleDurationMs = 150
+
+	SettingsRowHeightText  = 20
+	SettingsRowPadLeft     = 22
+	SettingsRowPadTop      = 10
+	SettingsRowPadRight    = 22
+	SettingsRowPadBottom   = 8
+	SettingsRowToggleSkip  = 22
+	SettingsChatRowPadLeft = 60
+	SettingsChatPadTop     = 10
+	SettingsChatPadRight   = 22
+	SettingsChatPadBottom  = 10
+	SettingsChatIconLeft   = 20
 )
 
 type MainMenuEntryKind int
@@ -149,4 +205,12 @@ var DefaultMainMenu = []MainMenuEntry{
 	{Kind: MenuAction, ID: "settings", Label: "Settings", Icon: "menuIconSettings"},
 	{Kind: MenuToggle, ID: "night_mode", Label: "Night Mode", Icon: "menuIconNightMode"},
 	{Kind: MenuToggle, ID: "ghost_mode", Label: "Ghost Mode", Icon: "ayuGhostIcon"},
+}
+
+func MenuItemHeightFor(fontPx int) int {
+	return fontPx + MenuItemPadTop + MenuItemPadBottom
+}
+
+func MainMenuRowHeight() int {
+	return FontBase + MainMenuButtonPadTop + MainMenuButtonPadBottom
 }

@@ -253,3 +253,75 @@ func TestComposerSane(t *testing.T) {
 			ComposerRestHeight, ComposeFieldHeightMin, HistorySendSizeH)
 	}
 }
+
+func TestBoxesSane(t *testing.T) {
+	if BoxWidth >= BoxWideWidth || BoxWidth <= 0 {
+		t.Fatalf("box widths inverted: %d/%d", BoxWidth, BoxWideWidth)
+	}
+	if BoxPadLeft != BoxTitlePosX {
+		t.Fatalf("box left rhythm broken: pad %d, title x %d", BoxPadLeft, BoxTitlePosX)
+	}
+	if BoxPadLeft != BoxRowPadLeft {
+		t.Fatalf("box row left drift: pad %d, row pad %d", BoxPadLeft, BoxRowPadLeft)
+	}
+	if !(BoxTitlePosY+BoxTitleMaxHeight <= BoxTitleHeight) {
+		t.Fatalf("title %d+%d overflows title bar %d",
+			BoxTitlePosY, BoxTitleMaxHeight, BoxTitleHeight)
+	}
+	if BoxButtonHeight != 34 || BoxWidth != 320 || BoxWideWidth != 364 {
+		t.Fatalf("measured box metrics drifted: button %d (want 34), width %d (want 320), wide %d (want 364)",
+			BoxButtonHeight, BoxWidth, BoxWideWidth)
+	}
+	if BoxMaxListHeight <= 0 || BoxLittleSkip <= 0 || BoxMediumSkip <= BoxLittleSkip {
+		t.Fatalf("box skips broken: maxList %d, little %d, medium %d",
+			BoxMaxListHeight, BoxLittleSkip, BoxMediumSkip)
+	}
+	if BoxRadius != 6 || FontBoxTitle != 16 {
+		t.Fatalf("box radius %d (want 6) or title font %d (want 16)", BoxRadius, FontBoxTitle)
+	}
+}
+
+func TestMenuSane(t *testing.T) {
+	if MenuItemPadTop <= MenuItemPadBottom {
+		t.Fatalf("menu padding inverted: top %d, bottom %d", MenuItemPadTop, MenuItemPadBottom)
+	}
+	if MenuWidthMin >= MenuWidthMax {
+		t.Fatalf("menu widths inverted: %d/%d", MenuWidthMin, MenuWidthMax)
+	}
+	if MenuItemHeightFor(13) != 13+MenuItemPadTop+MenuItemPadBottom {
+		t.Fatalf("menu row height formula broken")
+	}
+	if MenuItemHeightFor(FontBase) != 28 {
+		t.Fatalf("measured menu row drifted: %d (want 28)", MenuItemHeightFor(FontBase))
+	}
+	if MenuRadius != 6 || MenuShowDurationMs != 200 || MenuDurationMs != 150 {
+		t.Fatalf("menu chrome drifted: radius %d, show %d, anim %d",
+			MenuRadius, MenuShowDurationMs, MenuDurationMs)
+	}
+}
+
+func TestTogglesSane(t *testing.T) {
+	if ToggleDiameter <= 0 || ToggleBorder <= 0 {
+		t.Fatalf("toggle non-positive: diameter %d, border %d", ToggleDiameter, ToggleBorder)
+	}
+	if ToggleDurationMs <= 0 {
+		t.Fatalf("toggle duration non-positive: %d", ToggleDurationMs)
+	}
+	if ToggleDiameter != 14 || ToggleBorder != 2 {
+		t.Fatalf("measured toggle drifted: diameter %d (want 14), border %d (want 2)",
+			ToggleDiameter, ToggleBorder)
+	}
+}
+
+func TestSettingsRowsSane(t *testing.T) {
+	if SettingsRowHeightText != 20 || SettingsRowPadTop != 10 || SettingsRowPadBottom != 8 {
+		t.Fatalf("settings default row drifted: text %d, padTop %d, padBottom %d (want 20/10/8)",
+			SettingsRowHeightText, SettingsRowPadTop, SettingsRowPadBottom)
+	}
+	if MainMenuRowHeight() != 13+MainMenuButtonPadTop+MainMenuButtonPadBottom {
+		t.Fatalf("main-menu row formula broken (semibold 13 + 11 + 9 = 33)")
+	}
+	if MainMenuRowHeight() != 33 {
+		t.Fatalf("measured main-menu row drifted: %d (want 33)", MainMenuRowHeight())
+	}
+}

@@ -7,18 +7,16 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 372 — geometry-table slice 2 pinned: the
-  chat view (bubble padding/margins, radius system with the
-  AyuGram default, service messages, composer growth chain,
-  wide-mode width formula) — 11 invariant tests green
-- next: table slice 3 — settings/boxes (settings.style,
-  boxes.style: box paddings, section rows, toggle sizes) and
-  the context-menu/popup metrics (widgets.style menu
-  geometry); then the Gio skeleton (dep bump → full gate)
+- front: session 373 — geometry-table slice 3 pinned: boxes
+  (dialogs), popup menus, toggles, settings rows — derived
+  row-height helpers added; 15 invariant tests green
+- next: table slice 4 — icons/dimensions audit (menu icon
+  sizes, button icon boxes) + scrollbars/toasts if any; then
+  the Gio skeleton (dep bump → full gate + CI)
 - owner-waiting: none new (GUI build ordered 2026-11-06)
-- last-gate: local legs green (11/11, gofmt, comment ban,
-  vet); CI 42186245433 dispatched on 5380141b (slice 2) —
-  reconcile at boot
+- last-gate: local legs green (15/15, gofmt, comment ban,
+  vet); CI 42186245433 on 5380141b (slice 2) still running
+  at session open; slice-3 dispatch recorded below
 
 ## Open items
 
@@ -26,6 +24,27 @@ owner order — that history lives in git if ever needed.
 |---|---|---|---|---|
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
+
+## Session 373 — geometry-table slice 3: boxes, menus, toggles, settings rows (2026-11-06)
+
+- Slice 3 mined from v7.2.9: boxes (lib_ui layers.style
+  38-125) — width 320 / wide 364, pad 24/14/24/8, radius 6,
+  title font 16 semibold at 24/13 in a 48px bar (label max
+  24), additional skip 9, row pad 24/0/24/0, top margin 8,
+  max list 492, little/medium skips 10/20, buttons 34h
+  (textTop 7, pad 6/10/10/10, font 14 semibold), checkbox
+  text x 12; popup menus (lib_ui widgets.style defaultMenu/
+  PopupMenu) — item pad 17/8/17/7, right skip 6, width clamp
+  156-300, radius 6, scroll pad 8, anim 150/show 200; toggle
+  (defaultToggle) — diameter 14, border 2, shift -2, dur
+  150; settings rows — default 22/10/22/8 (text 20, toggle
+  skip 22), chat-flavor 60/10/22/10 iconLeft 20, profile
+  79/10/8/8 iconLeft 22 toggleSkip 20; row heights added as
+  DERIVED helpers: MenuItemHeightFor(font)=font+15 → 28 at
+  base 13; MainMenuRowHeight()=13+11+9=33.
+- RED (undefined: BoxWidth) → GREEN 15/15; gofmt, comment
+  ban, vet clean (another suspect-or split). Slice-2 CI
+  still in flight at commit time — reconcile at next boot.
 
 ## Session 372 — geometry-table slice 2: the chat view (bubbles, radius system, composer) pinned (2026-11-06)
 
@@ -205,71 +224,3 @@ owner order — that history lives in git if ever needed.
 - CI: 42167382870 SUCCESS at job AND step level — race
   leg green, headless smoke green, js/wasm compile green
   — session 368 closed green.
-
-## Session 367 — H-1: the cores final sweep — testhooks.go deleted, 7 defs cut (2026-11-06)
-
-- Boot: full-wipe recycle — the whole sandbox (repo +
-  toolchain) gone; fresh clone at b5337add (366 closed
-  green), PAT re-verified (HTTP 200), env.sh recovery
-  verbatim (go1.27.1, modcache 992M), the clone-token
-  scrubbed from the remote URL (AGENTS.md §0.2).
-- 7 defs cut (7→0 in cores): groupPeer ForTestKey — pure
-  deletion, the key was always GroupPeerKey(UserID, Device)
-  over exported fields; ForTestNewTsIncomingCmd —
-  TsNewIncomingCmd constructor now used by BOTH production
-  wire sites (receive loop + handshake) and the fuzz
-  harness; ForTestMyClientID — replaced by the self-echo
-  journey: server pushes notifytextmessage invokerid=42
-  (our clid) → suppressed, invokerid=7 → surfaces
-  (positive control), observed via OnUpdate — the race test
-  keeps its 100-SendMessage hammer; identity trio —
-  sign+omega already wire-pinned (EKProofValid, asserted in
-  the journey test since 361), UID pinned by
-  cross-derivation: WhoAmI (responder omits
-  client_unique_identifier) must report base64(sha1(omega))
-  with omega the SERVER-OBSERVED clientinitiv value (new
-  harness ClientOmega()); the two unit tests deleted;
-  ForTestTsTrackRecvPID — exported as TsTrackRecvPID (the
-  TsParseInit1 helper class, H-3 census), the 3 scenario
-  unit tests stay: dup idempotence, jitter/straggler
-  no-bump semantics are masked by the ±1 decrypt fallback —
-  not journey-observable.
-- NEW wire journey TestTS3WrapClimbOnWire: the wrap-bump is
-  only wire-provable through a generation SKIP (a same-gen
-  or +1 packet self-heals via fallback+adoption), so the
-  harness gains InitialCmdPID — the scripted server boots
-  its command counter at 0xFFFD (a real server mid-life
-  after 65k commands), channellistfinished lands at 0xFFFF,
-  the client's nextRecvID wraps to 0x0000 naturally; the
-  first post-wrap pID arrives gen-skipped (gen 2): it
-  decrypts ONLY if the tracker proactively bumped to gen 1
-  (then the alt-2 fallback lands; a stuck-at-0 tracker tries
-  0 and 1 → drop). PushAtPIDGen(pID, gen) added (sendCmdPkt
-  was gen-0 only).
-- Discovery: command S2C packets decrypt AT ARRIVAL (the
-  tracker runs then) but deliver IN pID ORDER (the queuegap
-  queue) — arbitrary-pID pushes get held; the voice slot
-  bypasses tsDecryptRecv entirely (reads recvGenID
-  directly, no per-pID tracking).
-- Production (1 file, +8/-4): TsNewIncomingCmd constructor;
-  tsTrackRecvPID → TsTrackRecvPID (2 call sites). Zero
-  other production changes; go.mod unchanged.
-- Evidence: focused family GREEN (12.0s); 2 × count=10 = 20
-  consecutive runs ZERO fails (118.5s + 118.6s); full make
-  test GREEN (cores 59.1s, engine 6.1s, bootstrap 0.9s,
-  utils 1.3s); vet + gofmt tree clean; strip check clean
-  (271 files, 0 dropped); census ZERO ForTest in cores
-  (whole tree: audio's js-only ForTestMu remains, logged in
-  H-1); js/wasm compile GREEN. Local -race/windows
-  OOM-skipped (env.sh truth) — the CI race pin carries
-  TestTS3*|TestHandshake* (the new tests auto-in by prefix).
-- Design rating 9/10: five slices pure-deletion or
-  constructor-promotion onto established patterns; every
-  replaced assertion moved to wire/server-side evidence;
-  the wrap journey pins previously unpinned protocol
-  semantics through a realistic high-counter boot instead of
-  state surgery.
-- CI: 42075019094 SUCCESS at job AND step level — race leg
-  green with the new TestTS3IdentityProofAndUIDOnWire/
-  TestTS3WrapClimbOnWire/TestHandshake* in the pin —
-  session 367 closed green.
