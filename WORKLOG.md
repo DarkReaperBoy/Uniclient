@@ -7,22 +7,20 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 379 — the GUI kit build (post-skeleton);
-  the dialogs list Elm+render leg (viewport state,
-  scroll msgs, clamp laws, load-more wiring, Pane
-  snapshot, PaintPane with elastic thumb) landed as
-  239cdaf1; verify 42351344419 SUCCESS at job AND
-  step level — 379 closed green
-- next: the window-adapter input leg (wheel/touch →
-  DialogsScrolled, click hit-testing via List.RowAt
-  + viewport offset, scrollbar drag); then message-
+- front: session 380 — the GUI kit build (post-skeleton);
+  the dialogs window-adapter input leg (wheel angle
+  law, click hit-test, elastic bar drag/jump, touch
+  drag+tap) landed as e30bbfad; verify 42362009163
+  SUCCESS at job AND step level — 380 closed green
+- next: kinetic touch (fling) + overscroll anim state
+  (the deferred halves of the input leg); message-
   bubble kit; Material icon assets (chat-type/send-
   state/pinned/mention/poll/TTL glyphs) to un-defer
   icon paint
 - owner-waiting: none
-- last-gate: quick GREEN (62 ui + 19 gui = 81 PASS;
+- last-gate: quick GREEN (69 ui + 30 gui = 99 PASS;
   windows-vet substitute for render/window/cmd);
-  comment ban 288 clean; CI 42351344419 green
+  comment ban 291 clean; CI 42362009163 green
   (cross-builds incl. js/wasm, test/vet/race/smoke,
   nix)
 
@@ -33,6 +31,66 @@ owner order — that history lives in git if ever needed.
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
 
+## Session 380 — the window-adapter input leg: wheel, hit-test, bar drag, touch (2026-11-07)
+
+- Boot: wipe #6 (repo/toolchain/ayu-ref gone;
+  skills/download/upload survived, .env sweep clean).
+  Clone landed at 26f6fccd — 379 had already closed
+  green in the lost session. env.sh recovery, pins
+  verified (taggedForumDialogRow 96/77), baseline 81
+  PASS before any edit.
+- Wheel law (ui_utility.cpp:268-288 + elastic_scroll
+  :926-945): angle→px = angle×lines/(2×3), qRound on
+  the float (toPoint = half away from zero); Ctrl/Shift
+  multiply is PER-AXIS max(width|height,120)/120,
+  TRUNCATED (QPoint double-ctor narrowing) — y scales
+  by scroll HEIGHT, not width; cross-axis |px| >= |py|
+  ignores (x carries the width mult, y the height mult,
+  so acceleration can flip the verdict; dialogs sets
+  no direction lock → the check is unconditional);
+  dy = −pixels.y. Pixel path (trackpad + synthesized
+  touch): qRound(px) through the same block, modifiers
+  cleared for synthesized touch only.
+- Bar laws (elastic_scroll.cpp:321-388): overBar =
+  strip-local x in [deltax, deltax+thickness) AND y in
+  [thumb.Y, thumb.Y+H) — the 10dp strip is wider than
+  the 4dp thumb, so track-edge clicks jump; off-thumb
+  press = jump-to-middle: middle = clamp(y, deltat+
+  half, deltat+available+half−bar), from = scrollable×
+  (middle−half−deltat)/(available−bar); drag = scaleToBar
+  dy×scrollable/outsideBar, 1:1 when scrollable <=
+  outsideBar; range clamp reduces to ClampOffset when
+  not overscrolled (overscroll accumulation needs anim
+  state — deferred with the fling).
+- Touch: manhattan(pos−start) >= startDragDistance 10
+  arms 1:1 finger follow (the crossing move applies
+  too — prev-position updates every event); tap (never
+  armed) selects at the release position; long-press
+  right-click deferred (no context menu yet). Row
+  hit-test = RowAt(y+Top, width); rowAtY
+  (dialogs_list.cpp:252) lower_bound+confirm proved
+  equivalent to the existing List.RowAt walk.
+- Wiring: 6 messages (Wheel, TrackpadScrolled, Pressed,
+  Dragged, Released, PressCanceled) + Model.DialogsTouch/
+  DialogsBar states; mouse selects on press, touch on
+  release-tap. All scrolls route through clamp +
+  loadMoreCmd. PaintPane registers event.Op (Painter.Input)
+  in the pane clip; window reads pointer.Filter events
+  (open scroll ranges, grab on press, Metric px→dp).
+  Windows = angle path (gio passes raw ±120 deltas =
+  Qt angleDelta numerically); other backends = pixel
+  path (gio converts notches itself: X11 10/notch,
+  wayland 100, js ~100 — divergence from AyuGram 60
+  noted, Windows exact). Window loop now paints
+  PaintPane (was background-only).
+- TDD: 2 spec bugs lost to the law — wheel-up −500
+  from 692 is 192 in-range (case moved to ±2000);
+  692×53/206 = 178.04 → 178 not 177.
+- GREEN: 18 tests (7 ui + 11 gui), 99 total; gofmt,
+  comment ban 291 clean, quick gate GREEN. Shipped
+  e30bbfad; verify 42362009163 SUCCESS at job AND
+  step level (3 jobs, 0 failures).
+
 ## Session 379 — the dialogs list Elm+render leg: viewport state, scroll laws, Pane snapshot, PaintPane (2026-11-07)
 
 - Boot: workspace intact at 5a84a9ff (no recycle);
@@ -41,132 +99,66 @@ owner order — that history lives in git if ever needed.
 - Laws mined: wheel apply = tryScrollTo(visibleFrom
   + delta) with delta = −pixels.y (elastic_scroll.cpp:
   946) — at rest willScrollTo reduces to clamp
-  [0, content−view] (the gesture-relative min/max
-  bounds only matter mid-rubber-band; adapter anim
-  state, not core); reload/resize clamp = QScrollBar
-  range-change semantics (value clamps when max
-  shrinks); load-more fires on EVERY viewport-
-  affecting msg while loadTill >= content (no
-  transition guard — engine dedups, inner_widget
-  4712-4723); empty list satisfies it trivially →
-  the initial page request; thumb chrome =
-  st::defaultScrollArea (ElasticScroll ctor default,
-  elastic_scroll.h:112): bar x deltax 3, w 4, radius
-  2, color scrollBarBg #00000053 (colors.palette:62).
-- The pure snapshot: dialogs.Pane{Width, View, First,
-  Rows, RowYs, Selected, Thumb} + List.Pane(v, width)
-  — VisibleRows window, absolute RowYs cumulative
-  walk, ScrollbarThumb reuse. Elm: Model.DialogsScroll
-  Viewport; DialogsScrolled{DeltaY} clamps+
-  accumulates; DialogsLoaded/Resized clamp Top
-  (QScrollBar law) + set pane height; loadMoreCmd on
-  scrolled/resized/loaded returning the no-op marker
-  DialogsLoadMoreRequested (adapter observation point;
-  no chain — Update no-ops it, verified).
+  [0, content−view]; reload/resize clamp = QScrollBar
+  range-change semantics; load-more fires on EVERY
+  viewport-affecting msg while loadTill >= content
+  (inner_widget 4712-4723); empty list satisfies it
+  trivially → the initial page request; thumb chrome =
+  st::defaultScrollArea: bar x deltax 3, w 4, radius
+  2, color #00000053 (colors.palette:62).
+- The pure snapshot: dialogs.Pane + List.Pane(v,
+  width) — VisibleRows window, absolute RowYs walk,
+  ScrollbarThumb reuse. Elm: Model.DialogsScroll;
+  DialogsScrolled clamps+accumulates; Loaded/Resized
+  clamp Top + set pane height; loadMoreCmd returns
+  the no-op marker DialogsLoadMoreRequested.
 - LAW CHANGE: TestUpdateRecordsResized pin updated —
   resize on an empty list now emits the initial load
-  request; the skeleton-era "resize emits no cmd"
-  predates the loadTill law and lost to it.
-- render.PaintPane: viewport clip; per-row explicit
-  push/pop op.Offset(RowYs[i]−View.Top) (defer-in-loop
-  would accumulate offsets across rows — caught at
-  design); RowSelected when First+i == Selected;
-  thumb rrect at Width−10+3. Scene.Dialogs = the pane
-  (zeroed when !HasDialogs).
-- TDD discipline: 5 of my spec cases fell to the law
-  before GREEN — 4 plain rows = 248 < 300 view (no
-  scroll range; fixtures went to 6 rows = 372);
-  −20 from 72 = 52 in-range pass-through (not 0);
-  pane windows are [first,last) so top {0,100} shows
-  rows 0..1 only (row 2 top 134 >= till) and narrow
-  {62,124} rows 1..2 (row 3 top 186 not < 186);
-  thumb track = view height → barWanted 30 lifted to
-  min 40; paneFixture needed Selected −1 (zero value
-  0 = row-0-selected). Implementation matched the
-  pinned laws every time — all five were spec bugs.
-- GREEN: 9 new tests (2 ui + 7 gui), 81 total. gofmt,
-  comment ban 288 clean, quick gate GREEN (windows-vet
-  substitute compiled the gio render leg).
-- Next: the window-adapter input leg (wheel/touch ->
-  DialogsScrolled, click hit-testing via RowAt +
-  viewport offset, scrollbar drag).
+  request; the skeleton-era pin lost to the loadTill
+  law.
+- render.PaintPane: viewport clip; per-row push/pop
+  op.Offset(RowYs[i]−View.Top); RowSelected when
+  First+i == Selected; thumb rrect at Width−10+3.
+- TDD discipline: 5 spec cases fell to the law before
+  GREEN (fixtures 6 rows = 372; −20 from 72 = 52
+  pass-through; [first,last) windows; barWanted 30
+  lifted to min 40; paneFixture Selected −1).
+- GREEN: 9 tests, 81 total; gates clean; shipped
+  239cdaf1, verify 42351344419 SUCCESS job+step.
 
 ## Session 378 — wipe #5 boot + the dialogs list scroll law: viewport, virtualization, reveal, thumb (2026-11-07)
 
-- Boot: full-wipe #5 — repo, toolchain AND ayu-ref gone
-  (only skills/download/upload survived; .env holds no
-  credentials, sweep clean). Fresh clone at 5e6ba094
-  (= origin/main, push had already landed; the "ahead
-  by 2" in the dead workspace was a stale tracking ref
-  from the one-time-URL push pattern). go1.27.1 rebuilt
-  from the env.sh recipe (modcache 1.1G); ayu-ref
-  re-acquired: AyuGramDesktop v7.2.9 tarball (github
-  rename — AyuGram6 probe 404s; real repo
-  AyuGram/AyuGramDesktop, found via web search) +
-  lib_ui @ e3d0582 tarball. Version sanity: dialogs.style
-  taggedForumDialogRow 96/77 matches the slice-5 pins.
-  Baseline re-verified before any edit: quick gate
-  HEAD~2 GREEN, 60 PASS.
-- The discovery that reframes the slice: the dialogs
-  list runs on Ui::ElasticScroll (dialogs_widget.h:373),
-  NOT the classic ScrollArea — the governing thumb law
-  is elastic_scroll.cpp:131-175 (refreshGeometry), not
-  scroll_area.cpp updateBar. ComputeScrollTo is
-  byte-identical in both files (elastic_scroll.cpp:21-52
-  == scroll_area.cpp:23-53) — one reveal law.
-- The scroll slice: go/ui/dialogs/scroll.go — Viewport
-  {Top, Height}; MaxOffset = max(0, content−view)
-  (scrollTopMax scroll_area.cpp:653 + QScrollBar
-  range semantics); ClampOffset; VisibleRows(v, width)
-  → [first,last) — findByY lower_bound "top+height−1 >=
-  viewportTop" (dialogs_list.cpp) + the paint walk
-  "break when top >= viewportBottom" (inner_widget
-  3749-3752): a row counts as visible when its LAST
-  pixel overlaps — 1px overlap pinned by test;
-  PreloadWindow = [top, top + 4 viewports) and
-  LoadMoreNeeded = top + 3·viewH >= contentH
-  (inner_widget 4705-4723, 5654-5655; PreloadScreens
-  = 3 token, config.h:21 — the same "3 screens"
-  constant history_widget uses); ScrollToReveal(top,
-  bottom, current, viewH, max) — ComputeScrollTo
-  verbatim: clamp top, exact mode (bottom < 0 →
-  top-align), no-op when item inside view, bottom-
-  align toTill−viewH capped at item top; Thumb{Y,H,
-  Hidden} + ScrollbarThumb(v, width, trackH) — the
-  elastic law: fullSkip 6 (deltat+deltab), thickness
-  4 (width−2·deltax), hide when content<=0 || view<=0
-  || track < 14; available = track−6; barMin =
-  min(scrollBarMin 40, available/2); bar = max(barMin,
-  floor(available·view/content)); hide when barWanted
-  >= available; barFrom = (available−bar)·top/scrollable
-  cut-clamped to [0, available−thickness] / [thickness,
-  available] (overscroll shrinks the thumb into the
-  insets — pinned); Y = deltat + cutFrom. Wheel law
-  NOT pinned: elastic wheel is device-delta driven
-  (ScrollDeltaF), no constant to mine. Classic updateBar
-  thumb law (scroll_area.cpp:145-190, clamps to style
-  minHeight 20) left unpinned — dialogs list never
-  rides it.
-- RED: 12 tests in go/tests/ui/dialogs_list_
-  scroll_test.go failed undefined (MaxOffset/Clamp-
-  Offset/VisibleRows/PreloadWindow/LoadMoreNeeded/
-  ScrollToReveal/ScrollbarThumb/PreloadScreens). Two
-  spec bugs caught by re-derivation before GREEN:
-  visible-walk case {top 133, viewH 100} spans rows
-  1..4 (till 233 includes row 3 at top 214), and the
-  short-track thumb at top 0 is (3, 27) not (30, 27);
-  one more during GREEN: "partially below" reveal case
-  was actually fully-visible (item [160,250) in view
-  [160,260)) — the law correctly no-ops; fixed the case
-  to current 100 → bottom-align 150. GREEN: 12 new, 72
-  total PASS. gofmt, comment ban 286 clean, quick gate
-  GREEN (windows-vet substitute for cmd/render/window).
-  Landed as e38052c2 (WORKLOG trimmed to 283 lines —
-  sessions 374-376 compressed, pins live in code);
-  pushed, verify 42347578779 dispatched and reconciled
-  SUCCESS at job AND step level (nix + test/vet/race/
-  smoke + windows/js-wasm cross-builds) — 378 closed
-  green.
+- Boot: full-wipe #5 (repo/toolchain/ayu-ref gone;
+  env sweep clean). Clone at 5e6ba094 = origin/main
+  (the "ahead by 2" was a stale tracking ref from the
+  one-time-URL push). env.sh recovery; ayu-ref
+  re-acquired after the AyuGram6→AyuGramDesktop repo
+  rename (v7.2.9 + lib_ui @ e3d0582); pins verified;
+  baseline 60 PASS.
+- Discovery: the dialogs list runs Ui::ElasticScroll
+  (dialogs_widget.h:373), not classic ScrollArea —
+  thumb law = elastic_scroll.cpp:131-175
+  (refreshGeometry); ComputeScrollTo byte-identical in
+  both files — one reveal law.
+- go/ui/dialogs/scroll.go: Viewport; MaxOffset =
+  max(0, content−view); ClampOffset; VisibleRows →
+  [first,last) via findByY lower_bound (last-pixel
+  overlap) + paint walk; PreloadWindow/LoadMoreNeeded
+  (3 screens, config.h:21); ScrollToReveal =
+  ComputeScrollTo verbatim; Thumb + ScrollbarThumb —
+  fullSkip 6, thickness 4, barMin min(40, available/2),
+  barWanted >= available hides, barFrom ratio with
+  cut-clamp to the inset range (overscroll shrinks the
+  thumb), Y = deltat+cutFrom. Elastic wheel = device-
+  delta driven, no constant to mine; classic updateBar
+  thumb law unpinned (dialogs never rides it).
+- RED 12 undefined → GREEN 12 (3 spec bugs lost to
+  re-derivation first: visible-walk till 233 includes
+  row at 214; short-track top-0 thumb (3,27); the
+  "partially below" reveal case was fully visible —
+  law no-ops). 72 total; gates clean. Landed e38052c2
+  (WORKLOG trimmed to 283); verify 42347578779
+  SUCCESS job+step — 378 closed green.
 - Next: the Elm/gio leg wiring Viewport into Model.
   Dialogs (scroll messages, clamp on reload, thumb
   paint via render Painter).
