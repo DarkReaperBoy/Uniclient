@@ -9,17 +9,21 @@ owner order — that history lives in git if ever needed.
 
 - front: session 376 — boot after full-wipe recycle
   #4 (env rebuilt: clone at 0259ee3f, go1.27.1, ayu-ref
-  v7.2.9 + lib_ui e3d0582); Material theme system
-  landed: SchemeFor(Light/Dark/Amoled) in ui/material,
-  36 M3-baseline roles (Compose v0_210 tokens) + AMOLED
-  black chrome, WCAG ≥4.5 pinned
-- next: dialogs list rows — mine unread-badge/date/
-  online-dot geometry from ayu-ref dialogs.style, row
-  widget on tokens + theme; then the message-bubble kit
+  v7.2.9 + lib_ui e3d0582); TWO GUI slices landed:
+  Material theme system (SchemeFor Light/Dark/Amoled,
+  36 M3-baseline roles from Compose v0_210 tokens,
+  WCAG ≥4.5) + dialogs-row internals (badge pill law,
+  counter format, online-badge pos law, tagged/forum
+  variants)
+- next: the dialogs row widget — gio painting + Elm
+  dialogs state on the pinned table; then the
+  message-bubble kit
 - owner-waiting: none
-- last-gate: quick GREEN (31 ui + 12 gui, windows-vet
-  substitute for cmd+window); comment ban 279 clean;
-  verify dispatch rides this push
+- last-gate: quick GREEN ×2 (37 ui + 11 gui = 48 PASS;
+  windows-vet substitute for cmd+window); comment ban
+  280 clean; verify 42332427263 in flight on 2cf8f9ff
+  (theme slice) — second dispatch rides the dialogs
+  push; reconcile both at boot
 
 ## Open items
 
@@ -37,7 +41,7 @@ owner order — that history lives in git if ever needed.
   42267096271 SUCCESS via API). go1.27.1 rebuilt from
   the env.sh recipe (modcache 1.1G); ayu-ref
   re-acquired (v7.2.9 tarball + lib_ui @ e3d0582,
-  AyuGram fork). Baseline 23/23 + 12/12 green before
+  AyuGram fork). Baseline 23/23 + 11/11 green before
   any edit.
 - The theme-system slice: ui/material seed → Scheme
   (36 roles) + Kind + SchemeFor(Light/Dark/Amoled),
@@ -60,6 +64,37 @@ owner order — that history lives in git if ever needed.
   distinct, dark surface luma hierarchy. gofmt +
   comment ban (279 files) + quick gate GREEN
   (windows-vet substitute for cmd+window).
+- The dialogs-row slice (geometry-table slice 5):
+  unread badge — font 12 bold, height 19, padding 5,
+  pill width max(textW+2p, 19), radius height/2,
+  mark-dot 8 centered in a 19 cell (dialogs.style:
+  78-80,636; unread_badge_paint.cpp:97-191); counter
+  law narrow → "99+" >999 w/ mention, "99999+"
+  >999999 (unread_counter_format.cpp:10-27); date —
+  font 13 (=base), skip 5, baseline = semibold height
+  − normal descent, name rect (68,10,w−78,semibold),
+  name = semiboldFont = fsize 13 (lib_ui
+  basic.style:55); chat-type skip 3, send-state skip
+  20, text min 150 (fits min pane 68+150+10 ≤ 260),
+  state icons 18, right-button gate = column min
+  (dialogs.style:217,384,401; layout:114-124); online
+  badge — 12ø stroke 3 dur 150, call 16, TTL 20, pos
+  law ported from AyuUserpic::OnlineBadgePosition
+  (ayu_userpic.cpp:81-99; round default — kMax-
+  AvatarCorners 23 = lib_ui default, ayu_ui_settings
+  .h:11) → (33,33) on the 46px photo, TTL (26,26)
+  flush; row variants — tagged 72h/30/52, forum
+  80h/32/8/14/21; width anim 120 (=universalDuration);
+  narrow badge top 35 (pad+photo−19, bottom-aligned
+  to photo); PaintBadges stack order + 5px spacing
+  law, narrow max-2-badges gate (layout:165-314).
+- RED (undefined: FontDialogsUnread + more) → GREEN
+  6 tests / 37 ui total; the TTL-pos test caught a
+  real porting bug (stroke=0 branch used −half not
+  −badgeSize) — fixed, law now exact. Three
+  vet-suspect compound conditions split (373 class).
+  Gui suite recount: 11 tests (375 logged 12).
+  gofmt + comment ban (280 files) + quick gate GREEN.
 - Design 8/10: data-pinned with provenance and
   invariant tests; minus one — the M3 source is
   Compose's token table (m3.material.io shows
@@ -256,37 +291,3 @@ owner order — that history lives in git if ever needed.
   rewritten onto the measured semantics.
 - Method law for the front: every slice mines styles AND the
   code that consumes them; derived constants stay derivations.
-
-## Session 370 — GUI front opened: geometry-table slice 1 pinned from AyuGram v7.2.9 (2026-11-06)
-
-- Boot: full-wipe recycle #3 — fresh clone at 223a89ac
-  (369 closed green), toolchain rebuilt verbatim from the
-  env.sh recipe (go1.27.1); no modcache refill needed
-  (stdlib-only slice); gotd legs ride CI as ever.
-- Reference acquisition: AyuGramDesktop v7.2.9 source
-  tarball (GPLv3; measurements only, zero code copying,
-  §6.8) + the pinned lib_ui submodule @ e3d0582 for the
-  font tokens; kept OUTSIDE the repo (ayu-ref, untracked).
-- Slice 1 pinned into go/ui/tokens (new package): window
-  min/default/big-default (380×480 / 800×600 / 1024×768,
-  window.style:13-17); pane columns (left 260–540, main
-  ≥380, third 292–392, adaptiveChatWide 880, :34-39);
-  dialogs row (62h, pad 10/8/10/8, photo 46, name/text
-  x68 y10/y34, search block 38, dialogs.style:91-101,471);
-  main-menu drawer (width 274, cover 134, userpic 48@24,20,
-  name 26/84, status 26/103, skip 6, footer ≥80, button
-  pad 61/11/20/9 icon 21 toggle 19, window.style:108-126 +
-  window_main_menu.style:10-50); type scale (fsize 13,
-  box 14, emoji 18, lib_ui basic.style:53-58); breakpoints
-  (600/1000dp, §6.4 law).
-- Drawer tree pinned: exact default entries + order +
-  icons + labels (lang.strings) incl. the AyuGram toggles
-  (SRead "Read on Server", Ghost Mode) with defaults from
-  ayu_settings.h:675-691 (LRead/Streamer OFF, rest ON);
-  bots = dynamic list slot (menu_main_menu_helpers.cpp).
-- RED→GREEN: tests/ui/tokens_test.go first (compile fail:
-  package not in std — RED seen), then the package; 7/7
-  PASS. gofmt + comment ban + vet clean. AGENTS.md §7 tree
-  gains the ui/ line (same commit, §10). No CI-dispatch
-  blockers; dispatch id lands in the state commit.
-

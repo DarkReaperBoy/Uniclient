@@ -1,5 +1,10 @@
 package tokens
 
+import (
+	"math"
+	"strconv"
+)
+
 const (
 	WindowMinWidth         = 380
 	WindowMinHeight        = 480
@@ -243,6 +248,39 @@ const (
 	ToastFadeInMs  = 200
 	ToastFadeOutMs = 1000
 	ToastSlideMs   = 160
+
+	FontDialogsUnread         = 12
+	DialogsUnreadHeight       = 19
+	DialogsUnreadPadding      = 5
+	DialogsUnreadMarkDiameter = 8
+	DialogsBadgeRadius        = DialogsUnreadHeight / 2
+
+	FontDialogsDate     = 13
+	DialogsDateSkip     = 5
+	DialogsChatTypeSkip = 3
+
+	DialogsSendStateSkip = 20
+	DialogsTextWidthMin  = 150
+	DialogsIconSize      = 18
+
+	DialogsOnlineBadgeSize       = 12
+	DialogsOnlineBadgeStroke     = 3
+	DialogsOnlineBadgeDurationMs = 150
+	DialogsCallBadgeSize         = 16
+	DialogsTTLBadgeSize          = 20
+
+	DialogsRowTaggedHeight  = 72
+	DialogsRowTaggedTextTop = 30
+	DialogsRowTaggedTagTop  = 52
+
+	DialogsRowForumHeight        = 80
+	DialogsRowForumTextTop       = 32
+	DialogsRowForumTopicsSkip    = 8
+	DialogsRowForumTopicsSkipBig = 14
+	DialogsRowForumTopicsHeight  = 21
+
+	DialogsWidthDurationMs         = 120
+	DialogsRightButtonMinPaneWidth = ColumnMinWidthLeft
 )
 
 type MainMenuEntryKind int
@@ -286,4 +324,43 @@ func VerticalCenterOffset(containerHeight, contentHeight int) int {
 
 func MainMenuRowHeight() int {
 	return FontBase + MainMenuButtonPadTop + MainMenuButtonPadBottom
+}
+
+func DialogsBadgeWidth(textWidth int) int {
+	w := textWidth + 2*DialogsUnreadPadding
+	if w < DialogsUnreadHeight {
+		w = DialogsUnreadHeight
+	}
+	return w
+}
+
+func DialogsNarrowBadgeTop() int {
+	return DialogsRowPadTop + DialogsRowPhotoSize - DialogsUnreadHeight
+}
+
+func FormatUnreadCounter(unread int, hasMentionOrReaction, narrow bool) string {
+	if unread <= 0 {
+		return ""
+	}
+	if !narrow {
+		return strconv.Itoa(unread)
+	}
+	if hasMentionOrReaction && unread > 999 {
+		return "99+"
+	}
+	if unread > 999999 {
+		return "99999+"
+	}
+	return strconv.Itoa(unread)
+}
+
+func DialogsOnlineBadgePos(photoSize, badgeSize, stroke int) (int, int) {
+	edge := float64(photoSize) * (1 - (1-math.Cos(math.Pi/4))/2)
+	half := float64(badgeSize) / 2
+	maxPos := float64(photoSize - badgeSize)
+	if stroke > 0 {
+		maxPos = float64(photoSize) - half - (half+float64(stroke)/2)/math.Sqrt2
+	}
+	pos := int(math.Round(math.Min(edge-half, maxPos)))
+	return pos, pos
 }
