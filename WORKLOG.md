@@ -10,8 +10,9 @@ owner order — that history lives in git if ever needed.
 - front: session 379 — the GUI kit build (post-skeleton);
   the dialogs list Elm+render leg (viewport state,
   scroll msgs, clamp laws, load-more wiring, Pane
-  snapshot, PaintPane with elastic thumb) landed;
-  gates GREEN, push+dispatch pending
+  snapshot, PaintPane with elastic thumb) landed as
+  239cdaf1; verify 42351344419 SUCCESS at job AND
+  step level — 379 closed green
 - next: the window-adapter input leg (wheel/touch →
   DialogsScrolled, click hit-testing via List.RowAt
   + viewport offset, scrollbar drag); then message-
@@ -21,8 +22,9 @@ owner order — that history lives in git if ever needed.
 - owner-waiting: none
 - last-gate: quick GREEN (62 ui + 19 gui = 81 PASS;
   windows-vet substitute for render/window/cmd);
-  comment ban 288 clean; CI 42347578779 green
-  (previous slice)
+  comment ban 288 clean; CI 42351344419 green
+  (cross-builds incl. js/wasm, test/vet/race/smoke,
+  nix)
 
 ## Open items
 
@@ -85,8 +87,9 @@ owner order — that history lives in git if ever needed.
 - GREEN: 9 new tests (2 ui + 7 gui), 81 total. gofmt,
   comment ban 288 clean, quick gate GREEN (windows-vet
   substitute compiled the gio render leg).
-- Next: commit + push + dispatch Verify, reconcile;
-  then the window-adapter input leg.
+- Next: the window-adapter input leg (wheel/touch ->
+  DialogsScrolled, click hit-testing via RowAt +
+  viewport offset, scrollbar drag).
 
 ## Session 378 — wipe #5 boot + the dialogs list scroll law: viewport, virtualization, reveal, thumb (2026-11-07)
 
