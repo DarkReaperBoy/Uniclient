@@ -8,9 +8,9 @@ owner order — that history lives in git if ever needed.
 ## STATE
 
 - front: session 377 — the GUI kit build (post-skeleton);
-  dialogs-row CI 42333376504 SUCCESS at boot — 376
-  closed green. Landed: the dialogs row widget (pure
-  layout + Elm state + gio render)
+  the dialogs row widget landed (pure layout + Elm state
+  + gio render) as 64b1cb0d; verify 42338432935
+  (Verify #376) SUCCESS at job AND step level
 - next: the dialogs LIST widget — viewport, scroll,
   virtualization on List.RowAt/Height; then message-
   bubble kit; Material icon assets (chat-type/send-state/
@@ -18,8 +18,8 @@ owner order — that history lives in git if ever needed.
 - owner-waiting: none
 - last-gate: quick GREEN (48 ui + 12 gui = 60 PASS;
   windows-vet substitute for render/window/cmd); comment
-  ban 284 clean; slice un-pushed — push + dispatch verify
-  at session close
+  ban 284 clean; CI 42338432935 green (cross-builds incl.
+  js/wasm, test/vet/race/smoke, nix)
 
 ## Open items
 
