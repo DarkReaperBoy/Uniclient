@@ -2,9 +2,11 @@ package tests
 
 import (
 	"image/color"
+	"reflect"
 	"testing"
 
 	. "uniclient/ui/app"
+	"uniclient/ui/dialogs"
 	"uniclient/ui/material"
 )
 
@@ -45,12 +47,12 @@ func TestUpdateIsPure(t *testing.T) {
 	msg := Resized{Width: 932, Height: 600}
 	a, _ := Update(InitialModel(), msg)
 	b, _ := Update(InitialModel(), msg)
-	if a != b {
+	if !reflect.DeepEqual(a, b) {
 		t.Fatalf("update not pure: %+v vs %+v", a, b)
 	}
 	q1, _ := Update(a, Quit{})
 	q2, _ := Update(a, Quit{})
-	if q1 != q2 {
+	if !reflect.DeepEqual(q1, q2) {
 		t.Fatalf("quit update not pure: %+v vs %+v", q1, q2)
 	}
 }
@@ -203,5 +205,41 @@ func TestResizeJourneyThroughPaneModes(t *testing.T) {
 	m, _ = Update(m, Quit{})
 	if m.Running {
 		t.Fatal("journey must end stopped")
+	}
+}
+
+func TestDialogsElmState(t *testing.T) {
+	m := InitialModel()
+	if m.Dialogs.Selected != -1 || len(m.Dialogs.Rows) != 0 {
+		t.Fatalf("initial dialogs state must be empty and unselected: %+v", m.Dialogs)
+	}
+	rows := []dialogs.Entry{
+		{Name: "a"},
+		{Name: "b"},
+	}
+	m, _ = Update(m, DialogsLoaded{Rows: rows})
+	if len(m.Dialogs.Rows) != 2 || m.Dialogs.Selected != -1 {
+		t.Fatalf("load must replace rows and keep selection cleared: %+v", m.Dialogs)
+	}
+	m, _ = Update(m, DialogRowPressed{Index: 1})
+	if m.Dialogs.Selected != 1 {
+		t.Fatalf("press must select: %d", m.Dialogs.Selected)
+	}
+	m, _ = Update(m, DialogRowPressed{Index: 99})
+	if m.Dialogs.Selected != 1 {
+		t.Fatalf("out-of-range press must not move selection: %d", m.Dialogs.Selected)
+	}
+	m, _ = Update(m, DialogRowPressed{Index: -3})
+	if m.Dialogs.Selected != 1 {
+		t.Fatalf("negative press must not move selection: %d", m.Dialogs.Selected)
+	}
+	m, _ = Update(m, DialogsLoaded{Rows: rows[:1]})
+	if m.Dialogs.Selected != -1 {
+		t.Fatalf("reload shorter than the selection must clear it: %d", m.Dialogs.Selected)
+	}
+	m, _ = Update(m, DialogRowPressed{Index: 0})
+	m, _ = Update(m, DialogsLoaded{Rows: rows})
+	if m.Dialogs.Selected != 0 {
+		t.Fatalf("reload covering the selection must keep it: %d", m.Dialogs.Selected)
 	}
 }

@@ -273,6 +273,9 @@ const (
 	DialogsRowTaggedTextTop = 30
 	DialogsRowTaggedTagTop  = 52
 
+	DialogsRowTaggedForumHeight = 96
+	DialogsRowTaggedForumTagTop = 77
+
 	DialogsRowForumHeight        = 80
 	DialogsRowForumTextTop       = 32
 	DialogsRowForumTopicsSkip    = 8

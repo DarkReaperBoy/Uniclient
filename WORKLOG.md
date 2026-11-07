@@ -7,23 +7,19 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 376 — boot after full-wipe recycle
-  #4 (env rebuilt: clone at 0259ee3f, go1.27.1, ayu-ref
-  v7.2.9 + lib_ui e3d0582); TWO GUI slices landed:
-  Material theme system (SchemeFor Light/Dark/Amoled,
-  36 M3-baseline roles from Compose v0_210 tokens,
-  WCAG ≥4.5) + dialogs-row internals (badge pill law,
-  counter format, online-badge pos law, tagged/forum
-  variants)
-- next: the dialogs row widget — gio painting + Elm
-  dialogs state on the pinned table; then the
-  message-bubble kit
+- front: session 377 — the GUI kit build (post-skeleton);
+  dialogs-row CI 42333376504 SUCCESS at boot — 376
+  closed green. Landed: the dialogs row widget (pure
+  layout + Elm state + gio render)
+- next: the dialogs LIST widget — viewport, scroll,
+  virtualization on List.RowAt/Height; then message-
+  bubble kit; Material icon assets (chat-type/send-state/
+  pinned/mention/poll/TTL glyphs) to un-defer icon paint
 - owner-waiting: none
-- last-gate: quick GREEN ×2 (37 ui + 11 gui = 48 PASS;
-  windows-vet substitute for cmd+window); comment ban
-  280 clean; verify 42332427263 SUCCESS (2cf8f9ff,
-  theme slice); verify 42333376504 in flight on
-  056710b2 (dialogs-row) — reconcile at boot
+- last-gate: quick GREEN (48 ui + 12 gui = 60 PASS;
+  windows-vet substitute for render/window/cmd); comment
+  ban 284 clean; slice un-pushed — push + dispatch verify
+  at session close
 
 ## Open items
 
@@ -31,6 +27,57 @@ owner order — that history lives in git if ever needed.
 |---|---|---|---|---|
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
+
+## Session 377 — the dialogs row widget: pure layout + Elm state + gio render (2026-11-07)
+
+- Boot: workspace intact (no recycle); dialogs-row CI
+  42333376504 (Verify #375) reconciled SUCCESS on
+  056710b2 — 376 closed green. Baseline 37 ui + 11 gui
+  = 48 PASS re-verified before any edit.
+- The row-core slice: go/ui/dialogs (pure) — Entry
+  (name, preview, date, unread/mark/muted, mention/
+  reaction/poll, pinned, online/TTL, chat type, send
+  state, tagged/forum, photo) + Layout(e, width,
+  Metrics) as the pinned-law geometry function: name
+  rect shrink order date(+5) → chat icon(+iconW+3) →
+  send state(−20); date right-aligned, baseline =
+  nameTop+semiboldH−normalDescent; badge stack right-
+  anchored (dot 24 / pill w+5 / pinned 23 at textTop)
+  then mention/poll ungated wide, max-2 narrow (pill-
+  cell 19); narrow = width<130 → height 62, badges
+  under photo (anchor 56, top 35); variants plain/
+  tagged/forum/taggedForum 62/72/80/96, textTops
+  34/30/32/32, tagTops 52/77 (NEW pins — dialogs.
+  style:114-129 taggedForumDialogRow), online (43,43)
+  / TTL (36,36) photo-absolute (dialogs_layout.cpp:
+  92-347, dialogs_row.cpp:422-446 ComputeSt/
+  recountHeight). List: Height/RowAt hit-testing. Elm:
+  Model.Dialogs + DialogsLoaded/DialogRowPressed,
+  selection clamped on reload. Font metrics inject
+  via Metrics — formulas pinned, values from the
+  runtime font stack (same class as the slice-5
+  baseline law).
+- go/ui/dialogs/render (gio): Painter (gofont
+  collection, NoSystemFonts) — measure → Layout →
+  paint; bg states (selected SurfaceContainerHigh /
+  active PrimaryContainer — skin call); photo (image
+  affine-scaled, circle-clipped / EmptyUserpic: hash
+  color over scheme accents + initials 18 = 46·13/33
+  semibold centered, empty_userpic.cpp:307; luma-
+  switched ink); online dot presenceGreen #4DC920
+  (lib_ui colors.palette:198) + 3px bg stroke ring;
+  elided name/preview labels, date at baseline,
+  counter centered in pill; muted pill Surface-
+  ContainerHighest. Icon glyphs (chat-type, send-
+  state, pinned/mention/poll, TTL) + tag strip +
+  forum topics + right button + swipe deferred to
+  the icon-asset and decoration slices — layout
+  already reserves their geometry. golang.org/x/
+  image promoted indirect→direct (v0.26.0 unchanged).
+- RED (undefined: Layout/Entry/Metrics + msgs) →
+  GREEN 11 new ui tests + 1 gui (60 total); gofmt;
+  comment ban 284 files 0; quick gate GREEN (windows-
+  vet substitute for render/window/cmd).
 
 ## Session 376 — wipe #4 boot: env rebuilt; Material theme system (M3 baseline + AMOLED) (2026-11-07)
 
@@ -218,76 +265,3 @@ owner order — that history lives in git if ever needed.
   closed green. Push unblocked next session by a fresh
   owner token (§0.2 transient use): af2f4136 on main,
   verify.yml dispatched → run 42250138772; T-2 closed.
-
-## Session 373 — geometry-table slice 3: boxes, menus, toggles, settings rows (2026-11-06)
-
-- Slice 3 mined from v7.2.9: boxes (lib_ui layers.style
-  38-125) — width 320 / wide 364, pad 24/14/24/8, radius 6,
-  title font 16 semibold at 24/13 in a 48px bar (label max
-  24), additional skip 9, row pad 24/0/24/0, top margin 8,
-  max list 492, little/medium skips 10/20, buttons 34h
-  (textTop 7, pad 6/10/10/10, font 14 semibold), checkbox
-  text x 12; popup menus (lib_ui widgets.style defaultMenu/
-  PopupMenu) — item pad 17/8/17/7, right skip 6, width clamp
-  156-300, radius 6, scroll pad 8, anim 150/show 200; toggle
-  (defaultToggle) — diameter 14, border 2, shift -2, dur
-  150; settings rows — default 22/10/22/8 (text 20, toggle
-  skip 22), chat-flavor 60/10/22/10 iconLeft 20, profile
-  79/10/8/8 iconLeft 22 toggleSkip 20; row heights added as
-  DERIVED helpers: MenuItemHeightFor(font)=font+15 → 28 at
-  base 13; MainMenuRowHeight()=13+11+9=33.
-- RED (undefined: BoxWidth) → GREEN 15/15; gofmt, comment
-  ban, vet clean (another suspect-or split). Slice-2 CI
-  still in flight at commit time — reconcile at next boot.
-
-## Session 372 — geometry-table slice 2: the chat view (bubbles, radius system, composer) pinned (2026-11-06)
-
-- Boot: workspace survived (no recycle); CI 42183334673
-  reconciled SUCCESS on d49f0c2b — 371 closed green.
-- Slice 2 mined from v7.2.9 (styles + consuming code, per
-  the session-371 method law): bubbles — msgPadding
-  11/8/11/8, msgMargin 16/6/56/2 (right reserves date+
-  ticks), attached-top 0, photo 33 skip 40, msgMaxWidth 430,
-  wide-mode formula max+2·skip+2·marginLeft = 542 (element.
-  cpp:810-820); radius system — bubbleRadiusSmall 6
-  (=roundRadiusLarge), large 16, slider max 16, AyuGram
-  default 16 → both at max (chat_style_radius.cpp,
-  ayu_settings.h:641), thumb radii 4/12; service — padding
-  12/3/12/4, margin 10/10/10/2; fonts — name/service/date
-  13 (semibold/semibold/regular); history list — bottom pad
-  8, unread bar 32+3, photo-bubble min 200; composer —
-  field 36→72 (rich 224, fade 6, anim 100ms), send/attach
-  44×46, sendRight 2, pad 2/9/2/9, rest height 9+36+9=54
-  (chat_helpers.style:1281-1310,1626-1648, compose
-  controls cpp:5794-5810).
-- RED (undefined: MsgMarginLeft) → GREEN 11/11; gofmt,
-  comment ban, vet clean (one vet-suspect compound test
-  condition split into two checks). No production code
-  outside tokens; no AGENTS.md drift.
-
-## Session 371 — owner-challenge audit: slice-1 breakpoints were assumptions — fixed onto the measured algorithm (2026-11-06)
-
-- Owner challenged the 1:1 method ("would the style know the
-  window inside a window?") → re-audit against the reference's
-  LAYOUT CODE, not just styles. Confirmed the in-window model:
-  MainMenu is a Ui::LayerWidget (window_main_menu.h:49); boxes
-  (Ui::show) and PopupMenu context menus are layers too — styles
-  mined/scheduled for all of them. But the audit caught a REAL
-  defect: TwoPaneMinDp=600/ThreePaneMinDp=1000 were assumption
-  leftovers from the pre-redirect §6 — never measurements.
-- The reference computes boundaries (window_session_controller.
-  cpp:2626-2676 computeColumnLayout): one-column when body <
-  leftMin+mainMin (640); three-column only ≥ left+main+third
-  (932) AND a third section requested (default OFF; window
-  auto-extends when it can); dialogs = body×ratio clamped
-  [260, body−380], default ratio 5/14 (core_settings.h:1083,
-  non-MacStore path :1786); third default 0 → clamps to 292.
-- Fix: TwoPaneMinDp/ThreePaneMinDp deleted; LayoutOneColumn-
-  MaxWidth (640) + LayoutThreeColumnMinWidth (932) pinned as
-  DERIVED consts (formula IS the pin); DialogsWidthRatioDefault
-  =5/14, ThirdColumnWidthDefault=0. Test rewritten to pin the
-  derivation + values; RED (undefined: LayoutThreeColumnMinWidth)
-  then GREEN 7/7; gofmt/comment-ban/vet clean. AGENTS.md §6.4
-  rewritten onto the measured semantics.
-- Method law for the front: every slice mines styles AND the
-  code that consumes them; derived constants stay derivations.

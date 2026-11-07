@@ -4,6 +4,7 @@ import (
 	"image/color"
 	"math"
 
+	"uniclient/ui/dialogs"
 	"uniclient/ui/material"
 	"uniclient/ui/tokens"
 )
@@ -21,6 +22,18 @@ type Quit struct{}
 
 func (Quit) isMsg() {}
 
+type DialogsLoaded struct {
+	Rows []dialogs.Entry
+}
+
+func (DialogsLoaded) isMsg() {}
+
+type DialogRowPressed struct {
+	Index int
+}
+
+func (DialogRowPressed) isMsg() {}
+
 type Cmd func() Msg
 
 type Model struct {
@@ -29,10 +42,11 @@ type Model struct {
 	HasDialogs bool
 	ThirdPane  bool
 	Running    bool
+	Dialogs    dialogs.List
 }
 
 func InitialModel() Model {
-	return Model{HasDialogs: true, Running: true}
+	return Model{HasDialogs: true, Running: true, Dialogs: dialogs.List{Selected: -1}}
 }
 
 func Update(m Model, msg Msg) (Model, Cmd) {
@@ -49,6 +63,17 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		return m, nil
 	case Quit:
 		m.Running = false
+		return m, nil
+	case DialogsLoaded:
+		m.Dialogs.Rows = msg.Rows
+		if m.Dialogs.Selected >= len(msg.Rows) {
+			m.Dialogs.Selected = -1
+		}
+		return m, nil
+	case DialogRowPressed:
+		if msg.Index >= 0 && msg.Index < len(m.Dialogs.Rows) {
+			m.Dialogs.Selected = msg.Index
+		}
 		return m, nil
 	}
 	return m, nil
