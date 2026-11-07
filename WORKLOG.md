@@ -21,9 +21,9 @@ owner order — that history lives in git if ever needed.
 - owner-waiting: none
 - last-gate: quick GREEN ×2 (37 ui + 11 gui = 48 PASS;
   windows-vet substitute for cmd+window); comment ban
-  280 clean; verify 42332427263 in flight on 2cf8f9ff
-  (theme slice) — second dispatch rides the dialogs
-  push; reconcile both at boot
+  280 clean; verify 42332427263 SUCCESS (2cf8f9ff,
+  theme slice); verify 42333376504 in flight on
+  056710b2 (dialogs-row) — reconcile at boot
 
 ## Open items
 
