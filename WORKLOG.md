@@ -7,20 +7,20 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 381 — the GUI kit build (post-
-  skeleton); kinetic touch (fling) + overscroll anim
-  state (the deferred halves of the input leg) landed
-  as ac999d75; verify 42372859307 SUCCESS at job AND
-  step level — 381 closed green
-- next: message-bubble kit; Material icon assets
-  (chat-type/send-state/pinned/mention/poll/TTL
-  glyphs) to un-defer icon paint
+- front: session 382 — the GUI kit build (post-
+  skeleton); the history element geometry law landed
+  as 3a655338 (message/service margins, bubble
+  geometry+height, service law, skip block, Ayu
+  service-time badge); verify 42384001792 in flight
+  — reconcile at boot
+- next: message-bubble render leg (Elm Messages
+  model + render Painter via the geometry law);
+  Material icon assets (chat-type/send-state/pinned/
+  mention/poll/TTL glyphs) to un-defer icon paint
 - owner-waiting: none
-- last-gate: quick GREEN (90 ui + 37 gui = 127 PASS;
+- last-gate: quick GREEN (104 ui + 37 gui = 141 PASS;
   windows-vet substitute for render/window/cmd);
-  comment ban 294 clean; CI 42372859307 green
-  (cross-builds incl. js/wasm, test/vet/race/smoke,
-  nix)
+  comment ban 296 clean; CI 42384001792 pending
 
 ## Open items
 
@@ -28,6 +28,53 @@ owner order — that history lives in git if ever needed.
 |---|---|---|---|---|
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
+
+## Session 382 — the history element geometry law: margins, bubble, service (2026-11-07)
+
+- Boot: wipe #9 (only skills/download/upload; .env
+  sweep clean). Clone at 874f707f — 379-381 had
+  closed green in lost sessions (Elm+render leg,
+  input leg, kinetic+overscroll; 127 baseline re-
+  verified after toolchain/modcache/ayu-ref rebuild).
+- Surface: element.cpp (skip block 1631-1650,
+  textualMaxWidth 2940, DateBadge 857), message.cpp
+  (margins 1708-1759, countGeometry 6557-6628,
+  resizeContentGetHeight 6680-6935, bubbleTextWidth
+  5668, monospaceMaxWidth 5648, optimal 1347),
+  service_message.cpp (margins 667-696, geometry 540,
+  height 565-640, ComputeServiceTimeMetrics ~500),
+  chat.style (msgMinWidth 160, msgDateSpace 12,
+  msgDateDelta 2/5), ayu_styles.style (time badge
+  11px semibold pads 7/2 gap 8 inset 3).
+- go/ui/history/element.go: message top margin =
+  attached?0:6 + bars + servicePre-above + added —
+  BARS SURVIVE HIDDEN (only the msg margin is
+  conditioned); bottom = 2 + below-servicePre,
+  hidden 0. Service: 10/2, servicePre UNCONDITIONAL
+  (no below check), bottom pays even hidden.
+  DateBadge 10+3+font+4+2. Skip block 12+infoW−2 /
+  fontH−5. textW = max(w,160)−22; limit unlimited?
+  0x3FFFFFF : max(430, mono). Geometry: left 16
+  (rightLayout wideSkip; narrow 16) + photoSkip 40,
+  rightAction −w−(40−31); clamps maxWidth → limit →
+  shrunk max(realWidth+22, nonTextMax); out shift /
+  centered halves; Wide centered max((430+80−w)/2,0).
+  Height: ==maxWidth keeps OPTIMAL minHeight else
+  heightFor(textW)+8+8; +fromName font; +needInfo
+  bottomInfo−dateFont; + margins. Service height:
+  TWO-SMALL-MARGINS quirk (−2×10), floor 25, nwidth
+  max(cw−24,0), fits→minHeight else heightFor, empty
+  text = marginTop−10; Wide min(w,542). Ayu time
+  badge: w+14, h+4, additional max(w+13,0), skip
+  max(badgeH, serviceFontH).
+- Text engine deferred like icon paint: Text{MaxWidth,
+  MinHeight, HeightFor(w)→(height, realWidth)};
+  tests inject synthetic layouts.
+- TDD: RED 14 undefined → GREEN 14 first run (2
+  expectation slips caught at design time). 141
+  total; gates clean. Shipped 3a655338; verify
+  42384001792 SUCCESS at job AND step level — 382
+  closed green.
 
 ## Session 381 — kinetic touch + overscroll anim: fling, rubber band, spring return (2026-11-07)
 
@@ -162,29 +209,16 @@ owner order — that history lives in git if ever needed.
 
 ## Session 379 — the dialogs list Elm+render leg: viewport state, scroll laws, Pane snapshot, PaintPane (2026-11-07)
 
-- Boot: workspace intact at 5a84a9ff; baseline 72
-  PASS re-verified via quick gate before any edit.
-- Laws mined: wheel apply = tryScrollTo(from+delta),
-  delta = −pixels.y — at rest = clamp [0, content−
-  view]; load-more fires on EVERY viewport-affecting
-  msg while loadTill >= content (inner_widget
-  4712-4723; empty list = the initial page request);
-  thumb chrome = st::defaultScrollArea 3/4/2/
-  #00000053.
-- The pure snapshot: dialogs.Pane + List.Pane(v,
-  width) — VisibleRows window, absolute RowYs walk,
-  ScrollbarThumb reuse. Elm: Model.DialogsScroll;
-  DialogsScrolled clamps; Loaded/Resized clamp Top;
-  loadMoreCmd = DialogsLoadMoreRequested.
-- LAW CHANGE: TestUpdateRecordsResized pin updated —
-  resize on an empty list emits the initial load
-  request (skeleton-era pin lost to the loadTill
-  law). render.PaintPane: viewport clip, per-row
-  op.Offset(RowYs[i]−View.Top), RowSelected, thumb
-  rrect at Width−10+3.
-- TDD: 5 spec cases fell to the law before GREEN.
-  9 tests, 81 total; gates clean; shipped 239cdaf1,
-  verify 42351344419 SUCCESS job+step.
+- Wheel apply = tryScrollTo(from+delta), delta =
+  −pixels.y, rest clamp [0, content−view]; load-more
+  on every viewport msg while loadTill >= content
+  (empty list = initial page request — resize pin
+  updated accordingly). dialogs.Pane + List.Pane(v,
+  width) snapshot; Elm Model.DialogsScroll + clamp
+  on Loaded/Resized; render.PaintPane (viewport
+  clip, per-row offset, thumb rrect). 5 spec cases
+  fell to the law. 9 tests, 81 total; shipped
+  239cdaf1, verify 42351344419 SUCCESS job+step.
 
 ## Session 378 — wipe #5 boot + the dialogs list scroll law: viewport, virtualization, reveal, thumb (2026-11-07)
 
@@ -195,106 +229,56 @@ owner order — that history lives in git if ever needed.
   e3d0582); pins verified; baseline 60 PASS.
 - Discovery: the dialogs list runs Ui::ElasticScroll
   (dialogs_widget.h:373), not classic ScrollArea —
-  thumb law = elastic_scroll.cpp:131-175
-  (refreshGeometry); ComputeScrollTo byte-identical in
-  both files — one reveal law.
-- go/ui/dialogs/scroll.go: Viewport; MaxOffset =
-  max(0, content−view); ClampOffset; VisibleRows →
-  [first,last) via findByY lower_bound (last-pixel
-  overlap) + paint walk; PreloadWindow/LoadMoreNeeded
-  (3 screens, config.h:21); ScrollToReveal =
-  ComputeScrollTo verbatim; Thumb + ScrollbarThumb —
-  fullSkip 6, thickness 4, barMin min(40, available/2),
-  barWanted >= available hides, barFrom ratio with
-  cut-clamp to the inset range (overscroll shrinks the
-  thumb), Y = deltat+cutFrom.
-- RED 12 undefined → GREEN 12 (3 spec bugs lost to
-  re-derivation first). 72 total; gates clean.
-  Landed e38052c2; verify 42347578779 SUCCESS
-  job+step — 378 closed green.
+  thumb law = elastic_scroll.cpp:131-175;
+  ComputeScrollTo byte-identical in both files.
+- go/ui/dialogs/scroll.go: Viewport; MaxOffset /
+  ClampOffset; VisibleRows (lower_bound last-pixel
+  overlap + paint walk); PreloadWindow 3 screens;
+  ScrollToReveal; Thumb (fullSkip 6, thickness 4,
+  barMin min(40, available/2), hide rules, ratio
+  with cut-clamp — overscroll shrinks the thumb).
+  12 tests (3 spec bugs lost to re-derivation), 72
+  total; landed e38052c2; verify 42347578779
+  SUCCESS job+step.
 
 ## Session 377 — the dialogs row widget: pure layout + Elm state + gio render (2026-11-07)
 
-- Boot: workspace intact; dialogs-row CI 42333376504
-  reconciled SUCCESS on 056710b2 — 376 green.
-  Baseline 48 PASS re-verified.
-- The row-core slice: go/ui/dialogs (pure) — Entry +
-  Layout(e, width, Metrics) as the pinned-law geometry
-  function: name-rect shrink order date(+5) -> chat
-  icon(+iconW+3) -> send state (−20); date baseline =
-  nameTop+semiboldH−descent; badge stack right-anchored,
-  max-2 narrow; variants plain/tagged/forum/taggedForum
-  62/72/80/96; online (43,43) / TTL (36,36); List
-  Height/RowAt hit-testing. Elm: Model.Dialogs +
-  DialogsLoaded/DialogRowPressed, selection clamped on
-  reload. Metrics injected — formulas pinned, values
-  from the runtime font stack.
-- go/ui/dialogs/render (gio): Painter — measure ->
-  Layout -> paint; bg states; photo (affine circle-
-  clip / EmptyUserpic hash color + initials, luma
-  ink); online dot presenceGreen #4DC920 + 3px bg
-  ring; elided labels, counter in pill, muted pill.
-  Icon glyphs + tag strip + forum topics deferred
-  (geometry reserved).
-- RED -> GREEN 11 new ui + 1 gui (60 total); gofmt;
-  comment ban 284 0; quick gate GREEN.
+- go/ui/dialogs (pure): Entry + Layout(e, width,
+  Metrics) — name-rect shrink order date(+5) → chat
+  icon(+iconW+3) → send state(−20); badge stack
+  right-anchored, max-2 narrow; variants 62/72/80/96;
+  online (43,43) / TTL (36,36); List RowAt. Elm
+  Model.Dialogs + selection clamp on reload.
+  render Painter: bg states, photo/EmptyUserpic,
+  presenceGreen dot, elided labels, counter pill;
+  icon glyphs + tags deferred. 11 ui + 1 gui (60
+  total); gates clean.
 
 ## Session 376 — wipe #4 boot: env rebuilt; Material theme system (M3 baseline + AMOLED) (2026-11-07)
 
-- Boot: owner token → VM wiped clean; fresh clone at
-  0259ee3f, 375 closed green (42264110055 + release
-  42267096271 SUCCESS). go1.27.1 + ayu-ref rebuilt
-  per recipe; baseline 23/23 + 11/11 green.
-- Theme system: ui/material Scheme (36 roles) + Kind
-  + SchemeFor(Light/Dark/Amoled), pinned from
-  Compose material3 v0_210: light Primary #6750A4 /
-  Surface #FEF7FF, dark #D0BCFF / #141218; AMOLED =
-  dark + pure-black chrome (luma pinned by test);
-  fixed-role family deferred. RED → GREEN 8 / 31 ui.
-- Dialogs-row geometry slice 5 (pins in tokens +
-  tests): badge 12/h19/pad5/pill/textW+2p vs 19/r h/2
-  /dot 8; "99+">999, "99999+">999999; date 13 skip 5
-  baseline semibold−descent; name (68,10,w−78); chat
-  skip 3 / send-state skip 20 / text min 150 / icons
-  18; online 12ø stroke 3 dur 150; variants 72/80;
-  width anim 120; narrow top 35 max-2. RED → GREEN 6
-  / 37 ui — the TTL-pos test caught a real porting
-  bug (stroke=0 used −half). Design 8/10.
+- ui/material Scheme (36 roles, Light/Dark/Amoled)
+  from Compose material3 v0_210; RED → GREEN 8/31.
+  Dialogs-row geometry slice 5 pins (badge pill,
+  counter format, online-badge pos law, tagged/forum
+  variants) in tokens + tests — 6/37; the TTL-pos
+  test caught a real porting bug. 376 green.
 
 ## Session 375 — the Gio skeleton: Elm core, window adapter, the measured pane law; the cgo-closure fight (2026-11-06)
 
-- Boot: af2f4136 pushed, 374 closed green (42250138772
-  SUCCESS); slice-3 42187083372 SUCCESS (373 green).
-- go/ui/app — the pure Elm core (zero Gio imports):
-  pane law from computeColumnLayout (window_session_
-  controller.cpp:2626-2722): single < 640, triple only
-  >= 932 AND third requested, else double; dialogs =
-  SafeRound(body·5/14) clamped >= 260, min body−380;
-  third clamp [292,392]; three-column shrink
-  proportional-to-min-clamped. go/ui/window — the
-  adapter: 800x600/380x480, px→dp Resized, cmd queue
-  + Invalidate, ActionClose; 12 Msg-sequence tests.
-- gioui.org v0.10.3 Xlib cgo closure: gate.sh
-  partitions gio packages (windows-vet substitute,
-  Linux-native rides CI), verify/release apt steps,
-  flake.nix closure (+libxcb/libXrender) — 4 flake
-  runs to green (75944429). RED → GREEN 12/12 +
-  23/23; local full gate machine-blocked (gotd OOM)
-  — verify 42262264512 on 75944429 is the gate of
-  record. Design 9/10.
+- go/ui/app Elm core (zero Gio): pane law from
+  computeColumnLayout (window_session_controller.cpp:
+  2626-2722); go/ui/window adapter + 12 Msg tests.
+  gioui.org v0.10.3 Xlib cgo closure: gate.sh gio
+  partition (windows-vet substitute), apt/nix sets —
+  4 flake runs to green (75944429). 12/12 + 23/23;
+  verify 42262264512 → 42264110055 gate of record.
 
 ## Session 374 — geometry-table slice 4 re-mined after a full-wipe recycle (2026-11-06)
 
-- Boot: full-wipe recycle — unpushed slice 4 died with
-  it; rebuilt from zero at 910d959f, baseline 15/15.
-- Slice 4 mined (pins in tokens.go + tests): menu
-  icons 24×24 pos 15/5 pad 54/8/17/8; title 24 /
-  button 36×24 / semibold 12; top bar 54, buttons
-  40/44/52, ripple 40 y 7; checkbox 22ø dur 120
-  mark 14×10@4/7; ripple 650/200; scrollbar 10/2/
-  20/40 insets 3 150/1000; toast 19/13/19/12+13+480
-  +8+200/1000/160. VerticalCenterOffset = DERIVED
-  (menu_action.cpp:131). RED → GREEN 23/23 converged
-  with the lost session; CI 42186245433 +
-  42187083372 SUCCESS; fresh owner token: af2f4136
-  → verify 42250138772, T-2 closed.
+- Full-wipe recycle killed the unpushed first
+  attempt; re-derivation converged (23/23) — pins
+  live in tokens.go + tests: menu icons 24×24 15/5
+  54/8/17/8; title/button/top-bar/checkbox/ripple/
+  scrollbar/toast tables; VerticalCenterOffset =
+  menu_action.cpp:131. CI 42187083372 SUCCESS;
+  verify 42250138772 on af2f4136 — T-2 closed.
