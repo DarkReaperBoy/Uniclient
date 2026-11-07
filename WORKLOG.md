@@ -7,19 +7,24 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 377 — the GUI kit build (post-skeleton);
-  the dialogs row widget landed (pure layout + Elm state
-  + gio render) as 64b1cb0d; verify 42338432935
-  (Verify #376) SUCCESS at job AND step level
-- next: the dialogs LIST widget — viewport, scroll,
-  virtualization on List.RowAt/Height; then message-
-  bubble kit; Material icon assets (chat-type/send-state/
-  pinned/mention/poll/TTL glyphs) to un-defer icon paint
+- front: session 378 — the GUI kit build (post-skeleton);
+  boot after full-wipe #5 (repo, toolchain, ayu-ref
+  all gone): fresh clone at 5e6ba094, go1.27.1 + modcache
+  1.1G rebuilt per env.sh recipe, ayu-ref re-acquired
+  (AyuGramDesktop v7.2.9 + lib_ui @ e3d0582), baseline
+  60 PASS re-verified; the dialogs LIST scroll slice
+  (viewport/virtualization/thumb law) landed locally,
+  gates GREEN, uncommitted-to-pushed pending
+- next: reconcile the list-scroll CI verdict after
+  dispatch; then the Elm + gio render leg of the list
+  widget (viewport wiring into Model.Dialogs, scroll
+  messages, thumb paint); then message-bubble kit;
+  Material icon assets to un-defer icon paint
 - owner-waiting: none
-- last-gate: quick GREEN (48 ui + 12 gui = 60 PASS;
+- last-gate: quick GREEN (60 ui + 12 gui = 72 PASS;
   windows-vet substitute for render/window/cmd); comment
-  ban 284 clean; CI 42338432935 green (cross-builds incl.
-  js/wasm, test/vet/race/smoke, nix)
+  ban 286 clean; CI 42338432935 green (pre-slice
+  baseline; new dispatch pending)
 
 ## Open items
 
@@ -27,6 +32,81 @@ owner order — that history lives in git if ever needed.
 |---|---|---|---|---|
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
+
+## Session 378 — wipe #5 boot + the dialogs list scroll law: viewport, virtualization, reveal, thumb (2026-11-07)
+
+- Boot: full-wipe #5 — repo, toolchain AND ayu-ref gone
+  (only skills/download/upload survived; .env holds no
+  credentials, sweep clean). Fresh clone at 5e6ba094
+  (= origin/main, push had already landed; the "ahead
+  by 2" in the dead workspace was a stale tracking ref
+  from the one-time-URL push pattern). go1.27.1 rebuilt
+  from the env.sh recipe (modcache 1.1G); ayu-ref
+  re-acquired: AyuGramDesktop v7.2.9 tarball (github
+  rename — AyuGram6 probe 404s; real repo
+  AyuGram/AyuGramDesktop, found via web search) +
+  lib_ui @ e3d0582 tarball. Version sanity: dialogs.style
+  taggedForumDialogRow 96/77 matches the slice-5 pins.
+  Baseline re-verified before any edit: quick gate
+  HEAD~2 GREEN, 60 PASS.
+- The discovery that reframes the slice: the dialogs
+  list runs on Ui::ElasticScroll (dialogs_widget.h:373),
+  NOT the classic ScrollArea — the governing thumb law
+  is elastic_scroll.cpp:131-175 (refreshGeometry), not
+  scroll_area.cpp updateBar. ComputeScrollTo is
+  byte-identical in both files (elastic_scroll.cpp:21-52
+  == scroll_area.cpp:23-53) — one reveal law.
+- The scroll slice: go/ui/dialogs/scroll.go — Viewport
+  {Top, Height}; MaxOffset = max(0, content−view)
+  (scrollTopMax scroll_area.cpp:653 + QScrollBar
+  range semantics); ClampOffset; VisibleRows(v, width)
+  → [first,last) — findByY lower_bound "top+height−1 >=
+  viewportTop" (dialogs_list.cpp) + the paint walk
+  "break when top >= viewportBottom" (inner_widget
+  3749-3752): a row counts as visible when its LAST
+  pixel overlaps — 1px overlap pinned by test;
+  PreloadWindow = [top, top + 4 viewports) and
+  LoadMoreNeeded = top + 3·viewH >= contentH
+  (inner_widget 4705-4723, 5654-5655; PreloadScreens
+  = 3 token, config.h:21 — the same "3 screens"
+  constant history_widget uses); ScrollToReveal(top,
+  bottom, current, viewH, max) — ComputeScrollTo
+  verbatim: clamp top, exact mode (bottom < 0 →
+  top-align), no-op when item inside view, bottom-
+  align toTill−viewH capped at item top; Thumb{Y,H,
+  Hidden} + ScrollbarThumb(v, width, trackH) — the
+  elastic law: fullSkip 6 (deltat+deltab), thickness
+  4 (width−2·deltax), hide when content<=0 || view<=0
+  || track < 14; available = track−6; barMin =
+  min(scrollBarMin 40, available/2); bar = max(barMin,
+  floor(available·view/content)); hide when barWanted
+  >= available; barFrom = (available−bar)·top/scrollable
+  cut-clamped to [0, available−thickness] / [thickness,
+  available] (overscroll shrinks the thumb into the
+  insets — pinned); Y = deltat + cutFrom. Wheel law
+  NOT pinned: elastic wheel is device-delta driven
+  (ScrollDeltaF), no constant to mine. Classic updateBar
+  thumb law (scroll_area.cpp:145-190, clamps to style
+  minHeight 20) left unpinned — dialogs list never
+  rides it.
+- RED: 12 tests in go/tests/ui/dialogs_list_
+  scroll_test.go failed undefined (MaxOffset/Clamp-
+  Offset/VisibleRows/PreloadWindow/LoadMoreNeeded/
+  ScrollToReveal/ScrollbarThumb/PreloadScreens). Two
+  spec bugs caught by re-derivation before GREEN:
+  visible-walk case {top 133, viewH 100} spans rows
+  1..4 (till 233 includes row 3 at top 214), and the
+  short-track thumb at top 0 is (3, 27) not (30, 27);
+  one more during GREEN: "partially below" reveal case
+  was actually fully-visible (item [160,250) in view
+  [160,260)) — the law correctly no-ops; fixed the case
+  to current 100 → bottom-align 150. GREEN: 12 new, 72
+  total PASS. gofmt, comment ban 286 clean, quick gate
+  GREEN (windows-vet substitute for cmd/render/window).
+- Next: commit + push + dispatch Verify, reconcile;
+  then the Elm/gio leg wiring Viewport into Model.
+  Dialogs (scroll messages, clamp on reload, thumb
+  paint via render Painter).
 
 ## Session 377 — the dialogs row widget: pure layout + Elm state + gio render (2026-11-07)
 
@@ -81,72 +161,40 @@ owner order — that history lives in git if ever needed.
 
 ## Session 376 — wipe #4 boot: env rebuilt; Material theme system (M3 baseline + AMOLED) (2026-11-07)
 
-- Boot: owner token → VM wiped clean (repo, toolchain,
-  ayu-ref gone; sweep found zero credential traces —
-  §0.2 held). Fresh clone at 0259ee3f; 375 closed
-  green confirmed (verify 42264110055 + release
-  42267096271 SUCCESS via API). go1.27.1 rebuilt from
-  the env.sh recipe (modcache 1.1G); ayu-ref
-  re-acquired (v7.2.9 tarball + lib_ui @ e3d0582,
-  AyuGram fork). Baseline 23/23 + 11/11 green before
-  any edit.
+- Boot: owner token → VM wiped clean; fresh clone at
+  0259ee3f, 375 closed green (42264110055 + release
+  42267096271 SUCCESS). go1.27.1 + ayu-ref rebuilt
+  per recipe; baseline 23/23 + 11/11 green.
 - The theme-system slice: ui/material seed → Scheme
   (36 roles) + Kind + SchemeFor(Light/Dark/Amoled),
   values pinned from Compose material3 tokens v0_210
-  (ColorLight/ColorDarkTokens → PaletteTokens,
-  Apache-2.0): light Primary #6750A4 / Surface #FEF7FF
-  (matches the 375 seed — provenance now the full
-  table), dark Primary #D0BCFF / Surface #141218.
-  AMOLED = dark + pure-black chrome (Background/
-  Surface/SurfaceDim/ContainerLowest → #000000),
-  elevated containers keep dark lift (luma hierarchy
-  pinned by test). Fixed-role family (M3 Expressive)
-  deferred. app.View → SchemeFor(Light).Surface;
-  SurfaceLight removed, elm gui pin updated same
-  commit (same hex).
-- RED (undefined: Kind/Light/Dark/Amoled/SchemeFor) →
-  GREEN 8 tests / 31 ui total: light+dark anchors,
-  AMOLED derivation, WCAG contrast ≥4.5 across 12
-  pairs × 3 kinds, SurfaceTint==Primary, opaque,
-  distinct, dark surface luma hierarchy. gofmt +
-  comment ban (279 files) + quick gate GREEN
-  (windows-vet substitute for cmd+window).
-- The dialogs-row slice (geometry-table slice 5):
-  unread badge — font 12 bold, height 19, padding 5,
-  pill width max(textW+2p, 19), radius height/2,
-  mark-dot 8 centered in a 19 cell (dialogs.style:
-  78-80,636; unread_badge_paint.cpp:97-191); counter
-  law narrow → "99+" >999 w/ mention, "99999+"
-  >999999 (unread_counter_format.cpp:10-27); date —
-  font 13 (=base), skip 5, baseline = semibold height
-  − normal descent, name rect (68,10,w−78,semibold),
-  name = semiboldFont = fsize 13 (lib_ui
-  basic.style:55); chat-type skip 3, send-state skip
-  20, text min 150 (fits min pane 68+150+10 ≤ 260),
-  state icons 18, right-button gate = column min
-  (dialogs.style:217,384,401; layout:114-124); online
-  badge — 12ø stroke 3 dur 150, call 16, TTL 20, pos
-  law ported from AyuUserpic::OnlineBadgePosition
-  (ayu_userpic.cpp:81-99; round default — kMax-
-  AvatarCorners 23 = lib_ui default, ayu_ui_settings
-  .h:11) → (33,33) on the 46px photo, TTL (26,26)
-  flush; row variants — tagged 72h/30/52, forum
-  80h/32/8/14/21; width anim 120 (=universalDuration);
-  narrow badge top 35 (pad+photo−19, bottom-aligned
-  to photo); PaintBadges stack order + 5px spacing
-  law, narrow max-2-badges gate (layout:165-314).
-- RED (undefined: FontDialogsUnread + more) → GREEN
-  6 tests / 37 ui total; the TTL-pos test caught a
-  real porting bug (stroke=0 branch used −half not
-  −badgeSize) — fixed, law now exact. Three
-  vet-suspect compound conditions split (373 class).
-  Gui suite recount: 11 tests (375 logged 12).
-  gofmt + comment ban (280 files) + quick gate GREEN.
-- Design 8/10: data-pinned with provenance and
-  invariant tests; minus one — the M3 source is
-  Compose's token table (m3.material.io shows
-  swatches, no hex), the #FEF7FF cross-check ties
-  them.
+  (Apache-2.0): light Primary #6750A4 / Surface
+  #FEF7FF, dark Primary #D0BCFF / Surface #141218.
+  AMOLED = dark + pure-black chrome, elevated
+  containers keep dark lift (luma pinned by test).
+  Fixed-role family (M3 Expressive) deferred.
+  app.View → SchemeFor(Light).Surface.
+- RED → GREEN 8 tests / 31 ui total: light+dark
+  anchors, AMOLED derivation, WCAG ≥4.5 across 12
+  pairs × 3 kinds, opaque, distinct, luma hierarchy.
+- The dialogs-row slice (geometry-table slice 5;
+  all pins live in tokens + tests — exact source
+  lines in git history): badge font 12 h19 pad5
+  pill max(textW+2p,19) radius h/2 mark-dot 8;
+  counter "99+" >999 / "99999+" >999999; date font
+  13 skip 5 baseline semibold−descent; name rect
+  (68,10,w−78,semibold); chat-type skip 3 send-state
+  skip 20 text min 150 state icons 18; online badge
+  12ø stroke 3 dur 150 pos (33,33)/TTL (26,26);
+  variants tagged 72/30/52 forum 80/32; width anim
+  120; narrow badge top 35, max-2-badges gate.
+- RED → GREEN 6 tests / 37 ui total; the TTL-pos
+  test caught a real porting bug (stroke=0 branch
+  used −half not −badgeSize). Gui suite recount: 11
+  (375 logged 12). Three vet-suspect splits.
+- Design 8/10: data-pinned with provenance; minus —
+  M3 source is Compose's token table, the #FEF7FF
+  cross-check ties them.
 
 ## Session 375 — the Gio skeleton: Elm core, window adapter, the measured pane law; the cgo-closure fight (2026-11-06)
 
@@ -197,71 +245,39 @@ owner order — that history lives in git if ever needed.
   verify.yml/release.yml apt steps; flake.nix
   closure (mirrors gio's own dev-shell recipe +
   libxcb/libXrender for the .pc Requires chain).
-- The closure took 4 flake runs: vulkan headers
-  (42257568354) → X11/Xlib.h inside vulkan.h
-  (42259385966) → xcb.pc (42260395403) → SUCCESS
-  (42261435344, vendorHash a0wRykh…, commit
-  75944429). Each failure read from the job logs,
-  each fix pushed atomically.
-- Evidence: RED (package uniclient/ui/app not in
-  std) → GREEN 12/12 + 23/23 tokens; quick gate
-  GREEN (partitioned, windows vet of cmd+window
-  completed); js/wasm ./... build GREEN; windows
-  build GREEN (30.8MB); comment ban 278 files
-  clean; gofmt clean. Local full gate machine-
-  blocked at the native gotd compile (env.sh
-  truth) — verify 42262264512 in flight on
-  75944429 is the gate of record.
-- Design rating 9/10: the pure-adapter split keeps
-  the Elm core testable without a display; the one
-  deduction — the cgo closure had to be discovered
-  by CI iteration, a local nix/pkg-config pre-check
-  would have caught it (no nix on this VM).
+- The closure took 4 flake runs (42257568354 →
+  42259385966 → 42260395403 → SUCCESS 42261435344,
+  vendorHash a0wRykh…, commit 75944429), each failure
+  read from job logs, each fix pushed atomically.
+  Design rating 9/10 — the pure-adapter split keeps
+  the Elm core testable without a display; deduction:
+  the cgo closure had to be discovered by CI
+  iteration (no local nix on this VM to pre-check).
+- Evidence: RED → GREEN 12/12 + 23/23; quick gate
+  GREEN (windows vet of cmd+window); js/wasm +
+  windows builds GREEN; comment ban 278 clean;
+  gofmt clean; local full gate machine-blocked at
+  the native gotd compile — verify 42262264512 in
+  flight on 75944429 is the gate of record.
 
-## Session 374 — geometry-table slice 4 re-mined after a full-wipe recycle: icons, window chrome, top bar, checkbox, ripple, scrollbar, toast (2026-11-06)
+## Session 374 — geometry-table slice 4 re-mined after a full-wipe recycle (2026-11-06)
 
-- Boot: full-wipe recycle (repo, toolchain AND ayu-ref
-  lost) — the previous session's finished slice 4 was
-  unpushed (token already dead) and died with it: rebuilt
-  from zero per §3. Fresh clone at 910d959f, go1.27.1
-  from the env.sh recipe, reference re-acquired (AyuGram
-  v7.2.9 tarball + lib_ui @ e3d0582, full SHA
-  e3d058223aea0b68938a07a7d436d67aaf2b1b30, AyuGram
-  fork). Baseline 15/15 re-verified before any edit.
-- Slice 4 mined: menu icons — sprite audit 582 files,
-  base 24×24 (+@2x/@3x); menuWithIcons icon pos 15/5, pad
-  54/8/17/8 (widgets.style:1699-1703). Window chrome —
-  title height 24, button 36×24 sprite-filling, title
-  font semibold 12 (widgets.style:1571-1595). Top bar —
-  height 54, buttons 40/44/52, ripple 40 (y 7), icons
-  32×32, title 24/17 max 20 semibold 14; dialogs buttons
-  40 / calendar 32×35 / search-from 29 (info.style:137-
-  256,905-959; dialogs.style:284-309). Checkbox — check
-  22ø border 2 dur 120 (=universalDuration, basic.style:
-  135) ripple pad 8, mark 14×10 at 4/7, margin 8, text
-  10/2, check 8/8, disabled 0.5 (widgets.style:839-900);
-  text-skip law from checkbox.cpp:750: 8+22+10=40. Ripple
-  show 650 / hide 200 (widgets.style:703-707). Scrollbar
-  — width 10, radius 2, min height 20, thumb min 40,
-  insets 3/3/3, duration 150, hiding 1000, scrollBarMin
-  40 (widgets.style:807-828). Toast — padding 19/13/19/
-  12, margin 13, maxWidth 480, radius 8, fadeIn 200,
-  fadeOut 1000, slide 160 (widgets.style:1552-1564).
-- VerticalCenterOffset(container, content) added as a
-  DERIVED helper — the reference's centering law
-  (menu_action.cpp:131 top = (height-glyph)/2), proven
-  by consumers: topBarSearch icon (4,11), dialogs menu
-  icon (4,4), top-bar ripple y 7, back button 12, menu
-  arrow 2.
-- RED (undefined: MenuIconSize + 40 more identifiers) →
-  GREEN 23/23 — same count as the lost session, the
-  re-derivation converged. gofmt, comment ban (274
-  files), vet clean (one tautology suspect-or split
-  into two checks, session-373 class).
-- CI: 42186245433 (slice 2, 5380141b) SUCCESS
-  re-confirmed from the run page (13 min, all three
-  jobs). 42187083372 (slice 3, eb014073, Verify #370)
-  completed SUCCESS (2026-11-06T08:30Z) — session 373
-  closed green. Push unblocked next session by a fresh
-  owner token (§0.2 transient use): af2f4136 on main,
-  verify.yml dispatched → run 42250138772; T-2 closed.
+- Boot: full-wipe recycle — unpushed slice 4 died with
+  it (token already dead); rebuilt from zero per §3 at
+  910d959f, go1.27.1 + ayu-ref (v7.2.9 + lib_ui
+  e3d0582) re-acquired, baseline 15/15 re-verified.
+- Slice 4 mined (all pins live in tokens.go + tests):
+  menu icons 24×24 pos 15/5 pad 54/8/17/8; window
+  chrome title 24 / button 36×24 / semibold 12; top
+  bar 54, buttons 40/44/52, ripple 40 y 7; checkbox
+  22ø dur 120 ripple-pad 8 mark 14×10@4/7; ripple
+  650/200; scrollbar 10/2/20/40, insets 3/3/3, 150/
+  1000; toast 19/13/19/12 + 13 + 480 + 8 + 200/1000/
+  160 (widgets.style, info.style, dialogs.style,
+  basic.style — exact lines in git history).
+- VerticalCenterOffset added as DERIVED helper
+  (menu_action.cpp:131 centering law).
+- RED → GREEN 23/23 converged with the lost session;
+  CI 42186245433 + 42187083372 SUCCESS (372/373
+  closed green); fresh owner token unblocked push:
+  af2f4136 → verify 42250138772, T-2 closed.

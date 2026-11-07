@@ -238,6 +238,8 @@ const (
 	ScrollDurationMs   = 150
 	ScrollHidingMs     = 1000
 
+	PreloadScreens = 3
+
 	ToastPadLeft   = 19
 	ToastPadTop    = 13
 	ToastPadRight  = 19
