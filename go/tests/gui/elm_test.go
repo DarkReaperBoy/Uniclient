@@ -170,7 +170,7 @@ func TestViewBootsOnMaterialSurface(t *testing.T) {
 	if s.Background != (color.NRGBA{R: 0xFE, G: 0xF7, B: 0xFF, A: 0xFF}) {
 		t.Fatalf("boot scene background %v, want material surface light", s.Background)
 	}
-	if s.Background != material.SurfaceLight {
+	if s.Background != material.SchemeFor(material.Light).Surface {
 		t.Fatal("boot scene background must be the material light surface")
 	}
 }

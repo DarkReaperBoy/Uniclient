@@ -148,5 +148,5 @@ type Scene struct {
 }
 
 func View(m Model) Scene {
-	return Scene{Background: material.SurfaceLight}
+	return Scene{Background: material.SchemeFor(material.Light).Surface}
 }

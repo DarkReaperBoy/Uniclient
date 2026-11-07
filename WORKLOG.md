@@ -7,21 +7,19 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 375 — the Gio skeleton landed
-  (Elm core + window adapter + measured pane law,
-  74fe6c0d) after a 4-run cgo-closure fight; flake
-  vendorHash pinned (75944429)
-- next: the GUI build slices — dialogs list rows +
-  Material theme system on the pinned tokens (the
-  skeleton is CI-green end to end)
+- front: session 376 — boot after full-wipe recycle
+  #4 (env rebuilt: clone at 0259ee3f, go1.27.1, ayu-ref
+  v7.2.9 + lib_ui e3d0582); Material theme system
+  landed: SchemeFor(Light/Dark/Amoled) in ui/material,
+  36 M3-baseline roles (Compose v0_210 tokens) + AMOLED
+  black chrome, WCAG ≥4.5 pinned
+- next: dialogs list rows — mine unread-badge/date/
+  online-dot geometry from ayu-ref dialogs.style, row
+  widget on tokens + theme; then the message-bubble kit
 - owner-waiting: none
-- last-gate: local quick GREEN (12/12 gui + 23/23
-  tokens; windows-vet substitute for the gio set);
-  js/wasm ./... + windows build GREEN; flake.yml
-  42261435344 SUCCESS; CI 42250138772 SUCCESS
-  (slice 4); verify 42264110055 SUCCESS at job AND
-  step level on d4b02222 (after the x11-xcb.pc fix)
-  — session 375 closed green
+- last-gate: quick GREEN (31 ui + 12 gui, windows-vet
+  substitute for cmd+window); comment ban 279 clean;
+  verify dispatch rides this push
 
 ## Open items
 
@@ -29,6 +27,44 @@ owner order — that history lives in git if ever needed.
 |---|---|---|---|---|
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
+
+## Session 376 — wipe #4 boot: env rebuilt; Material theme system (M3 baseline + AMOLED) (2026-11-07)
+
+- Boot: owner token → VM wiped clean (repo, toolchain,
+  ayu-ref gone; sweep found zero credential traces —
+  §0.2 held). Fresh clone at 0259ee3f; 375 closed
+  green confirmed (verify 42264110055 + release
+  42267096271 SUCCESS via API). go1.27.1 rebuilt from
+  the env.sh recipe (modcache 1.1G); ayu-ref
+  re-acquired (v7.2.9 tarball + lib_ui @ e3d0582,
+  AyuGram fork). Baseline 23/23 + 12/12 green before
+  any edit.
+- The theme-system slice: ui/material seed → Scheme
+  (36 roles) + Kind + SchemeFor(Light/Dark/Amoled),
+  values pinned from Compose material3 tokens v0_210
+  (ColorLight/ColorDarkTokens → PaletteTokens,
+  Apache-2.0): light Primary #6750A4 / Surface #FEF7FF
+  (matches the 375 seed — provenance now the full
+  table), dark Primary #D0BCFF / Surface #141218.
+  AMOLED = dark + pure-black chrome (Background/
+  Surface/SurfaceDim/ContainerLowest → #000000),
+  elevated containers keep dark lift (luma hierarchy
+  pinned by test). Fixed-role family (M3 Expressive)
+  deferred. app.View → SchemeFor(Light).Surface;
+  SurfaceLight removed, elm gui pin updated same
+  commit (same hex).
+- RED (undefined: Kind/Light/Dark/Amoled/SchemeFor) →
+  GREEN 8 tests / 31 ui total: light+dark anchors,
+  AMOLED derivation, WCAG contrast ≥4.5 across 12
+  pairs × 3 kinds, SurfaceTint==Primary, opaque,
+  distinct, dark surface luma hierarchy. gofmt +
+  comment ban (279 files) + quick gate GREEN
+  (windows-vet substitute for cmd+window).
+- Design 8/10: data-pinned with provenance and
+  invariant tests; minus one — the M3 source is
+  Compose's token table (m3.material.io shows
+  swatches, no hex), the #FEF7FF cross-check ties
+  them.
 
 ## Session 375 — the Gio skeleton: Elm core, window adapter, the measured pane law; the cgo-closure fight (2026-11-06)
 
@@ -254,33 +290,3 @@ owner order — that history lives in git if ever needed.
   gains the ui/ line (same commit, §10). No CI-dispatch
   blockers; dispatch id lands in the state commit.
 
-## Session 369 — owner redirect: GUI design law rewritten (2026-11-06)
-
-- Owner redirect (recorded, then executed): the rebuilt GUI
-  targets **AyuGram Desktop's layout, 1:1** — window sizes,
-  menus and their contents, spacing — under a **Material
-  Design skin** (not AyuGram's pixel look), with **none of
-  the reference's jank** and **every scenario tested**;
-  desktop is the master design, mobile adapts it (Telegram
-  Android explicitly rejected as a reference), web is the
-  same WASM app (no separate web look), **no paid anything**
-  (tools/assets/fonts free-open only). AGENTS.md line
-  ceiling removed — the file must stay non-verbose instead.
-- AGENTS.md: Direction + §6 rewritten — the 2026-11-01
-  Telegram-references mandate (incl. "never AyuGram") is
-  superseded; §6 gains the measured-1:1 mapping method
-  (§6.8: geometry table as a pinned Go tokens file, golden
-  overlay diffs, zero code copying — the GPLv3 C++/Qt
-  reference contributes measurements only) and the cons-ban
-  (§6.9); jank budget made hard law in §6.6 (60fps,
-  one-frame input-to-paint, wrong-behavior severity);
-  scenario completeness in §6.7; ceilings struck from
-  §10/§11. README design-reference line synced.
-- Docs-only change: no Go touched, no gate legs applicable.
-  Push initially blocked (owner's first token 401 Bad
-  credentials — dead, confirmed by the owner) → T-1 opened;
-  owner supplied a fresh token out-of-band → 898d390c pushed
-  (fast-forward onto 8863a8e9), T-1 resolved here. Token
-  used transiently in the push URL only, never stored
-  (§0.2). Build order still owner-only (§11); H-2/H-3
-  unchanged, they ride with the GUI rebuild.
