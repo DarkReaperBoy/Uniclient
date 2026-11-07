@@ -240,6 +240,11 @@ const (
 
 	PreloadScreens = 3
 
+	WheelPixelToAngleDelta = 2
+	WheelScrollLines       = 3
+	WheelNotchAngleDelta   = 120
+	TouchDragStartDistance = 10
+
 	ToastPadLeft   = 19
 	ToastPadTop    = 13
 	ToastPadRight  = 19

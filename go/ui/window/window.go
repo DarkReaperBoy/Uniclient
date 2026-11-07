@@ -1,17 +1,27 @@
 package window
 
 import (
+	"math"
+	"runtime"
+
 	gioapp "gioui.org/app"
+	"gioui.org/io/key"
+	"gioui.org/io/pointer"
 	"gioui.org/io/system"
+	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/paint"
 	"gioui.org/unit"
 
 	"uniclient/ui/app"
+	"uniclient/ui/dialogs/render"
+	"uniclient/ui/material"
 	"uniclient/ui/tokens"
 )
 
 const msgQueueDepth = 64
+
+const wheelScrollScale = 1 << 30
 
 func Run() error {
 	w := new(gioapp.Window)
@@ -21,6 +31,7 @@ func Run() error {
 	)
 	msgs := make(chan app.Msg, msgQueueDepth)
 	appModel := app.InitialModel()
+	painter := render.NewPainter()
 	handle := func(msg app.Msg) {
 		var cmd app.Cmd
 		appModel, cmd = app.Update(appModel, msg)
@@ -51,12 +62,78 @@ func Run() error {
 				lastW, lastH = dpW, dpH
 				handle(app.Resized{Width: dpW, Height: dpH})
 			}
+			gtx := gioapp.NewContext(&ops, e)
+			routeInput(gtx, painter.Input, e.Metric, handle)
+			scene := app.View(appModel)
+			paint.Fill(gtx.Ops, scene.Background)
+			painter.PaintPane(gtx, scene.Dialogs, material.SchemeFor(material.Light))
 			if !appModel.Running {
 				w.Perform(system.ActionClose)
 			}
-			gtx := gioapp.NewContext(&ops, e)
-			paint.Fill(gtx.Ops, app.View(appModel).Background)
 			e.Frame(gtx.Ops)
 		}
+	}
+}
+
+func pxToDp(metric unit.Metric, v float32) int {
+	return int(metric.PxToDp(int(math.Round(float64(v)))))
+}
+
+func routeInput(gtx layout.Context, tag *render.InputArea, metric unit.Metric, handle func(app.Msg)) {
+	filter := pointer.Filter{
+		Target:  tag,
+		Kinds:   pointer.Press | pointer.Move | pointer.Drag | pointer.Release | pointer.Scroll | pointer.Cancel,
+		ScrollX: pointer.ScrollRange{Min: -wheelScrollScale, Max: wheelScrollScale},
+		ScrollY: pointer.ScrollRange{Min: -wheelScrollScale, Max: wheelScrollScale},
+	}
+	for {
+		ev, ok := gtx.Event(filter)
+		if !ok {
+			return
+		}
+		e, ok := ev.(pointer.Event)
+		if !ok {
+			continue
+		}
+		switch e.Kind {
+		case pointer.Press:
+			gtx.Execute(pointer.GrabCmd{Tag: tag, ID: e.PointerID})
+			handle(app.DialogsPressed{
+				X:     pxToDp(metric, e.Position.X),
+				Y:     pxToDp(metric, e.Position.Y),
+				Touch: e.Source == pointer.Touch,
+			})
+		case pointer.Move, pointer.Drag:
+			handle(app.DialogsDragged{X: pxToDp(metric, e.Position.X), Y: pxToDp(metric, e.Position.Y)})
+		case pointer.Release:
+			handle(app.DialogsReleased{X: pxToDp(metric, e.Position.X), Y: pxToDp(metric, e.Position.Y)})
+		case pointer.Cancel:
+			handle(app.DialogsPressCanceled{})
+		case pointer.Scroll:
+			handle(scrollMessage(e, metric))
+		}
+	}
+}
+
+func scrollMessage(e pointer.Event, metric unit.Metric) app.Msg {
+	accel := e.Modifiers&(key.ModCtrl|key.ModShift) != 0
+	if runtime.GOOS == "windows" {
+		return app.DialogsWheel{
+			AngleX:     -int(e.Scroll.X),
+			AngleY:     -int(e.Scroll.Y),
+			Accelerate: accel,
+		}
+	}
+	perDp := metric.PxPerDp
+	if perDp <= 0 {
+		perDp = 1
+	}
+	toDp := func(v float32) int {
+		return int(math.Round(float64(v) / float64(perDp)))
+	}
+	return app.DialogsTrackpadScrolled{
+		PixelX:     -toDp(e.Scroll.X),
+		PixelY:     -toDp(e.Scroll.Y),
+		Accelerate: accel,
 	}
 }

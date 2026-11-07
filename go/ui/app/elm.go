@@ -44,7 +44,62 @@ type DialogsLoadMoreRequested struct{}
 
 func (DialogsLoadMoreRequested) isMsg() {}
 
+type DialogsWheel struct {
+	AngleX     int
+	AngleY     int
+	Accelerate bool
+}
+
+func (DialogsWheel) isMsg() {}
+
+type DialogsTrackpadScrolled struct {
+	PixelX     int
+	PixelY     int
+	Accelerate bool
+}
+
+func (DialogsTrackpadScrolled) isMsg() {}
+
+type DialogsPressed struct {
+	X     int
+	Y     int
+	Touch bool
+}
+
+func (DialogsPressed) isMsg() {}
+
+type DialogsDragged struct {
+	X int
+	Y int
+}
+
+func (DialogsDragged) isMsg() {}
+
+type DialogsReleased struct {
+	X int
+	Y int
+}
+
+func (DialogsReleased) isMsg() {}
+
+type DialogsPressCanceled struct{}
+
+func (DialogsPressCanceled) isMsg() {}
+
 type Cmd func() Msg
+
+type TouchDrag struct {
+	Active    bool
+	StartX    int
+	StartY    int
+	LastY     int
+	Scrolling bool
+}
+
+type BarDrag struct {
+	Dragging bool
+	LastY    int
+}
 
 type Model struct {
 	Width         int
@@ -54,6 +109,8 @@ type Model struct {
 	Running       bool
 	Dialogs       dialogs.List
 	DialogsScroll dialogs.Viewport
+	DialogsTouch  TouchDrag
+	DialogsBar    BarDrag
 }
 
 func InitialModel() Model {
@@ -92,10 +149,97 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 	case DialogsScrolled:
 		m.DialogsScroll.Top = m.clampDialogsScroll(m.DialogsScroll.Top + msg.DeltaY)
 		return m, m.loadMoreCmd()
+	case DialogsWheel:
+		dy := dialogs.WheelDelta(msg.AngleX, msg.AngleY, tokens.WheelScrollLines,
+			m.Columns().Dialogs, m.DialogsScroll.Height, msg.Accelerate)
+		m.DialogsScroll.Top = m.clampDialogsScroll(m.DialogsScroll.Top + dy)
+		return m, m.loadMoreCmd()
+	case DialogsTrackpadScrolled:
+		dy := dialogs.ScrollPixels(msg.PixelX, msg.PixelY,
+			m.Columns().Dialogs, m.DialogsScroll.Height, msg.Accelerate)
+		m.DialogsScroll.Top = m.clampDialogsScroll(m.DialogsScroll.Top + dy)
+		return m, m.loadMoreCmd()
+	case DialogsPressed:
+		return m.pressDialogs(msg), nil
+	case DialogsDragged:
+		return m.dragDialogs(msg), nil
+	case DialogsReleased:
+		m.releaseDialogs(msg)
+		return m, nil
+	case DialogsPressCanceled:
+		m.DialogsBar = BarDrag{}
+		m.DialogsTouch = TouchDrag{}
+		return m, nil
 	case DialogsLoadMoreRequested:
 		return m, nil
 	}
 	return m, nil
+}
+
+func (m *Model) pressDialogs(msg DialogsPressed) Model {
+	width := m.Columns().Dialogs
+	if width > tokens.ScrollBarWidth && msg.X >= width-tokens.ScrollBarWidth {
+		thumb := m.Dialogs.ScrollbarThumb(m.DialogsScroll, width, m.DialogsScroll.Height)
+		if !thumb.Hidden {
+			m.DialogsBar = BarDrag{Dragging: true, LastY: msg.Y}
+			if !dialogs.BarOver(thumb, msg.X-(width-tokens.ScrollBarWidth), msg.Y) {
+				m.DialogsScroll.Top = m.clampDialogsScroll(
+					m.Dialogs.BarTrackJump(m.DialogsScroll, width, m.DialogsScroll.Height, msg.Y))
+			}
+			return *m
+		}
+	}
+	if msg.Touch {
+		m.DialogsTouch = TouchDrag{Active: true, StartX: msg.X, StartY: msg.Y, LastY: msg.Y}
+		return *m
+	}
+	if idx := m.Dialogs.RowAt(msg.Y+m.DialogsScroll.Top, width); idx >= 0 {
+		m.Dialogs.Selected = idx
+	}
+	return *m
+}
+
+func (m *Model) dragDialogs(msg DialogsDragged) Model {
+	if m.DialogsBar.Dragging {
+		dy := msg.Y - m.DialogsBar.LastY
+		m.DialogsBar.LastY = msg.Y
+		m.DialogsScroll.Top = m.clampDialogsScroll(
+			m.DialogsScroll.Top + m.Dialogs.BarDragScale(
+				m.DialogsScroll, m.Columns().Dialogs, m.DialogsScroll.Height, dy))
+		return *m
+	}
+	if m.DialogsTouch.Active {
+		d := m.DialogsTouch
+		if !d.Scrolling && absInt(msg.X-d.StartX)+absInt(msg.Y-d.StartY) >= tokens.TouchDragStartDistance {
+			d.Scrolling = true
+		}
+		if d.Scrolling {
+			m.DialogsScroll.Top = m.clampDialogsScroll(m.DialogsScroll.Top - (msg.Y - d.LastY))
+		}
+		d.LastY = msg.Y
+		m.DialogsTouch = d
+	}
+	return *m
+}
+
+func (m *Model) releaseDialogs(msg DialogsReleased) {
+	m.DialogsBar = BarDrag{}
+	if m.DialogsTouch.Active {
+		tap := !m.DialogsTouch.Scrolling
+		m.DialogsTouch = TouchDrag{}
+		if tap {
+			if idx := m.Dialogs.RowAt(msg.Y+m.DialogsScroll.Top, m.Columns().Dialogs); idx >= 0 {
+				m.Dialogs.Selected = idx
+			}
+		}
+	}
+}
+
+func absInt(v int) int {
+	if v < 0 {
+		return -v
+	}
+	return v
 }
 
 func (m Model) clampDialogsScroll(top int) int {

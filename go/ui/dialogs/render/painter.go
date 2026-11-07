@@ -11,6 +11,7 @@ import (
 	"gioui.org/f32"
 	"gioui.org/font"
 	"gioui.org/font/gofont"
+	"gioui.org/io/event"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
@@ -45,13 +46,17 @@ var (
 	fontBold     = font.Font{Typeface: "Go", Weight: font.Bold}
 )
 
+type InputArea struct{}
+
 type Painter struct {
 	Shaper *text.Shaper
+	Input  *InputArea
 }
 
 func NewPainter() *Painter {
 	return &Painter{
 		Shaper: text.NewShaper(text.WithCollection(gofont.Collection()), text.NoSystemFonts()),
+		Input:  &InputArea{},
 	}
 }
 
@@ -149,6 +154,7 @@ func (p *Painter) PaintPane(gtx layout.Context, pane dialogs.Pane, sch material.
 		gtx.Dp(unit.Dp(pane.Width)),
 		gtx.Dp(unit.Dp(pane.View.Height)),
 	)}.Push(gtx.Ops).Pop()
+	event.Op(gtx.Ops, p.Input)
 	for i := range pane.Rows {
 		state := RowNormal
 		if pane.First+i == pane.Selected {
