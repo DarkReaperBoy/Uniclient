@@ -12,19 +12,21 @@ owner order — that history lives in git if ever needed.
   all gone): fresh clone at 5e6ba094, go1.27.1 + modcache
   1.1G rebuilt per env.sh recipe, ayu-ref re-acquired
   (AyuGramDesktop v7.2.9 + lib_ui @ e3d0582), baseline
-  60 PASS re-verified; the dialogs LIST scroll slice
-  (viewport/virtualization/thumb law) landed locally,
-  gates GREEN, uncommitted-to-pushed pending
-- next: reconcile the list-scroll CI verdict after
-  dispatch; then the Elm + gio render leg of the list
-  widget (viewport wiring into Model.Dialogs, scroll
-  messages, thumb paint); then message-bubble kit;
-  Material icon assets to un-defer icon paint
+  60 PASS re-verified; the dialogs LIST scroll law
+  (viewport/virtualization/reveal/thumb) landed as
+  e38052c2; verify 42347578779 SUCCESS at job AND
+  step level — 378 closed green
+- next: the Elm + gio render leg of the list widget
+  (viewport wiring into Model.Dialogs, scroll messages
+  + clamp on reload, thumb paint via render Painter);
+  then message-bubble kit; Material icon assets
+  (chat-type/send-state/pinned/mention/poll/TTL
+  glyphs) to un-defer icon paint
 - owner-waiting: none
 - last-gate: quick GREEN (60 ui + 12 gui = 72 PASS;
   windows-vet substitute for render/window/cmd); comment
-  ban 286 clean; CI 42338432935 green (pre-slice
-  baseline; new dispatch pending)
+  ban 286 clean; CI 42347578779 green (cross-builds
+  incl. js/wasm, test/vet/race/smoke, nix)
 
 ## Open items
 
@@ -103,8 +105,13 @@ owner order — that history lives in git if ever needed.
   to current 100 → bottom-align 150. GREEN: 12 new, 72
   total PASS. gofmt, comment ban 286 clean, quick gate
   GREEN (windows-vet substitute for cmd/render/window).
-- Next: commit + push + dispatch Verify, reconcile;
-  then the Elm/gio leg wiring Viewport into Model.
+  Landed as e38052c2 (WORKLOG trimmed to 283 lines —
+  sessions 374-376 compressed, pins live in code);
+  pushed, verify 42347578779 dispatched and reconciled
+  SUCCESS at job AND step level (nix + test/vet/race/
+  smoke + windows/js-wasm cross-builds) — 378 closed
+  green.
+- Next: the Elm/gio leg wiring Viewport into Model.
   Dialogs (scroll messages, clamp on reload, thumb
   paint via render Painter).
 
