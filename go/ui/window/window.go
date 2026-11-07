@@ -3,6 +3,7 @@ package window
 import (
 	"math"
 	"runtime"
+	"time"
 
 	gioapp "gioui.org/app"
 	"gioui.org/io/key"
@@ -62,6 +63,9 @@ func Run() error {
 				lastW, lastH = dpW, dpH
 				handle(app.Resized{Width: dpW, Height: dpH})
 			}
+			if appModel.KineticActive() {
+				handle(app.DialogsTick{Now: int(time.Now().UnixMilli())})
+			}
 			gtx := gioapp.NewContext(&ops, e)
 			routeInput(gtx, painter.Input, e.Metric, handle)
 			scene := app.View(appModel)
@@ -71,6 +75,9 @@ func Run() error {
 				w.Perform(system.ActionClose)
 			}
 			e.Frame(gtx.Ops)
+			if appModel.KineticActive() {
+				w.Invalidate()
+			}
 		}
 	}
 }
@@ -102,11 +109,12 @@ func routeInput(gtx layout.Context, tag *render.InputArea, metric unit.Metric, h
 				X:     pxToDp(metric, e.Position.X),
 				Y:     pxToDp(metric, e.Position.Y),
 				Touch: e.Source == pointer.Touch,
+				Now:   int(time.Now().UnixMilli()),
 			})
 		case pointer.Move, pointer.Drag:
-			handle(app.DialogsDragged{X: pxToDp(metric, e.Position.X), Y: pxToDp(metric, e.Position.Y)})
+			handle(app.DialogsDragged{X: pxToDp(metric, e.Position.X), Y: pxToDp(metric, e.Position.Y), Now: int(time.Now().UnixMilli())})
 		case pointer.Release:
-			handle(app.DialogsReleased{X: pxToDp(metric, e.Position.X), Y: pxToDp(metric, e.Position.Y)})
+			handle(app.DialogsReleased{X: pxToDp(metric, e.Position.X), Y: pxToDp(metric, e.Position.Y), Now: int(time.Now().UnixMilli())})
 		case pointer.Cancel:
 			handle(app.DialogsPressCanceled{})
 		case pointer.Scroll:
@@ -117,11 +125,13 @@ func routeInput(gtx layout.Context, tag *render.InputArea, metric unit.Metric, h
 
 func scrollMessage(e pointer.Event, metric unit.Metric) app.Msg {
 	accel := e.Modifiers&(key.ModCtrl|key.ModShift) != 0
+	now := int(time.Now().UnixMilli())
 	if runtime.GOOS == "windows" {
 		return app.DialogsWheel{
 			AngleX:     -int(e.Scroll.X),
 			AngleY:     -int(e.Scroll.Y),
 			Accelerate: accel,
+			Now:        now,
 		}
 	}
 	perDp := metric.PxPerDp
@@ -135,5 +145,6 @@ func scrollMessage(e pointer.Event, metric unit.Metric) app.Msg {
 		PixelX:     -toDp(e.Scroll.X),
 		PixelY:     -toDp(e.Scroll.Y),
 		Accelerate: accel,
+		Now:        now,
 	}
 }

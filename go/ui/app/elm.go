@@ -48,6 +48,7 @@ type DialogsWheel struct {
 	AngleX     int
 	AngleY     int
 	Accelerate bool
+	Now        int
 }
 
 func (DialogsWheel) isMsg() {}
@@ -56,6 +57,7 @@ type DialogsTrackpadScrolled struct {
 	PixelX     int
 	PixelY     int
 	Accelerate bool
+	Now        int
 }
 
 func (DialogsTrackpadScrolled) isMsg() {}
@@ -64,20 +66,23 @@ type DialogsPressed struct {
 	X     int
 	Y     int
 	Touch bool
+	Now   int
 }
 
 func (DialogsPressed) isMsg() {}
 
 type DialogsDragged struct {
-	X int
-	Y int
+	X   int
+	Y   int
+	Now int
 }
 
 func (DialogsDragged) isMsg() {}
 
 type DialogsReleased struct {
-	X int
-	Y int
+	X   int
+	Y   int
+	Now int
 }
 
 func (DialogsReleased) isMsg() {}
@@ -86,14 +91,28 @@ type DialogsPressCanceled struct{}
 
 func (DialogsPressCanceled) isMsg() {}
 
+type DialogsTick struct {
+	Now int
+}
+
+func (DialogsTick) isMsg() {}
+
 type Cmd func() Msg
 
 type TouchDrag struct {
-	Active    bool
-	StartX    int
-	StartY    int
-	LastY     int
-	Scrolling bool
+	Active              bool
+	StartX              int
+	StartY              int
+	LastX               int
+	LastY               int
+	Scrolling           bool
+	PrevValid           bool
+	Speed               dialogs.TouchSpeed
+	SpeedTime           int
+	State               int
+	WaitingAcceleration bool
+	AccelerationTime    int
+	TouchTime           int
 }
 
 type BarDrag struct {
@@ -102,15 +121,16 @@ type BarDrag struct {
 }
 
 type Model struct {
-	Width         int
-	Height        int
-	HasDialogs    bool
-	ThirdPane     bool
-	Running       bool
-	Dialogs       dialogs.List
-	DialogsScroll dialogs.Viewport
-	DialogsTouch  TouchDrag
-	DialogsBar    BarDrag
+	Width             int
+	Height            int
+	HasDialogs        bool
+	ThirdPane         bool
+	Running           bool
+	Dialogs           dialogs.List
+	DialogsScroll     dialogs.Viewport
+	DialogsTouch      TouchDrag
+	DialogsBar        BarDrag
+	DialogsOverscroll dialogs.Overscroll
 }
 
 func InitialModel() Model {
@@ -152,33 +172,47 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 	case DialogsWheel:
 		dy := dialogs.WheelDelta(msg.AngleX, msg.AngleY, tokens.WheelScrollLines,
 			m.Columns().Dialogs, m.DialogsScroll.Height, msg.Accelerate)
-		m.DialogsScroll.Top = m.clampDialogsScroll(m.DialogsScroll.Top + dy)
-		return m, m.loadMoreCmd()
+		return m.scrollClassic(dy, msg.Now), m.loadMoreCmd()
 	case DialogsTrackpadScrolled:
 		dy := dialogs.ScrollPixels(msg.PixelX, msg.PixelY,
 			m.Columns().Dialogs, m.DialogsScroll.Height, msg.Accelerate)
-		m.DialogsScroll.Top = m.clampDialogsScroll(m.DialogsScroll.Top + dy)
-		return m, m.loadMoreCmd()
+		return m.scrollClassic(dy, msg.Now), m.loadMoreCmd()
 	case DialogsPressed:
 		return m.pressDialogs(msg), nil
 	case DialogsDragged:
-		return m.dragDialogs(msg), nil
+		return m.dragDialogs(msg), m.loadMoreCmd()
 	case DialogsReleased:
 		m.releaseDialogs(msg)
 		return m, nil
 	case DialogsPressCanceled:
 		m.DialogsBar = BarDrag{}
-		m.DialogsTouch = TouchDrag{}
+		m.DialogsTouch.Active = false
+		m.DialogsTouch.Scrolling = false
+		m.DialogsTouch.State = dialogs.TouchScrollManual
 		return m, nil
+	case DialogsTick:
+		m.dialogsTick(msg.Now)
+		return m, m.loadMoreCmd()
 	case DialogsLoadMoreRequested:
 		return m, nil
 	}
 	return m, nil
 }
 
+func (m *Model) scrollClassic(dy, now int) Model {
+	if m.DialogsOverscroll.Stretch == 0 {
+		m.DialogsScroll.Top = m.clampDialogsScroll(m.DialogsScroll.Top + dy)
+		return *m
+	}
+	if !m.DialogsOverscroll.Animating(now) {
+		m.DialogsOverscroll.Return(now)
+	}
+	return *m
+}
+
 func (m *Model) pressDialogs(msg DialogsPressed) Model {
 	width := m.Columns().Dialogs
-	if width > tokens.ScrollBarWidth && msg.X >= width-tokens.ScrollBarWidth {
+	if !msg.Touch && width > tokens.ScrollBarWidth && msg.X >= width-tokens.ScrollBarWidth {
 		thumb := m.Dialogs.ScrollbarThumb(m.DialogsScroll, width, m.DialogsScroll.Height)
 		if !thumb.Hidden {
 			m.DialogsBar = BarDrag{Dragging: true, LastY: msg.Y}
@@ -190,7 +224,21 @@ func (m *Model) pressDialogs(msg DialogsPressed) Model {
 		}
 	}
 	if msg.Touch {
-		m.DialogsTouch = TouchDrag{Active: true, StartX: msg.X, StartY: msg.Y, LastY: msg.Y}
+		d := m.DialogsTouch
+		d.Active = true
+		d.StartX, d.StartY = msg.X, msg.Y
+		d.LastX, d.LastY = msg.X, msg.Y
+		if d.State == dialogs.TouchScrollAuto {
+			d.State = dialogs.TouchScrollAcceleration
+			d.WaitingAcceleration = true
+			d.AccelerationTime = msg.Now
+			d.PrevValid = true
+			d.SpeedTime = msg.Now
+		} else {
+			d = TouchDrag{Active: true, StartX: msg.X, StartY: msg.Y, LastX: msg.X, LastY: msg.Y, State: dialogs.TouchScrollManual}
+		}
+		m.DialogsTouch = d
+		m.applyTouchDelta(0, 0, dialogs.PhaseBegin, msg.Now)
 		return *m
 	}
 	if idx := m.Dialogs.RowAt(msg.Y+m.DialogsScroll.Top, width); idx >= 0 {
@@ -208,31 +256,125 @@ func (m *Model) dragDialogs(msg DialogsDragged) Model {
 				m.DialogsScroll, m.Columns().Dialogs, m.DialogsScroll.Height, dy))
 		return *m
 	}
-	if m.DialogsTouch.Active {
-		d := m.DialogsTouch
-		if !d.Scrolling && absInt(msg.X-d.StartX)+absInt(msg.Y-d.StartY) >= tokens.TouchDragStartDistance {
-			d.Scrolling = true
-		}
-		if d.Scrolling {
-			m.DialogsScroll.Top = m.clampDialogsScroll(m.DialogsScroll.Top - (msg.Y - d.LastY))
-		}
-		d.LastY = msg.Y
-		m.DialogsTouch = d
+	d := m.DialogsTouch
+	if !d.Active {
+		return *m
 	}
+	now := msg.Now
+	dx, dy := msg.X-d.LastX, msg.Y-d.LastY
+	if !d.Scrolling && absInt(msg.X-d.StartX)+absInt(msg.Y-d.StartY) >= tokens.TouchDragStartDistance {
+		d.Scrolling = true
+		d = sampleTouchSpeed(d, msg.X, msg.Y, now)
+		dx, dy = 0, 0
+	}
+	if d.Scrolling {
+		if d.State == dialogs.TouchScrollManual {
+			m.applyTouchDelta(dx, dy, dialogs.PhaseUpdate, now)
+			d = sampleTouchSpeed(d, msg.X, msg.Y, now)
+		} else if d.State == dialogs.TouchScrollAcceleration {
+			d = sampleTouchSpeed(d, msg.X, msg.Y, now)
+			d.AccelerationTime = now
+			if d.Speed == (dialogs.TouchSpeed{}) {
+				d.State = dialogs.TouchScrollManual
+			}
+		}
+	} else {
+		d.LastX, d.LastY = msg.X, msg.Y
+	}
+	m.DialogsTouch = d
 	return *m
+}
+
+func sampleTouchSpeed(d TouchDrag, x, y, now int) TouchDrag {
+	if d.PrevValid {
+		elapsed := now - d.SpeedTime
+		if elapsed != 0 {
+			d.Speed = dialogs.TouchSpeedSample(d.Speed, x-d.LastX, y-d.LastY, elapsed,
+				d.State != dialogs.TouchScrollManual)
+		}
+	} else {
+		d.PrevValid = true
+	}
+	d.SpeedTime = now
+	d.LastX, d.LastY = x, y
+	return d
 }
 
 func (m *Model) releaseDialogs(msg DialogsReleased) {
 	m.DialogsBar = BarDrag{}
-	if m.DialogsTouch.Active {
-		tap := !m.DialogsTouch.Scrolling
-		m.DialogsTouch = TouchDrag{}
-		if tap {
-			if idx := m.Dialogs.RowAt(msg.Y+m.DialogsScroll.Top, m.Columns().Dialogs); idx >= 0 {
-				m.Dialogs.Selected = idx
-			}
+	if !m.DialogsTouch.Active {
+		return
+	}
+	tap := !m.DialogsTouch.Scrolling
+	if m.DialogsTouch.Scrolling {
+		switch m.DialogsTouch.State {
+		case dialogs.TouchScrollManual:
+			m.DialogsTouch.State = dialogs.TouchScrollAuto
+			m.DialogsTouch.PrevValid = false
+			m.DialogsTouch.TouchTime = msg.Now
+		case dialogs.TouchScrollAcceleration:
+			m.DialogsTouch.State = dialogs.TouchScrollAuto
+			m.DialogsTouch.WaitingAcceleration = false
+			m.DialogsTouch.PrevValid = false
 		}
 	}
+	m.DialogsTouch.Active = false
+	if tap {
+		m.DialogsTouch = TouchDrag{}
+		if idx := m.Dialogs.RowAt(msg.Y+m.DialogsScroll.Top, m.Columns().Dialogs); idx >= 0 {
+			m.Dialogs.Selected = idx
+		}
+	}
+}
+
+func (m *Model) dialogsTick(now int) {
+	d := m.DialogsTouch
+	if d.State == dialogs.TouchScrollAuto || d.State == dialogs.TouchScrollAcceleration {
+		if d.State == dialogs.TouchScrollAcceleration && d.WaitingAcceleration &&
+			now-d.AccelerationTime > tokens.TouchAccelerationTimeoutMs {
+			d.State = dialogs.TouchScrollManual
+			m.applyTouchDelta(0, 0, dialogs.PhaseEnd, now)
+			d.Speed = dialogs.TouchSpeed{}
+			d.PrevValid = false
+		} else {
+			elapsed := now - d.TouchTime
+			if elapsed > 0 {
+				dx, dy := dialogs.FlingDelta(d.Speed, elapsed)
+				phase := dialogs.PhaseMomentum
+				if d.Active {
+					phase = dialogs.PhaseUpdate
+				}
+				m.applyTouchDelta(dx, dy, phase, now)
+				if d.Speed == (dialogs.TouchSpeed{}) {
+					d.State = dialogs.TouchScrollManual
+					m.applyTouchDelta(0, 0, dialogs.PhaseEnd, now)
+					d.Scrolling = false
+				} else {
+					d.TouchTime = now
+				}
+				d.Speed = dialogs.TouchDeaccelerate(d.Speed, elapsed)
+			}
+		}
+		m.DialogsTouch = d
+	}
+	if m.DialogsOverscroll.Returning && now > m.DialogsOverscroll.ReturnStart {
+		m.DialogsScroll.Top = m.DialogsOverscroll.SpringUpdate(
+			m.DialogsScroll.Top, m.dialogsMaxOffset(), now)
+	}
+}
+
+func (m *Model) applyTouchDelta(dx, dy int, phase dialogs.Phase, now int) {
+	d := dialogs.ScrollPixels(dx, dy, 0, 0, false)
+	m.DialogsScroll.Top = m.DialogsOverscroll.ApplyInput(
+		m.DialogsScroll.Top, m.dialogsMaxOffset(), d, phase, true, now, now)
+}
+
+func (m Model) dialogsMaxOffset() int {
+	return m.Dialogs.MaxOffset(m.Columns().Dialogs, m.DialogsScroll.Height)
+}
+
+func (m Model) KineticActive() bool {
+	return m.DialogsTouch.State != dialogs.TouchScrollManual || m.DialogsOverscroll.Returning
 }
 
 func absInt(v int) int {

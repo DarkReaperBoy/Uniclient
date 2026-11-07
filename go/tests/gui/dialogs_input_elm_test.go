@@ -170,13 +170,13 @@ func TestDialogsTouchDragScrolls(t *testing.T) {
 	m := scrolledModel(t, 400, 300, 16)
 	m, _ = Update(m, DialogsPressed{X: 200, Y: 100, Touch: true})
 	m, _ = Update(m, DialogsDragged{X: 200, Y: 90})
-	if m.DialogsScroll.Top != 10 {
-		t.Fatalf("finger up 10 = %d, want 10 (threshold crossed, delta applied)",
+	if m.DialogsScroll.Top != 0 {
+		t.Fatalf("finger up 10 = %d, want 0 (threshold crossed, arm swallows the delta)",
 			m.DialogsScroll.Top)
 	}
 	m, _ = Update(m, DialogsDragged{X: 200, Y: 70})
-	if m.DialogsScroll.Top != 30 {
-		t.Fatalf("finger up 20 more = %d, want 30", m.DialogsScroll.Top)
+	if m.DialogsScroll.Top != 20 {
+		t.Fatalf("finger up 20 more = %d, want 20", m.DialogsScroll.Top)
 	}
 	m, _ = Update(m, DialogsReleased{X: 200, Y: 70})
 	if m.Dialogs.Selected != -1 {

@@ -245,6 +245,20 @@ const (
 	WheelNotchAngleDelta   = 120
 	TouchDragStartDistance = 10
 
+	TouchFingerAccuracy            = 3
+	TouchMaxScrollFlick            = 2500
+	TouchMaxScrollAccelerated      = 4000
+	TouchOverscrollMultiplier      = 2
+	TouchFlingTickMs               = 15
+	TouchAccelerationTimeoutMs     = 40
+	MinimumOverscrollBeforeStretch = 10
+	MaxTrackedVelocity             = 6000
+	VelocityZeroingMs              = 100
+	RubberBandStiffness            = 20.
+	RubberBandAmplitude            = 0.31
+	RubberBandPeriod               = 1.6
+	RubberBandMaxReturnMs          = 1000
+
 	ToastPadLeft   = 19
 	ToastPadTop    = 13
 	ToastPadRight  = 19
