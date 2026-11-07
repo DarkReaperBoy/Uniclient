@@ -7,20 +7,23 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 382 — the GUI kit build (post-
-  skeleton); the history element geometry law landed
-  as 3a655338 (message/service margins, bubble
-  geometry+height, service law, skip block, Ayu
-  service-time badge); verify 42384001792 in flight
-  — reconcile at boot
-- next: message-bubble render leg (Elm Messages
-  model + render Painter via the geometry law);
-  Material icon assets (chat-type/send-state/pinned/
-  mention/poll/TTL glyphs) to un-defer icon paint
+- front: session 383 — the GUI kit build (post-
+  skeleton); the message-bubble render leg landed
+  as 4fdc467c (corner/tail/shadow/pill/badge/time
+  laws + chat Elm leg + ChatPainter + window
+  wiring); verify 42409023939 SUCCESS at job AND
+  step level — closed green
+- next: multi-line service complex bubble
+  (Rounded/Plain/Inverted + inverted shrink);
+  Material icon assets (chat-type/send-state/
+  pinned/mention/poll/TTL glyphs) to un-defer
+  icon paint; scroll input for the chat leg
+  (wheel/touch — dialogs kinetic laws apply)
 - owner-waiting: none
-- last-gate: quick GREEN (104 ui + 37 gui = 141 PASS;
-  windows-vet substitute for render/window/cmd);
-  comment ban 296 clean; CI 42384001792 pending
+- last-gate: quick GREEN (105 ui + 54 gui = 159
+  PASS; windows-vet substitute for render/window/
+  cmd); comment ban 301 clean; CI 42409023939
+  success (3 jobs, all steps)
 
 ## Open items
 
@@ -28,6 +31,66 @@ owner order — that history lives in git if ever needed.
 |---|---|---|---|---|
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
+
+## Session 383 — the message-bubble render leg: corner/tail/shadow laws, chat Elm + ChatPainter (2026-11-07)
+
+- Boot: wipe #10 (skills/download/upload only).
+  Clone at 8b2ae432 — 379-382 had closed green in
+  lost sessions (127→141 baseline re-verified
+  after toolchain/modcache/ayu-ref rebuild).
+- Bubble corner law (message.cpp:6626-6651
+  countMessageRounding, verbatim): attachedTop
+  smalls the wall-side top corner, attachedBottom
+  smalls the wall-side bottom corner, tail lands
+  on the layout-side bottom (skipTail removes,
+  keyboard overrides both bottoms to Small);
+  Large=BubbleRadiusLarge()=16 Small=6 Tail->0
+  (chat_style_radius.cpp map: slider 16 = max);
+  Ayu removeMessageTail (default OFF) Tail->Large.
+- Tail glyph 6x10 (bubble_tail.png, right-angle
+  triangle, diagonal (6,0)->(0,10), wall-side
+  vertical edge): left at (x-6, bottom-10), right
+  at (right, bottom-10). Shadow strip 2px
+  (msgShadow) below bottom between corner radii
+  widened by tails; colors colors.palette RRGGBBAA
+  in #748ea2@0x29 out #3ac346@0x1d.
+- Service pill (single line): centered lineW+24
+  x fontH+7, radius (3+h+4)/2 = pillH/2
+  (chat_style.cpp:103). Ayu badge pos: x = trect.x
+  + (trect.w-lastLineW)/2 + max(lastLineW-
+  additional,0) + (lastTextW?8:0); y = trect.y +
+  (lines-1)fontH + (fontH-badgeH)/2; bg black@0x1e.
+- Time label (message.cpp:5479-5516 drawInfo):
+  infoRight = right-(11-2), infoBottom = bottom-
+  (8-5); text right-aligned there; out send-state
+  icon consumes 24px, anchor (-17,-19) off
+  (infoRight, textY+dateFontH).
+- Chat mode: >= adaptiveChatWideWidth 880 (default
+  adaptiveForWide=true) -> Wide (recountChatWidth
+  chain pinned end-to-end). MessageContentWidth
+  extracted as the shared clamp chain (Geometry/
+  Height/painter all call one law now).
+- Chat Elm leg: Item/List/Heights + measure-as-
+  message (ChatLoaded nils heights + dirty,
+  ChatMeasured refills + clamps, ChatScrolled/
+  Resized clamp; zero-height viewport paints
+  nothing — dialogs precedent won over my spec);
+  ChatPane{Rows,Ys,Heights,View,First,Count};
+  Scene.Chat; window measures-on-dirty before
+  View, paints past the dialogs column.
+- ChatPainter: shaper metrics with TD skip-block
+  emulation (last line height max(fontH,skipH),
+  extra line when lastEnd+skipW > width — matches
+  TD height; body wrap approx: all-lines-narrow,
+  documented for the text-engine slice), bubble
+  path per-corner arcs + tail subpaths (nonzero
+  outline, adjacent-not-overlapping), Material
+  skin: in SurfaceContainerHigh/out Primary,
+  pill InverseSurface/InverseOnSurface, fromName
+  in Primary. 2 spec cases fell to the law
+  (attached shadow width 178; scene top=80
+  scenario). 18 tests, 159 total; shipped 4fdc467c,
+  verify 42409023939 SUCCESS job+step.
 
 ## Session 382 — the history element geometry law: margins, bubble, service (2026-11-07)
 
@@ -78,76 +141,29 @@ owner order — that history lives in git if ever needed.
 
 ## Session 381 — kinetic touch + overscroll anim: fling, rubber band, spring return (2026-11-07)
 
-- Boot: wipes #7 AND #8 in one session (the second
-  mid-work, before any edit landed). Recovery
-  recipe re-proven twice; the full elastic_scroll
-  measurement set survived in-context. Baseline 99
-  PASS (full tree 9 pkgs green under GOMEMLIMIT).
-- Fling law (FlickCharm lineage, elastic_scroll.cpp:
-  112-820): touchUpdateSpeed — px/s = diff·(1000/
-  elapsed) with INTEGER multiplier (1000/7 = 142);
-  3dp/s finger accuracy per axis; Manual blend prev/4
-  + new·3/4 clamp 2500, INITIAL SAMPLE RAW UNCLAMPED;
-  Auto re-touch blend old+new/4 clamp 4000 — the
-  compat condition always passes with zero x-speed,
-  only an x-straddle kills it (quirk pinned). Timer
-  15ms: delta = speed·elapsed/1000 trunc, linear
-  1dp/ms decay, speed null → Manual + ScrollEnd.
-  Acceleration protocol: press during Auto → state
-  Acceleration (no scroll, speed blends), 40ms
-  stillness → Manual+End+reset, release re-flings
-  WITHOUT TouchTime reset (long first delta is the
-  law); arm event swallows the crossing delta
-  (touchUpdateSpeed at arm sets prev = pos) —
-  TestDialogsTouchDragScrolls re-pinned 10→0/30→20.
-- Overscroll law (884-1096 + 1119-1169 + 1436-1505):
-  pipeline = trackWheelVelocity (momentum-gap
-  velocity preserved; Begin zeroes) → ignoreMomentum
-  (same-direction momentum consumed during bounce,
-  opposite cancels spring) → Chromium reconcile (1:1
-  unwind toward content before scrolling) →
-  willScrollTo widen [min(from,0), max(from,max)] →
-  touch ×2 → 10dp pending minimum → accumulated band
-  stretch = round(acc/20) ↔ acc = round(20·stretch)
-  (plain Real/Real defaults 0, dialogs_widget.cpp:
-  500; SafeRound = std::round half-away, lib_base
-  algorithm.cpp:15) → position = max+s / negative s
-  / clamp. Classic wheel = phase-None branch (948-
-  961): NEVER overscrolls; stretch ≠ 0 → Return only.
-  Spring (588-647): x(t) = (X0+V0·0.31·t)·e^(−12.5t)
-  capped 1000ms, V0 = tracked velocity fresh ≤100ms
-  clamp 6000, peak = 1/decay − X0/push, finish on
-  sign-cross or zero-after-peak; collapsing() dead
-  for plain defaults (defaults ≠ 0 = stories feature).
-- Port: dialogs/kinetic.go pure laws + Overscroll
-  state machine; Model.DialogsOverscroll + TouchDrag
-  extended (State/Speed/PrevValid/Waiting/
-  AccelerationTime/TouchTime); messages carry Now
-  (window stamps UnixMilli at delivery — synthesized
-  events use delivery time, AyuGram's timestamp-0
-  fallback); DialogsTick frame-driven, Invalidate
-  while KineticActive; spring skipped at progress 0
-  (animation callbacks fire next frame); same-frame
-  fling ticks elapsed-guarded. Touch-on-bar routes
-  to the LIST not the bar (Qt touch propagates past
-  the non-accepting bar) — bar grabs are mouse-only.
-- Not ported (measured, deferred): bar-drag
-  overscroll (_dragOverscrollAccumulated — separate
-  accumulation, no spring even in AyuGram, rare
-  path); trackpad phased momentum (gio exposes no
-  scroll phases); pull sides + Virtual overscroll
-  types (stories strip); long-press right-click;
-  requestBottomContent sync retry (async loadMoreCmd
-  instead).
-- TDD: 3 spec bugs lost to the law (blend arithmetic
-  425 not 225 — divided the wrong term; Begin-cancel
-  setup self-contradiction; the slice-380 arm-delta
-  belief above). GREEN: 28 tests (21 ui + 7 gui),
-  127 total; gofmt, comment ban 294, quick gate
-  GREEN. Shipped ac999d75; verify 42372859307
-  SUCCESS at job and step level (3 jobs; flake
-  tag-check skipped as on every non-release push).
-
+- Wipes #7+#8 in one session; recovery re-proven.
+- Fling law (elastic_scroll.cpp:112-820): px/s =
+  diff*(1000/elapsed) INTEGER multiplier; Manual
+  blend prev/4+new*3/4 clamp 2500 (initial sample
+  raw); Auto blend old+new/4 clamp 4000 (zero-x
+  quirk passes, x-straddle kills); timer 15ms
+  delta trunc + 1dp/ms decay; acceleration: press
+  in Auto -> blend no scroll, 40ms still -> End,
+  release re-flings without TouchTime reset; arm
+  event swallows the crossing delta. Overscroll
+  pipeline: momentum-gap velocity -> ignore same-
+  direction -> Chromium 1:1 unwind -> widen clamp
+  -> touch x2 -> 10dp min -> stretch round(acc/20)
+  (SafeRound half-away); classic wheel NEVER
+  overscrolls, stretch!=0 -> Return only. Spring
+  x(t)=(X0+V0*0.31t)e^(-12.5t) cap 1000ms, V0
+  fresh<=100ms clamp 6000, finish on sign-cross /
+  zero-after-peak. Touch-on-bar routes to list.
+  Deferred: bar-drag overscroll, phased momentum,
+  stories pull types, long-press right-click.
+- 3 spec bugs lost to the law. 28 tests, 127
+  total; ac999d75; verify 42372859307 SUCCESS
+  job+step.
 ## Session 380 — the window-adapter input leg: wheel, hit-test, bar drag, touch (2026-11-07)
 
 - Boot: wipe #6 (repo/toolchain/ayu-ref gone;
@@ -222,63 +238,39 @@ owner order — that history lives in git if ever needed.
 
 ## Session 378 — wipe #5 boot + the dialogs list scroll law: viewport, virtualization, reveal, thumb (2026-11-07)
 
-- Boot: full-wipe #5. Clone at 5e6ba094 = origin/main
-  (the "ahead by 2" was a stale tracking ref).
-  ayu-ref re-acquired after the AyuGram6→
-  AyuGramDesktop repo rename (v7.2.9 + lib_ui @
-  e3d0582); pins verified; baseline 60 PASS.
-- Discovery: the dialogs list runs Ui::ElasticScroll
-  (dialogs_widget.h:373), not classic ScrollArea —
-  thumb law = elastic_scroll.cpp:131-175;
-  ComputeScrollTo byte-identical in both files.
-- go/ui/dialogs/scroll.go: Viewport; MaxOffset /
-  ClampOffset; VisibleRows (lower_bound last-pixel
-  overlap + paint walk); PreloadWindow 3 screens;
-  ScrollToReveal; Thumb (fullSkip 6, thickness 4,
-  barMin min(40, available/2), hide rules, ratio
-  with cut-clamp — overscroll shrinks the thumb).
-  12 tests (3 spec bugs lost to re-derivation), 72
-  total; landed e38052c2; verify 42347578779
-  SUCCESS job+step.
+- Discovery: dialogs list = Ui::ElasticScroll
+  (not ScrollArea) — thumb law elastic_scroll.cpp:
+  131-175. dialogs/scroll.go: Viewport, MaxOffset/
+  Clamp, VisibleRows (1px-overlap lower_bound +
+  walk), PreloadWindow 3 screens, ScrollToReveal,
+  Thumb (skip 6, thickness 4, barMin min(40,avail/
+  2), hide rules, ratio cut-clamp). 12 tests, 72
+  total; e38052c2; verify 42347578779 SUCCESS.
 
 ## Session 377 — the dialogs row widget: pure layout + Elm state + gio render (2026-11-07)
 
-- go/ui/dialogs (pure): Entry + Layout(e, width,
-  Metrics) — name-rect shrink order date(+5) → chat
-  icon(+iconW+3) → send state(−20); badge stack
-  right-anchored, max-2 narrow; variants 62/72/80/96;
-  online (43,43) / TTL (36,36); List RowAt. Elm
-  Model.Dialogs + selection clamp on reload.
-  render Painter: bg states, photo/EmptyUserpic,
-  presenceGreen dot, elided labels, counter pill;
-  icon glyphs + tags deferred. 11 ui + 1 gui (60
-  total); gates clean.
+- dialogs Entry+Layout (name-rect shrink date+5 ->
+  chat icon+3 -> send state -20; badge stack
+  right-anchored max-2; variants 62/72/80/96; online
+  43/43 TTL 36/36); Elm selection clamp; render
+  Painter (bg states, photo/userpic, presence dot,
+  elided labels, counter pill); icon glyphs
+  deferred. 11 ui + 1 gui; gates clean.
 
 ## Session 376 — wipe #4 boot: env rebuilt; Material theme system (M3 baseline + AMOLED) (2026-11-07)
 
-- ui/material Scheme (36 roles, Light/Dark/Amoled)
-  from Compose material3 v0_210; RED → GREEN 8/31.
-  Dialogs-row geometry slice 5 pins (badge pill,
-  counter format, online-badge pos law, tagged/forum
-  variants) in tokens + tests — 6/37; the TTL-pos
-  test caught a real porting bug. 376 green.
+- ui/material Scheme 36 roles Light/Dark/Amoled
+  (Compose material3 v0_210); dialogs-row slice 5
+  pins; TTL-pos test caught a real porting bug.
 
 ## Session 375 — the Gio skeleton: Elm core, window adapter, the measured pane law; the cgo-closure fight (2026-11-06)
 
-- go/ui/app Elm core (zero Gio): pane law from
-  computeColumnLayout (window_session_controller.cpp:
-  2626-2722); go/ui/window adapter + 12 Msg tests.
-  gioui.org v0.10.3 Xlib cgo closure: gate.sh gio
-  partition (windows-vet substitute), apt/nix sets —
-  4 flake runs to green (75944429). 12/12 + 23/23;
-  verify 42262264512 → 42264110055 gate of record.
+- go/ui/app Elm core (zero Gio) + pane law
+  (computeColumnLayout); window adapter; gioui
+  Xlib cgo closure -> gate.sh windows-vet
+  substitute; flake green 75944429.
 
 ## Session 374 — geometry-table slice 4 re-mined after a full-wipe recycle (2026-11-06)
 
-- Full-wipe recycle killed the unpushed first
-  attempt; re-derivation converged (23/23) — pins
-  live in tokens.go + tests: menu icons 24×24 15/5
-  54/8/17/8; title/button/top-bar/checkbox/ripple/
-  scrollbar/toast tables; VerticalCenterOffset =
-  menu_action.cpp:131. CI 42187083372 SUCCESS;
-  verify 42250138772 on af2f4136 — T-2 closed.
+- Re-derivation converged 23/23; pins in tokens.go
+  + tests; CI 42187083372 SUCCESS; T-2 closed.
