@@ -75,6 +75,15 @@ const (
 	MsgPhotoSize = 33
 	MsgPhotoSkip = 40
 	MsgMaxWidth  = 430
+	MsgMinWidth  = 160
+
+	MsgDateSpace  = 12
+	MsgDateDeltaX = 2
+	MsgDateDeltaY = 5
+
+	HistoryFastShareSize = 31
+
+	UnlimitedBubbleWidth = 0x3FFFFFF
 
 	BubbleRadiusSmall             = 6
 	BubbleRadiusLarge             = 16
@@ -94,6 +103,13 @@ const (
 	MsgServiceMarginTop    = 10
 	MsgServiceMarginRight  = 10
 	MsgServiceMarginBottom = 2
+
+	AyuServiceTimeBadgeFontSize         = 11
+	AyuServiceTimeBadgePadX             = 7
+	AyuServiceTimeBadgePadY             = 2
+	AyuServiceTimeBadgeGap              = 8
+	AyuServiceTimeBadgeTrailingInset    = 3
+	AyuServiceTimeBadgeLastLineWidthAdd = 9
 
 	FontMsgName    = 13
 	FontMsgService = 13
