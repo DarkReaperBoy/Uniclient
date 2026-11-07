@@ -1,6 +1,7 @@
 package window
 
 import (
+	"image"
 	"math"
 	"runtime"
 	"time"
@@ -16,6 +17,7 @@ import (
 
 	"uniclient/ui/app"
 	"uniclient/ui/dialogs/render"
+	chatrender "uniclient/ui/history/render"
 	"uniclient/ui/material"
 	"uniclient/ui/tokens"
 )
@@ -33,6 +35,7 @@ func Run() error {
 	msgs := make(chan app.Msg, msgQueueDepth)
 	appModel := app.InitialModel()
 	painter := render.NewPainter()
+	chatPainter := chatrender.NewChatPainter()
 	handle := func(msg app.Msg) {
 		var cmd app.Cmd
 		appModel, cmd = app.Update(appModel, msg)
@@ -68,9 +71,18 @@ func Run() error {
 			}
 			gtx := gioapp.NewContext(&ops, e)
 			routeInput(gtx, painter.Input, e.Metric, handle)
+			if appModel.ChatDirty {
+				handle(app.ChatMeasured{Heights: chatPainter.Measure(
+					gtx, appModel.Chat.Items, appModel.Columns().Chat)})
+			}
 			scene := app.View(appModel)
 			paint.Fill(gtx.Ops, scene.Background)
 			painter.PaintPane(gtx, scene.Dialogs, material.SchemeFor(material.Light))
+			if cols := appModel.Columns(); cols.Chat > 0 && cols.Dialogs < appModel.Width {
+				stk := op.Offset(image.Pt(gtx.Dp(unit.Dp(cols.Dialogs)), 0)).Push(gtx.Ops)
+				chatPainter.PaintChatPane(gtx, scene.Chat, material.SchemeFor(material.Light))
+				stk.Pop()
+			}
 			if !appModel.Running {
 				w.Perform(system.ActionClose)
 			}

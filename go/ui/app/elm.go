@@ -5,6 +5,7 @@ import (
 	"math"
 
 	"uniclient/ui/dialogs"
+	"uniclient/ui/history"
 	"uniclient/ui/material"
 	"uniclient/ui/tokens"
 )
@@ -97,6 +98,24 @@ type DialogsTick struct {
 
 func (DialogsTick) isMsg() {}
 
+type ChatLoaded struct {
+	Items []history.Item
+}
+
+func (ChatLoaded) isMsg() {}
+
+type ChatMeasured struct {
+	Heights []int
+}
+
+func (ChatMeasured) isMsg() {}
+
+type ChatScrolled struct {
+	DeltaY int
+}
+
+func (ChatScrolled) isMsg() {}
+
 type Cmd func() Msg
 
 type TouchDrag struct {
@@ -131,6 +150,9 @@ type Model struct {
 	DialogsTouch      TouchDrag
 	DialogsBar        BarDrag
 	DialogsOverscroll dialogs.Overscroll
+	Chat              history.List
+	ChatScroll        history.Viewport
+	ChatDirty         bool
 }
 
 func InitialModel() Model {
@@ -150,6 +172,9 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		m.Height = msg.Height
 		m.DialogsScroll.Height = msg.Height
 		m.DialogsScroll.Top = m.clampDialogsScroll(m.DialogsScroll.Top)
+		m.ChatScroll.Height = msg.Height
+		m.ChatScroll.Top = m.Chat.ClampOffset(m.ChatScroll.Top, m.ChatScroll)
+		m.ChatDirty = true
 		return m, m.loadMoreCmd()
 	case Quit:
 		m.Running = false
@@ -194,6 +219,20 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		m.dialogsTick(msg.Now)
 		return m, m.loadMoreCmd()
 	case DialogsLoadMoreRequested:
+		return m, nil
+	case ChatLoaded:
+		m.Chat.Items = msg.Items
+		m.Chat.Heights = nil
+		m.ChatDirty = true
+		m.ChatScroll.Top = m.Chat.ClampOffset(m.ChatScroll.Top, m.ChatScroll)
+		return m, nil
+	case ChatMeasured:
+		m.Chat.Heights = msg.Heights
+		m.ChatDirty = false
+		m.ChatScroll.Top = m.Chat.ClampOffset(m.ChatScroll.Top, m.ChatScroll)
+		return m, nil
+	case ChatScrolled:
+		m.ChatScroll.Top = m.Chat.ClampOffset(m.ChatScroll.Top+msg.DeltaY, m.ChatScroll)
 		return m, nil
 	}
 	return m, nil
@@ -487,6 +526,7 @@ func (m Model) shrinkDialogsAndThird(dialogs, third int) (int, int) {
 type Scene struct {
 	Background color.NRGBA
 	Dialogs    dialogs.Pane
+	Chat       history.ChatPane
 }
 
 func View(m Model) Scene {
@@ -494,5 +534,6 @@ func View(m Model) Scene {
 	if m.HasDialogs {
 		s.Dialogs = m.Dialogs.Pane(m.DialogsScroll, m.Columns().Dialogs)
 	}
+	s.Chat = m.Chat.Pane(m.ChatScroll, m.Columns().Chat)
 	return s
 }

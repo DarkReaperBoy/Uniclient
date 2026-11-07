@@ -235,18 +235,17 @@ func availableWidthFor(viewWidth int, mode ChatMode, centered bool) int {
 	return viewWidth - tokens.MsgMarginLeft - wideSkipFor(mode)
 }
 
-func MessageGeometry(viewWidth, viewHeight, maxWidth, nonTextMaxWidth, realWidth, monoMaxWidth int, c MessageCtx) Geometry {
-	available := availableWidthFor(viewWidth, c.Mode, c.Centered)
-	left := wideSkipFor(c.Mode)
-	if !c.RightLayout {
-		left = tokens.MsgMarginLeft
+func ChatModeFor(chatWidth int) ChatMode {
+	if chatWidth >= tokens.AdaptiveChatWideWidth {
+		return ModeWide
 	}
-	contentWidth := available
-	if c.FromPhoto {
-		left += tokens.MsgPhotoSkip
-		if c.RightActionW > 0 {
-			contentWidth -= c.RightActionW + (tokens.MsgPhotoSkip - tokens.HistoryFastShareSize)
-		}
+	return ModeNormal
+}
+
+func MessageContentWidth(viewWidth, maxWidth, monoMaxWidth int, c MessageCtx) int {
+	contentWidth := availableWidthFor(viewWidth, c.Mode, c.Centered)
+	if c.FromPhoto && c.RightActionW > 0 {
+		contentWidth -= c.RightActionW + (tokens.MsgPhotoSkip - tokens.HistoryFastShareSize)
 	}
 	if maxWidth < contentWidth {
 		contentWidth = maxWidth
@@ -254,6 +253,19 @@ func MessageGeometry(viewWidth, viewHeight, maxWidth, nonTextMaxWidth, realWidth
 	if limit := BubbleWidthLimit(c.Unlimited, monoMaxWidth); limit < contentWidth {
 		contentWidth = limit
 	}
+	return contentWidth
+}
+
+func MessageGeometry(viewWidth, viewHeight, maxWidth, nonTextMaxWidth, realWidth, monoMaxWidth int, c MessageCtx) Geometry {
+	available := availableWidthFor(viewWidth, c.Mode, c.Centered)
+	left := wideSkipFor(c.Mode)
+	if !c.RightLayout {
+		left = tokens.MsgMarginLeft
+	}
+	if c.FromPhoto {
+		left += tokens.MsgPhotoSkip
+	}
+	contentWidth := MessageContentWidth(viewWidth, maxWidth, monoMaxWidth, c)
 	if realWidth > 0 {
 		shrunk := realWidth + tokens.MsgPaddingLeft + tokens.MsgPaddingRight
 		if nonTextMaxWidth > shrunk {
@@ -285,16 +297,7 @@ func MessageGeometry(viewWidth, viewHeight, maxWidth, nonTextMaxWidth, realWidth
 }
 
 func MessageHeight(viewWidth, maxWidth, minHeight, nonTextMaxWidth, bottomInfoHeight, monoMaxWidth int, t Text, c MessageCtx, f Fonts) int {
-	contentWidth := availableWidthFor(viewWidth, c.Mode, c.Centered)
-	if c.FromPhoto && c.RightActionW > 0 {
-		contentWidth -= c.RightActionW + (tokens.MsgPhotoSkip - tokens.HistoryFastShareSize)
-	}
-	if maxWidth < contentWidth {
-		contentWidth = maxWidth
-	}
-	if limit := BubbleWidthLimit(c.Unlimited, monoMaxWidth); limit < contentWidth {
-		contentWidth = limit
-	}
+	contentWidth := MessageContentWidth(viewWidth, maxWidth, monoMaxWidth, c)
 	if c.Bubble && c.VisibleText && t.HeightFor != nil {
 		_, real := t.HeightFor(BubbleTextWidth(contentWidth))
 		if real > 0 {

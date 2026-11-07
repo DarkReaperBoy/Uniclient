@@ -83,6 +83,14 @@ const (
 
 	HistoryFastShareSize = 31
 
+	MsgTailWidth  = 6
+	MsgTailHeight = 10
+	MsgShadow     = 2
+
+	HistorySendStateSpace = 24
+	HistorySendStateDX    = -17
+	HistorySendStateDY    = -19
+
 	UnlimitedBubbleWidth = 0x3FFFFFF
 
 	BubbleRadiusSmall             = 6
