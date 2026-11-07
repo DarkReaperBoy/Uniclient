@@ -31,8 +31,11 @@ func TestUpdateRecordsResized(t *testing.T) {
 	if m.Width != 1024 || m.Height != 768 {
 		t.Fatalf("resize not recorded: %dx%d", m.Width, m.Height)
 	}
-	if cmd != nil {
-		t.Fatal("resize must not emit a cmd")
+	if cmd == nil {
+		t.Fatal("resize on an empty list must emit the initial load request (loadTill >= height law)")
+	}
+	if msg := cmd(); msg != (DialogsLoadMoreRequested{}) {
+		t.Fatalf("resize cmd = %T, want DialogsLoadMoreRequested", msg)
 	}
 	if !m.Running {
 		t.Fatal("resize must not stop the loop")

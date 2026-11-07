@@ -37,6 +37,8 @@ var presenceGreen = color.NRGBA{R: 0x4d, G: 0xc9, B: 0x20, A: 0xff}
 
 var darkInk = color.NRGBA{R: 0x1d, G: 0x1b, B: 0x20, A: 0xff}
 
+var scrollBarColor = color.NRGBA{R: 0x00, G: 0x00, B: 0x00, A: 0x53}
+
 var (
 	fontRegular  = font.Font{Typeface: "Go"}
 	fontSemibold = font.Font{Typeface: "Go", Weight: font.Medium}
@@ -137,6 +139,34 @@ func (p *Painter) PaintRow(gtx layout.Context, e dialogs.Entry, width int, sch m
 	p.label(gtx, l.Preview, fontRegular, unit.Sp(tokens.FontBase), e.Preview,
 		textColor(sch, state, sch.OnSurfaceVariant, sch.OnPrimaryContainer))
 	p.badges(gtx, l, counterM, counter, sch)
+}
+
+func (p *Painter) PaintPane(gtx layout.Context, pane dialogs.Pane, sch material.Scheme) {
+	if pane.Width <= 0 || pane.View.Height <= 0 {
+		return
+	}
+	defer clip.Rect{Max: image.Pt(
+		gtx.Dp(unit.Dp(pane.Width)),
+		gtx.Dp(unit.Dp(pane.View.Height)),
+	)}.Push(gtx.Ops).Pop()
+	for i := range pane.Rows {
+		state := RowNormal
+		if pane.First+i == pane.Selected {
+			state = RowSelected
+		}
+		stk := op.Offset(image.Pt(0, gtx.Dp(unit.Dp(pane.RowYs[i]-pane.View.Top)))).Push(gtx.Ops)
+		p.PaintRow(gtx, pane.Rows[i], pane.Width, sch, state)
+		stk.Pop()
+	}
+	if pane.Thumb.Hidden {
+		return
+	}
+	fillRRect(gtx, dialogs.Rect{
+		X: pane.Width - tokens.ScrollBarWidth + tokens.ScrollBarDeltax,
+		Y: pane.Thumb.Y,
+		W: tokens.ScrollBarWidth - 2*tokens.ScrollBarDeltax,
+		H: pane.Thumb.H,
+	}, tokens.ScrollBarRadius, scrollBarColor)
 }
 
 func (p *Painter) badges(gtx layout.Context, l dialogs.RowLayout, counterM measure, counter string, sch material.Scheme) {

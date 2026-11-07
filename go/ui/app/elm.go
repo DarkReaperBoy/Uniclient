@@ -34,15 +34,26 @@ type DialogRowPressed struct {
 
 func (DialogRowPressed) isMsg() {}
 
+type DialogsScrolled struct {
+	DeltaY int
+}
+
+func (DialogsScrolled) isMsg() {}
+
+type DialogsLoadMoreRequested struct{}
+
+func (DialogsLoadMoreRequested) isMsg() {}
+
 type Cmd func() Msg
 
 type Model struct {
-	Width      int
-	Height     int
-	HasDialogs bool
-	ThirdPane  bool
-	Running    bool
-	Dialogs    dialogs.List
+	Width         int
+	Height        int
+	HasDialogs    bool
+	ThirdPane     bool
+	Running       bool
+	Dialogs       dialogs.List
+	DialogsScroll dialogs.Viewport
 }
 
 func InitialModel() Model {
@@ -60,7 +71,9 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		}
 		m.Width = msg.Width
 		m.Height = msg.Height
-		return m, nil
+		m.DialogsScroll.Height = msg.Height
+		m.DialogsScroll.Top = m.clampDialogsScroll(m.DialogsScroll.Top)
+		return m, m.loadMoreCmd()
 	case Quit:
 		m.Running = false
 		return m, nil
@@ -69,14 +82,31 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		if m.Dialogs.Selected >= len(msg.Rows) {
 			m.Dialogs.Selected = -1
 		}
-		return m, nil
+		m.DialogsScroll.Top = m.clampDialogsScroll(m.DialogsScroll.Top)
+		return m, m.loadMoreCmd()
 	case DialogRowPressed:
 		if msg.Index >= 0 && msg.Index < len(m.Dialogs.Rows) {
 			m.Dialogs.Selected = msg.Index
 		}
 		return m, nil
+	case DialogsScrolled:
+		m.DialogsScroll.Top = m.clampDialogsScroll(m.DialogsScroll.Top + msg.DeltaY)
+		return m, m.loadMoreCmd()
+	case DialogsLoadMoreRequested:
+		return m, nil
 	}
 	return m, nil
+}
+
+func (m Model) clampDialogsScroll(top int) int {
+	return m.Dialogs.ClampOffset(top, m.Columns().Dialogs, m.DialogsScroll.Height)
+}
+
+func (m Model) loadMoreCmd() Cmd {
+	if !m.Dialogs.LoadMoreNeeded(m.DialogsScroll, m.Columns().Dialogs) {
+		return nil
+	}
+	return func() Msg { return DialogsLoadMoreRequested{} }
 }
 
 type PaneMode int
@@ -170,8 +200,13 @@ func (m Model) shrinkDialogsAndThird(dialogs, third int) (int, int) {
 
 type Scene struct {
 	Background color.NRGBA
+	Dialogs    dialogs.Pane
 }
 
 func View(m Model) Scene {
-	return Scene{Background: material.SchemeFor(material.Light).Surface}
+	s := Scene{Background: material.SchemeFor(material.Light).Surface}
+	if m.HasDialogs {
+		s.Dialogs = m.Dialogs.Pane(m.DialogsScroll, m.Columns().Dialogs)
+	}
+	return s
 }

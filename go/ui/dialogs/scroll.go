@@ -93,6 +93,41 @@ type Thumb struct {
 	Hidden bool
 }
 
+type Pane struct {
+	Width    int
+	View     Viewport
+	First    int
+	Rows     []Entry
+	RowYs    []int
+	Selected int
+	Thumb    Thumb
+}
+
+func (l List) Pane(v Viewport, width int) Pane {
+	p := Pane{
+		Width:    width,
+		View:     v,
+		Selected: l.Selected,
+		Thumb:    l.ScrollbarThumb(v, width, v.Height),
+	}
+	first, last := l.VisibleRows(v, width)
+	if last <= first {
+		return p
+	}
+	p.First = first
+	p.Rows = l.Rows[first:last]
+	off := 0
+	for i := 0; i < first; i++ {
+		off += l.RowHeight(i, width)
+	}
+	p.RowYs = make([]int, last-first)
+	for i := first; i < last; i++ {
+		p.RowYs[i-first] = off
+		off += l.RowHeight(i, width)
+	}
+	return p
+}
+
 func (l List) ScrollbarThumb(v Viewport, width, trackH int) Thumb {
 	fullSkip := tokens.ScrollBarDeltat + tokens.ScrollBarDeltab
 	thickness := tokens.ScrollBarWidth - 2*tokens.ScrollBarDeltax
