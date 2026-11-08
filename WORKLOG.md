@@ -7,17 +7,23 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 398 — the compose-bar geometry law landed (bar
-  height, field-height machine, max-height cap, button-row layout,
-  scroll partition); N-1 CLOSED — the owner's token pushed
-  5b978120..79d27335 (394-397) and verify 42513830501 ran SUCCESS
-- next: the composer continues — attach/send/emoji glyph assets
-  (chat/input_attach@, historySendIcon family) + the bar painter, or
-  the SendButton type machine law (send_button.cpp) — then Elm wiring
+- front: sessions 398+399 — the composer front opened: the
+  compose-bar geometry law (bar height, field-height machine,
+  max-height cap, button-row layout with the 2px field/emoji
+  underlap quirk pinned, scroll partition) + the send-button type
+  machine (type set, 44x46 cells, ripple (2,3,40), stop 14x14 r3,
+  slowmode m:ss text + margins)
+- next: the composer continues — attach/send/emoji/schedule glyph
+  assets (chat/input_attach@, historySendIcon, chat/input_schedule)
+  via the measured-trace pipeline, then the bar painter + Elm wiring
+  (ChatComposeState riding resize/field msgs); SendButton state
+  crossfade (120ms) + record lottie geometry with the painter
 - owner-waiting: none
-- last-gate: quick GREEN (398 scope); js/wasm compile ui/... GREEN;
-  comment ban clean; 363 tests (210 ui + 153 gui) green locally;
-  verify 42513830501 SUCCESS job+step (394-397 scope)
+- last-gate: quick GREEN (399 scope); js/wasm compile ui/... GREEN;
+  comment ban clean; 369 tests (216 ui + 153 gui) green locally;
+  verify 42513830501 SUCCESS job+step (394-397 scope; dispatch a
+  fresh verify for 070b5188+8cda61db next session or on the next
+  push)
 
 ## Open items
 
@@ -28,12 +34,26 @@ owner order — that history lives in git if ever needed.
 | D-1 | ui/history corner button | down-button unread-count badge (22dp, centered x, top 0 — jump_down_button.cpp paintEvent + historyToDownBadge*) + hover/over colors + ripple deferred: no unread counter in the chat Item model yet, no hover/ripple machinery in the skin yet; replyReturn branch of downClick + loadedAtBottom==false state return with reply-return jumps / below-history pagination | jump_down_button.cpp 33-52, corner_buttons.cpp 139-145 | badge returns with read-state counts; over/ripple with the skin's hover+ripple pass |
 | D-2 | ui/history unread-things buttons | read-marking absent for mentions AND reactions: after a jump the button stays shown (reference hides it when the server marks the thing read — updateUnreadThingsVisibility is server-data-driven); mentionsClick's already-there voice/video media-read branch (5623) deferred — no media model; unread-count badges join D-1's class; poll-votes 4th stack slot returns with a poll model | history_view_corner_buttons.cpp 147-190, 288-345 | returns with engine unread-things events + the media pass |
 
+## Session 399 — the send-button type machine + shape laws (2026-11-09)
+
+- Law: ui/controls/send_button.cpp — type set Send/Schedule/Slowmode/
+  Save/Cancel/Record/Round/Stop/EditPrice; updateSize 676-683 (width
+  44 — stars widening deferred, height 46, EditPrice (0,46)); ripple
+  (2,3,40) every type — same cell as the attach ripple; paintStop
+  296-308 (14x14 r3 centered, int-div); paintSlowmode 331-338 (text
+  m:ss — minutes = s/60, s%60 padded 2, 0 -> empty, setState 91-97;
+  rect marginsRemoved (0,0,10,0), chat_helpers.style 1013); tokens
+  sendIconPosition (10,11), scheduleIconPosition (7,8), recordSize
+  26, universalDuration 120 = SendStateChangeDurationMs. Go:
+  send_button.go SendButtonType + Width/Height/Ripple/StopRect +
+  SlowmodeDelayText/TextRect. RED -> GREEN clean. 6 tests, 369 total
+  = 216 ui + 153 gui; quick GREEN; js/wasm GREEN; comment ban clean.
+
 ## Session 398 — the compose-bar geometry law (2026-11-09)
 
 - Owner restored the token: pushed 5b978120..79d27335 (sessions
   394-397), dispatched verify 42513830501 — SUCCESS at job AND step
-  level (nix + cross-builds + test/vet/gofmt/smoke; only the
-  version==tag step skipped, correct off-tag). N-1 closed.
+  level. N-1 closed.
 - Law: moveFieldControls (history_widget.cpp 7587-7660) —
   buttonsBottom = paneH - 46; left run from historySendRight 2:
   attach (2, bb, 44x46), field left 2+44; field top = paneH -
