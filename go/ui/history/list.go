@@ -148,6 +148,7 @@ type ChatPane struct {
 	DateInPlace   bool
 	DateText      string
 	DateAlpha     float32
+	DownProgress  float32
 }
 
 func (l List) Pane(v Viewport, width int) ChatPane {

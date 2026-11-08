@@ -224,12 +224,13 @@ const (
 )
 
 type ChatPressState struct {
-	Row    int
-	X      int
-	Y      int
-	Inside bool
-	Time   bool
-	Action ChatPressAction
+	Row       int
+	X         int
+	Y         int
+	Inside    bool
+	Time      bool
+	Action    ChatPressAction
+	DownPress bool
 }
 
 type ChatDateState struct {
@@ -244,6 +245,15 @@ type ChatDateState struct {
 	Alpha            float32
 	HideAt           int
 	AfterDayCrossing bool
+}
+
+type ChatDownState struct {
+	Shown    bool
+	Anim     bool
+	From     float32
+	To       float32
+	Started  int
+	Progress float32
 }
 
 type Model struct {
@@ -263,6 +273,7 @@ type Model struct {
 	ChatPrependTop    int
 	ChatPrependRows   int
 	ChatDate          ChatDateState
+	ChatDown          ChatDownState
 	nowMs             int
 	ChatTouch         TouchDrag
 	ChatBar           BarDrag
@@ -350,6 +361,7 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		m.ChatPrependTop = 0
 		m.ChatPrependRows = 0
 		m.ChatDate = ChatDateState{}
+		m.ChatDown = ChatDownState{}
 		m.Chat.Heights = nil
 		m.Chat.Hits = nil
 		m.ChatSelection = nil
@@ -415,6 +427,7 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		m.nowMs = msg.Now
 		m.chatTick(msg.Now)
 		m.chatDateTick(msg.Now)
+		m.chatDownTick(msg.Now)
 		return m, m.chatPreloadCmd()
 	case ChatBottomRequested:
 		return m, nil
@@ -635,6 +648,37 @@ func (m *Model) chatViewportChanged(oldTop int) {
 	} else {
 		m.chatDateCheckDownward()
 	}
+	m.chatDownCheck()
+}
+
+func (m *Model) chatDownCheck() {
+	shown := m.Chat.DownShown(m.ChatScroll)
+	if shown == m.ChatDown.Shown {
+		return
+	}
+	m.ChatDown.Shown = shown
+	m.ChatDown.From = m.ChatDown.Progress
+	m.ChatDown.To = 0
+	if shown {
+		m.ChatDown.To = 1
+	}
+	m.ChatDown.Started = m.nowMs
+	m.ChatDown.Anim = true
+}
+
+func (m *Model) chatDownTick(now int) {
+	if !m.ChatDown.Anim {
+		return
+	}
+	elapsed := now - m.ChatDown.Started
+	if elapsed >= tokens.HistoryToDownDurationMs {
+		m.ChatDown.Progress = m.ChatDown.To
+		m.ChatDown.Anim = false
+	} else if elapsed >= 0 {
+		t := float32(elapsed) / float32(tokens.HistoryToDownDurationMs)
+		m.ChatDown.Progress = m.ChatDown.From +
+			(m.ChatDown.To-m.ChatDown.From)*t
+	}
 }
 
 func (m *Model) chatDateCheckUpward() {
@@ -729,6 +773,10 @@ func (m Model) ChatDateActive() bool {
 	return m.ChatDate.AlphaAnim || m.ChatDate.HideAt > 0
 }
 
+func (m Model) ChatDownActive() bool {
+	return m.ChatDown.Anim
+}
+
 func (m *Model) chatScrollClassic(dy int) (Model, Cmd) {
 	var cmd Cmd
 	if history.ChatBottomRequest(m.ChatScroll.Top, dy, m.Chat.MaxOffset(m.ChatScroll)) {
@@ -779,6 +827,12 @@ func (m *Model) chatTouchScroll(dy int) bool {
 
 func (m *Model) pressChat(msg ChatPressed) Model {
 	m.nowMs = msg.Now
+	if m.chatDownHitAt(msg.X, msg.Y) {
+		m.ChatBar = BarDrag{}
+		m.ChatTouch = TouchDrag{}
+		m.ChatPress = ChatPressState{Row: -1, X: msg.X, Y: msg.Y, DownPress: true}
+		return *m
+	}
 	if !msg.Touch {
 		width := m.Columns().Chat
 		if width > tokens.HistoryScrollBarWidth && msg.X >= width-tokens.HistoryScrollBarWidth {
@@ -927,6 +981,10 @@ func (m *Model) releaseChat(msg ChatReleased) {
 	if !m.ChatTouch.Active {
 		press := m.ChatPress
 		m.ChatPress = ChatPressState{Row: -1}
+		if press.DownPress {
+			m.chatDownClick(msg.X, msg.Y)
+			return
+		}
 		m.finishChatPress(press, msg.X, msg.Y)
 		return
 	}
@@ -951,6 +1009,20 @@ func (m *Model) releaseChat(msg ChatReleased) {
 		press := m.chatPressAt(msg.X, msg.Y)
 		m.finishChatPress(press, msg.X, msg.Y)
 	}
+}
+
+func (m *Model) chatDownHitAt(x, y int) bool {
+	return history.DownButtonHit(m.Columns().Chat, m.ChatScroll.Height,
+		m.ChatDown.Progress, x, y)
+}
+
+func (m *Model) chatDownClick(x, y int) {
+	if !m.chatDownHitAt(x, y) {
+		return
+	}
+	oldTop := m.ChatScroll.Top
+	m.ChatScroll.Top = m.Chat.ClampOffset(m.Chat.DownJumpTop(m.ChatScroll), m.ChatScroll)
+	m.chatViewportChanged(oldTop)
 }
 
 func (m *Model) chatTick(now int) {
@@ -1086,5 +1158,6 @@ func View(m Model) Scene {
 	s.Chat = m.Chat.Pane(m.ChatScroll, m.Columns().Chat)
 	s.Chat.ThumbDragging = m.ChatBar.Dragging
 	s.Chat.DateAlpha = m.ChatDate.Alpha
+	s.Chat.DownProgress = m.ChatDown.Progress
 	return s
 }

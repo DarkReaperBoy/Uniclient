@@ -278,6 +278,21 @@ const (
 	HistoryScrollBarDeltat = 3
 	HistoryScrollBarDeltab = 3
 
+	HistoryToDownPositionX    = 12
+	HistoryToDownPositionY    = 10
+	HistoryToDownWidth        = 52
+	HistoryToDownHeight       = 62
+	HistoryToDownCircleSize   = 42
+	HistoryToDownCircleX      = 5
+	HistoryToDownCircleY      = 15
+	HistoryToDownArrowWidth   = 19
+	HistoryToDownArrowHeight  = 10
+	HistoryToDownArrowStroke  = 3
+	HistoryToDownArrowCenterX = 26
+	HistoryToDownArrowCenterY = 38
+	HistoryToDownShownAfter   = 480
+	HistoryToDownDurationMs   = 150
+
 	PreloadScreens = 3
 
 	HistoryPreloadIfLessThanScreens = 2

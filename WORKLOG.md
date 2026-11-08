@@ -7,25 +7,30 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 393 — the floating scroll-date landed as f27c1bbb
-  (history.ScrollDateAnchor + List.ScrollDateAt: owner = nearest pack start
-  at-or-above the viewport anchor, dateTop = max(ownerTop, visibleTop) +
-  msgServiceMarginTop clamped to packBottom - dateHeight, inPlace below the
-  natural+dateHeight line; the Elm ChatDateState machine funnels every
-  ChatScroll.Top mutation — upward anchor-change shows + 800ms re-arm,
-  downward day-crossing shows + 3000ms with AfterDayCrossing latching, else
-  hide-now; ChatTick drives the 200ms linear alpha + hide deadlines; the
-  painter paints the owner at the stick position with the fade alpha and
-  now paints in-place badges at their row y — fixing the session-389 wiring
-  that painted every badge at pane y=0); verify 42499644234 SUCCESS at job
-  AND step level — closed green
-- next: continue the chat-front polish queue — the jump-to-end button
-  visibility law (scroll-to-bottom FAB over the chat leg) or the composer
-  attach/menu trees, measured from the reference
-- owner-waiting: none
-- last-gate: quick GREEN (185 ui + 105 gui = 290 PASS); comment ban clean;
-  CI 42499644234 success (3 jobs, all steps; release-tag step skipped by
-  design on main)
+- front: session 394 — the jump-to-end corner button landed (pending CI):
+  history/corner_button.go (DownShown law: scrollTop+480 < max, or first
+  unread row at/below the fold — cornerButtonsDownShown 9122-9157;
+  DownJumpTop = first-unread top clamped else max — downClick →
+  UnreadMessagePosition; DownButtonGeometry/Hit = the 52x62 box at
+  right+12, sliding from below the pane edge over 72dp — updatePositions
+  interpolate; tokens from historyToDown* + measured PNGs); Elm ChatDownState
+  rides chatViewportChanged (all Top mutations) + ChatLoaded reset +
+  ChatTick 150ms linear slide; press/release: hit pins ChatPress.DownPress
+  (before scrollbar + touch branches — touch on button = tap, no scroll
+  start), release-inside jumps, drag cancels; window ticks+invalidates on
+  ChatDownActive; painter: 42dp circle (PrimaryContainer) + 2dp-offset
+  shadow + 19x10 stroke-3 round chevron (OnPrimaryContainer)
+- next: dispatch + watch verify.yml for this commit; then the chat-front
+  polish queue — composer attach/menu trees or the mentions/reactions
+  corner-button stack (historyUnreadThingsSkip 4 + slide-from-right law),
+  measured from the reference
+- owner-waiting: NEEDS_OWNER — GH_TOKEN absent this sandbox (env recycled
+  between sessions); e06ced00 is committed locally on top of origin/main
+  5b978120 but NOT pushed, and verify.yml is not dispatched. Re-mention when
+  the token is restored
+- last-gate: quick GREEN (scoped: tests/gui + tests/ui + importers; windows
+  vet = rung-7 OOM skip, gotd tg too big for this box); comment ban clean;
+  16 new tests (11 gui + 5 ui) = 306 total, all green locally
 
 ## Open items
 
@@ -33,77 +38,72 @@ owner order — that history lives in git if ever needed.
 |---|---|---|---|---|
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
+| N-1 | repo push | e06ced00 (session 394) unpushed — no GH_TOKEN/SSH in this sandbox; push + dispatch verify.yml when auth returns | git log origin/main..HEAD | owner restores GH_TOKEN or runs: git push origin main |
+| D-1 | ui/history corner button | down-button unread-count badge (22dp, centered x, top 0 — jump_down_button.cpp paintEvent + historyToDownBadge*) + hover/over colors + ripple deferred: no unread counter in the chat Item model yet, no hover/ripple machinery in the skin yet; replyReturn branch of downClick + loadedAtBottom==false state return with reply-return jumps / below-history pagination | jump_down_button.cpp 33-52, corner_buttons.cpp 139-145 | badge returns with read-state counts; over/ripple with the skin's hover+ripple pass |
+
+## Session 394 — the jump-to-end corner button (2026-11-09)
+
+- Law: history_view_corner_buttons.cpp (CornerButtons: updateVisibility
+  animates on state change only, st::historyToDownDuration 150;
+  updatePositions 357-474: column right edge, down button top =
+  interpolate(0, 62+10, shown), moveToRight(12, parentH - top) — hidden
+  sits fully below the pane edge; the widget 52x62 IS the hit area; wheel
+  over the button forwards to the scroll viewport — single-pane pointer
+  routing gives that by construction) + history_widget.cpp 9122-9157
+  cornerButtonsDownShown (no list / first load → hidden; voice-lock →
+  hidden; !loadedAtBottom || replyReturn → shown; scrollTop+480 <
+  scrollTopMax → shown; first unread itemTop >= scrollTop+viewportH →
+  shown; else hidden) + downClick 139-145 (Ctrl/plain without replyReturn →
+  UnreadMessagePosition = first unread else bottom) + chat_helpers.style
+  1179-1211 (position 12,10; TwoIconButton 52x62; rippleArea 42@(5,15) ==
+  the solid circle in history_down_shadow.png measured 42@(5,5)+icon offset
+  10; badge 22 semibold; shownAfter 480; duration 150) + measured
+  history_down_arrow@2x.png (glyph bbox 19x10, center (26,28) in the 52
+  canvas → (26,38) in button coords, ~3dp legs, round caps/joins — Gio
+  strokes render round by default).
+- Go mapping: our list is bottom-anchored (loadedAtBottom always true) and
+  reply returns don't exist yet → those two show-branches return with their
+  features (open item D-1); first-load gate = empty/unmeasured list
+  (MaxOffset 0 / rowTop 0 → hidden by construction); unread = first
+  UnreadBar row (the read boundary — Item.Unread is the per-message
+  out-tick flag, wrong notion for this law).
+- history/corner_button.go: DownShown / DownJumpTop (clamped) /
+  DownButtonGeometry(paneW, paneH, progress) / DownButtonHit. Tokens:
+  HistoryToDown* (12/10/52/62/42@(5,15)/19x10x3@(26,38)/480/150).
+- Elm: ChatDownState{Shown,Anim,From,To,Started,Progress}; chatDownCheck
+  rides chatViewportChanged (ALL Top mutations incl. measured-compensation,
+  resize, bar-drag) + ChatLoaded resets then ChatMeasured re-evaluates;
+  chatDownTick 150ms linear; ChatDownActive gates window tick+invalidate;
+  pressChat: chatDownHitAt BEFORE scrollbar and touch branches — pins
+  ChatPress{DownPress, Row:-1}, zeroes ChatBar/ChatTouch (touch on button =
+  tap only, drag cancels, release-inside chatDownClick jumps + re-checks);
+  View layers ChatPane.DownProgress.
+- Painter: paintDownButton — shadow circle +2dp black 0x28, 42dp circle
+  PrimaryContainer, chevron OnPrimaryContainer (Material FAB skin over the
+  measured geometry); slides with progress, clipped by the pane.
+- RED (compile) → 2 law-test expectation fixes (my own arithmetic: unread
+  fold positions, duplicate-slice bug) + 1 model-setup fix (tests must set
+  HasDialogs=false or the chat pane is ~500dp and press coords land on the
+  scrollbar track) → GREEN. 16 new tests (11 gui journeys + 5 ui laws),
+  306 total (190 ui + 116 gui). quick gate GREEN scoped (windows vet rung-7
+  OOM skip — CI is the gate of record).
 
 ## Session 393 — the floating scroll-date (2026-11-08)
 
-- Law: history_inner_widget.cpp 150-151 (hide 800 / day-crossing 3000) +
-  chat.style:312 historyDateFadeDuration 200 + visibleAreaUpdated 4669-4710
-  (scrolledUp = top decrease branches; downward runs immediately) +
-  scrollDateCheck/CheckDownward/HideByTimer/toggle 4737-4813 + enumerateDates
-  1182-1236 (stick + pack-bottom clamp + inPlace) + PaintPreparedDate
-  (service_message.cpp:159-194: the pill paints AT dateTop) +
-  countScrollState 3689-3703 (anchor: findItemIndexByY clamped to the last
-  row, sponsored skipped downward; {item, offset} identity).
-- history/scroll_date.go: ScrollDateAnchor (row+offset; RowAt + last-row
-  clamp + sponsored skip) and ScrollDateAt (owner walk-up over ComposeBars
-  badges; pack end walks same-DateText badge-less rows; packBottom = row
-  bottom - MsgMarginBottom — service and message margins coincide at 2px;
-  dateHeight = 3+13+4; Top = max(ownerTop, vTop) + MsgServiceMarginTop,
-  clamped to packBottom - dateHeight; InPlace = Top < ownerTop +
-  MsgServiceMarginTop + dateHeight). ChatPane carries DateRow/DateTop/
-  DateInPlace/DateText; View layers DateAlpha from the model.
-- Elm: chatViewportChanged funnels ALL ChatScroll.Top mutations (scrolled,
-  measured compensation, resize, wheel/trackpad classic, touch, bar-track
-  jump, bar-drag). Upward: anchor (row,offset) change shows + re-arms 800ms;
-  the initial-event gate (no last anchor) never shows. Downward: crossedDay
-  (both DateTexts non-empty and different) shows + 3000ms + AfterDayCrossing
-  latch (suppresses same-day hides; a prepend translates LastRow by the
-  prepend count so compensation is same-item — no crossing, the timer
-  survives), else hide-now with timer cancel. ChatTick steps the 200ms
-  linear alpha and fires hide deadlines; ChatLoaded resets; ChatScrolled
-  gained Now; the model keeps a last-seen nowMs clock; window Run loop
-  ticks + invalidates on ChatDateActive (AlphaAnim bool — the zero value
-  must be idle).
-- Painter: in-place badges at pane.Ys[i]-View.Top (fixes the 389 bug —
-  every badge painted at pane y=0), the owner at DateTop-View.Top with
-  withAlpha(InverseSurface/InverseOnSurface, alpha).
-- Deferred: collapse-gaps (CollapseDateShift) — no collapsing machinery in
-  the Go model yet; sponsored pack starts (Go sponsored rows carry no
-  badges, the walk-up law is self-consistent).
-- RED 10 (5 expectation fixes — row-boundary arithmetic, day-crossing
-  latch semantics, clamped-up re-arm law) -> GREEN. 290 PASS (185 ui +
-  105 gui). f27c1bbb -> verify 42499644234 SUCCESS, 3 jobs, all steps
-  reconciled.
+- ScrollDateAnchor + List.ScrollDateAt (stick/pack-bottom-clamp/inPlace per
+  history_inner_widget.cpp 1182-1236 + PaintPreparedDate) + Elm ChatDateState
+  (every Top mutation; upward anchor-change 800ms, day-crossing 3000ms latch,
+  else hide-now; 200ms fade) + painter at stick position with fade alpha.
+  290 PASS. Verify 42499644234 SUCCESS (f27c1bbb). Detail: f27c1bbb + git.
 
 ## Session 392 — chat top-edge preload/pagination (2026-11-08)
 
-- Law source: history_view_list_widget.cpp 117-120 (kPreloadIfLessThanScreens
-  2; kPreloadedScreensCount 4 / full 9 = viewer window sizes, engine policy)
-  + checkMoveToOtherViewer 2347-2433 (trigger + gates) + countScrollState
-  3689-3703 (the {position, offset} anchor a prepend must restore).
-- history.List.PreloadTopNeeded: strict `Top < 2*Height`, gated on non-empty
-  items + positive viewport height (the C++ width/around-index gates degrade
-  to ChatScroll.Height>0 — the Elm feeds every scroll update through layout).
-- Fired from every scroll-class surface: ChatScrolled, chatScrollClassic
-  (wheel/trackpad; the bottom request keeps the single cmd slot),
-  ChatMeasured (the chain re-arm: a still-short window after compensation
-  fires again), Resized (viewport growth crossing the 2-screen line; dialogs
-  load-more keeps the slot), ChatTick (kinetic fling), ChatDragged (touch
-  drag). The request stays armed per event — engine-side dedup, matching the
-  dialogs LoadMoreNeeded precedent.
-- ChatLoaded/ChatPrepended carry MoreAbove (the loadedAtTop = skippedBefore==0
-  projection). A prepend stores the viewport top, prepends copy-on-write,
-  drops heights/hits/selection/press (row indices shift; rows carry no stable
-  FullMsgIds yet), marks dirty; ChatMeasured applies the compensation =
-  stored top + summed prepended-row heights, so the same content rows stay on
-  screen; ChatLoaded resets the pending prepend (chat switch mid-flight).
-- Deferred: the findGoodAbove/Below anchor scan (listIsGoodForAroundPosition
-  = isRegular) + the symmetric bottom edge — both need rows with IDs and
-  jump-to-message windows.
-- RED 13 (2 spec errors: wheel/trackpad sign conventions re-derived from the
-  pinned 388 laws — negative angle/pixel scrolls toward the bottom) ->
-  GREEN. 280 PASS (185 ui + 95 gui). 6ba120d5 -> verify 42496692212
-  SUCCESS, 3 jobs, all steps reconciled.
+- PreloadTopNeeded (Top < 2*Height, kPreloadIfLessThanScreens 2) fired from
+  every scroll-class surface; ChatPrepended stores viewport top, ChatMeasured
+  compensates by summed prepended heights (same content rows stay put);
+  MoreAbove = loadedAtTop projection. Deferred: good-for-around anchor scan +
+  bottom edge (need row IDs). 280 PASS. Verify 42496692212 SUCCESS.
+  Detail: 6ba120d5 + git history.
 
 ## Session 391 — chat item interaction: tap/press over the message leg (2026-11-08)
 

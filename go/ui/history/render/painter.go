@@ -306,6 +306,7 @@ func (p *ChatPainter) PaintChatPane(gtx layout.Context, pane history.ChatPane, s
 				pane.DateTop-pane.View.Top, pane.Width, mode, alpha, sch)
 		}
 	}
+	p.paintDownButton(gtx, pane, sch)
 	if pane.Thumb.Hidden {
 		return
 	}
@@ -631,6 +632,64 @@ func withAlpha(c color.NRGBA, a float32) color.NRGBA {
 	}
 	c.A = uint8(float32(c.A) * a)
 	return c
+}
+
+var downShadowColor = color.NRGBA{R: 0x00, G: 0x00, B: 0x00, A: 0x28}
+
+func (p *ChatPainter) paintDownButton(gtx layout.Context, pane history.ChatPane, sch material.Scheme) {
+	if pane.DownProgress <= 0 {
+		return
+	}
+	g := history.DownButtonGeometry(pane.Width, pane.View.Height, pane.DownProgress)
+	if g.Top >= pane.View.Height {
+		return
+	}
+	circle := history.Geometry{
+		Left:   g.Left + tokens.HistoryToDownCircleX,
+		Top:    g.Top + tokens.HistoryToDownCircleY,
+		Width:  tokens.HistoryToDownCircleSize,
+		Height: tokens.HistoryToDownCircleSize,
+	}
+	shadow := circle
+	shadow.Top += 2
+	fillEllipse(gtx, shadow, downShadowColor)
+	fillEllipse(gtx, circle, sch.PrimaryContainer)
+	strokeDownArrow(gtx, g.Left, g.Top, sch.OnPrimaryContainer)
+}
+
+func fillEllipse(gtx layout.Context, r history.Geometry, col color.NRGBA) {
+	rect := image.Rect(
+		gtx.Dp(unit.Dp(r.Left)),
+		gtx.Dp(unit.Dp(r.Top)),
+		gtx.Dp(unit.Dp(r.Left+r.Width)),
+		gtx.Dp(unit.Dp(r.Top+r.Height)),
+	)
+	defer clip.Ellipse(rect).Push(gtx.Ops).Pop()
+	paint.Fill(gtx.Ops, col)
+}
+
+func strokeDownArrow(gtx layout.Context, boxLeft, boxTop int, col color.NRGBA) {
+	dp := func(v int) float32 {
+		return float32(gtx.Dp(unit.Dp(v)))
+	}
+	w := float32(tokens.HistoryToDownArrowWidth)
+	h := float32(tokens.HistoryToDownArrowHeight)
+	half := float32(tokens.HistoryToDownArrowStroke) / 2
+	cx := dp(boxLeft + tokens.HistoryToDownArrowCenterX)
+	cy := dp(boxTop + tokens.HistoryToDownArrowCenterY)
+	left := cx - w/2 + half
+	top := cy - h/2 + half
+	var path clip.Path
+	path.Begin(gtx.Ops)
+	path.MoveTo(f32.Pt(left, top))
+	path.LineTo(f32.Pt(cx, cy+h/2-half))
+	path.LineTo(f32.Pt(left+w-2*half, top))
+	stroke := clip.Stroke{
+		Path:  path.End(),
+		Width: float32(gtx.Dp(unit.Dp(tokens.HistoryToDownArrowStroke))),
+	}
+	defer stroke.Op().Push(gtx.Ops).Pop()
+	paint.Fill(gtx.Ops, col)
 }
 
 func fillRRect(gtx layout.Context, r history.Geometry, radius int, col color.NRGBA) {
