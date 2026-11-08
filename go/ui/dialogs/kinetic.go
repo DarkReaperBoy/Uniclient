@@ -84,7 +84,9 @@ func deaccelAxis(v, elapsed int) int {
 }
 
 func FlingDelta(s TouchSpeed, elapsed int) (int, int) {
-	return (s.X * elapsed / 1000), (s.Y * elapsed / 1000)
+	x := float64(s.X*elapsed) / 1000
+	y := float64(s.Y*elapsed) / 1000
+	return qRound(x), qRound(y)
 }
 
 func OverscrollFromAccumulated(acc int) int {

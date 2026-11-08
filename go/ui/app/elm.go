@@ -116,6 +116,65 @@ type ChatScrolled struct {
 
 func (ChatScrolled) isMsg() {}
 
+type ChatWheel struct {
+	AngleX     int
+	AngleY     int
+	Accelerate bool
+	Now        int
+	Y          int
+}
+
+func (ChatWheel) isMsg() {}
+
+type ChatTrackpadScrolled struct {
+	PixelX     int
+	PixelY     int
+	Accelerate bool
+	Now        int
+	Y          int
+}
+
+func (ChatTrackpadScrolled) isMsg() {}
+
+type ChatPressed struct {
+	X     int
+	Y     int
+	Touch bool
+	Now   int
+}
+
+func (ChatPressed) isMsg() {}
+
+type ChatDragged struct {
+	X   int
+	Y   int
+	Now int
+}
+
+func (ChatDragged) isMsg() {}
+
+type ChatReleased struct {
+	X   int
+	Y   int
+	Now int
+}
+
+func (ChatReleased) isMsg() {}
+
+type ChatPressCanceled struct{}
+
+func (ChatPressCanceled) isMsg() {}
+
+type ChatTick struct {
+	Now int
+}
+
+func (ChatTick) isMsg() {}
+
+type ChatBottomRequested struct{}
+
+func (ChatBottomRequested) isMsg() {}
+
 type Cmd func() Msg
 
 type TouchDrag struct {
@@ -152,6 +211,7 @@ type Model struct {
 	DialogsOverscroll dialogs.Overscroll
 	Chat              history.List
 	ChatScroll        history.Viewport
+	ChatTouch         TouchDrag
 	ChatDirty         bool
 }
 
@@ -233,6 +293,25 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		return m, nil
 	case ChatScrolled:
 		m.ChatScroll.Top = m.Chat.ClampOffset(m.ChatScroll.Top+msg.DeltaY, m.ChatScroll)
+		return m, nil
+	case ChatWheel:
+		return m.chatWheel(msg)
+	case ChatTrackpadScrolled:
+		return m.chatTrackpad(msg)
+	case ChatPressed:
+		return m.pressChat(msg), nil
+	case ChatDragged:
+		return m.dragChat(msg), nil
+	case ChatReleased:
+		m.releaseChat(msg)
+		return m, nil
+	case ChatPressCanceled:
+		m.ChatTouch = TouchDrag{}
+		return m, nil
+	case ChatTick:
+		m.chatTick(msg.Now)
+		return m, nil
+	case ChatBottomRequested:
 		return m, nil
 	}
 	return m, nil
@@ -329,7 +408,7 @@ func sampleTouchSpeed(d TouchDrag, x, y, now int) TouchDrag {
 		elapsed := now - d.SpeedTime
 		if elapsed != 0 {
 			d.Speed = dialogs.TouchSpeedSample(d.Speed, x-d.LastX, y-d.LastY, elapsed,
-				d.State != dialogs.TouchScrollManual)
+				d.State == dialogs.TouchScrollAuto)
 		}
 	} else {
 		d.PrevValid = true
@@ -413,7 +492,9 @@ func (m Model) dialogsMaxOffset() int {
 }
 
 func (m Model) KineticActive() bool {
-	return m.DialogsTouch.State != dialogs.TouchScrollManual || m.DialogsOverscroll.Returning
+	return m.DialogsTouch.State != dialogs.TouchScrollManual ||
+		m.DialogsOverscroll.Returning ||
+		m.ChatTouch.State != dialogs.TouchScrollManual
 }
 
 func absInt(v int) int {
@@ -432,6 +513,151 @@ func (m Model) loadMoreCmd() Cmd {
 		return nil
 	}
 	return func() Msg { return DialogsLoadMoreRequested{} }
+}
+
+func (m *Model) chatScrollClassic(dy int) (Model, Cmd) {
+	var cmd Cmd
+	if history.ChatBottomRequest(m.ChatScroll.Top, dy, m.Chat.MaxOffset(m.ChatScroll)) {
+		cmd = func() Msg { return ChatBottomRequested{} }
+	}
+	m.ChatScroll.Top = m.Chat.ClampOffset(m.ChatScroll.Top+dy, m.ChatScroll)
+	return *m, cmd
+}
+
+func (m *Model) chatWheel(msg ChatWheel) (Model, Cmd) {
+	rawX, rawY := dialogs.WheelScaled(msg.AngleX, msg.AngleY, tokens.WheelScrollLines)
+	if absInt(rawX) > absInt(rawY) &&
+		m.Chat.ConsumeScrollAction(rawX, rawY, true, msg.Y+m.ChatScroll.Top) {
+		return *m, nil
+	}
+	dy := dialogs.WheelDelta(msg.AngleX, msg.AngleY, tokens.WheelScrollLines,
+		m.Columns().Chat, m.ChatScroll.Height, msg.Accelerate)
+	return m.chatScrollClassic(dy)
+}
+
+func (m *Model) chatTrackpad(msg ChatTrackpadScrolled) (Model, Cmd) {
+	if absInt(msg.PixelX) > absInt(msg.PixelY) &&
+		m.Chat.ConsumeScrollAction(msg.PixelX, msg.PixelY, true, msg.Y+m.ChatScroll.Top) {
+		return *m, nil
+	}
+	dy := dialogs.ScrollPixels(msg.PixelX, msg.PixelY,
+		m.Columns().Chat, m.ChatScroll.Height, msg.Accelerate)
+	return m.chatScrollClassic(dy)
+}
+
+func (m *Model) chatTouchScroll(dy int) bool {
+	to := m.Chat.ClampOffset(m.ChatScroll.Top-dy, m.ChatScroll)
+	moved := to != m.ChatScroll.Top
+	m.ChatScroll.Top = to
+	return moved
+}
+
+func (m *Model) pressChat(msg ChatPressed) Model {
+	if !msg.Touch {
+		return *m
+	}
+	d := m.ChatTouch
+	d.Active = true
+	d.StartX, d.StartY = msg.X, msg.Y
+	d.LastX, d.LastY = msg.X, msg.Y
+	if d.State == dialogs.TouchScrollAuto {
+		d.State = dialogs.TouchScrollAcceleration
+		d.WaitingAcceleration = true
+		d.AccelerationTime = msg.Now
+		d.PrevValid = true
+		d.SpeedTime = msg.Now
+	} else {
+		d = TouchDrag{Active: true, StartX: msg.X, StartY: msg.Y, LastX: msg.X, LastY: msg.Y, State: dialogs.TouchScrollManual}
+	}
+	m.ChatTouch = d
+	return *m
+}
+
+func (m *Model) dragChat(msg ChatDragged) Model {
+	d := m.ChatTouch
+	if !d.Active {
+		return *m
+	}
+	now := msg.Now
+	dx, dy := msg.X-d.LastX, msg.Y-d.LastY
+	if !d.Scrolling && absInt(msg.X-d.StartX)+absInt(msg.Y-d.StartY) >= tokens.TouchDragStartDistance {
+		d.Scrolling = true
+		d = sampleTouchSpeed(d, msg.X, msg.Y, now)
+		dx, dy = 0, 0
+	}
+	if d.Scrolling {
+		if d.State == dialogs.TouchScrollManual {
+			if !m.Chat.ConsumeScrollAction(dx, dy, true, msg.Y+m.ChatScroll.Top) {
+				m.chatTouchScroll(dy)
+			}
+			d = sampleTouchSpeed(d, msg.X, msg.Y, now)
+		} else if d.State == dialogs.TouchScrollAcceleration {
+			d = sampleTouchSpeed(d, msg.X, msg.Y, now)
+			d.AccelerationTime = now
+			if d.Speed == (dialogs.TouchSpeed{}) {
+				d.State = dialogs.TouchScrollManual
+			}
+		}
+	} else {
+		d.LastX, d.LastY = msg.X, msg.Y
+	}
+	m.ChatTouch = d
+	return *m
+}
+
+func (m *Model) releaseChat(msg ChatReleased) {
+	d := m.ChatTouch
+	if !d.Active {
+		return
+	}
+	tap := !d.Scrolling
+	if d.Scrolling {
+		switch d.State {
+		case dialogs.TouchScrollManual:
+			d.State = dialogs.TouchScrollAuto
+			d.PrevValid = false
+			d.TouchTime = msg.Now
+		case dialogs.TouchScrollAcceleration:
+			d.State = dialogs.TouchScrollAuto
+			d.WaitingAcceleration = false
+			d.PrevValid = false
+		}
+	}
+	d.Active = false
+	m.ChatTouch = d
+	if tap {
+		m.ChatTouch = TouchDrag{}
+	}
+}
+
+func (m *Model) chatTick(now int) {
+	d := m.ChatTouch
+	if d.State != dialogs.TouchScrollAuto && d.State != dialogs.TouchScrollAcceleration {
+		return
+	}
+	if d.State == dialogs.TouchScrollAcceleration && d.WaitingAcceleration &&
+		now-d.AccelerationTime > tokens.TouchAccelerationTimeoutMs {
+		d.State = dialogs.TouchScrollManual
+		d.Speed = dialogs.TouchSpeed{}
+		d.PrevValid = false
+		m.ChatTouch = d
+		return
+	}
+	elapsed := now - d.TouchTime
+	if elapsed <= 0 {
+		return
+	}
+	dx, dy := dialogs.FlingDelta(d.Speed, elapsed)
+	consumed := m.Chat.ConsumeScrollAction(dx, dy, true, d.LastY+m.ChatScroll.Top)
+	hasScrolled := consumed || m.chatTouchScroll(dy)
+	if d.Speed == (dialogs.TouchSpeed{}) || !hasScrolled {
+		d.State = dialogs.TouchScrollManual
+		d.Scrolling = false
+	} else {
+		d.TouchTime = now
+	}
+	d.Speed = dialogs.TouchDeaccelerate(d.Speed, elapsed)
+	m.ChatTouch = d
 }
 
 type PaneMode int

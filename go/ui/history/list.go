@@ -91,6 +91,21 @@ func (l List) VisibleRows(v Viewport) (first, count int) {
 	return first, count
 }
 
+func (l List) RowAt(y int) int {
+	if y < 0 {
+		return -1
+	}
+	off := 0
+	for i := range l.Items {
+		h := l.RowHeight(i)
+		if y < off+h {
+			return i
+		}
+		off += h
+	}
+	return -1
+}
+
 func (l List) rowTop(i int) int {
 	top := 0
 	for j := 0; j < i; j++ {

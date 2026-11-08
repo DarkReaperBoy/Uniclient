@@ -68,9 +68,13 @@ func Run() error {
 			}
 			if appModel.KineticActive() {
 				handle(app.DialogsTick{Now: int(time.Now().UnixMilli())})
+				handle(app.ChatTick{Now: int(time.Now().UnixMilli())})
 			}
 			gtx := gioapp.NewContext(&ops, e)
 			routeInput(gtx, painter.Input, e.Metric, handle)
+			if cols := appModel.Columns(); cols.Chat > 0 && cols.Dialogs < appModel.Width {
+				routeChatInput(gtx, chatPainter.Input, e.Metric, cols.Dialogs, handle)
+			}
 			if appModel.ChatDirty {
 				handle(app.ChatMeasured{Heights: chatPainter.Measure(
 					gtx, appModel.Chat.Items, appModel.Columns().Chat)})
@@ -158,5 +162,71 @@ func scrollMessage(e pointer.Event, metric unit.Metric) app.Msg {
 		PixelY:     -toDp(e.Scroll.Y),
 		Accelerate: accel,
 		Now:        now,
+	}
+}
+
+func routeChatInput(gtx layout.Context, tag *chatrender.InputArea, metric unit.Metric, dialogsDp int, handle func(app.Msg)) {
+	filter := pointer.Filter{
+		Target:  tag,
+		Kinds:   pointer.Press | pointer.Move | pointer.Drag | pointer.Release | pointer.Scroll | pointer.Cancel,
+		ScrollX: pointer.ScrollRange{Min: -wheelScrollScale, Max: wheelScrollScale},
+		ScrollY: pointer.ScrollRange{Min: -wheelScrollScale, Max: wheelScrollScale},
+	}
+	for {
+		ev, ok := gtx.Event(filter)
+		if !ok {
+			return
+		}
+		e, ok := ev.(pointer.Event)
+		if !ok {
+			continue
+		}
+		switch e.Kind {
+		case pointer.Press:
+			gtx.Execute(pointer.GrabCmd{Tag: tag, ID: e.PointerID})
+			handle(app.ChatPressed{
+				X:     pxToDp(metric, e.Position.X) - dialogsDp,
+				Y:     pxToDp(metric, e.Position.Y),
+				Touch: e.Source == pointer.Touch,
+				Now:   int(time.Now().UnixMilli()),
+			})
+		case pointer.Move, pointer.Drag:
+			handle(app.ChatDragged{X: pxToDp(metric, e.Position.X) - dialogsDp, Y: pxToDp(metric, e.Position.Y), Now: int(time.Now().UnixMilli())})
+		case pointer.Release:
+			handle(app.ChatReleased{X: pxToDp(metric, e.Position.X) - dialogsDp, Y: pxToDp(metric, e.Position.Y), Now: int(time.Now().UnixMilli())})
+		case pointer.Cancel:
+			handle(app.ChatPressCanceled{})
+		case pointer.Scroll:
+			handle(chatScrollMessage(e, metric))
+		}
+	}
+}
+
+func chatScrollMessage(e pointer.Event, metric unit.Metric) app.Msg {
+	accel := e.Modifiers&(key.ModCtrl|key.ModShift) != 0
+	now := int(time.Now().UnixMilli())
+	y := pxToDp(metric, e.Position.Y)
+	if runtime.GOOS == "windows" {
+		return app.ChatWheel{
+			AngleX:     -int(e.Scroll.X),
+			AngleY:     -int(e.Scroll.Y),
+			Accelerate: accel,
+			Now:        now,
+			Y:          y,
+		}
+	}
+	perDp := metric.PxPerDp
+	if perDp <= 0 {
+		perDp = 1
+	}
+	toDp := func(v float32) int {
+		return int(math.Round(float64(v) / float64(perDp)))
+	}
+	return app.ChatTrackpadScrolled{
+		PixelX:     -toDp(e.Scroll.X),
+		PixelY:     -toDp(e.Scroll.Y),
+		Accelerate: accel,
+		Now:        now,
+		Y:          y,
 	}
 }

@@ -36,9 +36,14 @@ func wheelApply(unmultX, unmultY, areaW, areaH int, accelerate bool) int {
 	return -py
 }
 
-func WheelDelta(angleX, angleY, lines, areaW, areaH int, accelerate bool) int {
+func WheelScaled(angleX, angleY, lines int) (int, int) {
 	scale := float64(lines) / float64(tokens.WheelPixelToAngleDelta*tokens.WheelScrollLines)
-	return wheelApply(qRound(float64(angleX)*scale), qRound(float64(angleY)*scale), areaW, areaH, accelerate)
+	return qRound(float64(angleX) * scale), qRound(float64(angleY) * scale)
+}
+
+func WheelDelta(angleX, angleY, lines, areaW, areaH int, accelerate bool) int {
+	px, py := WheelScaled(angleX, angleY, lines)
+	return wheelApply(px, py, areaW, areaH, accelerate)
 }
 
 func ScrollPixels(pixelX, pixelY, areaW, areaH int, accelerate bool) int {

@@ -232,7 +232,7 @@ func (p *ChatPainter) Measure(gtx layout.Context, items []history.Item, viewWidt
 }
 
 func (p *ChatPainter) PaintChatPane(gtx layout.Context, pane history.ChatPane, sch material.Scheme) {
-	if pane.Width <= 0 || pane.View.Height <= 0 || pane.Count <= 0 {
+	if pane.Width <= 0 || pane.View.Height <= 0 {
 		return
 	}
 	defer clip.Rect{Max: image.Pt(
@@ -240,6 +240,9 @@ func (p *ChatPainter) PaintChatPane(gtx layout.Context, pane history.ChatPane, s
 		gtx.Dp(unit.Dp(pane.View.Height)),
 	)}.Push(gtx.Ops).Pop()
 	event.Op(gtx.Ops, p.Input)
+	if pane.Count <= 0 {
+		return
+	}
 	for i := range pane.Rows {
 		stk := op.Offset(image.Pt(0, gtx.Dp(unit.Dp(pane.Ys[i]-pane.View.Top)))).Push(gtx.Ops)
 		if pane.Rows[i].Kind == history.ItemService {

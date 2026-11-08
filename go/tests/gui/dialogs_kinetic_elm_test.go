@@ -72,12 +72,12 @@ func TestDialogsTouchFlingInList(t *testing.T) {
 		t.Fatalf("fling tick 1 = %d, want 70 (-30 content)", m.DialogsScroll.Top)
 	}
 	m, _ = Update(m, DialogsTick{Now: 1070})
-	if m.DialogsScroll.Top != 99 {
-		t.Fatalf("fling tick 2 = %d, want 99 (-29 trunc)", m.DialogsScroll.Top)
+	if m.DialogsScroll.Top != 100 {
+		t.Fatalf("fling tick 2 = %d, want 100 (-30 qRound: -1985*15/1000 = -29.775)", m.DialogsScroll.Top)
 	}
 	m, _ = Update(m, DialogsTick{Now: 1085})
-	if m.DialogsScroll.Top != 128 {
-		t.Fatalf("fling tick 3 = %d, want 128", m.DialogsScroll.Top)
+	if m.DialogsScroll.Top != 130 {
+		t.Fatalf("fling tick 3 = %d, want 130 (-29.55 rounds to -30)", m.DialogsScroll.Top)
 	}
 	for i := 0; i < 600 && m.KineticActive(); i++ {
 		m, _ = Update(m, DialogsTick{Now: 1100 + 15*i})
@@ -109,23 +109,23 @@ func TestDialogsTouchFlingStopByTouch(t *testing.T) {
 		t.Fatal("press during fling must wait for the acceleration decision")
 	}
 	m, _ = Update(m, DialogsTick{Now: 1075})
-	if m.DialogsScroll.Top != 109 {
-		t.Fatalf("acceleration tick 1 = %d, want 109 (fling continues under finger, -39)", m.DialogsScroll.Top)
+	if m.DialogsScroll.Top != 110 {
+		t.Fatalf("acceleration tick 1 = %d, want 110 (fling continues under finger, -39.7 rounds to -40)", m.DialogsScroll.Top)
 	}
 	m, _ = Update(m, DialogsTick{Now: 1090})
-	if m.DialogsScroll.Top != 138 {
-		t.Fatalf("acceleration tick 2 = %d, want 138", m.DialogsScroll.Top)
+	if m.DialogsScroll.Top != 139 {
+		t.Fatalf("acceleration tick 2 = %d, want 139 (-29.475 rounds to -29)", m.DialogsScroll.Top)
 	}
 	m, _ = Update(m, DialogsTick{Now: 1105})
 	if m.DialogsTouch.State != 0 {
 		t.Fatalf("40ms still = state %d, want manual (0)", m.DialogsTouch.State)
 	}
-	if m.DialogsScroll.Top != 138 {
-		t.Fatalf("timeout top = %d, want 138", m.DialogsScroll.Top)
+	if m.DialogsScroll.Top != 139 {
+		t.Fatalf("timeout top = %d, want 139", m.DialogsScroll.Top)
 	}
 	m, _ = Update(m, DialogsDragged{X: 200, Y: 130, Now: 1115})
-	if m.DialogsScroll.Top != 208 {
-		t.Fatalf("manual resume = %d, want 208 (138 + 70)", m.DialogsScroll.Top)
+	if m.DialogsScroll.Top != 209 {
+		t.Fatalf("manual resume = %d, want 209 (139 + 70)", m.DialogsScroll.Top)
 	}
 }
 
@@ -147,8 +147,8 @@ func TestDialogsTouchReflingDuringAcceleration(t *testing.T) {
 		t.Fatalf("re-release = state %d waiting %v, want auto (1) false", m.DialogsTouch.State, m.DialogsTouch.WaitingAcceleration)
 	}
 	m, _ = Update(m, DialogsTick{Now: 1095})
-	if m.DialogsScroll.Top != 159 {
-		t.Fatalf("re-fling = %d, want 159 (-89 at accelerated speed -2235)", m.DialogsScroll.Top)
+	if m.DialogsScroll.Top != 120 {
+		t.Fatalf("re-fling = %d, want 120 (-49.84 rounds to -50 at manual-blend speed -1246)", m.DialogsScroll.Top)
 	}
 }
 
