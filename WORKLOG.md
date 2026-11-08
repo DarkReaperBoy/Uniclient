@@ -10,16 +10,20 @@ owner order — that history lives in git if ever needed.
 - front: session 401 — the field text-engine core landed (metrics,
   wrap, cursor, placeholder, selection spans, caret rect, scroll,
   the full movement + editing law set)
-- next: the compose bar painter + Elm wiring (ChatComposeState
-  riding resize/field msgs — the engine can now type, wrap, select,
-  scroll); schedule/save/cancel glyphs when their types get painted;
-  real font metrics adapter when the gio shaper lands
+- next: the Elm wiring — ChatComposeState in ui/app/elm.go riding
+  Resized + field msgs (key/insert/cursor/scroll on the engine:
+  it can type, wrap, select, move, edit, scroll), then the compose
+  bar render painter (gio leg rides CI); schedule/save/cancel
+  glyphs when their types get painted; real font metrics adapter
+  when the gio shaper lands; Enter=send + Up/Down history when
+  empty (input_field customUpDown + history_widget)
 - owner-waiting: none
 - last-gate: quick GREEN (401 scope, five atomics); js/wasm
   compile ui/... GREEN; comment ban clean; 398 tests (229 ui +
   153 gui + 16 text) green locally; verifies 42524452324 /
-  42524984339 / 42525180686 SUCCESS job+step; 42526186953
-  (d800e782) in flight
+  42524984339 / 42525180686 / 42526186953 / 42526363086 ALL
+  SUCCESS job+step (95ef00d9, 33c91877, b9766fe5, d800e782,
+  1de438ac)
 
 ## Open items
 
@@ -139,40 +143,13 @@ owner order — that history lives in git if ever needed.
 
 ## Session 400 — the compose-bar glyph trio (2026-11-09)
 
-- Boot: synced 67c078ce, token valid; dispatched verify
-  42516135130 for 398/399 — SUCCESS job+step (closed the owed
-  gate). Front: composer glyph assets.
-- Law: chat/input_attach 40px canvas (historyAttach icon,
-  chat_helpers.style 1307-1315), chat/input_send 24px
-  (historySendIcon 1403), chat/input_smile_face 40px
-  (historyAttachEmojiInner 1337-1345). IconButton paint law
-  (buttons.cpp 648-693 + defaultIconButton iconPosition (-1,-1),
-  widgets.style 1068): centered canvas ((44-40)/2,(46-40)/2) =
-  (2,3) for attach/smile — same cell as the ripple; send at the
-  pinned sendIconPosition (10,11). Trace per the 386 chat-family
-  law: @3x source, blue>127, RETR_CCOMP + approxPolyDP 0.75@3x,
-  1/3dp grid (no-op at /3); masks ceil-rounded to contain bounds.
-  Glyphs: attach 18x21 single 50v self-band (open paperclip —
-  no closed holes), area -93.89; send 20x19 single 20v, -166.61;
-  smile 10x9 = 3 solids (13v mouth + two 8v eyes — the asset has
-  NO enclosing circle, a minimalist face). PADDED-canvas Cell law
-  (new family): Cell = real PNG canvas + rounded bbox origin
-  (attach {40,40,11,9}, send {24,24,2,2}, smile {40,40,15,17});
-  containment test; the 386 tight mask+point=canvas family law
-  untouched. IoU vs @2x: 0.876 / 0.854 / 0.839 — below the
-  386 thick-stroke band (0.886-0.957): 1dp-thin strokes make
-  the reference's per-DPI hand-tuned drift dominate; eps 0.5
-  tried, rejected (attach 0.833).
-- Tooling: scripts/trace_compose_glyphs.py (sandbox scripts dir;
-  not repo) — IoU metric fixed twice: rasterize at exact x3 with
-  INTER_AREA /3 (margins + non-integer scale dropped 1px strokes
-  below the 127 threshold) and normalize the trace's absolute
-  coords before the x3 fill (clipping was silently halving it).
-- Go: icons/data.go composeAttach/Send/SmileGlyph + Compose*
-  Icons. RED -> GREEN after 2 of my own test bugs (ceil; inverted
-  area windows). 3 tests, 372 total = 219 ui + 153 gui. quick
-  GREEN; js/wasm GREEN; comment ban clean.
-
+- ac0521d6. Attach/send/smile PNG-traced per the 386
+  chat-family law; padded-canvas Cell law (real canvas +
+  rounded bbox origin, containment test); IconButton
+  centered canvas (2,3) / send at pinned (10,11); IoU
+  0.876/0.854/0.839 (thin strokes). 3 tests, 372 total.
+  Verify 42517439919 SUCCESS job+step. Detail: git
+  ac0521d6 + this file's history.
 ## Session 399 — the send-button type machine + shape laws (2026-11-09)
 
 - Law: ui/controls/send_button.cpp — type set Send/Schedule/Slowmode/
