@@ -296,6 +296,22 @@ const (
 	HistoryUnreadThingsSkip = 4
 	HistoryReplyHeight      = 49
 
+	HistoryAttachRippleX    = 2
+	HistoryAttachRippleY    = 3
+	HistoryAttachRippleSize = 40
+
+	HistorySendIconPositionX     = 10
+	HistorySendIconPositionY     = 11
+	HistoryScheduleIconPositionX = 7
+	HistoryScheduleIconPositionY = 8
+	HistoryStopSizeW             = 14
+	HistoryStopSizeH             = 14
+	HistoryStopRadius            = 3
+	HistoryRecordSizeW           = 26
+	HistoryRecordSizeH           = 26
+	HistorySlowmodeCounterRight  = 10
+	SendStateChangeDurationMs    = 120
+
 	DialogsToUpShownAfter   = HistoryToDownShownAfter / 2
 	DialogsToUpTravel       = HistoryToDownHeight + 2
 	DialogsToUpArrowCenterY = HistoryToDownArrowCenterY + 1
