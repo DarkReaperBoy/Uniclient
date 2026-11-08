@@ -141,6 +141,19 @@ const (
 	ComposeFieldFadeHeight = 6
 	ComposeAnimDurationMs  = 100
 
+	ComposeTextMarginLeft   = 0
+	ComposeTextMarginTop    = 0
+	ComposeTextMarginRight  = 0
+	ComposeTextMarginBottom = 0
+
+	ComposePlaceholderMarginLeft   = 2
+	ComposePlaceholderMarginTop    = 0
+	ComposePlaceholderMarginRight  = 2
+	ComposePlaceholderMarginBottom = 0
+	ComposePlaceholderShift        = -50
+	ComposeCaretReserve            = 2
+	ComposeFieldStyleLineHeight    = 0
+
 	HistorySendSizeW   = 44
 	HistorySendSizeH   = 46
 	HistorySendRight   = 2

@@ -7,21 +7,21 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 400 — the compose-bar glyph trio landed (attach
-  paperclip, send arrow, smile = eyes+mouth, no circle); padded-canvas
-  Cell law introduced (real PNG canvas + rounded bbox origin,
-  containment test — the 386 tight family law untouched); verify
-  42516135130 SUCCESS job+step closed the 398/399 gate
-- next: the composer continues — the field text-engine slice is the
-  load-bearing dependency (measure/wrap/cursor/placeholder on
-  historyTextStyle + placeholderMargins 2,0,2,0 + placeholderShift
-  -50 + placeholderScale 0, chat_helpers.style 1283-1297); only then
-  the bar painter + Elm wiring (no dead UI before the engine can
-  type); schedule/save/cancel glyphs when their types get painted
+- front: session 401 — the field text-engine core landed
+  (ui/text: Metrics/LineHeight/LineAscent/Elide/Layout/CursorAt;
+  compose field: wrap width −2 caret reserve, content height,
+  placeholder law margins 2,0,2,0 + shift −50 static + 100ms);
+  Qt cursor-line law pinned from qtextengine.cpp 3758-3770
+- next: the composer continues — cursor rect (height = lineH per
+  FixedHeight block format) + selection model + field scroll
+  (ensureCursorVisible), then the bar painter + Elm wiring
+  (ChatComposeState riding resize/field msgs); schedule/save/cancel
+  glyphs when their types get painted; real font metrics adapter
+  when the gio shaper lands
 - owner-waiting: none
-- last-gate: quick GREEN (400 scope); js/wasm compile ui/... GREEN;
-  comment ban clean; 372 tests (219 ui + 153 gui) green locally;
-  verify 42517439919 SUCCESS job+step (ac0521d6)
+- last-gate: quick GREEN (401 scope); js/wasm compile ui/... GREEN;
+  comment ban clean; 386 tests (227 ui + 153 gui + 6 text) green
+  locally; verify for this commit in flight
 
 ## Open items
 
@@ -31,6 +31,53 @@ owner order — that history lives in git if ever needed.
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
 | D-1 | ui/history corner button | down-button unread-count badge (22dp, centered x, top 0 — jump_down_button.cpp paintEvent + historyToDownBadge*) + hover/over colors + ripple deferred: no unread counter in the chat Item model yet, no hover/ripple machinery in the skin yet; replyReturn branch of downClick + loadedAtBottom==false state return with reply-return jumps / below-history pagination | jump_down_button.cpp 33-52, corner_buttons.cpp 139-145 | badge returns with read-state counts; over/ripple with the skin's hover+ripple pass |
 | D-2 | ui/history unread-things buttons | read-marking absent for mentions AND reactions: after a jump the button stays shown (reference hides it when the server marks the thing read — updateUnreadThingsVisibility is server-data-driven); mentionsClick's already-there voice/video media-read branch (5623) deferred — no media model; unread-count badges join D-1's class; poll-votes 4th stack slot returns with a poll model | history_view_corner_buttons.cpp 147-190, 288-345 | returns with engine unread-things events + the media pass |
+
+## Session 401 — the field text-engine core: metrics, wrap, cursor, placeholder (2026-11-09)
+
+- Boot: sandbox recycled to zero — repo re-cloned at ff787639, Go
+  1.27.1 + module cache rebuilt, ayu-ref re-fetched (AyuGramDesktop
+  dev, sparse: SourceFiles/{history,ui,chat_helpers,data} + lib_ui
+  @e3d05822 + lib_base @de35c7ab). No owed verify (400 closed by
+  42517439919).
+- Law: chat_helpers.style 1281-1300 historyComposeField (textMargins
+  0,0,0,0 overriding defaultInputField's (0,28,0,4) at widgets.style
+  1037; placeholderMargins 2,0,2,0; placeholderShift −50;
+  placeholderScale 0 → static branch; placeholderFont normalFont;
+  duration 100) + basic.style 84-91 defaultTextStyle lineHeight 0.
+  input_field.cpp: documentMargin zeroed (1965); contentHeight =
+  ceil(doc height) + v-margins, clamped (2821-2842 — feeds 398's
+  ComposeFieldHeight); root-frame right margin = cursorWidth+1 = 2
+  caret reserve so the caret never clips after the longest line
+  (updateRootFrameFormat); BlockLineHeight = lh>0 ? max(lh,fontH) :
+  fontH (1148-1152); QTextEditLineAscent = clamp(fixed·4/5 −
+  max(fleading,0), 0, fixed) (1154-1163). Placeholder: shown iff
+  textLen==0 (startPlaceholderAnimation; history_widget never
+  force-hides), right-elided to fieldW−margins (style::font::elided
+  = QFontMetrics::elidedText), x = margins.l +
+  interpolate(0,−shift,hiddenDeg), baseline = margins.top + ascent,
+  opacity 1−deg, 100ms; interpolate = SafeRound = std::round
+  half-away (animation_value.h 106-108, lib_base algorithm.cpp 15).
+  Wrap = QTextEdit default WrapAtWordBoundaryOrAnywhere
+  (qtextedit.cpp): word boundary preferred, mid-word only when the
+  word alone exceeds the full width, ≥1 rune per line, spaces glue
+  to their line. Cursor line law = Qt lineNumberForTextPosition
+  (qtextengine.cpp 3758-3770): first line with from+len+
+  trailingSpaces > pos, end-of-text → last line — the boundary
+  position after a soft-wrap's trailing space belongs to the NEXT
+  line; hard '\n' positions stay on the previous line's end.
+- Go: ui/text (Metrics{Height,Leading,Advance}, LineHeight,
+  LineAscent, Elide, Layout→Document/Line{Start,Runes,Width},
+  CursorAt{Line,Column,X}, Height) + ui/history/compose_field.go
+  (WrapWidth −ComposeCaretReserve, Document, ContentHeight,
+  placeholder Shown/MaxWidth/Text/X/Baseline/Opacity) + 10 tokens.
+  RED (pkg missing) → GREEN; 3 of my own spec bugs caught before
+  green (elide dropped the ellipsis; mid-word lineStart accumulator;
+  final chunk force-emitted — must stay open for following words) +
+  1 test-side off-by-one (offset after trailing space — Qt source
+  proved the ENGINE right, test fixed).
+- 14 new tests, 386 total = 227 ui + 153 gui + 6 text. quick GREEN;
+  js/wasm compile ui/... GREEN; comment ban clean. WORKLOG pruned
+  (sessions ≤383 cut; 346→312 lines).
 
 ## Session 400 — the compose-bar glyph trio (2026-11-09)
 
@@ -243,13 +290,6 @@ owner order — that history lives in git if ever needed.
   qRound half-away, acceleration manual blend.
   Detail: d2d5ae81 + git history.
 
-## Session 387 — the dialogs row painter leg (2026-11-08)
-
-- Wipe #12 recovery. Detail: git 60467393 + 70600653
-  (vendorHash rotation) + this file's history; icons/
-  ink-map/TTL laws pinned in dialogs code + tests.
-  RED 10 -> GREEN 196; verify 42461470926 SUCCESS.
-
 ## Session 386 — the Material icon asset library (2026-11-08)
 
 - Canvas law (codegen_style parsed_file.cpp:967-969 + lib_ui MonoIcon): icon part point(x,y) = QMargins(x,y,0,0) — glyph at cell+(x,y), canvas = mask + point; SVG -WxH renders the FULL viewBox into WxH (chatlist 72 -> 18, scale 0.25); PNG coverage = blue channel (blue>127 at @3x, RDP eps 0.75@3x, /3 grid; crack-boundary walk; contour order = component scan then area-desc, holes wind opposite); SVG legs absolute M/L/C/Z flatten, 12 samples/cubic; IoU vs @2x 0.886-0.957; @3x is the trace source (per-DPI hand-tuned bboxes, pinned).
@@ -257,90 +297,3 @@ owner order — that history lives in git if ever needed.
 - TTL timer (ttl_icon.cpp): pen 1.5 round, solid LEFT half-arc 90..270deg one annulus contour with round caps (bottom cap bulges +x, top -x), dotted right half 9 dots r0.75 pitch 3 anchored 3 o'clock (QPainterPath phase ASSUMED — refine vs a live render someday), text 9px semibold clamped 2 chars.
 - Selection laws: history.SendStateIcon(out, sending, unread) = bottom_info.cpp 287-300; dialogs.SendStateIcon(state); BadgeReaction split from BadgeMention (mention wins when both). paintMessage feeds Out to TimeLabel + fillGlyphs the icon at iconX/iconY (Item gains Sending/Unread).
 - RED 8 -> 2 spec errors fixed by measurement. GREEN 186. d8eedff -> verify 42454857199 SUCCESS (3 jobs, all steps). Detail: git d8eedff5 + this file's history.
-
-## Session 385 — the complex bubble paint leg: op model + painter wiring (2026-11-08)
-
-- Flare shape (style_core.cpp:164-178 + cached_round_corners.cpp:246-262): createInvertedCircleMask(2r) = filled square MINUS centered disc, quartered; cut lands at the disc-center corner of each drawn quadrant (top-left flare cuts bottom-right etc.); flare squares inv x inv at (x-inv, side-y)/(x+w, side-y), side-y = top or bottom-inv. Gio: MoveTo(neighbor1) ArcTo(cut corner, +-pi/2 by sweep) LineTo(opposite) Close; the only -pi/2 is cut-bottom-right.
-- Op model: per part ONE fill with side-rounded corners (10 where Rounded, 0 else; Go-native corner-pixmap equivalent); then top flares (L,R), bottom flares (L,R); no op overlaps. ServiceBubbleRadii(fontH) = the 384 consts generalized (invariant-tested at 13). Painter: per-line shape ends >=0 clamped, add decision on RAW widths, PartsFont at measured svcH, parts y by g.Top-marginTop, badge on RAW lineWidths.back(); ServicePill = degenerate parts walk (identical geometry); bubblePath onto shared openCornersPath.
-- RED 8 -> 1 spec error (nil-vs-empty; law won). GREEN 178. b91b7c9 -> verify 42451027930 success (3 jobs, job AND step reconciled). Detail: git b91b7c9a + this file's history.
-
-## Session 384 — the multi-line service complex bubble law (2026-11-08)
-
-- Boot: wipe #11, clone at bcf2757 (379-383 closed green in lost
-  sessions; baseline 159 re-verified). Law: history_view_service_message
-  .cpp 372-485 + chat_style.cpp 103-126 + call site 780-798 — radii
-  10/3/2 derived; CountServiceLineWidths minDelta-22 raise + i-=2
-  rewalk + post-add; rich part metrics +24/+3/-4/+4/-3, forceShrink,
-  shrink x+=2 w-=4, C++-trunc centering. RED 11 -> 2 spec errors (law
-  won). 170 PASS; e21f207; verify 42448242342 SUCCESS job+step.
-
-## Session 383 — the message-bubble render leg: corner/tail/shadow laws, chat Elm + ChatPainter (2026-11-07)
-
-- 4fdc467c. Corner law message.cpp:6626-6651,
-  tail glyph 6x10, shadow strips, time label
-  message.cpp:5479-5516, wide >= 880, ChatPainter
-  TD emulation (text engine deferred). Verify
-  42409023939 SUCCESS job+step.
-
-## Session 382 — the history element geometry law: margins, bubble, service (2026-11-07)
-
-- 3a655338. Margins/bars/servicePre chain, two-
-  small-margins floor quirk, skip block, textW
-  clamp chain (message.cpp 1347/5648/5668/
-  6680-6935), DateBadge/Ayu time badge — full
-  derivation in ui/history/element.go. Verify
-  42384001792 SUCCESS job+step.
-
-## Session 381 — kinetic touch + overscroll anim: fling, rubber band, spring return (2026-11-07)
-
-- Flick law (touchUpdateSpeed per-axis px/s),
-  rubber-band overscroll (elastic_scroll.cpp,
-  pins in dialogs kinetic code + tests),
-  spring return anim; bar-drag overscroll
-  range-clamp landed (deferred from 380).
-  13 tests, 112 total; ac999d75; verify
-  42372859307 SUCCESS job+step.
-
-## Session 380 — the window-adapter input leg: wheel, hit-test, bar drag, touch (2026-11-07)
-
-- Wheel law (ui_utility.cpp:268-288 + elastic_scroll:926-945, pins in the
-  dialogs/window code + tests); bar hit/drag laws; touch manhattan>=10
-  arming + tap-at-release; 6 Elm messages; window pointer.Filter + px->dp.
-  18 tests, 99 total; e30bbfad; verify 42362009163 SUCCESS job+step.
-
-## Session 379 — the dialogs list Elm+render leg: viewport state, scroll laws, Pane snapshot, PaintPane (2026-11-07)
-
-- Wheel apply + clamps; load-more on every viewport msg while loadTill >=
-  content (empty list = initial page request); dialogs.Pane snapshot +
-  render.PaintPane. 9 tests, 81 total; 239cdaf1; verify 42351344419
-  SUCCESS job+step.
-
-## Session 378 — wipe #5 boot + the dialogs list scroll law: viewport, virtualization, reveal, thumb (2026-11-07)
-
-- dialogs list = Ui::ElasticScroll (thumb law elastic_scroll.cpp:131-175);
-  dialogs/scroll.go Viewport/VisibleRows/PreloadWindow/ScrollToReveal/
-  Thumb. 12 tests, 72 total; e38052c2; verify 42347578779 SUCCESS.
-
-## Session 377 — the dialogs row widget: pure layout + Elm state + gio render (2026-11-07)
-
-- dialogs Entry+Layout (shrink chain, badge stack right-anchored max-2,
-  variants 62/72/80/96, online 43/43 TTL 36/36); Elm selection clamp;
-  render Painter (bg states, photo, presence, elided labels, counter
-  pill). 11 ui + 1 gui; gates clean.
-
-## Session 376 — wipe #4 boot: env rebuilt; Material theme system (M3 baseline + AMOLED) (2026-11-07)
-
-- ui/material Scheme 36 roles Light/Dark/Amoled (Compose material3
-  v0_210); dialogs-row slice 5 pins; TTL-pos test caught a real bug.
-
-## Session 375 — the Gio skeleton: Elm core, window adapter, the measured pane law; the cgo-closure fight (2026-11-06)
-
-- go/ui/app Elm core (zero Gio) + pane law
-  (computeColumnLayout); window adapter; gioui
-  Xlib cgo closure -> gate.sh windows-vet
-  substitute; flake green 75944429.
-
-## Session 374 — geometry-table slice 4 re-mined after a full-wipe recycle (2026-11-06)
-
-- Re-derivation converged 23/23; pins in tokens.go
-  + tests; CI 42187083372 SUCCESS; T-2 closed.
