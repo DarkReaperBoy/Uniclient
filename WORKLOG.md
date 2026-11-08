@@ -7,46 +7,50 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 390 — chat scrollbar
-  bar-drag laws landed as
-  8d39d63e (the chat column
-  hosts a Ui::ElasticScroll
-  whose bar is the separate
-  ElasticScrollBar widget,
-  not the old ScrollArea pair:
-  historyScroll tokens 12/3
-  + deltas 3, thumb colors
-  517c417a/517c41bc; refresh
-  -Geometry with the cut-clamp,
-  off-thumb press centers the
-  thumb, drags scale
-  scrollable/outsideBar with
-  both pass-through quirks,
-  and the 1:1 dead-zone
-  reversal payback carried
-  verbatim incl. the live
-  clamp bounds; Elm mouse-only
-  bar drag, ChatPane carries
-  Thumb + ThumbDragging,
-  painter rrect w6 r3 with
-  the over color while
-  dragging); verify 42487726300
-  SUCCESS at job AND step
-  level — closed green
-- next: chat item interaction
-  (tap/press = message leg);
-  after that: chat preload/
-  pagination at the top edge,
-  then the floating scroll-date
+- front: session 391 — chat item
+  interaction landed as
+  80aff2a9 (the message-leg
+  mouse machine: press records
+  the over-state — row via
+  strictFindItemByY, PointState
+  from the HitBox geometry,
+  Date cursor from the TimeRect;
+  branch order: in selection
+  mode overSelected ->
+  PrepareDrag else PrepareSelect,
+  time zone -> PrepareDrag,
+  body -> Selecting, margin ->
+  PrepareSelect; drags degrade
+  PrepareDrag->Dragging and
+  PrepareSelect->Selecting past
+  10px or a row change; finish
+  inverts in selection mode,
+  else the release-point Date
+  cursor selects; touch tap
+  synthesizes press+finish;
+  ChangeSelection with the
+  100-item cap and the
+  !service/!empty gate,
+  copy-on-write; Measure emits
+  per-row HitBoxes; the window
+  filters non-primary mouse
+  presses/releases via the
+  chatPrimary flag); verify
+  42493085300 SUCCESS at job
+  AND step level — closed
+  green
+- next: chat preload/pagination
+  at the top edge; after that
+  the floating scroll-date
   (scroll-tied stick-to-top +
   opacity, needs scroll-state
   plumbing from the 388 leg)
 - owner-waiting: none
-- last-gate: quick GREEN (176 ui
-  + 62 gui = 238 PASS;
+- last-gate: quick GREEN (185 ui
+  + 82 gui = 267 PASS;
   windows-vet substitute for
   render/window/cmd); comment
-  ban clean; CI 42487726300
+  ban clean; CI 42493085300
   success (3 jobs, all steps;
   release-tag step skipped by
   design on main)
@@ -58,62 +62,83 @@ owner order — that history lives in git if ever needed.
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
 
+## Session 391 — chat item interaction: tap/press over the message leg (2026-11-08)
+
+- Law source: history_view_list_widget.cpp
+  4784-5060 (mouseActionStart/
+  Update/Finish) + changeSelection
+  1843-1860 + canBeSelected +
+  config.h MaxSelectedItems 100 +
+  bottom_info.cpp 207-212 (the
+  Date cursor zone) + Message/
+  Service::pointState.
+- Elm: ChatPressState {Row, X, Y,
+  Inside, Time, Action} on mouse
+  press (bar-drag presses leave
+  Row -1; hidden-thumb strip
+  presses fall through to the
+  item — the Qt hidden bar passes
+  clicks); action branch order:
+  selection mode overSelected ->
+  PrepareDrag else PrepareSelect;
+  time zone -> PrepareDrag; body
+  -> Selecting (bare tap = net
+  no-op); margin -> PrepareSelect.
+  Drags degrade (10px or a row
+  change). Finish: Invert in
+  selection mode; else the
+  release-point Date cursor
+  Selects the pressed row (the
+  margin-press + time-release
+  quirk kept). Touch tap
+  synthesizes press+finish at the
+  release point. ChatLoaded
+  clears the selection (rows have
+  no stable FullMsgIds yet).
+- history/interaction.go:
+  Selection laws (Invert/Select/
+  Deselect, cap 100, !service/
+  !empty gate, copy-on-write),
+  HitBox (Item + Time geometry,
+  PointStateOf width<1 or hidden
+  -> Outside), TimeRect (the
+  withTicksWidth zone on the
+  TimeLabel insets),
+  Geometry.Contains.
+- Measure returns per-row
+  HitBoxes (content-coord tops);
+  the window gates mouse
+  press/release on chatPrimary
+  (gio Release events report the
+  REMAINING buttons; the
+  chorded left-hold + right-
+  release corner = refinement
+  candidate, Qt e->button() is
+  not in gio).
+- RED 29 -> GREEN first run.
+  267 PASS (185 ui + 82 gui).
+  80aff2a9 -> verify 42493085300
+  SUCCESS, 3 jobs, all steps
+  reconciled.
+
 ## Session 390 — chat scrollbar bar-drag laws (2026-11-08)
 
-- Boot: wipe #13 recovery. Clone at
-  b2b02e5d (385-389 already closed
-  — carried summary stale again;
-  WORKLOG won). Baseline 224
-  re-verified (168 ui + 56 gui).
-- Law source: the chat scroll is a
-  Ui::ElasticScroll (history_widget
-  .cpp:291-293, st::historyScroll)
-  whose bar is the separate
-  ElasticScrollBar widget (lib_ui
-  elastic_scroll.cpp:116-406), NOT
-  the old ScrollArea/ScrollBar the
-  dialogs leg mirrors. Tokens:
-  width 12, round 3, deltas 3
-  (chat.style:188-202); thumb
-  colors 517c417a/517c41bc
-  (colors.palette:344-345).
-  refreshGeometry: skip 3, fullSkip
-  6, thickness 6, minSize 18,
-  barMin min(40, available/2),
-  barWanted = available*viewH/
-  contentH, hide when barWanted >=
-  available, cut-clamp keeps >=
-  thickness px per end. Off-thumb
-  press centers the thumb (middle
-  clamp, from = range*(middle-half
-  -deltat)/(available-bar)); drags
-  scale scrollable/outsideBar with
-  both pass-through quirks; the
-  DEAD ZONE: a drag into a clamped
-  edge accumulates as potential,
-  reversal pays it back 1:1 before
-  the content scrolls (base::
-  OppositeSigns, zero signless,
-  lib_base algorithm.h:137); live
-  clamp bounds min(vf,0)..vf+
-  (fullSize-visibleTill) carried
-  verbatim. Elm: mouse-only bar
-  drag (touch stays with the
-  ListWidget machine per
-  setHandleTouch(false); the C++
-  synthesized-mouse touch-on-bar
-  nuance is a refinement
-  candidate), ChatPane carries
-  Thumb + ThumbDragging, painter
-  rrect at width-9 w6 r3 with
-  the over color while dragging.
-  RED 14 -> GREEN first run
-  (hand-derived expectations;
-  dialogs-leg drag laws were the
-  cross-check). 238 PASS (176 ui
-  + 62 gui). 8d39d63e -> verify
-  42487726300 SUCCESS, 3 jobs,
-  all steps reconciled.
+- 8d39d63e. The chat column's
+  ElasticScrollBar (lib_ui
+  elastic_scroll.cpp:116-406;
+  tokens chat.style:188-202,
+  colors.palette:344-345):
+  refreshGeometry with the
+  cut-clamp, off-thumb press
+  centers the thumb, drags scale
+  scrollable/outsideBar with both
+  pass-through quirks, 1:1
+  dead-zone reversal payback
+  (base::OppositeSigns, zero
+  signless); Elm mouse-only bar
+  drag, ChatPane Thumb +
+  ThumbDragging. 238 PASS.
+  Verify 42487726300 SUCCESS.
 
 ## Session 389 — history entry composing: dates + unread dividers (2026-11-08)
 
@@ -178,45 +203,19 @@ owner order — that history lives in git if ever needed.
 
 ## Session 383 — the message-bubble render leg: corner/tail/shadow laws, chat Elm + ChatPainter (2026-11-07)
 
-- Boot: wipe #10. Clone at 8b2ae432 (379-382
-  closed green in lost sessions; baseline
-  re-verified after env rebuild).
-- Pins (laws live in ui/history + tests, detail
-  in git): corner law message.cpp:6626-6651
-  (attachedTop/Bottom small the wall-side
-  corners, tail on layout-side bottom,
-  Large=16/Small=6/Tail->0, removeMessageTail
-  off by default Tail->Large); tail glyph 6x10
-  right triangle; shadow strip 2px
-  #748ea2@0x29 / #3ac346@0x1d; time label
-  message.cpp:5479-5516 (send-state 24px,
-  anchor (-17,-19)); chat mode wide >= 880;
-  ChatPainter TD skip-block emulation + body
-  wrap approximation documented for the text-
-  engine slice; Material skin colors.
-- 18 tests, 159 total; 4fdc467c -> verify
+- 4fdc467c. Corner law message.cpp:6626-6651,
+  tail glyph 6x10, shadow strips, time label
+  message.cpp:5479-5516, wide >= 880, ChatPainter
+  TD emulation (text engine deferred). Verify
   42409023939 SUCCESS job+step.
 
 ## Session 382 — the history element geometry law: margins, bubble, service (2026-11-07)
 
-- Boot: wipe #9. Clone at 874f707f (379-381
-  closed green in lost sessions; baseline
-  re-verified after env rebuild).
-- Pins (full derivation in ui/history/element.go
-  + its tests, sources cited in git): message
-  top margin = attached?0:6 + BARS SURVIVE HIDDEN
-  + servicePre-above + added; bottom 2 + below-
-  servicePre (hidden 0). Service margins 10/2,
-  servicePre unconditional, two-small-margins −20
-  floor 25 quirk, Wide min(w,542). Skip block
-  12+infoW−2 / fontH−5. textW = max(w,160)−22;
-  optimal/limit/clamp chain per message.cpp
-  1347/5648/5668/6680-6935. DateBadge 10+3+font+
-  4+2; Ayu time badge w+14/h+4/additional w+13.
-  Text engine deferred like icon paint (Text
-  struct with HeightFor closure).
-- RED 14 -> GREEN first run (2 slips caught at
-  design). 141 total; 3a655338 -> verify
+- 3a655338. Margins/bars/servicePre chain, two-
+  small-margins floor quirk, skip block, textW
+  clamp chain (message.cpp 1347/5648/5668/
+  6680-6935), DateBadge/Ayu time badge — full
+  derivation in ui/history/element.go. Verify
   42384001792 SUCCESS job+step.
 
 ## Session 381 — kinetic touch + overscroll anim: fling, rubber band, spring return (2026-11-07)
