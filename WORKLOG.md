@@ -7,36 +7,49 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 389 — history entry
-  composing landed as 3d78f116 (ComposeBars
-  walks recountDisplayDateInBlocks with the
-  previousDisplayedInBlocks Empty||Hidden
-  skip, DateText-equality day anchors, prev
-  hideDisplayDate forcing the badge, own-side
-  Hidden/Empty/Sponsored/HideDisplayDate gates,
-  and the DateText-presence gate so legacy
-  zero-value items grow no ghost pills;
-  DateBadge paint = PaintPreparedDate with both
-  measured quirks kept — margin.left subtracted
-  twice, padding.left added twice; UnreadBar
-  35/4/24-pill-31 with the 15.5 double radius
-  as float32 through an arc-built path;
-  painter Measure composes the bars itself and
-  List.Pane carries Bars for the visible
-  window); verify 42476159326 SUCCESS at job
-  AND step level — closed green
-- next: chat scrollbar bar-drag laws + chat
-  item interaction (tap/press = message leg);
-  after that: chat preload/pagination at the
-  top edge, then the floating scroll-date
-  (scroll-tied stick-to-top + opacity, needs
-  scroll-state plumbing from the 388 leg)
+- front: session 390 — chat scrollbar
+  bar-drag laws landed as
+  8d39d63e (the chat column
+  hosts a Ui::ElasticScroll
+  whose bar is the separate
+  ElasticScrollBar widget,
+  not the old ScrollArea pair:
+  historyScroll tokens 12/3
+  + deltas 3, thumb colors
+  517c417a/517c41bc; refresh
+  -Geometry with the cut-clamp,
+  off-thumb press centers the
+  thumb, drags scale
+  scrollable/outsideBar with
+  both pass-through quirks,
+  and the 1:1 dead-zone
+  reversal payback carried
+  verbatim incl. the live
+  clamp bounds; Elm mouse-only
+  bar drag, ChatPane carries
+  Thumb + ThumbDragging,
+  painter rrect w6 r3 with
+  the over color while
+  dragging); verify 42487726300
+  SUCCESS at job AND step
+  level — closed green
+- next: chat item interaction
+  (tap/press = message leg);
+  after that: chat preload/
+  pagination at the top edge,
+  then the floating scroll-date
+  (scroll-tied stick-to-top +
+  opacity, needs scroll-state
+  plumbing from the 388 leg)
 - owner-waiting: none
-- last-gate: quick GREEN (168 ui + 56 gui = 224
-  PASS; windows-vet substitute for render/window/
-  cmd); comment ban clean; CI 42476159326
-  success (3 jobs, all steps; release-tag step
-  skipped by design on main)
+- last-gate: quick GREEN (176 ui
+  + 62 gui = 238 PASS;
+  windows-vet substitute for
+  render/window/cmd); comment
+  ban clean; CI 42487726300
+  success (3 jobs, all steps;
+  release-tag step skipped by
+  design on main)
 
 ## Open items
 
@@ -45,103 +58,90 @@ owner order — that history lives in git if ever needed.
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
 
+## Session 390 — chat scrollbar bar-drag laws (2026-11-08)
+
+- Boot: wipe #13 recovery. Clone at
+  b2b02e5d (385-389 already closed
+  — carried summary stale again;
+  WORKLOG won). Baseline 224
+  re-verified (168 ui + 56 gui).
+- Law source: the chat scroll is a
+  Ui::ElasticScroll (history_widget
+  .cpp:291-293, st::historyScroll)
+  whose bar is the separate
+  ElasticScrollBar widget (lib_ui
+  elastic_scroll.cpp:116-406), NOT
+  the old ScrollArea/ScrollBar the
+  dialogs leg mirrors. Tokens:
+  width 12, round 3, deltas 3
+  (chat.style:188-202); thumb
+  colors 517c417a/517c41bc
+  (colors.palette:344-345).
+  refreshGeometry: skip 3, fullSkip
+  6, thickness 6, minSize 18,
+  barMin min(40, available/2),
+  barWanted = available*viewH/
+  contentH, hide when barWanted >=
+  available, cut-clamp keeps >=
+  thickness px per end. Off-thumb
+  press centers the thumb (middle
+  clamp, from = range*(middle-half
+  -deltat)/(available-bar)); drags
+  scale scrollable/outsideBar with
+  both pass-through quirks; the
+  DEAD ZONE: a drag into a clamped
+  edge accumulates as potential,
+  reversal pays it back 1:1 before
+  the content scrolls (base::
+  OppositeSigns, zero signless,
+  lib_base algorithm.h:137); live
+  clamp bounds min(vf,0)..vf+
+  (fullSize-visibleTill) carried
+  verbatim. Elm: mouse-only bar
+  drag (touch stays with the
+  ListWidget machine per
+  setHandleTouch(false); the C++
+  synthesized-mouse touch-on-bar
+  nuance is a refinement
+  candidate), ChatPane carries
+  Thumb + ThumbDragging, painter
+  rrect at width-9 w6 r3 with
+  the over color while dragging.
+  RED 14 -> GREEN first run
+  (hand-derived expectations;
+  dialogs-leg drag laws were the
+  cross-check). 238 PASS (176 ui
+  + 62 gui). 8d39d63e -> verify
+  42487726300 SUCCESS, 3 jobs,
+  all steps reconciled.
+
 ## Session 389 — history entry composing: dates + unread dividers (2026-11-08)
 
-- Boot: wipe #12 recovery. Clone at c8a9ec83
-  (385-388 already closed — the carried summary
-  was stale again; WORKLOG won). Baseline 213
-  re-verified (158 ui + 55 gui).
-- Composing law = Element::recountDisplayDateInBlocks
-  + setDisplayDate (element.cpp:2684-2745):
-  display iff !(own hideDisplayDate = Empty ||
-  flag) && !(Hidden || Empty || Sponsored) &&
-  (no prev displayed || prev.hideDisplayDate ||
-  prev day != day); the previousDisplayed walk
-  skips Empty||Hidden prevs (sponsored prevs
-  stay valid anchors). Go model: DateText is
-  the day key (C++ compares dateTime().date()
-  — text equality is the model's day identity)
-  and the DateText-presence gate is the one
-  deviation: C++ derives text from item->date()
-  unconditionally; zero-value legacy items
-  must not grow ghost pills.
-- Heights ride the existing Bars margin
-  channel: DateBadge 32 (10+3+13+4+2, matches
-  DateBadgeHeight), UnreadBar 35 = 32+3,
-  marginTop 4 = lineWidth 1 + margin 3.
-- Date paint law = PaintPreparedDate
-  (service_message.cpp:155-194), both quirks
-  kept verbatim: available w subtracts
-  msgServiceMargin.left TWICE, bubble width
-  adds msgServicePadding.left TWICE (equal to
-  symmetric forms at 10/12 but carried as
-  measured); pill textW+24 x 20 at
-  (10 + (w-20-textW-24)/2, y+10), text +12/+3,
-  corners r10, wide clamp min(w, 542). Painted
-  by the LIST after items (list_widget.cpp:
-  3381-3406, in-place dateY = itemtop; the
-  floating stick-to-top date stays deferred,
-  scroll-tied).
-- Unread paint law = UnreadBar::paint
-  (element.cpp:781-848, the Ayu pill rewrite;
-  the old bar fill block is commented out):
-  pill textW+24 x 31 at ((w-pillW)/2, aboveh+4)
-  with radius 15.5 (double) carried as float32
-  through an arc-built path (gio RRect is
-  int-only), text centered on full w, textTop
-  pillY+(31-fontH)/2; aboveh = date+thread
-  heights per the draw translate (element.cpp:
-  1785-1796 / service_message.cpp:705-716).
-- Wiring: render.Measure composes bars itself
-  (view-derived like C++ components; no app
-  churn), List.Pane carries Bars for the
-  visible window, paintService/paintMessage
-  reconstruct ctx WITH bars. Date pill rides
-  the 385 service roles; unread pill roles
-  SurfaceContainerLowest/Primary (fcfbfa/538bb4).
-- RED 11 (10 ui + 1 gui render) -> 1 spec error
-  (item 6's anchor is the HideDisplayDate prev,
-  which forces the badge — expectation fixed,
-  law unchanged). GREEN 224 PASS (168 ui +
-  56 gui). 3d78f116 -> verify 42476159326
-  SUCCESS, 3 jobs, all steps reconciled.
+- Composing law = Element::recountDisplayDateInBlocks + setDisplayDate
+  (element.cpp:2684-2745); DateBadge/UnreadBar paint laws
+  PaintPreparedDate (service_message.cpp:155-194, margin.left subtracted
+  twice + padding.left added twice quirks) and UnreadBar::paint
+  (element.cpp:781-848, pill textW+24 x 31 r15.5 float32 arc path);
+  heights ride the Bars margin channel (32 / 35 = 32+3 / marginTop 4).
+  Painter Measure composes bars; List.Pane carries Bars. RED 11 -> 1
+  spec error fixed. 224 PASS. Detail: git 3d78f116 + this file's history.
 
 ## Session 388 — the chat-leg scroll input (2026-11-08)
 
 - Pins: ElasticScroll Real/Real, setHandleTouch(false),
-  lockWheelDirection + cross-axis consumeScrollAction
-  (list_widget.cpp:2289 — horizontal strict |dx|>|dy|,
-  NoScrollPhase non-horizontal short-circuit, text items
-  never consume); touch arm manhattan>=10 swallows, manual
-  1:1 via ChatWidget::listScrollTo (chat_section:4687 plain
-  clamp + moved flag), NO chat-touch overscroll, fling 1px/ms
-  deaccel stopping dead at edge (hasScrolled), Acceleration
-  under finger 40ms; requestBottomContent (elastic_scroll.cpp:1098)
-  delta>0 past bottom edge before clamp; FlingDelta qRound
-  half-away (Qt6 QPoint semantics — the trunc pin was a Qt5-ism);
-  acceleration sampling on manual blend prev/4+new*3/4;
-  3 dialogs elm pins re-derived. Detail: d2d5ae81 + git history.
+  lockWheelDirection + consumeScrollAction, touch arm
+  manhattan>=10 swallows, manual 1:1 plain clamp, NO
+  chat-touch overscroll, fling deaccel stops dead at
+  edge, requestBottomContent before clamp, FlingDelta
+  qRound half-away, acceleration manual blend.
+  Detail: d2d5ae81 + git history.
 
 ## Session 387 — the dialogs row painter leg (2026-11-08)
 
-- Wipe #12 recovery; baseline 186 re-verified.
-  Detail: git 60467393 + 70600653 (vendorHash
-  rotation for the x/image/draw vendored package
-  set) + this file's history; laws pinned in
-  dialogs code + tests: ChatTypeIcon/BadgeIcon
-  selection (bot 17/channel 15/forum 20 canvas
-  widths; pinned cell = the 20px canvas, advance
-  20+5); ink map (chat-type OnSurface, clock
-  OnSurfaceVariant, ticks Primary theme-split,
-  mention/reaction/poll Primary/Error/Tertiary,
-  active OnPrimaryContainer); narrow icon badges
-  = 19x19 empty pills (13x13 variant set NOT
-  traced — refinement candidate); TTL badge =
-  StackBlur r24 + WCAG darken x4/5 (uint8 wrap
-  bug caught) + FormatTTLTiny thresholds +
-  2-rune clamp; InfoWidth reserves the 24px
-  ticks space. RED 10 -> GREEN 196; verify
-  42461470926 SUCCESS job+step.
+- Wipe #12 recovery. Detail: git 60467393 + 70600653
+  (vendorHash rotation) + this file's history; icons/
+  ink-map/TTL laws pinned in dialogs code + tests.
+  RED 10 -> GREEN 196; verify 42461470926 SUCCESS.
 
 ## Session 386 — the Material icon asset library (2026-11-08)
 
