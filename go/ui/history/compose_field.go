@@ -70,3 +70,23 @@ func ComposeCursorRect(doc *text.Document, offset int, m text.Metrics) Geometry 
 		Height: lineH,
 	}
 }
+
+func ComposeFieldScrollOffset(current, contentHeight, viewHeight, cursorY, cursorH int) int {
+	max := contentHeight - viewHeight
+	if max <= 0 {
+		return 0
+	}
+	offset := current
+	if cursorY < current {
+		offset = cursorY
+	} else if cursorY+cursorH > current+viewHeight {
+		offset = cursorY + cursorH - viewHeight
+	}
+	if offset < 0 {
+		return 0
+	}
+	if offset > max {
+		return max
+	}
+	return offset
+}

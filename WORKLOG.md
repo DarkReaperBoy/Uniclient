@@ -7,21 +7,17 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 401 — the field text-engine core landed
-  (ui/text: Metrics/LineHeight/LineAscent/Elide/Layout/CursorAt;
-  compose field: wrap width −2 caret reserve, content height,
-  placeholder law margins 2,0,2,0 + shift −50 static + 100ms);
-  Qt cursor-line law pinned from qtextengine.cpp 3758-3770
-- next: the composer continues — cursor rect (height = lineH per
-  FixedHeight block format) + selection model + field scroll
-  (ensureCursorVisible), then the bar painter + Elm wiring
-  (ChatComposeState riding resize/field msgs); schedule/save/cancel
-  glyphs when their types get painted; real font metrics adapter
-  when the gio shaper lands
+- front: session 401 — the field text-engine core landed (metrics,
+  wrap, cursor, placeholder, selection spans, caret rect, scroll)
+- next: the compose bar painter + Elm wiring (ChatComposeState
+  riding resize/field msgs — the engine can now type, wrap, select,
+  scroll); schedule/save/cancel glyphs when their types get painted;
+  real font metrics adapter when the gio shaper lands
 - owner-waiting: none
-- last-gate: quick GREEN (401 scope, both atomics); js/wasm compile
-  ui/... GREEN; comment ban clean; 389 tests (228 ui + 153 gui +
-  8 text) green locally; verify 42524452324 for 95ef00d9 in flight
+- last-gate: quick GREEN (401 scope, three atomics); js/wasm
+  compile ui/... GREEN; comment ban clean; 390 tests (229 ui +
+  153 gui + 8 text) green locally; verifies 42524452324 (95ef00d9)
+  + 42524984339 (33c91877) in flight
 
 ## Open items
 
@@ -87,8 +83,18 @@ owner order — that history lives in git if ever needed.
   Document.SelectionSpans→[]Span{Line,From,To} (soft/hard/last-line
   trailing law) + history ComposeCursorRect + token
   ComposeCursorWidth 1. RED → GREEN clean.
-- 17 new tests this session (14 + 3), 389 total = 228 ui +
-  153 gui + 8 text. quick GREEN both commits; js/wasm compile
+- Atomic 3 (this): the field scroll law. Qt source:
+  QWidgetTextControl::ensureCursorVisible (qwidgettextcontrol.cpp
+  3286-3292) = rectForPosition(cursor).adjusted(−5,0,+5,0) →
+  visibilityRequest → QTextEditPrivate::ensureVisible (qtextedit.cpp
+  332-363): if rect.y < vOffset → vOffset = rect.y; elif rect.y +
+  rect.h > vOffset + viewH → vOffset = rect.y + rect.h − viewH;
+  clamped to [0, docH − viewH] — minimal reveal, never centers; the
+  −5/+5 pad is horizontal-only (compose never hscrolls, word wrap
+  on). Go: ComposeFieldScrollOffset(current, content, view,
+  cursorY, cursorH). RED → GREEN clean, 1 test.
+- 18 new tests this session (14 + 3 + 1), 390 total = 229 ui +
+  153 gui + 8 text. quick GREEN all commits; js/wasm compile
   ui/... GREEN; comment ban clean. WORKLOG pruned (sessions ≤383
   cut; 346→~300 lines).
 
@@ -281,27 +287,6 @@ owner order — that history lives in git if ever needed.
   cut-clamp refreshGeometry, off-thumb press centers the thumb, drag scale +
   pass-through quirks, dead-zone reversal payback; Elm bar drag + ChatPane
   Thumb. 238 PASS. Verify 42487726300 SUCCESS. Detail: 8d39d63e + git.
-
-## Session 389 — history entry composing: dates + unread dividers (2026-11-08)
-
-- Composing law = Element::recountDisplayDateInBlocks + setDisplayDate
-  (element.cpp:2684-2745); DateBadge/UnreadBar paint laws
-  PaintPreparedDate (service_message.cpp:155-194, margin.left subtracted
-  twice + padding.left added twice quirks) and UnreadBar::paint
-  (element.cpp:781-848, pill textW+24 x 31 r15.5 float32 arc path);
-  heights ride the Bars margin channel (32 / 35 = 32+3 / marginTop 4).
-  Painter Measure composes bars; List.Pane carries Bars. RED 11 -> 1
-  spec error fixed. 224 PASS. Detail: git 3d78f116 + this file's history.
-
-## Session 388 — the chat-leg scroll input (2026-11-08)
-
-- Pins: ElasticScroll Real/Real, setHandleTouch(false),
-  lockWheelDirection + consumeScrollAction, touch arm
-  manhattan>=10 swallows, manual 1:1 plain clamp, NO
-  chat-touch overscroll, fling deaccel stops dead at
-  edge, requestBottomContent before clamp, FlingDelta
-  qRound half-away, acceleration manual blend.
-  Detail: d2d5ae81 + git history.
 
 ## Session 386 — the Material icon asset library (2026-11-08)
 

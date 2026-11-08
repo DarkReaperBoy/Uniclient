@@ -166,3 +166,23 @@ func TestComposeCursorRect(t *testing.T) {
 		}
 	}
 }
+
+func TestComposeFieldScrollOffset(t *testing.T) {
+	cases := []struct {
+		current, content, view, cursorY, cursorH, want int
+	}{
+		{0, 16, 36, 0, 16, 0},
+		{0, 80, 36, 48, 16, 28},
+		{28, 80, 36, 48, 16, 28},
+		{28, 80, 36, 16, 16, 16},
+		{0, 80, 36, 60, 16, 40},
+		{0, 80, 36, 70, 16, 44},
+		{0, 80, 36, 8, 16, 0},
+	}
+	for _, c := range cases {
+		if got := history.ComposeFieldScrollOffset(c.current, c.content, c.view, c.cursorY, c.cursorH); got != c.want {
+			t.Fatalf("ScrollOffset(cur=%d content=%d view=%d y=%d h=%d) = %d, want %d",
+				c.current, c.content, c.view, c.cursorY, c.cursorH, got, c.want)
+		}
+	}
+}
