@@ -48,6 +48,7 @@ func Run() error {
 	}
 	var ops op.Ops
 	var lastW, lastH int
+	var chatPrimary bool
 	for {
 		switch e := w.Event().(type) {
 		case gioapp.DestroyEvent:
@@ -73,11 +74,12 @@ func Run() error {
 			gtx := gioapp.NewContext(&ops, e)
 			routeInput(gtx, painter.Input, e.Metric, handle)
 			if cols := appModel.Columns(); cols.Chat > 0 && cols.Dialogs < appModel.Width {
-				routeChatInput(gtx, chatPainter.Input, e.Metric, cols.Dialogs, handle)
+				routeChatInput(gtx, chatPainter.Input, e.Metric, cols.Dialogs, &chatPrimary, handle)
 			}
 			if appModel.ChatDirty {
-				handle(app.ChatMeasured{Heights: chatPainter.Measure(
-					gtx, appModel.Chat.Items, appModel.Columns().Chat)})
+				heights, hits := chatPainter.Measure(
+					gtx, appModel.Chat.Items, appModel.Columns().Chat)
+				handle(app.ChatMeasured{Heights: heights, Hits: hits})
 			}
 			scene := app.View(appModel)
 			paint.Fill(gtx.Ops, scene.Background)
@@ -165,7 +167,7 @@ func scrollMessage(e pointer.Event, metric unit.Metric) app.Msg {
 	}
 }
 
-func routeChatInput(gtx layout.Context, tag *chatrender.InputArea, metric unit.Metric, dialogsDp int, handle func(app.Msg)) {
+func routeChatInput(gtx layout.Context, tag *chatrender.InputArea, metric unit.Metric, dialogsDp int, chatPrimary *bool, handle func(app.Msg)) {
 	filter := pointer.Filter{
 		Target:  tag,
 		Kinds:   pointer.Press | pointer.Move | pointer.Drag | pointer.Release | pointer.Scroll | pointer.Cancel,
@@ -183,18 +185,34 @@ func routeChatInput(gtx layout.Context, tag *chatrender.InputArea, metric unit.M
 		}
 		switch e.Kind {
 		case pointer.Press:
-			gtx.Execute(pointer.GrabCmd{Tag: tag, ID: e.PointerID})
-			handle(app.ChatPressed{
-				X:     pxToDp(metric, e.Position.X) - dialogsDp,
-				Y:     pxToDp(metric, e.Position.Y),
-				Touch: e.Source == pointer.Touch,
-				Now:   int(time.Now().UnixMilli()),
-			})
+			if e.Source == pointer.Touch {
+				gtx.Execute(pointer.GrabCmd{Tag: tag, ID: e.PointerID})
+				handle(app.ChatPressed{
+					X:     pxToDp(metric, e.Position.X) - dialogsDp,
+					Y:     pxToDp(metric, e.Position.Y),
+					Touch: true,
+					Now:   int(time.Now().UnixMilli()),
+				})
+			} else if e.Buttons&pointer.ButtonPrimary != 0 {
+				gtx.Execute(pointer.GrabCmd{Tag: tag, ID: e.PointerID})
+				*chatPrimary = true
+				handle(app.ChatPressed{
+					X:   pxToDp(metric, e.Position.X) - dialogsDp,
+					Y:   pxToDp(metric, e.Position.Y),
+					Now: int(time.Now().UnixMilli()),
+				})
+			}
 		case pointer.Move, pointer.Drag:
 			handle(app.ChatDragged{X: pxToDp(metric, e.Position.X) - dialogsDp, Y: pxToDp(metric, e.Position.Y), Now: int(time.Now().UnixMilli())})
 		case pointer.Release:
-			handle(app.ChatReleased{X: pxToDp(metric, e.Position.X) - dialogsDp, Y: pxToDp(metric, e.Position.Y), Now: int(time.Now().UnixMilli())})
+			if e.Source == pointer.Touch || *chatPrimary {
+				if e.Source != pointer.Touch {
+					*chatPrimary = false
+				}
+				handle(app.ChatReleased{X: pxToDp(metric, e.Position.X) - dialogsDp, Y: pxToDp(metric, e.Position.Y), Now: int(time.Now().UnixMilli())})
+			}
 		case pointer.Cancel:
+			*chatPrimary = false
 			handle(app.ChatPressCanceled{})
 		case pointer.Scroll:
 			handle(chatScrollMessage(e, metric))

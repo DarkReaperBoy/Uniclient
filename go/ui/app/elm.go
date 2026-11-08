@@ -106,6 +106,7 @@ func (ChatLoaded) isMsg() {}
 
 type ChatMeasured struct {
 	Heights []int
+	Hits    []history.HitBox
 }
 
 func (ChatMeasured) isMsg() {}
@@ -199,6 +200,25 @@ type BarDrag struct {
 	Overscroll int
 }
 
+type ChatPressAction uint8
+
+const (
+	ChatPressNone ChatPressAction = iota
+	ChatPressPrepareSelect
+	ChatPressPrepareDrag
+	ChatPressSelecting
+	ChatPressDragging
+)
+
+type ChatPressState struct {
+	Row    int
+	X      int
+	Y      int
+	Inside bool
+	Time   bool
+	Action ChatPressAction
+}
+
 type Model struct {
 	Width             int
 	Height            int
@@ -215,10 +235,14 @@ type Model struct {
 	ChatTouch         TouchDrag
 	ChatBar           BarDrag
 	ChatDirty         bool
+	ChatSelection     history.Selection
+	ChatPress         ChatPressState
 }
 
 func InitialModel() Model {
-	return Model{HasDialogs: true, Running: true, Dialogs: dialogs.List{Selected: -1}}
+	return Model{HasDialogs: true, Running: true,
+		Dialogs:   dialogs.List{Selected: -1},
+		ChatPress: ChatPressState{Row: -1}}
 }
 
 func Update(m Model, msg Msg) (Model, Cmd) {
@@ -285,11 +309,14 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 	case ChatLoaded:
 		m.Chat.Items = msg.Items
 		m.Chat.Heights = nil
+		m.Chat.Hits = nil
+		m.ChatSelection = nil
 		m.ChatDirty = true
 		m.ChatScroll.Top = m.Chat.ClampOffset(m.ChatScroll.Top, m.ChatScroll)
 		return m, nil
 	case ChatMeasured:
 		m.Chat.Heights = msg.Heights
+		m.Chat.Hits = msg.Hits
 		m.ChatDirty = false
 		m.ChatScroll.Top = m.Chat.ClampOffset(m.ChatScroll.Top, m.ChatScroll)
 		return m, nil
@@ -310,6 +337,7 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 	case ChatPressCanceled:
 		m.ChatBar = BarDrag{}
 		m.ChatTouch = TouchDrag{}
+		m.ChatPress = ChatPressState{Row: -1}
 		return m, nil
 	case ChatTick:
 		m.chatTick(msg.Now)
@@ -562,6 +590,7 @@ func (m *Model) pressChat(msg ChatPressed) Model {
 			thumb := m.Chat.ScrollbarThumb(m.ChatScroll, m.ChatScroll.Height)
 			if !thumb.Hidden {
 				m.ChatBar = BarDrag{Dragging: true, LastY: msg.Y}
+				m.ChatPress = ChatPressState{Row: -1}
 				if !history.BarOver(thumb, msg.X-(width-tokens.HistoryScrollBarWidth), msg.Y) {
 					m.ChatScroll.Top = m.Chat.ClampOffset(
 						m.Chat.BarTrackJump(m.ChatScroll, m.ChatScroll.Height, msg.Y), m.ChatScroll)
@@ -569,6 +598,7 @@ func (m *Model) pressChat(msg ChatPressed) Model {
 				return *m
 			}
 		}
+		m.ChatPress = m.chatPressAt(msg.X, msg.Y)
 		return *m
 	}
 	d := m.ChatTouch
@@ -588,6 +618,56 @@ func (m *Model) pressChat(msg ChatPressed) Model {
 	return *m
 }
 
+func (m Model) chatPressAt(x, y int) ChatPressState {
+	row := m.Chat.RowAt(y + m.ChatScroll.Top)
+	if row < 0 || row >= len(m.Chat.Items) || m.Chat.Items[row].Empty {
+		return ChatPressState{Row: -1}
+	}
+	var inside, timeCursor bool
+	if row < len(m.Chat.Hits) {
+		inside = m.Chat.Hits[row].PointStateOf(m.Chat.Items[row], x, y+m.ChatScroll.Top) == history.PointInside
+		timeCursor = m.Chat.Hits[row].TimeHit(x, y+m.ChatScroll.Top)
+	}
+	action := ChatPressNone
+	switch {
+	case m.ChatSelection.InSelectionMode():
+		if inside && m.ChatSelection.ContainsRow(row) {
+			action = ChatPressPrepareDrag
+		} else {
+			action = ChatPressPrepareSelect
+		}
+	case timeCursor && inside:
+		action = ChatPressPrepareDrag
+	case inside:
+		action = ChatPressSelecting
+	default:
+		action = ChatPressPrepareSelect
+	}
+	return ChatPressState{Row: row, X: x, Y: y, Inside: inside, Time: timeCursor, Action: action}
+}
+
+func (m *Model) finishChatPress(press ChatPressState, x, y int) {
+	if press.Row < 0 || press.Row >= len(m.Chat.Items) {
+		return
+	}
+	if press.Action != ChatPressPrepareSelect && press.Action != ChatPressPrepareDrag {
+		return
+	}
+	if m.ChatSelection.InSelectionMode() {
+		m.ChatSelection = history.ChangeSelection(
+			m.ChatSelection, press.Row, m.Chat.Items[press.Row], history.SelectInvert)
+		return
+	}
+	row := m.Chat.RowAt(y + m.ChatScroll.Top)
+	if row < 0 || row >= len(m.Chat.Hits) || row >= len(m.Chat.Items) {
+		return
+	}
+	if m.Chat.Hits[row].TimeHit(x, y+m.ChatScroll.Top) {
+		m.ChatSelection = history.ChangeSelection(
+			m.ChatSelection, press.Row, m.Chat.Items[press.Row], history.SelectAdd)
+	}
+}
+
 func (m *Model) dragChat(msg ChatDragged) Model {
 	if m.ChatBar.Dragging {
 		dy := msg.Y - m.ChatBar.LastY
@@ -595,6 +675,20 @@ func (m *Model) dragChat(msg ChatDragged) Model {
 		top, accum := m.Chat.ApplyBarDrag(m.ChatScroll, m.ChatScroll.Height, dy, m.ChatBar.Overscroll)
 		m.ChatBar.Overscroll = accum
 		m.ChatScroll.Top = top
+		return *m
+	}
+	if !m.ChatTouch.Active {
+		if p := m.ChatPress; p.Row >= 0 && p.Row < len(m.Chat.Items) {
+			row := m.Chat.RowAt(msg.Y + m.ChatScroll.Top)
+			if row != p.Row || absInt(msg.X-p.X)+absInt(msg.Y-p.Y) >= tokens.TouchDragStartDistance {
+				if p.Action == ChatPressPrepareDrag {
+					p.Action = ChatPressDragging
+				} else if p.Action == ChatPressPrepareSelect {
+					p.Action = ChatPressSelecting
+				}
+				m.ChatPress = p
+			}
+		}
 		return *m
 	}
 	d := m.ChatTouch
@@ -630,10 +724,13 @@ func (m *Model) dragChat(msg ChatDragged) Model {
 
 func (m *Model) releaseChat(msg ChatReleased) {
 	m.ChatBar = BarDrag{}
-	d := m.ChatTouch
-	if !d.Active {
+	if !m.ChatTouch.Active {
+		press := m.ChatPress
+		m.ChatPress = ChatPressState{Row: -1}
+		m.finishChatPress(press, msg.X, msg.Y)
 		return
 	}
+	d := m.ChatTouch
 	tap := !d.Scrolling
 	if d.Scrolling {
 		switch d.State {
@@ -651,6 +748,8 @@ func (m *Model) releaseChat(msg ChatReleased) {
 	m.ChatTouch = d
 	if tap {
 		m.ChatTouch = TouchDrag{}
+		press := m.chatPressAt(msg.X, msg.Y)
+		m.finishChatPress(press, msg.X, msg.Y)
 	}
 }
 

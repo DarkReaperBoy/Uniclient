@@ -184,7 +184,7 @@ func (p *ChatPainter) serviceLineHeight(gtx layout.Context) int {
 	return r.ascent + r.descent
 }
 
-func (p *ChatPainter) measureItem(gtx layout.Context, item history.Item, bar history.Bars, viewWidth int) int {
+func (p *ChatPainter) measureItem(gtx layout.Context, item history.Item, bar history.Bars, viewWidth int) (int, history.HitBox) {
 	mode := history.ChatModeFor(viewWidth)
 	if item.Kind == history.ItemService {
 		svcH := p.serviceLineHeight(gtx)
@@ -197,9 +197,11 @@ func (p *ChatPainter) measureItem(gtx layout.Context, item history.Item, bar his
 		m := p.newMetric(gtx, fontSemibold, unit.Sp(tokens.FontMsgService), item.Text, skipW, skipH)
 		t := m.text()
 		c := history.ServiceCtx{Mode: mode, HasText: item.Text != "", Bars: bar}
-		return history.ServiceHeight(viewWidth, t.MaxWidth, t.MinHeight, t, c)
+		height := history.ServiceHeight(viewWidth, t.MaxWidth, t.MinHeight, t, c)
+		return height, history.HitBox{Item: history.ServiceGeometry(viewWidth, height, c)}
 	}
 	dateM := p.newMetric(gtx, fontRegular, unit.Sp(tokens.FontMsgDate), item.TimeText, 0, 0)
+	hasTicks := item.Out || item.Sending
 	skipW, skipH := 0, 0
 	if item.TimeText != "" {
 		skipW = history.SkipBlockWidth(dateM.width)
@@ -224,21 +226,35 @@ func (p *ChatPainter) measureItem(gtx layout.Context, item history.Item, bar his
 	t := m.text()
 	opt, nonText := history.MessageOptimalSize(t, c, nameM.width)
 	fonts := history.Fonts{NameHeight: nameLine, DateHeight: dateM.lineH}
-	return history.MessageHeight(viewWidth, opt.Width, opt.Height, nonText,
+	height := history.MessageHeight(viewWidth, opt.Width, opt.Height, nonText,
 		dateM.lineH, 0, t, c, fonts)
+	contentWidth := history.MessageContentWidth(viewWidth, opt.Width, 0, c)
+	_, realW := t.HeightFor(history.BubbleTextWidth(contentWidth))
+	g := history.MessageGeometry(viewWidth, height, opt.Width, nonText, realW, 0, c)
+	hit := history.HitBox{Item: g}
+	if item.TimeText != "" {
+		hit.Time = history.TimeRect(g, dateM.width, dateM.lineH, hasTicks)
+	}
+	return height, hit
 }
 
 func (p *ChatPainter) MeasureItem(gtx layout.Context, item history.Item, viewWidth int) int {
-	return p.measureItem(gtx, item, history.Bars{}, viewWidth)
+	height, _ := p.measureItem(gtx, item, history.Bars{}, viewWidth)
+	return height
 }
 
-func (p *ChatPainter) Measure(gtx layout.Context, items []history.Item, viewWidth int) []int {
+func (p *ChatPainter) Measure(gtx layout.Context, items []history.Item, viewWidth int) ([]int, []history.HitBox) {
 	bars := history.ComposeBars(items)
 	heights := make([]int, len(items))
+	hits := make([]history.HitBox, len(items))
+	top := 0
 	for i := range items {
-		heights[i] = p.measureItem(gtx, items[i], bars[i], viewWidth)
+		heights[i], hits[i] = p.measureItem(gtx, items[i], bars[i], viewWidth)
+		hits[i].Item.Top += top
+		hits[i].Time.Top += top
+		top += heights[i]
 	}
-	return heights
+	return heights, hits
 }
 
 func (p *ChatPainter) PaintChatPane(gtx layout.Context, pane history.ChatPane, sch material.Scheme) {

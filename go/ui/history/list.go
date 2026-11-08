@@ -38,6 +38,7 @@ func (it Item) hideDisplayDate() bool {
 type List struct {
 	Items   []Item
 	Heights []int
+	Hits    []HitBox
 }
 
 func (l List) RowHeight(i int) int {

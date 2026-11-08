@@ -26,7 +26,7 @@ func TestMeasureComposesEntryBars(t *testing.T) {
 		{Kind: history.ItemMessage, Text: "bb", TimeText: "10:01"},
 		{Kind: history.ItemMessage, Text: "cc", TimeText: "10:02", DateText: "6 November", UnreadBar: "Unread messages"},
 	}
-	h := p.Measure(gtx, items, 320)
+	h, _ := p.Measure(gtx, items, 320)
 	if len(h) != 3 {
 		t.Fatalf("heights len = %d, want 3", len(h))
 	}
