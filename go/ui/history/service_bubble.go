@@ -26,6 +26,40 @@ type ServiceBands struct {
 	Body       Geometry
 }
 
+type ServiceBubbleOpKind uint8
+
+const (
+	ServiceOpFill ServiceBubbleOpKind = iota
+	ServiceOpFlare
+)
+
+type FlareCut uint8
+
+const (
+	FlareCutNone FlareCut = iota
+	FlareCutTopLeft
+	FlareCutTopRight
+	FlareCutBottomLeft
+	FlareCutBottomRight
+)
+
+type ServiceBubbleOp struct {
+	Kind     ServiceBubbleOpKind
+	Geometry Geometry
+	TL       int
+	TR       int
+	BL       int
+	BR       int
+	Cut      FlareCut
+}
+
+func ServiceBubbleRadii(fontHeight int) (normal, inverted, shrink int) {
+	normal = (tokens.MsgServicePadTop + fontHeight + tokens.MsgServicePadBottom) / 2
+	inverted = fontHeight - normal
+	shrink = (inverted * 2) / 3
+	return normal, inverted, shrink
+}
+
 func ServiceLastLineWidthAdd(lineWidths []int, badgeAdditionalWidth int) int {
 	if len(lineWidths) > 1 {
 		back := lineWidths[len(lineWidths)-1]
@@ -84,6 +118,11 @@ func CountServiceLineWidths(widths []int, lastLineWidthAdd int) []int {
 }
 
 func ServiceComplexBubbleParts(left, width int, lineWidths []int) []ServiceBubblePart {
+	return ServiceComplexBubblePartsFont(left, width, lineWidths, tokens.FontMsgService)
+}
+
+func ServiceComplexBubblePartsFont(left, width int, lineWidths []int, fontHeight int) []ServiceBubblePart {
+	_, _, shrinkBy := ServiceBubbleRadii(fontHeight)
 	parts := make([]ServiceBubblePart, 0, len(lineWidths))
 	y := tokens.MsgServiceMarginTop
 	previousRichWidth := 0
@@ -103,7 +142,7 @@ func ServiceComplexBubbleParts(left, width int, lineWidths []int) []ServiceBubbl
 			}
 		}
 		richWidth := lineWidth + tokens.MsgServicePadLeft + tokens.MsgServicePadRight
-		richHeight := tokens.FontMsgService
+		richHeight := fontHeight
 		if topSide == ServiceSideRounded {
 			richHeight += tokens.MsgServicePadTop
 		} else if topSide == ServiceSideInverted {
@@ -119,8 +158,8 @@ func ServiceComplexBubbleParts(left, width int, lineWidths []int) []ServiceBubbl
 		partWidth := richWidth
 		shrink := forceShrink || topSide == ServiceSideInverted || bottomSide == ServiceSideInverted
 		if shrink {
-			x += tokens.ServiceMsgInvertedShrink
-			partWidth -= 2 * tokens.ServiceMsgInvertedShrink
+			x += shrinkBy
+			partWidth -= 2 * shrinkBy
 		}
 		parts = append(parts, ServiceBubblePart{
 			Left:       x,
@@ -144,6 +183,58 @@ func ServiceComplexBubbleParts(left, width int, lineWidths []int) []ServiceBubbl
 		}
 	}
 	return parts
+}
+
+func ServiceBubbleOps(parts []ServiceBubblePart, normalRadius, invertedRadius int) []ServiceBubbleOp {
+	ops := make([]ServiceBubbleOp, 0, 3*len(parts))
+	for _, part := range parts {
+		op := ServiceBubbleOp{Kind: ServiceOpFill, Geometry: Geometry{
+			Left:   part.Left,
+			Top:    part.Top,
+			Width:  part.Width,
+			Height: part.Height,
+		}}
+		if part.TopSide == ServiceSideRounded {
+			op.TL = normalRadius
+			op.TR = normalRadius
+		}
+		if part.BottomSide == ServiceSideRounded {
+			op.BL = normalRadius
+			op.BR = normalRadius
+		}
+		ops = append(ops, op)
+		if part.TopSide == ServiceSideInverted {
+			ops = append(ops,
+				ServiceBubbleOp{Kind: ServiceOpFlare, Geometry: Geometry{
+					Left:   part.Left - invertedRadius,
+					Top:    part.Top,
+					Width:  invertedRadius,
+					Height: invertedRadius,
+				}, Cut: FlareCutBottomRight},
+				ServiceBubbleOp{Kind: ServiceOpFlare, Geometry: Geometry{
+					Left:   part.Left + part.Width,
+					Top:    part.Top,
+					Width:  invertedRadius,
+					Height: invertedRadius,
+				}, Cut: FlareCutBottomLeft})
+		}
+		if part.BottomSide == ServiceSideInverted {
+			ops = append(ops,
+				ServiceBubbleOp{Kind: ServiceOpFlare, Geometry: Geometry{
+					Left:   part.Left - invertedRadius,
+					Top:    part.Top + part.Height - invertedRadius,
+					Width:  invertedRadius,
+					Height: invertedRadius,
+				}, Cut: FlareCutTopRight},
+				ServiceBubbleOp{Kind: ServiceOpFlare, Geometry: Geometry{
+					Left:   part.Left + part.Width,
+					Top:    part.Top + part.Height - invertedRadius,
+					Width:  invertedRadius,
+					Height: invertedRadius,
+				}, Cut: FlareCutTopLeft})
+		}
+	}
+	return ops
 }
 
 func (p ServiceBubblePart) Bands() ServiceBands {

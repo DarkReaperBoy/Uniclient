@@ -54,6 +54,7 @@ type shapeResult struct {
 	descent     int
 	maxEnd      int
 	lastLineEnd int
+	lineEnds    []int
 }
 
 func (p *ChatPainter) shape(gtx layout.Context, fnt font.Font, size unit.Sp, s string, maxWidth int) shapeResult {
@@ -73,8 +74,8 @@ func (p *ChatPainter) shape(gtx layout.Context, fnt font.Font, size unit.Sp, s s
 			r.lines = 1
 			prevY = int(g.Y)
 			first = false
-		}
-		if int(g.Y) != prevY {
+		} else if int(g.Y) != prevY {
+			r.lineEnds = append(r.lineEnds, r.lastLineEnd)
 			r.lines++
 			prevY = int(g.Y)
 			r.lastLineEnd = 0
@@ -87,7 +88,25 @@ func (p *ChatPainter) shape(gtx layout.Context, fnt font.Font, size unit.Sp, s s
 			r.lastLineEnd = end
 		}
 	}
+	if !first {
+		r.lineEnds = append(r.lineEnds, r.lastLineEnd)
+	}
 	return r
+}
+
+func (p *ChatPainter) shapeLineWidths(gtx layout.Context, fnt font.Font, size unit.Sp, s string, maxWidth int) []int {
+	if s == "" {
+		return nil
+	}
+	r := p.shape(gtx, fnt, size, s, maxWidth)
+	widths := make([]int, len(r.lineEnds))
+	for i, e := range r.lineEnds {
+		if e < 0 {
+			e = 0
+		}
+		widths[i] = e
+	}
+	return widths
 }
 
 type metric struct {
@@ -245,19 +264,28 @@ func (p *ChatPainter) paintService(gtx layout.Context, item history.Item, viewWi
 		Height: g.Height - tokens.MsgServicePadTop - tokens.MsgServicePadBottom,
 	}
 	svcH := p.serviceLineHeight(gtx)
-	m := p.newMetric(gtx, fontSemibold, unit.Sp(tokens.FontMsgService), item.Text, 0, 0)
-	pill := history.ServicePill(g, m.width, svcH)
-	fillRRect(gtx, pill, history.ServicePillRadius(svcH), sch.InverseSurface)
-	p.label(gtx, trect, fontSemibold, unit.Sp(tokens.FontMsgService), item.Text, sch.InverseOnSurface)
-	if item.TimeText == "" {
-		return
-	}
 	dateM := p.newMetric(gtx, fontRegular, unit.Sp(tokens.FontMsgDate), item.TimeText, 0, 0)
 	badge := history.ServiceTimeBadgeMetrics(dateM.width, dateM.lineH, svcH)
-	if badge.Width <= 0 {
+	lineWidths := p.shapeLineWidths(gtx, fontSemibold, unit.Sp(tokens.FontMsgService), item.Text, trect.Width)
+	add := history.ServiceLastLineWidthAdd(lineWidths, badge.AdditionalWidth)
+	normal, inverted, _ := history.ServiceBubbleRadii(svcH)
+	parts := history.ServiceComplexBubblePartsFont(g.Left, g.Width,
+		history.CountServiceLineWidths(lineWidths, add), svcH)
+	dy := g.Top - tokens.MsgServiceMarginTop
+	for _, op := range history.ServiceBubbleOps(parts, normal, inverted) {
+		op.Geometry.Top += dy
+		if op.Kind == history.ServiceOpFlare {
+			fillFlare(gtx, op, sch.InverseSurface)
+		} else {
+			fillCorners(gtx, op, sch.InverseSurface)
+		}
+	}
+	p.label(gtx, trect, fontSemibold, unit.Sp(tokens.FontMsgService), item.Text, sch.InverseOnSurface)
+	if item.TimeText == "" || badge.Width <= 0 || len(lineWidths) == 0 {
 		return
 	}
-	x, y, _ := history.ServiceTimeBadgePosition(trect, m.width, badge.AdditionalWidth, svcH, badge.Height, 1)
+	x, y, _ := history.ServiceTimeBadgePosition(trect, lineWidths[len(lineWidths)-1],
+		badge.AdditionalWidth, svcH, badge.Height, len(lineWidths))
 	fillRRect(gtx, history.Geometry{Left: x, Top: y, Width: badge.Width, Height: badge.Height},
 		badge.Height/2, badgeBg)
 	p.label(gtx, history.Geometry{
@@ -348,29 +376,77 @@ func bubbleFill(gtx layout.Context, g history.Geometry, rounding history.BubbleR
 	paint.Fill(gtx.Ops, col)
 }
 
-func bubblePath(gtx layout.Context, g history.Geometry, radii [4]int, rounding history.BubbleRounding) clip.PathSpec {
+func openCornersPath(gtx layout.Context, g history.Geometry, tl, tr, bl, br int) *clip.Path {
 	x := float32(gtx.Dp(unit.Dp(g.Left)))
 	y := float32(gtx.Dp(unit.Dp(g.Top)))
 	w := float32(gtx.Dp(unit.Dp(g.Width)))
 	h := float32(gtx.Dp(unit.Dp(g.Height)))
-	tl := float32(gtx.Dp(unit.Dp(radii[0])))
-	tr := float32(gtx.Dp(unit.Dp(radii[1])))
-	bl := float32(gtx.Dp(unit.Dp(radii[2])))
-	br := float32(gtx.Dp(unit.Dp(radii[3])))
+	rtl := float32(gtx.Dp(unit.Dp(tl)))
+	rtr := float32(gtx.Dp(unit.Dp(tr)))
+	rbl := float32(gtx.Dp(unit.Dp(bl)))
+	rbr := float32(gtx.Dp(unit.Dp(br)))
+	path := &clip.Path{}
+	path.Begin(gtx.Ops)
+	path.MoveTo(f32.Pt(x+rtl, y))
+	path.LineTo(f32.Pt(x+w-rtr, y))
+	arc(path, x+w-rtr, y+rtr, rtr)
+	path.LineTo(f32.Pt(x+w, y+h-rbr))
+	arc(path, x+w-rbr, y+h-rbr, rbr)
+	path.LineTo(f32.Pt(x+rbl, y+h))
+	arc(path, x+rbl, y+h-rbl, rbl)
+	path.LineTo(f32.Pt(x, y+rtl))
+	arc(path, x+rtl, y+rtl, rtl)
+	return path
+}
+
+func fillCorners(gtx layout.Context, op history.ServiceBubbleOp, col color.NRGBA) {
+	path := openCornersPath(gtx, op.Geometry, op.TL, op.TR, op.BL, op.BR)
+	path.Close()
+	defer clip.Outline{Path: path.End()}.Op().Push(gtx.Ops).Pop()
+	paint.Fill(gtx.Ops, col)
+}
+
+func fillFlare(gtx layout.Context, op history.ServiceBubbleOp, col color.NRGBA) {
+	x := float32(gtx.Dp(unit.Dp(op.Geometry.Left)))
+	y := float32(gtx.Dp(unit.Dp(op.Geometry.Top)))
+	w := float32(gtx.Dp(unit.Dp(op.Geometry.Width)))
+	h := float32(gtx.Dp(unit.Dp(op.Geometry.Height)))
 	var path clip.Path
 	path.Begin(gtx.Ops)
-	path.MoveTo(f32.Pt(x+tl, y))
-	path.LineTo(f32.Pt(x+w-tr, y))
-	arc(&path, x+w-tr, y+tr, tr)
-	path.LineTo(f32.Pt(x+w, y+h-br))
-	arc(&path, x+w-br, y+h-br, br)
-	path.LineTo(f32.Pt(x+bl, y+h))
-	arc(&path, x+bl, y+h-bl, bl)
-	path.LineTo(f32.Pt(x, y+tl))
-	arc(&path, x+tl, y+tl, tl)
+	switch op.Cut {
+	case history.FlareCutBottomRight:
+		path.MoveTo(f32.Pt(x+w, y))
+		path.ArcTo(f32.Pt(x+w, y+h), f32.Pt(x+w, y+h), -math.Pi/2)
+		path.LineTo(f32.Pt(x, y))
+	case history.FlareCutBottomLeft:
+		path.MoveTo(f32.Pt(x, y))
+		path.ArcTo(f32.Pt(x, y+h), f32.Pt(x, y+h), math.Pi/2)
+		path.LineTo(f32.Pt(x+w, y))
+	case history.FlareCutTopRight:
+		path.MoveTo(f32.Pt(x+w, y+h))
+		path.ArcTo(f32.Pt(x+w, y), f32.Pt(x+w, y), math.Pi/2)
+		path.LineTo(f32.Pt(x, y+h))
+	case history.FlareCutTopLeft:
+		path.MoveTo(f32.Pt(x+w, y))
+		path.ArcTo(f32.Pt(x, y), f32.Pt(x, y), math.Pi/2)
+		path.LineTo(f32.Pt(x+w, y+h))
+	default:
+		return
+	}
+	path.Close()
+	defer clip.Outline{Path: path.End()}.Op().Push(gtx.Ops).Pop()
+	paint.Fill(gtx.Ops, col)
+}
+
+func bubblePath(gtx layout.Context, g history.Geometry, radii [4]int, rounding history.BubbleRounding) clip.PathSpec {
+	path := openCornersPath(gtx, g, radii[0], radii[1], radii[2], radii[3])
 	path.Close()
 	tailW := float32(gtx.Dp(unit.Dp(tokens.MsgTailWidth)))
 	tailH := float32(gtx.Dp(unit.Dp(tokens.MsgTailHeight)))
+	x := float32(gtx.Dp(unit.Dp(g.Left)))
+	y := float32(gtx.Dp(unit.Dp(g.Top)))
+	w := float32(gtx.Dp(unit.Dp(g.Width)))
+	h := float32(gtx.Dp(unit.Dp(g.Height)))
 	leftTail, rightTail := history.BubbleTails(rounding, false)
 	if leftTail {
 		path.MoveTo(f32.Pt(x, y+h-tailH))
