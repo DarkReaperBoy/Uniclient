@@ -4,8 +4,11 @@ import (
 	"testing"
 
 	. "uniclient/ui/dialogs"
+	"uniclient/ui/icons"
 	. "uniclient/ui/tokens"
 )
+
+var pinnedIconSize = icons.DialogsPinned.Cell.W
 
 func rowMetrics() Metrics {
 	return Metrics{
@@ -121,12 +124,12 @@ func TestDialogsRowPinnedAndMention(t *testing.T) {
 		t.Fatalf("pinned quiet row must paint the pinned icon: %+v", l.Badges)
 	}
 	pinned := l.Badges[0]
-	if pinned.Cell != (Rect{X: 300 - DialogsRowPadRight - DialogsIconSize, Y: DialogsRowTextTop, W: DialogsIconSize, H: DialogsIconSize}) {
-		t.Fatalf("pinned icon rect = %+v (top must be textTop, not badge top)", pinned.Cell)
+	if pinned.Cell != (Rect{X: 300 - DialogsRowPadRight - pinnedIconSize, Y: DialogsRowTextTop, W: pinnedIconSize, H: pinnedIconSize}) {
+		t.Fatalf("pinned icon rect = %+v (top must be textTop, right-aligned to the canvas)", pinned.Cell)
 	}
 	namewidth := 300 - DialogsRowNameLeft - DialogsRowPadRight
-	if l.Preview.W != namewidth-(DialogsIconSize+DialogsUnreadPadding) {
-		t.Fatalf("preview width = %d, want %d", l.Preview.W, namewidth-(DialogsIconSize+DialogsUnreadPadding))
+	if l.Preview.W != namewidth-(pinnedIconSize+DialogsUnreadPadding) {
+		t.Fatalf("preview width = %d, want %d", l.Preview.W, namewidth-(pinnedIconSize+DialogsUnreadPadding))
 	}
 
 	l = Layout(Entry{Name: "Alice", Date: "12:30", Unread: 5, Mention: true}, 300, m)

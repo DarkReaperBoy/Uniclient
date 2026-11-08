@@ -303,9 +303,10 @@ func (p *ChatPainter) paintMessage(gtx layout.Context, item history.Item, viewWi
 	}
 	mode := history.ChatModeFor(viewWidth)
 	dateM := p.newMetric(gtx, fontRegular, unit.Sp(tokens.FontMsgDate), item.TimeText, 0, 0)
+	hasTicks := item.Out || item.Sending
 	skipW := 0
 	if item.TimeText != "" {
-		skipW = history.SkipBlockWidth(dateM.width)
+		skipW = history.SkipBlockWidth(history.InfoWidth(dateM.width, hasTicks))
 	}
 	m := p.newMetric(gtx, fontRegular, unit.Sp(tokens.FontBase), item.Text, skipW, 0)
 	c := history.MessageCtx{
@@ -358,7 +359,7 @@ func (p *ChatPainter) paintMessage(gtx layout.Context, item history.Item, viewWi
 		}, fontRegular, unit.Sp(tokens.FontBase), item.Text, textColor(sch, item.Out))
 	}
 	if c.NeedInfo {
-		tx, ty, ix, iy := history.TimeLabel(g, dateM.width, dateM.lineH, dateM.lineH, item.Out)
+		tx, ty, ix, iy := history.TimeLabel(g, dateM.width, dateM.lineH, dateM.lineH, hasTicks)
 		p.label(gtx, history.Geometry{
 			Left:   tx,
 			Top:    ty,

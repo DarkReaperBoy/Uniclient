@@ -3,6 +3,7 @@ package dialogs
 import (
 	"image"
 
+	"uniclient/ui/icons"
 	"uniclient/ui/tokens"
 )
 
@@ -49,6 +50,7 @@ type Entry struct {
 	Pinned      bool
 	Online      bool
 	TTL         bool
+	TTLSec      int
 	ChatType    ChatType
 	SendState   SendState
 	Tagged      bool
@@ -238,11 +240,12 @@ func wideBadges(e Entry, width, textTop int, m Metrics) ([]Badge, int) {
 		})
 		right -= pillW + tokens.DialogsUnreadPadding
 	case e.Pinned:
+		pinned := icons.DialogsPinned.Cell.W
 		badges = append(badges, Badge{
 			Kind: BadgePinned,
-			Cell: Rect{X: right - tokens.DialogsIconSize, Y: textTop, W: tokens.DialogsIconSize, H: tokens.DialogsIconSize},
+			Cell: Rect{X: right - pinned, Y: textTop, W: pinned, H: pinned},
 		})
-		right -= tokens.DialogsIconSize + tokens.DialogsUnreadPadding
+		right -= pinned + tokens.DialogsUnreadPadding
 	}
 	if e.Mention || e.Reaction {
 		kind := BadgeReaction

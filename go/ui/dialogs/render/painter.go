@@ -19,9 +19,12 @@ import (
 	"gioui.org/text"
 	"gioui.org/unit"
 	"gioui.org/widget"
+	xdraw "golang.org/x/image/draw"
 	"golang.org/x/image/math/fixed"
+	stdraw "image/draw"
 
 	"uniclient/ui/dialogs"
+	"uniclient/ui/icons"
 	"uniclient/ui/material"
 	"uniclient/ui/tokens"
 )
@@ -112,7 +115,11 @@ func (p *Painter) PaintRow(gtx layout.Context, e dialogs.Entry, width int, sch m
 	dateM := p.measure(gtx, fontRegular, unit.Sp(tokens.FontDialogsDate), e.Date)
 	counter := dialogs.CounterText(e, narrow)
 	counterM := p.measure(gtx, fontBold, unit.Sp(tokens.FontDialogsUnread), counter)
-	l := dialogs.Layout(e, width, p.metrics(gtx, dateM, nameM, counterM))
+	m := p.metrics(gtx, dateM, nameM, counterM)
+	if e.ChatType != dialogs.ChatPlain {
+		m.ChatTypeIconW = dialogs.ChatTypeIcon(e.ChatType).Cell.W
+	}
+	l := dialogs.Layout(e, width, m)
 
 	bg := rowBackground(sch, state)
 	if state != RowNormal {
@@ -123,14 +130,23 @@ func (p *Painter) PaintRow(gtx layout.Context, e dialogs.Entry, width int, sch m
 	if e.Online {
 		p.onlineBadge(gtx, l.Online, bg)
 	}
+	if e.TTL {
+		p.ttlBadge(gtx, l, e, sch, bg)
+	}
 
 	if l.Narrow {
-		p.badges(gtx, l, counterM, counter, sch)
+		p.badges(gtx, l, counterM, counter, sch, state)
 		return
 	}
 
+	if e.ChatType != dialogs.ChatPlain {
+		fillGlyph(gtx, l.ChatTypeIcon.X, l.ChatTypeIcon.Y, dialogs.ChatTypeIcon(e.ChatType), iconInk(sch, state))
+	}
 	p.label(gtx, l.Name, fontSemibold, unit.Sp(tokens.FontBase), e.Name,
 		textColor(sch, state, sch.OnSurface, sch.OnPrimaryContainer))
+	if e.SendState != dialogs.SendHidden {
+		fillGlyph(gtx, l.SendStateIcon.X, l.SendStateIcon.Y, dialogs.SendStateIcon(e.SendState), sendStateInk(sch, state, e.SendState))
+	}
 	if l.DateX != 0 {
 		dateRect := dialogs.Rect{
 			X: l.DateX,
@@ -143,7 +159,7 @@ func (p *Painter) PaintRow(gtx layout.Context, e dialogs.Entry, width int, sch m
 	}
 	p.label(gtx, l.Preview, fontRegular, unit.Sp(tokens.FontBase), e.Preview,
 		textColor(sch, state, sch.OnSurfaceVariant, sch.OnPrimaryContainer))
-	p.badges(gtx, l, counterM, counter, sch)
+	p.badges(gtx, l, counterM, counter, sch, state)
 }
 
 func (p *Painter) PaintPane(gtx layout.Context, pane dialogs.Pane, sch material.Scheme) {
@@ -175,7 +191,7 @@ func (p *Painter) PaintPane(gtx layout.Context, pane dialogs.Pane, sch material.
 	}, tokens.ScrollBarRadius, scrollBarColor)
 }
 
-func (p *Painter) badges(gtx layout.Context, l dialogs.RowLayout, counterM measure, counter string, sch material.Scheme) {
+func (p *Painter) badges(gtx layout.Context, l dialogs.RowLayout, counterM measure, counter string, sch material.Scheme, state RowState) {
 	for _, b := range l.Badges {
 		switch b.Kind {
 		case dialogs.BadgeCounter:
@@ -197,6 +213,20 @@ func (p *Painter) badges(gtx layout.Context, l dialogs.RowLayout, counterM measu
 				bg = sch.SurfaceContainerHighest
 			}
 			fillCircle(gtx, b.Dot, bg)
+		case dialogs.BadgePinned:
+			fillGlyph(gtx, b.Cell.X, b.Cell.Y, dialogs.BadgeIcon(b.Kind), secondaryIconInk(sch, state))
+		case dialogs.BadgeMention, dialogs.BadgeReaction, dialogs.BadgePoll:
+			icon := dialogs.BadgeIcon(b.Kind)
+			if l.Narrow {
+				bg, ink := narrowBadgeColors(sch, b.Kind)
+				fillCircle(gtx, b.Cell, bg)
+				fillGlyph(gtx,
+					b.Cell.X+(b.Cell.W-icon.Cell.W)/2,
+					b.Cell.Y+(b.Cell.H-icon.Cell.H)/2,
+					icon, ink)
+			} else {
+				fillGlyph(gtx, b.Cell.X, b.Cell.Y, icon, accentIconInk(sch, state, b.Kind))
+			}
 		}
 	}
 }
@@ -243,6 +273,174 @@ func (p *Painter) onlineBadge(gtx layout.Context, r dialogs.Rect, bg color.NRGBA
 	defer stroke.Op().Push(gtx.Ops).Pop()
 	paint.Fill(gtx.Ops, bg)
 	fillCircle(gtx, r, presenceGreen)
+}
+
+func (p *Painter) ttlBadge(gtx layout.Context, l dialogs.RowLayout, e dialogs.Entry, sch material.Scheme, bg color.NRGBA) {
+	badge := l.TTL
+	back := dialogs.TTLBackdrop(p.ttlSource(e, sch, bg), image.Rect(
+		badge.X-l.Photo.X, badge.Y-l.Photo.Y,
+		badge.X-l.Photo.X+badge.W, badge.Y-l.Photo.Y+badge.H,
+	))
+
+	b := pxRect(gtx, badge)
+	aff := f32.Affine2D{}.Scale(f32.Point{}, f32.Point{
+		X: float32(b.Dx()) / float32(back.Bounds().Dx()),
+		Y: float32(b.Dy()) / float32(back.Bounds().Dy()),
+	}).Offset(f32.Pt(float32(b.Min.X), float32(b.Min.Y)))
+	stk := op.Affine(aff).Push(gtx.Ops)
+	clipC := clip.Ellipse(image.Rect(0, 0, b.Dx(), b.Dy())).Push(gtx.Ops)
+	paint.NewImageOp(back).Add(gtx.Ops)
+	clipC.Pop()
+	stk.Pop()
+
+	inner := dialogs.TTLTimerRect(badge)
+	scale := float32(gtx.Dp(unit.Dp(1)))
+	fillContour(gtx, icons.TimerSolidArc(
+		float32(inner.X), float32(inner.Y), float32(inner.W), float32(inner.H),
+	), scale, dialogs.TTLTimerInk)
+	for _, d := range icons.TimerDots(
+		float32(inner.X), float32(inner.Y), float32(inner.W), float32(inner.H),
+	) {
+		fillDot(gtx, d.X*scale, d.Y*scale, d.R*scale, dialogs.TTLTimerInk)
+	}
+	text := dialogs.TimerClamp(dialogs.FormatTTLTiny(e.TTLSec))
+	if text != "" {
+		m := p.measure(gtx, fontSemibold, unit.Sp(icons.TimerFontSize), text)
+		p.label(gtx, dialogs.Rect{
+			X: inner.X + (inner.W-int(gtx.Metric.PxToDp(m.w)))/2,
+			Y: inner.Y + (inner.H-int(gtx.Metric.PxToDp(m.ascent+m.descent)))/2,
+			W: int(gtx.Metric.PxToDp(m.w)),
+			H: int(gtx.Metric.PxToDp(m.ascent + m.descent)),
+		}, fontSemibold, unit.Sp(icons.TimerFontSize), text, dialogs.TTLTimerInk)
+	}
+}
+
+func (p *Painter) ttlSource(e dialogs.Entry, sch material.Scheme, bg color.NRGBA) *image.NRGBA {
+	size := tokens.DialogsRowPhotoSize
+	img := image.NewNRGBA(image.Rect(0, 0, size, size))
+	stdraw.Draw(img, img.Bounds(), image.NewUniform(bg), image.Point{}, stdraw.Src)
+	if e.Photo != nil {
+		scaled := image.NewNRGBA(image.Rect(0, 0, size, size))
+		xdraw.BiLinear.Scale(scaled, scaled.Bounds(), e.Photo, e.Photo.Bounds(), xdraw.Src, nil)
+		stdraw.DrawMask(img, img.Bounds(), scaled, image.Point{}, circleAlpha(size), image.Point{}, stdraw.Over)
+	} else {
+		stdraw.DrawMask(img, img.Bounds(), image.NewUniform(userpicColor(e.Name, sch)), image.Point{}, circleAlpha(size), image.Point{}, stdraw.Over)
+	}
+	return img
+}
+
+func circleAlpha(size int) *image.Alpha {
+	m := image.NewAlpha(image.Rect(0, 0, size, size))
+	r := float64(size) / 2
+	for y := 0; y < size; y++ {
+		for x := 0; x < size; x++ {
+			dx := float64(x) + 0.5 - r
+			dy := float64(y) + 0.5 - r
+			if dx*dx+dy*dy <= r*r {
+				m.SetAlpha(x, y, color.Alpha{A: 255})
+			}
+		}
+	}
+	return m
+}
+
+func iconInk(sch material.Scheme, state RowState) color.NRGBA {
+	if state == RowActive {
+		return sch.OnPrimaryContainer
+	}
+	return sch.OnSurface
+}
+
+func secondaryIconInk(sch material.Scheme, state RowState) color.NRGBA {
+	if state == RowActive {
+		return sch.OnPrimaryContainer
+	}
+	return sch.OnSurfaceVariant
+}
+
+func sendStateInk(sch material.Scheme, state RowState, s dialogs.SendState) color.NRGBA {
+	if state == RowActive {
+		return sch.OnPrimaryContainer
+	}
+	if s == dialogs.SendSending {
+		return sch.OnSurfaceVariant
+	}
+	return sch.Primary
+}
+
+func accentIconInk(sch material.Scheme, state RowState, kind dialogs.BadgeKind) color.NRGBA {
+	if state == RowActive {
+		return sch.OnPrimaryContainer
+	}
+	switch kind {
+	case dialogs.BadgeReaction:
+		return sch.Error
+	case dialogs.BadgePoll:
+		return sch.Tertiary
+	default:
+		return sch.Primary
+	}
+}
+
+func narrowBadgeColors(sch material.Scheme, kind dialogs.BadgeKind) (bg, ink color.NRGBA) {
+	switch kind {
+	case dialogs.BadgeReaction:
+		return sch.Error, sch.OnError
+	case dialogs.BadgePoll:
+		return sch.Tertiary, sch.OnTertiary
+	default:
+		return sch.Primary, sch.OnPrimary
+	}
+}
+
+func fillGlyph(gtx layout.Context, x, y int, icon icons.Icon, col color.NRGBA) {
+	if icon.Cell.W <= 0 || len(icon.Glyph.Paths) == 0 {
+		return
+	}
+	scale := float32(gtx.Dp(unit.Dp(1)))
+	gx := float32(gtx.Dp(unit.Dp(x + icon.Cell.X)))
+	gy := float32(gtx.Dp(unit.Dp(y + icon.Cell.Y)))
+	var path clip.Path
+	path.Begin(gtx.Ops)
+	for _, contour := range icon.Glyph.Paths {
+		if len(contour) < 3 {
+			continue
+		}
+		path.MoveTo(f32.Pt(gx+contour[0].X*scale, gy+contour[0].Y*scale))
+		for _, v := range contour[1:] {
+			path.LineTo(f32.Pt(gx+v.X*scale, gy+v.Y*scale))
+		}
+		path.Close()
+	}
+	defer clip.Outline{Path: path.End()}.Op().Push(gtx.Ops).Pop()
+	paint.Fill(gtx.Ops, col)
+}
+
+func fillContour(gtx layout.Context, verts []icons.Vertex, scale float32, col color.NRGBA) {
+	if len(verts) < 3 {
+		return
+	}
+	var path clip.Path
+	path.Begin(gtx.Ops)
+	path.MoveTo(f32.Pt(verts[0].X*scale, verts[0].Y*scale))
+	for _, v := range verts[1:] {
+		path.LineTo(f32.Pt(v.X*scale, v.Y*scale))
+	}
+	path.Close()
+	defer clip.Outline{Path: path.End()}.Op().Push(gtx.Ops).Pop()
+	paint.Fill(gtx.Ops, col)
+}
+
+func fillDot(gtx layout.Context, x, y, r float32, col color.NRGBA) {
+	rect := image.Rect(
+		int(math.Round(float64(x-r))), int(math.Round(float64(y-r))),
+		int(math.Round(float64(x+r))), int(math.Round(float64(y+r))),
+	)
+	if rect.Empty() {
+		return
+	}
+	defer clip.Ellipse(rect).Push(gtx.Ops).Pop()
+	paint.Fill(gtx.Ops, col)
 }
 
 func (p *Painter) label(gtx layout.Context, r dialogs.Rect, fnt font.Font, size unit.Sp, s string, col color.NRGBA) {

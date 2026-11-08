@@ -91,6 +91,13 @@ func DateBadgeHeight(serviceFontHeight int) int {
 		tokens.MsgServicePadBottom + tokens.MsgServiceMarginBottom
 }
 
+func InfoWidth(dateWidth int, hasTicks bool) int {
+	if hasTicks {
+		return dateWidth + tokens.HistorySendStateSpace
+	}
+	return dateWidth
+}
+
 func SkipBlockWidth(infoWidth int) int {
 	return tokens.MsgDateSpace + infoWidth - tokens.MsgDateDeltaX
 }
