@@ -144,3 +144,79 @@ func (d *Document) MoveVertical(offset int, goalX int, hasGoalX bool, up bool) (
 	}
 	return d.Lines[target].Start + d.XToColumn(target, goalX), goalX
 }
+
+func splice(runes []rune, lo, hi int, ins []rune) []rune {
+	out := make([]rune, 0, len(runes)-(hi-lo)+len(ins))
+	out = append(out, runes[:lo]...)
+	out = append(out, ins...)
+	out = append(out, runes[hi:]...)
+	return out
+}
+
+func (d *Document) clampOffset(v int) int {
+	if v < 0 {
+		return 0
+	}
+	if v > len(d.Text) {
+		return len(d.Text)
+	}
+	return v
+}
+
+func (d *Document) selectionRange(offset, anchor int) (int, int) {
+	offset = d.clampOffset(offset)
+	anchor = d.clampOffset(anchor)
+	if offset <= anchor {
+		return offset, anchor
+	}
+	return anchor, offset
+}
+
+func (d *Document) InsertAt(offset, anchor int, s string) (string, int) {
+	ins := []rune(s)
+	lo, hi := d.selectionRange(offset, anchor)
+	if lo == hi {
+		return string(splice(d.Text, lo, lo, ins)), lo + len(ins)
+	}
+	return string(splice(d.Text, lo, hi, ins)), lo + len(ins)
+}
+
+func (d *Document) DeleteBackward(offset, anchor int) (string, int) {
+	lo, hi := d.selectionRange(offset, anchor)
+	if lo != hi {
+		return string(splice(d.Text, lo, hi, nil)), lo
+	}
+	if lo == 0 {
+		return string(d.Text), 0
+	}
+	return string(splice(d.Text, lo-1, lo, nil)), lo - 1
+}
+
+func (d *Document) DeleteForward(offset, anchor int) (string, int) {
+	lo, hi := d.selectionRange(offset, anchor)
+	if lo != hi {
+		return string(splice(d.Text, lo, hi, nil)), lo
+	}
+	if lo >= len(d.Text) {
+		return string(d.Text), lo
+	}
+	return string(splice(d.Text, lo, lo+1, nil)), lo
+}
+
+func (d *Document) DeleteWordBackward(offset, anchor int) (string, int) {
+	lo, hi := d.selectionRange(offset, anchor)
+	if lo != hi {
+		return string(splice(d.Text, lo, hi, nil)), lo
+	}
+	from := d.MoveWordLeft(lo)
+	return string(splice(d.Text, from, lo, nil)), from
+}
+
+func (d *Document) DeleteWordForward(offset, anchor int) (string, int) {
+	lo, hi := d.selectionRange(offset, anchor)
+	if lo != hi {
+		return string(splice(d.Text, lo, hi, nil)), lo
+	}
+	to := d.MoveWordRight(lo)
+	return string(splice(d.Text, lo, to, nil)), lo
+}

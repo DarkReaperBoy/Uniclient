@@ -9,17 +9,17 @@ owner order — that history lives in git if ever needed.
 
 - front: session 401 — the field text-engine core landed (metrics,
   wrap, cursor, placeholder, selection spans, caret rect, scroll,
-  the full movement law set: line/word/vertical + goal-x)
+  the full movement + editing law set)
 - next: the compose bar painter + Elm wiring (ChatComposeState
   riding resize/field msgs — the engine can now type, wrap, select,
   scroll); schedule/save/cancel glyphs when their types get painted;
   real font metrics adapter when the gio shaper lands
 - owner-waiting: none
-- last-gate: quick GREEN (401 scope, four atomics); js/wasm
-  compile ui/... GREEN; comment ban clean; 395 tests (229 ui +
-  153 gui + 13 text) green locally; verify 42524452324 (95ef00d9)
-  SUCCESS job+step; 42524984339 (33c91877) + 42525180686
-  (b9766fe5) in flight
+- last-gate: quick GREEN (401 scope, five atomics); js/wasm
+  compile ui/... GREEN; comment ban clean; 398 tests (229 ui +
+  153 gui + 16 text) green locally; verifies 42524452324 /
+  42524984339 / 42525180686 SUCCESS job+step; 42526186953
+  (d800e782) in flight
 
 ## Open items
 
@@ -95,7 +95,17 @@ owner order — that history lives in git if ever needed.
   −5/+5 pad is horizontal-only (compose never hscrolls, word wrap
   on). Go: ComposeFieldScrollOffset(current, content, view,
   cursorY, cursorH). RED → GREEN clean, 1 test.
-- Atomic 4 (this): the cursor movement law set. Qt source:
+- Atomic 5 (this): the editing op set. Qt law: insertText
+  (qtextcursor.cpp 1385+) — selection deleted and replaced,
+  cursor lands AFTER the inserted text; backspace/delete via
+  removeSelectedText when a selection exists, else remove the
+  char before/after; word variants remove [MoveWordLeft(p), p)
+  / [p, MoveWordRight(p)); '\n' inserts are block separators
+  (flat: the rune itself); no-ops at doc edges. Go: ui/text
+  InsertAt/DeleteBackward/DeleteForward/DeleteWordBackward/
+  DeleteWordForward → (newText, newCursor), clamp+range helpers
+  shared. RED → GREEN after 1 test-side selection-slip of mine
+  ([4,9) = "two.t" not the whole tail — engine right). Qt source:
   QTextCursorPrivate::movePosition (qtextcursor.cpp 305-640) —
   Left/Right = ∓1 with selection collapse to min/max (MoveAnchor);
   StartOfLine = line start; EndOfLine = Start + visible length,
@@ -121,10 +131,11 @@ owner order — that history lives in git if ever needed.
   CursorAt/SelectionSpans. RED → GREEN after 1 of my own
   test-arithmetic errors (deep-up goal: offset 7 = col 2 x16,
   not col 3 — engine was right).
-- 23 new tests this session (14+3+1+5), 395 total = 229 ui +
-  153 gui + 13 text. quick GREEN all commits; js/wasm compile
-  ui/... GREEN; comment ban clean. WORKLOG pruned (sessions ≤383
-  cut; 346→~300 lines).
+- 26 new tests this session (14+3+1+5+3), 398 total = 229 ui +
+  153 gui + 16 text. quick GREEN all commits; js/wasm compile
+  ui/... GREEN; comment ban clean. Verifies: 42524452324 /
+  42524984339 / 42525180686 all SUCCESS job+step; 42526186953
+  in flight. WORKLOG pruned (sessions ≤383 cut; 346→~300 lines).
 
 ## Session 400 — the compose-bar glyph trio (2026-11-09)
 

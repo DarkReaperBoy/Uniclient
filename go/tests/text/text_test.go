@@ -401,3 +401,95 @@ func TestMoveVertical(t *testing.T) {
 		t.Fatalf("empty up = (%d, %d), want (0, 0)", off, gx)
 	}
 }
+
+func TestInsertAt(t *testing.T) {
+	doc := Layout("abcdef", 200, mono(8, 16))
+	cases := []struct {
+		offset, anchor int
+		insert         string
+		wantText       string
+		wantCursor     int
+	}{
+		{3, 3, "xy", "abcxydef", 5},
+		{2, 5, "Z", "abZf", 3},
+		{5, 2, "Z", "abZf", 3},
+		{0, 0, "hi", "hiabcdef", 2},
+		{6, 6, "!", "abcdef!", 7},
+		{2, 5, "", "abf", 2},
+	}
+	for _, c := range cases {
+		text, cursor := doc.InsertAt(c.offset, c.anchor, c.insert)
+		if text != c.wantText || cursor != c.wantCursor {
+			t.Fatalf("InsertAt(%d,%d,%q) = (%q,%d), want (%q,%d)",
+				c.offset, c.anchor, c.insert, text, cursor, c.wantText, c.wantCursor)
+		}
+	}
+	empty := Layout("", 200, mono(8, 16))
+	if text, cursor := empty.InsertAt(0, 0, "hi"); text != "hi" || cursor != 2 {
+		t.Fatalf("empty InsertAt = (%q,%d)", text, cursor)
+	}
+}
+
+func TestDeleteBackwardForward(t *testing.T) {
+	doc := Layout("abcdef", 200, mono(8, 16))
+	cases := []struct {
+		name           string
+		offset, anchor int
+		wantText       string
+		wantCursor     int
+	}{
+		{"back", 3, 3, "abdef", 2},
+		{"back-at-0", 0, 0, "abcdef", 0},
+		{"back-sel", 2, 5, "abf", 2},
+		{"back-sel-rev", 5, 2, "abf", 2},
+	}
+	for _, c := range cases {
+		text, cursor := doc.DeleteBackward(c.offset, c.anchor)
+		if text != c.wantText || cursor != c.wantCursor {
+			t.Fatalf("%s = (%q,%d), want (%q,%d)", c.name, text, cursor, c.wantText, c.wantCursor)
+		}
+	}
+	fwd := []struct {
+		name           string
+		offset, anchor int
+		wantText       string
+		wantCursor     int
+	}{
+		{"fwd", 1, 1, "acdef", 1},
+		{"fwd-at-end", 6, 6, "abcdef", 6},
+		{"fwd-sel", 2, 5, "abf", 2},
+	}
+	for _, c := range fwd {
+		text, cursor := doc.DeleteForward(c.offset, c.anchor)
+		if text != c.wantText || cursor != c.wantCursor {
+			t.Fatalf("%s = (%q,%d), want (%q,%d)", c.name, text, cursor, c.wantText, c.wantCursor)
+		}
+	}
+	nl := Layout("ab\nxy", 200, mono(8, 16))
+	if text, cursor := nl.DeleteBackward(3, 3); text != "abxy" || cursor != 2 {
+		t.Fatalf("newline merge = (%q,%d), want (abxy,2)", text, cursor)
+	}
+}
+
+func TestDeleteWords(t *testing.T) {
+	doc := Layout("one two.three", 200, mono(8, 16))
+	if text, cursor := doc.DeleteWordBackward(8, 8); text != "one twothree" || cursor != 7 {
+		t.Fatalf("DeleteWordBackward(8) = (%q,%d), want (one twothree,7)", text, cursor)
+	}
+	if text, cursor := doc.DeleteWordBackward(0, 0); text != "one two.three" || cursor != 0 {
+		t.Fatalf("DeleteWordBackward(0) = (%q,%d)", text, cursor)
+	}
+	if text, cursor := doc.DeleteWordBackward(4, 9); text != "one hree" || cursor != 4 {
+		t.Fatalf("DeleteWordBackward sel = (%q,%d), want (one hree,4)", text, cursor)
+	}
+	two := Layout("one two", 200, mono(8, 16))
+	if text, cursor := two.DeleteWordForward(4, 4); text != "one " || cursor != 4 {
+		t.Fatalf("DeleteWordForward(4) = (%q,%d), want (one ,4)", text, cursor)
+	}
+	if text, cursor := doc.DeleteWordForward(3, 3); text != "onetwo.three" || cursor != 3 {
+		t.Fatalf("DeleteWordForward(3) = (%q,%d), want (onetwo.three,3)", text, cursor)
+	}
+	if text, cursor := doc.DeleteWordForward(13, 13); text != "one two.three" || cursor != 13 {
+		t.Fatalf("DeleteWordForward(end) = (%q,%d)", text, cursor)
+	}
+}
