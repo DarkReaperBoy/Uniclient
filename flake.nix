@@ -50,7 +50,10 @@
           doCheck = false; # run `make test` in the dev shell
           # Reported by the first real build (the placeholder hash fails
           # the go-modules fixed-output derivation with the correct one).
-          vendorHash = "sha256-a0wRykh/h5lS4MsmDT39Q8zybDm8xl/pjJMBkE1VpO0=";
+          # Rotated 2026-11-08: the dialogs row painter leg vendored
+          # golang.org/x/image/draw (x/image v0.26.0 was already a
+          # dependency; only the vendored package set grew).
+          vendorHash = "sha256-alPAltwqiuvVuqpR8LOmdarzR1uu8U+tLJZMR5VQ0nI=";
           # -trimpath belongs to `go build`, NOT to the linker: `go tool link`
           # dies with "flag provided but not defined: -trimpath". nixpkgs
           # already injects -trimpath through GOFLAGS (module.nix adds it when
