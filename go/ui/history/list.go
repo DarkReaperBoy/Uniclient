@@ -13,16 +13,26 @@ const (
 )
 
 type Item struct {
-	Kind           ItemKind
-	Text           string
-	Out            bool
-	AttachedTop    bool
-	AttachedBottom bool
-	SkipTail       bool
-	Sending        bool
-	Unread         bool
-	FromName       string
-	TimeText       string
+	Kind            ItemKind
+	Text            string
+	Out             bool
+	AttachedTop     bool
+	AttachedBottom  bool
+	SkipTail        bool
+	Sending         bool
+	Unread          bool
+	FromName        string
+	TimeText        string
+	DateText        string
+	HideDisplayDate bool
+	Empty           bool
+	Sponsored       bool
+	Hidden          bool
+	UnreadBar       string
+}
+
+func (it Item) hideDisplayDate() bool {
+	return it.Empty || it.HideDisplayDate
 }
 
 type List struct {
@@ -122,6 +132,7 @@ type ChatPane struct {
 	Rows    []Item
 	Ys      []int
 	Heights []int
+	Bars    []Bars
 }
 
 func (l List) Pane(v Viewport, width int) ChatPane {
@@ -130,14 +141,17 @@ func (l List) Pane(v Viewport, width int) ChatPane {
 	if count <= 0 {
 		return pane
 	}
+	bars := ComposeBars(l.Items)
 	pane.Rows = make([]Item, count)
 	pane.Ys = make([]int, count)
 	pane.Heights = make([]int, count)
+	pane.Bars = make([]Bars, count)
 	for i := 0; i < count; i++ {
 		idx := first + i
 		pane.Rows[i] = l.Items[idx]
 		pane.Ys[i] = l.rowTop(idx)
 		pane.Heights[i] = l.RowHeight(idx)
+		pane.Bars[i] = bars[idx]
 	}
 	return pane
 }

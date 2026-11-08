@@ -130,6 +130,9 @@ const (
 	HistoryPaddingBottom       = 8
 	HistoryUnreadBarHeight     = 32
 	HistoryUnreadBarMargin     = 3
+	HistoryUnreadBarFontHeight = FontMsgService
+	UnreadPillPadding          = 12
+	LineWidth                  = 1
 	HistoryPhotoBubbleMinWidth = 200
 
 	ComposeFieldHeightMin  = 36

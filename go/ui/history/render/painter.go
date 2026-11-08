@@ -180,7 +180,7 @@ func (p *ChatPainter) serviceLineHeight(gtx layout.Context) int {
 	return r.ascent + r.descent
 }
 
-func (p *ChatPainter) MeasureItem(gtx layout.Context, item history.Item, viewWidth int) int {
+func (p *ChatPainter) measureItem(gtx layout.Context, item history.Item, bar history.Bars, viewWidth int) int {
 	mode := history.ChatModeFor(viewWidth)
 	if item.Kind == history.ItemService {
 		svcH := p.serviceLineHeight(gtx)
@@ -192,7 +192,7 @@ func (p *ChatPainter) MeasureItem(gtx layout.Context, item history.Item, viewWid
 		}
 		m := p.newMetric(gtx, fontSemibold, unit.Sp(tokens.FontMsgService), item.Text, skipW, skipH)
 		t := m.text()
-		c := history.ServiceCtx{Mode: mode, HasText: item.Text != ""}
+		c := history.ServiceCtx{Mode: mode, HasText: item.Text != "", Bars: bar}
 		return history.ServiceHeight(viewWidth, t.MaxWidth, t.MinHeight, t, c)
 	}
 	dateM := p.newMetric(gtx, fontRegular, unit.Sp(tokens.FontMsgDate), item.TimeText, 0, 0)
@@ -210,6 +210,7 @@ func (p *ChatPainter) MeasureItem(gtx layout.Context, item history.Item, viewWid
 		VisibleText: item.Text != "",
 		FromName:    item.FromName != "",
 		NeedInfo:    item.TimeText != "",
+		Bars:        bar,
 	}
 	nameM := p.newMetric(gtx, fontSemibold, unit.Sp(tokens.FontMsgName), item.FromName, 0, 0)
 	nameLine := 0
@@ -223,10 +224,15 @@ func (p *ChatPainter) MeasureItem(gtx layout.Context, item history.Item, viewWid
 		dateM.lineH, 0, t, c, fonts)
 }
 
+func (p *ChatPainter) MeasureItem(gtx layout.Context, item history.Item, viewWidth int) int {
+	return p.measureItem(gtx, item, history.Bars{}, viewWidth)
+}
+
 func (p *ChatPainter) Measure(gtx layout.Context, items []history.Item, viewWidth int) []int {
+	bars := history.ComposeBars(items)
 	heights := make([]int, len(items))
 	for i := range items {
-		heights[i] = p.MeasureItem(gtx, items[i], viewWidth)
+		heights[i] = p.measureItem(gtx, items[i], bars[i], viewWidth)
 	}
 	return heights
 }
@@ -243,23 +249,40 @@ func (p *ChatPainter) PaintChatPane(gtx layout.Context, pane history.ChatPane, s
 	if pane.Count <= 0 {
 		return
 	}
+	mode := history.ChatModeFor(pane.Width)
 	for i := range pane.Rows {
 		stk := op.Offset(image.Pt(0, gtx.Dp(unit.Dp(pane.Ys[i]-pane.View.Top)))).Push(gtx.Ops)
+		var bar history.Bars
+		if i < len(pane.Bars) {
+			bar = pane.Bars[i]
+		}
+		if bar.Unread > 0 {
+			p.paintUnreadBar(gtx, pane.Rows[i], pane.Width, mode, bar, sch)
+		}
 		if pane.Rows[i].Kind == history.ItemService {
-			p.paintService(gtx, pane.Rows[i], pane.Width, pane.Heights[i], sch)
+			p.paintService(gtx, pane.Rows[i], bar, pane.Width, pane.Heights[i], sch)
 		} else {
-			p.paintMessage(gtx, pane.Rows[i], pane.Width, pane.Heights[i], sch)
+			p.paintMessage(gtx, pane.Rows[i], bar, pane.Width, pane.Heights[i], sch)
 		}
 		stk.Pop()
 	}
+	for i := range pane.Rows {
+		var bar history.Bars
+		if i < len(pane.Bars) {
+			bar = pane.Bars[i]
+		}
+		if bar.Date > 0 {
+			p.paintDateBadge(gtx, pane.Rows[i], pane.Width, mode, sch)
+		}
+	}
 }
 
-func (p *ChatPainter) paintService(gtx layout.Context, item history.Item, viewWidth, rowHeight int, sch material.Scheme) {
+func (p *ChatPainter) paintService(gtx layout.Context, item history.Item, bar history.Bars, viewWidth, rowHeight int, sch material.Scheme) {
 	if rowHeight <= 0 {
 		return
 	}
 	mode := history.ChatModeFor(viewWidth)
-	c := history.ServiceCtx{Mode: mode, HasText: item.Text != ""}
+	c := history.ServiceCtx{Mode: mode, HasText: item.Text != "", Bars: bar}
 	g := history.ServiceGeometry(viewWidth, rowHeight, c)
 	trect := history.Geometry{
 		Left:   g.Left + tokens.MsgServicePadLeft,
@@ -300,7 +323,7 @@ func (p *ChatPainter) paintService(gtx layout.Context, item history.Item, viewWi
 	}, fontRegular, unit.Sp(tokens.FontMsgDate), item.TimeText, sch.InverseOnSurface)
 }
 
-func (p *ChatPainter) paintMessage(gtx layout.Context, item history.Item, viewWidth, rowHeight int, sch material.Scheme) {
+func (p *ChatPainter) paintMessage(gtx layout.Context, item history.Item, bar history.Bars, viewWidth, rowHeight int, sch material.Scheme) {
 	if rowHeight <= 0 {
 		return
 	}
@@ -320,6 +343,7 @@ func (p *ChatPainter) paintMessage(gtx layout.Context, item history.Item, viewWi
 		VisibleText: item.Text != "",
 		FromName:    item.FromName != "",
 		NeedInfo:    item.TimeText != "",
+		Bars:        bar,
 	}
 	nameM := p.newMetric(gtx, fontSemibold, unit.Sp(tokens.FontMsgName), item.FromName, 0, 0)
 	nameLine := 0
@@ -373,6 +397,26 @@ func (p *ChatPainter) paintMessage(gtx layout.Context, item history.Item, viewWi
 			fillGlyph(gtx, ix, iy, icon, timeColor(sch, item.Out))
 		}
 	}
+}
+
+func (p *ChatPainter) paintUnreadBar(gtx layout.Context, item history.Item, viewWidth int, mode history.ChatMode, bar history.Bars, sch material.Scheme) {
+	m := p.newMetric(gtx, fontSemibold, unit.Sp(tokens.HistoryUnreadBarFontHeight), item.UnreadBar, 0, 0)
+	if m.width <= 0 {
+		return
+	}
+	g := history.UnreadBarGeometry(bar.Date+bar.Thread, viewWidth, mode, m.width, m.lineH)
+	fillPill(gtx, g.Pill, g.Radius, sch.SurfaceContainerLowest)
+	p.label(gtx, g.Text, fontSemibold, unit.Sp(tokens.HistoryUnreadBarFontHeight), item.UnreadBar, sch.Primary)
+}
+
+func (p *ChatPainter) paintDateBadge(gtx layout.Context, item history.Item, viewWidth int, mode history.ChatMode, sch material.Scheme) {
+	m := p.newMetric(gtx, fontSemibold, unit.Sp(tokens.FontMsgService), item.DateText, 0, 0)
+	if m.width <= 0 {
+		return
+	}
+	g := history.DateBadgeGeometry(0, viewWidth, mode, m.width, m.lineH)
+	fillRRect(gtx, g.Bubble, tokens.ServiceMsgRadius, sch.InverseSurface)
+	p.label(gtx, g.Text, fontSemibold, unit.Sp(tokens.FontMsgService), item.DateText, sch.InverseOnSurface)
 }
 
 func bubbleFill(gtx layout.Context, g history.Geometry, rounding history.BubbleRounding, col, shadow color.NRGBA) {
@@ -541,6 +585,33 @@ func fillRRect(gtx layout.Context, r history.Geometry, radius int, col color.NRG
 		gtx.Dp(unit.Dp(r.Top+r.Height)),
 	)
 	defer clip.UniformRRect(rect, gtx.Dp(unit.Dp(radius))).Push(gtx.Ops).Pop()
+	paint.Fill(gtx.Ops, col)
+}
+
+func fillPill(gtx layout.Context, r history.Geometry, radius float32, col color.NRGBA) {
+	x := float32(gtx.Dp(unit.Dp(r.Left)))
+	y := float32(gtx.Dp(unit.Dp(r.Top)))
+	w := float32(gtx.Dp(unit.Dp(r.Width)))
+	h := float32(gtx.Dp(unit.Dp(r.Height)))
+	if radius > h/2 {
+		radius = h / 2
+	}
+	if radius > w/2 {
+		radius = w / 2
+	}
+	var path clip.Path
+	path.Begin(gtx.Ops)
+	path.MoveTo(f32.Pt(x+radius, y))
+	path.LineTo(f32.Pt(x+w-radius, y))
+	arc(&path, x+w-radius, y+radius, radius)
+	path.LineTo(f32.Pt(x+w, y+h-radius))
+	arc(&path, x+w-radius, y+h-radius, radius)
+	path.LineTo(f32.Pt(x+radius, y+h))
+	arc(&path, x+radius, y+h-radius, radius)
+	path.LineTo(f32.Pt(x, y+radius))
+	arc(&path, x+radius, y+radius, radius)
+	path.Close()
+	defer clip.Outline{Path: path.End()}.Op().Push(gtx.Ops).Pop()
 	paint.Fill(gtx.Ops, col)
 }
 
