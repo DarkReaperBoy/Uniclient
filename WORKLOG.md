@@ -7,52 +7,22 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 391 — chat item
-  interaction landed as
-  80aff2a9 (the message-leg
-  mouse machine: press records
-  the over-state — row via
-  strictFindItemByY, PointState
-  from the HitBox geometry,
-  Date cursor from the TimeRect;
-  branch order: in selection
-  mode overSelected ->
-  PrepareDrag else PrepareSelect,
-  time zone -> PrepareDrag,
-  body -> Selecting, margin ->
-  PrepareSelect; drags degrade
-  PrepareDrag->Dragging and
-  PrepareSelect->Selecting past
-  10px or a row change; finish
-  inverts in selection mode,
-  else the release-point Date
-  cursor selects; touch tap
-  synthesizes press+finish;
-  ChangeSelection with the
-  100-item cap and the
-  !service/!empty gate,
-  copy-on-write; Measure emits
-  per-row HitBoxes; the window
-  filters non-primary mouse
-  presses/releases via the
-  chatPrimary flag); verify
-  42493085300 SUCCESS at job
-  AND step level — closed
+- front: session 392 — chat top-edge preload landed as 6ba120d5
+  (history.List.PreloadTopNeeded = strict `Top < 2*Height` over non-empty
+  items, per checkMoveToOtherViewer 2347-2433; fired from every scroll-class
+  surface: scrolled / wheel / trackpad / measured-chain / resized /
+  tick-fling / touch-drag, engine-side dedup per the dialogs precedent;
+  ChatLoaded/ChatPrepended carry MoreAbove; a prepend stores the viewport
+  top, drops heights/hits/selection/press, and ChatMeasured compensates by
+  the summed prepended-row heights so the view never jumps; the
+  findGoodAbove/Below anchor scan + symmetric bottom edge defer until rows
+  carry IDs); verify 42496692212 SUCCESS at job AND step level — closed
   green
-- next: chat preload/pagination
-  at the top edge; after that
-  the floating scroll-date
-  (scroll-tied stick-to-top +
-  opacity, needs scroll-state
-  plumbing from the 388 leg)
+- next: floating scroll-date (scroll-tied stick-to-top + opacity, needs
+  scroll-state plumbing from the 388 leg)
 - owner-waiting: none
-- last-gate: quick GREEN (185 ui
-  + 82 gui = 267 PASS;
-  windows-vet substitute for
-  render/window/cmd); comment
-  ban clean; CI 42493085300
-  success (3 jobs, all steps;
-  release-tag step skipped by
+- last-gate: quick GREEN (185 ui + 95 gui = 280 PASS); comment ban clean;
+  CI 42496692212 success (3 jobs, all steps; release-tag step skipped by
   design on main)
 
 ## Open items
@@ -62,83 +32,61 @@ owner order — that history lives in git if ever needed.
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
 
+## Session 392 — chat top-edge preload/pagination (2026-11-08)
+
+- Law source: history_view_list_widget.cpp 117-120 (kPreloadIfLessThanScreens
+  2; kPreloadedScreensCount 4 / full 9 = viewer window sizes, engine policy)
+  + checkMoveToOtherViewer 2347-2433 (trigger + gates) + countScrollState
+  3689-3703 (the {position, offset} anchor a prepend must restore).
+- history.List.PreloadTopNeeded: strict `Top < 2*Height`, gated on non-empty
+  items + positive viewport height (the C++ width/around-index gates degrade
+  to ChatScroll.Height>0 — the Elm feeds every scroll update through layout).
+- Fired from every scroll-class surface: ChatScrolled, chatScrollClassic
+  (wheel/trackpad; the bottom request keeps the single cmd slot),
+  ChatMeasured (the chain re-arm: a still-short window after compensation
+  fires again), Resized (viewport growth crossing the 2-screen line; dialogs
+  load-more keeps the slot), ChatTick (kinetic fling), ChatDragged (touch
+  drag). The request stays armed per event — engine-side dedup, matching the
+  dialogs LoadMoreNeeded precedent.
+- ChatLoaded/ChatPrepended carry MoreAbove (the loadedAtTop = skippedBefore==0
+  projection). A prepend stores the viewport top, prepends copy-on-write,
+  drops heights/hits/selection/press (row indices shift; rows carry no stable
+  FullMsgIds yet), marks dirty; ChatMeasured applies the compensation =
+  stored top + summed prepended-row heights, so the same content rows stay on
+  screen; ChatLoaded resets the pending prepend (chat switch mid-flight).
+- Deferred: the findGoodAbove/Below anchor scan (listIsGoodForAroundPosition
+  = isRegular) + the symmetric bottom edge — both need rows with IDs and
+  jump-to-message windows.
+- RED 13 (2 spec errors: wheel/trackpad sign conventions re-derived from the
+  pinned 388 laws — negative angle/pixel scrolls toward the bottom) ->
+  GREEN. 280 PASS (185 ui + 95 gui). 6ba120d5 -> verify 42496692212
+  SUCCESS, 3 jobs, all steps reconciled.
+
 ## Session 391 — chat item interaction: tap/press over the message leg (2026-11-08)
 
-- Law source: history_view_list_widget.cpp
-  4784-5060 (mouseActionStart/
-  Update/Finish) + changeSelection
-  1843-1860 + canBeSelected +
-  config.h MaxSelectedItems 100 +
-  bottom_info.cpp 207-212 (the
-  Date cursor zone) + Message/
-  Service::pointState.
-- Elm: ChatPressState {Row, X, Y,
-  Inside, Time, Action} on mouse
-  press (bar-drag presses leave
-  Row -1; hidden-thumb strip
-  presses fall through to the
-  item — the Qt hidden bar passes
-  clicks); action branch order:
-  selection mode overSelected ->
-  PrepareDrag else PrepareSelect;
-  time zone -> PrepareDrag; body
-  -> Selecting (bare tap = net
-  no-op); margin -> PrepareSelect.
-  Drags degrade (10px or a row
-  change). Finish: Invert in
-  selection mode; else the
-  release-point Date cursor
-  Selects the pressed row (the
-  margin-press + time-release
-  quirk kept). Touch tap
-  synthesizes press+finish at the
-  release point. ChatLoaded
-  clears the selection (rows have
-  no stable FullMsgIds yet).
-- history/interaction.go:
-  Selection laws (Invert/Select/
-  Deselect, cap 100, !service/
-  !empty gate, copy-on-write),
-  HitBox (Item + Time geometry,
-  PointStateOf width<1 or hidden
-  -> Outside), TimeRect (the
-  withTicksWidth zone on the
-  TimeLabel insets),
-  Geometry.Contains.
-- Measure returns per-row
-  HitBoxes (content-coord tops);
-  the window gates mouse
-  press/release on chatPrimary
-  (gio Release events report the
-  REMAINING buttons; the
-  chorded left-hold + right-
-  release corner = refinement
-  candidate, Qt e->button() is
-  not in gio).
-- RED 29 -> GREEN first run.
-  267 PASS (185 ui + 82 gui).
-  80aff2a9 -> verify 42493085300
-  SUCCESS, 3 jobs, all steps
-  reconciled.
+- Law: list_widget.cpp 4784-5060 mouseActionStart/Update/Finish +
+  changeSelection 1843-1860 + config.h MaxSelectedItems 100 +
+  bottom_info.cpp 207-212 (Date cursor zone) + Message/Service::pointState.
+  Elm ChatPressState on press (bar-drag leaves Row -1; hidden-thumb strip
+  presses fall through to the item); branch order: selection mode
+  overSelected -> PrepareDrag else PrepareSelect, time zone -> PrepareDrag,
+  body -> Selecting, margin -> PrepareSelect; drags degrade past 10px or a
+  row change; finish Inverts in selection mode, else the release-point Date
+  cursor selects (the margin-press + time-release quirk kept); touch tap
+  synthesizes press+finish at the release point. history/interaction.go:
+  Selection laws (cap 100, !service/!empty gate, copy-on-write), HitBox
+  PointState, TimeRect. Measure emits per-row HitBoxes; the window gates
+  mouse on chatPrimary (gio releases report remaining buttons — the
+  chorded-release corner is a refinement candidate). RED 29 -> GREEN first
+  run. 267 PASS. Detail: 80aff2a9 + git history.
 
 ## Session 390 — chat scrollbar bar-drag laws (2026-11-08)
 
-- 8d39d63e. The chat column's
-  ElasticScrollBar (lib_ui
-  elastic_scroll.cpp:116-406;
-  tokens chat.style:188-202,
-  colors.palette:344-345):
-  refreshGeometry with the
-  cut-clamp, off-thumb press
-  centers the thumb, drags scale
-  scrollable/outsideBar with both
-  pass-through quirks, 1:1
-  dead-zone reversal payback
-  (base::OppositeSigns, zero
-  signless); Elm mouse-only bar
-  drag, ChatPane Thumb +
-  ThumbDragging. 238 PASS.
-  Verify 42487726300 SUCCESS.
+- ElasticScrollBar (lib_ui elastic_scroll.cpp:116-406; chat.style 188-202,
+  colors.palette 344-345): cut-clamp refreshGeometry, off-thumb press centers
+  the thumb, drag scale + both pass-through quirks, 1:1 dead-zone reversal
+  payback; Elm mouse-only bar drag + ChatPane Thumb/ThumbDragging. 238 PASS.
+  Verify 42487726300 SUCCESS. Detail: 8d39d63e + git history.
 
 ## Session 389 — history entry composing: dates + unread dividers (2026-11-08)
 
