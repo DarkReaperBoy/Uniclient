@@ -7,37 +7,36 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 387 — the dialogs row
-  painter leg landed as 60467393 (ChatTypeIcon/
-  BadgeIcon selection laws feeding
-  Metrics.ChatTypeIconW from the asset canvases;
-  glyphs painted at layout cells with in-cell
-  offsets; pinned badge right-aligned to its
-  20px canvas; Material ink mapping from
-  colors.palette + night theme; narrow icon
-  badges as empty-text unread pills with
-  centered glyphs; TTL corner badge over the
-  blurred userpic cutout — StackBlur exact port
-  radius 24, WCAG contrast darken x4/5,
-  FormatTTLTiny thresholds + 2-rune clamp,
-  timer per the 386 spec; info-block width law:
-  history.InfoWidth reserves the 24px ticks
-  space for out-or-sending, skip + TimeLabel
-  derive from it); first CI run failed the Nix
-  go-modules FOD (new vendored package
-  x/image/draw), vendorHash rotated in 70600653;
-  verify 42461470926 SUCCESS at job AND step
-  level — closed green
-- next: chat-leg scroll input (wheel/touch —
-  the dialogs kinetic laws apply; chat pane
-  rides on ui/dialogs kinetic.go + scroll.go
-  laws); after that: history entry composing
-  (dates/divider service messages over the 384/
-  385 service bubble machinery)
+- front: session 388 — the chat-leg scroll
+  input landed as d2d5ae81 (wheel/trackpad
+  classic pipeline with the cross-axis
+  consumeScrollAction routing gate and the
+  bottom content request firing before the
+  clamp; ListWidget touch machine — arm
+  swallows, manual 1:1 through listScrollTo
+  with NO overscroll pipeline, fling stops dead
+  at the edge via hasScrolled, Acceleration
+  continues under the finger with the 40ms
+  timeout; two dialogs-law fixes caught by the
+  cross-measure: FlingDelta qRound half-away
+  (Qt6 QPoint*int exact, QPoint/1000 qreal
+  qRound — the trunc pin was a Qt5-ism) and
+  acceleration-phase sampling on the manual
+  prev/4+new*3/4 blend (caller passed !=Manual;
+  3 elm pins re-derived); window adapter routes
+  the chat column to Chat msgs, input area on
+  empty chats too); verify 42465865252 SUCCESS
+  at job AND step level — closed green
+- next: history entry composing (dates/divider
+  service messages over the 384/385 service
+  bubble machinery); after that: chat scrollbar
+  bar-drag laws + chat item interaction (tap/
+  press = message leg), chat preload/pagination
+  at the top edge
 - owner-waiting: none
-- last-gate: quick GREEN (153 ui + 43 gui = 196
+- last-gate: quick GREEN (158 ui + 55 gui = 213
   PASS; windows-vet substitute for render/window/
-  cmd); comment ban clean; CI 42461470926
+  cmd); comment ban clean; CI 42465865252
   success (3 jobs, all steps; release-tag step
   skipped by design on main)
 
@@ -48,87 +47,84 @@ owner order — that history lives in git if ever needed.
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
 
+## Session 388 — the chat-leg scroll input (2026-11-08)
+
+- Reference shape: history_widget.cpp:407-431
+  — the chat rides ElasticScroll with Real/Real
+  overscroll, setHandleTouch(false) (the
+  ListWidget owns touch), lockWheelDirection +
+  setCrossAxisWheelProcess(consumeScrollAction),
+  setOverscrollEdges(loadedAtTop/Bottom),
+  setBottomContentRequest. gio delivers no
+  scroll phases, so the trackpad rides the
+  classic branch (dialogs-leg precedent); the
+  phased overscroll/direction-lock laws stay
+  deferred until the adapter can see phases.
+- consumeScrollAction (list_widget.cpp:2289):
+  horizontal strict |dx|>|dy|; NoScrollPhase
+  non-horizontal short-circuits before the item
+  lookup; text items never consume (albums/
+  round-video land with the media legs).
+  history.List.RowAt content-y lookup added.
+- Touch machine = ListWidget::touchEvent +
+  onTouchScrollTimer + touchScrollUpdated:
+  manhattan>=10 arm swallows the crossing
+  delta; manual moves 1:1 through
+  ChatWidget::listScrollTo (chat_section:4687 —
+  plain clamp [0,max] + moved flag); NO
+  overscroll on chat touch (unlike dialogs
+  touch); fling deaccelerates 1px/ms and stops
+  dead at the edge (hasScrolled) or on speed
+  exhaustion; Acceleration continues the fling
+  under the finger, 40ms stillness -> Manual;
+  tap = message-interaction leg (deferred).
+- Bottom request gate = requestBottomContent
+  (elastic_scroll.cpp:1098): delta>0 pushing
+  past the bottom edge -> ChatBottomRequested
+  cmd before the clamped apply; programmatic
+  scrolls never fire it; host no-ops until
+  sponsored lands.
+- Two dialogs-law fixes caught by the
+  cross-measure + Qt6 qpoint.h semantics:
+  FlingDelta = qRound(exact speed*elapsed /
+  1000) (QPoint*int exact friend overload,
+  QPoint/1000 through qreal operator/ —
+  -1985*15/1000 = -30, the trunc pin was a
+  Qt5-ism); acceleration-phase sampling uses
+  the manual blend (touchUpdateSpeed checks
+  state==Auto and both machines switch to
+  Acceleration before the first sample; the
+  caller wrongly passed !=Manual). 3 dialogs
+  elm pins re-derived: 99->100, 109/138/208->
+  110/139/209, 159->120.
+- Window adapter: chat column routed to Chat
+  msgs (pane-local dp), chat input area pushed
+  on empty chats too. KineticActive covers the
+  chat fling. RED 17 tests + 3 re-pins; GREEN
+  213 PASS (158 ui + 55 gui). d2d5ae81 ->
+  verify 42465865252 SUCCESS, 3 jobs, all
+  steps reconciled.
+
 ## Session 387 — the dialogs row painter leg (2026-11-08)
 
-- VM wiped a 12th time; full recovery per
-  scripts/env.sh (clone f1c181db == origin —
-  the carried summary was STALE, 385 AND 386
-  had closed green in lost sessions; WORKLOG
-  arbitrated as always). Baseline re-verified:
-  186 PASS (143 ui + 43 gui; total is the
-  authority, the 386 last-gate split 137/43
-  counted differently).
-- Selection laws (dialogs_layout.cpp:612-617 +
-  dialogs.style + PaintBadges):
-  dialogs.ChatTypeIcon(t) -> DialogsBot/
-  Channel/Forum (zero Icon for plain),
-  dialogs.BadgeIcon(kind) -> Pinned/Mention/
-  Reaction/Poll. Painter feeds
-  Metrics.ChatTypeIconW = icon.Cell.W (bot 17 /
-  channel 15 / forum 20) so the name advances by
-  the true canvas + skip 3; glyphs paint at
-  layout cells via fillGlyph cell offsets.
-- Pinned law fix (dialogs_layout.cpp:245-248):
-  right - icon.width() at textTop — the cell is
-  the 20px pinned canvas (was the 18px icon
-  size); advance 20+5.
-- Ink mapping (colors.palette + night theme):
-  chat-type OnSurface (dialogsChatIconFg =
-  dialogsNameFg), sending clock OnSurfaceVariant
-  (#c1c1c1 / #647d96), ticks Primary (day green
-  #5dc452 / night blue #72bcfd — theme-split
-  accent), pinned OnSurfaceVariant
-  (dialogsUnreadBgMuted), wide mention Primary
-  (#40a7e3), reaction Error (#e05356), poll
-  Tertiary (#997be1); active rows repaint every
-  glyph OnPrimaryContainer (dialogsNameFgActive).
-- Narrow icon badges (unread_badge_paint.cpp):
-  empty-text PaintUnreadBadge = 19x19 circle
-  pill, bg by sizeId (mention dialogsUnreadBg ->
-  Primary, reaction dialogsDraftFg -> Error,
-  poll dialogsPollIconFg -> Tertiary), glyph
-  centered paintInCenter with on-ink. The 13x13
-  badge-variant glyph set is NOT traced (386
-  delivered one 18x18 set) — refinement
-  candidate, noted here.
-- TTL badge (dialogs_row.cpp:182-236): StackBlur
-  = exact port of lib_ui image_prepare.cpp:679
-  (radius 24, guard w<=r returns source);
-  TTLBackdrop = crop of the blurred userpic,
-  average color vs white via the WCAG
-  CountContrast port (color_contrast.cpp), below
-  4.5:1 darkens x4/5 in wide ints; source =
-  photo-size NRGBA, row bg flattened under the
-  circle-masked userpic (GenerateUserpicImage
-  law: paintCircle over transparent, flattened
-  over background); draw = ellipse clip +
-  affine; timer in the 2px-inset inner rect
-  (dialogsTTLBadgeInnerMargins), 386 arc/dots
-  spec, FormatTTLTiny (format_values.cpp:482-495:
-  h<=9h, d<=6d, w<=3w, m<=11m, round-y<=366d,
-  {count}h/d/w/m/y — threshold crossings land on
-  "0d"-style units, 11m clamps to "11") +
-  TimerClamp 2 runes; premium white ink.
-- Info-block width law (bottom_info.cpp:181-183,
-  704-707): history.InfoWidth(dateW, hasTicks)
-  adds HistorySendStateSpace 24 for out-or-
-  sending; paintMessage derives skipW from it
-  and passes hasTicks to TimeLabel.
-- RED 10 tests -> 1 real bug caught (uint8
-  c*4/5 WRAPS: 255*4=252 -> 50; widen to int —
-  exactly what the discipline is for) + test
-  name/dot-import churn. GREEN 196 PASS (153 ui
-  + 43 gui). Headless smoke: 5 row variants x
-  3 states painted without panics.
-- 60467393 -> verify 42460502962 FAILED the Nix
-  job only (go-modules FOD hash mismatch: the
-  new x/image/draw IMPORT grew the go mod vendor
-  package set; module x/image v0.26.0 itself
-  unchanged). vendorHash rotated to the reported
-  sha256-alPAl... in 70600653 -> verify
-  42461470926 SUCCESS, 3 jobs, all steps
-  reconciled (Nix lockless run + nix build both
-  green).
+- Wipe #12 recovery; baseline 186 re-verified.
+  Detail: git 60467393 + 70600653 (vendorHash
+  rotation for the x/image/draw vendored package
+  set) + this file's history; laws pinned in
+  dialogs code + tests: ChatTypeIcon/BadgeIcon
+  selection (bot 17/channel 15/forum 20 canvas
+  widths; pinned cell = the 20px canvas, advance
+  20+5); ink map (chat-type OnSurface, clock
+  OnSurfaceVariant, ticks Primary theme-split,
+  mention/reaction/poll Primary/Error/Tertiary,
+  active OnPrimaryContainer); narrow icon badges
+  = 19x19 empty pills (13x13 variant set NOT
+  traced — refinement candidate); TTL badge =
+  StackBlur r24 + WCAG darken x4/5 (uint8 wrap
+  bug caught) + FormatTTLTiny thresholds +
+  2-rune clamp; InfoWidth reserves the 24px
+  ticks space. RED 10 -> GREEN 196; verify
+  42461470926 SUCCESS job+step.
 
 ## Session 386 — the Material icon asset library (2026-11-08)
 
