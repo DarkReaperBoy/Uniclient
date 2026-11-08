@@ -152,6 +152,7 @@ const (
 	ComposePlaceholderMarginBottom = 0
 	ComposePlaceholderShift        = -50
 	ComposeCaretReserve            = 2
+	ComposeCursorWidth             = 1
 	ComposeFieldStyleLineHeight    = 0
 
 	HistorySendSizeW   = 44

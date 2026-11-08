@@ -19,9 +19,9 @@ owner order — that history lives in git if ever needed.
   glyphs when their types get painted; real font metrics adapter
   when the gio shaper lands
 - owner-waiting: none
-- last-gate: quick GREEN (401 scope); js/wasm compile ui/... GREEN;
-  comment ban clean; 386 tests (227 ui + 153 gui + 6 text) green
-  locally; verify for this commit in flight
+- last-gate: quick GREEN (401 scope, both atomics); js/wasm compile
+  ui/... GREEN; comment ban clean; 389 tests (228 ui + 153 gui +
+  8 text) green locally; verify 42524452324 for 95ef00d9 in flight
 
 ## Open items
 
@@ -69,15 +69,28 @@ owner order — that history lives in git if ever needed.
   LineAscent, Elide, Layout→Document/Line{Start,Runes,Width},
   CursorAt{Line,Column,X}, Height) + ui/history/compose_field.go
   (WrapWidth −ComposeCaretReserve, Document, ContentHeight,
-  placeholder Shown/MaxWidth/Text/X/Baseline/Opacity) + 10 tokens.
+  placeholder Shown/MaxWidth/Text/X/Baseline/Opacity) + 11 tokens.
   RED (pkg missing) → GREEN; 3 of my own spec bugs caught before
   green (elide dropped the ellipsis; mid-word lineStart accumulator;
   final chunk force-emitted — must stay open for following words) +
   1 test-side off-by-one (offset after trailing space — Qt source
   proved the ENGINE right, test fixed).
-- 14 new tests, 386 total = 227 ui + 153 gui + 6 text. quick GREEN;
-  js/wasm compile ui/... GREEN; comment ban clean. WORKLOG pruned
-  (sessions ≤383 cut; 346→312 lines).
+- Atomic 2 (95ef00d9 + this): the selection + caret-rect law.
+  Qt source: getSelectionBounds (qtextengine.cpp 4135-4160) +
+  addSelectedRegionsToPath (qtextlayout.cpp 944-981) — selection
+  rects span each line's [from, from+length) with lineEnd EXCLUDING
+  trailingSpaces: soft-wrapped lines strip their trailing spaces
+  from the highlight, hard-'\n' and last lines keep them; caret
+  rect = (cursorX, line·lineH, cursorWidth 1, lineH) — lineH from
+  the FixedHeight block format (PrepareBlockFormat setLineHeight).
+  Go: ui/text Selection{Anchor,Position}/Range/Empty +
+  Document.SelectionSpans→[]Span{Line,From,To} (soft/hard/last-line
+  trailing law) + history ComposeCursorRect + token
+  ComposeCursorWidth 1. RED → GREEN clean.
+- 17 new tests this session (14 + 3), 389 total = 228 ui +
+  153 gui + 8 text. quick GREEN both commits; js/wasm compile
+  ui/... GREEN; comment ban clean. WORKLOG pruned (sessions ≤383
+  cut; 346→~300 lines).
 
 ## Session 400 — the compose-bar glyph trio (2026-11-09)
 

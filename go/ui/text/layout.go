@@ -117,3 +117,74 @@ func (d *Document) CursorAt(offset int) Cursor {
 	}
 	return c
 }
+
+type Selection struct {
+	Anchor   int
+	Position int
+}
+
+func (s Selection) Empty() bool {
+	return s.Anchor == s.Position
+}
+
+func (s Selection) Range() (int, int) {
+	if s.Anchor <= s.Position {
+		return s.Anchor, s.Position
+	}
+	return s.Position, s.Anchor
+}
+
+type Span struct {
+	Line int
+	From int
+	To   int
+}
+
+func (d *Document) lineAdvance(i, column int) int {
+	w := 0
+	for _, r := range d.Lines[i].Runes[:column] {
+		w += d.metrics.Advance(r)
+	}
+	return w
+}
+
+func (d *Document) SelectionSpans(sel Selection) []Span {
+	from, to := sel.Range()
+	if from < 0 {
+		from = 0
+	}
+	if to > len(d.Text) {
+		to = len(d.Text)
+	}
+	if from >= to {
+		return nil
+	}
+	var spans []Span
+	for i := range d.Lines {
+		line := &d.Lines[i]
+		end := line.Start + len(line.Runes)
+		softWrap := i < len(d.Lines)-1
+		if softWrap && (end >= len(d.Text) || d.Text[end] != '\n') {
+			for end > line.Start && d.Text[end-1] == ' ' {
+				end--
+			}
+		}
+		lo := from
+		if line.Start > lo {
+			lo = line.Start
+		}
+		hi := to
+		if end < hi {
+			hi = end
+		}
+		if lo >= hi {
+			continue
+		}
+		spans = append(spans, Span{
+			Line: i,
+			From: d.lineAdvance(i, lo-line.Start),
+			To:   d.lineAdvance(i, hi-line.Start),
+		})
+	}
+	return spans
+}

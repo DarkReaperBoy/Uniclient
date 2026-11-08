@@ -179,3 +179,60 @@ func TestCursorAt(t *testing.T) {
 		t.Fatalf("CursorAt(2) after newline = %+v, want {1 0 0}", got)
 	}
 }
+
+func TestSelectionRange(t *testing.T) {
+	sel := Selection{Anchor: 2, Position: 5}
+	if from, to := sel.Range(); from != 2 || to != 5 {
+		t.Fatalf("Range() = %d,%d want 2,5", from, to)
+	}
+	if sel.Empty() {
+		t.Fatal("sel should not be empty")
+	}
+	rev := Selection{Anchor: 5, Position: 2}
+	if from, to := rev.Range(); from != 2 || to != 5 {
+		t.Fatalf("reversed Range() = %d,%d want 2,5", from, to)
+	}
+	same := Selection{Anchor: 3, Position: 3}
+	if !same.Empty() {
+		t.Fatal("equal anchor/position should be empty")
+	}
+}
+
+func TestSelectionSpans(t *testing.T) {
+	doc := Layout("aa bb cc", 24, mono(8, 16))
+	cases := []struct {
+		anchor, position int
+		want             []Span
+	}{
+		{0, 8, []Span{{Line: 0, From: 0, To: 16}, {Line: 1, From: 0, To: 16}, {Line: 2, From: 0, To: 16}}},
+		{0, 3, []Span{{Line: 0, From: 0, To: 16}}},
+		{2, 5, []Span{{Line: 1, From: 0, To: 16}}},
+		{0, 4, []Span{{Line: 0, From: 0, To: 16}, {Line: 1, From: 0, To: 8}}},
+		{3, 3, nil},
+		{-5, 99, []Span{{Line: 0, From: 0, To: 16}, {Line: 1, From: 0, To: 16}, {Line: 2, From: 0, To: 16}}},
+	}
+	for _, c := range cases {
+		got := doc.SelectionSpans(Selection{Anchor: c.anchor, Position: c.position})
+		if len(got) != len(c.want) {
+			t.Fatalf("SelectionSpans(%d,%d) = %v, want %v", c.anchor, c.position, got, c.want)
+		}
+		for i, w := range c.want {
+			if got[i] != w {
+				t.Fatalf("SelectionSpans(%d,%d)[%d] = %+v, want %+v", c.anchor, c.position, i, got[i], w)
+			}
+		}
+	}
+
+	soft := Layout("aa   bb", 24, mono(8, 16))
+	got := soft.SelectionSpans(Selection{Anchor: 0, Position: 7})
+	want := []Span{{Line: 0, From: 0, To: 16}, {Line: 1, From: 0, To: 16}}
+	if len(got) != 2 || got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("soft-wrap trailing spaces must strip: %v", got)
+	}
+
+	hard := Layout("ab  \ncc", 100, mono(8, 16))
+	got = hard.SelectionSpans(Selection{Anchor: 0, Position: 4})
+	if len(got) != 1 || got[0] != (Span{Line: 0, From: 0, To: 32}) {
+		t.Fatalf("hard-break trailing spaces must keep: %v", got)
+	}
+}

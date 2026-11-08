@@ -149,3 +149,20 @@ func TestComposePlaceholderOpacity(t *testing.T) {
 		}
 	}
 }
+
+func TestComposeCursorRect(t *testing.T) {
+	doc := history.ComposeFieldDocument("aa bb cc", 26, fieldMono())
+	cases := []struct {
+		offset int
+		want   history.Geometry
+	}{
+		{0, history.Geometry{Left: 0, Top: 0, Width: 1, Height: 16}},
+		{4, history.Geometry{Left: 8, Top: 16, Width: 1, Height: 16}},
+		{8, history.Geometry{Left: 16, Top: 32, Width: 1, Height: 16}},
+	}
+	for _, c := range cases {
+		if got := history.ComposeCursorRect(doc, c.offset, fieldMono()); got != c.want {
+			t.Fatalf("ComposeCursorRect(%d) = %+v, want %+v", c.offset, got, c.want)
+		}
+	}
+}

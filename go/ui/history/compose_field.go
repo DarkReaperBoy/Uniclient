@@ -59,3 +59,14 @@ func ComposePlaceholderBaseline(m text.Metrics) float64 {
 func ComposePlaceholderOpacity(hiddenDegree float64) float64 {
 	return 1 - hiddenDegree
 }
+
+func ComposeCursorRect(doc *text.Document, offset int, m text.Metrics) Geometry {
+	c := doc.CursorAt(offset)
+	lineH := text.LineHeight(m.Height, tokens.ComposeFieldStyleLineHeight)
+	return Geometry{
+		Left:   c.X,
+		Top:    c.Line * lineH,
+		Width:  tokens.ComposeCursorWidth,
+		Height: lineH,
+	}
+}
