@@ -7,42 +7,26 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 395 — the dialogs to-up corner button landed (pending
-  push, see N-1): dialogs/corner_button.go (ToUpShown: Top > 240 AND
-  Top < max, hidden on pane < 260 — dialogs_widget.cpp 1685-1687 +
-  startScrollUpButtonAnimation smallColumn instant; ToUpGeometry slides
-  the 52x62 box from below the pane edge over travel 64 = 62 +
-  connectingMargin.top 2; click = scrollToDefaultChecked -> Top 0);
-  Elm DialogsToUpState + DialogsToUpPress rides every dialogs Top
-  mutation site (Resized/Loaded/Scrolled/scrollClassic/bar-jump/bar-drag/
-  applyTouchDelta/spring) + DialogsTick; painter chevron-up (flip+1px)
-  Material skin. Session 394's chat jump-down button: history/corner_button
-  go DownShown/DownJumpTop/Geometry/Hit + ChatDownState Elm + painter
-  (cornerButtonsDownShown 9122-9157 law: scrollTop+480 < max or first
-  unread below the fold; 52x62@right12 slide-72; click jumps to
-  first-unread-else-bottom; 150ms linear)
-  history/corner_button.go (DownShown law: scrollTop+480 < max, or first
-  unread row at/below the fold — cornerButtonsDownShown 9122-9157;
-  DownJumpTop = first-unread top clamped else max — downClick →
-  UnreadMessagePosition; DownButtonGeometry/Hit = the 52x62 box at
-  right+12, sliding from below the pane edge over 72dp — updatePositions
-  interpolate; tokens from historyToDown* + measured PNGs); Elm ChatDownState
-  rides chatViewportChanged (all Top mutations) + ChatLoaded reset +
-  ChatTick 150ms linear slide; press/release: hit pins ChatPress.DownPress
-  (before scrollbar + touch branches — touch on button = tap, no scroll
-  start), release-inside jumps, drag cancels; window ticks+invalidates on
-  ChatDownActive; painter: 42dp circle (PrimaryContainer) + 2dp-offset
-  shadow + 19x10 stroke-3 round chevron (OnPrimaryContainer)
-- next: push both commits (N-1) + dispatch verify.yml; then the polish
-  queue — composer attach/menu trees or the mentions/reactions corner
-  stack (historyUnreadThingsSkip 4 + slide-from-right law)
-- owner-waiting: NEEDS_OWNER — GH_TOKEN absent this sandbox (env recycled
-  between sessions); e06ced00 is committed locally on top of origin/main
-  5b978120 but NOT pushed, and verify.yml is not dispatched. Re-mention when
-  the token is restored
-- last-gate: quick GREEN twice (394 + 395 scopes; windows vet = rung-7
-  OOM skip both times); comment ban clean; 325 tests (198 ui + 127 gui)
-  green locally; both commits await push + CI
+- front: session 396 — the unread-mentions corner button landed (the
+  corner stack begins): shown iff ≥1 Item.UnreadMention (data-driven —
+  rechecked at ChatLoaded [hard reset first] + ChatPrepended ONLY, never
+  on scroll); slides in from the right edge over 64px while riding the
+  down button's progress (shift 66*downP, 4px gap at full stack, provably
+  never overlapping); 150ms; click jumps to the topmost unread mention
+  (clamped, -1 = no-op); press routing mentions-before-down-before-
+  scrollbar/touch; ChatLoaded/ChatPrepended now carry Now (data-arrival
+  clock law — also fixes the down button's load-time clocking); traced @
+  glyph (IoU 0.939 vs the reference raster) as icons.HistoryMention
+- next: the reactions corner button (same law; shift gains the mentions
+  term interpolate(0, 62+4, mentionsP); Item.UnreadReaction + glyph trace)
+  or the composer attach/menu trees; push N-1 when the token returns
+- owner-waiting: NEEDS_OWNER — GH_TOKEN still absent this sandbox; sessions
+  394+395+396 sit committed locally on top of origin/main 5b978120,
+  unpushed, verify.yml undispatched. Re-mention when the token is restored
+- last-gate: quick GREEN (396 scope); render+window windows vet GREEN
+  standalone (batched rung-7 OOM skip is cmd/uniclient's gotd, not these);
+  js/wasm compile of ui/... GREEN; comment ban clean; 338 tests
+  (199 ui + 139 gui) green locally incl. race
 
 ## Open items
 
@@ -50,99 +34,88 @@ owner order — that history lives in git if ever needed.
 |---|---|---|---|---|
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
-| N-1 | repo push | sessions 394+395 committed locally, unpushed — no GH_TOKEN/SSH in this sandbox; push + dispatch verify.yml when auth returns | git log origin/main..HEAD | owner restores GH_TOKEN or runs: git push origin main |
+| N-1 | repo push | sessions 394+395+396 committed locally, unpushed — no GH_TOKEN/SSH in this sandbox; push + dispatch verify.yml when auth returns | git log origin/main..HEAD | owner restores GH_TOKEN or runs: git push origin main |
 | D-1 | ui/history corner button | down-button unread-count badge (22dp, centered x, top 0 — jump_down_button.cpp paintEvent + historyToDownBadge*) + hover/over colors + ripple deferred: no unread counter in the chat Item model yet, no hover/ripple machinery in the skin yet; replyReturn branch of downClick + loadedAtBottom==false state return with reply-return jumps / below-history pagination | jump_down_button.cpp 33-52, corner_buttons.cpp 139-145 | badge returns with read-state counts; over/ripple with the skin's hover+ripple pass |
+| D-2 | ui/history mentions button | mention read-marking absent: after the jump the button stays shown (reference hides it when the server marks the mention read — updateUnreadThingsVisibility is server-data-driven); mentionsClick's already-there voice/video media-read branch (5623) deferred — no media model; unread-count badge joins D-1's class | history_view_corner_buttons.cpp 147-172, 288-345 | returns with engine mention-read events + the media pass |
+
+## Session 396 — the unread-mentions corner button: the corner stack begins (2026-11-09)
+
+- Law: history_view_corner_buttons.cpp updatePositions 390-404 (mentions:
+  right = interpolate(-52, 12, shown) — slides in FROM the right edge;
+  top = parentH - 62 - 10 - interpolate(0, 62+skip, downShown) — rides
+  the down button's ANIMATED progress; gap = 4*downP ≥ 0, provably never
+  overlapping) + updateVisibility 276-286 (150ms, animates on change
+  only) + updateUnreadThingsVisibility 288-345 (shown = loadedCount > 0
+  && unreadMayBeShown; mapped to ≥1 Item.UnreadMention — data-driven,
+  NOT scroll-driven) + mentionsClick 147-172 (showAt(minLoaded) = oldest
+  = our topmost row; the already-there voice/video read-marking branch
+  deferred with the media model) + delegate laws history_widget.cpp
+  9118-9165 (ignore = show-anim [none]; unreadMayBeShown = !firstLoad &&
+  !voiceBar [both n/a]; has(type) = true) + chat_helpers.style 1242-1254
+  (historyUnreadMentions = TwoIconButton(historyToDown) clone, @ glyph)
+  + historyUnreadThingsSkip 4.
+- Glyph: history_unread_mention@2x measured — 52 canvas, @ bbox 19x19.33
+  center (26,26)@1x → button (26,36) via iconPosition (0,10); traced
+  with cv2 (RETR_CCOMP + approxPolyDP 0.35dp, 1/3dp grid): 2 contours
+  (ring+curl 43v, counter-hole 10v, opposite winding −152.1/+41.0),
+  raster-diff vs the source mask IoU 0.939 (599↔603 px). icons
+  .HistoryMention Cell{W36,H46,(16,26)} — family law mask+point=canvas;
+  pinned in TestIconCells/GlyphBounds/GlyphContoursOrientedForHoles.
+- Clock law riding the same concern: ChatLoaded/ChatPrepended gain Now
+  (data-arrival msgs carry their clock like press/scroll msgs already
+  do) — the show slide starts at arrival, and the down button's
+  load-time show is clocked right too.
+- Go: history/corner_button.go MentionsShown / MentionsJumpTop (topmost
+  unread-mention row top clamped, -1 = no-op) / MentionsButtonGeometry(
+  w, h, progress, downProgress) / MentionsButtonHit; tokens
+  HistoryUnreadThingsSkip; Item gains UnreadMention; ChatPane gains
+  MentionsProgress. Elm: ChatMentionsState + ChatPress.MentionsPress;
+  chatMentionsCheck at ChatLoaded (hard reset first — the switch law,
+  same as ChatDown) + ChatPrepended ONLY; press routing hits mentions
+  BEFORE down (column z-order: children stack up, later = above) and
+  both before scrollbar/touch (tap-only touch, drag cancels,
+  release-inside jumps + re-checks); chatMentionsTick 150ms linear in
+  ChatTick; window ticks/invalidates on ChatMentionsActive; View layers
+  pane.MentionsProgress. Painter: paintMentionsButton — the down-button
+  circle/shadow family + fillGlyph @, after paintDownButton, pane-
+  clipped, early-out when Left >= paneW.
+- No read-marking in the model yet: the button stays shown after the
+  jump (the reference hides it when the server marks the mention read) —
+  open item D-2.
+- RED (compile, full surface) → GREEN after the clock-law fix (4 test
+  timing rewrites). 20 new tests (6 ui laws + 14 gui journeys), 338
+  total (199 ui + 139 gui — STATE bookkeeping drift vs the 395 commit
+  message corrected: 193+125 was the truth). quick gate GREEN; render+
+  window windows vet GREEN standalone; js/wasm compile of ui/... GREEN;
+  comment ban clean.
 
 ## Session 395 — the dialogs to-up corner button (2026-11-09)
 
-- Law: dialogs_widget.cpp 1685-1687 (shown iff scrollTop >
-  historyToDownShownAfter/2 = 240 AND scrollTop < scrollTopMax) +
-  startScrollUpButtonAnimation 1689-1705 (smallColumn = width <
-  columnMinimalWidthLeft 260 || childList -> forced hidden with 0-duration
-  instant transition; else 150ms historyToDownDuration) +
-  updateScrollUpPosition 1707-1720 (top = interpolate(0, height +
-  connectingMargin.top()=2, shown), moveToRight(historyToDownPosition.x()
-  12, scrollH - top) — slides up from below the pane edge) + click ->
-  scrollToDefaultChecked 1256 -> scrollToDefault 2782 (animated scroll to
-  0; jump-cut if further than one viewport, then smooth) + dialogsToUp
-  style (chat_helpers.style 1234-1240: historyToDown with the arrow
-  flipped vertical + 1px y offset) + window.style 34/155
-  (columnMinimalWidthLeft 260, connectingMargin.top 2).
-- Go mapping: dialogs pane is floor-clamped to 260 in double mode, so the
-  narrow case is the sub-260 single-pane window (mobile) — the law holds
-  as written; childList has no model yet (skipped, noted); the animated
-  scrollToDefault degrades to an instant Top=0 today (no smooth-scroll
-  machinery — returns with the scroll-animation pass); wheel over the
-  button scrolls the list by construction (single-pane routing).
-- dialogs/corner_button.go: ToUpShown(v, paneWidth) / ToUpGeometry /
-  ToUpHit (Rect x/y/w/h). Tokens: DialogsToUpShownAfter = 480/2,
-  DialogsToUpTravel = 62+2, DialogsToUpArrowCenterY = 38+1; reuses the
-  HistoryToDown* box/circle/arrow-x/stroke family + duration 150 +
-  DialogsRightButtonMinPaneWidth (pinned earlier, first consumer).
-- Elm: DialogsToUpState + DialogsToUpPress; dialogsToUpCheck at every
-  dialogs Top mutation site (Resized, DialogsLoaded, DialogsScrolled,
-  scrollClassic, pressDialogs bar-track-jump, dragDialogs bar-drag,
-  applyTouchDelta [touch drag + fling + momentum], dialogsTick spring);
-  dialogsToUpTick in DialogsTick; pressDialogs hits the button BEFORE
-  scrollbar/touch (no row selection, no touch start), release-inside
-  jumps to Top 0 + re-checks, DialogsPressCanceled clears the press;
-  dialogs handlers now keep the m.nowMs clock; window Run loop
-  ticks/invalidates on DialogsToUpActive; View layers Pane.ToUpProgress.
-- Painter: paintToUpButton — shadow +2dp black 0x28, 42dp
-  PrimaryContainer circle, OnPrimaryContainer chevron-up (Material FAB
-  skin); slides with progress, pane-clipped.
-- RED (compile) -> GREEN after test-side fixes (Rect field names, vet
-  suspect-or split, tick-before-scroll ordering in the helper, narrow
-  case = single-pane 250 not double 700 — the pane is floor-clamped to
-  260 in double mode). 12 new tests (9 gui journeys + 3 ui laws), 325
-  total (193 ui + 125 gui). quick gate GREEN; comment ban clean.
+- Law: dialogs_widget.cpp 1685-1720 + 1256/2782 (shown iff Top > 240 AND
+  Top < max; pane < 260 forces hidden instantly; slide up 64 from below
+  the pane edge; click = scrollToDefault Top 0, instant today) +
+  chat_helpers.style 1234-1240 + window.style 34/155. Go:
+  dialogs/corner_button.go ToUpShown/Geometry/Hit + DialogsToUp* tokens;
+  Elm DialogsToUpState rides every dialogs Top mutation site; painter
+  chevron-up (flip+1px). 12 new tests (9 gui + 3 ui), 318 total
+  (193 ui + 125 gui). quick gate GREEN. Detail: b1e268ec + git.
 
 ## Session 394 — the jump-to-end corner button (2026-11-09)
 
-- Law: history_view_corner_buttons.cpp (CornerButtons: updateVisibility
-  animates on state change only, st::historyToDownDuration 150;
-  updatePositions 357-474: column right edge, down button top =
-  interpolate(0, 62+10, shown), moveToRight(12, parentH - top) — hidden
-  sits fully below the pane edge; the widget 52x62 IS the hit area; wheel
-  over the button forwards to the scroll viewport — single-pane pointer
-  routing gives that by construction) + history_widget.cpp 9122-9157
-  cornerButtonsDownShown (no list / first load → hidden; voice-lock →
-  hidden; !loadedAtBottom || replyReturn → shown; scrollTop+480 <
-  scrollTopMax → shown; first unread itemTop >= scrollTop+viewportH →
-  shown; else hidden) + downClick 139-145 (Ctrl/plain without replyReturn →
-  UnreadMessagePosition = first unread else bottom) + chat_helpers.style
-  1179-1211 (position 12,10; TwoIconButton 52x62; rippleArea 42@(5,15) ==
-  the solid circle in history_down_shadow.png measured 42@(5,5)+icon offset
-  10; badge 22 semibold; shownAfter 480; duration 150) + measured
-  history_down_arrow@2x.png (glyph bbox 19x10, center (26,28) in the 52
-  canvas → (26,38) in button coords, ~3dp legs, round caps/joins — Gio
-  strokes render round by default).
-- Go mapping: our list is bottom-anchored (loadedAtBottom always true) and
-  reply returns don't exist yet → those two show-branches return with their
-  features (open item D-1); first-load gate = empty/unmeasured list
-  (MaxOffset 0 / rowTop 0 → hidden by construction); unread = first
-  UnreadBar row (the read boundary — Item.Unread is the per-message
-  out-tick flag, wrong notion for this law).
-- history/corner_button.go: DownShown / DownJumpTop (clamped) /
-  DownButtonGeometry(paneW, paneH, progress) / DownButtonHit. Tokens:
-  HistoryToDown* (12/10/52/62/42@(5,15)/19x10x3@(26,38)/480/150).
-- Elm: ChatDownState{Shown,Anim,From,To,Started,Progress}; chatDownCheck
-  rides chatViewportChanged (ALL Top mutations incl. measured-compensation,
-  resize, bar-drag) + ChatLoaded resets then ChatMeasured re-evaluates;
-  chatDownTick 150ms linear; ChatDownActive gates window tick+invalidate;
-  pressChat: chatDownHitAt BEFORE scrollbar and touch branches — pins
-  ChatPress{DownPress, Row:-1}, zeroes ChatBar/ChatTouch (touch on button =
-  tap only, drag cancels, release-inside chatDownClick jumps + re-checks);
-  View layers ChatPane.DownProgress.
-- Painter: paintDownButton — shadow circle +2dp black 0x28, 42dp circle
-  PrimaryContainer, chevron OnPrimaryContainer (Material FAB skin over the
-  measured geometry); slides with progress, clipped by the pane.
-- RED (compile) → 2 law-test expectation fixes (my own arithmetic: unread
-  fold positions, duplicate-slice bug) + 1 model-setup fix (tests must set
-  HasDialogs=false or the chat pane is ~500dp and press coords land on the
-  scrollbar track) → GREEN. 16 new tests (11 gui journeys + 5 ui laws),
-  306 total (190 ui + 116 gui). quick gate GREEN scoped (windows vet rung-7
-  OOM skip — CI is the gate of record).
+- Law: history_view_corner_buttons.cpp (updateVisibility animates on
+  change only, 150; updatePositions 357-474: down top = interpolate(0,
+  62+10, shown), moveToRight(12, parentH-top); the 52x62 widget IS the
+  hit area) + history_widget.cpp 9122-9157 cornerButtonsDownShown
+  (scrollTop+480 < max, or first unread at/below the fold) + downClick
+  139-145 (UnreadMessagePosition = first unread else bottom) + style
+  1179-1211 + measured history_down_arrow@2x (19x10, center (26,38) in
+  button coords). Go: DownShown/DownJumpTop/Geometry/Hit +
+  HistoryToDown* tokens; Elm ChatDownState rides chatViewportChanged
+  (all Top mutations) + ChatLoaded reset; press pins DownPress before
+  scrollbar/touch; painter Material FAB skin. loadedAtBottom/replyReturn
+  branches return with those features (D-1). 16 new tests (11 gui +
+  5 ui), 306 total (190 ui + 116 gui). quick gate GREEN. Detail:
+  b5c4b9c9 + git.
 
 ## Session 393 — the floating scroll-date (2026-11-08)
 

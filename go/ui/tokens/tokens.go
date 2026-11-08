@@ -293,6 +293,8 @@ const (
 	HistoryToDownShownAfter   = 480
 	HistoryToDownDurationMs   = 150
 
+	HistoryUnreadThingsSkip = 4
+
 	DialogsToUpShownAfter   = HistoryToDownShownAfter / 2
 	DialogsToUpTravel       = HistoryToDownHeight + 2
 	DialogsToUpArrowCenterY = HistoryToDownArrowCenterY + 1

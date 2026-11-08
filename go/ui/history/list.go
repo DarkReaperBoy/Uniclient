@@ -23,6 +23,7 @@ type Item struct {
 	SkipTail        bool
 	Sending         bool
 	Unread          bool
+	UnreadMention   bool
 	FromName        string
 	TimeText        string
 	DateText        string
@@ -133,22 +134,23 @@ func (l List) rowTop(i int) int {
 }
 
 type ChatPane struct {
-	Width         int
-	View          Viewport
-	First         int
-	Count         int
-	Rows          []Item
-	Ys            []int
-	Heights       []int
-	Bars          []Bars
-	Thumb         Thumb
-	ThumbDragging bool
-	DateRow       int
-	DateTop       int
-	DateInPlace   bool
-	DateText      string
-	DateAlpha     float32
-	DownProgress  float32
+	Width            int
+	View             Viewport
+	First            int
+	Count            int
+	Rows             []Item
+	Ys               []int
+	Heights          []int
+	Bars             []Bars
+	Thumb            Thumb
+	ThumbDragging    bool
+	DateRow          int
+	DateTop          int
+	DateInPlace      bool
+	DateText         string
+	DateAlpha        float32
+	DownProgress     float32
+	MentionsProgress float32
 }
 
 func (l List) Pane(v Viewport, width int) ChatPane {

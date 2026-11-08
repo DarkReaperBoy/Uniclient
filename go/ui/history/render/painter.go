@@ -307,6 +307,7 @@ func (p *ChatPainter) PaintChatPane(gtx layout.Context, pane history.ChatPane, s
 		}
 	}
 	p.paintDownButton(gtx, pane, sch)
+	p.paintMentionsButton(gtx, pane, sch)
 	if pane.Thumb.Hidden {
 		return
 	}
@@ -655,6 +656,28 @@ func (p *ChatPainter) paintDownButton(gtx layout.Context, pane history.ChatPane,
 	fillEllipse(gtx, shadow, downShadowColor)
 	fillEllipse(gtx, circle, sch.PrimaryContainer)
 	strokeDownArrow(gtx, g.Left, g.Top, sch.OnPrimaryContainer)
+}
+
+func (p *ChatPainter) paintMentionsButton(gtx layout.Context, pane history.ChatPane, sch material.Scheme) {
+	if pane.MentionsProgress <= 0 {
+		return
+	}
+	g := history.MentionsButtonGeometry(pane.Width, pane.View.Height,
+		pane.MentionsProgress, pane.DownProgress)
+	if g.Left >= pane.Width {
+		return
+	}
+	circle := history.Geometry{
+		Left:   g.Left + tokens.HistoryToDownCircleX,
+		Top:    g.Top + tokens.HistoryToDownCircleY,
+		Width:  tokens.HistoryToDownCircleSize,
+		Height: tokens.HistoryToDownCircleSize,
+	}
+	shadow := circle
+	shadow.Top += 2
+	fillEllipse(gtx, shadow, downShadowColor)
+	fillEllipse(gtx, circle, sch.PrimaryContainer)
+	fillGlyph(gtx, g.Left, g.Top, icons.HistoryMention, sch.OnPrimaryContainer)
 }
 
 func fillEllipse(gtx layout.Context, r history.Geometry, col color.NRGBA) {
