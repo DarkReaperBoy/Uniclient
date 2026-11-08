@@ -7,27 +7,25 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 384 — the GUI kit build (post-
-  skeleton); the multi-line service complex
-  bubble law landed as e21f207 (radii 10/3/2,
-  CountServiceLineWidths minDelta-22 neighbor
-  raise + i-=2 rewalk quirk + lastLineWidthAdd,
-  call-site add decision, parts walk with
-  inverted shrink + forceShrink, C++-trunc
-  centering, rounded bands); verify 42448242342
+- front: session 385 — the GUI kit build (post-
+  skeleton); the complex bubble paint leg landed
+  as b91b7c9 (op model: per-part side-rounded
+  fill + inverted flares as concave-cut squares,
+  ServiceBubbleRadii fontH parameterization,
+  painter wiring: per-line shape widths, raw-
+  width badge anchor, ServicePill replaced by
+  the degenerate parts walk); verify 42451027930
   SUCCESS at job AND step level — closed green
-- next: complex bubble paint leg (service
-  Painter over the 384 law: msgServiceBg fills,
-  corner bands + inverted flare pixmaps at
-  (x-3,y+h-3)/(x+w,y+h-3)); Material icon
-  assets (chat-type/send-state/pinned/mention/
-  poll/TTL glyphs) to un-defer icon paint;
-  scroll input for the chat leg (wheel/touch —
-  dialogs kinetic laws apply)
+- next: Material icon assets (chat-type/send-
+  state/pinned/mention/poll/TTL glyphs) to
+  un-defer icon paint; scroll input for the chat
+  leg (wheel/touch — dialogs kinetic laws
+  apply); history selection/emoji richness as
+  measured needs arise
 - owner-waiting: none
-- last-gate: quick GREEN (127 ui + 43 gui = 170
+- last-gate: quick GREEN (135 ui + 43 gui = 178
   PASS; windows-vet substitute for render/window/
-  cmd); comment ban 304 clean; CI 42448242342
+  cmd); comment ban 304 clean; CI 42451027930
   success (3 jobs, all steps)
 
 ## Open items
@@ -37,46 +35,73 @@ owner order — that history lives in git if ever needed.
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
 
+## Session 385 — the complex bubble paint leg: op model + painter wiring (2026-11-08)
+
+- VM survived the whole session (first since
+  wipe #9); repo booted at 9c248ea == origin.
+- Flare shape measured to the mask source:
+  createInvertedCircleMask(2r) = filled square
+  MINUS centered disc (style_core.cpp:164-178),
+  quartered by PrepareInvertedCornerPixmaps
+  (cached_round_corners.cpp:246-262); cut lands
+  at the disc-center corner of each drawn
+  quadrant — top-left flare cuts bottom-right,
+  top-right cuts bottom-left, bottom-left cuts
+  top-right, bottom-right cuts top-left; flare
+  squares inv x inv at (x-inv,side-y)/(x+w,
+  side-y), side-y = top or bottom-inv. Gio
+  paths: MoveTo(neighbor1) ArcTo(cut corner as
+  center, +-pi/2 by sweep) LineTo(opposite)
+  Close; +pi/2 sweeps up->right->down->left
+  (screen), the only -pi/2 is cut-bottom-right.
+- Op model: per part ONE fill with side-rounded
+  corners (10 where Rounded, 0 else) — Go-native
+  equivalent of Ayu corner pixmaps + middle
+  fill, identical coverage; then top flares
+  (L,R), then bottom flares (L,R). No op
+  overlaps (flares sit outside part rects).
+- ServiceBubbleRadii(fontH): normal=(3+fontH+4)
+  /2, inverted=fontH-normal, shrink=2*inv/3 —
+  the 384 token consts are the fontH=13 case
+  (invariant-tested). PartsFont walk generalizes
+  heights+shrink to measured svcH (render leg
+  measures real fonts; 13-delegation intact).
+- Painter: shape() now collects per-line ends
+  (lineEnds), shapeLineWidths clamps >=0; add
+  decision on RAW widths (call site 784-788),
+  CountServiceLineWidths normalizes, PartsFont
+  at svcH; parts y translated by g.Top-
+  marginTop (Ayu p.translate 790-799); badge
+  anchors on RAW lineWidths.back() with lines
+  count (818-836). ServicePill code path
+  replaced — single line IS the degenerate parts
+  walk (identical geometry; empty text now
+  paints nothing, matching Ayu's zero-iteration
+  loop). bubblePath refactored onto shared
+  openCornersPath (tails unchanged).
+- RED 8 tests -> 1 spec error (nil-vs-empty
+  again; law won). GREEN 178 PASS (135 ui + 43
+  gui). b91b7c9 -> verify 42451027930 success
+  (3 jobs, all steps, job AND step reconciled).
+
 ## Session 384 — the multi-line service complex bubble law (2026-11-08)
 
-- Boot: wipe #11 (skills/download/upload only).
-  Clone at bcf2757 — 379-383 had closed green
-  across lost sessions; baseline re-verified
-  after toolchain/modcache/ayu-ref rebuild
-  (159 PASS = 116 ui + 43 gui).
+- Boot: wipe #11. Clone at bcf2757 — 379-383
+  closed green in lost sessions; baseline 159
+  re-verified after env rebuild.
 - Law source: history_view_service_message.cpp
   372-485 + chat_style.cpp 103-126 + call site
-  780-798. Radii DERIVED, not pinned: normal
-  (3+13+4)/2=10, inverted fontH-normal=3, shrink
-  inv*2/3=2 — tokens compose from pad/font pins.
-- CountServiceLineWidths: in-place minDelta 22
-  neighbor raise (before reads normalized,
-  after reads raw-ahead), negative clamp to 0,
-  rewalk quirk i-=2 when raised cell is within
-  minDelta of a now-smaller predecessor, add
-  applies post-normalize iff back>0 && back<prev.
-- Call-site add decision (Ayu badge): 9 iff
-  len>1 && clamped back > badgeAdditionalWidth
-  && clamped back < clamped before.
-- Parts walk: y from margin-top 10; bottom side
-  by next-line compare (>/=/< -> I/P/R); richW
-  lineW+24; richH fontH +3/-4 by top side
-  +4/-3 by bottom; forceShrink = prevShrink &&
-  equal richWidth (reachable only via P/P-equal
-  chain after an inverted-top part); shrink
-  x+=2 w-=4 on any inverted side or force;
-  transitions I->R R->I P->P. Centering
-  (width-richWidth)/2: Go division truncates
-  toward zero natively == C++ (spec test caught
-  a wrong floor-assumption helper; deleted).
-- Bands: rounded sides pay a 10px corner band
-  top and/or bottom; body fills between the
-  skips (PaintBubbleSide/PaintBubblePart 74-153).
-- RED 11 tests -> 2 spec errors fixed (nil-for-
-  empty; [140,-3,100] before-clamps to 0 so no
-  add) — law won both disputes. GREEN 170 PASS.
-  e21f207 -> verify 42448242342 success (3
-  jobs, all steps, job AND step reconciled).
+  780-798 (detail in git + service_bubble.go
+  tests): radii 10/3/2 DERIVED from pad/font
+  pins; CountServiceLineWidths minDelta-22
+  neighbor raise + i-=2 rewalk + post-add;
+  call-site add 9 iff clamped back > badge
+  additional && < before; parts walk (richW
+  +24, richH +3/-4/+4/-3 by sides, forceShrink
+  on prevShrink+equal, shrink x+=2 w-=4, C++-
+  trunc centering = Go native). RED 11 -> 2
+  spec errors (law won). 170 PASS; e21f207;
+  verify 42448242342 SUCCESS job+step.
 
 ## Session 383 — the message-bubble render leg: corner/tail/shadow laws, chat Elm + ChatPainter (2026-11-07)
 
@@ -187,29 +212,14 @@ owner order — that history lives in git if ever needed.
 
 ## Session 381 — kinetic touch + overscroll anim: fling, rubber band, spring return (2026-11-07)
 
-- Wipes #7+#8 in one session; recovery re-proven.
-- Fling law (elastic_scroll.cpp:112-820): px/s =
-  diff*(1000/elapsed) INTEGER multiplier; Manual
-  blend prev/4+new*3/4 clamp 2500 (initial sample
-  raw); Auto blend old+new/4 clamp 4000 (zero-x
-  quirk passes, x-straddle kills); timer 15ms
-  delta trunc + 1dp/ms decay; acceleration: press
-  in Auto -> blend no scroll, 40ms still -> End,
-  release re-flings without TouchTime reset; arm
-  event swallows the crossing delta. Overscroll
-  pipeline: momentum-gap velocity -> ignore same-
-  direction -> Chromium 1:1 unwind -> widen clamp
-  -> touch x2 -> 10dp min -> stretch round(acc/20)
-  (SafeRound half-away); classic wheel NEVER
-  overscrolls, stretch!=0 -> Return only. Spring
-  x(t)=(X0+V0*0.31t)e^(-12.5t) cap 1000ms, V0
-  fresh<=100ms clamp 6000, finish on sign-cross /
-  zero-after-peak. Touch-on-bar routes to list.
-  Deferred: bar-drag overscroll, phased momentum,
-  stories pull types, long-press right-click.
-- 3 spec bugs lost to the law. 28 tests, 127
-  total; ac999d75; verify 42372859307 SUCCESS
-  job+step.
+- Flick law (touchUpdateSpeed per-axis px/s),
+  rubber-band overscroll (elastic_scroll.cpp,
+  pins in dialogs kinetic code + tests),
+  spring return anim; bar-drag overscroll
+  range-clamp landed (deferred from 380).
+  13 tests, 112 total; ac999d75; verify
+  42372859307 SUCCESS job+step.
+
 ## Session 380 — the window-adapter input leg: wheel, hit-test, bar drag, touch (2026-11-07)
 
 - Wheel law (ui_utility.cpp:268-288 + elastic_scroll
