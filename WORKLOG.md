@@ -7,25 +7,33 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 385 — the GUI kit build (post-
-  skeleton); the complex bubble paint leg landed
-  as b91b7c9 (op model: per-part side-rounded
-  fill + inverted flares as concave-cut squares,
-  ServiceBubbleRadii fontH parameterization,
-  painter wiring: per-line shape widths, raw-
-  width badge anchor, ServicePill replaced by
-  the degenerate parts walk); verify 42451027930
-  SUCCESS at job AND step level — closed green
-- next: Material icon assets (chat-type/send-
-  state/pinned/mention/poll/TTL glyphs) to
-  un-defer icon paint; scroll input for the chat
-  leg (wheel/touch — dialogs kinetic laws
-  apply); history selection/emoji richness as
-  measured needs arise
+- front: session 386 — the Material icon
+  asset library landed as d8eedff (13 glyphs:
+  chat-type bot/channel/forum, send-state
+  sending/sent/received in both dialogs and
+  history cells, badges pinned/mention/reaction/
+  poll; @3x blue-channel crack-trace + chatlist
+  SVG flatten; icon canvas law point(x,y) =
+  margins(x,y,0,0) from codegen parsed_file.cpp;
+  TTL timer law; selection laws; paintMessage
+  now paints the history send-state glyph);
+  verify 42454857199 SUCCESS at job AND step
+  level — closed green
+- next: dialogs row painter leg (RowLayout ->
+  userpic/name/date/badges/glyph paint over the
+  386 assets — ChatTypeIcon in-cell offsets,
+  send-state cell at nameX+nameW, pinned right-
+  aligned to its 20px canvas, badge glyph fills,
+  TTL timer over the blurred userpic cutout);
+  info-block width law: out messages reserve
+  the 24px ticks space in the text skip
+  (bottom_info.cpp:181-183); chat-leg scroll
+  input (wheel/touch — dialogs kinetic laws
+  apply) after that
 - owner-waiting: none
-- last-gate: quick GREEN (135 ui + 43 gui = 178
+- last-gate: quick GREEN (137 ui + 43 gui = 186
   PASS; windows-vet substitute for render/window/
-  cmd); comment ban 304 clean; CI 42451027930
+  cmd); comment ban 310 clean; CI 42454857199
   success (3 jobs, all steps)
 
 ## Open items
@@ -34,6 +42,60 @@ owner order — that history lives in git if ever needed.
 |---|---|---|---|---|
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
+
+## Session 386 — the Material icon asset library (2026-11-08)
+
+- VM survived again; repo booted at 8420312 ==
+  origin (385 had closed green in a lost
+  session); baseline 178 re-verified.
+- Canvas law (codegen_style parsed_file.cpp:967-
+  969 + lib_ui MonoIcon::paint/createCachedPixmap):
+  icon part point(x,y) = QMargins(x,y,0,0) —
+  glyph at cell+(x,y), canvas = mask+point;
+  SVG -WxH modifier renders the FULL viewBox
+  into W x H (mention/poll/reaction 72 -> 18,
+  scale 0.25); PNG coverage = blue channel byte
+  (colorizeImage offset 0, useAlpha false); @3x
+  assets are per-DPI hand-tuned (bbox differs
+  from 1x up to 0.67px — @3x is the trace
+  source, bounds pinned to it).
+- 13 glyphs: bot 16x11@(1,3)->17x14, channel
+  12x11@(3,4)->15x15, forum 19x10@(1,4)->20x14,
+  dialogs sending 11x11@(8,4)->19x15 / sent
+  12x10@(10,4)->22x14 / received 17x10@(5,4)->
+  22x14, pinned 20x20, chatlist 18x18 x3, history
+  sending 11x11@(5,5)->16x16 / sent 13x11@(2,4)-
+  >15x15 / received 18x11@(2,4)->20x15. PNG legs:
+  crack-boundary walk on the @3x binary (blue>
+  127), RDP eps 0.75@3x, /3 grid; contour order =
+  component scan then area-desc (outer, holes,
+  next); holes wind opposite automatically. SVG
+  legs: absolute M/L/C/Z flatten, 12 samples per
+  cubic. IoU vs @2x coverage 0.886-0.957.
+- TTL timer (ttl_icon.cpp): pen 1.5 round, solid
+  LEFT half-arc 90..270deg as one annulus
+  contour with round caps (bottom cap bulges +x,
+  top -x), dotted right half = 9 dots r0.75
+  pitch 3 from the 3 o'clock anchor (QPainterPath
+  ellipse stroke modeled as starting at angle 0 —
+  PHASE ASSUMED, refine against a live render
+  someday), text 9px semibold clamped 2 chars.
+- Selection laws: history.SendStateIcon(out,
+  sending, unread) = bottom_info.cpp 287-300
+  (OutLayout gates; sending clock, unread single,
+  else double); dialogs.SendStateIcon(state);
+  BadgeReaction split from BadgeMention (mention
+  wins when both, Ayu ternary). Painter wiring:
+  paintMessage feeds item.Out to TimeLabel and
+  fillGlyphs the icon at iconX/iconY (Item gains
+  Sending/Unread).
+- RED 8 tests -> 2 spec errors fixed by the
+  measurement (my dot-x arithmetic 10.622 vs
+  real 10.566; Icon struct not comparable ->
+  zero-check helper). GREEN 186 PASS (137 ui +
+  43 gui). d8eedff -> verify 42454857199 SUCCESS
+  (3 jobs, all steps, release-tag step skipped
+  by design on main).
 
 ## Session 385 — the complex bubble paint leg: op model + painter wiring (2026-11-08)
 
@@ -105,110 +167,46 @@ owner order — that history lives in git if ever needed.
 
 ## Session 383 — the message-bubble render leg: corner/tail/shadow laws, chat Elm + ChatPainter (2026-11-07)
 
-- Boot: wipe #10 (skills/download/upload only).
-  Clone at 8b2ae432 — 379-382 had closed green in
-  lost sessions (127→141 baseline re-verified
-  after toolchain/modcache/ayu-ref rebuild).
-- Bubble corner law (message.cpp:6626-6651
-  countMessageRounding, verbatim): attachedTop
-  smalls the wall-side top corner, attachedBottom
-  smalls the wall-side bottom corner, tail lands
-  on the layout-side bottom (skipTail removes,
-  keyboard overrides both bottoms to Small);
-  Large=BubbleRadiusLarge()=16 Small=6 Tail->0
-  (chat_style_radius.cpp map: slider 16 = max);
-  Ayu removeMessageTail (default OFF) Tail->Large.
-- Tail glyph 6x10 (bubble_tail.png, right-angle
-  triangle, diagonal (6,0)->(0,10), wall-side
-  vertical edge): left at (x-6, bottom-10), right
-  at (right, bottom-10). Shadow strip 2px
-  (msgShadow) below bottom between corner radii
-  widened by tails; colors colors.palette RRGGBBAA
-  in #748ea2@0x29 out #3ac346@0x1d.
-- Service pill (single line): centered lineW+24
-  x fontH+7, radius (3+h+4)/2 = pillH/2
-  (chat_style.cpp:103). Ayu badge pos: x = trect.x
-  + (trect.w-lastLineW)/2 + max(lastLineW-
-  additional,0) + (lastTextW?8:0); y = trect.y +
-  (lines-1)fontH + (fontH-badgeH)/2; bg black@0x1e.
-- Time label (message.cpp:5479-5516 drawInfo):
-  infoRight = right-(11-2), infoBottom = bottom-
-  (8-5); text right-aligned there; out send-state
-  icon consumes 24px, anchor (-17,-19) off
-  (infoRight, textY+dateFontH).
-- Chat mode: >= adaptiveChatWideWidth 880 (default
-  adaptiveForWide=true) -> Wide (recountChatWidth
-  chain pinned end-to-end). MessageContentWidth
-  extracted as the shared clamp chain (Geometry/
-  Height/painter all call one law now).
-- Chat Elm leg: Item/List/Heights + measure-as-
-  message (ChatLoaded nils heights + dirty,
-  ChatMeasured refills + clamps, ChatScrolled/
-  Resized clamp; zero-height viewport paints
-  nothing — dialogs precedent won over my spec);
-  ChatPane{Rows,Ys,Heights,View,First,Count};
-  Scene.Chat; window measures-on-dirty before
-  View, paints past the dialogs column.
-- ChatPainter: shaper metrics with TD skip-block
-  emulation (last line height max(fontH,skipH),
-  extra line when lastEnd+skipW > width — matches
-  TD height; body wrap approx: all-lines-narrow,
-  documented for the text-engine slice), bubble
-  path per-corner arcs + tail subpaths (nonzero
-  outline, adjacent-not-overlapping), Material
-  skin: in SurfaceContainerHigh/out Primary,
-  pill InverseSurface/InverseOnSurface, fromName
-  in Primary. 2 spec cases fell to the law
-  (attached shadow width 178; scene top=80
-  scenario). 18 tests, 159 total; shipped 4fdc467c,
-  verify 42409023939 SUCCESS job+step.
+- Boot: wipe #10. Clone at 8b2ae432 (379-382
+  closed green in lost sessions; baseline
+  re-verified after env rebuild).
+- Pins (laws live in ui/history + tests, detail
+  in git): corner law message.cpp:6626-6651
+  (attachedTop/Bottom small the wall-side
+  corners, tail on layout-side bottom,
+  Large=16/Small=6/Tail->0, removeMessageTail
+  off by default Tail->Large); tail glyph 6x10
+  right triangle; shadow strip 2px
+  #748ea2@0x29 / #3ac346@0x1d; time label
+  message.cpp:5479-5516 (send-state 24px,
+  anchor (-17,-19)); chat mode wide >= 880;
+  ChatPainter TD skip-block emulation + body
+  wrap approximation documented for the text-
+  engine slice; Material skin colors.
+- 18 tests, 159 total; 4fdc467c -> verify
+  42409023939 SUCCESS job+step.
 
 ## Session 382 — the history element geometry law: margins, bubble, service (2026-11-07)
 
-- Boot: wipe #9 (only skills/download/upload; .env
-  sweep clean). Clone at 874f707f — 379-381 had
-  closed green in lost sessions (Elm+render leg,
-  input leg, kinetic+overscroll; 127 baseline re-
-  verified after toolchain/modcache/ayu-ref rebuild).
-- Surface: element.cpp (skip block 1631-1650,
-  textualMaxWidth 2940, DateBadge 857), message.cpp
-  (margins 1708-1759, countGeometry 6557-6628,
-  resizeContentGetHeight 6680-6935, bubbleTextWidth
-  5668, monospaceMaxWidth 5648, optimal 1347),
-  service_message.cpp (margins 667-696, geometry 540,
-  height 565-640, ComputeServiceTimeMetrics ~500),
-  chat.style (msgMinWidth 160, msgDateSpace 12,
-  msgDateDelta 2/5), ayu_styles.style (time badge
-  11px semibold pads 7/2 gap 8 inset 3).
-- go/ui/history/element.go: message top margin =
-  attached?0:6 + bars + servicePre-above + added —
-  BARS SURVIVE HIDDEN (only the msg margin is
-  conditioned); bottom = 2 + below-servicePre,
-  hidden 0. Service: 10/2, servicePre UNCONDITIONAL
-  (no below check), bottom pays even hidden.
-  DateBadge 10+3+font+4+2. Skip block 12+infoW−2 /
-  fontH−5. textW = max(w,160)−22; limit unlimited?
-  0x3FFFFFF : max(430, mono). Geometry: left 16
-  (rightLayout wideSkip; narrow 16) + photoSkip 40,
-  rightAction −w−(40−31); clamps maxWidth → limit →
-  shrunk max(realWidth+22, nonTextMax); out shift /
-  centered halves; Wide centered max((430+80−w)/2,0).
-  Height: ==maxWidth keeps OPTIMAL minHeight else
-  heightFor(textW)+8+8; +fromName font; +needInfo
-  bottomInfo−dateFont; + margins. Service height:
-  TWO-SMALL-MARGINS quirk (−2×10), floor 25, nwidth
-  max(cw−24,0), fits→minHeight else heightFor, empty
-  text = marginTop−10; Wide min(w,542). Ayu time
-  badge: w+14, h+4, additional max(w+13,0), skip
-  max(badgeH, serviceFontH).
-- Text engine deferred like icon paint: Text{MaxWidth,
-  MinHeight, HeightFor(w)→(height, realWidth)};
-  tests inject synthetic layouts.
-- TDD: RED 14 undefined → GREEN 14 first run (2
-  expectation slips caught at design time). 141
-  total; gates clean. Shipped 3a655338; verify
-  42384001792 SUCCESS at job AND step level — 382
-  closed green.
+- Boot: wipe #9. Clone at 874f707f (379-381
+  closed green in lost sessions; baseline
+  re-verified after env rebuild).
+- Pins (full derivation in ui/history/element.go
+  + its tests, sources cited in git): message
+  top margin = attached?0:6 + BARS SURVIVE HIDDEN
+  + servicePre-above + added; bottom 2 + below-
+  servicePre (hidden 0). Service margins 10/2,
+  servicePre unconditional, two-small-margins −20
+  floor 25 quirk, Wide min(w,542). Skip block
+  12+infoW−2 / fontH−5. textW = max(w,160)−22;
+  optimal/limit/clamp chain per message.cpp
+  1347/5648/5668/6680-6935. DateBadge 10+3+font+
+  4+2; Ayu time badge w+14/h+4/additional w+13.
+  Text engine deferred like icon paint (Text
+  struct with HeightFor closure).
+- RED 14 -> GREEN first run (2 slips caught at
+  design). 141 total; 3a655338 -> verify
+  42384001792 SUCCESS job+step.
 
 ## Session 381 — kinetic touch + overscroll anim: fling, rubber band, spring return (2026-11-07)
 
