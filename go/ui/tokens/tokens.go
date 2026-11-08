@@ -123,6 +123,10 @@ const (
 	FontMsgService = 13
 	FontMsgDate    = 13
 
+	ServiceMsgRadius         = (MsgServicePadTop + FontMsgService + MsgServicePadBottom) / 2
+	ServiceMsgInvertedRadius = FontMsgService - ServiceMsgRadius
+	ServiceMsgInvertedShrink = (ServiceMsgInvertedRadius * 2) / 3
+
 	HistoryPaddingBottom       = 8
 	HistoryUnreadBarHeight     = 32
 	HistoryUnreadBarMargin     = 3
