@@ -1,5 +1,7 @@
 package history
 
+import "uniclient/ui/tokens"
+
 type Viewport struct {
 	Top    int
 	Height int
@@ -62,6 +64,11 @@ func (l List) MaxOffset(v Viewport) int {
 		return 0
 	}
 	return m
+}
+
+func (l List) PreloadTopNeeded(v Viewport) bool {
+	return len(l.Items) > 0 && v.Height > 0 &&
+		v.Top < tokens.HistoryPreloadIfLessThanScreens*v.Height
 }
 
 func (l List) ClampOffset(top int, v Viewport) int {

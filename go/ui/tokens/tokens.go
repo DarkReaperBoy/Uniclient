@@ -277,6 +277,8 @@ const (
 
 	PreloadScreens = 3
 
+	HistoryPreloadIfLessThanScreens = 2
+
 	WheelPixelToAngleDelta = 2
 	WheelScrollLines       = 3
 	WheelNotchAngleDelta   = 120

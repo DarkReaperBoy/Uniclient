@@ -99,10 +99,22 @@ type DialogsTick struct {
 func (DialogsTick) isMsg() {}
 
 type ChatLoaded struct {
-	Items []history.Item
+	Items     []history.Item
+	MoreAbove bool
 }
 
 func (ChatLoaded) isMsg() {}
+
+type ChatPrepended struct {
+	Items     []history.Item
+	MoreAbove bool
+}
+
+func (ChatPrepended) isMsg() {}
+
+type ChatPreloadTopRequested struct{}
+
+func (ChatPreloadTopRequested) isMsg() {}
 
 type ChatMeasured struct {
 	Heights []int
@@ -232,6 +244,9 @@ type Model struct {
 	DialogsOverscroll dialogs.Overscroll
 	Chat              history.List
 	ChatScroll        history.Viewport
+	ChatMoreAbove     bool
+	ChatPrependTop    int
+	ChatPrependRows   int
 	ChatTouch         TouchDrag
 	ChatBar           BarDrag
 	ChatDirty         bool
@@ -261,7 +276,11 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		m.ChatScroll.Height = msg.Height
 		m.ChatScroll.Top = m.Chat.ClampOffset(m.ChatScroll.Top, m.ChatScroll)
 		m.ChatDirty = true
-		return m, m.loadMoreCmd()
+		cmd := m.loadMoreCmd()
+		if cmd == nil {
+			cmd = m.chatPreloadCmd()
+		}
+		return m, cmd
 	case Quit:
 		m.Running = false
 		return m, nil
@@ -308,21 +327,47 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		return m, nil
 	case ChatLoaded:
 		m.Chat.Items = msg.Items
+		m.ChatMoreAbove = msg.MoreAbove
+		m.ChatPrependTop = 0
+		m.ChatPrependRows = 0
 		m.Chat.Heights = nil
 		m.Chat.Hits = nil
 		m.ChatSelection = nil
 		m.ChatDirty = true
 		m.ChatScroll.Top = m.Chat.ClampOffset(m.ChatScroll.Top, m.ChatScroll)
 		return m, nil
+	case ChatPrepended:
+		m.ChatMoreAbove = msg.MoreAbove
+		if len(msg.Items) > 0 {
+			m.ChatPrependTop = m.ChatScroll.Top
+			m.ChatPrependRows = len(msg.Items)
+			m.Chat.Items = append(append([]history.Item(nil), msg.Items...), m.Chat.Items...)
+			m.Chat.Heights = nil
+			m.Chat.Hits = nil
+			m.ChatSelection = nil
+			m.ChatPress = ChatPressState{Row: -1}
+			m.ChatDirty = true
+		}
+		return m, nil
 	case ChatMeasured:
 		m.Chat.Heights = msg.Heights
 		m.Chat.Hits = msg.Hits
 		m.ChatDirty = false
-		m.ChatScroll.Top = m.Chat.ClampOffset(m.ChatScroll.Top, m.ChatScroll)
-		return m, nil
+		if m.ChatPrependRows > 0 {
+			shift := 0
+			for i := 0; i < m.ChatPrependRows && i < len(m.Chat.Heights); i++ {
+				shift += m.Chat.Heights[i]
+			}
+			m.ChatScroll.Top = m.Chat.ClampOffset(m.ChatPrependTop+shift, m.ChatScroll)
+			m.ChatPrependTop = 0
+			m.ChatPrependRows = 0
+		} else {
+			m.ChatScroll.Top = m.Chat.ClampOffset(m.ChatScroll.Top, m.ChatScroll)
+		}
+		return m, m.chatPreloadCmd()
 	case ChatScrolled:
 		m.ChatScroll.Top = m.Chat.ClampOffset(m.ChatScroll.Top+msg.DeltaY, m.ChatScroll)
-		return m, nil
+		return m, m.chatPreloadCmd()
 	case ChatWheel:
 		return m.chatWheel(msg)
 	case ChatTrackpadScrolled:
@@ -330,7 +375,8 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 	case ChatPressed:
 		return m.pressChat(msg), nil
 	case ChatDragged:
-		return m.dragChat(msg), nil
+		dragged := m.dragChat(msg)
+		return dragged, dragged.chatPreloadCmd()
 	case ChatReleased:
 		m.releaseChat(msg)
 		return m, nil
@@ -341,8 +387,10 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		return m, nil
 	case ChatTick:
 		m.chatTick(msg.Now)
-		return m, nil
+		return m, m.chatPreloadCmd()
 	case ChatBottomRequested:
+		return m, nil
+	case ChatPreloadTopRequested:
 		return m, nil
 	}
 	return m, nil
@@ -546,12 +594,22 @@ func (m Model) loadMoreCmd() Cmd {
 	return func() Msg { return DialogsLoadMoreRequested{} }
 }
 
+func (m Model) chatPreloadCmd() Cmd {
+	if !m.ChatMoreAbove || !m.Chat.PreloadTopNeeded(m.ChatScroll) {
+		return nil
+	}
+	return func() Msg { return ChatPreloadTopRequested{} }
+}
+
 func (m *Model) chatScrollClassic(dy int) (Model, Cmd) {
 	var cmd Cmd
 	if history.ChatBottomRequest(m.ChatScroll.Top, dy, m.Chat.MaxOffset(m.ChatScroll)) {
 		cmd = func() Msg { return ChatBottomRequested{} }
 	}
 	m.ChatScroll.Top = m.Chat.ClampOffset(m.ChatScroll.Top+dy, m.ChatScroll)
+	if cmd == nil {
+		cmd = m.chatPreloadCmd()
+	}
 	return *m, cmd
 }
 
