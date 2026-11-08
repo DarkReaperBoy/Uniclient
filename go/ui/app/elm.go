@@ -194,8 +194,9 @@ type TouchDrag struct {
 }
 
 type BarDrag struct {
-	Dragging bool
-	LastY    int
+	Dragging   bool
+	LastY      int
+	Overscroll int
 }
 
 type Model struct {
@@ -212,6 +213,7 @@ type Model struct {
 	Chat              history.List
 	ChatScroll        history.Viewport
 	ChatTouch         TouchDrag
+	ChatBar           BarDrag
 	ChatDirty         bool
 }
 
@@ -306,6 +308,7 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		m.releaseChat(msg)
 		return m, nil
 	case ChatPressCanceled:
+		m.ChatBar = BarDrag{}
 		m.ChatTouch = TouchDrag{}
 		return m, nil
 	case ChatTick:
@@ -554,6 +557,18 @@ func (m *Model) chatTouchScroll(dy int) bool {
 
 func (m *Model) pressChat(msg ChatPressed) Model {
 	if !msg.Touch {
+		width := m.Columns().Chat
+		if width > tokens.HistoryScrollBarWidth && msg.X >= width-tokens.HistoryScrollBarWidth {
+			thumb := m.Chat.ScrollbarThumb(m.ChatScroll, m.ChatScroll.Height)
+			if !thumb.Hidden {
+				m.ChatBar = BarDrag{Dragging: true, LastY: msg.Y}
+				if !history.BarOver(thumb, msg.X-(width-tokens.HistoryScrollBarWidth), msg.Y) {
+					m.ChatScroll.Top = m.Chat.ClampOffset(
+						m.Chat.BarTrackJump(m.ChatScroll, m.ChatScroll.Height, msg.Y), m.ChatScroll)
+				}
+				return *m
+			}
+		}
 		return *m
 	}
 	d := m.ChatTouch
@@ -574,6 +589,14 @@ func (m *Model) pressChat(msg ChatPressed) Model {
 }
 
 func (m *Model) dragChat(msg ChatDragged) Model {
+	if m.ChatBar.Dragging {
+		dy := msg.Y - m.ChatBar.LastY
+		m.ChatBar.LastY = msg.Y
+		top, accum := m.Chat.ApplyBarDrag(m.ChatScroll, m.ChatScroll.Height, dy, m.ChatBar.Overscroll)
+		m.ChatBar.Overscroll = accum
+		m.ChatScroll.Top = top
+		return *m
+	}
 	d := m.ChatTouch
 	if !d.Active {
 		return *m
@@ -606,6 +629,7 @@ func (m *Model) dragChat(msg ChatDragged) Model {
 }
 
 func (m *Model) releaseChat(msg ChatReleased) {
+	m.ChatBar = BarDrag{}
 	d := m.ChatTouch
 	if !d.Active {
 		return
@@ -761,5 +785,6 @@ func View(m Model) Scene {
 		s.Dialogs = m.Dialogs.Pane(m.DialogsScroll, m.Columns().Dialogs)
 	}
 	s.Chat = m.Chat.Pane(m.ChatScroll, m.Columns().Chat)
+	s.Chat.ThumbDragging = m.ChatBar.Dragging
 	return s
 }

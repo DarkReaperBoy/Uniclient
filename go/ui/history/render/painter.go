@@ -42,6 +42,10 @@ var outShadow = color.NRGBA{R: 0x3a, G: 0xc3, B: 0x46, A: 0x1d}
 
 var badgeBg = color.NRGBA{R: 0x00, G: 0x00, B: 0x00, A: 0x1e}
 
+var historyScrollBarColor = color.NRGBA{R: 0x51, G: 0x7c, B: 0x41, A: 0x7a}
+
+var historyScrollBarOverColor = color.NRGBA{R: 0x51, G: 0x7c, B: 0x41, A: 0xbc}
+
 func NewChatPainter() *ChatPainter {
 	return &ChatPainter{
 		Shaper: text.NewShaper(text.WithCollection(gofont.Collection()), text.NoSystemFonts()),
@@ -275,6 +279,19 @@ func (p *ChatPainter) PaintChatPane(gtx layout.Context, pane history.ChatPane, s
 			p.paintDateBadge(gtx, pane.Rows[i], pane.Width, mode, sch)
 		}
 	}
+	if pane.Thumb.Hidden {
+		return
+	}
+	col := historyScrollBarColor
+	if pane.ThumbDragging {
+		col = historyScrollBarOverColor
+	}
+	fillRRect(gtx, history.Geometry{
+		Left:   pane.Width - tokens.HistoryScrollBarWidth + tokens.HistoryScrollBarDeltax,
+		Top:    pane.Thumb.Y,
+		Width:  tokens.HistoryScrollBarWidth - 2*tokens.HistoryScrollBarDeltax,
+		Height: pane.Thumb.H,
+	}, tokens.HistoryScrollBarRadius, col)
 }
 
 func (p *ChatPainter) paintService(gtx layout.Context, item history.Item, bar history.Bars, viewWidth, rowHeight int, sch material.Scheme) {

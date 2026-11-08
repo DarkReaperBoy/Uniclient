@@ -269,6 +269,12 @@ const (
 	ScrollDurationMs   = 150
 	ScrollHidingMs     = 1000
 
+	HistoryScrollBarWidth  = 12
+	HistoryScrollBarRadius = 3
+	HistoryScrollBarDeltax = 3
+	HistoryScrollBarDeltat = 3
+	HistoryScrollBarDeltab = 3
+
 	PreloadScreens = 3
 
 	WheelPixelToAngleDelta = 2

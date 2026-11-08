@@ -125,19 +125,22 @@ func (l List) rowTop(i int) int {
 }
 
 type ChatPane struct {
-	Width   int
-	View    Viewport
-	First   int
-	Count   int
-	Rows    []Item
-	Ys      []int
-	Heights []int
-	Bars    []Bars
+	Width         int
+	View          Viewport
+	First         int
+	Count         int
+	Rows          []Item
+	Ys            []int
+	Heights       []int
+	Bars          []Bars
+	Thumb         Thumb
+	ThumbDragging bool
 }
 
 func (l List) Pane(v Viewport, width int) ChatPane {
 	first, count := l.VisibleRows(v)
-	pane := ChatPane{Width: width, View: v, First: first, Count: count}
+	pane := ChatPane{Width: width, View: v, First: first, Count: count,
+		Thumb: l.ScrollbarThumb(v, v.Height)}
 	if count <= 0 {
 		return pane
 	}
