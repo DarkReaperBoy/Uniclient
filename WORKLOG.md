@@ -21,8 +21,7 @@ owner order — that history lives in git if ever needed.
 - owner-waiting: none
 - last-gate: quick GREEN (400 scope); js/wasm compile ui/... GREEN;
   comment ban clean; 372 tests (219 ui + 153 gui) green locally;
-  verify for ac0521d6 dispatched (run id lands in the next entry —
-  check actions/runs before trusting it)
+  verify 42517439919 SUCCESS job+step (ac0521d6)
 
 ## Open items
 
