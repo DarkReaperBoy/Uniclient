@@ -67,7 +67,7 @@ func Run() error {
 				lastW, lastH = dpW, dpH
 				handle(app.Resized{Width: dpW, Height: dpH})
 			}
-			if appModel.KineticActive() {
+			if appModel.KineticActive() || appModel.ChatDateActive() {
 				handle(app.DialogsTick{Now: int(time.Now().UnixMilli())})
 				handle(app.ChatTick{Now: int(time.Now().UnixMilli())})
 			}
@@ -93,7 +93,7 @@ func Run() error {
 				w.Perform(system.ActionClose)
 			}
 			e.Frame(gtx.Ops)
-			if appModel.KineticActive() {
+			if appModel.KineticActive() || appModel.ChatDateActive() {
 				w.Invalidate()
 			}
 		}

@@ -125,6 +125,7 @@ func (ChatMeasured) isMsg() {}
 
 type ChatScrolled struct {
 	DeltaY int
+	Now    int
 }
 
 func (ChatScrolled) isMsg() {}
@@ -231,6 +232,20 @@ type ChatPressState struct {
 	Action ChatPressAction
 }
 
+type ChatDateState struct {
+	Shown            bool
+	HasLast          bool
+	LastRow          int
+	LastOffset       int
+	AlphaAnim        bool
+	AlphaFrom        float32
+	AlphaTo          float32
+	AlphaStarted     int
+	Alpha            float32
+	HideAt           int
+	AfterDayCrossing bool
+}
+
 type Model struct {
 	Width             int
 	Height            int
@@ -247,6 +262,8 @@ type Model struct {
 	ChatMoreAbove     bool
 	ChatPrependTop    int
 	ChatPrependRows   int
+	ChatDate          ChatDateState
+	nowMs             int
 	ChatTouch         TouchDrag
 	ChatBar           BarDrag
 	ChatDirty         bool
@@ -274,8 +291,10 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		m.DialogsScroll.Height = msg.Height
 		m.DialogsScroll.Top = m.clampDialogsScroll(m.DialogsScroll.Top)
 		m.ChatScroll.Height = msg.Height
+		oldTop := m.ChatScroll.Top
 		m.ChatScroll.Top = m.Chat.ClampOffset(m.ChatScroll.Top, m.ChatScroll)
 		m.ChatDirty = true
+		m.chatViewportChanged(oldTop)
 		cmd := m.loadMoreCmd()
 		if cmd == nil {
 			cmd = m.chatPreloadCmd()
@@ -330,6 +349,7 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		m.ChatMoreAbove = msg.MoreAbove
 		m.ChatPrependTop = 0
 		m.ChatPrependRows = 0
+		m.ChatDate = ChatDateState{}
 		m.Chat.Heights = nil
 		m.Chat.Hits = nil
 		m.ChatSelection = nil
@@ -341,6 +361,7 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		if len(msg.Items) > 0 {
 			m.ChatPrependTop = m.ChatScroll.Top
 			m.ChatPrependRows = len(msg.Items)
+			m.ChatDate.LastRow += len(msg.Items)
 			m.Chat.Items = append(append([]history.Item(nil), msg.Items...), m.Chat.Items...)
 			m.Chat.Heights = nil
 			m.Chat.Hits = nil
@@ -350,6 +371,7 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		}
 		return m, nil
 	case ChatMeasured:
+		oldTop := m.ChatScroll.Top
 		m.Chat.Heights = msg.Heights
 		m.Chat.Hits = msg.Hits
 		m.ChatDirty = false
@@ -364,9 +386,13 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		} else {
 			m.ChatScroll.Top = m.Chat.ClampOffset(m.ChatScroll.Top, m.ChatScroll)
 		}
+		m.chatViewportChanged(oldTop)
 		return m, m.chatPreloadCmd()
 	case ChatScrolled:
+		m.nowMs = msg.Now
+		oldTop := m.ChatScroll.Top
 		m.ChatScroll.Top = m.Chat.ClampOffset(m.ChatScroll.Top+msg.DeltaY, m.ChatScroll)
+		m.chatViewportChanged(oldTop)
 		return m, m.chatPreloadCmd()
 	case ChatWheel:
 		return m.chatWheel(msg)
@@ -386,7 +412,9 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		m.ChatPress = ChatPressState{Row: -1}
 		return m, nil
 	case ChatTick:
+		m.nowMs = msg.Now
 		m.chatTick(msg.Now)
+		m.chatDateTick(msg.Now)
 		return m, m.chatPreloadCmd()
 	case ChatBottomRequested:
 		return m, nil
@@ -601,12 +629,114 @@ func (m Model) chatPreloadCmd() Cmd {
 	return func() Msg { return ChatPreloadTopRequested{} }
 }
 
+func (m *Model) chatViewportChanged(oldTop int) {
+	if m.ChatScroll.Top < oldTop {
+		m.chatDateCheckUpward()
+	} else {
+		m.chatDateCheckDownward()
+	}
+}
+
+func (m *Model) chatDateCheckUpward() {
+	row, offset := m.Chat.ScrollDateAnchor(m.ChatScroll)
+	if row < 0 {
+		m.ChatDate.HasLast = false
+		m.ChatDate.LastRow = 0
+		m.ChatDate.LastOffset = 0
+		m.chatDateHide()
+		return
+	}
+	if !m.ChatDate.HasLast || row != m.ChatDate.LastRow || offset != m.ChatDate.LastOffset {
+		if m.ChatDate.HasLast && !m.ChatDate.Shown {
+			m.chatDateToggle()
+		}
+		m.ChatDate.HasLast = true
+		m.ChatDate.LastRow = row
+		m.ChatDate.LastOffset = offset
+		m.ChatDate.HideAt = m.nowMs + tokens.ScrollDateHideMs
+	}
+}
+
+func (m *Model) chatDateCheckDownward() {
+	row, offset := m.Chat.ScrollDateAnchor(m.ChatScroll)
+	prevRow := -1
+	if m.ChatDate.HasLast {
+		prevRow = m.ChatDate.LastRow
+	}
+	m.ChatDate.HasLast = row >= 0
+	m.ChatDate.LastRow = row
+	m.ChatDate.LastOffset = offset
+	crossedDay := prevRow >= 0 && row >= 0 &&
+		prevRow < len(m.Chat.Items) && row < len(m.Chat.Items) &&
+		m.Chat.Items[prevRow].DateText != "" && m.Chat.Items[row].DateText != "" &&
+		m.Chat.Items[prevRow].DateText != m.Chat.Items[row].DateText
+	if crossedDay {
+		if !m.ChatDate.Shown {
+			m.chatDateToggle()
+		}
+		m.ChatDate.AfterDayCrossing = true
+		m.ChatDate.HideAt = m.nowMs + tokens.ScrollDateHideOnDayCrossingMs
+	} else if !m.ChatDate.AfterDayCrossing {
+		m.chatDateHideByTimer()
+	}
+}
+
+func (m *Model) chatDateHideByTimer() {
+	m.ChatDate.HideAt = 0
+	m.ChatDate.AfterDayCrossing = false
+	m.chatDateHide()
+}
+
+func (m *Model) chatDateHide() {
+	if m.ChatDate.Shown {
+		m.chatDateToggle()
+	}
+}
+
+func (m *Model) chatDateToggle() {
+	m.ChatDate.Shown = !m.ChatDate.Shown
+	m.ChatDate.AlphaFrom = 0
+	m.ChatDate.AlphaTo = 1
+	if !m.ChatDate.Shown {
+		m.ChatDate.AlphaFrom = 1
+		m.ChatDate.AlphaTo = 0
+	}
+	m.ChatDate.AlphaStarted = m.nowMs
+	m.ChatDate.AlphaAnim = true
+	m.ChatDate.Alpha = m.ChatDate.AlphaFrom
+}
+
+func (m *Model) chatDateTick(now int) {
+	if m.ChatDate.AlphaAnim {
+		elapsed := now - m.ChatDate.AlphaStarted
+		if elapsed >= tokens.HistoryDateFadeMs {
+			m.ChatDate.Alpha = m.ChatDate.AlphaTo
+			m.ChatDate.AlphaAnim = false
+		} else if elapsed >= 0 {
+			t := float32(elapsed) / float32(tokens.HistoryDateFadeMs)
+			m.ChatDate.Alpha = m.ChatDate.AlphaFrom +
+				(m.ChatDate.AlphaTo-m.ChatDate.AlphaFrom)*t
+		}
+	}
+	if m.ChatDate.HideAt > 0 && now >= m.ChatDate.HideAt {
+		m.ChatDate.HideAt = 0
+		m.ChatDate.AfterDayCrossing = false
+		m.chatDateHide()
+	}
+}
+
+func (m Model) ChatDateActive() bool {
+	return m.ChatDate.AlphaAnim || m.ChatDate.HideAt > 0
+}
+
 func (m *Model) chatScrollClassic(dy int) (Model, Cmd) {
 	var cmd Cmd
 	if history.ChatBottomRequest(m.ChatScroll.Top, dy, m.Chat.MaxOffset(m.ChatScroll)) {
 		cmd = func() Msg { return ChatBottomRequested{} }
 	}
+	oldTop := m.ChatScroll.Top
 	m.ChatScroll.Top = m.Chat.ClampOffset(m.ChatScroll.Top+dy, m.ChatScroll)
+	m.chatViewportChanged(oldTop)
 	if cmd == nil {
 		cmd = m.chatPreloadCmd()
 	}
@@ -614,6 +744,7 @@ func (m *Model) chatScrollClassic(dy int) (Model, Cmd) {
 }
 
 func (m *Model) chatWheel(msg ChatWheel) (Model, Cmd) {
+	m.nowMs = msg.Now
 	rawX, rawY := dialogs.WheelScaled(msg.AngleX, msg.AngleY, tokens.WheelScrollLines)
 	if absInt(rawX) > absInt(rawY) &&
 		m.Chat.ConsumeScrollAction(rawX, rawY, true, msg.Y+m.ChatScroll.Top) {
@@ -625,6 +756,7 @@ func (m *Model) chatWheel(msg ChatWheel) (Model, Cmd) {
 }
 
 func (m *Model) chatTrackpad(msg ChatTrackpadScrolled) (Model, Cmd) {
+	m.nowMs = msg.Now
 	if absInt(msg.PixelX) > absInt(msg.PixelY) &&
 		m.Chat.ConsumeScrollAction(msg.PixelX, msg.PixelY, true, msg.Y+m.ChatScroll.Top) {
 		return *m, nil
@@ -635,13 +767,18 @@ func (m *Model) chatTrackpad(msg ChatTrackpadScrolled) (Model, Cmd) {
 }
 
 func (m *Model) chatTouchScroll(dy int) bool {
+	oldTop := m.ChatScroll.Top
 	to := m.Chat.ClampOffset(m.ChatScroll.Top-dy, m.ChatScroll)
 	moved := to != m.ChatScroll.Top
 	m.ChatScroll.Top = to
+	if moved {
+		m.chatViewportChanged(oldTop)
+	}
 	return moved
 }
 
 func (m *Model) pressChat(msg ChatPressed) Model {
+	m.nowMs = msg.Now
 	if !msg.Touch {
 		width := m.Columns().Chat
 		if width > tokens.HistoryScrollBarWidth && msg.X >= width-tokens.HistoryScrollBarWidth {
@@ -650,8 +787,10 @@ func (m *Model) pressChat(msg ChatPressed) Model {
 				m.ChatBar = BarDrag{Dragging: true, LastY: msg.Y}
 				m.ChatPress = ChatPressState{Row: -1}
 				if !history.BarOver(thumb, msg.X-(width-tokens.HistoryScrollBarWidth), msg.Y) {
+					oldTop := m.ChatScroll.Top
 					m.ChatScroll.Top = m.Chat.ClampOffset(
 						m.Chat.BarTrackJump(m.ChatScroll, m.ChatScroll.Height, msg.Y), m.ChatScroll)
+					m.chatViewportChanged(oldTop)
 				}
 				return *m
 			}
@@ -727,12 +866,15 @@ func (m *Model) finishChatPress(press ChatPressState, x, y int) {
 }
 
 func (m *Model) dragChat(msg ChatDragged) Model {
+	m.nowMs = msg.Now
 	if m.ChatBar.Dragging {
 		dy := msg.Y - m.ChatBar.LastY
 		m.ChatBar.LastY = msg.Y
 		top, accum := m.Chat.ApplyBarDrag(m.ChatScroll, m.ChatScroll.Height, dy, m.ChatBar.Overscroll)
 		m.ChatBar.Overscroll = accum
+		oldTop := m.ChatScroll.Top
 		m.ChatScroll.Top = top
+		m.chatViewportChanged(oldTop)
 		return *m
 	}
 	if !m.ChatTouch.Active {
@@ -943,5 +1085,6 @@ func View(m Model) Scene {
 	}
 	s.Chat = m.Chat.Pane(m.ChatScroll, m.Columns().Chat)
 	s.Chat.ThumbDragging = m.ChatBar.Dragging
+	s.Chat.DateAlpha = m.ChatDate.Alpha
 	return s
 }

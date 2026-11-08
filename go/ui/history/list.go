@@ -143,16 +143,28 @@ type ChatPane struct {
 	Bars          []Bars
 	Thumb         Thumb
 	ThumbDragging bool
+	DateRow       int
+	DateTop       int
+	DateInPlace   bool
+	DateText      string
+	DateAlpha     float32
 }
 
 func (l List) Pane(v Viewport, width int) ChatPane {
 	first, count := l.VisibleRows(v)
 	pane := ChatPane{Width: width, View: v, First: first, Count: count,
-		Thumb: l.ScrollbarThumb(v, v.Height)}
+		Thumb: l.ScrollbarThumb(v, v.Height), DateRow: -1}
 	if count <= 0 {
 		return pane
 	}
 	bars := ComposeBars(l.Items)
+	date := l.ScrollDateAt(v, bars)
+	pane.DateRow = date.Row
+	pane.DateTop = date.Top
+	pane.DateInPlace = date.InPlace
+	if date.Row >= 0 && date.Row < len(l.Items) {
+		pane.DateText = l.Items[date.Row].DateText
+	}
 	pane.Rows = make([]Item, count)
 	pane.Ys = make([]int, count)
 	pane.Heights = make([]int, count)

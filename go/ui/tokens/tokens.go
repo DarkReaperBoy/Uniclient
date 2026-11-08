@@ -259,15 +259,18 @@ const (
 	RippleShowDurationMs = 650
 	RippleHideDurationMs = 200
 
-	ScrollBarWidth     = 10
-	ScrollBarRadius    = 2
-	ScrollBarMinHeight = 20
-	ScrollBarDeltax    = 3
-	ScrollBarDeltat    = 3
-	ScrollBarDeltab    = 3
-	ScrollBarThumbMin  = 40
-	ScrollDurationMs   = 150
-	ScrollHidingMs     = 1000
+	ScrollBarWidth                = 10
+	ScrollBarRadius               = 2
+	ScrollBarMinHeight            = 20
+	ScrollBarDeltax               = 3
+	ScrollBarDeltat               = 3
+	ScrollBarDeltab               = 3
+	ScrollBarThumbMin             = 40
+	ScrollDurationMs              = 150
+	ScrollHidingMs                = 1000
+	ScrollDateHideMs              = 800
+	ScrollDateHideOnDayCrossingMs = 3000
+	HistoryDateFadeMs             = 200
 
 	HistoryScrollBarWidth  = 12
 	HistoryScrollBarRadius = 3

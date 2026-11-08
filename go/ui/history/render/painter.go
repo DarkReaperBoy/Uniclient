@@ -291,8 +291,19 @@ func (p *ChatPainter) PaintChatPane(gtx layout.Context, pane history.ChatPane, s
 		if i < len(pane.Bars) {
 			bar = pane.Bars[i]
 		}
-		if bar.Date > 0 {
-			p.paintDateBadge(gtx, pane.Rows[i], pane.Width, mode, sch)
+		if bar.Date > 0 && pane.First+i != pane.DateRow {
+			p.paintDateBadge(gtx, pane.Rows[i].DateText,
+				pane.Ys[i]-pane.View.Top, pane.Width, mode, 1, sch)
+		}
+	}
+	if pane.DateRow >= 0 && pane.DateText != "" {
+		alpha := float32(1)
+		if !pane.DateInPlace {
+			alpha = pane.DateAlpha
+		}
+		if alpha > 0 {
+			p.paintDateBadge(gtx, pane.DateText,
+				pane.DateTop-pane.View.Top, pane.Width, mode, alpha, sch)
 		}
 	}
 	if pane.Thumb.Hidden {
@@ -442,14 +453,15 @@ func (p *ChatPainter) paintUnreadBar(gtx layout.Context, item history.Item, view
 	p.label(gtx, g.Text, fontSemibold, unit.Sp(tokens.HistoryUnreadBarFontHeight), item.UnreadBar, sch.Primary)
 }
 
-func (p *ChatPainter) paintDateBadge(gtx layout.Context, item history.Item, viewWidth int, mode history.ChatMode, sch material.Scheme) {
-	m := p.newMetric(gtx, fontSemibold, unit.Sp(tokens.FontMsgService), item.DateText, 0, 0)
+func (p *ChatPainter) paintDateBadge(gtx layout.Context, text string, y, viewWidth int, mode history.ChatMode, alpha float32, sch material.Scheme) {
+	m := p.newMetric(gtx, fontSemibold, unit.Sp(tokens.FontMsgService), text, 0, 0)
 	if m.width <= 0 {
 		return
 	}
-	g := history.DateBadgeGeometry(0, viewWidth, mode, m.width, m.lineH)
-	fillRRect(gtx, g.Bubble, tokens.ServiceMsgRadius, sch.InverseSurface)
-	p.label(gtx, g.Text, fontSemibold, unit.Sp(tokens.FontMsgService), item.DateText, sch.InverseOnSurface)
+	g := history.DateBadgeGeometry(y, viewWidth, mode, m.width, m.lineH)
+	fillRRect(gtx, g.Bubble, tokens.ServiceMsgRadius, withAlpha(sch.InverseSurface, alpha))
+	p.label(gtx, g.Text, fontSemibold, unit.Sp(tokens.FontMsgService), text,
+		withAlpha(sch.InverseOnSurface, alpha))
 }
 
 func bubbleFill(gtx layout.Context, g history.Geometry, rounding history.BubbleRounding, col, shadow color.NRGBA) {
@@ -608,6 +620,17 @@ func fillGlyph(gtx layout.Context, x, y int, icon icons.Icon, col color.NRGBA) {
 	}
 	defer clip.Outline{Path: path.End()}.Op().Push(gtx.Ops).Pop()
 	paint.Fill(gtx.Ops, col)
+}
+
+func withAlpha(c color.NRGBA, a float32) color.NRGBA {
+	if a >= 1 {
+		return c
+	}
+	if a <= 0 {
+		return color.NRGBA{A: 0}
+	}
+	c.A = uint8(float32(c.A) * a)
+	return c
 }
 
 func fillRRect(gtx layout.Context, r history.Geometry, radius int, col color.NRGBA) {
