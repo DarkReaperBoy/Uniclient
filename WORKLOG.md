@@ -212,62 +212,20 @@ owner order — that history lives in git if ever needed.
   job+step.
 ## Session 380 — the window-adapter input leg: wheel, hit-test, bar drag, touch (2026-11-07)
 
-- Boot: wipe #6 (repo/toolchain/ayu-ref gone;
-  skills/download/upload survived, .env sweep clean).
-  Clone landed at 26f6fccd — 379 had already closed
-  green in the lost session. env.sh recovery, pins
-  verified (taggedForumDialogRow 96/77), baseline 81
-  PASS before any edit.
 - Wheel law (ui_utility.cpp:268-288 + elastic_scroll
-  :926-945): angle→px = angle×lines/(2×3), qRound on
-  the float (toPoint = half away from zero); Ctrl/Shift
-  multiply is PER-AXIS max(width|height,120)/120,
-  TRUNCATED (QPoint double-ctor narrowing) — y scales
-  by scroll HEIGHT, not width; cross-axis |px| >= |py|
-  ignores (x carries the width mult, y the height mult,
-  so acceleration can flip the verdict; dialogs sets
-  no direction lock → the check is unconditional);
-  dy = −pixels.y. Pixel path (trackpad + synthesized
-  touch): qRound(px) through the same block, modifiers
-  cleared for synthesized touch only.
-- Bar laws (elastic_scroll.cpp:321-388): overBar =
-  strip-local x in [deltax, deltax+thickness) AND y in
-  [thumb.Y, thumb.Y+H) — the 10dp strip is wider than
-  the 4dp thumb, so track-edge clicks jump; off-thumb
-  press = jump-to-middle: middle = clamp(y, deltat+
-  half, deltat+available+half−bar), from = scrollable×
-  (middle−half−deltat)/(available−bar); drag = scaleToBar
-  dy×scrollable/outsideBar, 1:1 when scrollable <=
-  outsideBar; range clamp reduces to ClampOffset when
-  not overscrolled (overscroll accumulation needs anim
-  state — deferred with the fling).
-- Touch: manhattan(pos−start) >= startDragDistance 10
-  arms 1:1 finger follow; tap (never armed) selects
-  at the release position; long-press right-click
-  deferred (no context menu yet). Row hit-test =
-  RowAt(y+Top, width). NOTE: 380 shipped the arm
-  event as scrolling (10px applied) — 381 re-measured
-  and corrected: the arm swallows the crossing delta.
-- Wiring: 6 messages (Wheel, TrackpadScrolled, Pressed,
-  Dragged, Released, PressCanceled) + Model.DialogsTouch/
-  DialogsBar states; mouse selects on press, touch on
-  release-tap. PaintPane registers event.Op (Painter.
-  Input) in the pane clip; window reads pointer.Filter
-  events (grab on press, Metric px→dp). Windows =
-  angle path (gio ±120 = Qt angleDelta numerically);
-  other backends = pixel path (gio converts notches
-  itself: X11 10/notch, wayland 100, js ~100 —
-  divergence from AyuGram 60 noted, Windows exact).
-  Window loop now paints PaintPane (was background-
-  only). Bar-drag overscroll range-clamp deferred
-  (needs anim state — landed in 381).
-- TDD: 2 spec bugs lost to the law — wheel-up −500
-  from 692 is 192 in-range (case moved to ±2000);
-  692×53/206 = 178.04 → 178 not 177.
-- GREEN: 18 tests (7 ui + 11 gui), 99 total; gofmt,
-  comment ban 291 clean, quick gate GREEN. Shipped
-  e30bbfad; verify 42362009163 SUCCESS at job AND
-  step level (3 jobs, 0 failures).
+  :926-945, pins in dialogs/window code + tests):
+  angle→px = angle×lines/(2×3) qRound'd; per-axis
+  Ctrl/Shift mult max(w|h,120)/120 TRUNCATED (y by
+  scroll HEIGHT); cross-axis |px|>=|py| ignores;
+  dy = −pixels.y; pixel path qRound through the same
+  block. Bar: 10dp-strip hit test, off-thumb press
+  = jump-to-middle, drag dy×scrollable/outsideBar.
+  Touch: manhattan>=10 arms 1:1 (arm swallows the
+  crossing delta — 381 corrected), tap selects at
+  release. 6 Elm messages + Model states; PaintPane
+  event.Op; window pointer.Filter + Metric px→dp.
+  18 tests, 99 total; e30bbfad; verify 42362009163
+  SUCCESS job+step.
 
 ## Session 379 — the dialogs list Elm+render leg: viewport state, scroll laws, Pane snapshot, PaintPane (2026-11-07)
 
