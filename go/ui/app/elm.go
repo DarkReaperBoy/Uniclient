@@ -234,6 +234,7 @@ type ChatPressState struct {
 	Action        ChatPressAction
 	DownPress     bool
 	MentionsPress bool
+	ReactionPress bool
 }
 
 type ChatDateState struct {
@@ -260,6 +261,15 @@ type ChatDownState struct {
 }
 
 type ChatMentionsState struct {
+	Shown    bool
+	Anim     bool
+	From     float32
+	To       float32
+	Started  int
+	Progress float32
+}
+
+type ChatReactionsState struct {
 	Shown    bool
 	Anim     bool
 	From     float32
@@ -298,6 +308,7 @@ type Model struct {
 	ChatDate          ChatDateState
 	ChatDown          ChatDownState
 	ChatMentions      ChatMentionsState
+	ChatReactions     ChatReactionsState
 	nowMs             int
 	ChatTouch         TouchDrag
 	ChatBar           BarDrag
@@ -394,12 +405,14 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		m.ChatDate = ChatDateState{}
 		m.ChatDown = ChatDownState{}
 		m.ChatMentions = ChatMentionsState{}
+		m.ChatReactions = ChatReactionsState{}
 		m.Chat.Heights = nil
 		m.Chat.Hits = nil
 		m.ChatSelection = nil
 		m.ChatDirty = true
 		m.ChatScroll.Top = m.Chat.ClampOffset(m.ChatScroll.Top, m.ChatScroll)
 		m.chatMentionsCheck()
+		m.chatReactionsCheck()
 		return m, nil
 	case ChatPrepended:
 		m.nowMs = msg.Now
@@ -415,6 +428,7 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 			m.ChatPress = ChatPressState{Row: -1}
 			m.ChatDirty = true
 			m.chatMentionsCheck()
+			m.chatReactionsCheck()
 		}
 		return m, nil
 	case ChatMeasured:
@@ -464,6 +478,7 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		m.chatDateTick(msg.Now)
 		m.chatDownTick(msg.Now)
 		m.chatMentionsTick(msg.Now)
+		m.chatReactionsTick(msg.Now)
 		return m, m.chatPreloadCmd()
 	case ChatBottomRequested:
 		return m, nil
@@ -813,6 +828,36 @@ func (m *Model) chatMentionsTick(now int) {
 	}
 }
 
+func (m *Model) chatReactionsCheck() {
+	shown := m.Chat.ReactionsShown()
+	if shown == m.ChatReactions.Shown {
+		return
+	}
+	m.ChatReactions.Shown = shown
+	m.ChatReactions.From = m.ChatReactions.Progress
+	m.ChatReactions.To = 0
+	if shown {
+		m.ChatReactions.To = 1
+	}
+	m.ChatReactions.Started = m.nowMs
+	m.ChatReactions.Anim = true
+}
+
+func (m *Model) chatReactionsTick(now int) {
+	if !m.ChatReactions.Anim {
+		return
+	}
+	elapsed := now - m.ChatReactions.Started
+	if elapsed >= tokens.HistoryToDownDurationMs {
+		m.ChatReactions.Progress = m.ChatReactions.To
+		m.ChatReactions.Anim = false
+	} else if elapsed >= 0 {
+		t := float32(elapsed) / float32(tokens.HistoryToDownDurationMs)
+		m.ChatReactions.Progress = m.ChatReactions.From +
+			(m.ChatReactions.To-m.ChatReactions.From)*t
+	}
+}
+
 func (m *Model) chatDateCheckUpward() {
 	row, offset := m.Chat.ScrollDateAnchor(m.ChatScroll)
 	if row < 0 {
@@ -913,6 +958,10 @@ func (m Model) ChatMentionsActive() bool {
 	return m.ChatMentions.Anim
 }
 
+func (m Model) ChatReactionsActive() bool {
+	return m.ChatReactions.Anim
+}
+
 func (m Model) DialogsToUpActive() bool {
 	return m.DialogsToUp.Anim
 }
@@ -967,6 +1016,12 @@ func (m *Model) chatTouchScroll(dy int) bool {
 
 func (m *Model) pressChat(msg ChatPressed) Model {
 	m.nowMs = msg.Now
+	if m.chatReactionsHitAt(msg.X, msg.Y) {
+		m.ChatBar = BarDrag{}
+		m.ChatTouch = TouchDrag{}
+		m.ChatPress = ChatPressState{Row: -1, X: msg.X, Y: msg.Y, ReactionPress: true}
+		return *m
+	}
 	if m.chatMentionsHitAt(msg.X, msg.Y) {
 		m.ChatBar = BarDrag{}
 		m.ChatTouch = TouchDrag{}
@@ -1127,6 +1182,10 @@ func (m *Model) releaseChat(msg ChatReleased) {
 	if !m.ChatTouch.Active {
 		press := m.ChatPress
 		m.ChatPress = ChatPressState{Row: -1}
+		if press.ReactionPress {
+			m.chatReactionsClick(msg.X, msg.Y)
+			return
+		}
 		if press.MentionsPress {
 			m.chatMentionsClick(msg.X, msg.Y)
 			return
@@ -1169,6 +1228,24 @@ func (m *Model) chatDownHitAt(x, y int) bool {
 func (m *Model) chatMentionsHitAt(x, y int) bool {
 	return history.MentionsButtonHit(m.Columns().Chat, m.ChatScroll.Height,
 		m.ChatMentions.Progress, m.ChatDown.Progress, x, y)
+}
+
+func (m *Model) chatReactionsHitAt(x, y int) bool {
+	return history.ReactionsButtonHit(m.Columns().Chat, m.ChatScroll.Height,
+		m.ChatReactions.Progress, m.ChatDown.Progress, m.ChatMentions.Progress, x, y)
+}
+
+func (m *Model) chatReactionsClick(x, y int) {
+	if !m.chatReactionsHitAt(x, y) {
+		return
+	}
+	top := m.Chat.ReactionsJumpTop(m.ChatScroll)
+	if top < 0 {
+		return
+	}
+	oldTop := m.ChatScroll.Top
+	m.ChatScroll.Top = m.Chat.ClampOffset(top, m.ChatScroll)
+	m.chatViewportChanged(oldTop)
 }
 
 func (m *Model) chatMentionsClick(x, y int) {
@@ -1329,5 +1406,6 @@ func View(m Model) Scene {
 	s.Chat.DateAlpha = m.ChatDate.Alpha
 	s.Chat.DownProgress = m.ChatDown.Progress
 	s.Chat.MentionsProgress = m.ChatMentions.Progress
+	s.Chat.ReactionsProgress = m.ChatReactions.Progress
 	return s
 }

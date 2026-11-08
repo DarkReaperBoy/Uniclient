@@ -29,6 +29,7 @@ func TestIconCells(t *testing.T) {
 		{HistorySent, 13, 11, 15, 15, 2, 4, 1},
 		{HistoryReceived, 18, 11, 20, 15, 2, 4, 2},
 		{HistoryMention, 20, 20, 36, 46, 16, 26, 2},
+		{HistoryReaction, 20, 18, 36, 46, 16, 28, 2},
 	}
 	for _, c := range cases {
 		g, cell := c.icon.Glyph, c.icon.Cell
@@ -74,6 +75,7 @@ func TestGlyphBounds(t *testing.T) {
 		{DialogsForum.Glyph, 0, 0, 19, 10, 0.51},
 		{DialogsMention.Glyph, 1.986, 1.986, 16.014, 16.014, 0.02},
 		{HistoryMention.Glyph, 0, 0, 19, 19.333, 0.02},
+		{HistoryReaction.Glyph, 0, 0, 19.333, 17.333, 0.02},
 	}
 	for _, c := range cases {
 		minX, minY, maxX, maxY := c.g.Bounds()
@@ -185,7 +187,7 @@ func TestTimerSpec(t *testing.T) {
 }
 
 func TestGlyphContoursOrientedForHoles(t *testing.T) {
-	if len(DialogsSending.Glyph.Paths) < 2 || len(DialogsMention.Glyph.Paths) < 2 || len(DialogsPinned.Glyph.Paths) < 1 || len(HistoryMention.Glyph.Paths) < 2 {
+	if len(DialogsSending.Glyph.Paths) < 2 || len(DialogsMention.Glyph.Paths) < 2 || len(DialogsPinned.Glyph.Paths) < 1 || len(HistoryMention.Glyph.Paths) < 2 || len(HistoryReaction.Glyph.Paths) < 2 {
 		t.Fatalf("sending needs 2+, mention 2+, pinned 1+ contours for the orientation law")
 	}
 	solid := signedArea(DialogsSending.Glyph.Paths[0])
@@ -207,6 +209,12 @@ func TestGlyphContoursOrientedForHoles(t *testing.T) {
 	if historyMentionOuter*historyMentionInner > 0 {
 		t.Fatalf("history mention ring and its counter must be wound oppositely (areas %v, %v)",
 			historyMentionOuter, historyMentionInner)
+	}
+	reactionOuter := signedArea(HistoryReaction.Glyph.Paths[0])
+	reactionInner := signedArea(HistoryReaction.Glyph.Paths[1])
+	if reactionOuter*reactionInner > 0 {
+		t.Fatalf("history reaction ring and its counter must be wound oppositely (areas %v, %v)",
+			reactionOuter, reactionInner)
 	}
 }
 

@@ -7,26 +7,25 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 396 — the unread-mentions corner button landed (the
-  corner stack begins): shown iff ≥1 Item.UnreadMention (data-driven —
-  rechecked at ChatLoaded [hard reset first] + ChatPrepended ONLY, never
-  on scroll); slides in from the right edge over 64px while riding the
-  down button's progress (shift 66*downP, 4px gap at full stack, provably
-  never overlapping); 150ms; click jumps to the topmost unread mention
-  (clamped, -1 = no-op); press routing mentions-before-down-before-
-  scrollbar/touch; ChatLoaded/ChatPrepended now carry Now (data-arrival
-  clock law — also fixes the down button's load-time clocking); traced @
-  glyph (IoU 0.939 vs the reference raster) as icons.HistoryMention
-- next: the reactions corner button (same law; shift gains the mentions
-  term interpolate(0, 62+4, mentionsP); Item.UnreadReaction + glyph trace)
-  or the composer attach/menu trees; push N-1 when the token returns
+- front: session 397 — the unread-reactions corner button landed (the
+  corner stack is complete for today's model: down + mentions + reactions):
+  shown iff >=1 Item.UnreadReaction (data-driven, ChatLoaded [hard reset
+  first] + ChatPrepended only); slide-from-right 64px; shift = 66*downP +
+  66*mentionsP (settled gap 4 above mentions; mid-slide transient overlap
+  is the reference's own behavior, z-ordered reactions-above-mentions);
+  click jumps to the topmost unread reaction; press routing
+  reactions-before-mentions-before-down-before-scrollbar/touch; 150ms;
+  traced heart-ring glyph (IoU 0.936) as icons.HistoryReaction
+- next: the poll-votes corner button (4th stack slot, same law + shift
+  gains the reactions term; needs a poll model in Item — or defer with
+  polls) or the composer attach/menu trees; push N-1 when the token
+  returns
 - owner-waiting: NEEDS_OWNER — GH_TOKEN still absent this sandbox; sessions
-  394+395+396 sit committed locally on top of origin/main 5b978120,
+  394+395+396+397 sit committed locally on top of origin/main 5b978120,
   unpushed, verify.yml undispatched. Re-mention when the token is restored
-- last-gate: quick GREEN (396 scope); render+window windows vet GREEN
-  standalone (batched rung-7 OOM skip is cmd/uniclient's gotd, not these);
-  js/wasm compile of ui/... GREEN; comment ban clean; 338 tests
-  (199 ui + 139 gui) green locally incl. race
+- last-gate: quick GREEN (397 scope); render+window windows vet GREEN
+  standalone; js/wasm compile of ui/... GREEN; comment ban clean; 357
+  tests (204 ui + 153 gui) green locally incl. race
 
 ## Open items
 
@@ -36,58 +35,82 @@ owner order — that history lives in git if ever needed.
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
 | N-1 | repo push | sessions 394+395+396 committed locally, unpushed — no GH_TOKEN/SSH in this sandbox; push + dispatch verify.yml when auth returns | git log origin/main..HEAD | owner restores GH_TOKEN or runs: git push origin main |
 | D-1 | ui/history corner button | down-button unread-count badge (22dp, centered x, top 0 — jump_down_button.cpp paintEvent + historyToDownBadge*) + hover/over colors + ripple deferred: no unread counter in the chat Item model yet, no hover/ripple machinery in the skin yet; replyReturn branch of downClick + loadedAtBottom==false state return with reply-return jumps / below-history pagination | jump_down_button.cpp 33-52, corner_buttons.cpp 139-145 | badge returns with read-state counts; over/ripple with the skin's hover+ripple pass |
-| D-2 | ui/history mentions button | mention read-marking absent: after the jump the button stays shown (reference hides it when the server marks the mention read — updateUnreadThingsVisibility is server-data-driven); mentionsClick's already-there voice/video media-read branch (5623) deferred — no media model; unread-count badge joins D-1's class | history_view_corner_buttons.cpp 147-172, 288-345 | returns with engine mention-read events + the media pass |
+| D-2 | ui/history unread-things buttons | read-marking absent for mentions AND reactions: after a jump the button stays shown (reference hides it when the server marks the thing read — updateUnreadThingsVisibility is server-data-driven); mentionsClick's already-there voice/video media-read branch (5623) deferred — no media model; unread-count badges join D-1's class; poll-votes 4th stack slot returns with a poll model | history_view_corner_buttons.cpp 147-190, 288-345 | returns with engine unread-things events + the media pass |
+
+## Session 397 — the unread-reactions corner button (2026-11-09)
+
+- Law: history_view_corner_buttons.cpp updatePositions 405-423 (reactions:
+  right = interpolate(-52, 12, shown) — same slide-from-right; shift =
+  interpolate(0, 62+skip, downShown) + interpolate(0, 62+skip,
+  mentionsShown) — one 66px step per lower button, each gated by THAT
+  button's animated progress) + updateUnreadThingsVisibility 320-331
+  (reactions shown = loadedCount > 0 && unreadMayBeShown -> >=1
+  Item.UnreadReaction, data-driven) + reactionsClick 174-181 (showAt(
+  minLoaded) = topmost row) + style 1247-1250 (historyUnreadReactions =
+  TwoIconButton(historyToDown) clone). Settled-state geometry: gap 4 above
+  mentions; MID-SLIDE the boxes transiently overlap in a <=4px strip —
+  the reference's own behavior (mentions slides diagonally into its slot
+  while reactions rises; Qt z-order paints/hits _reactions above
+  _mentions) — our mapping: paintReactionsButton after
+  paintMentionsButton, hit-test reactions first.
+- Glyph: history_unread_reaction@2x measured — 52 canvas, heart-ring bbox
+  19.33x17.33 center (25.67,26.67)@1x -> button (26,37) via iconPosition
+  (0,10); traced cv2 RETR_CCOMP + approxPolyDP 0.35dp, 1/3dp grid: 2
+  contours (ring 18v area -240.5, hole 13v +166.67, opposite winding),
+  raster-diff IoU 0.936 (408<->413 px); icons.HistoryReaction
+  Cell{36,46,(16,28)}; pinned in TestIconCells/GlyphBounds/
+  GlyphContoursOrientedForHoles.
+- Go: corner_button.go ReactionsShown / ReactionsJumpTop (clamped, -1
+  no-op) / ReactionsButtonGeometry(w, h, progress, downP, mentionsP) /
+  Hit (shift = step*downP + step*mentionsP); Item.UnreadReaction;
+  ChatPane.ReactionsProgress. Elm: ChatReactionsState + ChatPress.
+  ReactionPress; chatReactionsCheck at ChatLoaded (hard reset) +
+  ChatPrepended; press routing reactions FIRST (top of the stack);
+  chatReactionsTick 150ms; window ticks/invalidates on
+  ChatReactionsActive; View layers pane.ReactionsProgress. Painter:
+  paintReactionsButton — circle/shadow family + fillGlyph heart-ring.
+- RED (compile) -> GREEN after 3 test-side law corrections (my arithmetic:
+  mid-stack top 162 not 195; the no-overlap law is settled-state-only —
+  mid-slide transient overlap is the reference's own; the click tests must
+  click the slot the stack actually occupies at that moment — reactions
+  rides the down button's slot, so clicking after hiding down needs the
+  base-slot coords). 19 new tests (5 ui laws + 14 gui journeys), 357
+  total (204 ui + 153 gui). quick gate GREEN; render+window windows vet
+  GREEN standalone; js/wasm compile of ui/... GREEN; comment ban clean.
 
 ## Session 396 — the unread-mentions corner button: the corner stack begins (2026-11-09)
 
-- Law: history_view_corner_buttons.cpp updatePositions 390-404 (mentions:
+- Law: history_view_corner_buttons.cpp updatePositions 390-404 (mentions
   right = interpolate(-52, 12, shown) — slides in FROM the right edge;
   top = parentH - 62 - 10 - interpolate(0, 62+skip, downShown) — rides
-  the down button's ANIMATED progress; gap = 4*downP ≥ 0, provably never
-  overlapping) + updateVisibility 276-286 (150ms, animates on change
-  only) + updateUnreadThingsVisibility 288-345 (shown = loadedCount > 0
-  && unreadMayBeShown; mapped to ≥1 Item.UnreadMention — data-driven,
-  NOT scroll-driven) + mentionsClick 147-172 (showAt(minLoaded) = oldest
-  = our topmost row; the already-there voice/video read-marking branch
-  deferred with the media model) + delegate laws history_widget.cpp
-  9118-9165 (ignore = show-anim [none]; unreadMayBeShown = !firstLoad &&
-  !voiceBar [both n/a]; has(type) = true) + chat_helpers.style 1242-1254
-  (historyUnreadMentions = TwoIconButton(historyToDown) clone, @ glyph)
-  + historyUnreadThingsSkip 4.
-- Glyph: history_unread_mention@2x measured — 52 canvas, @ bbox 19x19.33
-  center (26,26)@1x → button (26,36) via iconPosition (0,10); traced
-  with cv2 (RETR_CCOMP + approxPolyDP 0.35dp, 1/3dp grid): 2 contours
-  (ring+curl 43v, counter-hole 10v, opposite winding −152.1/+41.0),
-  raster-diff vs the source mask IoU 0.939 (599↔603 px). icons
-  .HistoryMention Cell{W36,H46,(16,26)} — family law mask+point=canvas;
-  pinned in TestIconCells/GlyphBounds/GlyphContoursOrientedForHoles.
+  the down button's ANIMATED progress; settled gap 4, never overlapping
+  when settled) + updateVisibility 276-286 (150ms, on change only) +
+  updateUnreadThingsVisibility 288-345 (shown = loadedCount > 0 &&
+  unreadMayBeShown -> >=1 Item.UnreadMention, data-driven NOT
+  scroll-driven) + mentionsClick 147-172 (showAt(minLoaded) = topmost
+  row; media-read branch deferred, D-2) + delegate laws history_widget
+  .cpp 9118-9165 + style 1242-1254 + historyUnreadThingsSkip 4.
+- Glyph: history_unread_mention@2x traced (cv2 RETR_CCOMP +
+  approxPolyDP 0.35dp, 1/3dp grid): @ bbox 19x19.33 center (26,36) in
+  button coords; 2 contours (ring+curl 43v, hole 10v, opposite winding);
+  raster-diff IoU 0.939; icons.HistoryMention Cell{36,46,(16,26)}; pinned
+  in the three icon law tests.
 - Clock law riding the same concern: ChatLoaded/ChatPrepended gain Now
-  (data-arrival msgs carry their clock like press/scroll msgs already
-  do) — the show slide starts at arrival, and the down button's
-  load-time show is clocked right too.
-- Go: history/corner_button.go MentionsShown / MentionsJumpTop (topmost
-  unread-mention row top clamped, -1 = no-op) / MentionsButtonGeometry(
-  w, h, progress, downProgress) / MentionsButtonHit; tokens
-  HistoryUnreadThingsSkip; Item gains UnreadMention; ChatPane gains
-  MentionsProgress. Elm: ChatMentionsState + ChatPress.MentionsPress;
-  chatMentionsCheck at ChatLoaded (hard reset first — the switch law,
-  same as ChatDown) + ChatPrepended ONLY; press routing hits mentions
-  BEFORE down (column z-order: children stack up, later = above) and
-  both before scrollbar/touch (tap-only touch, drag cancels,
-  release-inside jumps + re-checks); chatMentionsTick 150ms linear in
-  ChatTick; window ticks/invalidates on ChatMentionsActive; View layers
-  pane.MentionsProgress. Painter: paintMentionsButton — the down-button
-  circle/shadow family + fillGlyph @, after paintDownButton, pane-
-  clipped, early-out when Left >= paneW.
-- No read-marking in the model yet: the button stays shown after the
-  jump (the reference hides it when the server marks the mention read) —
-  open item D-2.
-- RED (compile, full surface) → GREEN after the clock-law fix (4 test
-  timing rewrites). 20 new tests (6 ui laws + 14 gui journeys), 338
-  total (199 ui + 139 gui — STATE bookkeeping drift vs the 395 commit
-  message corrected: 193+125 was the truth). quick gate GREEN; render+
-  window windows vet GREEN standalone; js/wasm compile of ui/... GREEN;
-  comment ban clean.
+  (data-arrival msgs carry their clock like press/scroll msgs) — the
+  show slide starts at arrival; also fixes the down button's load-time
+  clocking.
+- Go: MentionsShown/MentionsJumpTop/MentionsButtonGeometry(w,h,progress,
+  downProgress)/Hit; tokens HistoryUnreadThingsSkip; Item.UnreadMention;
+  ChatPane.MentionsProgress; Elm ChatMentionsState + MentionsPress;
+  chatMentionsCheck at ChatLoaded (hard reset — the switch law) +
+  ChatPrepended ONLY; press routing mentions-before-down-before-
+  scrollbar/touch; chatMentionsTick 150ms; painter paintMentionsButton
+  (circle/shadow family + fillGlyph @). No read-marking yet (D-2).
+- RED (compile, full surface) -> GREEN after the clock-law fix (4 test
+  timing rewrites). 20 new tests (6 ui + 14 gui), 338 total (199 ui +
+  139 gui; bookkeeping drift vs the 395 commit msg corrected). quick
+  gate GREEN; render+window windows vet GREEN standalone; js/wasm
+  compile GREEN; comment ban clean. Detail: 4a9dc14c + git.
 
 ## Session 395 — the dialogs to-up corner button (2026-11-09)
 
