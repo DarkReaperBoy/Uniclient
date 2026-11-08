@@ -7,22 +7,27 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 383 — the GUI kit build (post-
-  skeleton); the message-bubble render leg landed
-  as 4fdc467c (corner/tail/shadow/pill/badge/time
-  laws + chat Elm leg + ChatPainter + window
-  wiring); verify 42409023939 SUCCESS at job AND
-  step level — closed green
-- next: multi-line service complex bubble
-  (Rounded/Plain/Inverted + inverted shrink);
-  Material icon assets (chat-type/send-state/
-  pinned/mention/poll/TTL glyphs) to un-defer
-  icon paint; scroll input for the chat leg
-  (wheel/touch — dialogs kinetic laws apply)
+- front: session 384 — the GUI kit build (post-
+  skeleton); the multi-line service complex
+  bubble law landed as e21f207 (radii 10/3/2,
+  CountServiceLineWidths minDelta-22 neighbor
+  raise + i-=2 rewalk quirk + lastLineWidthAdd,
+  call-site add decision, parts walk with
+  inverted shrink + forceShrink, C++-trunc
+  centering, rounded bands); verify 42448242342
+  SUCCESS at job AND step level — closed green
+- next: complex bubble paint leg (service
+  Painter over the 384 law: msgServiceBg fills,
+  corner bands + inverted flare pixmaps at
+  (x-3,y+h-3)/(x+w,y+h-3)); Material icon
+  assets (chat-type/send-state/pinned/mention/
+  poll/TTL glyphs) to un-defer icon paint;
+  scroll input for the chat leg (wheel/touch —
+  dialogs kinetic laws apply)
 - owner-waiting: none
-- last-gate: quick GREEN (105 ui + 54 gui = 159
+- last-gate: quick GREEN (127 ui + 43 gui = 170
   PASS; windows-vet substitute for render/window/
-  cmd); comment ban 301 clean; CI 42409023939
+  cmd); comment ban 304 clean; CI 42448242342
   success (3 jobs, all steps)
 
 ## Open items
@@ -31,6 +36,47 @@ owner order — that history lives in git if ever needed.
 |---|---|---|---|---|
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
+
+## Session 384 — the multi-line service complex bubble law (2026-11-08)
+
+- Boot: wipe #11 (skills/download/upload only).
+  Clone at bcf2757 — 379-383 had closed green
+  across lost sessions; baseline re-verified
+  after toolchain/modcache/ayu-ref rebuild
+  (159 PASS = 116 ui + 43 gui).
+- Law source: history_view_service_message.cpp
+  372-485 + chat_style.cpp 103-126 + call site
+  780-798. Radii DERIVED, not pinned: normal
+  (3+13+4)/2=10, inverted fontH-normal=3, shrink
+  inv*2/3=2 — tokens compose from pad/font pins.
+- CountServiceLineWidths: in-place minDelta 22
+  neighbor raise (before reads normalized,
+  after reads raw-ahead), negative clamp to 0,
+  rewalk quirk i-=2 when raised cell is within
+  minDelta of a now-smaller predecessor, add
+  applies post-normalize iff back>0 && back<prev.
+- Call-site add decision (Ayu badge): 9 iff
+  len>1 && clamped back > badgeAdditionalWidth
+  && clamped back < clamped before.
+- Parts walk: y from margin-top 10; bottom side
+  by next-line compare (>/=/< -> I/P/R); richW
+  lineW+24; richH fontH +3/-4 by top side
+  +4/-3 by bottom; forceShrink = prevShrink &&
+  equal richWidth (reachable only via P/P-equal
+  chain after an inverted-top part); shrink
+  x+=2 w-=4 on any inverted side or force;
+  transitions I->R R->I P->P. Centering
+  (width-richWidth)/2: Go division truncates
+  toward zero natively == C++ (spec test caught
+  a wrong floor-assumption helper; deleted).
+- Bands: rounded sides pay a 10px corner band
+  top and/or bottom; body fills between the
+  skips (PaintBubbleSide/PaintBubblePart 74-153).
+- RED 11 tests -> 2 spec errors fixed (nil-for-
+  empty; [140,-3,100] before-clamps to 0 so no
+  add) — law won both disputes. GREEN 170 PASS.
+  e21f207 -> verify 42448242342 success (3
+  jobs, all steps, job AND step reconciled).
 
 ## Session 383 — the message-bubble render leg: corner/tail/shadow laws, chat Elm + ChatPainter (2026-11-07)
 
