@@ -7,34 +7,39 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 386 — the Material icon
-  asset library landed as d8eedff (13 glyphs:
-  chat-type bot/channel/forum, send-state
-  sending/sent/received in both dialogs and
-  history cells, badges pinned/mention/reaction/
-  poll; @3x blue-channel crack-trace + chatlist
-  SVG flatten; icon canvas law point(x,y) =
-  margins(x,y,0,0) from codegen parsed_file.cpp;
-  TTL timer law; selection laws; paintMessage
-  now paints the history send-state glyph);
-  verify 42454857199 SUCCESS at job AND step
+- front: session 387 — the dialogs row
+  painter leg landed as 60467393 (ChatTypeIcon/
+  BadgeIcon selection laws feeding
+  Metrics.ChatTypeIconW from the asset canvases;
+  glyphs painted at layout cells with in-cell
+  offsets; pinned badge right-aligned to its
+  20px canvas; Material ink mapping from
+  colors.palette + night theme; narrow icon
+  badges as empty-text unread pills with
+  centered glyphs; TTL corner badge over the
+  blurred userpic cutout — StackBlur exact port
+  radius 24, WCAG contrast darken x4/5,
+  FormatTTLTiny thresholds + 2-rune clamp,
+  timer per the 386 spec; info-block width law:
+  history.InfoWidth reserves the 24px ticks
+  space for out-or-sending, skip + TimeLabel
+  derive from it); first CI run failed the Nix
+  go-modules FOD (new vendored package
+  x/image/draw), vendorHash rotated in 70600653;
+  verify 42461470926 SUCCESS at job AND step
   level — closed green
-- next: dialogs row painter leg (RowLayout ->
-  userpic/name/date/badges/glyph paint over the
-  386 assets — ChatTypeIcon in-cell offsets,
-  send-state cell at nameX+nameW, pinned right-
-  aligned to its 20px canvas, badge glyph fills,
-  TTL timer over the blurred userpic cutout);
-  info-block width law: out messages reserve
-  the 24px ticks space in the text skip
-  (bottom_info.cpp:181-183); chat-leg scroll
-  input (wheel/touch — dialogs kinetic laws
-  apply) after that
+- next: chat-leg scroll input (wheel/touch —
+  the dialogs kinetic laws apply; chat pane
+  rides on ui/dialogs kinetic.go + scroll.go
+  laws); after that: history entry composing
+  (dates/divider service messages over the 384/
+  385 service bubble machinery)
 - owner-waiting: none
-- last-gate: quick GREEN (137 ui + 43 gui = 186
+- last-gate: quick GREEN (153 ui + 43 gui = 196
   PASS; windows-vet substitute for render/window/
-  cmd); comment ban 310 clean; CI 42454857199
-  success (3 jobs, all steps)
+  cmd); comment ban clean; CI 42461470926
+  success (3 jobs, all steps; release-tag step
+  skipped by design on main)
 
 ## Open items
 
@@ -43,108 +48,101 @@ owner order — that history lives in git if ever needed.
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
 
+## Session 387 — the dialogs row painter leg (2026-11-08)
+
+- VM wiped a 12th time; full recovery per
+  scripts/env.sh (clone f1c181db == origin —
+  the carried summary was STALE, 385 AND 386
+  had closed green in lost sessions; WORKLOG
+  arbitrated as always). Baseline re-verified:
+  186 PASS (143 ui + 43 gui; total is the
+  authority, the 386 last-gate split 137/43
+  counted differently).
+- Selection laws (dialogs_layout.cpp:612-617 +
+  dialogs.style + PaintBadges):
+  dialogs.ChatTypeIcon(t) -> DialogsBot/
+  Channel/Forum (zero Icon for plain),
+  dialogs.BadgeIcon(kind) -> Pinned/Mention/
+  Reaction/Poll. Painter feeds
+  Metrics.ChatTypeIconW = icon.Cell.W (bot 17 /
+  channel 15 / forum 20) so the name advances by
+  the true canvas + skip 3; glyphs paint at
+  layout cells via fillGlyph cell offsets.
+- Pinned law fix (dialogs_layout.cpp:245-248):
+  right - icon.width() at textTop — the cell is
+  the 20px pinned canvas (was the 18px icon
+  size); advance 20+5.
+- Ink mapping (colors.palette + night theme):
+  chat-type OnSurface (dialogsChatIconFg =
+  dialogsNameFg), sending clock OnSurfaceVariant
+  (#c1c1c1 / #647d96), ticks Primary (day green
+  #5dc452 / night blue #72bcfd — theme-split
+  accent), pinned OnSurfaceVariant
+  (dialogsUnreadBgMuted), wide mention Primary
+  (#40a7e3), reaction Error (#e05356), poll
+  Tertiary (#997be1); active rows repaint every
+  glyph OnPrimaryContainer (dialogsNameFgActive).
+- Narrow icon badges (unread_badge_paint.cpp):
+  empty-text PaintUnreadBadge = 19x19 circle
+  pill, bg by sizeId (mention dialogsUnreadBg ->
+  Primary, reaction dialogsDraftFg -> Error,
+  poll dialogsPollIconFg -> Tertiary), glyph
+  centered paintInCenter with on-ink. The 13x13
+  badge-variant glyph set is NOT traced (386
+  delivered one 18x18 set) — refinement
+  candidate, noted here.
+- TTL badge (dialogs_row.cpp:182-236): StackBlur
+  = exact port of lib_ui image_prepare.cpp:679
+  (radius 24, guard w<=r returns source);
+  TTLBackdrop = crop of the blurred userpic,
+  average color vs white via the WCAG
+  CountContrast port (color_contrast.cpp), below
+  4.5:1 darkens x4/5 in wide ints; source =
+  photo-size NRGBA, row bg flattened under the
+  circle-masked userpic (GenerateUserpicImage
+  law: paintCircle over transparent, flattened
+  over background); draw = ellipse clip +
+  affine; timer in the 2px-inset inner rect
+  (dialogsTTLBadgeInnerMargins), 386 arc/dots
+  spec, FormatTTLTiny (format_values.cpp:482-495:
+  h<=9h, d<=6d, w<=3w, m<=11m, round-y<=366d,
+  {count}h/d/w/m/y — threshold crossings land on
+  "0d"-style units, 11m clamps to "11") +
+  TimerClamp 2 runes; premium white ink.
+- Info-block width law (bottom_info.cpp:181-183,
+  704-707): history.InfoWidth(dateW, hasTicks)
+  adds HistorySendStateSpace 24 for out-or-
+  sending; paintMessage derives skipW from it
+  and passes hasTicks to TimeLabel.
+- RED 10 tests -> 1 real bug caught (uint8
+  c*4/5 WRAPS: 255*4=252 -> 50; widen to int —
+  exactly what the discipline is for) + test
+  name/dot-import churn. GREEN 196 PASS (153 ui
+  + 43 gui). Headless smoke: 5 row variants x
+  3 states painted without panics.
+- 60467393 -> verify 42460502962 FAILED the Nix
+  job only (go-modules FOD hash mismatch: the
+  new x/image/draw IMPORT grew the go mod vendor
+  package set; module x/image v0.26.0 itself
+  unchanged). vendorHash rotated to the reported
+  sha256-alPAl... in 70600653 -> verify
+  42461470926 SUCCESS, 3 jobs, all steps
+  reconciled (Nix lockless run + nix build both
+  green).
+
 ## Session 386 — the Material icon asset library (2026-11-08)
 
-- VM survived again; repo booted at 8420312 ==
-  origin (385 had closed green in a lost
-  session); baseline 178 re-verified.
-- Canvas law (codegen_style parsed_file.cpp:967-
-  969 + lib_ui MonoIcon::paint/createCachedPixmap):
-  icon part point(x,y) = QMargins(x,y,0,0) —
-  glyph at cell+(x,y), canvas = mask+point;
-  SVG -WxH modifier renders the FULL viewBox
-  into W x H (mention/poll/reaction 72 -> 18,
-  scale 0.25); PNG coverage = blue channel byte
-  (colorizeImage offset 0, useAlpha false); @3x
-  assets are per-DPI hand-tuned (bbox differs
-  from 1x up to 0.67px — @3x is the trace
-  source, bounds pinned to it).
-- 13 glyphs: bot 16x11@(1,3)->17x14, channel
-  12x11@(3,4)->15x15, forum 19x10@(1,4)->20x14,
-  dialogs sending 11x11@(8,4)->19x15 / sent
-  12x10@(10,4)->22x14 / received 17x10@(5,4)->
-  22x14, pinned 20x20, chatlist 18x18 x3, history
-  sending 11x11@(5,5)->16x16 / sent 13x11@(2,4)-
-  >15x15 / received 18x11@(2,4)->20x15. PNG legs:
-  crack-boundary walk on the @3x binary (blue>
-  127), RDP eps 0.75@3x, /3 grid; contour order =
-  component scan then area-desc (outer, holes,
-  next); holes wind opposite automatically. SVG
-  legs: absolute M/L/C/Z flatten, 12 samples per
-  cubic. IoU vs @2x coverage 0.886-0.957.
-- TTL timer (ttl_icon.cpp): pen 1.5 round, solid
-  LEFT half-arc 90..270deg as one annulus
-  contour with round caps (bottom cap bulges +x,
-  top -x), dotted right half = 9 dots r0.75
-  pitch 3 from the 3 o'clock anchor (QPainterPath
-  ellipse stroke modeled as starting at angle 0 —
-  PHASE ASSUMED, refine against a live render
-  someday), text 9px semibold clamped 2 chars.
-- Selection laws: history.SendStateIcon(out,
-  sending, unread) = bottom_info.cpp 287-300
-  (OutLayout gates; sending clock, unread single,
-  else double); dialogs.SendStateIcon(state);
-  BadgeReaction split from BadgeMention (mention
-  wins when both, Ayu ternary). Painter wiring:
-  paintMessage feeds item.Out to TimeLabel and
-  fillGlyphs the icon at iconX/iconY (Item gains
-  Sending/Unread).
-- RED 8 tests -> 2 spec errors fixed by the
-  measurement (my dot-x arithmetic 10.622 vs
-  real 10.566; Icon struct not comparable ->
-  zero-check helper). GREEN 186 PASS (137 ui +
-  43 gui). d8eedff -> verify 42454857199 SUCCESS
-  (3 jobs, all steps, release-tag step skipped
-  by design on main).
+- Canvas law (codegen_style parsed_file.cpp:967-969 + lib_ui MonoIcon): icon part point(x,y) = QMargins(x,y,0,0) — glyph at cell+(x,y), canvas = mask + point; SVG -WxH renders the FULL viewBox into WxH (chatlist 72 -> 18, scale 0.25); PNG coverage = blue channel (blue>127 at @3x, RDP eps 0.75@3x, /3 grid; crack-boundary walk; contour order = component scan then area-desc, holes wind opposite); SVG legs absolute M/L/C/Z flatten, 12 samples/cubic; IoU vs @2x 0.886-0.957; @3x is the trace source (per-DPI hand-tuned bboxes, pinned).
+- 13 glyphs: bot 16x11@(1,3)->17x14, channel 12x11@(3,4)->15x15, forum 19x10@(1,4)->20x14, dialogs sending 11x11@(8,4)->19x15 / sent 12x10@(10,4)->22x14 / received 17x10@(5,4)->22x14, pinned 20x20, chatlist 18x18 x3 (mention/reaction/poll), history sending 11x11@(5,5)->16x16 / sent 13x11@(2,4)->15x15 / received 18x11@(2,4)->20x15.
+- TTL timer (ttl_icon.cpp): pen 1.5 round, solid LEFT half-arc 90..270deg one annulus contour with round caps (bottom cap bulges +x, top -x), dotted right half 9 dots r0.75 pitch 3 anchored 3 o'clock (QPainterPath phase ASSUMED — refine vs a live render someday), text 9px semibold clamped 2 chars.
+- Selection laws: history.SendStateIcon(out, sending, unread) = bottom_info.cpp 287-300; dialogs.SendStateIcon(state); BadgeReaction split from BadgeMention (mention wins when both). paintMessage feeds Out to TimeLabel + fillGlyphs the icon at iconX/iconY (Item gains Sending/Unread).
+- RED 8 -> 2 spec errors fixed by measurement. GREEN 186. d8eedff -> verify 42454857199 SUCCESS (3 jobs, all steps). Detail: git d8eedff5 + this file's history.
 
 ## Session 385 — the complex bubble paint leg: op model + painter wiring (2026-11-08)
 
-- VM survived the whole session (first since
-  wipe #9); repo booted at 9c248ea == origin.
-- Flare shape measured to the mask source:
-  createInvertedCircleMask(2r) = filled square
-  MINUS centered disc (style_core.cpp:164-178),
-  quartered by PrepareInvertedCornerPixmaps
-  (cached_round_corners.cpp:246-262); cut lands
-  at the disc-center corner of each drawn
-  quadrant — top-left flare cuts bottom-right,
-  top-right cuts bottom-left, bottom-left cuts
-  top-right, bottom-right cuts top-left; flare
-  squares inv x inv at (x-inv,side-y)/(x+w,
-  side-y), side-y = top or bottom-inv. Gio
-  paths: MoveTo(neighbor1) ArcTo(cut corner as
-  center, +-pi/2 by sweep) LineTo(opposite)
-  Close; +pi/2 sweeps up->right->down->left
-  (screen), the only -pi/2 is cut-bottom-right.
-- Op model: per part ONE fill with side-rounded
-  corners (10 where Rounded, 0 else) — Go-native
-  equivalent of Ayu corner pixmaps + middle
-  fill, identical coverage; then top flares
-  (L,R), then bottom flares (L,R). No op
-  overlaps (flares sit outside part rects).
-- ServiceBubbleRadii(fontH): normal=(3+fontH+4)
-  /2, inverted=fontH-normal, shrink=2*inv/3 —
-  the 384 token consts are the fontH=13 case
-  (invariant-tested). PartsFont walk generalizes
-  heights+shrink to measured svcH (render leg
-  measures real fonts; 13-delegation intact).
-- Painter: shape() now collects per-line ends
-  (lineEnds), shapeLineWidths clamps >=0; add
-  decision on RAW widths (call site 784-788),
-  CountServiceLineWidths normalizes, PartsFont
-  at svcH; parts y translated by g.Top-
-  marginTop (Ayu p.translate 790-799); badge
-  anchors on RAW lineWidths.back() with lines
-  count (818-836). ServicePill code path
-  replaced — single line IS the degenerate parts
-  walk (identical geometry; empty text now
-  paints nothing, matching Ayu's zero-iteration
-  loop). bubblePath refactored onto shared
-  openCornersPath (tails unchanged).
-- RED 8 tests -> 1 spec error (nil-vs-empty
-  again; law won). GREEN 178 PASS (135 ui + 43
-  gui). b91b7c9 -> verify 42451027930 success
-  (3 jobs, all steps, job AND step reconciled).
+- Flare shape (style_core.cpp:164-178 + cached_round_corners.cpp:246-262): createInvertedCircleMask(2r) = filled square MINUS centered disc, quartered; cut lands at the disc-center corner of each drawn quadrant (top-left flare cuts bottom-right etc.); flare squares inv x inv at (x-inv, side-y)/(x+w, side-y), side-y = top or bottom-inv. Gio: MoveTo(neighbor1) ArcTo(cut corner, +-pi/2 by sweep) LineTo(opposite) Close; the only -pi/2 is cut-bottom-right.
+- Op model: per part ONE fill with side-rounded corners (10 where Rounded, 0 else; Go-native corner-pixmap equivalent); then top flares (L,R), bottom flares (L,R); no op overlaps. ServiceBubbleRadii(fontH) = the 384 consts generalized (invariant-tested at 13). Painter: per-line shape ends >=0 clamped, add decision on RAW widths, PartsFont at measured svcH, parts y by g.Top-marginTop, badge on RAW lineWidths.back(); ServicePill = degenerate parts walk (identical geometry); bubblePath onto shared openCornersPath.
+- RED 8 -> 1 spec error (nil-vs-empty; law won). GREEN 178. b91b7c9 -> verify 42451027930 success (3 jobs, job AND step reconciled). Detail: git b91b7c9a + this file's history.
 
 ## Session 384 — the multi-line service complex bubble law (2026-11-08)
 
