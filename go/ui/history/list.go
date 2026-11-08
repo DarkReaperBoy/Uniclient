@@ -19,6 +19,8 @@ type Item struct {
 	AttachedTop    bool
 	AttachedBottom bool
 	SkipTail       bool
+	Sending        bool
+	Unread         bool
 	FromName       string
 	TimeText       string
 }

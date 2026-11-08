@@ -31,6 +31,7 @@ const (
 	BadgeMark
 	BadgePinned
 	BadgeMention
+	BadgeReaction
 	BadgePoll
 )
 
@@ -244,8 +245,12 @@ func wideBadges(e Entry, width, textTop int, m Metrics) ([]Badge, int) {
 		right -= tokens.DialogsIconSize + tokens.DialogsUnreadPadding
 	}
 	if e.Mention || e.Reaction {
+		kind := BadgeReaction
+		if e.Mention {
+			kind = BadgeMention
+		}
 		badges = append(badges, Badge{
-			Kind: BadgeMention,
+			Kind: kind,
 			Cell: Rect{X: right - tokens.DialogsIconSize, Y: top, W: tokens.DialogsIconSize, H: tokens.DialogsIconSize},
 		})
 		right -= tokens.DialogsIconSize + tokens.DialogsUnreadPadding
@@ -292,8 +297,12 @@ func narrowBadges(e Entry, m Metrics) []Badge {
 		painted++
 	}
 	if painted < 2 && (e.Mention || e.Reaction) {
+		kind := BadgeReaction
+		if e.Mention {
+			kind = BadgeMention
+		}
 		badges = append(badges, Badge{
-			Kind: BadgeMention,
+			Kind: kind,
 			Cell: Rect{X: right - tokens.DialogsUnreadHeight, Y: top, W: tokens.DialogsUnreadHeight, H: tokens.DialogsUnreadHeight},
 		})
 		right -= tokens.DialogsUnreadHeight + tokens.DialogsUnreadPadding

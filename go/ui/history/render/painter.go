@@ -19,6 +19,7 @@ import (
 	"golang.org/x/image/math/fixed"
 
 	"uniclient/ui/history"
+	"uniclient/ui/icons"
 	"uniclient/ui/material"
 	"uniclient/ui/tokens"
 )
@@ -357,13 +358,16 @@ func (p *ChatPainter) paintMessage(gtx layout.Context, item history.Item, viewWi
 		}, fontRegular, unit.Sp(tokens.FontBase), item.Text, textColor(sch, item.Out))
 	}
 	if c.NeedInfo {
-		tx, ty, _, _ := history.TimeLabel(g, dateM.width, dateM.lineH, dateM.lineH, false)
+		tx, ty, ix, iy := history.TimeLabel(g, dateM.width, dateM.lineH, dateM.lineH, item.Out)
 		p.label(gtx, history.Geometry{
 			Left:   tx,
 			Top:    ty,
 			Width:  dateM.width,
 			Height: dateM.lineH,
 		}, fontRegular, unit.Sp(tokens.FontMsgDate), item.TimeText, timeColor(sch, item.Out))
+		if icon, ok := history.SendStateIcon(item.Out, item.Sending, item.Unread); ok {
+			fillGlyph(gtx, ix, iy, icon, timeColor(sch, item.Out))
+		}
 	}
 }
 
@@ -503,6 +507,26 @@ func timeColor(sch material.Scheme, out bool) color.NRGBA {
 		return sch.OnPrimary
 	}
 	return sch.OnSurfaceVariant
+}
+
+func fillGlyph(gtx layout.Context, x, y int, icon icons.Icon, col color.NRGBA) {
+	scale := float32(gtx.Dp(unit.Dp(1)))
+	gx := float32(gtx.Dp(unit.Dp(x + icon.Cell.X)))
+	gy := float32(gtx.Dp(unit.Dp(y + icon.Cell.Y)))
+	var path clip.Path
+	path.Begin(gtx.Ops)
+	for _, contour := range icon.Glyph.Paths {
+		if len(contour) < 3 {
+			continue
+		}
+		path.MoveTo(f32.Pt(gx+contour[0].X*scale, gy+contour[0].Y*scale))
+		for _, v := range contour[1:] {
+			path.LineTo(f32.Pt(gx+v.X*scale, gy+v.Y*scale))
+		}
+		path.Close()
+	}
+	defer clip.Outline{Path: path.End()}.Op().Push(gtx.Ops).Pop()
+	paint.Fill(gtx.Ops, col)
 }
 
 func fillRRect(gtx layout.Context, r history.Geometry, radius int, col color.NRGBA) {
