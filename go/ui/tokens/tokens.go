@@ -294,6 +294,7 @@ const (
 	HistoryToDownDurationMs   = 150
 
 	HistoryUnreadThingsSkip = 4
+	HistoryReplyHeight      = 49
 
 	DialogsToUpShownAfter   = HistoryToDownShownAfter / 2
 	DialogsToUpTravel       = HistoryToDownHeight + 2

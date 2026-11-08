@@ -7,25 +7,17 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 397 — the unread-reactions corner button landed (the
-  corner stack is complete for today's model: down + mentions + reactions):
-  shown iff >=1 Item.UnreadReaction (data-driven, ChatLoaded [hard reset
-  first] + ChatPrepended only); slide-from-right 64px; shift = 66*downP +
-  66*mentionsP (settled gap 4 above mentions; mid-slide transient overlap
-  is the reference's own behavior, z-ordered reactions-above-mentions);
-  click jumps to the topmost unread reaction; press routing
-  reactions-before-mentions-before-down-before-scrollbar/touch; 150ms;
-  traced heart-ring glyph (IoU 0.936) as icons.HistoryReaction
-- next: the poll-votes corner button (4th stack slot, same law + shift
-  gains the reactions term; needs a poll model in Item — or defer with
-  polls) or the composer attach/menu trees; push N-1 when the token
-  returns
-- owner-waiting: NEEDS_OWNER — GH_TOKEN still absent this sandbox; sessions
-  394+395+396+397 sit committed locally on top of origin/main 5b978120,
-  unpushed, verify.yml undispatched. Re-mention when the token is restored
-- last-gate: quick GREEN (397 scope); render+window windows vet GREEN
-  standalone; js/wasm compile of ui/... GREEN; comment ban clean; 357
-  tests (204 ui + 153 gui) green locally incl. race
+- front: session 398 — the compose-bar geometry law landed (bar
+  height, field-height machine, max-height cap, button-row layout,
+  scroll partition); N-1 CLOSED — the owner's token pushed
+  5b978120..79d27335 (394-397) and verify 42513830501 ran SUCCESS
+- next: the composer continues — attach/send/emoji glyph assets
+  (chat/input_attach@, historySendIcon family) + the bar painter, or
+  the SendButton type machine law (send_button.cpp) — then Elm wiring
+- owner-waiting: none
+- last-gate: quick GREEN (398 scope); js/wasm compile ui/... GREEN;
+  comment ban clean; 363 tests (210 ui + 153 gui) green locally;
+  verify 42513830501 SUCCESS job+step (394-397 scope)
 
 ## Open items
 
@@ -33,50 +25,55 @@ owner order — that history lives in git if ever needed.
 |---|---|---|---|---|
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
-| N-1 | repo push | sessions 394+395+396 committed locally, unpushed — no GH_TOKEN/SSH in this sandbox; push + dispatch verify.yml when auth returns | git log origin/main..HEAD | owner restores GH_TOKEN or runs: git push origin main |
 | D-1 | ui/history corner button | down-button unread-count badge (22dp, centered x, top 0 — jump_down_button.cpp paintEvent + historyToDownBadge*) + hover/over colors + ripple deferred: no unread counter in the chat Item model yet, no hover/ripple machinery in the skin yet; replyReturn branch of downClick + loadedAtBottom==false state return with reply-return jumps / below-history pagination | jump_down_button.cpp 33-52, corner_buttons.cpp 139-145 | badge returns with read-state counts; over/ripple with the skin's hover+ripple pass |
 | D-2 | ui/history unread-things buttons | read-marking absent for mentions AND reactions: after a jump the button stays shown (reference hides it when the server marks the thing read — updateUnreadThingsVisibility is server-data-driven); mentionsClick's already-there voice/video media-read branch (5623) deferred — no media model; unread-count badges join D-1's class; poll-votes 4th stack slot returns with a poll model | history_view_corner_buttons.cpp 147-190, 288-345 | returns with engine unread-things events + the media pass |
 
+## Session 398 — the compose-bar geometry law (2026-11-09)
+
+- Owner restored the token: pushed 5b978120..79d27335 (sessions
+  394-397), dispatched verify 42513830501 — SUCCESS at job AND step
+  level (nix + cross-builds + test/vet/gofmt/smoke; only the
+  version==tag step skipped, correct off-tag). N-1 closed.
+- Law: moveFieldControls (history_widget.cpp 7587-7660) —
+  buttonsBottom = paneH - 46; left run from historySendRight 2:
+  attach (2, bb, 44x46), field left 2+44; field top = paneH -
+  fieldH - historySendPadding 9; right run: send moveToRight(2),
+  emoji toggle moveToRight(2+44) — 44x46 cells (historySendSize,
+  chat_helpers.style 1405; every bar IconButton clones it).
+  updateFieldSize (7696-7703): fieldWidth = W - attach - 2 - send -
+  emoji — sendRight subtracted ONCE while both runs inset by 2: the
+  field's right edge sits 2px under the emoji toggle; both paint
+  historyComposeAreaBg = msgInBg (colors.palette 458) — benign,
+  pinned as the reference's own quirk. fieldHeight (7402-7408):
+  no-text chat = 46-18 = 28; else the InputField clamp
+  (input_field.cpp 2817-2839): clamp(content, 36, widgetMax),
+  setMaxHeight lowering the min when max < 36 (2720-2725).
+  computeMaxFieldHeight (9097-9115) = min(224, paneH - reservedAbove
+  - 18 - 49 - (49 if replyShown)) — reservedAbove = the top-bar/bars
+  column our pane models in a later slice. Scroll partition
+  (8660-8666): scrollH = paneH - (fieldH + 18) when canSend, else
+  the list keeps the pane. AyuSettings defaults (ayu_settings.h
+  668-672): attach/commands/emoji/autodelete buttons all shown.
+- Go: ui/history/compose.go — ComposeBarHeight / ComposeFieldMaxHeight
+  / ComposeFieldHeight / ComposeBarGeometry (ComposeButtons{Attach,
+  Emoji}; hidden button = zero rect, never faked) /
+  ComposeScrollHeight; tokens.HistoryReplyHeight 49 pinned
+  (chat_helpers.style 1130 — the compose tokens were pinned in an
+  earlier session; these are their first consumers).
+- RED (undefined symbols) -> GREEN after 3 of MY OWN test-arithmetic
+  errors fixed by computing with code (518->510; 184->224, 135->184,
+  183 case added). 6 new tests, 363 total = 210 ui + 153 gui. quick
+  gate GREEN; js/wasm compile of ui/history + ui/tokens GREEN;
+  comment ban clean.
+
 ## Session 397 — the unread-reactions corner button (2026-11-09)
 
-- Law: history_view_corner_buttons.cpp updatePositions 405-423 (reactions:
-  right = interpolate(-52, 12, shown) — same slide-from-right; shift =
-  interpolate(0, 62+skip, downShown) + interpolate(0, 62+skip,
-  mentionsShown) — one 66px step per lower button, each gated by THAT
-  button's animated progress) + updateUnreadThingsVisibility 320-331
-  (reactions shown = loadedCount > 0 && unreadMayBeShown -> >=1
-  Item.UnreadReaction, data-driven) + reactionsClick 174-181 (showAt(
-  minLoaded) = topmost row) + style 1247-1250 (historyUnreadReactions =
-  TwoIconButton(historyToDown) clone). Settled-state geometry: gap 4 above
-  mentions; MID-SLIDE the boxes transiently overlap in a <=4px strip —
-  the reference's own behavior (mentions slides diagonally into its slot
-  while reactions rises; Qt z-order paints/hits _reactions above
-  _mentions) — our mapping: paintReactionsButton after
-  paintMentionsButton, hit-test reactions first.
-- Glyph: history_unread_reaction@2x measured — 52 canvas, heart-ring bbox
-  19.33x17.33 center (25.67,26.67)@1x -> button (26,37) via iconPosition
-  (0,10); traced cv2 RETR_CCOMP + approxPolyDP 0.35dp, 1/3dp grid: 2
-  contours (ring 18v area -240.5, hole 13v +166.67, opposite winding),
-  raster-diff IoU 0.936 (408<->413 px); icons.HistoryReaction
-  Cell{36,46,(16,28)}; pinned in TestIconCells/GlyphBounds/
-  GlyphContoursOrientedForHoles.
-- Go: corner_button.go ReactionsShown / ReactionsJumpTop (clamped, -1
-  no-op) / ReactionsButtonGeometry(w, h, progress, downP, mentionsP) /
-  Hit (shift = step*downP + step*mentionsP); Item.UnreadReaction;
-  ChatPane.ReactionsProgress. Elm: ChatReactionsState + ChatPress.
-  ReactionPress; chatReactionsCheck at ChatLoaded (hard reset) +
-  ChatPrepended; press routing reactions FIRST (top of the stack);
-  chatReactionsTick 150ms; window ticks/invalidates on
-  ChatReactionsActive; View layers pane.ReactionsProgress. Painter:
-  paintReactionsButton — circle/shadow family + fillGlyph heart-ring.
-- RED (compile) -> GREEN after 3 test-side law corrections (my arithmetic:
-  mid-stack top 162 not 195; the no-overlap law is settled-state-only —
-  mid-slide transient overlap is the reference's own; the click tests must
-  click the slot the stack actually occupies at that moment — reactions
-  rides the down button's slot, so clicking after hiding down needs the
-  base-slot coords). 19 new tests (5 ui laws + 14 gui journeys), 357
-  total (204 ui + 153 gui). quick gate GREEN; render+window windows vet
-  GREEN standalone; js/wasm compile of ui/... GREEN; comment ban clean.
+- Down-button family clone: slide-from-right 64px, shift =
+  66*downP + 66*mentionsP, shown iff >=1 Item.UnreadReaction
+  (data-driven), click = topmost unread reaction, routing
+  reactions-first, 150ms; heart-ring glyph traced IoU 0.936 as
+  icons.HistoryReaction. 19 tests, 357 total. Detail: 79d27335 +
+  git history; verify 42513830501 SUCCESS.
 
 ## Session 396 — the unread-mentions corner button: the corner stack begins (2026-11-09)
 
