@@ -236,3 +236,168 @@ func TestSelectionSpans(t *testing.T) {
 		t.Fatalf("hard-break trailing spaces must keep: %v", got)
 	}
 }
+
+func TestMoveHorizontal(t *testing.T) {
+	doc := Layout("abc", 100, mono(8, 16))
+	if got := doc.MoveLeft(2, 2); got != 1 {
+		t.Fatalf("MoveLeft(2) = %d, want 1", got)
+	}
+	if got := doc.MoveLeft(0, 0); got != 0 {
+		t.Fatalf("MoveLeft(0) = %d, want 0", got)
+	}
+	if got := doc.MoveRight(1, 1); got != 2 {
+		t.Fatalf("MoveRight(1) = %d, want 2", got)
+	}
+	if got := doc.MoveRight(3, 3); got != 3 {
+		t.Fatalf("MoveRight(3) = %d, want 3", got)
+	}
+	if got := doc.MoveLeft(5, 2); got != 2 {
+		t.Fatalf("MoveLeft with selection = %d, want 2 (min)", got)
+	}
+	if got := doc.MoveLeft(2, 5); got != 2 {
+		t.Fatalf("MoveLeft with selection = %d, want 2 (min)", got)
+	}
+	if got := doc.MoveRight(2, 5); got != 5 {
+		t.Fatalf("MoveRight with selection = %d, want 5 (max)", got)
+	}
+	if got := doc.MoveRight(5, 2); got != 5 {
+		t.Fatalf("MoveRight with selection = %d, want 5 (max)", got)
+	}
+}
+
+func TestMoveLineBounds(t *testing.T) {
+	doc := Layout("aa bb cc", 24, mono(8, 16))
+	cases := []struct {
+		offset, want int
+	}{
+		{0, 2},
+		{4, 5},
+		{6, 8},
+		{8, 8},
+	}
+	for _, c := range cases {
+		if got := doc.MoveEndOfLine(c.offset); got != c.want {
+			t.Fatalf("MoveEndOfLine(%d) = %d, want %d", c.offset, got, c.want)
+		}
+	}
+	starts := []struct {
+		offset, want int
+	}{
+		{0, 0},
+		{4, 3},
+		{7, 6},
+		{8, 6},
+	}
+	for _, c := range starts {
+		if got := doc.MoveStartOfLine(c.offset); got != c.want {
+			t.Fatalf("MoveStartOfLine(%d) = %d, want %d", c.offset, got, c.want)
+		}
+	}
+
+	hard := Layout("ab  \ncc", 100, mono(8, 16))
+	if got := hard.MoveEndOfLine(0); got != 4 {
+		t.Fatalf("hard MoveEndOfLine(0) = %d, want 4 (spaces kept)", got)
+	}
+	if got := hard.MoveStartOfLine(5); got != 5 {
+		t.Fatalf("MoveStartOfLine(5) = %d, want 5", got)
+	}
+	if got := hard.MoveHome(); got != 0 {
+		t.Fatalf("MoveHome = %d, want 0", got)
+	}
+	if got := hard.MoveEnd(); got != 7 {
+		t.Fatalf("MoveEnd = %d, want 7", got)
+	}
+}
+
+func TestMoveWords(t *testing.T) {
+	doc := Layout("one two.three  four", 200, mono(8, 16))
+	nexts := []struct{ from, want int }{
+		{0, 4}, {1, 4}, {3, 4}, {4, 7}, {7, 8}, {8, 15}, {13, 15}, {15, 19}, {19, 19},
+	}
+	for _, c := range nexts {
+		if got := doc.MoveWordRight(c.from); got != c.want {
+			t.Fatalf("MoveWordRight(%d) = %d, want %d", c.from, got, c.want)
+		}
+	}
+	prevs := []struct{ from, want int }{
+		{0, 0}, {1, 0}, {3, 0}, {4, 0}, {7, 4}, {8, 7}, {9, 8}, {13, 8}, {15, 8}, {19, 15},
+	}
+	for _, c := range prevs {
+		if got := doc.MoveWordLeft(c.from); got != c.want {
+			t.Fatalf("MoveWordLeft(%d) = %d, want %d", c.from, got, c.want)
+		}
+	}
+
+	nl := Layout("ab  \nxy zz", 200, mono(8, 16))
+	nlNext := []struct{ from, want int }{
+		{0, 4}, {2, 4}, {4, 5}, {5, 8}, {8, 10}, {10, 10},
+	}
+	for _, c := range nlNext {
+		if got := nl.MoveWordRight(c.from); got != c.want {
+			t.Fatalf("nl MoveWordRight(%d) = %d, want %d", c.from, got, c.want)
+		}
+	}
+	nlPrev := []struct{ from, want int }{
+		{0, 0}, {2, 0}, {4, 0}, {5, 4}, {6, 5}, {8, 5}, {10, 8},
+	}
+	for _, c := range nlPrev {
+		if got := nl.MoveWordLeft(c.from); got != c.want {
+			t.Fatalf("nl MoveWordLeft(%d) = %d, want %d", c.from, got, c.want)
+		}
+	}
+}
+
+func TestXToColumn(t *testing.T) {
+	doc := Layout("aa bb cc", 24, mono(8, 16))
+	cases := []struct {
+		x, want int
+	}{
+		{0, 0}, {3, 0}, {4, 0}, {5, 1}, {8, 1}, {12, 1}, {16, 2}, {20, 2}, {24, 2}, {100, 2},
+	}
+	for _, c := range cases {
+		if got := doc.XToColumn(1, c.x); got != c.want {
+			t.Fatalf("XToColumn(1, %d) = %d, want %d", c.x, got, c.want)
+		}
+	}
+}
+
+func TestMoveVertical(t *testing.T) {
+	doc := Layout("aa bb cc", 24, mono(8, 16))
+	cases := []struct {
+		offset, goalX   int
+		hasGoal, up     bool
+		wantOff, wantGx int
+	}{
+		{6, 0, false, true, 3, 0},
+		{8, 16, true, true, 5, 16},
+		{8, 12, true, true, 4, 12},
+		{3, 0, false, true, 0, 0},
+		{0, 16, true, true, 0, 16},
+		{0, 0, false, true, 0, 0},
+		{5, 0, false, false, 8, 16},
+		{8, 4, true, false, 8, 4},
+	}
+	for _, c := range cases {
+		off, gx := doc.MoveVertical(c.offset, c.goalX, c.hasGoal, c.up)
+		if off != c.wantOff || gx != c.wantGx {
+			t.Fatalf("MoveVertical(%d, %d, %v, %v) = (%d, %d), want (%d, %d)",
+				c.offset, c.goalX, c.hasGoal, c.up, off, gx, c.wantOff, c.wantGx)
+		}
+	}
+
+	deep := Layout("a\nbb\nccc", 100, mono(8, 16))
+	off, gx := deep.MoveVertical(7, 0, false, true)
+	if off != 4 || gx != 16 {
+		t.Fatalf("deep up 1 = (%d, %d), want (4, 16)", off, gx)
+	}
+	off, gx = deep.MoveVertical(off, gx, true, true)
+	if off != 1 || gx != 16 {
+		t.Fatalf("deep up 2 = (%d, %d), want (1, 16)", off, gx)
+	}
+
+	empty := Layout("", 24, mono(8, 16))
+	off, gx = empty.MoveVertical(0, 0, false, true)
+	if off != 0 || gx != 0 {
+		t.Fatalf("empty up = (%d, %d), want (0, 0)", off, gx)
+	}
+}

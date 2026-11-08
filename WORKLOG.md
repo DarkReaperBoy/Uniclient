@@ -8,16 +8,18 @@ owner order — that history lives in git if ever needed.
 ## STATE
 
 - front: session 401 — the field text-engine core landed (metrics,
-  wrap, cursor, placeholder, selection spans, caret rect, scroll)
+  wrap, cursor, placeholder, selection spans, caret rect, scroll,
+  the full movement law set: line/word/vertical + goal-x)
 - next: the compose bar painter + Elm wiring (ChatComposeState
   riding resize/field msgs — the engine can now type, wrap, select,
   scroll); schedule/save/cancel glyphs when their types get painted;
   real font metrics adapter when the gio shaper lands
 - owner-waiting: none
-- last-gate: quick GREEN (401 scope, three atomics); js/wasm
-  compile ui/... GREEN; comment ban clean; 390 tests (229 ui +
-  153 gui + 8 text) green locally; verifies 42524452324 (95ef00d9)
-  + 42524984339 (33c91877) in flight
+- last-gate: quick GREEN (401 scope, four atomics); js/wasm
+  compile ui/... GREEN; comment ban clean; 395 tests (229 ui +
+  153 gui + 13 text) green locally; verify 42524452324 (95ef00d9)
+  SUCCESS job+step; 42524984339 (33c91877) + 42525180686
+  (b9766fe5) in flight
 
 ## Open items
 
@@ -93,8 +95,34 @@ owner order — that history lives in git if ever needed.
   −5/+5 pad is horizontal-only (compose never hscrolls, word wrap
   on). Go: ComposeFieldScrollOffset(current, content, view,
   cursorY, cursorH). RED → GREEN clean, 1 test.
-- 18 new tests this session (14 + 3 + 1), 390 total = 229 ui +
-  153 gui + 8 text. quick GREEN all commits; js/wasm compile
+- Atomic 4 (this): the cursor movement law set. Qt source:
+  QTextCursorPrivate::movePosition (qtextcursor.cpp 305-640) —
+  Left/Right = ∓1 with selection collapse to min/max (MoveAnchor);
+  StartOfLine = line start; EndOfLine = Start + visible length,
+  trailing spaces excluded on soft wraps, kept on hard/last lines;
+  Start/End = 0 / doc end. Word hops = QTextLayout::
+  next/previousCursorPosition SkipWords (qtextlayout.cpp 652-716) +
+  QTextDocumentPrivate block crossing (qtextdocument_p.cpp
+  1341-1366): three rune classes — whitespace, separator set
+  (atWordSeparator qtextengine.cpp 3053-3089: .,?!@#$:;-<>[]()={}
+  /+%&^*'\"`~|\ — underscore is a WORD char), word; NextWord =
+  skip class run + spaces, stops at the '\n' position (a second
+  hop crosses); entry at '\n' crosses +1; PrevWord = skip spaces
+  back + class run back; entry at line start returns the previous
+  line's end. Up/Down = line ∓1 with goal-x (verticalMovementX):
+  setX() = current cursor x after horizontal moves, persists
+  across vertical hops (setVerticalMovementX doc + movePosition
+  tail `if (adjustX) setX()`); landing x = QTextLine::xToCursor
+  (qtextlayout.cpp 3107-3260) = NEAREST boundary, ties to the
+  earlier column, x≤0 → col 0; no move at doc top/bottom (op
+  fails, goal still set). Go: ui/text/movement.go MoveLeft/
+  MoveRight/Start/End/StartOfLine/EndOfLine/WordLeft/WordRight/
+  XToColumn/MoveVertical + lineOf/visibleEnd refactor shared with
+  CursorAt/SelectionSpans. RED → GREEN after 1 of my own
+  test-arithmetic errors (deep-up goal: offset 7 = col 2 x16,
+  not col 3 — engine was right).
+- 23 new tests this session (14+3+1+5), 395 total = 229 ui +
+  153 gui + 13 text. quick GREEN all commits; js/wasm compile
   ui/... GREEN; comment ban clean. WORKLOG pruned (sessions ≤383
   cut; 346→~300 lines).
 

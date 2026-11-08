@@ -98,6 +98,27 @@ func (d *Document) Height(lineHeight int) int {
 	return len(d.Lines) * lineHeight
 }
 
+func (d *Document) lineOf(offset int) int {
+	line := 0
+	for i := range d.Lines {
+		if d.Lines[i].Start <= offset {
+			line = i
+		}
+	}
+	return line
+}
+
+func (d *Document) visibleEnd(i int) int {
+	line := &d.Lines[i]
+	end := line.Start + len(line.Runes)
+	if i < len(d.Lines)-1 && (end >= len(d.Text) || d.Text[end] != '\n') {
+		for end > line.Start && d.Text[end-1] == ' ' {
+			end--
+		}
+	}
+	return end
+}
+
 func (d *Document) CursorAt(offset int) Cursor {
 	if offset < 0 {
 		offset = 0
@@ -105,16 +126,9 @@ func (d *Document) CursorAt(offset int) Cursor {
 	if offset > len(d.Text) {
 		offset = len(d.Text)
 	}
-	line := 0
-	for i := range d.Lines {
-		if d.Lines[i].Start <= offset {
-			line = i
-		}
-	}
+	line := d.lineOf(offset)
 	c := Cursor{Line: line, Column: offset - d.Lines[line].Start}
-	for _, r := range d.Lines[line].Runes[:c.Column] {
-		c.X += d.metrics.Advance(r)
-	}
+	c.X = d.lineAdvance(line, c.Column)
 	return c
 }
 
@@ -162,13 +176,7 @@ func (d *Document) SelectionSpans(sel Selection) []Span {
 	var spans []Span
 	for i := range d.Lines {
 		line := &d.Lines[i]
-		end := line.Start + len(line.Runes)
-		softWrap := i < len(d.Lines)-1
-		if softWrap && (end >= len(d.Text) || d.Text[end] != '\n') {
-			for end > line.Start && d.Text[end-1] == ' ' {
-				end--
-			}
-		}
+		end := d.visibleEnd(i)
 		lo := from
 		if line.Start > lo {
 			lo = line.Start
