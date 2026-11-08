@@ -180,6 +180,7 @@ func (p *Painter) PaintPane(gtx layout.Context, pane dialogs.Pane, sch material.
 		p.PaintRow(gtx, pane.Rows[i], pane.Width, sch, state)
 		stk.Pop()
 	}
+	p.paintToUpButton(gtx, pane, sch)
 	if pane.Thumb.Hidden {
 		return
 	}
@@ -189,6 +190,53 @@ func (p *Painter) PaintPane(gtx layout.Context, pane dialogs.Pane, sch material.
 		W: tokens.ScrollBarWidth - 2*tokens.ScrollBarDeltax,
 		H: pane.Thumb.H,
 	}, tokens.ScrollBarRadius, scrollBarColor)
+}
+
+var toUpShadowColor = color.NRGBA{R: 0x00, G: 0x00, B: 0x00, A: 0x28}
+
+func (p *Painter) paintToUpButton(gtx layout.Context, pane dialogs.Pane, sch material.Scheme) {
+	if pane.ToUpProgress <= 0 {
+		return
+	}
+	g := dialogs.ToUpGeometry(pane.Width, pane.View.Height, pane.ToUpProgress)
+	if g.Y >= pane.View.Height {
+		return
+	}
+	circle := dialogs.Rect{
+		X: g.X + tokens.HistoryToDownCircleX,
+		Y: g.Y + tokens.HistoryToDownCircleY,
+		W: tokens.HistoryToDownCircleSize,
+		H: tokens.HistoryToDownCircleSize,
+	}
+	shadow := circle
+	shadow.Y += 2
+	fillCircle(gtx, shadow, toUpShadowColor)
+	fillCircle(gtx, circle, sch.PrimaryContainer)
+	strokeToUpArrow(gtx, g.X, g.Y, sch.OnPrimaryContainer)
+}
+
+func strokeToUpArrow(gtx layout.Context, boxLeft, boxTop int, col color.NRGBA) {
+	dp := func(v int) float32 {
+		return float32(gtx.Dp(unit.Dp(v)))
+	}
+	w := float32(tokens.HistoryToDownArrowWidth)
+	h := float32(tokens.HistoryToDownArrowHeight)
+	half := float32(tokens.HistoryToDownArrowStroke) / 2
+	cx := dp(boxLeft + tokens.HistoryToDownArrowCenterX)
+	cy := dp(boxTop + tokens.DialogsToUpArrowCenterY)
+	left := cx - w/2 + half
+	bottom := cy + h/2 - half
+	var path clip.Path
+	path.Begin(gtx.Ops)
+	path.MoveTo(f32.Pt(left, bottom))
+	path.LineTo(f32.Pt(cx, cy-h/2+half))
+	path.LineTo(f32.Pt(left+w-2*half, bottom))
+	stroke := clip.Stroke{
+		Path:  path.End(),
+		Width: float32(gtx.Dp(unit.Dp(tokens.HistoryToDownArrowStroke))),
+	}
+	defer stroke.Op().Push(gtx.Ops).Pop()
+	paint.Fill(gtx.Ops, col)
 }
 
 func (p *Painter) badges(gtx layout.Context, l dialogs.RowLayout, counterM measure, counter string, sch material.Scheme, state RowState) {

@@ -256,6 +256,15 @@ type ChatDownState struct {
 	Progress float32
 }
 
+type DialogsToUpState struct {
+	Shown    bool
+	Anim     bool
+	From     float32
+	To       float32
+	Started  int
+	Progress float32
+}
+
 type Model struct {
 	Width             int
 	Height            int
@@ -267,6 +276,8 @@ type Model struct {
 	DialogsTouch      TouchDrag
 	DialogsBar        BarDrag
 	DialogsOverscroll dialogs.Overscroll
+	DialogsToUp       DialogsToUpState
+	DialogsToUpPress  bool
 	Chat              history.List
 	ChatScroll        history.Viewport
 	ChatMoreAbove     bool
@@ -301,6 +312,7 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		m.Height = msg.Height
 		m.DialogsScroll.Height = msg.Height
 		m.DialogsScroll.Top = m.clampDialogsScroll(m.DialogsScroll.Top)
+		m.dialogsToUpCheck()
 		m.ChatScroll.Height = msg.Height
 		oldTop := m.ChatScroll.Top
 		m.ChatScroll.Top = m.Chat.ClampOffset(m.ChatScroll.Top, m.ChatScroll)
@@ -320,6 +332,7 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 			m.Dialogs.Selected = -1
 		}
 		m.DialogsScroll.Top = m.clampDialogsScroll(m.DialogsScroll.Top)
+		m.dialogsToUpCheck()
 		return m, m.loadMoreCmd()
 	case DialogRowPressed:
 		if msg.Index >= 0 && msg.Index < len(m.Dialogs.Rows) {
@@ -328,6 +341,7 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		return m, nil
 	case DialogsScrolled:
 		m.DialogsScroll.Top = m.clampDialogsScroll(m.DialogsScroll.Top + msg.DeltaY)
+		m.dialogsToUpCheck()
 		return m, m.loadMoreCmd()
 	case DialogsWheel:
 		dy := dialogs.WheelDelta(msg.AngleX, msg.AngleY, tokens.WheelScrollLines,
@@ -349,9 +363,12 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		m.DialogsTouch.Active = false
 		m.DialogsTouch.Scrolling = false
 		m.DialogsTouch.State = dialogs.TouchScrollManual
+		m.DialogsToUpPress = false
 		return m, nil
 	case DialogsTick:
+		m.nowMs = msg.Now
 		m.dialogsTick(msg.Now)
+		m.dialogsToUpTick(msg.Now)
 		return m, m.loadMoreCmd()
 	case DialogsLoadMoreRequested:
 		return m, nil
@@ -438,8 +455,10 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 }
 
 func (m *Model) scrollClassic(dy, now int) Model {
+	m.nowMs = now
 	if m.DialogsOverscroll.Stretch == 0 {
 		m.DialogsScroll.Top = m.clampDialogsScroll(m.DialogsScroll.Top + dy)
+		m.dialogsToUpCheck()
 		return *m
 	}
 	if !m.DialogsOverscroll.Animating(now) {
@@ -449,6 +468,13 @@ func (m *Model) scrollClassic(dy, now int) Model {
 }
 
 func (m *Model) pressDialogs(msg DialogsPressed) Model {
+	m.nowMs = msg.Now
+	if m.dialogsToUpHitAt(msg.X, msg.Y) {
+		m.DialogsBar = BarDrag{}
+		m.DialogsTouch = TouchDrag{}
+		m.DialogsToUpPress = true
+		return *m
+	}
 	width := m.Columns().Dialogs
 	if !msg.Touch && width > tokens.ScrollBarWidth && msg.X >= width-tokens.ScrollBarWidth {
 		thumb := m.Dialogs.ScrollbarThumb(m.DialogsScroll, width, m.DialogsScroll.Height)
@@ -457,6 +483,7 @@ func (m *Model) pressDialogs(msg DialogsPressed) Model {
 			if !dialogs.BarOver(thumb, msg.X-(width-tokens.ScrollBarWidth), msg.Y) {
 				m.DialogsScroll.Top = m.clampDialogsScroll(
 					m.Dialogs.BarTrackJump(m.DialogsScroll, width, m.DialogsScroll.Height, msg.Y))
+				m.dialogsToUpCheck()
 			}
 			return *m
 		}
@@ -486,12 +513,14 @@ func (m *Model) pressDialogs(msg DialogsPressed) Model {
 }
 
 func (m *Model) dragDialogs(msg DialogsDragged) Model {
+	m.nowMs = msg.Now
 	if m.DialogsBar.Dragging {
 		dy := msg.Y - m.DialogsBar.LastY
 		m.DialogsBar.LastY = msg.Y
 		m.DialogsScroll.Top = m.clampDialogsScroll(
 			m.DialogsScroll.Top + m.Dialogs.BarDragScale(
 				m.DialogsScroll, m.Columns().Dialogs, m.DialogsScroll.Height, dy))
+		m.dialogsToUpCheck()
 		return *m
 	}
 	d := m.DialogsTouch
@@ -539,7 +568,16 @@ func sampleTouchSpeed(d TouchDrag, x, y, now int) TouchDrag {
 }
 
 func (m *Model) releaseDialogs(msg DialogsReleased) {
+	m.nowMs = msg.Now
 	m.DialogsBar = BarDrag{}
+	if m.DialogsToUpPress {
+		m.DialogsToUpPress = false
+		if m.dialogsToUpHitAt(msg.X, msg.Y) {
+			m.DialogsScroll.Top = m.clampDialogsScroll(0)
+			m.dialogsToUpCheck()
+		}
+		return
+	}
 	if !m.DialogsTouch.Active {
 		return
 	}
@@ -598,6 +636,7 @@ func (m *Model) dialogsTick(now int) {
 	if m.DialogsOverscroll.Returning && now > m.DialogsOverscroll.ReturnStart {
 		m.DialogsScroll.Top = m.DialogsOverscroll.SpringUpdate(
 			m.DialogsScroll.Top, m.dialogsMaxOffset(), now)
+		m.dialogsToUpCheck()
 	}
 }
 
@@ -605,10 +644,54 @@ func (m *Model) applyTouchDelta(dx, dy int, phase dialogs.Phase, now int) {
 	d := dialogs.ScrollPixels(dx, dy, 0, 0, false)
 	m.DialogsScroll.Top = m.DialogsOverscroll.ApplyInput(
 		m.DialogsScroll.Top, m.dialogsMaxOffset(), d, phase, true, now, now)
+	m.dialogsToUpCheck()
 }
 
 func (m Model) dialogsMaxOffset() int {
 	return m.Dialogs.MaxOffset(m.Columns().Dialogs, m.DialogsScroll.Height)
+}
+
+func (m *Model) dialogsToUpHitAt(x, y int) bool {
+	return dialogs.ToUpHit(m.Columns().Dialogs, m.DialogsScroll.Height,
+		m.DialogsToUp.Progress, x, y)
+}
+
+func (m *Model) dialogsToUpCheck() {
+	narrow := m.Columns().Dialogs < tokens.DialogsRightButtonMinPaneWidth
+	shown := m.Dialogs.ToUpShown(m.DialogsScroll, m.Columns().Dialogs)
+	if shown == m.DialogsToUp.Shown {
+		return
+	}
+	m.DialogsToUp.Shown = shown
+	if narrow {
+		m.DialogsToUp.Anim = false
+		m.DialogsToUp.Progress = 0
+		m.DialogsToUp.From = 0
+		m.DialogsToUp.To = 0
+		return
+	}
+	m.DialogsToUp.From = m.DialogsToUp.Progress
+	m.DialogsToUp.To = 0
+	if shown {
+		m.DialogsToUp.To = 1
+	}
+	m.DialogsToUp.Started = m.nowMs
+	m.DialogsToUp.Anim = true
+}
+
+func (m *Model) dialogsToUpTick(now int) {
+	if !m.DialogsToUp.Anim {
+		return
+	}
+	elapsed := now - m.DialogsToUp.Started
+	if elapsed >= tokens.HistoryToDownDurationMs {
+		m.DialogsToUp.Progress = m.DialogsToUp.To
+		m.DialogsToUp.Anim = false
+	} else if elapsed >= 0 {
+		t := float32(elapsed) / float32(tokens.HistoryToDownDurationMs)
+		m.DialogsToUp.Progress = m.DialogsToUp.From +
+			(m.DialogsToUp.To-m.DialogsToUp.From)*t
+	}
 }
 
 func (m Model) KineticActive() bool {
@@ -775,6 +858,10 @@ func (m Model) ChatDateActive() bool {
 
 func (m Model) ChatDownActive() bool {
 	return m.ChatDown.Anim
+}
+
+func (m Model) DialogsToUpActive() bool {
+	return m.DialogsToUp.Anim
 }
 
 func (m *Model) chatScrollClassic(dy int) (Model, Cmd) {
@@ -1154,6 +1241,7 @@ func View(m Model) Scene {
 	s := Scene{Background: material.SchemeFor(material.Light).Surface}
 	if m.HasDialogs {
 		s.Dialogs = m.Dialogs.Pane(m.DialogsScroll, m.Columns().Dialogs)
+		s.Dialogs.ToUpProgress = m.DialogsToUp.Progress
 	}
 	s.Chat = m.Chat.Pane(m.ChatScroll, m.Columns().Chat)
 	s.Chat.ThumbDragging = m.ChatBar.Dragging

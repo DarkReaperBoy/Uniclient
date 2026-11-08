@@ -94,13 +94,14 @@ type Thumb struct {
 }
 
 type Pane struct {
-	Width    int
-	View     Viewport
-	First    int
-	Rows     []Entry
-	RowYs    []int
-	Selected int
-	Thumb    Thumb
+	Width        int
+	View         Viewport
+	First        int
+	Rows         []Entry
+	RowYs        []int
+	Selected     int
+	Thumb        Thumb
+	ToUpProgress float32
 }
 
 func (l List) Pane(v Viewport, width int) Pane {

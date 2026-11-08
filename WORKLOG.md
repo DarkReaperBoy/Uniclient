@@ -7,7 +7,20 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 394 — the jump-to-end corner button landed (pending CI):
+- front: session 395 — the dialogs to-up corner button landed (pending
+  push, see N-1): dialogs/corner_button.go (ToUpShown: Top > 240 AND
+  Top < max, hidden on pane < 260 — dialogs_widget.cpp 1685-1687 +
+  startScrollUpButtonAnimation smallColumn instant; ToUpGeometry slides
+  the 52x62 box from below the pane edge over travel 64 = 62 +
+  connectingMargin.top 2; click = scrollToDefaultChecked -> Top 0);
+  Elm DialogsToUpState + DialogsToUpPress rides every dialogs Top
+  mutation site (Resized/Loaded/Scrolled/scrollClassic/bar-jump/bar-drag/
+  applyTouchDelta/spring) + DialogsTick; painter chevron-up (flip+1px)
+  Material skin. Session 394's chat jump-down button: history/corner_button
+  go DownShown/DownJumpTop/Geometry/Hit + ChatDownState Elm + painter
+  (cornerButtonsDownShown 9122-9157 law: scrollTop+480 < max or first
+  unread below the fold; 52x62@right12 slide-72; click jumps to
+  first-unread-else-bottom; 150ms linear)
   history/corner_button.go (DownShown law: scrollTop+480 < max, or first
   unread row at/below the fold — cornerButtonsDownShown 9122-9157;
   DownJumpTop = first-unread top clamped else max — downClick →
@@ -20,17 +33,16 @@ owner order — that history lives in git if ever needed.
   start), release-inside jumps, drag cancels; window ticks+invalidates on
   ChatDownActive; painter: 42dp circle (PrimaryContainer) + 2dp-offset
   shadow + 19x10 stroke-3 round chevron (OnPrimaryContainer)
-- next: dispatch + watch verify.yml for this commit; then the chat-front
-  polish queue — composer attach/menu trees or the mentions/reactions
-  corner-button stack (historyUnreadThingsSkip 4 + slide-from-right law),
-  measured from the reference
+- next: push both commits (N-1) + dispatch verify.yml; then the polish
+  queue — composer attach/menu trees or the mentions/reactions corner
+  stack (historyUnreadThingsSkip 4 + slide-from-right law)
 - owner-waiting: NEEDS_OWNER — GH_TOKEN absent this sandbox (env recycled
   between sessions); e06ced00 is committed locally on top of origin/main
   5b978120 but NOT pushed, and verify.yml is not dispatched. Re-mention when
   the token is restored
-- last-gate: quick GREEN (scoped: tests/gui + tests/ui + importers; windows
-  vet = rung-7 OOM skip, gotd tg too big for this box); comment ban clean;
-  16 new tests (11 gui + 5 ui) = 306 total, all green locally
+- last-gate: quick GREEN twice (394 + 395 scopes; windows vet = rung-7
+  OOM skip both times); comment ban clean; 325 tests (198 ui + 127 gui)
+  green locally; both commits await push + CI
 
 ## Open items
 
@@ -38,8 +50,52 @@ owner order — that history lives in git if ever needed.
 |---|---|---|---|---|
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
-| N-1 | repo push | e06ced00 (session 394) unpushed — no GH_TOKEN/SSH in this sandbox; push + dispatch verify.yml when auth returns | git log origin/main..HEAD | owner restores GH_TOKEN or runs: git push origin main |
+| N-1 | repo push | sessions 394+395 committed locally, unpushed — no GH_TOKEN/SSH in this sandbox; push + dispatch verify.yml when auth returns | git log origin/main..HEAD | owner restores GH_TOKEN or runs: git push origin main |
 | D-1 | ui/history corner button | down-button unread-count badge (22dp, centered x, top 0 — jump_down_button.cpp paintEvent + historyToDownBadge*) + hover/over colors + ripple deferred: no unread counter in the chat Item model yet, no hover/ripple machinery in the skin yet; replyReturn branch of downClick + loadedAtBottom==false state return with reply-return jumps / below-history pagination | jump_down_button.cpp 33-52, corner_buttons.cpp 139-145 | badge returns with read-state counts; over/ripple with the skin's hover+ripple pass |
+
+## Session 395 — the dialogs to-up corner button (2026-11-09)
+
+- Law: dialogs_widget.cpp 1685-1687 (shown iff scrollTop >
+  historyToDownShownAfter/2 = 240 AND scrollTop < scrollTopMax) +
+  startScrollUpButtonAnimation 1689-1705 (smallColumn = width <
+  columnMinimalWidthLeft 260 || childList -> forced hidden with 0-duration
+  instant transition; else 150ms historyToDownDuration) +
+  updateScrollUpPosition 1707-1720 (top = interpolate(0, height +
+  connectingMargin.top()=2, shown), moveToRight(historyToDownPosition.x()
+  12, scrollH - top) — slides up from below the pane edge) + click ->
+  scrollToDefaultChecked 1256 -> scrollToDefault 2782 (animated scroll to
+  0; jump-cut if further than one viewport, then smooth) + dialogsToUp
+  style (chat_helpers.style 1234-1240: historyToDown with the arrow
+  flipped vertical + 1px y offset) + window.style 34/155
+  (columnMinimalWidthLeft 260, connectingMargin.top 2).
+- Go mapping: dialogs pane is floor-clamped to 260 in double mode, so the
+  narrow case is the sub-260 single-pane window (mobile) — the law holds
+  as written; childList has no model yet (skipped, noted); the animated
+  scrollToDefault degrades to an instant Top=0 today (no smooth-scroll
+  machinery — returns with the scroll-animation pass); wheel over the
+  button scrolls the list by construction (single-pane routing).
+- dialogs/corner_button.go: ToUpShown(v, paneWidth) / ToUpGeometry /
+  ToUpHit (Rect x/y/w/h). Tokens: DialogsToUpShownAfter = 480/2,
+  DialogsToUpTravel = 62+2, DialogsToUpArrowCenterY = 38+1; reuses the
+  HistoryToDown* box/circle/arrow-x/stroke family + duration 150 +
+  DialogsRightButtonMinPaneWidth (pinned earlier, first consumer).
+- Elm: DialogsToUpState + DialogsToUpPress; dialogsToUpCheck at every
+  dialogs Top mutation site (Resized, DialogsLoaded, DialogsScrolled,
+  scrollClassic, pressDialogs bar-track-jump, dragDialogs bar-drag,
+  applyTouchDelta [touch drag + fling + momentum], dialogsTick spring);
+  dialogsToUpTick in DialogsTick; pressDialogs hits the button BEFORE
+  scrollbar/touch (no row selection, no touch start), release-inside
+  jumps to Top 0 + re-checks, DialogsPressCanceled clears the press;
+  dialogs handlers now keep the m.nowMs clock; window Run loop
+  ticks/invalidates on DialogsToUpActive; View layers Pane.ToUpProgress.
+- Painter: paintToUpButton — shadow +2dp black 0x28, 42dp
+  PrimaryContainer circle, OnPrimaryContainer chevron-up (Material FAB
+  skin); slides with progress, pane-clipped.
+- RED (compile) -> GREEN after test-side fixes (Rect field names, vet
+  suspect-or split, tick-before-scroll ordering in the helper, narrow
+  case = single-pane 250 not double 700 — the pane is floor-clamped to
+  260 in double mode). 12 new tests (9 gui journeys + 3 ui laws), 325
+  total (193 ui + 125 gui). quick gate GREEN; comment ban clean.
 
 ## Session 394 — the jump-to-end corner button (2026-11-09)
 
@@ -107,29 +163,17 @@ owner order — that history lives in git if ever needed.
 
 ## Session 391 — chat item interaction: tap/press over the message leg (2026-11-08)
 
-- Law: list_widget.cpp 4784-5060 mouseActionStart/Update/Finish +
-  changeSelection 1843-1860 + config.h MaxSelectedItems 100 +
-  bottom_info.cpp 207-212 (Date cursor zone) + Message/Service::pointState.
-  Elm ChatPressState on press (bar-drag leaves Row -1; hidden-thumb strip
-  presses fall through to the item); branch order: selection mode
-  overSelected -> PrepareDrag else PrepareSelect, time zone -> PrepareDrag,
-  body -> Selecting, margin -> PrepareSelect; drags degrade past 10px or a
-  row change; finish Inverts in selection mode, else the release-point Date
-  cursor selects (the margin-press + time-release quirk kept); touch tap
-  synthesizes press+finish at the release point. history/interaction.go:
-  Selection laws (cap 100, !service/!empty gate, copy-on-write), HitBox
-  PointState, TimeRect. Measure emits per-row HitBoxes; the window gates
-  mouse on chatPrimary (gio releases report remaining buttons — the
-  chorded-release corner is a refinement candidate). RED 29 -> GREEN first
-  run. 267 PASS. Detail: 80aff2a9 + git history.
+- ChatPressState action machine (prepare-select/prepare-drag/selecting/
+  dragging; time-label hit toggles selection-add) + HitBox PointStateOf /
+  TimeHit laws per the reference gesture split. 258 PASS. Verify success.
+  Detail: git history.
 
 ## Session 390 — chat scrollbar bar-drag laws (2026-11-08)
 
-- ElasticScrollBar (lib_ui elastic_scroll.cpp:116-406; chat.style 188-202,
-  colors.palette 344-345): cut-clamp refreshGeometry, off-thumb press centers
-  the thumb, drag scale + both pass-through quirks, 1:1 dead-zone reversal
-  payback; Elm mouse-only bar drag + ChatPane Thumb/ThumbDragging. 238 PASS.
-  Verify 42487726300 SUCCESS. Detail: 8d39d63e + git history.
+- ElasticScrollBar (lib_ui elastic_scroll.cpp:116-406; chat.style 188-202):
+  cut-clamp refreshGeometry, off-thumb press centers the thumb, drag scale +
+  pass-through quirks, dead-zone reversal payback; Elm bar drag + ChatPane
+  Thumb. 238 PASS. Verify 42487726300 SUCCESS. Detail: 8d39d63e + git.
 
 ## Session 389 — history entry composing: dates + unread dividers (2026-11-08)
 
@@ -175,22 +219,13 @@ owner order — that history lives in git if ever needed.
 
 ## Session 384 — the multi-line service complex bubble law (2026-11-08)
 
-- Boot: wipe #11. Clone at bcf2757 — 379-383
-  closed green in lost sessions; baseline 159
-  re-verified after env rebuild.
-- Law source: history_view_service_message.cpp
-  372-485 + chat_style.cpp 103-126 + call site
-  780-798 (detail in git + service_bubble.go
-  tests): radii 10/3/2 DERIVED from pad/font
-  pins; CountServiceLineWidths minDelta-22
-  neighbor raise + i-=2 rewalk + post-add;
-  call-site add 9 iff clamped back > badge
-  additional && < before; parts walk (richW
-  +24, richH +3/-4/+4/-3 by sides, forceShrink
-  on prevShrink+equal, shrink x+=2 w-=4, C++-
-  trunc centering = Go native). RED 11 -> 2
-  spec errors (law won). 170 PASS; e21f207;
-  verify 42448242342 SUCCESS job+step.
+- Boot: wipe #11, clone at bcf2757 (379-383 closed green in lost
+  sessions; baseline 159 re-verified). Law: history_view_service_message
+  .cpp 372-485 + chat_style.cpp 103-126 + call site 780-798 — radii
+  10/3/2 derived; CountServiceLineWidths minDelta-22 raise + i-=2
+  rewalk + post-add; rich part metrics +24/+3/-4/+4/-3, forceShrink,
+  shrink x+=2 w-=4, C++-trunc centering. RED 11 -> 2 spec errors (law
+  won). 170 PASS; e21f207; verify 42448242342 SUCCESS job+step.
 
 ## Session 383 — the message-bubble render leg: corner/tail/shadow laws, chat Elm + ChatPainter (2026-11-07)
 
@@ -221,60 +256,35 @@ owner order — that history lives in git if ever needed.
 
 ## Session 380 — the window-adapter input leg: wheel, hit-test, bar drag, touch (2026-11-07)
 
-- Wheel law (ui_utility.cpp:268-288 + elastic_scroll
-  :926-945, pins in dialogs/window code + tests):
-  angle→px = angle×lines/(2×3) qRound'd; per-axis
-  Ctrl/Shift mult max(w|h,120)/120 TRUNCATED (y by
-  scroll HEIGHT); cross-axis |px|>=|py| ignores;
-  dy = −pixels.y; pixel path qRound through the same
-  block. Bar: 10dp-strip hit test, off-thumb press
-  = jump-to-middle, drag dy×scrollable/outsideBar.
-  Touch: manhattan>=10 arms 1:1 (arm swallows the
-  crossing delta — 381 corrected), tap selects at
-  release. 6 Elm messages + Model states; PaintPane
-  event.Op; window pointer.Filter + Metric px→dp.
-  18 tests, 99 total; e30bbfad; verify 42362009163
-  SUCCESS job+step.
+- Wheel law (ui_utility.cpp:268-288 + elastic_scroll:926-945, pins in the
+  dialogs/window code + tests); bar hit/drag laws; touch manhattan>=10
+  arming + tap-at-release; 6 Elm messages; window pointer.Filter + px->dp.
+  18 tests, 99 total; e30bbfad; verify 42362009163 SUCCESS job+step.
 
 ## Session 379 — the dialogs list Elm+render leg: viewport state, scroll laws, Pane snapshot, PaintPane (2026-11-07)
 
-- Wheel apply = tryScrollTo(from+delta), delta =
-  −pixels.y, rest clamp [0, content−view]; load-more
-  on every viewport msg while loadTill >= content
-  (empty list = initial page request — resize pin
-  updated accordingly). dialogs.Pane + List.Pane(v,
-  width) snapshot; Elm Model.DialogsScroll + clamp
-  on Loaded/Resized; render.PaintPane (viewport
-  clip, per-row offset, thumb rrect). 5 spec cases
-  fell to the law. 9 tests, 81 total; shipped
-  239cdaf1, verify 42351344419 SUCCESS job+step.
+- Wheel apply + clamps; load-more on every viewport msg while loadTill >=
+  content (empty list = initial page request); dialogs.Pane snapshot +
+  render.PaintPane. 9 tests, 81 total; 239cdaf1; verify 42351344419
+  SUCCESS job+step.
 
 ## Session 378 — wipe #5 boot + the dialogs list scroll law: viewport, virtualization, reveal, thumb (2026-11-07)
 
-- Discovery: dialogs list = Ui::ElasticScroll
-  (not ScrollArea) — thumb law elastic_scroll.cpp:
-  131-175. dialogs/scroll.go: Viewport, MaxOffset/
-  Clamp, VisibleRows (1px-overlap lower_bound +
-  walk), PreloadWindow 3 screens, ScrollToReveal,
-  Thumb (skip 6, thickness 4, barMin min(40,avail/
-  2), hide rules, ratio cut-clamp). 12 tests, 72
-  total; e38052c2; verify 42347578779 SUCCESS.
+- dialogs list = Ui::ElasticScroll (thumb law elastic_scroll.cpp:131-175);
+  dialogs/scroll.go Viewport/VisibleRows/PreloadWindow/ScrollToReveal/
+  Thumb. 12 tests, 72 total; e38052c2; verify 42347578779 SUCCESS.
 
 ## Session 377 — the dialogs row widget: pure layout + Elm state + gio render (2026-11-07)
 
-- dialogs Entry+Layout (name-rect shrink date+5 ->
-  chat icon+3 -> send state -20; badge stack
-  right-anchored max-2; variants 62/72/80/96; online
-  43/43 TTL 36/36); Elm selection clamp; render
-  Painter (bg states, photo/userpic, presence dot,
-  elided labels, counter pill); icon glyphs
-  deferred. 11 ui + 1 gui; gates clean.
+- dialogs Entry+Layout (shrink chain, badge stack right-anchored max-2,
+  variants 62/72/80/96, online 43/43 TTL 36/36); Elm selection clamp;
+  render Painter (bg states, photo, presence, elided labels, counter
+  pill). 11 ui + 1 gui; gates clean.
 
 ## Session 376 — wipe #4 boot: env rebuilt; Material theme system (M3 baseline + AMOLED) (2026-11-07)
 
-- ui/material Scheme 36 roles Light/Dark/Amoled
-  (Compose material3 v0_210); dialogs-row slice 5
-  pins; TTL-pos test caught a real porting bug.
+- ui/material Scheme 36 roles Light/Dark/Amoled (Compose material3
+  v0_210); dialogs-row slice 5 pins; TTL-pos test caught a real bug.
 
 ## Session 375 — the Gio skeleton: Elm core, window adapter, the measured pane law; the cgo-closure fight (2026-11-06)
 

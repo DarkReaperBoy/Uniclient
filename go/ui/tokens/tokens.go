@@ -293,6 +293,10 @@ const (
 	HistoryToDownShownAfter   = 480
 	HistoryToDownDurationMs   = 150
 
+	DialogsToUpShownAfter   = HistoryToDownShownAfter / 2
+	DialogsToUpTravel       = HistoryToDownHeight + 2
+	DialogsToUpArrowCenterY = HistoryToDownArrowCenterY + 1
+
 	PreloadScreens = 3
 
 	HistoryPreloadIfLessThanScreens = 2
