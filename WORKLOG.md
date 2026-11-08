@@ -7,22 +7,24 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 392 — chat top-edge preload landed as 6ba120d5
-  (history.List.PreloadTopNeeded = strict `Top < 2*Height` over non-empty
-  items, per checkMoveToOtherViewer 2347-2433; fired from every scroll-class
-  surface: scrolled / wheel / trackpad / measured-chain / resized /
-  tick-fling / touch-drag, engine-side dedup per the dialogs precedent;
-  ChatLoaded/ChatPrepended carry MoreAbove; a prepend stores the viewport
-  top, drops heights/hits/selection/press, and ChatMeasured compensates by
-  the summed prepended-row heights so the view never jumps; the
-  findGoodAbove/Below anchor scan + symmetric bottom edge defer until rows
-  carry IDs); verify 42496692212 SUCCESS at job AND step level — closed
-  green
-- next: floating scroll-date (scroll-tied stick-to-top + opacity, needs
-  scroll-state plumbing from the 388 leg)
+- front: session 393 — the floating scroll-date landed as f27c1bbb
+  (history.ScrollDateAnchor + List.ScrollDateAt: owner = nearest pack start
+  at-or-above the viewport anchor, dateTop = max(ownerTop, visibleTop) +
+  msgServiceMarginTop clamped to packBottom - dateHeight, inPlace below the
+  natural+dateHeight line; the Elm ChatDateState machine funnels every
+  ChatScroll.Top mutation — upward anchor-change shows + 800ms re-arm,
+  downward day-crossing shows + 3000ms with AfterDayCrossing latching, else
+  hide-now; ChatTick drives the 200ms linear alpha + hide deadlines; the
+  painter paints the owner at the stick position with the fade alpha and
+  now paints in-place badges at their row y — fixing the session-389 wiring
+  that painted every badge at pane y=0); verify 42499644234 SUCCESS at job
+  AND step level — closed green
+- next: continue the chat-front polish queue — the jump-to-end button
+  visibility law (scroll-to-bottom FAB over the chat leg) or the composer
+  attach/menu trees, measured from the reference
 - owner-waiting: none
-- last-gate: quick GREEN (185 ui + 95 gui = 280 PASS); comment ban clean;
-  CI 42496692212 success (3 jobs, all steps; release-tag step skipped by
+- last-gate: quick GREEN (185 ui + 105 gui = 290 PASS); comment ban clean;
+  CI 42499644234 success (3 jobs, all steps; release-tag step skipped by
   design on main)
 
 ## Open items
@@ -31,6 +33,47 @@ owner order — that history lives in git if ever needed.
 |---|---|---|---|---|
 | H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
+
+## Session 393 — the floating scroll-date (2026-11-08)
+
+- Law: history_inner_widget.cpp 150-151 (hide 800 / day-crossing 3000) +
+  chat.style:312 historyDateFadeDuration 200 + visibleAreaUpdated 4669-4710
+  (scrolledUp = top decrease branches; downward runs immediately) +
+  scrollDateCheck/CheckDownward/HideByTimer/toggle 4737-4813 + enumerateDates
+  1182-1236 (stick + pack-bottom clamp + inPlace) + PaintPreparedDate
+  (service_message.cpp:159-194: the pill paints AT dateTop) +
+  countScrollState 3689-3703 (anchor: findItemIndexByY clamped to the last
+  row, sponsored skipped downward; {item, offset} identity).
+- history/scroll_date.go: ScrollDateAnchor (row+offset; RowAt + last-row
+  clamp + sponsored skip) and ScrollDateAt (owner walk-up over ComposeBars
+  badges; pack end walks same-DateText badge-less rows; packBottom = row
+  bottom - MsgMarginBottom — service and message margins coincide at 2px;
+  dateHeight = 3+13+4; Top = max(ownerTop, vTop) + MsgServiceMarginTop,
+  clamped to packBottom - dateHeight; InPlace = Top < ownerTop +
+  MsgServiceMarginTop + dateHeight). ChatPane carries DateRow/DateTop/
+  DateInPlace/DateText; View layers DateAlpha from the model.
+- Elm: chatViewportChanged funnels ALL ChatScroll.Top mutations (scrolled,
+  measured compensation, resize, wheel/trackpad classic, touch, bar-track
+  jump, bar-drag). Upward: anchor (row,offset) change shows + re-arms 800ms;
+  the initial-event gate (no last anchor) never shows. Downward: crossedDay
+  (both DateTexts non-empty and different) shows + 3000ms + AfterDayCrossing
+  latch (suppresses same-day hides; a prepend translates LastRow by the
+  prepend count so compensation is same-item — no crossing, the timer
+  survives), else hide-now with timer cancel. ChatTick steps the 200ms
+  linear alpha and fires hide deadlines; ChatLoaded resets; ChatScrolled
+  gained Now; the model keeps a last-seen nowMs clock; window Run loop
+  ticks + invalidates on ChatDateActive (AlphaAnim bool — the zero value
+  must be idle).
+- Painter: in-place badges at pane.Ys[i]-View.Top (fixes the 389 bug —
+  every badge painted at pane y=0), the owner at DateTop-View.Top with
+  withAlpha(InverseSurface/InverseOnSurface, alpha).
+- Deferred: collapse-gaps (CollapseDateShift) — no collapsing machinery in
+  the Go model yet; sponsored pack starts (Go sponsored rows carry no
+  badges, the walk-up law is self-consistent).
+- RED 10 (5 expectation fixes — row-boundary arithmetic, day-crossing
+  latch semantics, clamped-up re-arm law) -> GREEN. 290 PASS (185 ui +
+  105 gui). f27c1bbb -> verify 42499644234 SUCCESS, 3 jobs, all steps
+  reconciled.
 
 ## Session 392 — chat top-edge preload/pagination (2026-11-08)
 
