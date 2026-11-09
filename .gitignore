@@ -30,7 +30,10 @@ logs/
 .idea/
 .vscode/
 *.swp
-uniclient
+# Built binaries (root-anchored: a bare "uniclient" also matched the
+# go/cmd/uniclient source dir and silently ignored new files there)
+/uniclient
+/go/uniclient
 # Reproducibility lock the owner explicitly dropped (commit dc4ac073);
 # regenerates on demand with `nix develop`.
 flake.lock
