@@ -13,9 +13,9 @@ owner order — that history lives in git if ever needed.
 - next: D-4 atomic 2, then D-3 (wasm diet); token lives in .env (§0.2)
 - owner-waiting: N-1 — install the uniclient-android APK artifact from
   build 42622715804 on a device and report (android GUI-default check)
-- last-gate: local quick GREEN (native tests/gui + windows vet for the
-  gio legs); gofmt + comment-ban clean; full js/wasm build 31,162,944 B;
-  live Pages still on build 42622715804 (9d437e10) — verified in chromium
+- last-gate: CI build 42629204319 (90be7905) SUCCESS job+step (both jobs);
+  Pages live on VER 90be790587cb, wasm 31,162,944 B (matches the local
+  build); atomic 1 gates: quick GREEN + gofmt + comment-ban + js/wasm build
 
 ## Open items
 
