@@ -7,32 +7,20 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 405 (owner report: "the web page doesn't load") — not
-  the owner's connection: reproduced in headless chromium against the
-  live Pages URL; the shell + wasm + sha256 all serve and the engine
-  boots, but the headless default on js blocks on <-sig (no signals in
-  a browser) — no canvas ever appears, the boot HUD stays up forever.
-  Fix: the no-argv platforms (js + android) default to the GUI
-  (main.go guiDefault; android had the same latent bug — gogio runs
-  main with no argv, a headless default is a zombie activity);
-  AGENTS §1.4/§8 + build.yml header synced in-commit. Verified against
-  the real CI shell in chromium: before = HUD forever (engine ready,
-  canvasCount 0); after = HUD drops, gio canvas 1440x900 + 390x844
-  painted with the true empty-state Surface #FEF7FF, console clean
-- next: the GUI front resumes — keyboard routing (window key.Event ->
-  the compose msgs; Enter=send + Up/Down history when empty); then D-3
-- owner-waiting: the GitHub push token (session 405's two commits sit
-  ready; the sandbox and env hold none — §0.2)
-- last-gate: local: gofmt + comment-ban + full js/wasm build green
-  (31,153,413 B, CI recipe); linux-cgo + windows cross env-blocked on
-  this recycled 4 GiB box (no wayland-dev/root; gotd tg OOM —
-  verify.yml stays the gate of record); CI build run pending the push
+- front: the GUI rebuild (§6) — next slice: keyboard routing (window
+  key.Event -> the compose msgs; Enter=send + Up/Down history when empty)
+- next: that slice, then D-3 (wasm diet); the token lives in .env (§0.2)
+- owner-waiting: N-1 — install the uniclient-android APK artifact from
+  build 42622715804 on a device and report (android GUI-default check)
+- last-gate: CI build 42622715804 (9d437e10) SUCCESS job+step; Pages
+  live-verified in chromium 1440x900 + 390x844 — HUD none, canvas 1,
+  #FEF7FF, console clean, v9d437e1
 
 ## Open items
 
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
-| N-1 | android APK | GUI-default on android is runtime-unverifiable in-sandbox (no emulator/device); expected: the empty Material surface, not a black zombie | session 405 (js sibling verified in chromium); push pending | owner installs the next uniclient-android APK artifact and reports |
+| N-1 | android APK | GUI-default on android is runtime-unverifiable in-sandbox (no emulator/device); expected: the empty Material surface, not a black zombie | session 405 (js sibling); js live-verified in 406; APK artifact on build 42622715804 | owner installs the uniclient-android APK artifact and reports |
 | H-2 | verify/release yml | CLOSED 2026-11-09 (owner order): android + web legs returned as build.yml (per-push, no tests, parallel); only the Xvfb GUI + Puppeteer web-drive legs stay parked with the rebuilt GUI | AGENTS.md §8; build 42597570851 | Xvfb/Puppeteer return when the GUI ships (§6.7) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
 | D-1 | ui/history corner button | down-button unread-count badge (22dp, centered x, top 0 — jump_down_button.cpp paintEvent + historyToDownBadge*) + hover/over colors + ripple deferred: no unread counter in the chat Item model yet, no hover/ripple machinery in the skin yet; replyReturn branch of downClick + loadedAtBottom==false state return with reply-return jumps / below-history pagination | jump_down_button.cpp 33-52, corner_buttons.cpp 139-145 | badge returns with read-state counts; over/ripple with the skin's hover+ripple pass |
@@ -77,6 +65,32 @@ owner order — that history lives in git if ever needed.
 - Next: push (token waited), watch the CI build run + the Pages
   deploy, verify the live URL in chromium, then the GUI front:
   keyboard routing.
+
+## Session 406 — the push: stuck-boot fix live, Pages verified (2026-11-09)
+
+- Owner provided the GitHub token → stored in `.env` per owner order
+  (gitignored `.env*`, never committed/printed/pushed). AGENTS §0.2 +
+  scripts/git-askpass.sh (GIT_ASKPASS helper sourcing .env) committed
+  BEFORE the push — owner order "update agents.md before you push",
+  so future sessions never hunt for a token that is already there.
+- Pushed 9d437e10 = session 405's four commits + the auth docs;
+  fast-forward 5bf5b4e2..9d437e10, remote URL stayed token-free.
+- CI build 42622715804 (9d437e10) SUCCESS at job AND step level: web
+  job (wasm 31,153,413 B, shell VER 9d437e104379 sha aaa9fb15…, gz/br
+  kit artifact, gh-pages orphan deploy ddb9dee9) + android job (gogio
+  arm64 APK artifact).
+- Live verification (§4, the owner's exact report path, agent-browser/
+  playwright chromium): https://darkreaperboy.github.io/Uniclient/ at
+  1440x900 AND 390x844 — HUD display:none, canvasCount 1, canvas
+  pixel-sampled 254,247,255 = #FEF7FF material Light Surface (the
+  zero-account InitialModel), status "Running — Uniclient" detail
+  "v9d437e1 · 29.7 MB · downloaded", console + page errors clean.
+  The stuck-boot report is closed end-to-end; the js leg of the fix is
+  live-confirmed (android stays N-1, NEEDS_OWNER).
+- Toolchain: sandbox had recycled again — Go 1.27.3 reinstalled per the
+  env.sh recipe, module cache symlinked from the surviving ~/go/pkg
+  (966 MB), go mod download green.
+- Next: the GUI front — keyboard routing.
 
 ## Session 404 — the owner's CI builder: build.yml + the loader (2026-11-09)
 
