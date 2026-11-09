@@ -1,6 +1,9 @@
 package history
 
-import "uniclient/ui/tokens"
+import (
+	"uniclient/ui/text"
+	"uniclient/ui/tokens"
+)
 
 type ComposeButtons struct {
 	Attach bool
@@ -12,6 +15,24 @@ type ComposeBar struct {
 	Field  Geometry
 	Send   Geometry
 	Emoji  Geometry
+}
+
+type ComposePlaceholderView struct {
+	Text     string
+	X        int
+	Baseline float64
+	Opacity  float64
+}
+
+type ComposePaneView struct {
+	Shown       bool
+	Geometry    ComposeBar
+	LineHeight  int
+	Scroll      int
+	Lines       []text.Line
+	Caret       Geometry
+	Selection   []text.Span
+	Placeholder ComposePlaceholderView
 }
 
 func ComposeBarHeight(fieldHeight int) int {

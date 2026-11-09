@@ -18,10 +18,10 @@ owner order — that history lives in git if ever needed.
   history_widget); send-button type crossfade 120ms; real font
   metrics adapter when the gio shaper lands
 - owner-waiting: none
-- last-gate: quick GREEN (402 scope); js/wasm compile ui/... GREEN;
-  comment ban clean; 410 tests (230 ui + 163 gui + 17 text) green
-  locally; verify for this commit dispatched, id lands in the next
-  entry
+- last-gate: quick GREEN (402 both atomics); js/wasm compile ui/...
+  GREEN; comment ban clean; 416 tests (230 ui + 169 gui + 17 text)
+  green locally; verify 42542765446 (381a7f3e) in flight at last
+  push; this atomic's verify dispatched on push
 
 ## Open items
 
@@ -31,6 +31,31 @@ owner order — that history lives in git if ever needed.
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
 | D-1 | ui/history corner button | down-button unread-count badge (22dp, centered x, top 0 — jump_down_button.cpp paintEvent + historyToDownBadge*) + hover/over colors + ripple deferred: no unread counter in the chat Item model yet, no hover/ripple machinery in the skin yet; replyReturn branch of downClick + loadedAtBottom==false state return with reply-return jumps / below-history pagination | jump_down_button.cpp 33-52, corner_buttons.cpp 139-145 | badge returns with read-state counts; over/ripple with the skin's hover+ripple pass |
 | D-2 | ui/history unread-things buttons | read-marking absent for mentions AND reactions: after a jump the button stays shown (reference hides it when the server marks the thing read — updateUnreadThingsVisibility is server-data-driven); mentionsClick's already-there voice/video media-read branch (5623) deferred — no media model; unread-count badges join D-1's class; poll-votes 4th stack slot returns with a poll model | history_view_corner_buttons.cpp 147-190, 288-345 | returns with engine unread-things events + the media pass |
+
+## Session 402 atomic 2 — the placeholder fade law + the ComposePane projection (2026-11-09)
+
+- Law: input_field startPlaceholderAnimation 2911-2927 — shifted =
+  textLength > placeholderAfterSymbols (compose: 0 -> pure len>0);
+  Animations::Simple linear (animations.h 62-67 default) over
+  st.duration 100; paintPlaceholder 2951-2962: painted iff degree < 1
+  (NOT textLen==0 — the settled law only picks the anim target),
+  opacity 1-deg, left = interpolate(0, -shift, deg) — the mid-fade
+  frames paint over non-empty text.
+- Go: ChatComposeState gains Placeholder + the anim set (Shifted/
+  Degree/From/To/Started/Anim); text-edit msgs carry Now (data-arrival
+  clock, session-396 law); composePlaceholderCheck on every edit
+  (transition-only, no restart mid-anim — degree holds between ticks,
+  event-driven), composePlaceholderTick rides ChatTick; ComposePane()
+  projection (Shown/Geometry/LineHeight/Scroll/Lines/Caret/Selection/
+  Placeholder{Text elided, X, Baseline, Opacity}) + ChatPane.Compose
+  riding View. Empty Placeholder = nothing painted (peer data arrives
+  with the engine wiring — AGENTS 1.9).
+- RED -> GREEN after 1 wiring bug of mine (used the settled law for
+  the paint condition — reference paints on degree<1) + 1 test-side
+  slip (wall-clock vs event-driven degree). 6 new gui tests, 416
+  total = 230 ui + 169 gui + 17 text. quick GREEN; js/wasm ui/...
+  GREEN; comment ban clean. Verify for 381a7f3e: 42542765446 in
+  flight at push time.
 
 ## Session 402 — the compose Elm wiring: ChatComposeState (2026-11-09)
 

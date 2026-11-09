@@ -15,6 +15,14 @@ type ChatComposeState struct {
 	GoalX    int
 	HasGoalX bool
 	Metrics  text.Metrics
+
+	Placeholder        string
+	PlaceholderShifted bool
+	PlaceholderDegree  float64
+	PlaceholderFrom    float64
+	PlaceholderTo      float64
+	PlaceholderStarted int
+	PlaceholderAnim    bool
 }
 
 type ChatComposeDir uint8
@@ -34,18 +42,21 @@ const (
 
 type ChatComposeTyped struct {
 	Text string
+	Now  int
 }
 
 func (ChatComposeTyped) isMsg() {}
 
 type ChatComposeBackspace struct {
 	Word bool
+	Now  int
 }
 
 func (ChatComposeBackspace) isMsg() {}
 
 type ChatComposeDelete struct {
 	Word bool
+	Now  int
 }
 
 func (ChatComposeDelete) isMsg() {}
@@ -116,12 +127,44 @@ func (m *Model) composeEdit(newText string, newCursor int) {
 	m.ChatCompose.HasGoalX = false
 	m.composeViewportSync()
 	m.composeEnsureCursorVisible(m.composeDocument())
+	m.composePlaceholderCheck()
+}
+
+func (m *Model) composePlaceholderCheck() {
+	shifted := len([]rune(m.ChatCompose.Text)) > 0
+	if shifted == m.ChatCompose.PlaceholderShifted {
+		return
+	}
+	m.ChatCompose.PlaceholderShifted = shifted
+	m.ChatCompose.PlaceholderFrom = m.ChatCompose.PlaceholderDegree
+	m.ChatCompose.PlaceholderTo = 0
+	if shifted {
+		m.ChatCompose.PlaceholderTo = 1
+	}
+	m.ChatCompose.PlaceholderStarted = m.nowMs
+	m.ChatCompose.PlaceholderAnim = true
+}
+
+func (m *Model) composePlaceholderTick(now int) {
+	if !m.ChatCompose.PlaceholderAnim {
+		return
+	}
+	elapsed := now - m.ChatCompose.PlaceholderStarted
+	if elapsed >= tokens.ComposeAnimDurationMs {
+		m.ChatCompose.PlaceholderDegree = m.ChatCompose.PlaceholderTo
+		m.ChatCompose.PlaceholderAnim = false
+	} else if elapsed >= 0 {
+		t := float64(elapsed) / float64(tokens.ComposeAnimDurationMs)
+		m.ChatCompose.PlaceholderDegree = m.ChatCompose.PlaceholderFrom +
+			(m.ChatCompose.PlaceholderTo-m.ChatCompose.PlaceholderFrom)*t
+	}
 }
 
 func (m *Model) composeTyped(msg ChatComposeTyped) {
 	if !m.ChatCompose.CanSend {
 		return
 	}
+	m.nowMs = msg.Now
 	newText, newCursor := m.composeDocument().InsertAt(m.ChatCompose.Cursor, m.ChatCompose.Anchor, msg.Text)
 	m.composeEdit(newText, newCursor)
 }
@@ -130,6 +173,7 @@ func (m *Model) composeBackspace(msg ChatComposeBackspace) {
 	if !m.ChatCompose.CanSend {
 		return
 	}
+	m.nowMs = msg.Now
 	var newText string
 	var newCursor int
 	if msg.Word {
@@ -144,6 +188,7 @@ func (m *Model) composeDelete(msg ChatComposeDelete) {
 	if !m.ChatCompose.CanSend {
 		return
 	}
+	m.nowMs = msg.Now
 	var newText string
 	var newCursor int
 	if msg.Word {
@@ -210,4 +255,30 @@ func (m *Model) composeSelectAll() {
 	}
 	m.ChatCompose.Anchor = 0
 	m.ChatCompose.Cursor = len([]rune(m.ChatCompose.Text))
+}
+
+func (m Model) ComposePane() history.ComposePaneView {
+	if !m.ChatCompose.CanSend {
+		return history.ComposePaneView{}
+	}
+	doc := m.composeDocument()
+	lineH := text.LineHeight(m.ChatCompose.Metrics.Height, tokens.ComposeFieldStyleLineHeight)
+	pane := history.ComposePaneView{
+		Shown:      true,
+		Geometry:   m.ComposeGeometry(),
+		LineHeight: lineH,
+		Scroll:     m.ChatCompose.Scroll,
+		Lines:      doc.Lines,
+		Caret:      history.ComposeCursorRect(doc, m.ChatCompose.Cursor, m.ChatCompose.Metrics),
+		Selection:  doc.SelectionSpans(text.Selection{Anchor: m.ChatCompose.Anchor, Position: m.ChatCompose.Cursor}),
+	}
+	if m.ChatCompose.Placeholder != "" && m.ChatCompose.PlaceholderDegree < 1 {
+		pane.Placeholder = history.ComposePlaceholderView{
+			Text:     string(history.ComposePlaceholderText(m.ChatCompose.Placeholder, pane.Geometry.Field.Width, m.ChatCompose.Metrics)),
+			X:        history.ComposePlaceholderX(m.ChatCompose.PlaceholderDegree),
+			Baseline: history.ComposePlaceholderBaseline(m.ChatCompose.Metrics),
+			Opacity:  history.ComposePlaceholderOpacity(m.ChatCompose.PlaceholderDegree),
+		}
+	}
+	return pane
 }

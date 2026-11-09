@@ -486,6 +486,7 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		m.chatDownTick(msg.Now)
 		m.chatMentionsTick(msg.Now)
 		m.chatReactionsTick(msg.Now)
+		m.composePlaceholderTick(msg.Now)
 		return m, m.chatPreloadCmd()
 	case ChatComposeTyped:
 		m.composeTyped(msg)
@@ -1429,5 +1430,6 @@ func View(m Model) Scene {
 	s.Chat.DownProgress = m.ChatDown.Progress
 	s.Chat.MentionsProgress = m.ChatMentions.Progress
 	s.Chat.ReactionsProgress = m.ChatReactions.Progress
+	s.Chat.Compose = m.ComposePane()
 	return s
 }
