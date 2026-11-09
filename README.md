@@ -8,9 +8,9 @@ TeamSpeak, Mumble — each added and switched as easily as an account.
 removed (2026-11-01) and is being rebuilt from scratch with
 [Gio](https://gioui.org), taking **AyuGram Desktop's layout (mapped 1:1)
 under a Material Design skin** as the design reference. Until it lands, the
-shipped binary is the **headless engine host** (`uniclient` boots the engine,
-serves accounts, and — with `-events` — prints the engine event stream to
-stdout). Everything under the hood works against real backends with real
+shipped desktop binary is the **headless engine host** (`uniclient` boots the
+engine, serves accounts, and — with `-events` — prints the engine event stream
+to stdout; the mid-rebuild GUI is available as `uniclient -gui`). Everything under the hood works against real backends with real
 accounts — no demo data, no placeholder screens. What a backend cannot do
 yet is hidden, not faked. See `AGENTS.md` for the project constitution.
 
@@ -37,8 +37,9 @@ uniclient -dir ~/.uniclient -password <vault-password> [-events]
 `Ctrl-C` / `SIGTERM` shuts the engine down cleanly. The Android APK and the
 web (WASM) build are produced by CI: every push to `main` uploads them as
 workflow artifacts (the "Build" workflow), and the web build is live at
-<https://darkreaperboy.github.io/Uniclient/> — they carry the headless
-engine host until the rebuilt GUI lands.
+<https://darkreaperboy.github.io/Uniclient/> — those no-argv platforms
+default to the mid-rebuild GUI (it fills in as the front lands), while the
+desktop binaries default headless.
 
 ## Build from source
 
