@@ -34,9 +34,11 @@ Headless engine host usage:
 uniclient -dir ~/.uniclient -password <vault-password> [-events]
 ```
 
-`Ctrl-C` / `SIGTERM` shuts the engine down cleanly. The Android APK and the
-web (WASM) build are produced by CI: every code push to `main` uploads them
-as workflow artifacts (the "Build" workflow), and the web build is live at
+`Ctrl-C` / `SIGTERM` shuts the engine down cleanly. The Android APK, the
+Linux/Windows binaries, and the web (WASM) build are produced by CI: every
+code push to `main` uploads them as workflow artifacts (the "Build"
+workflow — the freshest binaries between releases), and the web build is
+live at
 <https://darkreaperboy.github.io/Uniclient/> — those no-argv platforms
 default to the mid-rebuild GUI: the page boots the engine and, until the
 rebuild lands, paints only the blank zero-account surface (a flat near-white

@@ -69,6 +69,14 @@ owner order — that history lives in git if ever needed.
 - Gap admitted + closed: 90be7905 (user-facing) landed without a §4
   browser drive; this drive closes it — boots clean, the flat surface
   is the residual finding (W-1).
+- Second atomic (owner question, mds already green): build.yml gains
+  linux (amd64+arm64 matrix — the release.yml cgo recipe verbatim,
+  Gio client libs) + windows (pure-Go cross) jobs — five parallel
+  runs, no needs-chain; per-push artifacts now cover every platform.
+  The "why no linux+windows" answer: they were always tag-gated in
+  release.yml (latest tag v0.10.3 = the last shipped set); the §1.5
+  per-push Build was web+android only until now. README artifacts
+  sentence updated in-commit.
 
 ## Session 406 — the push: stuck-boot fix live, Pages verified (2026-11-09)
 
