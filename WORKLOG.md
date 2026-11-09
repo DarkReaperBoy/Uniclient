@@ -7,14 +7,15 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: the GUI rebuild (§6) — next slice: keyboard routing (window
-  key.Event -> the compose msgs; Enter=send + Up/Down history when empty)
-- next: that slice, then D-3 (wasm diet); the token lives in .env (§0.2)
+- front: the GUI rebuild (§6) — keyboard routing: atomic 1 (window keys ->
+  compose msgs) LANDED; atomic 2 next: Enter=submit (send-request seam) +
+  Up/Down/PageUp/PageDown history scroll + Up-on-empty edit-last (D-4 laws)
+- next: D-4 atomic 2, then D-3 (wasm diet); token lives in .env (§0.2)
 - owner-waiting: N-1 — install the uniclient-android APK artifact from
   build 42622715804 on a device and report (android GUI-default check)
-- last-gate: CI build 42622715804 (9d437e10) SUCCESS job+step; Pages
-  live-verified in chromium 1440x900 + 390x844 — HUD none, canvas 1,
-  #FEF7FF, console clean, v9d437e1
+- last-gate: local quick GREEN (native tests/gui + windows vet for the
+  gio legs); gofmt + comment-ban clean; full js/wasm build 31,162,944 B;
+  live Pages still on build 42622715804 (9d437e10) — verified in chromium
 
 ## Open items
 
@@ -25,7 +26,8 @@ owner order — that history lives in git if ever needed.
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
 | D-1 | ui/history corner button | down-button unread-count badge (22dp, centered x, top 0 — jump_down_button.cpp paintEvent + historyToDownBadge*) + hover/over colors + ripple deferred: no unread counter in the chat Item model yet, no hover/ripple machinery in the skin yet; replyReturn branch of downClick + loadedAtBottom==false state return with reply-return jumps / below-history pagination | jump_down_button.cpp 33-52, corner_buttons.cpp 139-145 | badge returns with read-state counts; over/ripple with the skin's hover+ripple pass |
 | D-2 | ui/history unread-things buttons | read-marking absent for mentions AND reactions: after a jump the button stays shown (reference hides it when the server marks the thing read — updateUnreadThingsVisibility is server-data-driven); mentionsClick's already-there voice/video media-read branch (5623) deferred — no media model; unread-count badges join D-1's class; poll-votes 4th stack slot returns with a poll model | history_view_corner_buttons.cpp 147-190, 288-345 | returns with engine unread-things events + the media pass |
-| D-3 | build.yml web job | wasm size diet: the js/wasm build ships every core incl. the six raw-TCP backends that can never connect from a browser (§7 web truth) — build-tag exclusion at the engine factory projected <20 MB; also headroom under git's 100 MB file ceiling on gh-pages | headless-host wasm = 31,153,413 B today (v0.9.1's old-GUI build was 88,659,256 B) | one atomic with tests: bootstrap factory js variant + per-core js stubs |
+| D-3 | build.yml web job | wasm size diet: the js/wasm build ships every core incl. the six raw-TCP backends that can never connect from a browser (§7 web truth) — build-tag exclusion at the engine factory projected <20 MB; also headroom under git's 100 MB file ceiling on gh-pages | headless-host wasm = 31,162,944 B after the keyboard atomic (v0.9.1's old-GUI build was 88,659,256 B) | one atomic with tests: bootstrap factory js variant + per-core js stubs |
+| D-4 | window keys — atomic 2 | Enter=submit (ShouldSubmit law: default Enter-mode = plain Enter/Return submits, Shift/Ctrl+Return newline — already mapped) -> ChatComposeSubmitted + send-request seam (ChatBottomRequested-pattern) + field clear; Up/Down/PageUp/PageDown = history scroll (never compose cursor moves — customUpDown law); Up on EMPTY field + canWrite + !edit + !reply -> edit last editable message, else scroll; Ctrl+Up/Down -> reply prev/next (reply front) | AyuGramDesktop dev history_widget.cpp 9276-9349 (fetched 2026-11-09): Down always _scroll->keyPressEvent; Up scrolls unless field empty && canWrite && !_editMsgId && !_replyTo, then lastEditableMessage() -> editMessage else scroll; PageUp/PageDown always scroll; Enter -> ShouldSubmit(sendSubmitWay, mods); Qt key scroll = SliderSingleStep/PageStep (qabstractscrollarea.cpp 1215-1220; qabstractslider.cpp 180: defaults singleStep 1 pageStep 10 — but our own wheel law 120-angle notch = 60px = WheelScrollLines 3 => singleStep = 20px = WheelNotchAngleDelta/WheelScrollLines/WheelPixelToAngleDelta); IME ranged EditEvents + SelectionCmd/SnippetCmd contract = the mobile/IME front | atomic 2: ChatComposeSubmitted + ChatComposeSendRequested + scroll keys with the 20px singleStep law; edit-last rides the messages/edit front |
 
 ## Session 405 — the web stuck-boot fix: GUI default on no-argv platforms (2026-11-09)
 
@@ -90,7 +92,28 @@ owner order — that history lives in git if ever needed.
 - Toolchain: sandbox had recycled again — Go 1.27.3 reinstalled per the
   env.sh recipe, module cache symlinked from the surviving ~/go/pkg
   (966 MB), go mod download green.
-- Next: the GUI front — keyboard routing.
+- Atomic 2 of the session (keyboard routing, slice 1 — the compose
+  field takes keyboard input): ui/window routeComposeKeys — gio focus
+  mirroring (Model Focused&&CanSend <-> key.FocusCmd on the chat input
+  tag + SoftKeyboardCmd on transitions, the touch platforms' keyboard),
+  key.FocusFilter EditEvents -> app.ComposeEditMsg (empty-range text ->
+  ChatComposeTyped; ranged IME edits nil until the IME front),
+  key.Filter{Focus: tag, Optional: Shift|Ctrl} key.Events ->
+  app.ComposeKeyMsg (State Press only, Alt/Super dropped): arrows /
+  Home/End / Ctrl-word / Shift-select / Backspace/Delete / Ctrl+A /
+  Shift+Return and Ctrl+Return -> newline (tdesktop Enter-mode default);
+  plain Return + Up/Down/PageUp/PageDown/Escape/Tab intentionally unmapped
+  (chat-surface keys — D-4 atomic 2). ChatComposeFocusLost on gio
+  FocusEvent loss: Focused+CursorOn drop, text/cursor survive, re-press
+  refocuses. Laws verified in source this session: gio xkb DispatchKey
+  (xkb_unix.go 199-212: printable + no Ctrl/Alt/Super -> EditEvent,
+  letters' key.Event Names upper-cased = shortcuts only), gio filter
+  matching (io/input/key.go 264-277: undeclared modifiers never match —
+  hence Optional: Shift|Ctrl), js backend (os_js.go 570-594: Return
+  preventDefault -> no EditEvent newline, key.Event only). 4 new tests
+  (mapping table + ignores + edit + focus-lost journey): tests/gui 186,
+  UI trio 437 = 230 ui + 186 gui + 21 text.
+- Next: D-4 atomic 2 (Enter submit + history scroll keys), then D-3.
 
 ## Session 404 — the owner's CI builder: build.yml + the loader (2026-11-09)
 

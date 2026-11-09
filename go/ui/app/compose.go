@@ -116,6 +116,10 @@ type ChatComposeReleased struct {
 
 func (ChatComposeReleased) isMsg() {}
 
+type ChatComposeFocusLost struct{}
+
+func (ChatComposeFocusLost) isMsg() {}
+
 func (m Model) composeButtons() history.ComposeButtons {
 	return history.ComposeButtons{Attach: true, Emoji: true}
 }
@@ -500,6 +504,11 @@ func (m *Model) composeReleased(msg ChatComposeReleased) {
 	m.nowMs = msg.Now
 	m.ChatCompose.MousePressed = false
 	m.ChatCompose.Grab = false
+}
+
+func (m *Model) composeFocusLost() {
+	m.ChatCompose.Focused = false
+	m.ChatCompose.CursorOn = false
 }
 
 func (m *Model) composeBlinkTick(now int) {

@@ -517,6 +517,9 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 	case ChatComposeReleased:
 		m.composeReleased(msg)
 		return m, nil
+	case ChatComposeFocusLost:
+		m.composeFocusLost()
+		return m, nil
 	case ChatBottomRequested:
 		return m, nil
 	case ChatPreloadTopRequested:

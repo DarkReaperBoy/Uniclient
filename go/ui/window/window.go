@@ -49,6 +49,7 @@ func Run() error {
 	var ops op.Ops
 	var lastW, lastH int
 	var chatPrimary bool
+	var keyFocus bool
 	for {
 		switch e := w.Event().(type) {
 		case gioapp.DestroyEvent:
@@ -75,6 +76,7 @@ func Run() error {
 			routeInput(gtx, painter.Input, e.Metric, handle)
 			if cols := appModel.Columns(); cols.Chat > 0 && cols.Dialogs < appModel.Width {
 				routeChatInput(gtx, chatPainter.Input, e.Metric, cols.Dialogs, &chatPrimary, handle)
+				routeComposeKeys(gtx, chatPainter.Input, appModel, &keyFocus, handle)
 			}
 			if appModel.ChatDirty {
 				heights, hits := chatPainter.Measure(
@@ -217,6 +219,49 @@ func routeChatInput(gtx layout.Context, tag *chatrender.InputArea, metric unit.M
 			handle(app.ChatPressCanceled{})
 		case pointer.Scroll:
 			handle(chatScrollMessage(e, metric))
+		}
+	}
+}
+
+func routeComposeKeys(gtx layout.Context, tag *chatrender.InputArea, model app.Model, focus *bool, handle func(app.Msg)) {
+	want := model.ChatCompose.Focused && model.ChatCompose.CanSend
+	if want != *focus {
+		*focus = want
+		if want {
+			gtx.Execute(key.FocusCmd{Tag: tag})
+		} else {
+			gtx.Execute(key.FocusCmd{Tag: nil})
+		}
+		gtx.Execute(key.SoftKeyboardCmd{Show: want})
+	}
+	focusFilter := key.FocusFilter{Target: tag}
+	for {
+		ev, ok := gtx.Event(focusFilter)
+		if !ok {
+			break
+		}
+		switch e := ev.(type) {
+		case key.EditEvent:
+			if msg := app.ComposeEditMsg(e, int(time.Now().UnixMilli())); msg != nil {
+				handle(msg)
+			}
+		case key.FocusEvent:
+			if !e.Focus && *focus {
+				*focus = false
+				handle(app.ChatComposeFocusLost{})
+			}
+		}
+	}
+	keyFilter := key.Filter{Focus: tag, Optional: key.ModShift | key.ModCtrl}
+	for {
+		ev, ok := gtx.Event(keyFilter)
+		if !ok {
+			break
+		}
+		if e, ok := ev.(key.Event); ok {
+			if msg := app.ComposeKeyMsg(e, int(time.Now().UnixMilli())); msg != nil {
+				handle(msg)
+			}
 		}
 	}
 }
