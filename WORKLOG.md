@@ -22,7 +22,8 @@ owner order — that history lives in git if ever needed.
   comment ban clean; 433 tests (230 ui + 182 gui + 21 text) green on
   the non-gotd legs (gotd OOMs on this 4GiB box, §9 rung 7); boot
   verifies 42544011545 (23b21e34) + 42544938478 (23277542) SUCCESS
-  job+step; this atomic's verify dispatched on push
+  job+step; verify 42584000646 (e6aa0bbd) SUCCESS job+step — all 3
+  jobs, every step
 
 ## Open items
 
