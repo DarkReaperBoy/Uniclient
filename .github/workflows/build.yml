@@ -2,7 +2,7 @@
 # Runs on every push to main (+ v* tags + dispatch), parallel jobs, ZERO
 # tests (testing is verify.yml/release.yml work — never in build).
 #   web     js/wasm + CI-generated shell -> orphan gh-pages + gz/br kit
-#   android gogio arm64 APK (engine host until the rebuilt GUI lands)
+#   android gogio arm64 APK (GUI default — no-argv platform)
 
 name: Build
 

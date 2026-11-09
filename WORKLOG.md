@@ -7,32 +7,76 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 404 (owner redirect 2026-11-09: "github actions does
-  the building, never the sandbox") — build.yml live: per-push on
-  main (paths: go/** + build.yml), no tests, parallel — web (js/wasm
-  + CI-generated loader: progress/speed/ETA, version-keyed cache,
-  sha256 integrity, offline SW, Telegram bridge -> orphan gh-pages +
-  gz/br kit artifact) + android (gogio arm64 APK); release.yml
-  re-ships the APK on tags; AGENTS §1.22 sandbox invisibility (owner
-  order); Pages live (already enabled; the deploy refreshed it)
+- front: session 405 (owner report: "the web page doesn't load") — not
+  the owner's connection: reproduced in headless chromium against the
+  live Pages URL; the shell + wasm + sha256 all serve and the engine
+  boots, but the headless default on js blocks on <-sig (no signals in
+  a browser) — no canvas ever appears, the boot HUD stays up forever.
+  Fix: the no-argv platforms (js + android) default to the GUI
+  (main.go guiDefault; android had the same latent bug — gogio runs
+  main with no argv, a headless default is a zombie activity);
+  AGENTS §1.4/§8 + build.yml header synced in-commit. Verified against
+  the real CI shell in chromium: before = HUD forever (engine ready,
+  canvasCount 0); after = HUD drops, gio canvas 1440x900 + 390x844
+  painted with the true empty-state Surface #FEF7FF, console clean
 - next: the GUI front resumes — keyboard routing (window key.Event ->
   the compose msgs; Enter=send + Up/Down history when empty); then D-3
-- owner-waiting: none
-- last-gate: build 42597570851 (bcb7dee0) SUCCESS job+step — APK
-  artifact 12.1 MB, web kit 19.9 MB, gh-pages live (VER bcb7dee06da9,
-  wasm 31,153,413 B sha-pinned, Pages URL serving); verify 42596637204
-  (531c134f) SUCCESS job+step (all 3 jobs); the android rot fixed in
-  2 rounds (4e612bd6 jni_android + bcb7dee0 opensl_android)
+- owner-waiting: the GitHub push token (session 405's two commits sit
+  ready; the sandbox and env hold none — §0.2)
+- last-gate: local: gofmt + comment-ban + full js/wasm build green
+  (31,153,413 B, CI recipe); linux-cgo + windows cross env-blocked on
+  this recycled 4 GiB box (no wayland-dev/root; gotd tg OOM —
+  verify.yml stays the gate of record); CI build run pending the push
 
 ## Open items
 
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
+| N-1 | android APK | GUI-default on android is runtime-unverifiable in-sandbox (no emulator/device); expected: the empty Material surface, not a black zombie | session 405 (js sibling verified in chromium); push pending | owner installs the next uniclient-android APK artifact and reports |
 | H-2 | verify/release yml | CLOSED 2026-11-09 (owner order): android + web legs returned as build.yml (per-push, no tests, parallel); only the Xvfb GUI + Puppeteer web-drive legs stay parked with the rebuilt GUI | AGENTS.md §8; build 42597570851 | Xvfb/Puppeteer return when the GUI ships (§6.7) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
 | D-1 | ui/history corner button | down-button unread-count badge (22dp, centered x, top 0 — jump_down_button.cpp paintEvent + historyToDownBadge*) + hover/over colors + ripple deferred: no unread counter in the chat Item model yet, no hover/ripple machinery in the skin yet; replyReturn branch of downClick + loadedAtBottom==false state return with reply-return jumps / below-history pagination | jump_down_button.cpp 33-52, corner_buttons.cpp 139-145 | badge returns with read-state counts; over/ripple with the skin's hover+ripple pass |
 | D-2 | ui/history unread-things buttons | read-marking absent for mentions AND reactions: after a jump the button stays shown (reference hides it when the server marks the thing read — updateUnreadThingsVisibility is server-data-driven); mentionsClick's already-there voice/video media-read branch (5623) deferred — no media model; unread-count badges join D-1's class; poll-votes 4th stack slot returns with a poll model | history_view_corner_buttons.cpp 147-190, 288-345 | returns with engine unread-things events + the media pass |
 | D-3 | build.yml web job | wasm size diet: the js/wasm build ships every core incl. the six raw-TCP backends that can never connect from a browser (§7 web truth) — build-tag exclusion at the engine factory projected <20 MB; also headroom under git's 100 MB file ceiling on gh-pages | headless-host wasm = 31,153,413 B today (v0.9.1's old-GUI build was 88,659,256 B) | one atomic with tests: bootstrap factory js variant + per-core js stubs |
+
+## Session 405 — the web stuck-boot fix: GUI default on no-argv platforms (2026-11-09)
+
+- Owner report (chat): "the web page doesn't load, idk if it is only
+  me or it is a bug." Reproduced in headless chromium (playwright
+  1.57 / agent-browser) against the live Pages URL: shell + wasm +
+  sha256 all serve (31,153,413 B, hash matches the pin), the engine
+  boots ("uniclient engine ready (dir /uniclient)" mirrored into the
+  HUD), then the headless host blocks on <-sig forever — js has no
+  signals; canvasCount 0, boot HUD display:flex after 50 s. A bug,
+  not the owner's connection.
+- Root cause: the rebuilt main.go made headless the default mode and
+  build.yml's web job built that default; v0.10.3's web build WAS the
+  GUI (no flag at all — git show v0.10.3:go/cmd/uniclient/main.go).
+  Fix: guiDefault = GOOS js or android — the no-argv platforms
+  (browser tabs, gogio APKs) have no flags and no signals, a headless
+  default there is a zombie surface; desktop keeps headless as its
+  default (a real flag there, §1.3). 2-line diff, main.go only.
+- Verification (§4): the fixed wasm built with the exact CI recipe
+  (gate build, 31,153,413 B) served under the real CI shell on
+  localhost: chromium 1440x900 AND 390x844 — HUD display:none,
+  canvasCount 1, canvas pixel-sampled 254,247,255 = material Light
+  Surface 0xFE,0xF7,0xFF, i.e. the honest zero-account InitialModel
+  scene (no demo data, §1.9); console clean; the 390 re-boot also
+  exercised the same-version Cache API path (zero-network boot).
+  Android kept the same flip but stays runtime-unverified here -> N-1.
+- Gates: gofmt clean, comment-ban clean, js/wasm full build green;
+  linux-cgo build env-blocked (no libwayland-dev, no root) and the
+  windows cross-build OOM'd on gotd tg (the known 4 GiB box limit) —
+  both are CI legs (verify/release); build.yml's js job is the same
+  recipe. Second atomic: the generated shell's pre-canvas status
+  "Running — Uniclient engine host" -> "Running — Uniclient" (the
+  GUI boots there now; one build.yml line).
+- AGENTS §1.4 + §8 + build.yml header synced in-commit — the old
+  "ships the headless engine host until the GUI lands" wording is
+  the law that produced the stuck boot.
+- Next: push (token waited), watch the CI build run + the Pages
+  deploy, verify the live URL in chromium, then the GUI front:
+  keyboard routing.
 
 ## Session 404 — the owner's CI builder: build.yml + the loader (2026-11-09)
 
