@@ -37,8 +37,11 @@ line must be load-bearing law or reference; padding and repetition are defects.
 
 1. **Sync:** `git pull --rebase origin main`. The VM can die any second — only pushed
    work exists. Missing state files → create them (§8).
-2. **Auth:** the GitHub token comes from env (`GH_TOKEN`) or the owner, out-of-band. It
-   NEVER lands in any file, log, commit, remote URL, or doc. Never force-push `main`.
+2. **Auth:** the GitHub token lives in `.env` at the repo root (`GH_TOKEN=…` — the
+   owner stored it there 2026-11-09; `.env*` is gitignored) or in the environment.
+   It NEVER lands in any log, commit, remote URL, or pushed doc; never print it.
+   Push: `GIT_ASKPASS=scripts/git-askpass.sh git push origin main` (the helper
+   sources `.env`). Never force-push `main`.
 3. **Load state:** WORKLOG.md — STATE block, newest entry, open items. The only state
    file there is.
 4. **Pick the next item, in order:** (1) owner-reported (enters open items on top);
