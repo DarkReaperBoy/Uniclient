@@ -800,3 +800,62 @@ func (p *ChatPainter) label(gtx layout.Context, r history.Geometry, fnt font.Fon
 	}
 	widget.Label{}.Layout(gtx, p.Shaper, fnt, size, s, mat)
 }
+
+func (p *ChatPainter) PaintComposeBar(gtx layout.Context, pane history.ComposePaneView, sch material.Scheme) {
+	if !pane.Shown || pane.Geometry.Field.Width <= 0 || pane.Geometry.Field.Height <= 0 {
+		return
+	}
+	bar := pane.Geometry
+	field := bar.Field
+	fillRect(gtx, field, sch.SurfaceContainerHigh)
+	stk := clip.Rect{Max: image.Pt(
+		gtx.Dp(unit.Dp(field.Left+field.Width)),
+		gtx.Dp(unit.Dp(field.Top+field.Height)),
+	)}.Push(gtx.Ops)
+	trans := op.Offset(image.Pt(0, gtx.Dp(unit.Dp(-pane.Scroll)))).Push(gtx.Ops)
+	for _, span := range pane.Selection {
+		fillRect(gtx, history.Geometry{
+			Left:   field.Left + span.From,
+			Top:    field.Top + span.Line*pane.LineHeight,
+			Width:  span.To - span.From,
+			Height: pane.LineHeight,
+		}, sch.PrimaryContainer)
+	}
+	for i := range pane.Lines {
+		p.label(gtx, history.Geometry{
+			Left:   field.Left,
+			Top:    field.Top + i*pane.LineHeight,
+			Width:  field.Width,
+			Height: pane.LineHeight,
+		}, fontRegular, unit.Sp(tokens.FontBase), string(pane.Lines[i].Runes), sch.OnSurface)
+	}
+	fillRect(gtx, history.Geometry{
+		Left:   field.Left + pane.Caret.Left,
+		Top:    field.Top + pane.Caret.Top,
+		Width:  pane.Caret.Width,
+		Height: pane.Caret.Height,
+	}, sch.OnSurface)
+	trans.Pop()
+	if pane.Placeholder.Text != "" && pane.Placeholder.Opacity > 0 {
+		p.label(gtx, history.Geometry{
+			Left:   field.Left + pane.Placeholder.X,
+			Top:    field.Top,
+			Width:  field.Width - pane.Placeholder.X,
+			Height: pane.LineHeight,
+		}, fontRegular, unit.Sp(tokens.FontBase), pane.Placeholder.Text,
+			withAlpha(sch.OnSurfaceVariant, float32(pane.Placeholder.Opacity)))
+	}
+	stk.Pop()
+	if bar.Attach.Width > 0 {
+		fillGlyph(gtx, bar.Attach.Left+tokens.HistoryAttachRippleX, bar.Attach.Top+tokens.HistoryAttachRippleY,
+			icons.ComposeAttach, sch.OnSurfaceVariant)
+	}
+	if bar.Send.Width > 0 {
+		fillGlyph(gtx, bar.Send.Left+tokens.HistorySendIconPositionX, bar.Send.Top+tokens.HistorySendIconPositionY,
+			icons.ComposeSend, sch.Primary)
+	}
+	if bar.Emoji.Width > 0 {
+		fillGlyph(gtx, bar.Emoji.Left+tokens.HistoryAttachRippleX, bar.Emoji.Top+tokens.HistoryAttachRippleY,
+			icons.ComposeSmile, sch.OnSurfaceVariant)
+	}
+}

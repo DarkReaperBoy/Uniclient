@@ -981,6 +981,10 @@ func (m Model) ChatMentionsActive() bool {
 	return m.ChatMentions.Anim
 }
 
+func (m Model) ChatComposePlaceholderActive() bool {
+	return m.ChatCompose.PlaceholderAnim
+}
+
 func (m Model) ChatReactionsActive() bool {
 	return m.ChatReactions.Anim
 }

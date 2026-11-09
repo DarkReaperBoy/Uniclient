@@ -18,10 +18,11 @@ owner order — that history lives in git if ever needed.
   history_widget); send-button type crossfade 120ms; real font
   metrics adapter when the gio shaper lands
 - owner-waiting: none
-- last-gate: quick GREEN (402 both atomics); js/wasm compile ui/...
-  GREEN; comment ban clean; 416 tests (230 ui + 169 gui + 17 text)
-  green locally; verify 42542765446 (381a7f3e) in flight at last
-  push; this atomic's verify dispatched on push
+- last-gate: quick GREEN (402 all three atomics); js/wasm compile
+  ui/... GREEN; comment ban clean; 417 tests (230 ui + 170 gui + 17
+  text) green locally; verify 42542765446 (381a7f3e) SUCCESS
+  job+step; 42543314028 (913f6c68) in flight; painter's verify
+  dispatched on push
 
 ## Open items
 
@@ -31,6 +32,37 @@ owner order — that history lives in git if ever needed.
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
 | D-1 | ui/history corner button | down-button unread-count badge (22dp, centered x, top 0 — jump_down_button.cpp paintEvent + historyToDownBadge*) + hover/over colors + ripple deferred: no unread counter in the chat Item model yet, no hover/ripple machinery in the skin yet; replyReturn branch of downClick + loadedAtBottom==false state return with reply-return jumps / below-history pagination | jump_down_button.cpp 33-52, corner_buttons.cpp 139-145 | badge returns with read-state counts; over/ripple with the skin's hover+ripple pass |
 | D-2 | ui/history unread-things buttons | read-marking absent for mentions AND reactions: after a jump the button stays shown (reference hides it when the server marks the thing read — updateUnreadThingsVisibility is server-data-driven); mentionsClick's already-there voice/video media-read branch (5623) deferred — no media model; unread-count badges join D-1's class; poll-votes 4th stack slot returns with a poll model | history_view_corner_buttons.cpp 147-190, 288-345 | returns with engine unread-things events + the media pass |
+
+## Session 402 atomic 3 — the compose bar render painter (2026-11-09)
+
+- Law: historyComposeField (chat_helpers.style 1281-1300) — border 0,
+  borderActive 0, borderRadius 0 -> InputField::paintFlatSurrounding
+  (input_field.cpp 2846-2852): a FLAT textBg = historyComposeAreaBg =
+  msgInBg rect, no border, no rounding. Icon placement: attach/smile
+  on the centered 40x40 ripple canvas (2,3) + their padded cells
+  (11,9)/(15,17); send at the pinned (10,11) + cell (2,2) — fillGlyph
+  composes button+canvas+cell. Colors map Material: field bg
+  SurfaceContainerHigh (the msgInBg convention), text/caret OnSurface,
+  selection PrimaryContainer, placeholder OnSurfaceVariant with the
+  fade alpha, send icon Primary (the accent), attach/smile
+  OnSurfaceVariant.
+- Go: render.PaintComposeBar — field bg fill, clip to the field rect,
+  -Scroll translate: selection spans (span.Line*lineH rows), line
+  labels (fontRegular FontBase — the shaper paints the line runes the
+  model wrapped; the real metrics adapter reconciles when the gio
+  shaper lands), caret rect (1xlineH OnSurface); placeholder label
+  outside the translate (never scrolls) at X with opacity alpha; the
+  glyph trio with zero-rect guards (hidden buttons never painted).
+  Window integration: PaintComposeBar after PaintChatPane in the chat
+  column; ChatComposePlaceholderActive joins the tick + invalidate
+  conditions. Keyboard routing to the compose msgs = the next window
+  slice (pointer-only today). Caret blink deferred (painter timing).
+- The render package vets CGO_ENABLED=0 — op recording is pure; the
+  smoke test paints shown/selected/hidden/zero panes without panic
+  (the corner-button painter precedent: thin fills ride CI verify).
+  1 new test, 417 total = 230 ui + 170 gui + 17 text. quick GREEN;
+  windows vet GREEN; js/wasm ui/... GREEN; comment ban clean. Verify
+  42542765446 (381a7f3e) SUCCESS job+step — all 3 jobs, every step.
 
 ## Session 402 atomic 2 — the placeholder fade law + the ComposePane projection (2026-11-09)
 
