@@ -13,10 +13,10 @@ owner order — that history lives in git if ever needed.
 - next: W-1, D-4 atomic 2, D-3; token in .env (§0.2)
 - owner-waiting: N-1 — install the uniclient-android APK artifact
   (build 42622715804) on a device and report (android GUI-default check)
-- last-gate: live Pages driven (agent-browser 1440x900 + 390x844):
-  canvas 1, HUD none, console clean — viewport 100% flat #FEF7FF (W-1);
-  VER dc2385e08410 (dispatched Build #6 14:54Z, was unrecorded);
-  build 42629204319 (90be7905) SUCCESS job+step
+- last-gate: build 42644804177 (c74bf4b8, Build #7) SUCCESS — all five
+  jobs+steps (web, android, linux amd64/arm64, windows); gh-pages live
+  (Pages #23 green); driven at dc2385e08410: canvas 1, HUD none, console
+  clean — 100% flat #FEF7FF (W-1)
 
 ## Open items
 
