@@ -35,7 +35,7 @@ func jniAttached() (env uintptr, release func(), err error) {
 	}
 	var envp uintptr
 	if r, _, _ := purego.SyscallN(jniFn(jvm, JvmGetEnv), jvm,
-		uintptr(unsafe.Pointer(&envp)), jniVersion16); r == 0 && envp != 0 {
+		uintptr(unsafe.Pointer(&envp)), JniVersion16); r == 0 && envp != 0 {
 		return envp, unlock, nil
 	}
 	if r, _, _ := purego.SyscallN(jniFn(jvm, JvmAttachCurrentThread), jvm,
@@ -50,7 +50,7 @@ func jniAttached() (env uintptr, release func(), err error) {
 }
 
 func jniSanity(env uintptr) error {
-	ver := JniCall(env, jniEnvGetVersion)
+	ver := JniCall(env, JNIEnvGetVersion)
 	if ver>>16 != 1 || ver&0xFFFF == 0 {
 		return fmt.Errorf("audio: JNI GetVersion returned 0x%X — ABI mismatch", ver)
 	}
@@ -73,16 +73,16 @@ func cstr(s string) (unsafe.Pointer, []byte) {
 }
 
 func jniExceptionCheck(env uintptr) bool {
-	return JniCall(env, jniEnvExceptionCheck) != 0
+	return JniCall(env, JNIEnvExceptionCheck) != 0
 }
 
 func jniExceptionClear(env uintptr) {
-	JniCall(env, jniEnvExceptionClear)
+	JniCall(env, JNIEnvExceptionClear)
 }
 
 func jniDeleteLocalRef(env, ref uintptr) {
 	if ref != 0 {
-		JniCall(env, jniEnvDeleteLocalRef, ref)
+		JniCall(env, JNIEnvDeleteLocalRef, ref)
 	}
 }
 
@@ -90,7 +90,7 @@ func jniGetObjectClass(env, obj uintptr) uintptr {
 	if obj == 0 {
 		return 0
 	}
-	return JniCall(env, jniEnvGetObjectClass, obj)
+	return JniCall(env, JNIEnvGetObjectClass, obj)
 }
 
 func jniGetMethodID(env, cls uintptr, name, sig string) uintptr {
@@ -99,7 +99,7 @@ func jniGetMethodID(env, cls uintptr, name, sig string) uintptr {
 	}
 	np, nKeep := cstr(name)
 	sp, sKeep := cstr(sig)
-	mid := JniCall(env, jniEnvGetMethodID, cls, uintptr(np), uintptr(sp))
+	mid := JniCall(env, JNIEnvGetMethodID, cls, uintptr(np), uintptr(sp))
 	runtime.KeepAlive(nKeep)
 	runtime.KeepAlive(sKeep)
 	if mid == 0 {
@@ -110,7 +110,7 @@ func jniGetMethodID(env, cls uintptr, name, sig string) uintptr {
 
 func jniFindClass(env uintptr, name string) uintptr {
 	np, keep := cstr(name)
-	cls := JniCall(env, jniEnvFindClass, uintptr(np))
+	cls := JniCall(env, JNIEnvFindClass, uintptr(np))
 	runtime.KeepAlive(keep)
 	if cls == 0 {
 		jniExceptionClear(env)
@@ -120,7 +120,7 @@ func jniFindClass(env uintptr, name string) uintptr {
 
 func jniNewStringUTF(env uintptr, s string) uintptr {
 	np, keep := cstr(s)
-	jstr := JniCall(env, jniEnvNewStringUTF, uintptr(np))
+	jstr := JniCall(env, JNIEnvNewStringUTF, uintptr(np))
 	runtime.KeepAlive(keep)
 	if jstr == 0 {
 		jniExceptionClear(env)
@@ -136,7 +136,7 @@ func jniCallObjectMethodA(env, obj, mid uintptr, args []jvalue) uintptr {
 	if len(args) > 0 {
 		argp = unsafe.Pointer(&args[0])
 	}
-	res := JniCall(env, jniEnvCallObjectMethodA, obj, mid, uintptr(argp))
+	res := JniCall(env, JNIEnvCallObjectMethodA, obj, mid, uintptr(argp))
 	runtime.KeepAlive(args)
 	if res == 0 && jniExceptionCheck(env) {
 		jniExceptionClear(env)
@@ -148,7 +148,7 @@ func jniCallIntMethodA(env, obj, mid uintptr, args []jvalue) int32 {
 	if obj == 0 || mid == 0 {
 		return -1
 	}
-	res := JniCall(env, jniEnvCallIntMethodA, obj, mid, uintptr(unsafe.Pointer(&args[0])))
+	res := JniCall(env, JNIEnvCallIntMethodA, obj, mid, uintptr(unsafe.Pointer(&args[0])))
 	runtime.KeepAlive(args)
 	if res == 0 && jniExceptionCheck(env) {
 		jniExceptionClear(env)
@@ -161,7 +161,7 @@ func jniCallVoidMethodA(env, obj, mid uintptr, args []jvalue) {
 	if obj == 0 || mid == 0 {
 		return
 	}
-	JniCall(env, jniEnvCallVoidMethodA, obj, mid, uintptr(unsafe.Pointer(&args[0])))
+	JniCall(env, JNIEnvCallVoidMethodA, obj, mid, uintptr(unsafe.Pointer(&args[0])))
 	runtime.KeepAlive(args)
 	if jniExceptionCheck(env) {
 		jniExceptionClear(env)
@@ -169,7 +169,7 @@ func jniCallVoidMethodA(env, obj, mid uintptr, args []jvalue) {
 }
 
 func jniNewObjectArray(env uintptr, n int, cls uintptr, init uintptr) uintptr {
-	arr := JniCall(env, jniEnvNewObjectArray, uintptr(n), cls, init)
+	arr := JniCall(env, JNIEnvNewObjectArray, uintptr(n), cls, init)
 	if arr == 0 {
 		jniExceptionClear(env)
 	}
@@ -177,7 +177,7 @@ func jniNewObjectArray(env uintptr, n int, cls uintptr, init uintptr) uintptr {
 }
 
 func jniSetObjectArrayElement(env, arr uintptr, idx int, val uintptr) {
-	JniCall(env, jniEnvSetObjectArrayElement, arr, uintptr(idx), val)
+	JniCall(env, JNIEnvSetObjectArrayElement, arr, uintptr(idx), val)
 	if jniExceptionCheck(env) {
 		jniExceptionClear(env)
 	}
@@ -200,7 +200,7 @@ func jniViewActivity(env uintptr) uintptr {
 	actCls := jniFindClass(env, "android/app/Activity")
 	obj := ctx
 	for i := 0; i < 4 && obj != 0; i++ {
-		if actCls != 0 && JniCall(env, jniEnvIsInstanceOf, obj, actCls) != 0 {
+		if actCls != 0 && JniCall(env, JNIEnvIsInstanceOf, obj, actCls) != 0 {
 			return obj
 		}
 		objCls := jniGetObjectClass(env, obj)
