@@ -209,7 +209,7 @@ func bqCount(bq unsafe.Pointer) int {
 	return int(st.count)
 }
 
-func (d *openslDevice) startPlayback(fill func(out []int16)) error {
+func (d *openslDevice) StartPlayback(fill func(out []int16)) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.engineItf == nil {
@@ -222,7 +222,7 @@ func (d *openslDevice) startPlayback(fill func(out []int16)) error {
 	loc := SLDataLocatorAndroidBQ{LocatorType: SLDatalocatorAndroidBQ, NumBuffers: bqQueueDepth}
 	pcm := pcmFormat()
 	src := SLDataSource{pLocator: unsafe.Pointer(&loc), pFormat: unsafe.Pointer(&pcm)}
-	outLoc := SLDataLocatorOutputMix{LocatorType: SLDatalocatorOutputMix, outputMix: d.mixObj}
+	outLoc := SLDataLocatorOutputMix{LocatorType: SLDatalocatorOutputMix, OutputMix: d.mixObj}
 	sink := SLDataSource{pLocator: unsafe.Pointer(&outLoc), pFormat: nil}
 
 	var player unsafe.Pointer
@@ -300,7 +300,7 @@ func (d *openslDevice) startPlayback(fill func(out []int16)) error {
 	return nil
 }
 
-func (d *openslDevice) stopPlayback() {
+func (d *openslDevice) StopPlayback() {
 	d.mu.Lock()
 	if !d.playOn {
 		d.mu.Unlock()
@@ -322,7 +322,7 @@ func (d *openslDevice) stopPlayback() {
 	ring.Reset()
 }
 
-func (d *openslDevice) startMic() (<-chan []byte, error) {
+func (d *openslDevice) StartMic() (<-chan []byte, error) {
 	d.mu.Lock()
 	if d.engineItf == nil {
 		d.mu.Unlock()
@@ -346,8 +346,8 @@ func (d *openslDevice) startMic() (<-chan []byte, error) {
 
 	inDev := SLDataLocatorIODevice{
 		LocatorType: SLDatalocatorIODevice,
-		deviceType:  SLIODeviceAudioInput,
-		deviceID:    SLDefaultDeviceIDInput,
+		DeviceType:  SLIODeviceAudioInput,
+		DeviceID:    SLDefaultDeviceIDInput,
 	}
 	src := SLDataSource{pLocator: unsafe.Pointer(&inDev), pFormat: nil}
 	loc := SLDataLocatorAndroidBQ{LocatorType: SLDatalocatorAndroidBQ, NumBuffers: bqQueueDepth}
@@ -450,7 +450,7 @@ func (d *openslDevice) startMic() (<-chan []byte, error) {
 	return frames, nil
 }
 
-func (d *openslDevice) stopMic() {
+func (d *openslDevice) StopMic() {
 	d.mu.Lock()
 	if !d.micOn {
 		d.mu.Unlock()
@@ -473,7 +473,7 @@ func (d *openslDevice) stopMic() {
 	ring.Reset()
 }
 
-func (d *openslDevice) close() {
+func (d *openslDevice) Close() {
 	d.StopMic()
 	d.StopPlayback()
 	d.mu.Lock()
