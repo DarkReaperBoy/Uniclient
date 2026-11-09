@@ -16,6 +16,25 @@ type ChatComposeState struct {
 	HasGoalX bool
 	Metrics  text.Metrics
 
+	Focused              bool
+	CursorOn             bool
+	NextBlinkAt          int
+	MousePressed         bool
+	Grab                 bool
+	LastClickSet         bool
+	LastClickAt          int
+	LastClickX           int
+	LastClickY           int
+	TrippleClickDeadline int
+	TrippleClickX        int
+	TrippleClickY        int
+	WordSelActive        bool
+	WordSelAnchor        int
+	WordSelCursor        int
+	BlockSelActive       bool
+	BlockSelAnchor       int
+	BlockSelCursor       int
+
 	Placeholder        string
 	PlaceholderShifted bool
 	PlaceholderDegree  float64
@@ -71,6 +90,31 @@ func (ChatComposeCursorKey) isMsg() {}
 type ChatComposeSelectAll struct{}
 
 func (ChatComposeSelectAll) isMsg() {}
+
+type ChatComposePressed struct {
+	X     int
+	Y     int
+	Shift bool
+	Now   int
+}
+
+func (ChatComposePressed) isMsg() {}
+
+type ChatComposeDragged struct {
+	X   int
+	Y   int
+	Now int
+}
+
+func (ChatComposeDragged) isMsg() {}
+
+type ChatComposeReleased struct {
+	X   int
+	Y   int
+	Now int
+}
+
+func (ChatComposeReleased) isMsg() {}
 
 func (m Model) composeButtons() history.ComposeButtons {
 	return history.ComposeButtons{Attach: true, Emoji: true}
@@ -257,6 +301,219 @@ func (m *Model) composeSelectAll() {
 	m.ChatCompose.Cursor = len([]rune(m.ChatCompose.Text))
 }
 
+func manhattan(ax, ay, bx, by int) int {
+	d := ax - bx
+	if d < 0 {
+		d = -d
+	}
+	e := ay - by
+	if e < 0 {
+		e = -e
+	}
+	return d + e
+}
+
+func (m Model) composeFieldHitAt(x, y int) bool {
+	if !m.ChatCompose.CanSend {
+		return false
+	}
+	f := m.ComposeGeometry().Field
+	return f.Width > 0 && f.Height > 0 &&
+		x >= f.Left && x < f.Left+f.Width &&
+		y >= f.Top && y < f.Top+f.Height
+}
+
+func (m Model) composeHitTest(x, y int) int {
+	doc := m.composeDocument()
+	g := m.ComposeGeometry()
+	fy := y - g.Field.Top - tokens.ComposeTextMarginTop + m.ChatCompose.Scroll
+	lineH := text.LineHeight(m.ChatCompose.Metrics.Height, tokens.ComposeFieldStyleLineHeight)
+	line := fy / lineH
+	if line < 0 {
+		line = 0
+	}
+	if line >= len(doc.Lines) {
+		line = len(doc.Lines) - 1
+	}
+	pos := doc.Lines[line].Start +
+		doc.XToColumn(line, x-g.Field.Left-tokens.ComposeTextMarginLeft)
+	if pos < 0 {
+		return 0
+	}
+	if pos > len(doc.Text) {
+		return len(doc.Text)
+	}
+	return pos
+}
+
+func (m *Model) composeSetGoalX(doc *text.Document) {
+	c := &m.ChatCompose
+	c.GoalX = doc.CursorAt(c.Cursor).X
+	c.HasGoalX = true
+}
+
+func (m *Model) composePressed(msg ChatComposePressed) {
+	if !m.ChatCompose.CanSend {
+		return
+	}
+	m.nowMs = msg.Now
+	c := &m.ChatCompose
+	if !c.Focused {
+		c.Focused = true
+		c.CursorOn = true
+		c.NextBlinkAt = msg.Now + tokens.CursorFlashTimeMs/2
+	}
+	doc := m.composeDocument()
+	hit := m.composeHitTest(msg.X, msg.Y)
+	prevAt, prevX, prevY, prevSet := c.LastClickAt, c.LastClickX, c.LastClickY, c.LastClickSet
+	c.LastClickAt, c.LastClickX, c.LastClickY, c.LastClickSet = msg.Now, msg.X, msg.Y, true
+	c.Grab = true
+	if c.TrippleClickDeadline > 0 && msg.Now < c.TrippleClickDeadline &&
+		manhattan(msg.X, msg.Y, c.TrippleClickX, c.TrippleClickY) < tokens.TouchDragStartDistance {
+		end := doc.MoveEndOfBlock(c.Cursor)
+		if end < len(doc.Text) {
+			end++
+		}
+		c.Anchor = doc.MoveStartOfBlock(c.Cursor)
+		c.Cursor = end
+		c.BlockSelAnchor, c.BlockSelCursor, c.BlockSelActive = c.Anchor, end, true
+		c.MousePressed = true
+		c.TrippleClickDeadline = 0
+		m.composeSetGoalX(doc)
+		m.composeViewportSync()
+		m.composeEnsureCursorVisible(doc)
+		return
+	}
+	if prevSet && msg.Now-prevAt < tokens.MouseDoubleClickIntervalMs &&
+		manhattan(msg.X, msg.Y, prevX, prevY) < tokens.TouchDragStartDistance {
+		c.Anchor = hit
+		c.Cursor = hit
+		c.WordSelActive = false
+		c.BlockSelActive = false
+		c.MousePressed = false
+		if line := doc.CursorAt(hit).Line; len(doc.Lines[line].Runes) > 0 {
+			if ws, we := doc.MoveStartOfWord(hit), doc.MoveEndOfWord(hit); we > ws {
+				c.Anchor, c.Cursor = ws, we
+				c.WordSelAnchor, c.WordSelCursor, c.WordSelActive = ws, we, true
+			}
+		}
+		c.TrippleClickDeadline = msg.Now + tokens.MouseDoubleClickIntervalMs
+		c.TrippleClickX, c.TrippleClickY = msg.X, msg.Y
+		m.composeSetGoalX(doc)
+		return
+	}
+	if msg.Shift {
+		switch {
+		case c.BlockSelActive:
+			m.composeExtendBlockwise(doc, hit)
+		case c.WordSelActive:
+			m.composeExtendWordwise(doc, hit, msg.X)
+		default:
+			c.Cursor = hit
+		}
+	} else {
+		c.Cursor = hit
+		c.Anchor = hit
+		c.WordSelActive = false
+		c.BlockSelActive = false
+	}
+	c.MousePressed = true
+	m.composeSetGoalX(doc)
+	m.composeViewportSync()
+	m.composeEnsureCursorVisible(doc)
+}
+
+func (m *Model) composeExtendBlockwise(doc *text.Document, hit int) {
+	c := &m.ChatCompose
+	if hit >= c.BlockSelAnchor && hit <= c.BlockSelCursor {
+		c.Anchor = c.BlockSelAnchor
+		c.Cursor = c.BlockSelCursor
+		return
+	}
+	if hit < c.BlockSelCursor {
+		c.Anchor = c.BlockSelCursor
+		c.Cursor = doc.MoveStartOfBlock(hit)
+	} else {
+		c.Anchor = c.BlockSelAnchor
+		end := doc.MoveEndOfBlock(hit)
+		if end < len(doc.Text) {
+			end++
+		}
+		c.Cursor = end
+	}
+}
+
+func (m *Model) composeExtendWordwise(doc *text.Document, hit, mouseX int) {
+	c := &m.ChatCompose
+	if hit >= c.WordSelAnchor && hit <= c.WordSelCursor {
+		c.Anchor = c.WordSelAnchor
+		c.Cursor = c.WordSelCursor
+		return
+	}
+	ws := doc.MoveStartOfWord(hit)
+	we := doc.MoveEndOfWord(hit)
+	if ws == hit || we == hit || we == ws {
+		return
+	}
+	if doc.CursorAt(ws).Line != doc.CursorAt(we).Line {
+		return
+	}
+	g := m.ComposeGeometry()
+	mx := mouseX - g.Field.Left - tokens.ComposeTextMarginLeft
+	startX := doc.CursorAt(ws).X
+	endX := doc.CursorAt(we).X
+	if mx < startX || mx > endX {
+		return
+	}
+	if hit < c.WordSelCursor {
+		c.Anchor = c.WordSelCursor
+	} else {
+		c.Anchor = c.WordSelAnchor
+	}
+	if mx-startX < endX-mx {
+		c.Cursor = ws
+	} else {
+		c.Cursor = we
+	}
+}
+
+func (m *Model) composeDragged(msg ChatComposeDragged) {
+	if !m.ChatCompose.CanSend {
+		return
+	}
+	m.nowMs = msg.Now
+	c := &m.ChatCompose
+	doc := m.composeDocument()
+	hit := m.composeHitTest(msg.X, msg.Y)
+	switch {
+	case c.BlockSelActive:
+		m.composeExtendBlockwise(doc, hit)
+	case c.WordSelActive:
+		m.composeExtendWordwise(doc, hit, msg.X)
+	case c.MousePressed:
+		c.Cursor = hit
+	}
+	m.composeSetGoalX(doc)
+}
+
+func (m *Model) composeReleased(msg ChatComposeReleased) {
+	m.nowMs = msg.Now
+	m.ChatCompose.MousePressed = false
+	m.ChatCompose.Grab = false
+}
+
+func (m *Model) composeBlinkTick(now int) {
+	c := &m.ChatCompose
+	if !c.Focused || now < c.NextBlinkAt {
+		return
+	}
+	c.NextBlinkAt = now + tokens.CursorFlashTimeMs/2
+	c.CursorOn = !c.CursorOn
+	if c.Anchor != c.Cursor {
+		c.CursorOn = false
+	}
+}
+
 func (m Model) ComposePane() history.ComposePaneView {
 	if !m.ChatCompose.CanSend {
 		return history.ComposePaneView{}
@@ -270,6 +527,7 @@ func (m Model) ComposePane() history.ComposePaneView {
 		Scroll:     m.ChatCompose.Scroll,
 		Lines:      doc.Lines,
 		Caret:      history.ComposeCursorRect(doc, m.ChatCompose.Cursor, m.ChatCompose.Metrics),
+		CaretOn:    m.ChatCompose.CursorOn,
 		Selection:  doc.SelectionSpans(text.Selection{Anchor: m.ChatCompose.Anchor, Position: m.ChatCompose.Cursor}),
 	}
 	if m.ChatCompose.Placeholder != "" && m.ChatCompose.PlaceholderDegree < 1 {

@@ -171,6 +171,22 @@ func (d *Document) MoveEndOfWord(offset int) int {
 	return p
 }
 
+func (d *Document) MoveStartOfBlock(offset int) int {
+	p := d.clampOffset(offset)
+	for p > 0 && d.Text[p-1] != '\n' {
+		p--
+	}
+	return p
+}
+
+func (d *Document) MoveEndOfBlock(offset int) int {
+	p := d.clampOffset(offset)
+	for p < len(d.Text) && d.Text[p] != '\n' {
+		p++
+	}
+	return p
+}
+
 func (d *Document) MoveVertical(offset int, goalX int, hasGoalX bool, up bool) (int, int) {
 	if !hasGoalX {
 		goalX = d.CursorAt(offset).X

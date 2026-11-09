@@ -829,12 +829,14 @@ func (p *ChatPainter) PaintComposeBar(gtx layout.Context, pane history.ComposePa
 			Height: pane.LineHeight,
 		}, fontRegular, unit.Sp(tokens.FontBase), string(pane.Lines[i].Runes), sch.OnSurface)
 	}
-	fillRect(gtx, history.Geometry{
-		Left:   field.Left + pane.Caret.Left,
-		Top:    field.Top + pane.Caret.Top,
-		Width:  pane.Caret.Width,
-		Height: pane.Caret.Height,
-	}, sch.OnSurface)
+	if pane.CaretOn {
+		fillRect(gtx, history.Geometry{
+			Left:   field.Left + pane.Caret.Left,
+			Top:    field.Top + pane.Caret.Top,
+			Width:  pane.Caret.Width,
+			Height: pane.Caret.Height,
+		}, sch.OnSurface)
+	}
 	trans.Pop()
 	if pane.Placeholder.Text != "" && pane.Placeholder.Opacity > 0 {
 		p.label(gtx, history.Geometry{

@@ -574,3 +574,41 @@ func TestMoveEndOfWord(t *testing.T) {
 		}
 	}
 }
+
+func TestMoveStartOfBlock(t *testing.T) {
+	doc := Layout("aa\nbb\ncc", 200, mono(8, 16))
+	cases := []struct{ from, want int }{
+		{0, 0}, {1, 0}, {2, 0}, {3, 3}, {4, 3}, {5, 3}, {6, 6}, {7, 6}, {8, 6},
+	}
+	for _, c := range cases {
+		if got := doc.MoveStartOfBlock(c.from); got != c.want {
+			t.Fatalf("MoveStartOfBlock(%d) = %d, want %d", c.from, got, c.want)
+		}
+	}
+	empty := Layout("a\n\nb", 200, mono(8, 16))
+	if got := empty.MoveStartOfBlock(2); got != 2 {
+		t.Fatalf("empty-line MoveStartOfBlock(2) = %d, want 2", got)
+	}
+	if got := empty.MoveStartOfBlock(3); got != 3 {
+		t.Fatalf("after-empty MoveStartOfBlock(3) = %d, want 3", got)
+	}
+}
+
+func TestMoveEndOfBlock(t *testing.T) {
+	doc := Layout("aa\nbb\ncc", 200, mono(8, 16))
+	cases := []struct{ from, want int }{
+		{0, 2}, {1, 2}, {2, 2}, {3, 5}, {4, 5}, {5, 5}, {6, 8}, {7, 8}, {8, 8},
+	}
+	for _, c := range cases {
+		if got := doc.MoveEndOfBlock(c.from); got != c.want {
+			t.Fatalf("MoveEndOfBlock(%d) = %d, want %d", c.from, got, c.want)
+		}
+	}
+	empty := Layout("a\n\nb", 200, mono(8, 16))
+	if got := empty.MoveEndOfBlock(2); got != 2 {
+		t.Fatalf("on-separator MoveEndOfBlock(2) = %d, want 2", got)
+	}
+	if got := empty.MoveEndOfBlock(0); got != 1 {
+		t.Fatalf("first-block MoveEndOfBlock(0) = %d, want 1", got)
+	}
+}

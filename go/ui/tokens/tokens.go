@@ -339,6 +339,9 @@ const (
 	WheelNotchAngleDelta   = 120
 	TouchDragStartDistance = 10
 
+	MouseDoubleClickIntervalMs = 400
+	CursorFlashTimeMs          = 1000
+
 	TouchFingerAccuracy            = 3
 	TouchMaxScrollFlick            = 2500
 	TouchMaxScrollAccelerated      = 4000

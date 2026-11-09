@@ -156,6 +156,7 @@ type ChatPressed struct {
 	X     int
 	Y     int
 	Touch bool
+	Shift bool
 	Now   int
 }
 
@@ -478,6 +479,9 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		m.ChatBar = BarDrag{}
 		m.ChatTouch = TouchDrag{}
 		m.ChatPress = ChatPressState{Row: -1}
+		m.ChatCompose.MousePressed = false
+		m.ChatCompose.Grab = false
+		m.ChatCompose.LastClickSet = false
 		return m, nil
 	case ChatTick:
 		m.nowMs = msg.Now
@@ -487,6 +491,7 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		m.chatMentionsTick(msg.Now)
 		m.chatReactionsTick(msg.Now)
 		m.composePlaceholderTick(msg.Now)
+		m.composeBlinkTick(msg.Now)
 		return m, m.chatPreloadCmd()
 	case ChatComposeTyped:
 		m.composeTyped(msg)
@@ -502,6 +507,15 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		return m, nil
 	case ChatComposeSelectAll:
 		m.composeSelectAll()
+		return m, nil
+	case ChatComposePressed:
+		m.composePressed(msg)
+		return m, nil
+	case ChatComposeDragged:
+		m.composeDragged(msg)
+		return m, nil
+	case ChatComposeReleased:
+		m.composeReleased(msg)
 		return m, nil
 	case ChatBottomRequested:
 		return m, nil
@@ -985,6 +999,10 @@ func (m Model) ChatComposePlaceholderActive() bool {
 	return m.ChatCompose.PlaceholderAnim
 }
 
+func (m Model) ChatComposeBlinkActive() bool {
+	return m.ChatCompose.Focused
+}
+
 func (m Model) ChatReactionsActive() bool {
 	return m.ChatReactions.Anim
 }
@@ -1043,6 +1061,14 @@ func (m *Model) chatTouchScroll(dy int) bool {
 
 func (m *Model) pressChat(msg ChatPressed) Model {
 	m.nowMs = msg.Now
+	if m.composeFieldHitAt(msg.X, msg.Y) {
+		m.ChatBar = BarDrag{}
+		m.ChatTouch = TouchDrag{}
+		m.ChatPress = ChatPressState{Row: -1}
+		m.composePressed(ChatComposePressed{X: msg.X, Y: msg.Y, Shift: msg.Shift, Now: msg.Now})
+		return *m
+	}
+	m.ChatCompose.LastClickSet = false
 	if m.chatReactionsHitAt(msg.X, msg.Y) {
 		m.ChatBar = BarDrag{}
 		m.ChatTouch = TouchDrag{}
@@ -1149,6 +1175,10 @@ func (m *Model) finishChatPress(press ChatPressState, x, y int) {
 
 func (m *Model) dragChat(msg ChatDragged) Model {
 	m.nowMs = msg.Now
+	if m.ChatCompose.Grab {
+		m.composeDragged(ChatComposeDragged{X: msg.X, Y: msg.Y, Now: msg.Now})
+		return *m
+	}
 	if m.ChatBar.Dragging {
 		dy := msg.Y - m.ChatBar.LastY
 		m.ChatBar.LastY = msg.Y
@@ -1205,6 +1235,10 @@ func (m *Model) dragChat(msg ChatDragged) Model {
 }
 
 func (m *Model) releaseChat(msg ChatReleased) {
+	if m.ChatCompose.Grab {
+		m.composeReleased(ChatComposeReleased{X: msg.X, Y: msg.Y, Now: msg.Now})
+		return
+	}
 	m.ChatBar = BarDrag{}
 	if !m.ChatTouch.Active {
 		press := m.ChatPress

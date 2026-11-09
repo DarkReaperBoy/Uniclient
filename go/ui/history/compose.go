@@ -31,6 +31,7 @@ type ComposePaneView struct {
 	Scroll      int
 	Lines       []text.Line
 	Caret       Geometry
+	CaretOn     bool
 	Selection   []text.Span
 	Placeholder ComposePlaceholderView
 }

@@ -7,37 +7,103 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 402 — the compose front is wired end-to-end:
-  ChatComposeState (Elm msgs on the 401 engine, viewport bottom-pin,
-  placeholder 100ms fade, ComposePane projection) + the render
-  painter + the window leg + the word-ops for the mouse law
-- next: the field mouse gestures (the FULL law is mined in the
-  atomic-4 entry below — press FuzzyHit MoveAnchor / shift-extend,
-  double-click WordUnderCursor via MoveStartOfWord+MoveEndOfWord
-  with the stay/peek laws, triple-click whole-line-including-newline
-  via the doubleClickInterval timer, drag KeepAnchor extend, caret
-  blink flashTime/2) -> ChatComposePressed/DoubleClicked/Dragged/
-  Released msgs + Focused state riding them; then keyboard routing
-  (window key.Event -> the compose msgs, pure fn mapping like
-  WheelDelta; focus gates it); Enter=send + Up/Down history when
-  empty (customUpDown + history_widget); send-button type crossfade
-  120ms; real font metrics adapter when the gio shaper lands
+- front: session 403 — the compose field mouse gestures wired
+  end-to-end: press/shift-press/double/triple/drag/release laws +
+  Focused state + caret blink flashTime/2 (off while selected) + GoalX
+  riding every setPosition — mined from qwidgettextcontrol.cpp
+- next: keyboard routing — window key.Event -> the compose msgs (pure
+  fn mapping like WheelDelta; Focused gates it, blur clears it);
+  Enter=send + Up/Down history when empty (customUpDown +
+  history_widget); send-button type crossfade 120ms; real font metrics
+  adapter when the gio shaper lands; DnD press-inside-selection +
+  selection clipboard + drag autoscroll when their models arrive
 - owner-waiting: none
-- last-gate: quick GREEN (402 all four atomics); js/wasm compile
-  ui/... GREEN; comment ban clean; 419 tests (230 ui + 170 gui + 19
-  text) green locally; verifies 42542765446 (381a7f3e) and
-  42543314028 (913f6c68) SUCCESS job+step; 42544011545 (23b21e34)
-  in flight; 23277542's verify = 42544938478 (boot checks both at
-  job+step level); session 401 pruned to hold the line cap
+- last-gate: quick GREEN (403 atomic 1); js/wasm compile ui/... GREEN;
+  comment ban clean; 433 tests (230 ui + 182 gui + 21 text) green on
+  the non-gotd legs (gotd OOMs on this 4GiB box, §9 rung 7); boot
+  verifies 42544011545 (23b21e34) + 42544938478 (23277542) SUCCESS
+  job+step; this atomic's verify dispatched on push
 
 ## Open items
 
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
-| H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8 | re-add with the GUI build (owner order pending) |
+| H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8; owner re-asked android + web + a telegram-loadable page on 2026-11-09 (while the old repo was believed wiped — the from-scratch rebuild of that context died with the sandbox) | re-add with the GUI build (owner order pending) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
 | D-1 | ui/history corner button | down-button unread-count badge (22dp, centered x, top 0 — jump_down_button.cpp paintEvent + historyToDownBadge*) + hover/over colors + ripple deferred: no unread counter in the chat Item model yet, no hover/ripple machinery in the skin yet; replyReturn branch of downClick + loadedAtBottom==false state return with reply-return jumps / below-history pagination | jump_down_button.cpp 33-52, corner_buttons.cpp 139-145 | badge returns with read-state counts; over/ripple with the skin's hover+ripple pass |
 | D-2 | ui/history unread-things buttons | read-marking absent for mentions AND reactions: after a jump the button stays shown (reference hides it when the server marks the thing read — updateUnreadThingsVisibility is server-data-driven); mentionsClick's already-there voice/video media-read branch (5623) deferred — no media model; unread-count badges join D-1's class; poll-votes 4th stack slot returns with a poll model | history_view_corner_buttons.cpp 147-190, 288-345 | returns with engine unread-things events + the media pass |
+
+## Session 403 — the field mouse gestures: the app wiring (2026-11-09)
+
+- Boot: the sandbox recycled to zero again (second wipe today — the
+  402 checkout and .tools gone; nothing pushed was lost: repo
+  re-cloned from origin, Go 1.27.3 + module cache rebuilt). Boot
+  verifies first: 42544011545 (23b21e34) + 42544938478 (23277542)
+  both SUCCESS job+step (all 3 jobs, every step).
+- Law (qwidgettextcontrol.cpp, qt/qtbase dev, re-fetched raw — the
+  402 atomic-4 mined law confirmed and completed): PRESS = hitTest
+  FuzzyHit (= XToColumn nearest, line clamped) -> MoveAnchor;
+  setPosition with mode != KeepAnchor clears selectedWord/
+  selectedBlock (qtextcursor.cpp 546-548); Shift+press = blockwise/
+  wordwise extend if armed else KeepAnchor; press inside a selection
+  might start DnD (no DnD model — skipped, pinned). DOUBLE =
+  setCursorPosition then select(WordUnderCursor) iff the wrap line
+  has runes; the dblclick sets NO mousePressed; arms trippleClick-
+  Timer (400) + point. Window-platform synthesis pin (mine): second
+  press within MouseDoubleClickInterval 400 (QPlatformTheme default)
+  AND manhattan < startDragDistance 10 — QApplication's synthesis is
+  platform-level; 10 is the reference's own triple idiom. TRIPLE =
+  press while the timer lives within 10px manhattan, checked BEFORE
+  the hit test, on the CURRENT CURSOR's block: StartOfBlock +
+  EndOfBlock KA + NextCharacter KA = the block INCLUDING its '\n'
+  (NextCharacter fails at doc end); stores selectedBlock; stops the
+  timer. DRAG = blockwise if armed, wordwise if armed, else straight
+  KeepAnchor extend (mouseMoveEvent 1707-1719; wordSelectionEnabled
+  false — the ctor default, never enabled by the reference); NO
+  ensureCursorVisible on drag (autoscroll deferred, source
+  1721-1723). extendWordwise = inside-word restore, StartOfWord/
+  EndOfWord no-op bails (movePosition fails iff the position does
+  not move — qtextcursor.cpp 305-640), same-wrap-line guard, the
+  mouseX-in-[wordStartX,wordEndX] gate, the #39164 keep-the-word
+  anchor law, the nearest-end-by-X pick; extendBlockwise = inside
+  restore, down = EndOfBlock+NextCharacter, up = StartOfBlock.
+  RELEASE clears mousePressed only (clipboard paths deferred).
+  Blink = cursorFlashTime 1000 (QPlatformTheme default) / 2 = 500ms
+  toggle; while selected cursorOn &= SH_BlinkCursorWhenTextSelected
+  (QStyle default 0) — hides at the NEXT toggle, not instantly;
+  focus-in lights + restarts (setCursorVisible ->
+  updateCursorBlinking 691-714). setPosition always setX()
+  (qtextcursor.cpp 1563) -> every mouse op sets GoalX (the clicked
+  column becomes the vertical-move goal).
+- Go: ui/app/compose.go — ChatComposeState gains Focused/CursorOn/
+  NextBlinkAt/MousePressed/Grab/LastClick{Set,At,X,Y}/TrippleClick-
+  {Deadline,X,Y}/WordSel{Active,Anchor,Cursor}/BlockSel{...}; msgs
+  ChatComposePressed{X,Y,Shift,Now}/Dragged/Released; composePressed
+  (focus-transition-gated blink restart; triple/double/plain+shift
+  branches; the last-click chain), composeDragged, composeReleased,
+  composeBlinkTick, ChatComposeBlinkActive; composeFieldHitAt +
+  composeHitTest; composeExtendBlockwise/Wordwise. ui/text:
+  MoveStartOfBlock/MoveEndOfBlock (the '\n' boundary scans).
+  tokens: MouseDoubleClickIntervalMs 400 + CursorFlashTimeMs 1000
+  (Qt defaults; the distance gate reuses TouchDragStartDistance 10 —
+  one Qt constant, one token). Routing: pressChat hits the field
+  FIRST (mouse AND touch — a field touch never starts list
+  scrolling), non-field presses break the double-click chain
+  (QApplication's per-widget synthesis law); dragChat/releaseChat
+  route on Grab; ChatPressCanceled clears Grab + MousePressed + the
+  chain. ChatPressed gains Shift (window: e.Modifiers&key.ModShift).
+  Projection: ComposePaneView.CaretOn; the painter gates the caret
+  fill; the window tick + invalidate join ChatComposeBlinkActive.
+- RED -> GREEN after 6 test-side slips of mine (an out-of-contract
+  drag msg, the 400/500/600 sequence was double/triple/double,
+  800->900 was itself a double, the list-press placement between the
+  pair, a double-toggle blink check, the instant-hide assumption) —
+  the engine was right every time; each fix re-traced against the
+  source before touching the test.
+- 14 new tests (12 gui + 2 text), 433 total = 230 ui + 182 gui + 21
+  text. quick GREEN; js/wasm compile ui/... GREEN; comment ban
+  clean; gotd legs OOM on this 4GiB box (§9 rung 7 — CI verify is
+  the gate).
 
 ## Session 402 atomic 4 — the word-ops for the mouse law + the mined gesture law (2026-11-09)
 

@@ -67,7 +67,7 @@ func Run() error {
 				lastW, lastH = dpW, dpH
 				handle(app.Resized{Width: dpW, Height: dpH})
 			}
-			if appModel.KineticActive() || appModel.ChatDateActive() || appModel.ChatDownActive() || appModel.ChatMentionsActive() || appModel.ChatReactionsActive() || appModel.DialogsToUpActive() {
+			if appModel.KineticActive() || appModel.ChatDateActive() || appModel.ChatDownActive() || appModel.ChatMentionsActive() || appModel.ChatReactionsActive() || appModel.DialogsToUpActive() || appModel.ChatComposeBlinkActive() {
 				handle(app.DialogsTick{Now: int(time.Now().UnixMilli())})
 				handle(app.ChatTick{Now: int(time.Now().UnixMilli())})
 			}
@@ -93,7 +93,7 @@ func Run() error {
 				w.Perform(system.ActionClose)
 			}
 			e.Frame(gtx.Ops)
-			if appModel.KineticActive() || appModel.ChatDateActive() || appModel.ChatDownActive() || appModel.ChatMentionsActive() || appModel.ChatReactionsActive() || appModel.DialogsToUpActive() {
+			if appModel.KineticActive() || appModel.ChatDateActive() || appModel.ChatDownActive() || appModel.ChatMentionsActive() || appModel.ChatReactionsActive() || appModel.DialogsToUpActive() || appModel.ChatComposeBlinkActive() {
 				w.Invalidate()
 			}
 		}
@@ -197,9 +197,10 @@ func routeChatInput(gtx layout.Context, tag *chatrender.InputArea, metric unit.M
 				gtx.Execute(pointer.GrabCmd{Tag: tag, ID: e.PointerID})
 				*chatPrimary = true
 				handle(app.ChatPressed{
-					X:   pxToDp(metric, e.Position.X) - dialogsDp,
-					Y:   pxToDp(metric, e.Position.Y),
-					Now: int(time.Now().UnixMilli()),
+					X:     pxToDp(metric, e.Position.X) - dialogsDp,
+					Y:     pxToDp(metric, e.Position.Y),
+					Shift: e.Modifiers&key.ModShift != 0,
+					Now:   int(time.Now().UnixMilli()),
 				})
 			}
 		case pointer.Move, pointer.Drag:
