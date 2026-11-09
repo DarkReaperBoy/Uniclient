@@ -125,6 +125,52 @@ func (d *Document) XToColumn(lineIdx, x int) int {
 	return best
 }
 
+func (d *Document) MoveStartOfWord(offset int) int {
+	t, n := d.Text, len(d.Text)
+	p := d.clampOffset(offset)
+	if p == 0 {
+		return 0
+	}
+	blockEnd := p == n || t[p] == '\n'
+	if blockEnd && (t[p-1] == ' ' || t[p-1] == '\n' || isWordSeparator(t[p-1])) {
+		return p
+	}
+	if !blockEnd {
+		p++
+	}
+	for p > 0 && (t[p-1] == ' ' || t[p-1] == '\n') {
+		p--
+	}
+	if p > 0 && isWordSeparator(t[p-1]) {
+		for p > 0 && isWordSeparator(t[p-1]) && t[p-1] != '\n' {
+			p--
+		}
+	} else {
+		for p > 0 && t[p-1] != ' ' && t[p-1] != '\n' && !isWordSeparator(t[p-1]) {
+			p--
+		}
+	}
+	return p
+}
+
+func (d *Document) MoveEndOfWord(offset int) int {
+	t, n := d.Text, len(d.Text)
+	p := d.clampOffset(offset)
+	if p >= n || t[p] == '\n' {
+		return p
+	}
+	if isWordSeparator(t[p]) {
+		for p < n && isWordSeparator(t[p]) && t[p] != '\n' {
+			p++
+		}
+	} else {
+		for p < n && t[p] != ' ' && t[p] != '\n' && !isWordSeparator(t[p]) {
+			p++
+		}
+	}
+	return p
+}
+
 func (d *Document) MoveVertical(offset int, goalX int, hasGoalX bool, up bool) (int, int) {
 	if !hasGoalX {
 		goalX = d.CursorAt(offset).X

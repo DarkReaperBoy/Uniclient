@@ -510,3 +510,67 @@ func TestNilMetricsAdvanceIsZeroWidth(t *testing.T) {
 		t.Fatalf("nil-advance insert = (%q,%d)", text, cursor)
 	}
 }
+
+func TestMoveStartOfWord(t *testing.T) {
+	doc := Layout("foo bar", 200, mono(8, 16))
+	cases := []struct{ from, want int }{
+		{0, 0}, {2, 0}, {3, 0}, {4, 4}, {5, 4}, {7, 4},
+	}
+	for _, c := range cases {
+		if got := doc.MoveStartOfWord(c.from); got != c.want {
+			t.Fatalf("MoveStartOfWord(%d) = %d, want %d", c.from, got, c.want)
+		}
+	}
+	sep := Layout("foo, bar", 200, mono(8, 16))
+	sepCases := []struct{ from, want int }{
+		{3, 3}, {4, 3}, {5, 5}, {8, 5},
+	}
+	for _, c := range sepCases {
+		if got := sep.MoveStartOfWord(c.from); got != c.want {
+			t.Fatalf("sep MoveStartOfWord(%d) = %d, want %d", c.from, got, c.want)
+		}
+	}
+	multi := Layout("aa\nbb", 200, mono(8, 16))
+	multiCases := []struct{ from, want int }{
+		{2, 0}, {3, 3}, {5, 3},
+	}
+	for _, c := range multiCases {
+		if got := multi.MoveStartOfWord(c.from); got != c.want {
+			t.Fatalf("multi MoveStartOfWord(%d) = %d, want %d", c.from, got, c.want)
+		}
+	}
+	trail := Layout("foo ", 200, mono(8, 16))
+	if got := trail.MoveStartOfWord(4); got != 4 {
+		t.Fatalf("trailing-space MoveStartOfWord(4) = %d, want 4 (at word start, no move)", got)
+	}
+}
+
+func TestMoveEndOfWord(t *testing.T) {
+	doc := Layout("foo bar", 200, mono(8, 16))
+	cases := []struct{ from, want int }{
+		{0, 3}, {2, 3}, {3, 3}, {4, 7}, {6, 7}, {7, 7},
+	}
+	for _, c := range cases {
+		if got := doc.MoveEndOfWord(c.from); got != c.want {
+			t.Fatalf("MoveEndOfWord(%d) = %d, want %d", c.from, got, c.want)
+		}
+	}
+	sep := Layout("foo,bar", 200, mono(8, 16))
+	sepCases := []struct{ from, want int }{
+		{2, 3}, {3, 4}, {4, 7},
+	}
+	for _, c := range sepCases {
+		if got := sep.MoveEndOfWord(c.from); got != c.want {
+			t.Fatalf("sep MoveEndOfWord(%d) = %d, want %d", c.from, got, c.want)
+		}
+	}
+	multi := Layout("aa\nbb", 200, mono(8, 16))
+	multiCases := []struct{ from, want int }{
+		{0, 2}, {2, 2}, {3, 5}, {5, 5},
+	}
+	for _, c := range multiCases {
+		if got := multi.MoveEndOfWord(c.from); got != c.want {
+			t.Fatalf("multi MoveEndOfWord(%d) = %d, want %d", c.from, got, c.want)
+		}
+	}
+}

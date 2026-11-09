@@ -7,22 +7,27 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 402 — the compose Elm wiring landed (ChatComposeState
-  riding Resized + key/insert/cursor/scroll msgs on the 401 text
-  engine; the viewport bottom-pin law; CanSend=false = hidden bar)
-- next: the compose bar render painter (gio leg rides CI) — field
-  bg/caret/placeholder (100ms fade riding ChatTick) + the 400 glyph
-  trio onto ComposeGeometry; then field mouse gestures (click
-  position, double-click word, drag select — input_field mouse law);
-  Enter=send + Up/Down history when empty (customUpDown +
-  history_widget); send-button type crossfade 120ms; real font
-  metrics adapter when the gio shaper lands
+- front: session 402 — the compose front is wired end-to-end:
+  ChatComposeState (Elm msgs on the 401 engine, viewport bottom-pin,
+  placeholder 100ms fade, ComposePane projection) + the render
+  painter + the window leg + the word-ops for the mouse law
+- next: the field mouse gestures (the FULL law is mined in the
+  atomic-4 entry below — press FuzzyHit MoveAnchor / shift-extend,
+  double-click WordUnderCursor via MoveStartOfWord+MoveEndOfWord
+  with the stay/peek laws, triple-click whole-line-including-newline
+  via the doubleClickInterval timer, drag KeepAnchor extend, caret
+  blink flashTime/2) -> ChatComposePressed/DoubleClicked/Dragged/
+  Released msgs + Focused state riding them; then keyboard routing
+  (window key.Event -> the compose msgs, pure fn mapping like
+  WheelDelta; focus gates it); Enter=send + Up/Down history when
+  empty (customUpDown + history_widget); send-button type crossfade
+  120ms; real font metrics adapter when the gio shaper lands
 - owner-waiting: none
-- last-gate: quick GREEN (402 all three atomics); js/wasm compile
-  ui/... GREEN; comment ban clean; 417 tests (230 ui + 170 gui + 17
-  text) green locally; verify 42542765446 (381a7f3e) SUCCESS
-  job+step; 42543314028 (913f6c68) in flight; painter's verify
-  dispatched on push
+- last-gate: quick GREEN (402 all four atomics); js/wasm compile
+  ui/... GREEN; comment ban clean; 419 tests (230 ui + 170 gui + 19
+  text) green locally; verifies 42542765446 (381a7f3e) and
+  42543314028 (913f6c68) SUCCESS job+step; 42544011545 (23b21e34)
+  in flight; this atomic's verify dispatched on push
 
 ## Open items
 
@@ -32,6 +37,39 @@ owner order — that history lives in git if ever needed.
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
 | D-1 | ui/history corner button | down-button unread-count badge (22dp, centered x, top 0 — jump_down_button.cpp paintEvent + historyToDownBadge*) + hover/over colors + ripple deferred: no unread counter in the chat Item model yet, no hover/ripple machinery in the skin yet; replyReturn branch of downClick + loadedAtBottom==false state return with reply-return jumps / below-history pagination | jump_down_button.cpp 33-52, corner_buttons.cpp 139-145 | badge returns with read-state counts; over/ripple with the skin's hover+ripple pass |
 | D-2 | ui/history unread-things buttons | read-marking absent for mentions AND reactions: after a jump the button stays shown (reference hides it when the server marks the thing read — updateUnreadThingsVisibility is server-data-driven); mentionsClick's already-there voice/video media-read branch (5623) deferred — no media model; unread-count badges join D-1's class; poll-votes 4th stack slot returns with a poll model | history_view_corner_buttons.cpp 147-190, 288-345 | returns with engine unread-things events + the media pass |
+
+## Session 402 atomic 4 — the word-ops for the mouse law + the mined gesture law (2026-11-09)
+
+- Law (Qt qwidgettextcontrol.cpp + qtextcursor.cpp, fetched from
+  qt/qtbase dev — the input_field itself has no mouse overrides):
+  PRESS = hitTest FuzzyHit (= 401 XToColumn nearest) -> MoveAnchor
+  (cursor set, selection cleared); Shift+press = KeepAnchor extend;
+  press inside a selection may start a DnD drag (no DnD model —
+  skip). DOUBLE-CLICK = setCursorPosition then select(WordUnderCursor)
+  iff the line has text; WordUnderCursor = StartOfWord (MoveAnchor:
+  block-end + space/sep before = stay; else peek +1 then a PreviousWord
+  walk) + EndOfWord (KeepAnchor: classify the rune AT the position —
+  separator run or word run; fails at doc end or '\n' -> empty
+  selection; clicking ON a space selects the PRECEDING word) ;
+  trippleClickTimer = doubleClickInterval; selectedWord stored.
+  TRIPLE-CLICK (within startDragDistance of the stored point while
+  the timer lives) = StartOfBlock + EndOfBlock KeepAnchor +
+  NextCharacter KeepAnchor = the whole line INCLUDING its '\n'.
+  DRAG (move with left held) = hitTest -> KeepAnchor extend (word-
+  wise/block-wise extension only after a double/triple click — the
+  plain drag is a straight anchor extension; autoscroll deferred).
+  RELEASE = clears mousePressed (selection settles; clipboard
+  selection deferred). Caret blink = styleHints cursorFlashTime/2,
+  pauses while a selection exists unless the style hints say
+  otherwise.
+- Go: ui/text MoveStartOfWord / MoveEndOfWord (the two engine ops
+  the app wiring needs next session — flat-model mapping: '\n' is a
+  block boundary rune; Qt's block-relative len-1 = our doc end or
+  the '\n' position). RED -> GREEN clean. 2 new tests, 419 total =
+  230 ui + 170 gui + 19 text. quick GREEN; js/wasm ui/... GREEN;
+  comment ban clean. Verifies: 42543314028 (913f6c68) SUCCESS
+  job+step; 42544011545 (23b21e34) in flight; this atomic's verify
+  dispatched on push.
 
 ## Session 402 atomic 3 — the compose bar render painter (2026-11-09)
 
