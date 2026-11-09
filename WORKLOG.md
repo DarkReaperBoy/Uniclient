@@ -27,7 +27,8 @@ owner order — that history lives in git if ever needed.
   ui/... GREEN; comment ban clean; 419 tests (230 ui + 170 gui + 19
   text) green locally; verifies 42542765446 (381a7f3e) and
   42543314028 (913f6c68) SUCCESS job+step; 42544011545 (23b21e34)
-  in flight; this atomic's verify dispatched on push
+  in flight; 23277542's verify dispatched (run id lands next entry;
+  session 401 pruned to hold the line cap)
 
 ## Open items
 
@@ -175,122 +176,6 @@ owner order — that history lives in git if ever needed.
   ban clean. Verify <PENDING>.
 
 
-## Session 401 — the field text-engine core: metrics, wrap, cursor, placeholder (2026-11-09)
-
-- Boot: sandbox recycled to zero — repo re-cloned at ff787639, Go
-  1.27.1 + module cache rebuilt, ayu-ref re-fetched (AyuGramDesktop
-  dev, sparse: SourceFiles/{history,ui,chat_helpers,data} + lib_ui
-  @e3d05822 + lib_base @de35c7ab). No owed verify (400 closed by
-  42517439919).
-- Law: chat_helpers.style 1281-1300 historyComposeField (textMargins
-  0,0,0,0 overriding defaultInputField's (0,28,0,4) at widgets.style
-  1037; placeholderMargins 2,0,2,0; placeholderShift −50;
-  placeholderScale 0 → static branch; placeholderFont normalFont;
-  duration 100) + basic.style 84-91 defaultTextStyle lineHeight 0.
-  input_field.cpp: documentMargin zeroed (1965); contentHeight =
-  ceil(doc height) + v-margins, clamped (2821-2842 — feeds 398's
-  ComposeFieldHeight); root-frame right margin = cursorWidth+1 = 2
-  caret reserve so the caret never clips after the longest line
-  (updateRootFrameFormat); BlockLineHeight = lh>0 ? max(lh,fontH) :
-  fontH (1148-1152); QTextEditLineAscent = clamp(fixed·4/5 −
-  max(fleading,0), 0, fixed) (1154-1163). Placeholder: shown iff
-  textLen==0 (startPlaceholderAnimation; history_widget never
-  force-hides), right-elided to fieldW−margins (style::font::elided
-  = QFontMetrics::elidedText), x = margins.l +
-  interpolate(0,−shift,hiddenDeg), baseline = margins.top + ascent,
-  opacity 1−deg, 100ms; interpolate = SafeRound = std::round
-  half-away (animation_value.h 106-108, lib_base algorithm.cpp 15).
-  Wrap = QTextEdit default WrapAtWordBoundaryOrAnywhere
-  (qtextedit.cpp): word boundary preferred, mid-word only when the
-  word alone exceeds the full width, ≥1 rune per line, spaces glue
-  to their line. Cursor line law = Qt lineNumberForTextPosition
-  (qtextengine.cpp 3758-3770): first line with from+len+
-  trailingSpaces > pos, end-of-text → last line — the boundary
-  position after a soft-wrap's trailing space belongs to the NEXT
-  line; hard '\n' positions stay on the previous line's end.
-- Go: ui/text (Metrics{Height,Leading,Advance}, LineHeight,
-  LineAscent, Elide, Layout→Document/Line{Start,Runes,Width},
-  CursorAt{Line,Column,X}, Height) + ui/history/compose_field.go
-  (WrapWidth −ComposeCaretReserve, Document, ContentHeight,
-  placeholder Shown/MaxWidth/Text/X/Baseline/Opacity) + 11 tokens.
-  RED (pkg missing) → GREEN; 3 of my own spec bugs caught before
-  green (elide dropped the ellipsis; mid-word lineStart accumulator;
-  final chunk force-emitted — must stay open for following words) +
-  1 test-side off-by-one (offset after trailing space — Qt source
-  proved the ENGINE right, test fixed).
-- Atomic 2 (95ef00d9 + this): the selection + caret-rect law.
-  Qt source: getSelectionBounds (qtextengine.cpp 4135-4160) +
-  addSelectedRegionsToPath (qtextlayout.cpp 944-981) — selection
-  rects span each line's [from, from+length) with lineEnd EXCLUDING
-  trailingSpaces: soft-wrapped lines strip their trailing spaces
-  from the highlight, hard-'\n' and last lines keep them; caret
-  rect = (cursorX, line·lineH, cursorWidth 1, lineH) — lineH from
-  the FixedHeight block format (PrepareBlockFormat setLineHeight).
-  Go: ui/text Selection{Anchor,Position}/Range/Empty +
-  Document.SelectionSpans→[]Span{Line,From,To} (soft/hard/last-line
-  trailing law) + history ComposeCursorRect + token
-  ComposeCursorWidth 1. RED → GREEN clean.
-- Atomic 3 (this): the field scroll law. Qt source:
-  QWidgetTextControl::ensureCursorVisible (qwidgettextcontrol.cpp
-  3286-3292) = rectForPosition(cursor).adjusted(−5,0,+5,0) →
-  visibilityRequest → QTextEditPrivate::ensureVisible (qtextedit.cpp
-  332-363): if rect.y < vOffset → vOffset = rect.y; elif rect.y +
-  rect.h > vOffset + viewH → vOffset = rect.y + rect.h − viewH;
-  clamped to [0, docH − viewH] — minimal reveal, never centers; the
-  −5/+5 pad is horizontal-only (compose never hscrolls, word wrap
-  on). Go: ComposeFieldScrollOffset(current, content, view,
-  cursorY, cursorH). RED → GREEN clean, 1 test.
-- Atomic 5 (this): the editing op set. Qt law: insertText
-  (qtextcursor.cpp 1385+) — selection deleted and replaced,
-  cursor lands AFTER the inserted text; backspace/delete via
-  removeSelectedText when a selection exists, else remove the
-  char before/after; word variants remove [MoveWordLeft(p), p)
-  / [p, MoveWordRight(p)); '\n' inserts are block separators
-  (flat: the rune itself); no-ops at doc edges. Go: ui/text
-  InsertAt/DeleteBackward/DeleteForward/DeleteWordBackward/
-  DeleteWordForward → (newText, newCursor), clamp+range helpers
-  shared. RED → GREEN after 1 test-side selection-slip of mine
-  ([4,9) = "two.t" not the whole tail — engine right). Qt source:
-  QTextCursorPrivate::movePosition (qtextcursor.cpp 305-640) —
-  Left/Right = ∓1 with selection collapse to min/max (MoveAnchor);
-  StartOfLine = line start; EndOfLine = Start + visible length,
-  trailing spaces excluded on soft wraps, kept on hard/last lines;
-  Start/End = 0 / doc end. Word hops = QTextLayout::
-  next/previousCursorPosition SkipWords (qtextlayout.cpp 652-716) +
-  QTextDocumentPrivate block crossing (qtextdocument_p.cpp
-  1341-1366): three rune classes — whitespace, separator set
-  (atWordSeparator qtextengine.cpp 3053-3089: .,?!@#$:;-<>[]()={}
-  /+%&^*'\"`~|\ — underscore is a WORD char), word; NextWord =
-  skip class run + spaces, stops at the '\n' position (a second
-  hop crosses); entry at '\n' crosses +1; PrevWord = skip spaces
-  back + class run back; entry at line start returns the previous
-  line's end. Up/Down = line ∓1 with goal-x (verticalMovementX):
-  setX() = current cursor x after horizontal moves, persists
-  across vertical hops (setVerticalMovementX doc + movePosition
-  tail `if (adjustX) setX()`); landing x = QTextLine::xToCursor
-  (qtextlayout.cpp 3107-3260) = NEAREST boundary, ties to the
-  earlier column, x≤0 → col 0; no move at doc top/bottom (op
-  fails, goal still set). Go: ui/text/movement.go MoveLeft/
-  MoveRight/Start/End/StartOfLine/EndOfLine/WordLeft/WordRight/
-  XToColumn/MoveVertical + lineOf/visibleEnd refactor shared with
-  CursorAt/SelectionSpans. RED → GREEN after 1 of my own
-  test-arithmetic errors (deep-up goal: offset 7 = col 2 x16,
-  not col 3 — engine was right).
-- 26 new tests this session (14+3+1+5+3), 398 total = 229 ui +
-  153 gui + 16 text. quick GREEN all commits; js/wasm compile
-  ui/... GREEN; comment ban clean. Verifies: 42524452324 /
-  42524984339 / 42525180686 all SUCCESS job+step; 42526186953
-  in flight. WORKLOG pruned (sessions ≤383 cut; 346→~300 lines).
-
-## Session 400 — the compose-bar glyph trio (2026-11-09)
-
-- ac0521d6. Attach/send/smile PNG-traced per the 386
-  chat-family law; padded-canvas Cell law (real canvas +
-  rounded bbox origin, containment test); IconButton
-  centered canvas (2,3) / send at pinned (10,11); IoU
-  0.876/0.854/0.839 (thin strokes). 3 tests, 372 total.
-  Verify 42517439919 SUCCESS job+step. Detail: git
-  ac0521d6 + this file's history.
 ## Session 393 — the floating scroll-date (2026-11-08)
 
 - ScrollDateAnchor + List.ScrollDateAt (stick/pack-bottom-clamp/inPlace per
