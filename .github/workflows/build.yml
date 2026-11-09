@@ -285,7 +285,7 @@ jobs:
                   telegramBridge();
                   var go = new Go();
                   var built = await WebAssembly.instantiate(bytes, go.importObject);
-                  setStatus("Running — Uniclient engine host", null,
+                  setStatus("Running — Uniclient", null,
                     "v" + VER.slice(0, 7) + "  ·  " + fmtMB(bytes.length) + "  ·  " + state);
                   await go.run(built.instance);
                   throw new Error("Uniclient exited");
