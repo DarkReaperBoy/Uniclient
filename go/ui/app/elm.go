@@ -309,6 +309,7 @@ type Model struct {
 	ChatDown          ChatDownState
 	ChatMentions      ChatMentionsState
 	ChatReactions     ChatReactionsState
+	ChatCompose       ChatComposeState
 	nowMs             int
 	ChatTouch         TouchDrag
 	ChatBar           BarDrag
@@ -337,9 +338,15 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		m.DialogsScroll.Height = msg.Height
 		m.DialogsScroll.Top = m.clampDialogsScroll(m.DialogsScroll.Top)
 		m.dialogsToUpCheck()
-		m.ChatScroll.Height = msg.Height
 		oldTop := m.ChatScroll.Top
-		m.ChatScroll.Top = m.Chat.ClampOffset(m.ChatScroll.Top, m.ChatScroll)
+		oldViewport := history.Viewport{Top: m.ChatScroll.Top, Height: m.ChatScroll.Height}
+		wasAtBottom := m.ChatScroll.Top >= m.Chat.MaxOffset(oldViewport)
+		m.ChatScroll.Height = m.composeViewportHeight()
+		if wasAtBottom {
+			m.ChatScroll.Top = m.Chat.MaxOffset(m.ChatScroll)
+		} else {
+			m.ChatScroll.Top = m.Chat.ClampOffset(m.ChatScroll.Top, m.ChatScroll)
+		}
 		m.ChatDirty = true
 		m.chatViewportChanged(oldTop)
 		cmd := m.loadMoreCmd()
@@ -480,6 +487,21 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		m.chatMentionsTick(msg.Now)
 		m.chatReactionsTick(msg.Now)
 		return m, m.chatPreloadCmd()
+	case ChatComposeTyped:
+		m.composeTyped(msg)
+		return m, nil
+	case ChatComposeBackspace:
+		m.composeBackspace(msg)
+		return m, nil
+	case ChatComposeDelete:
+		m.composeDelete(msg)
+		return m, nil
+	case ChatComposeCursorKey:
+		m.composeCursorKey(msg)
+		return m, nil
+	case ChatComposeSelectAll:
+		m.composeSelectAll()
+		return m, nil
 	case ChatBottomRequested:
 		return m, nil
 	case ChatPreloadTopRequested:

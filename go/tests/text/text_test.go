@@ -493,3 +493,20 @@ func TestDeleteWords(t *testing.T) {
 		t.Fatalf("DeleteWordForward(end) = (%q,%d)", text, cursor)
 	}
 }
+
+func TestNilMetricsAdvanceIsZeroWidth(t *testing.T) {
+	doc := Layout("hi there", 100, Metrics{})
+	if len(doc.Lines) != 1 || doc.Lines[0].Width != 0 {
+		t.Fatalf("nil-advance layout = %d lines, width %d, want 1/0", len(doc.Lines), doc.Lines[0].Width)
+	}
+	if h := doc.Height(5); h != 5 {
+		t.Fatalf("nil-advance height = %d, want 5", h)
+	}
+	c := doc.CursorAt(2)
+	if c.Line != 0 || c.Column != 2 || c.X != 0 {
+		t.Fatalf("nil-advance cursor = %+v, want col 2 x 0", c)
+	}
+	if text, cursor := doc.InsertAt(2, 2, "x"); text != "hix there" || cursor != 3 {
+		t.Fatalf("nil-advance insert = (%q,%d)", text, cursor)
+	}
+}

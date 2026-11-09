@@ -140,3 +140,26 @@ func TestComposeScrollHeight(t *testing.T) {
 		}
 	}
 }
+
+func TestComposeFieldWidth(t *testing.T) {
+	cases := []struct {
+		pane   int
+		button history.ComposeButtons
+		want   int
+	}{
+		{400, history.ComposeButtons{Attach: true, Emoji: true}, 266},
+		{400, history.ComposeButtons{Attach: true, Emoji: false}, 310},
+		{400, history.ComposeButtons{Attach: false, Emoji: true}, 310},
+		{400, history.ComposeButtons{Attach: false, Emoji: false}, 354},
+		{60, history.ComposeButtons{Attach: true, Emoji: true}, -74},
+	}
+	for _, c := range cases {
+		if got := history.ComposeFieldWidth(c.pane, c.button); got != c.want {
+			t.Fatalf("ComposeFieldWidth(%d, %+v) = %d, want %d", c.pane, c.button, got, c.want)
+		}
+	}
+	geo := history.ComposeBarGeometry(400, 600, 36, history.ComposeButtons{Attach: true, Emoji: true})
+	if geo.Field.Width != history.ComposeFieldWidth(400, history.ComposeButtons{Attach: true, Emoji: true}) {
+		t.Fatalf("bar geometry field width %d disagrees with ComposeFieldWidth", geo.Field.Width)
+	}
+}

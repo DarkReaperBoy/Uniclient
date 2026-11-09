@@ -6,10 +6,17 @@ type Metrics struct {
 	Advance func(rune) int
 }
 
+func (m Metrics) advance(r rune) int {
+	if m.Advance == nil {
+		return 0
+	}
+	return m.Advance(r)
+}
+
 func (m Metrics) width(runes []rune) int {
 	w := 0
 	for _, r := range runes {
-		w += m.Advance(r)
+		w += m.advance(r)
 	}
 	return w
 }

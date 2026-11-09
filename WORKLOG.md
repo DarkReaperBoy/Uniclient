@@ -7,23 +7,21 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 401 — the field text-engine core landed (metrics,
-  wrap, cursor, placeholder, selection spans, caret rect, scroll,
-  the full movement + editing law set)
-- next: the Elm wiring — ChatComposeState in ui/app/elm.go riding
-  Resized + field msgs (key/insert/cursor/scroll on the engine:
-  it can type, wrap, select, move, edit, scroll), then the compose
-  bar render painter (gio leg rides CI); schedule/save/cancel
-  glyphs when their types get painted; real font metrics adapter
-  when the gio shaper lands; Enter=send + Up/Down history when
-  empty (input_field customUpDown + history_widget)
+- front: session 402 — the compose Elm wiring landed (ChatComposeState
+  riding Resized + key/insert/cursor/scroll msgs on the 401 text
+  engine; the viewport bottom-pin law; CanSend=false = hidden bar)
+- next: the compose bar render painter (gio leg rides CI) — field
+  bg/caret/placeholder (100ms fade riding ChatTick) + the 400 glyph
+  trio onto ComposeGeometry; then field mouse gestures (click
+  position, double-click word, drag select — input_field mouse law);
+  Enter=send + Up/Down history when empty (customUpDown +
+  history_widget); send-button type crossfade 120ms; real font
+  metrics adapter when the gio shaper lands
 - owner-waiting: none
-- last-gate: quick GREEN (401 scope, five atomics); js/wasm
-  compile ui/... GREEN; comment ban clean; 398 tests (229 ui +
-  153 gui + 16 text) green locally; verifies 42524452324 /
-  42524984339 / 42525180686 / 42526186953 / 42526363086 ALL
-  SUCCESS job+step (95ef00d9, 33c91877, b9766fe5, d800e782,
-  1de438ac)
+- last-gate: quick GREEN (402 scope); js/wasm compile ui/... GREEN;
+  comment ban clean; 410 tests (230 ui + 163 gui + 17 text) green
+  locally; verify for this commit dispatched, id lands in the next
+  entry
 
 ## Open items
 
@@ -33,6 +31,54 @@ owner order — that history lives in git if ever needed.
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
 | D-1 | ui/history corner button | down-button unread-count badge (22dp, centered x, top 0 — jump_down_button.cpp paintEvent + historyToDownBadge*) + hover/over colors + ripple deferred: no unread counter in the chat Item model yet, no hover/ripple machinery in the skin yet; replyReturn branch of downClick + loadedAtBottom==false state return with reply-return jumps / below-history pagination | jump_down_button.cpp 33-52, corner_buttons.cpp 139-145 | badge returns with read-state counts; over/ripple with the skin's hover+ripple pass |
 | D-2 | ui/history unread-things buttons | read-marking absent for mentions AND reactions: after a jump the button stays shown (reference hides it when the server marks the thing read — updateUnreadThingsVisibility is server-data-driven); mentionsClick's already-there voice/video media-read branch (5623) deferred — no media model; unread-count badges join D-1's class; poll-votes 4th stack slot returns with a poll model | history_view_corner_buttons.cpp 147-190, 288-345 | returns with engine unread-things events + the media pass |
+
+## Session 402 — the compose Elm wiring: ChatComposeState (2026-11-09)
+
+- Boot: sandbox recycled to zero again — repo re-cloned at b6cfb704,
+  Go 1.27.1 + module cache rebuilt, ayu-ref re-fetched (the sparse
+  patterns targeted SourceFiles/ at the repo root but this tree nests
+  under Telegram/ — disabled sparse, checked out, inited lib_ui
+  e3d05822 + lib_base de35c7ab). No owed verify (401 closed by
+  42526363086 SUCCESS job+step).
+- Law: history_widget updateControlsGeometry -> updateFieldSize ->
+  moveFieldControls chain (resize re-wraps, field width law = 398);
+  fieldResized chain: _field->heightChanges -> moveFieldControls +
+  updateHistoryGeometry — typing resizes the bar AND the scroll area;
+  updateHistoryGeometry 8652-8700: scrollH = paneH - (fieldHeight +
+  2*sendPadding) when canSend/editing, else the list keeps the pane;
+  bottom-pin law: wasAtBottom = Top >= scrollTopMax -> newScrollTop =
+  countAutomaticScrollTop = ScrollMax (bottom; 8533-8551 — no unread
+  model yet), else keep Top clamped. input_field keyPressEventInner
+  4482: nav keys fall to QTextEdit default = the 401 engine ops;
+  ensureCursorVisible after every non-modifier key; Enter ->
+  _submits.fire (later slice); customUpDown: Up/Down/PageUp/PageDown
+  ignored by the field (history_widget intercepts when empty — later
+  slice). Qt movePosition MoveAnchor: Right with a selection collapses
+  to max WITHOUT stepping (Left to min) — pinned.
+- Go: ui/app/compose.go — ChatComposeState{CanSend, Text, Cursor,
+  Anchor, Scroll, GoalX, HasGoalX, Metrics} on the Model; msgs
+  ChatComposeTyped / Backspace{Word} / Delete{Word} / CursorKey{Dir,
+  Select} (10 dirs: left/right/up/down/home/end/doc-home/doc-end/
+  word-left/right) / SelectAll; edits = engine InsertAt/Delete* with
+  selection replacement; cursor keys = engine moves with goal-x law
+  (horizontal+doc moves set the goal, vertical hops consume+persist,
+  edits clear it — my call, avoids stale-goal jumps); ensureCursorVisible
+  (ComposeFieldScrollOffset minimal reveal) rides every cursor change;
+  composeViewportSync (wasAtBottom bottom-pin) wired into Resized +
+  every compose msg; ComposeFieldHeight / ComposeGeometry projections.
+  CanSend=false = the bar is hidden: msgs no-op, viewport keeps the
+  pane (AGENTS §1.9 — capabilities arrive with the engine wiring; the
+  field never fakes). history.ComposeFieldWidth extracted (the bar
+  geometry refactored onto it — one law). ui/text nil-Advance guard
+  (advance() = zero-width) — a zero Metrics can never panic.
+- RED -> GREEN after 6 of MY OWN test-side slips (selection indices
+  twice, word-delete space arithmetic, the MoveAnchor no-step law,
+  mid-cursor insert scroll expectation, at-bottom max 454 not 546) —
+  the engine was right every time; pins now match the reference.
+- 12 new tests (10 gui + 1 text + 1 ui), 410 total = 230 ui + 163 gui
+  + 17 text. quick gate GREEN; js/wasm compile ui/... GREEN; comment
+  ban clean. Verify <PENDING>.
+
 
 ## Session 401 — the field text-engine core: metrics, wrap, cursor, placeholder (2026-11-09)
 
@@ -150,129 +196,6 @@ owner order — that history lives in git if ever needed.
   0.876/0.854/0.839 (thin strokes). 3 tests, 372 total.
   Verify 42517439919 SUCCESS job+step. Detail: git
   ac0521d6 + this file's history.
-## Session 399 — the send-button type machine + shape laws (2026-11-09)
-
-- Law: ui/controls/send_button.cpp — type set Send/Schedule/Slowmode/
-  Save/Cancel/Record/Round/Stop/EditPrice; updateSize 676-683 (width
-  44 — stars widening deferred, height 46, EditPrice (0,46)); ripple
-  (2,3,40) every type — same cell as the attach ripple; paintStop
-  296-308 (14x14 r3 centered, int-div); paintSlowmode 331-338 (text
-  m:ss — minutes = s/60, s%60 padded 2, 0 -> empty, setState 91-97;
-  rect marginsRemoved (0,0,10,0), chat_helpers.style 1013); tokens
-  sendIconPosition (10,11), scheduleIconPosition (7,8), recordSize
-  26, universalDuration 120 = SendStateChangeDurationMs. Go:
-  send_button.go SendButtonType + Width/Height/Ripple/StopRect +
-  SlowmodeDelayText/TextRect. RED -> GREEN clean. 6 tests, 369 total
-  = 216 ui + 153 gui; quick GREEN; js/wasm GREEN; comment ban clean.
-
-## Session 398 — the compose-bar geometry law (2026-11-09)
-
-- Owner restored the token: pushed 5b978120..79d27335 (sessions
-  394-397), dispatched verify 42513830501 — SUCCESS at job AND step
-  level. N-1 closed.
-- Law: moveFieldControls (history_widget.cpp 7587-7660) —
-  buttonsBottom = paneH - 46; left run from historySendRight 2:
-  attach (2, bb, 44x46), field left 2+44; field top = paneH -
-  fieldH - historySendPadding 9; right run: send moveToRight(2),
-  emoji toggle moveToRight(2+44) — 44x46 cells (historySendSize,
-  chat_helpers.style 1405; every bar IconButton clones it).
-  updateFieldSize (7696-7703): fieldWidth = W - attach - 2 - send -
-  emoji — sendRight subtracted ONCE while both runs inset by 2: the
-  field's right edge sits 2px under the emoji toggle; both paint
-  historyComposeAreaBg = msgInBg (colors.palette 458) — benign,
-  pinned as the reference's own quirk. fieldHeight (7402-7408):
-  no-text chat = 46-18 = 28; else the InputField clamp
-  (input_field.cpp 2817-2839): clamp(content, 36, widgetMax),
-  setMaxHeight lowering the min when max < 36 (2720-2725).
-  computeMaxFieldHeight (9097-9115) = min(224, paneH - reservedAbove
-  - 18 - 49 - (49 if replyShown)) — reservedAbove = the top-bar/bars
-  column our pane models in a later slice. Scroll partition
-  (8660-8666): scrollH = paneH - (fieldH + 18) when canSend, else
-  the list keeps the pane. AyuSettings defaults (ayu_settings.h
-  668-672): attach/commands/emoji/autodelete buttons all shown.
-- Go: ui/history/compose.go — ComposeBarHeight / ComposeFieldMaxHeight
-  / ComposeFieldHeight / ComposeBarGeometry (ComposeButtons{Attach,
-  Emoji}; hidden button = zero rect, never faked) /
-  ComposeScrollHeight; tokens.HistoryReplyHeight 49 pinned
-  (chat_helpers.style 1130 — the compose tokens were pinned in an
-  earlier session; these are their first consumers).
-- RED (undefined symbols) -> GREEN after 3 of MY OWN test-arithmetic
-  errors fixed by computing with code (518->510; 184->224, 135->184,
-  183 case added). 6 new tests, 363 total = 210 ui + 153 gui. quick
-  gate GREEN; js/wasm compile of ui/history + ui/tokens GREEN;
-  comment ban clean.
-
-## Session 397 — the unread-reactions corner button (2026-11-09)
-
-- Down-button family clone: slide-from-right 64px, shift =
-  66*downP + 66*mentionsP, shown iff >=1 Item.UnreadReaction
-  (data-driven), click = topmost unread reaction, routing
-  reactions-first, 150ms; heart-ring glyph traced IoU 0.936 as
-  icons.HistoryReaction. 19 tests, 357 total. Detail: 79d27335 +
-  git history; verify 42513830501 SUCCESS.
-
-## Session 396 — the unread-mentions corner button: the corner stack begins (2026-11-09)
-
-- Law: history_view_corner_buttons.cpp updatePositions 390-404 (mentions
-  right = interpolate(-52, 12, shown) — slides in FROM the right edge;
-  top = parentH - 62 - 10 - interpolate(0, 62+skip, downShown) — rides
-  the down button's ANIMATED progress; settled gap 4, never overlapping
-  when settled) + updateVisibility 276-286 (150ms, on change only) +
-  updateUnreadThingsVisibility 288-345 (shown = loadedCount > 0 &&
-  unreadMayBeShown -> >=1 Item.UnreadMention, data-driven NOT
-  scroll-driven) + mentionsClick 147-172 (showAt(minLoaded) = topmost
-  row; media-read branch deferred, D-2) + delegate laws history_widget
-  .cpp 9118-9165 + style 1242-1254 + historyUnreadThingsSkip 4.
-- Glyph: history_unread_mention@2x traced (cv2 RETR_CCOMP +
-  approxPolyDP 0.35dp, 1/3dp grid): @ bbox 19x19.33 center (26,36) in
-  button coords; 2 contours (ring+curl 43v, hole 10v, opposite winding);
-  raster-diff IoU 0.939; icons.HistoryMention Cell{36,46,(16,26)}; pinned
-  in the three icon law tests.
-- Clock law riding the same concern: ChatLoaded/ChatPrepended gain Now
-  (data-arrival msgs carry their clock like press/scroll msgs) — the
-  show slide starts at arrival; also fixes the down button's load-time
-  clocking.
-- Go: MentionsShown/MentionsJumpTop/MentionsButtonGeometry(w,h,progress,
-  downProgress)/Hit; tokens HistoryUnreadThingsSkip; Item.UnreadMention;
-  ChatPane.MentionsProgress; Elm ChatMentionsState + MentionsPress;
-  chatMentionsCheck at ChatLoaded (hard reset — the switch law) +
-  ChatPrepended ONLY; press routing mentions-before-down-before-
-  scrollbar/touch; chatMentionsTick 150ms; painter paintMentionsButton
-  (circle/shadow family + fillGlyph @). No read-marking yet (D-2).
-- RED (compile, full surface) -> GREEN after the clock-law fix (4 test
-  timing rewrites). 20 new tests (6 ui + 14 gui), 338 total (199 ui +
-  139 gui; bookkeeping drift vs the 395 commit msg corrected). quick
-  gate GREEN; render+window windows vet GREEN standalone; js/wasm
-  compile GREEN; comment ban clean. Detail: 4a9dc14c + git.
-
-## Session 395 — the dialogs to-up corner button (2026-11-09)
-
-- Law: dialogs_widget.cpp 1685-1720 + 1256/2782 (shown iff Top > 240 AND
-  Top < max; pane < 260 forces hidden instantly; slide up 64 from below
-  the pane edge; click = scrollToDefault Top 0, instant today) +
-  chat_helpers.style 1234-1240 + window.style 34/155. Go:
-  dialogs/corner_button.go ToUpShown/Geometry/Hit + DialogsToUp* tokens;
-  Elm DialogsToUpState rides every dialogs Top mutation site; painter
-  chevron-up (flip+1px). 12 new tests (9 gui + 3 ui), 318 total
-  (193 ui + 125 gui). quick gate GREEN. Detail: b1e268ec + git.
-
-## Session 394 — the jump-to-end corner button (2026-11-09)
-
-- Law: history_view_corner_buttons.cpp (updateVisibility animates on
-  change only, 150; updatePositions 357-474: down top = interpolate(0,
-  62+10, shown), moveToRight(12, parentH-top); the 52x62 widget IS the
-  hit area) + history_widget.cpp 9122-9157 cornerButtonsDownShown
-  (scrollTop+480 < max, or first unread at/below the fold) + downClick
-  139-145 (UnreadMessagePosition = first unread else bottom) + style
-  1179-1211 + measured history_down_arrow@2x (19x10, center (26,38) in
-  button coords). Go: DownShown/DownJumpTop/Geometry/Hit +
-  HistoryToDown* tokens; Elm ChatDownState rides chatViewportChanged
-  (all Top mutations) + ChatLoaded reset; press pins DownPress before
-  scrollbar/touch; painter Material FAB skin. loadedAtBottom/replyReturn
-  branches return with those features (D-1). 16 new tests (11 gui +
-  5 ui), 306 total (190 ui + 116 gui). quick gate GREEN. Detail:
-  b5c4b9c9 + git.
-
 ## Session 393 — the floating scroll-date (2026-11-08)
 
 - ScrollDateAnchor + List.ScrollDateAt (stick/pack-bottom-clamp/inPlace per

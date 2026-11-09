@@ -46,16 +46,23 @@ func ComposeFieldHeight(canSendTexts bool, contentHeight, maxHeight int) int {
 	return contentHeight
 }
 
+func ComposeFieldWidth(paneWidth int, b ComposeButtons) int {
+	w := paneWidth - tokens.HistorySendRight - tokens.HistorySendSizeW
+	if b.Attach {
+		w -= tokens.HistoryAttachSizeW
+	}
+	if b.Emoji {
+		w -= tokens.HistorySendSizeW
+	}
+	return w
+}
+
 func ComposeBarGeometry(paneWidth, paneHeight, fieldHeight int, b ComposeButtons) ComposeBar {
 	buttonsBottom := paneHeight - tokens.HistorySendSizeH
 	fieldLeft := tokens.HistorySendRight
-	fieldWidth := paneWidth - tokens.HistorySendRight - tokens.HistorySendSizeW
+	fieldWidth := ComposeFieldWidth(paneWidth, b)
 	if b.Attach {
 		fieldLeft += tokens.HistoryAttachSizeW
-		fieldWidth -= tokens.HistoryAttachSizeW
-	}
-	if b.Emoji {
-		fieldWidth -= tokens.HistorySendSizeW
 	}
 	bar := ComposeBar{
 		Field: Geometry{

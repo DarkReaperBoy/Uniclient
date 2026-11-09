@@ -42,7 +42,7 @@ func Layout(s string, width int, m Metrics) *Document {
 		case rs[i] == ' ':
 			for i < n && rs[i] == ' ' {
 				cur = append(cur, ' ')
-				curW += m.Advance(' ')
+				curW += m.advance(' ')
 				i++
 			}
 		default:
@@ -63,7 +63,7 @@ func Layout(s string, width int, m Metrics) *Document {
 				for len(word) > 0 {
 					take, takeW := 0, 0
 					for take < len(word) {
-						next := takeW + m.Advance(word[take])
+						next := takeW + m.advance(word[take])
 						if take > 0 && next > width {
 							break
 						}
@@ -157,7 +157,7 @@ type Span struct {
 func (d *Document) lineAdvance(i, column int) int {
 	w := 0
 	for _, r := range d.Lines[i].Runes[:column] {
-		w += d.metrics.Advance(r)
+		w += d.metrics.advance(r)
 	}
 	return w
 }
