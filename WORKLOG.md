@@ -27,8 +27,8 @@ owner order — that history lives in git if ever needed.
   ui/... GREEN; comment ban clean; 419 tests (230 ui + 170 gui + 19
   text) green locally; verifies 42542765446 (381a7f3e) and
   42543314028 (913f6c68) SUCCESS job+step; 42544011545 (23b21e34)
-  in flight; 23277542's verify dispatched (run id lands next entry;
-  session 401 pruned to hold the line cap)
+  in flight; 23277542's verify = 42544938478 (boot checks both at
+  job+step level); session 401 pruned to hold the line cap
 
 ## Open items
 
