@@ -392,8 +392,9 @@ pre-tag.
 WORKLOG open items, keep working, re-mention only in the turn-ending summary. Typical:
 real-account live sign-ins, real mic/speaker + Android device tests, product/security
 decisions that are the owner's to make, cutting releases, flipping prerelease
-off, ordering the GUI build, setting the next direction. (Pages re-enabled
-2026-11-09 under the owner's configure-the-whole-thing order.)
+off, ordering the GUI build, setting the next direction. (Pages verified
+serving 2026-11-09 — already enabled at source `gh-pages`; build.yml's
+deploy keeps it fresh.)
 
 **Before every push, verify:** every ladder tier your change touches is green; the
 comment ban holds (`strip_comments.py --check` clean); no TODO/FIXME/placeholder

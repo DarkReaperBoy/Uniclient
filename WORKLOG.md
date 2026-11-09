@@ -9,27 +9,30 @@ owner order — that history lives in git if ever needed.
 
 - front: session 404 (owner redirect 2026-11-09: "github actions does
   the building, never the sandbox") — build.yml live: per-push on
-  main, no tests, parallel — web (js/wasm + CI-generated loader:
-  progress/speed/ETA, version-keyed cache, sha256 integrity, offline
-  SW, Telegram bridge -> orphan gh-pages + gz/br kit artifact) +
-  android (gogio arm64 APK); release.yml re-ships the APK on tags;
-  AGENTS §1.22 sandbox invisibility (owner order); Pages re-enabled
+  main (paths: go/** + build.yml), no tests, parallel — web (js/wasm
+  + CI-generated loader: progress/speed/ETA, version-keyed cache,
+  sha256 integrity, offline SW, Telegram bridge -> orphan gh-pages +
+  gz/br kit artifact) + android (gogio arm64 APK); release.yml
+  re-ships the APK on tags; AGENTS §1.22 sandbox invisibility (owner
+  order); Pages live (already enabled; the deploy refreshed it)
 - next: the GUI front resumes — keyboard routing (window key.Event ->
   the compose msgs; Enter=send + Up/Down history when empty); then D-3
 - owner-waiting: none
-- last-gate: build run <ID> <RESULT> job+step; Pages
-  https://darkreaperboy.github.io/Uniclient/ live; no Go change this
-  slice (comment ban clean; verify 42584000646 stands for e6aa0bbd)
+- last-gate: build 42597570851 (bcb7dee0) SUCCESS job+step — APK
+  artifact 12.1 MB, web kit 19.9 MB, gh-pages live (VER bcb7dee06da9,
+  wasm 31,153,413 B sha-pinned, Pages URL serving); verify 42596637204
+  (531c134f) SUCCESS job+step (all 3 jobs); the android rot fixed in
+  2 rounds (4e612bd6 jni_android + bcb7dee0 opensl_android)
 
 ## Open items
 
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
-| H-2 | verify/release yml | CLOSED 2026-11-09 (owner order): android + web legs returned as build.yml (per-push, no tests, parallel); only the Xvfb GUI + Puppeteer web-drive legs stay parked with the rebuilt GUI | AGENTS.md §8; build run <ID> | Xvfb/Puppeteer return when the GUI ships (§6.7) |
+| H-2 | verify/release yml | CLOSED 2026-11-09 (owner order): android + web legs returned as build.yml (per-push, no tests, parallel); only the Xvfb GUI + Puppeteer web-drive legs stay parked with the rebuilt GUI | AGENTS.md §8; build 42597570851 | Xvfb/Puppeteer return when the GUI ships (§6.7) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
 | D-1 | ui/history corner button | down-button unread-count badge (22dp, centered x, top 0 — jump_down_button.cpp paintEvent + historyToDownBadge*) + hover/over colors + ripple deferred: no unread counter in the chat Item model yet, no hover/ripple machinery in the skin yet; replyReturn branch of downClick + loadedAtBottom==false state return with reply-return jumps / below-history pagination | jump_down_button.cpp 33-52, corner_buttons.cpp 139-145 | badge returns with read-state counts; over/ripple with the skin's hover+ripple pass |
 | D-2 | ui/history unread-things buttons | read-marking absent for mentions AND reactions: after a jump the button stays shown (reference hides it when the server marks the thing read — updateUnreadThingsVisibility is server-data-driven); mentionsClick's already-there voice/video media-read branch (5623) deferred — no media model; unread-count badges join D-1's class; poll-votes 4th stack slot returns with a poll model | history_view_corner_buttons.cpp 147-190, 288-345 | returns with engine unread-things events + the media pass |
-| D-3 | build.yml web job | wasm size diet: the js/wasm build ships every core incl. the six raw-TCP backends that can never connect from a browser (§7 web truth) — build-tag exclusion at the engine factory projected <20 MB; also headroom under git's 100 MB file ceiling on gh-pages | v0.9.1 gh-pages uniclient.wasm = 88,659,256 B | one atomic with tests: bootstrap factory js variant + per-core js stubs |
+| D-3 | build.yml web job | wasm size diet: the js/wasm build ships every core incl. the six raw-TCP backends that can never connect from a browser (§7 web truth) — build-tag exclusion at the engine factory projected <20 MB; also headroom under git's 100 MB file ceiling on gh-pages | headless-host wasm = 31,153,413 B today (v0.9.1's old-GUI build was 88,659,256 B) | one atomic with tests: bootstrap factory js variant + per-core js stubs |
 
 ## Session 404 — the owner's CI builder: build.yml + the loader (2026-11-09)
 
@@ -63,13 +66,31 @@ owner order — that history lives in git if ever needed.
   again (v0.10.3 parity). README APK/web paragraph updated. AGENTS:
   §1.4 (gh-pages deploy returned, shell CI-generated), §1.5 (the CI
   split), §1.22 (sandbox invisibility — owner order), §8 (build.yml +
-  APK on tags), §11 (Pages rung done under this order).
+  APK on tags), §11 (Pages verified serving).
+- The android leg found parked-leg rot immediately (its whole
+  purpose): two android-only audio files the session-368 export
+  sweep missed — no local gate compiles //go:build android (purego's
+  android backend needs cgo/NDK). 4e612bd6 jni_android.go (15
+  undefined JNIEnv*/JniVersion16 ordinals; run 42595087192) +
+  bcb7dee0 opensl_android.go (openslDevice methods exported to
+  satisfy audio.Device + OutputMix/DeviceType/DeviceID literals;
+  run 42596604329) — both git diff -w = pure renames; gofmt,
+  comment ban, linux build, tests/audio green locally each time.
+- Wasm truth: 31,153,413 B — the old 88,659,256 figure was v0.9.1's
+  full-old-GUI build; the headless host is 31.2 MB (D-3's diet still
+  applies). APK artifact 12.1 MB; web kit 19.9 MB (gzip -9 + brotli
+  -q 11 siblings for gzip_static/brotli_static self-hosting).
 - Local build artifacts: none existed — fresh sandbox boot (the prior
   conversation's local APK/web builds died with its sandbox; only
   .tools/go, the gate toolchain, remains). The /tmp/gobin gogio test
   install removed.
-- Evidence: build run <ID> <RESULT>; gh-pages orphan; Pages URL; the
-  artifacts. Recorded post-run.
+- Evidence: build 42597570851 (bcb7dee0) SUCCESS job+step — both
+  jobs, every step; verify 42596637204 (531c134f) SUCCESS job+step
+  (all 3 jobs); gh-pages orphan "Web build for main (bcb7dee0…)";
+  https://darkreaperboy.github.io/Uniclient/ serving VER bcb7dee06da9
+  with WASM_BYTES = 31,153,413 matching the served bytes (31,153,413
+  B, HTTP 200); artifacts uniclient-android 12.1 MB + uniclient-web
+  19.9 MB on the run.
 
 ## Session 403 — the field mouse gestures: the app wiring (2026-11-09)
 
