@@ -317,12 +317,14 @@ type Model struct {
 	ChatDirty         bool
 	ChatSelection     history.Selection
 	ChatPress         ChatPressState
+	Search            SearchState
 }
 
 func InitialModel() Model {
 	return Model{HasDialogs: true, Running: true,
 		Dialogs:   dialogs.List{Selected: -1},
-		ChatPress: ChatPressState{Row: -1}}
+		ChatPress: ChatPressState{Row: -1},
+		Search:    SearchState{Placeholder: "Search"}}
 }
 
 func Update(m Model, msg Msg) (Model, Cmd) {
@@ -336,7 +338,10 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		}
 		m.Width = msg.Width
 		m.Height = msg.Height
-		m.DialogsScroll.Height = msg.Height
+		m.DialogsScroll.Height = msg.Height - tokens.TopBarHeight
+		if m.DialogsScroll.Height < 0 {
+			m.DialogsScroll.Height = 0
+		}
 		m.DialogsScroll.Top = m.clampDialogsScroll(m.DialogsScroll.Top)
 		m.dialogsToUpCheck()
 		oldTop := m.ChatScroll.Top
@@ -385,6 +390,9 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		return m.scrollClassic(dy, msg.Now), m.loadMoreCmd()
 	case DialogsPressed:
 		return m.pressDialogs(msg), nil
+	case DialogsHeaderPressed:
+		m.pressDialogsHeader(msg)
+		return m, nil
 	case DialogsDragged:
 		return m.dragDialogs(msg), m.loadMoreCmd()
 	case DialogsReleased:
@@ -401,6 +409,7 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		m.nowMs = msg.Now
 		m.dialogsTick(msg.Now)
 		m.dialogsToUpTick(msg.Now)
+		m.searchBlinkTick(msg.Now)
 		return m, m.loadMoreCmd()
 	case DialogsLoadMoreRequested:
 		return m, nil
@@ -496,6 +505,15 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 	case ChatComposeTyped:
 		m.composeTyped(msg)
 		return m, nil
+	case SearchTyped:
+		m.searchTyped(msg)
+		return m, nil
+	case SearchBackspace:
+		m.searchBackspace(msg)
+		return m, nil
+	case SearchFocusLost:
+		m.searchBlur()
+		return m, nil
 	case ChatComposeBackspace:
 		m.composeBackspace(msg)
 		return m, nil
@@ -543,6 +561,7 @@ func (m *Model) scrollClassic(dy, now int) Model {
 
 func (m *Model) pressDialogs(msg DialogsPressed) Model {
 	m.nowMs = msg.Now
+	m.searchBlur()
 	if m.dialogsToUpHitAt(msg.X, msg.Y) {
 		m.DialogsBar = BarDrag{}
 		m.DialogsTouch = TouchDrag{}
@@ -1464,6 +1483,12 @@ func View(m Model) Scene {
 	if m.HasDialogs {
 		s.Dialogs = m.Dialogs.Pane(m.DialogsScroll, m.Columns().Dialogs)
 		s.Dialogs.ToUpProgress = m.DialogsToUp.Progress
+		s.Dialogs.Header = dialogs.HeaderLayout(m.Columns().Dialogs)
+		s.Dialogs.Header.Text = m.Search.Text
+		s.Dialogs.Header.Cursor = m.Search.Cursor
+		s.Dialogs.Header.Focused = m.Search.Focused
+		s.Dialogs.Header.CaretOn = m.Search.CursorOn
+		s.Dialogs.Header.Placeholder = m.Search.Placeholder
 	}
 	s.Chat = m.Chat.Pane(m.ChatScroll, m.Columns().Chat)
 	s.Chat.ThumbDragging = m.ChatBar.Dragging

@@ -163,33 +163,95 @@ func (p *Painter) PaintRow(gtx layout.Context, e dialogs.Entry, width int, sch m
 }
 
 func (p *Painter) PaintPane(gtx layout.Context, pane dialogs.Pane, sch material.Scheme) {
-	if pane.Width <= 0 || pane.View.Height <= 0 {
+	totalH := pane.View.Height + tokens.TopBarHeight
+	if pane.Width <= 0 || totalH <= 0 {
 		return
 	}
 	defer clip.Rect{Max: image.Pt(
 		gtx.Dp(unit.Dp(pane.Width)),
-		gtx.Dp(unit.Dp(pane.View.Height)),
+		gtx.Dp(unit.Dp(totalH)),
 	)}.Push(gtx.Ops).Pop()
 	event.Op(gtx.Ops, p.Input)
+	fillRRect(gtx, dialogs.Rect{X: 0, Y: 0, W: pane.Width, H: totalH}, 0, sch.SurfaceContainerLow)
+	p.paintHeader(gtx, pane.Header, sch)
+	stk := op.Offset(image.Pt(0, gtx.Dp(unit.Dp(tokens.TopBarHeight)))).Push(gtx.Ops)
+	listClip := clip.Rect{Max: image.Pt(
+		gtx.Dp(unit.Dp(pane.Width)),
+		gtx.Dp(unit.Dp(pane.View.Height)),
+	)}.Push(gtx.Ops)
 	for i := range pane.Rows {
 		state := RowNormal
 		if pane.First+i == pane.Selected {
 			state = RowSelected
 		}
-		stk := op.Offset(image.Pt(0, gtx.Dp(unit.Dp(pane.RowYs[i]-pane.View.Top)))).Push(gtx.Ops)
+		rowStk := op.Offset(image.Pt(0, gtx.Dp(unit.Dp(pane.RowYs[i]-pane.View.Top)))).Push(gtx.Ops)
 		p.PaintRow(gtx, pane.Rows[i], pane.Width, sch, state)
-		stk.Pop()
+		rowStk.Pop()
 	}
 	p.paintToUpButton(gtx, pane, sch)
+	listClip.Pop()
+	stk.Pop()
 	if pane.Thumb.Hidden {
 		return
 	}
 	fillRRect(gtx, dialogs.Rect{
 		X: pane.Width - tokens.ScrollBarWidth + tokens.ScrollBarDeltax,
-		Y: pane.Thumb.Y,
+		Y: tokens.TopBarHeight + pane.Thumb.Y,
 		W: tokens.ScrollBarWidth - 2*tokens.ScrollBarDeltax,
 		H: pane.Thumb.H,
 	}, tokens.ScrollBarRadius, scrollBarColor)
+}
+
+func (p *Painter) paintHeader(gtx layout.Context, hd dialogs.HeaderView, sch material.Scheme) {
+	if hd.Band.W <= 0 {
+		return
+	}
+	if hd.Field.W <= 0 {
+		return
+	}
+	if hd.Focused {
+		fillRRect(gtx, dialogs.Rect{
+			X: hd.Field.X - tokens.DialogsFilterBorderActive,
+			Y: hd.Field.Y - tokens.DialogsFilterBorderActive,
+			W: hd.Field.W + 2*tokens.DialogsFilterBorderActive,
+			H: hd.Field.H + 2*tokens.DialogsFilterBorderActive,
+		}, tokens.DialogsFilterRadius+tokens.DialogsFilterBorderActive, sch.Primary)
+	}
+	fillRRect(gtx, hd.Field, tokens.DialogsFilterRadius, sch.SurfaceContainerHighest)
+	text := hd.Text
+	fg := sch.OnSurface
+	if text == "" {
+		text = hd.Placeholder
+		fg = sch.OnSurfaceVariant
+	}
+	if text != "" {
+		p.paintFieldLine(gtx, hd.Field, fontRegular, unit.Sp(tokens.FontBase), text, fg, 0)
+	}
+	if hd.Focused && hd.CaretOn {
+		prefix := p.measure(gtx, fontRegular, unit.Sp(tokens.FontBase), hd.Text[:hd.Cursor])
+		m := p.measure(gtx, fontRegular, unit.Sp(tokens.FontBase), "Ag")
+		textH := int(gtx.Metric.PxToDp(m.ascent + m.descent))
+		if textH > hd.Field.H-8 {
+			textH = hd.Field.H - 8
+		}
+		fillRRect(gtx, dialogs.Rect{
+			X: hd.Field.X + tokens.DialogsFilterTextLeft + int(gtx.Metric.PxToDp(prefix.w)),
+			Y: hd.Field.Y + (hd.Field.H-textH)/2,
+			W: 2,
+			H: textH,
+		}, 0, sch.Primary)
+	}
+}
+
+func (p *Painter) paintFieldLine(gtx layout.Context, field dialogs.Rect, fnt font.Font, size unit.Sp, s string, col color.NRGBA, rightPad int) {
+	m := p.measure(gtx, fnt, size, s)
+	textH := int(gtx.Metric.PxToDp(m.ascent + m.descent))
+	p.label(gtx, dialogs.Rect{
+		X: field.X + tokens.DialogsFilterTextLeft,
+		Y: field.Y + (field.H-textH)/2,
+		W: field.W - tokens.DialogsFilterTextLeft - rightPad,
+		H: textH,
+	}, fnt, size, s, col)
 }
 
 var toUpShadowColor = color.NRGBA{R: 0x00, G: 0x00, B: 0x00, A: 0x28}

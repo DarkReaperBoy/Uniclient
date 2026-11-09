@@ -103,11 +103,11 @@ func TestDialogsToUpClickJumpsToTop(t *testing.T) {
 	m, _ = Update(m, DialogsTick{Now: 1150})
 	pane := m.Columns().Dialogs
 	bx := pane - 12 - 26
-	m, _ = Update(m, DialogsPressed{X: bx, Y: 360, Now: 1200})
+	m, _ = Update(m, DialogsPressed{X: bx, Y: 306, Now: 1200})
 	if m.Dialogs.Selected >= 0 {
 		t.Fatalf("press on button selected row %d, want no selection", m.Dialogs.Selected)
 	}
-	m, _ = Update(m, DialogsReleased{X: bx, Y: 360, Now: 1210})
+	m, _ = Update(m, DialogsReleased{X: bx, Y: 306, Now: 1210})
 	if m.DialogsScroll.Top != 0 {
 		t.Fatalf("after click top = %d, want 0", m.DialogsScroll.Top)
 	}
@@ -123,7 +123,7 @@ func TestDialogsToUpReleaseOutsideCancels(t *testing.T) {
 	m, _ = Update(m, DialogsTick{Now: 1150})
 	pane := m.Columns().Dialogs
 	bx := pane - 12 - 26
-	m, _ = Update(m, DialogsPressed{X: bx, Y: 360, Now: 1200})
+	m, _ = Update(m, DialogsPressed{X: bx, Y: 306, Now: 1200})
 	m, _ = Update(m, DialogsDragged{X: bx - 60, Y: 300, Now: 1220})
 	m, _ = Update(m, DialogsReleased{X: bx - 60, Y: 300, Now: 1230})
 	if m.DialogsScroll.Top != 300 {
@@ -137,11 +137,11 @@ func TestDialogsToUpTouchTapJumps(t *testing.T) {
 	m, _ = Update(m, DialogsTick{Now: 1150})
 	pane := m.Columns().Dialogs
 	bx := pane - 12 - 26
-	m, _ = Update(m, DialogsPressed{X: bx, Y: 360, Touch: true, Now: 1200})
+	m, _ = Update(m, DialogsPressed{X: bx, Y: 306, Touch: true, Now: 1200})
 	if m.DialogsTouch.Active {
 		t.Fatalf("touch press on button started touch drag, want button press only")
 	}
-	m, _ = Update(m, DialogsReleased{X: bx, Y: 360, Now: 1240})
+	m, _ = Update(m, DialogsReleased{X: bx, Y: 306, Now: 1240})
 	if m.DialogsScroll.Top != 0 {
 		t.Fatalf("touch tap top = %d, want 0", m.DialogsScroll.Top)
 	}
@@ -153,7 +153,7 @@ func TestDialogsToUpTouchDragFromButtonDoesNotScroll(t *testing.T) {
 	m, _ = Update(m, DialogsTick{Now: 1150})
 	pane := m.Columns().Dialogs
 	bx := pane - 12 - 26
-	m, _ = Update(m, DialogsPressed{X: bx, Y: 360, Touch: true, Now: 1200})
+	m, _ = Update(m, DialogsPressed{X: bx, Y: 306, Touch: true, Now: 1200})
 	m, _ = Update(m, DialogsDragged{X: bx, Y: 160, Now: 1260})
 	m, _ = Update(m, DialogsReleased{X: bx, Y: 160, Now: 1300})
 	if m.DialogsScroll.Top != 300 {

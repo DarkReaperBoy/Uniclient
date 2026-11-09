@@ -40,9 +40,10 @@ code push to `main` uploads them as workflow artifacts (the "Build"
 workflow — the freshest binaries between releases), and the web build is
 live at
 <https://darkreaperboy.github.io/Uniclient/> — those no-argv platforms
-default to the mid-rebuild GUI: the page boots the engine and, until the
-rebuild lands, paints only the blank zero-account surface (a flat near-white
-canvas — the UI fills in as the front lands); the desktop binaries default
+default to the mid-rebuild GUI: the page boots the engine and paints the
+app frame — dialogs pane with its search field over a distinct list surface
+(AyuGram-measured geometry, Material skin); with no account connected the
+lists stay empty until the engine bridge lands; the desktop binaries default
 headless.
 
 ## Build from source

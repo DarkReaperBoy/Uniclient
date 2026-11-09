@@ -26,25 +26,25 @@ func TestDialogsTouchDragRubberBand(t *testing.T) {
 		t.Fatalf("in-range move = %d, want 290", m.DialogsScroll.Top)
 	}
 	m, _ = Update(m, DialogsDragged{X: 200, Y: -700, Now: 1050})
-	if m.DialogsScroll.Top != 702 || m.DialogsOverscroll.Stretch != 10 || m.DialogsOverscroll.Accumulated != 196 {
-		t.Fatalf("past edge = %d stretch %d acc %d, want 702/10/196 (98 leftover *2 /20)",
+	if m.DialogsScroll.Top != 750 || m.DialogsOverscroll.Stretch != 4 || m.DialogsOverscroll.Accumulated != 88 {
+		t.Fatalf("past edge = %d stretch %d acc %d, want 750/4/88 (44 leftover *2 /20)",
 			m.DialogsScroll.Top, m.DialogsOverscroll.Stretch, m.DialogsOverscroll.Accumulated)
 	}
 	m, _ = Update(m, DialogsDragged{X: 200, Y: -800, Now: 1060})
-	if m.DialogsScroll.Top != 712 || m.DialogsOverscroll.Stretch != 20 {
-		t.Fatalf("deeper = %d stretch %d, want 712/20", m.DialogsScroll.Top, m.DialogsOverscroll.Stretch)
+	if m.DialogsScroll.Top != 760 || m.DialogsOverscroll.Stretch != 14 {
+		t.Fatalf("deeper = %d stretch %d, want 760/14", m.DialogsScroll.Top, m.DialogsOverscroll.Stretch)
 	}
 	m, _ = Update(m, DialogsReleased{X: 200, Y: -800, Now: 1070})
 	if m.DialogsTouch.Active || m.DialogsTouch.State == 0 {
 		t.Fatalf("release = active %v state %d, want false/auto", m.DialogsTouch.Active, m.DialogsTouch.State)
 	}
 	m, _ = Update(m, DialogsTick{Now: 1085})
-	if m.DialogsScroll.Top != 716 {
-		t.Fatalf("fling feeds bounce = %d, want 716 (stretch 24)", m.DialogsScroll.Top)
+	if m.DialogsScroll.Top != 764 {
+		t.Fatalf("fling feeds bounce = %d, want 764 (stretch 18)", m.DialogsScroll.Top)
 	}
 	m, _ = Update(m, DialogsTick{Now: 1100})
-	if m.DialogsScroll.Top != 714 {
-		t.Fatalf("spring claw = %d, want 714 (stretch 22)", m.DialogsScroll.Top)
+	if m.DialogsScroll.Top != 763 {
+		t.Fatalf("spring claw = %d, want 763 (stretch 17)", m.DialogsScroll.Top)
 	}
 	for i := 0; i < 400 && m.KineticActive(); i++ {
 		m, _ = Update(m, DialogsTick{Now: 1115 + 15*i})
@@ -52,8 +52,8 @@ func TestDialogsTouchDragRubberBand(t *testing.T) {
 	if m.KineticActive() || m.DialogsOverscroll.Stretch != 0 || m.DialogsOverscroll.Returning {
 		t.Fatalf("converged = active %v stretch %d returning %v", m.KineticActive(), m.DialogsOverscroll.Stretch, m.DialogsOverscroll.Returning)
 	}
-	if m.DialogsScroll.Top < 0 || m.DialogsScroll.Top > 692 {
-		t.Fatalf("settled top = %d, want within [0,692]", m.DialogsScroll.Top)
+	if m.DialogsScroll.Top < 0 || m.DialogsScroll.Top > 746 {
+		t.Fatalf("settled top = %d, want within [0,746]", m.DialogsScroll.Top)
 	}
 }
 
@@ -88,8 +88,8 @@ func TestDialogsTouchFlingInList(t *testing.T) {
 	if m.DialogsTouch.State != 0 || m.DialogsTouch.Scrolling {
 		t.Fatalf("fling end state = %d scrolling %v, want manual/false", m.DialogsTouch.State, m.DialogsTouch.Scrolling)
 	}
-	if m.DialogsScroll.Top != 692 {
-		t.Fatalf("settled top = %d, want 692 (fling reached bottom, bounce retracted)", m.DialogsScroll.Top)
+	if m.DialogsScroll.Top != 746 {
+		t.Fatalf("settled top = %d, want 746 (fling reached bottom, bounce retracted)", m.DialogsScroll.Top)
 	}
 }
 
@@ -157,31 +157,31 @@ func TestDialogsWheelDuringOverscrollReturns(t *testing.T) {
 	m, _ = Update(m, DialogsPressed{X: 200, Y: 100, Touch: true, Now: 1000})
 	m, _ = Update(m, DialogsDragged{X: 200, Y: 90, Now: 1100})
 	m, _ = Update(m, DialogsDragged{X: 200, Y: -700, Now: 1400})
-	if m.DialogsScroll.Top != 702 || m.DialogsOverscroll.Stretch != 10 {
-		t.Fatalf("setup = %d stretch %d, want 702/10", m.DialogsScroll.Top, m.DialogsOverscroll.Stretch)
+	if m.DialogsScroll.Top != 750 || m.DialogsOverscroll.Stretch != 4 {
+		t.Fatalf("setup = %d stretch %d, want 750/4", m.DialogsScroll.Top, m.DialogsOverscroll.Stretch)
 	}
 	m, _ = Update(m, DialogsWheel{AngleY: -120, Now: 1500})
-	if m.DialogsScroll.Top != 702 {
-		t.Fatalf("wheel during stretch = %d, want 702 (no scroll, only return)", m.DialogsScroll.Top)
+	if m.DialogsScroll.Top != 750 {
+		t.Fatalf("wheel during stretch = %d, want 750 (no scroll, only return)", m.DialogsScroll.Top)
 	}
 	if !m.DialogsOverscroll.Returning {
 		t.Fatal("wheel during stretch must start the return spring")
 	}
 	m, _ = Update(m, DialogsTick{Now: 1515})
-	if m.DialogsScroll.Top != 700 {
-		t.Fatalf("return 15ms = %d, want 700 (stretch 8)", m.DialogsScroll.Top)
+	if m.DialogsScroll.Top != 749 {
+		t.Fatalf("return 15ms = %d, want 749 (stretch 3)", m.DialogsScroll.Top)
 	}
 	m, _ = Update(m, DialogsTick{Now: 1600})
-	if m.DialogsScroll.Top != 695 {
-		t.Fatalf("return 100ms = %d, want 695 (stretch 3)", m.DialogsScroll.Top)
+	if m.DialogsScroll.Top != 747 {
+		t.Fatalf("return 100ms = %d, want 747 (stretch 1)", m.DialogsScroll.Top)
 	}
 	m, _ = Update(m, DialogsTick{Now: 1700})
-	if m.DialogsScroll.Top != 693 {
-		t.Fatalf("return 200ms = %d, want 693 (stretch 1)", m.DialogsScroll.Top)
+	if m.DialogsScroll.Top != 746 {
+		t.Fatalf("return 200ms = %d, want 746 (stretch 0)", m.DialogsScroll.Top)
 	}
 	m, _ = Update(m, DialogsTick{Now: 1800})
-	if m.DialogsScroll.Top != 692 || m.DialogsOverscroll.Stretch != 0 || m.KineticActive() {
-		t.Fatalf("return 300ms = %d stretch %d active %v, want 692/0/false", m.DialogsScroll.Top, m.DialogsOverscroll.Stretch, m.KineticActive())
+	if m.DialogsScroll.Top != 746 || m.DialogsOverscroll.Stretch != 0 || m.KineticActive() {
+		t.Fatalf("return 300ms = %d stretch %d active %v, want 746/0/false", m.DialogsScroll.Top, m.DialogsOverscroll.Stretch, m.KineticActive())
 	}
 }
 
@@ -209,7 +209,7 @@ func TestDialogsTouchCancelFreezesStretch(t *testing.T) {
 	m, _ = Update(m, DialogsPressed{X: 200, Y: 100, Touch: true, Now: 1000})
 	m, _ = Update(m, DialogsDragged{X: 200, Y: 90, Now: 1010})
 	m, _ = Update(m, DialogsDragged{X: 200, Y: -890, Now: 1020})
-	if m.DialogsOverscroll.Stretch != 29 {
+	if m.DialogsOverscroll.Stretch != 23 {
 		t.Fatalf("setup stretch = %d, want 29", m.DialogsOverscroll.Stretch)
 	}
 	m, _ = Update(m, DialogsPressCanceled{})
@@ -217,15 +217,15 @@ func TestDialogsTouchCancelFreezesStretch(t *testing.T) {
 		t.Fatalf("cancel = active %v state %d, want false/0", m.DialogsTouch.Active, m.DialogsTouch.State)
 	}
 	m, _ = Update(m, DialogsTick{Now: 1030})
-	if m.DialogsOverscroll.Stretch != 29 {
-		t.Fatalf("stretch after cancel = %d, want 29 (frozen, no spring)", m.DialogsOverscroll.Stretch)
+	if m.DialogsOverscroll.Stretch != 23 {
+		t.Fatalf("stretch after cancel = %d, want 23 (frozen, no spring)", m.DialogsOverscroll.Stretch)
 	}
 	m, _ = Update(m, DialogsDragged{X: 200, Y: -900, Now: 1040})
-	if m.DialogsOverscroll.Stretch != 29 {
-		t.Fatalf("stretch after stray drag = %d, want 29 (no touch active)", m.DialogsOverscroll.Stretch)
+	if m.DialogsOverscroll.Stretch != 23 {
+		t.Fatalf("stretch after stray drag = %d, want 23 (no touch active)", m.DialogsOverscroll.Stretch)
 	}
 	m, _ = Update(m, DialogsWheel{AngleY: 120, Now: 1050})
-	if !m.DialogsOverscroll.Returning || m.DialogsOverscroll.Stretch != 29 {
-		t.Fatalf("wheel after cancel = returning %v stretch %d, want true/29", m.DialogsOverscroll.Returning, m.DialogsOverscroll.Stretch)
+	if !m.DialogsOverscroll.Returning || m.DialogsOverscroll.Stretch != 23 {
+		t.Fatalf("wheel after cancel = returning %v stretch %d, want true/23", m.DialogsOverscroll.Returning, m.DialogsOverscroll.Stretch)
 	}
 }

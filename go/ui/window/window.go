@@ -50,6 +50,7 @@ func Run() error {
 	var lastW, lastH int
 	var chatPrimary bool
 	var keyFocus bool
+	var searchFocus bool
 	for {
 		switch e := w.Event().(type) {
 		case gioapp.DestroyEvent:
@@ -68,12 +69,13 @@ func Run() error {
 				lastW, lastH = dpW, dpH
 				handle(app.Resized{Width: dpW, Height: dpH})
 			}
-			if appModel.KineticActive() || appModel.ChatDateActive() || appModel.ChatDownActive() || appModel.ChatMentionsActive() || appModel.ChatReactionsActive() || appModel.DialogsToUpActive() || appModel.ChatComposeBlinkActive() {
+			if appModel.KineticActive() || appModel.ChatDateActive() || appModel.ChatDownActive() || appModel.ChatMentionsActive() || appModel.ChatReactionsActive() || appModel.DialogsToUpActive() || appModel.ChatComposeBlinkActive() || appModel.SearchBlinkActive() {
 				handle(app.DialogsTick{Now: int(time.Now().UnixMilli())})
 				handle(app.ChatTick{Now: int(time.Now().UnixMilli())})
 			}
 			gtx := gioapp.NewContext(&ops, e)
 			routeInput(gtx, painter.Input, e.Metric, handle)
+			routeSearchKeys(gtx, painter.Input, appModel, &searchFocus, handle)
 			if cols := appModel.Columns(); cols.Chat > 0 && cols.Dialogs < appModel.Width {
 				routeChatInput(gtx, chatPainter.Input, e.Metric, cols.Dialogs, &chatPrimary, handle)
 				routeComposeKeys(gtx, chatPainter.Input, appModel, &keyFocus, handle)
@@ -95,7 +97,7 @@ func Run() error {
 				w.Perform(system.ActionClose)
 			}
 			e.Frame(gtx.Ops)
-			if appModel.KineticActive() || appModel.ChatDateActive() || appModel.ChatDownActive() || appModel.ChatMentionsActive() || appModel.ChatReactionsActive() || appModel.DialogsToUpActive() || appModel.ChatComposeBlinkActive() {
+			if appModel.KineticActive() || appModel.ChatDateActive() || appModel.ChatDownActive() || appModel.ChatMentionsActive() || appModel.ChatReactionsActive() || appModel.DialogsToUpActive() || appModel.ChatComposeBlinkActive() || appModel.SearchBlinkActive() {
 				w.Invalidate()
 			}
 		}
@@ -125,16 +127,22 @@ func routeInput(gtx layout.Context, tag *render.InputArea, metric unit.Metric, h
 		switch e.Kind {
 		case pointer.Press:
 			gtx.Execute(pointer.GrabCmd{Tag: tag, ID: e.PointerID})
+			x, y := pxToDp(metric, e.Position.X), pxToDp(metric, e.Position.Y)
+			now := int(time.Now().UnixMilli())
+			if y < tokens.TopBarHeight {
+				handle(app.DialogsHeaderPressed{X: x, Y: y, Now: now})
+				continue
+			}
 			handle(app.DialogsPressed{
-				X:     pxToDp(metric, e.Position.X),
-				Y:     pxToDp(metric, e.Position.Y),
+				X:     x,
+				Y:     y - tokens.TopBarHeight,
 				Touch: e.Source == pointer.Touch,
-				Now:   int(time.Now().UnixMilli()),
+				Now:   now,
 			})
 		case pointer.Move, pointer.Drag:
-			handle(app.DialogsDragged{X: pxToDp(metric, e.Position.X), Y: pxToDp(metric, e.Position.Y), Now: int(time.Now().UnixMilli())})
+			handle(app.DialogsDragged{X: pxToDp(metric, e.Position.X), Y: pxToDp(metric, e.Position.Y) - tokens.TopBarHeight, Now: int(time.Now().UnixMilli())})
 		case pointer.Release:
-			handle(app.DialogsReleased{X: pxToDp(metric, e.Position.X), Y: pxToDp(metric, e.Position.Y), Now: int(time.Now().UnixMilli())})
+			handle(app.DialogsReleased{X: pxToDp(metric, e.Position.X), Y: pxToDp(metric, e.Position.Y) - tokens.TopBarHeight, Now: int(time.Now().UnixMilli())})
 		case pointer.Cancel:
 			handle(app.DialogsPressCanceled{})
 		case pointer.Scroll:
@@ -260,6 +268,49 @@ func routeComposeKeys(gtx layout.Context, tag *chatrender.InputArea, model app.M
 		}
 		if e, ok := ev.(key.Event); ok {
 			if msg := app.ComposeKeyMsg(e, int(time.Now().UnixMilli())); msg != nil {
+				handle(msg)
+			}
+		}
+	}
+}
+
+func routeSearchKeys(gtx layout.Context, tag *render.InputArea, model app.Model, focus *bool, handle func(app.Msg)) {
+	want := model.Search.Focused
+	if want != *focus {
+		*focus = want
+		if want {
+			gtx.Execute(key.FocusCmd{Tag: tag})
+		} else {
+			gtx.Execute(key.FocusCmd{Tag: nil})
+		}
+		gtx.Execute(key.SoftKeyboardCmd{Show: want})
+	}
+	focusFilter := key.FocusFilter{Target: tag}
+	for {
+		ev, ok := gtx.Event(focusFilter)
+		if !ok {
+			break
+		}
+		switch e := ev.(type) {
+		case key.EditEvent:
+			if msg := app.SearchEditMsg(e, int(time.Now().UnixMilli())); msg != nil {
+				handle(msg)
+			}
+		case key.FocusEvent:
+			if !e.Focus && *focus {
+				*focus = false
+				handle(app.SearchFocusLost{})
+			}
+		}
+	}
+	keyFilter := key.Filter{Focus: tag, Optional: key.ModShift | key.ModCtrl}
+	for {
+		ev, ok := gtx.Event(keyFilter)
+		if !ok {
+			break
+		}
+		if e, ok := ev.(key.Event); ok {
+			if msg := app.SearchKeyMsg(e, int(time.Now().UnixMilli())); msg != nil {
 				handle(msg)
 			}
 		}

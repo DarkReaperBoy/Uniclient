@@ -32,6 +32,13 @@ const (
 	DialogsRowTextTop     = 34
 	DialogsSearchInHeight = 38
 
+	DialogsFilterPadX         = 7
+	DialogsFilterSkip         = 4
+	DialogsFilterHeight       = 35
+	DialogsFilterRadius       = 18
+	DialogsFilterTextLeft     = 12
+	DialogsFilterBorderActive = 2
+
 	MainMenuWidth                = 274
 	MainMenuCoverHeight          = 134
 	MainMenuUserpicSize          = 48

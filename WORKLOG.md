@@ -7,22 +7,27 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: GUI rebuild (§6); owner-reported W-1 on top — the booted web
-  page paints only the flat zero-account surface (see Open items),
-  then D-4 atomic 2 (Enter=submit + history scroll laws)
-- next: W-1, D-4 atomic 2, D-3; token in .env (§0.2)
+- front: GUI rebuild (§6); the W-1 chrome slice landed (session
+  408 — the zero-account scene paints the frame); next front work:
+  the search filter semantics, then the engine->UI bridge (the
+  account-driven empty state), then D-4 atomic 2
+- next: filter semantics, engine bridge, D-4 atomic 2, D-3; token in
+  .env (§0.2)
 - owner-waiting: N-1 — install the uniclient-android APK artifact
   (build 42622715804) on a device and report (android GUI-default check)
-- last-gate: build 42644804177 (c74bf4b8, Build #7) SUCCESS — all five
-  jobs+steps (web, android, linux amd64/arm64, windows); gh-pages live
-  (Pages #23 green); driven at dc2385e08410: canvas 1, HUD none, console
-  clean — 100% flat #FEF7FF (W-1)
+- last-gate: session 408 local — quick gate GREEN (native vet+test,
+  windows vet), comment ban clean, js/wasm build 31,183,083 B driven
+  under the real CI shell on localhost: 1440x900 + 390x844 panes/band/
+  pill painted, click->ring+caret, typed "ab" + caret follows + blink
+  ON/off at 500ms, geometry pixel-exact (pill 7..502 x 9..43); CI push
+  run dispatched after the commit (record in next session)
 
 ## Open items
 
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
-| W-1 | ui/app InitialModel | the booted GUI paints background only — live drive: ONE distinct color #FEF7FF across the full viewport at 1440x900 AND 390x844 (canvas 1, HUD none, console clean); the zero-account scene has zero visible structure: indistinguishable from a broken page (the owner's whitescreen — NOT their side); §1.9 honest empty state = visible chrome (frame/panes/add-account affordance, engine-driven) | this session: agent-browser live drive + pixel scan | empty-state paint slice — failing gui test first, then the chrome |
+| W-1 | ui/app InitialModel | CLOSED 2026-11-09 (session 408): the zero-account scene now paints the frame — dialogs column SurfaceContainerLow vs chat Surface, 54dp header band, the reference-measured search field (7,9,W-18,35 r18) with real focus/typing/backspace/blink; driven live at 1440x900 + 390x844 (pixel scan: pill exact, ring+caret+typed text verified). The residual — the engine-driven add-account affordance — moved to the new front item below | session 408 driven journey | done |
+| W-2 | app/engine bridge | the GUI runs window.Run() with ZERO engine wiring — no bootstrap.Init on the gui path, nothing ever sends DialogsLoaded/ChatLoaded (grep: test-only senders); the search field filters nothing yet; the honest account-driven empty state ("add an account") needs the pump: engine events -> Msgs, account list in Model, dialogs/chat feeds | session 408 recon (PaintComposeBar also has zero callers — the compose bar is painted by nobody) | the bridge atomic: gui path boots the engine, pump goroutine, Accounts in Model; then the search filter semantics atomic (rows exist -> filter pinned by tests) |
 | N-1 | android APK | GUI-default on android is runtime-unverifiable in-sandbox (no emulator/device); expected: the empty Material surface, not a black zombie | session 405 (js sibling); js live-verified in 406; APK artifact on build 42622715804 | owner installs the uniclient-android APK artifact and reports |
 | H-2 | verify/release yml | CLOSED 2026-11-09 (owner order): android + web legs returned as build.yml (per-push, no tests, parallel); only the Xvfb GUI + Puppeteer web-drive legs stay parked with the rebuilt GUI | AGENTS.md §8; build 42597570851 | Xvfb/Puppeteer return when the GUI ships (§6.7) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
@@ -30,6 +35,84 @@ owner order — that history lives in git if ever needed.
 | D-2 | ui/history unread-things buttons | read-marking absent for mentions AND reactions: after a jump the button stays shown (reference hides it when the server marks the thing read — updateUnreadThingsVisibility is server-data-driven); mentionsClick's already-there voice/video media-read branch (5623) deferred — no media model; unread-count badges join D-1's class; poll-votes 4th stack slot returns with a poll model | history_view_corner_buttons.cpp 147-190, 288-345 | returns with engine unread-things events + the media pass |
 | D-3 | build.yml web job | wasm size diet: the js/wasm build ships every core incl. the six raw-TCP backends that can never connect from a browser (§7 web truth) — build-tag exclusion at the engine factory projected <20 MB; also headroom under git's 100 MB file ceiling on gh-pages | headless-host wasm = 31,162,944 B after the keyboard atomic (v0.9.1's old-GUI build was 88,659,256 B) | one atomic with tests: bootstrap factory js variant + per-core js stubs |
 | D-4 | window keys — atomic 2 | Enter=submit (ShouldSubmit law: default Enter-mode = plain Enter/Return submits, Shift/Ctrl+Return newline — already mapped) -> ChatComposeSubmitted + send-request seam (ChatBottomRequested-pattern) + field clear; Up/Down/PageUp/PageDown = history scroll (never compose cursor moves — customUpDown law); Up on EMPTY field + canWrite + !edit + !reply -> edit last editable message, else scroll; Ctrl+Up/Down -> reply prev/next (reply front) | AyuGramDesktop dev history_widget.cpp 9276-9349 (fetched 2026-11-09): Down always _scroll->keyPressEvent; Up scrolls unless field empty && canWrite && !_editMsgId && !_replyTo, then lastEditableMessage() -> editMessage else scroll; PageUp/PageDown always scroll; Enter -> ShouldSubmit(sendSubmitWay, mods); Qt key scroll = SliderSingleStep/PageStep (qabstractscrollarea.cpp 1215-1220; qabstractslider.cpp 180: defaults singleStep 1 pageStep 10 — but our own wheel law 120-angle notch = 60px = WheelScrollLines 3 => singleStep = 20px = WheelNotchAngleDelta/WheelScrollLines/WheelPixelToAngleDelta); IME ranged EditEvents + SelectionCmd/SnippetCmd contract = the mobile/IME front | atomic 2: ChatComposeSubmitted + ChatComposeSendRequested + scroll keys with the 20px singleStep law; edit-last rides the messages/edit front |
+
+## Session 408 — full recon (owner order) + W-1 closed: the zero-account frame (2026-11-09)
+
+- Owner redirect: "still broken, do full recon before continuing." Recon
+  first, then the fix. Recon findings (all command-verified this session):
+  local main == origin/main == a85ec25a, clean tree; PRs #1/#3 = old
+  closed owner test/doc PRs (irrelevant); CI Build #8 (42647039235,
+  dispatched on a85ec25a, unrecorded in STATE until now) all five jobs
+  SUCCESS + Pages deploy e0e69862 green — the live URL serves VER
+  a85ec25a, wasm 31,162,944 B; live drive (agent-browser, 1440x900 +
+  390x844): boots clean (HUD none, canvas 1, console + page errors
+  empty) but the viewport is STILL 100.00% one color #FEF7FF — the
+  owner's "still broken" = W-1, confirmed with this session's own eyes.
+  Code-level root cause mapped: window.go paints Background + two panes;
+  dialogs PaintPane draws rows only; chat PaintChatPane early-returns
+  at Count<=0; PaintComposeBar has ZERO callers (dead code — W-2);
+  the gui path runs window.Run() with no engine wiring at all.
+- W-1 atomic (the visible frame): tokens measured from the reference —
+  dialogs.style dialogsFilter (heightMin 35, radius 18, textMargins
+  12/8/30/5, borderActive 2), dialogsFilterPadding 7/7, dialogsFilterSkip
+  4, the top bar 54 (info.style topBarHeight — already in the table),
+  composition from dialogs_widget.cpp updateControlsGeometry 4642-4710:
+  filterLeft = padX + menuW + padX (54 with the hamburger, 7 without —
+  the hamburger is DEFERRED to the menu front: no working menu items
+  exist, a dead button is banned §1.9), filterRight = skip + padX = 11,
+  field top = (54-35)/2 = 9; placeholder = lng_dlg_filter "Search"
+  (no leading icon in the reference field). New: ui/dialogs/header.go
+  (HeaderView + HeaderLayout + HeaderFieldHit), Pane.Header, app/search.go
+  (SearchState + DialogsHeaderPressed/SearchTyped/SearchBackspace/
+  SearchFocusLost + focus/blur/blink — the same CursorFlashTimeMs/2
+  law), search_keys.go (SearchEditMsg single-line, ranged IME edits nil
+  until the IME front — the compose pin; SearchKeyMsg: Backspace only,
+  arrows/copy deferred to the field-kit front), window.go routing
+  (band press -> DialogsHeaderPressed in pane coords, list events
+  shifted -54; routeSearchKeys mirrors routeComposeKeys incl.
+  SoftKeyboardCmd; pressDialogs blurs the search — a list press is
+  outside the field), painter: the dialogs column fills
+  SurfaceContainerLow (M3 list-pane law; the chat column keeps Surface
+  — the two-pane split), the band + pill (SurfaceContainerHighest,
+  focused ring Primary 2dp) + placeholder OnSurfaceVariant + caret;
+  Resized: DialogsScroll.Height = H-54 (the list is a separate
+  scrollable below the fixed band, the reference's own structure).
+- Tests: dialogs_header_elm_test.go NEW (11 tests: geometry at both
+  pane shapes, scroll height, focus journey incl. list-press blur and
+  band-press-leaves-list-untouched, typed/backspace, blink law, focus
+  lost, zero-account scene pins the header, view projection, paint
+  smoke). Deliberate behavior change — the 54dp band — re-pinned in the
+  six dialogs test files (scroll clamp 72->126, viewport 300->246,
+  load-more line 92->254, wheel accel 270->243 (areaH 246), track jump
+  346->486, bar drag scale 33->41, rubber band 702/10/196->750/4/88,
+  spring return 700/695/693/692->749/747/746/746, fling settle 692->746,
+  to-up press Y 360->306, hidden-bar 4 rows->3) — every pin recomputed
+  from the law, not copied: rubber band 44 leftover x2 /20 = 4.4 -> 4,
+  spring 4xe^(-12.5t), wheel -60x246/120 = 123. tests/gui 197 (186+11).
+- THE CARET BUG (found by the drive, fixed): fillRRect with radius 1 on
+  a 2dp-wide rect paints NOTHING on gio/js (degenerate rounded-rect
+  path); the ring (radius 20) and pill (18) painted fine, the caret was
+  invisible at both blink phases — isolated by two debug builds
+  (unconditional gate still invisible; radius 0 + W 8 painted 128px at
+  the exact computed geometry 19,18). Fix: caret radius 0 (a 2dp
+  hairline has no rounding). Painter law: hairline fills use radius 0.
+- Driven journey (§4, the fixed build under the real CI shell on
+  localhost, agent-browser): 1440x900 — pixel histogram 64.31%
+  #FEF7FF + 34.37% #F7F2FA + 1.29% #E6E0E9 (the split) + #49454F
+  (placeholder); pill bounds scanned 7..502 x 9..43 = the measured
+  table exactly; click (100,27) -> focus ring 2dp #6750A4 + caret
+  2x16 at (19,18); press a,b -> text painted, caret moved to x 34-35
+  (follows the text); blink over 5 shots: ON off ON ON off (500ms
+  law); 390x844 single-pane: pill + ring visible (95.73% container +
+  3.72% pill). Console + page errors clean at both sizes.
+- Gates: quick gate GREEN (native vet+test scoped, windows vet for the
+  gio legs), gofmt clean, comment ban clean, js/wasm full build green
+  31,183,083 B. Boot: sandbox had recycled to zero (Go 1.27.3
+  reinstalled per env.sh, module cache refilled).
+- Docs: README web paragraph now says what the page shows (frame +
+  empty lists until the bridge lands); STATE records Build #8; W-1
+  CLOSED, W-2 opened (the engine->UI bridge — the add-account
+  affordance needs it; the search filter semantics ride it too).
 
 ## Session 407 — the md truth audit (owner order) + the whitescreen verdict (2026-11-09)
 
@@ -164,132 +247,3 @@ owner order — that history lives in git if ever needed.
   deploy, verify the live URL in chromium, then the GUI front:
   keyboard routing.
 
-## Session 404 — the owner's CI builder: build.yml + the loader (2026-11-09)
-
-- Owner redirect (chat): "i want github actions to do this, not to
-  actually build it. delete local shit. add to agents.md that i have
-  no access to your local sandbox… configure the whole thing." — the
-  android/web targets are CI products, never sandbox hand-offs.
-  Context: the owner dispatched Release today (run 42589237640,
-  cancelled) and saw no android/web legs — they were parked in H-2
-  pending exactly this order.
-- build.yml (new; push main + v* + dispatch; parallel; ZERO tests —
-  §1.5): web job = the proven v0.10.3 wasm recipe (GOOS=js
-  GOARCH=wasm, -trimpath -s -w, -p 1 GOMEMLIMIT=900MiB) + a
-  CI-generated shell (main stays JS/HTML-free, §1.1): index.html
-  loader — streamed download w/ %, MB, live speed (1.5 s sliding
-  window) + ETA; version-keyed Cache API (same version = zero
-  network, works offline); sha256 integrity pinned at build time
-  (mismatch -> purge + one cache-busted reload); stale-version sweep;
-  sw.js (network-first shell, wasm passthrough — offline boot);
-  Telegram bridge (UA-gated lazy telegram-web-app.js:
-  ready/expand/themeParams -> CSS vars — the telegram-loadable page
-  the owner asked for); console mirror into the boot HUD; canvas
-  MutationObserver overlay drop (v0.10.3 lineage) -> orphan gh-pages
-  force-push (main + tag refs only); web-kit artifact w/ gzip -9 +
-  brotli -q 11 siblings (gzip_static/brotli_static self-hosting).
-  android job = the proven v0.10.3 gogio recipe verbatim
-  (gogio@v0.10.0, NDK 27.0.12077973, build-tools 35.0.0, android-34,
-  arm64, minsdk 24) -> uniclient-android artifact. gogio@v0.10.3
-  install verified locally before writing the job.
-- release.yml: android leg re-added — tag releases ship uniclient.apk
-  again (v0.10.3 parity). README APK/web paragraph updated. AGENTS:
-  §1.4 (gh-pages deploy returned, shell CI-generated), §1.5 (the CI
-  split), §1.22 (sandbox invisibility — owner order), §8 (build.yml +
-  APK on tags), §11 (Pages verified serving).
-- The android leg found parked-leg rot immediately (its whole
-  purpose): two android-only audio files the session-368 export
-  sweep missed — no local gate compiles //go:build android (purego's
-  android backend needs cgo/NDK). 4e612bd6 jni_android.go (15
-  undefined JNIEnv*/JniVersion16 ordinals; run 42595087192) +
-  bcb7dee0 opensl_android.go (openslDevice methods exported to
-  satisfy audio.Device + OutputMix/DeviceType/DeviceID literals;
-  run 42596604329) — both git diff -w = pure renames; gofmt,
-  comment ban, linux build, tests/audio green locally each time.
-- Wasm truth: 31,153,413 B — the old 88,659,256 figure was v0.9.1's
-  full-old-GUI build; the headless host is 31.2 MB (D-3's diet still
-  applies). APK artifact 12.1 MB; web kit 19.9 MB (gzip -9 + brotli
-  -q 11 siblings for gzip_static/brotli_static self-hosting).
-- Local build artifacts: none existed — fresh sandbox boot (the prior
-  conversation's local APK/web builds died with its sandbox; only
-  .tools/go, the gate toolchain, remains). The /tmp/gobin gogio test
-  install removed.
-- Evidence: build 42597570851 (bcb7dee0) SUCCESS job+step — both
-  jobs, every step; verify 42596637204 (531c134f) SUCCESS job+step
-  (all 3 jobs); gh-pages orphan "Web build for main (bcb7dee0…)";
-  https://darkreaperboy.github.io/Uniclient/ serving VER bcb7dee06da9
-  with WASM_BYTES = 31,153,413 matching the served bytes (31,153,413
-  B, HTTP 200); artifacts uniclient-android 12.1 MB + uniclient-web
-  19.9 MB on the run.
-
-## Session 403 — the field mouse gestures: the app wiring (2026-11-09)
-
-- Boot: the sandbox recycled to zero again (second wipe today — the
-  402 checkout and .tools gone; nothing pushed was lost: repo
-  re-cloned from origin, Go 1.27.3 + module cache rebuilt). Boot
-  verifies first: 42544011545 (23b21e34) + 42544938478 (23277542)
-  both SUCCESS job+step (all 3 jobs, every step).
-- Law (qwidgettextcontrol.cpp, qt/qtbase dev, re-fetched raw — the
-  402 atomic-4 mined law confirmed and completed): PRESS = hitTest
-  FuzzyHit (= XToColumn nearest, line clamped) -> MoveAnchor;
-  setPosition with mode != KeepAnchor clears selectedWord/
-  selectedBlock (qtextcursor.cpp 546-548); Shift+press = blockwise/
-  wordwise extend if armed else KeepAnchor; press inside a selection
-  might start DnD (no DnD model — skipped, pinned). DOUBLE =
-  setCursorPosition then select(WordUnderCursor) iff the wrap line
-  has runes; the dblclick sets NO mousePressed; arms trippleClick-
-  Timer (400) + point. Window-platform synthesis pin (mine): second
-  press within MouseDoubleClickInterval 400 (QPlatformTheme default)
-  AND manhattan < startDragDistance 10 — QApplication's synthesis is
-  platform-level; 10 is the reference's own triple idiom. TRIPLE =
-  press while the timer lives within 10px manhattan, checked BEFORE
-  the hit test, on the CURRENT CURSOR's block: StartOfBlock +
-  EndOfBlock KA + NextCharacter KA = the block INCLUDING its '\n'
-  (NextCharacter fails at doc end); stores selectedBlock; stops the
-  timer. DRAG = blockwise if armed, wordwise if armed, else straight
-  KeepAnchor extend (mouseMoveEvent 1707-1719; wordSelectionEnabled
-  false — the ctor default, never enabled by the reference); NO
-  ensureCursorVisible on drag (autoscroll deferred, source
-  1721-1723). extendWordwise = inside-word restore, StartOfWord/
-  EndOfWord no-op bails (movePosition fails iff the position does
-  not move — qtextcursor.cpp 305-640), same-wrap-line guard, the
-  mouseX-in-[wordStartX,wordEndX] gate, the #39164 keep-the-word
-  anchor law, the nearest-end-by-X pick; extendBlockwise = inside
-  restore, down = EndOfBlock+NextCharacter, up = StartOfBlock.
-  RELEASE clears mousePressed only (clipboard paths deferred).
-  Blink = cursorFlashTime 1000 (QPlatformTheme default) / 2 = 500ms
-  toggle; while selected cursorOn &= SH_BlinkCursorWhenTextSelected
-  (QStyle default 0) — hides at the NEXT toggle, not instantly;
-  focus-in lights + restarts (setCursorVisible ->
-  updateCursorBlinking 691-714). setPosition always setX()
-  (qtextcursor.cpp 1563) -> every mouse op sets GoalX (the clicked
-  column becomes the vertical-move goal).
-- Go: ui/app/compose.go — ChatComposeState gains Focused/CursorOn/
-  NextBlinkAt/MousePressed/Grab/LastClick{Set,At,X,Y}/TrippleClick-
-  {Deadline,X,Y}/WordSel{Active,Anchor,Cursor}/BlockSel{...}; msgs
-  ChatComposePressed{X,Y,Shift,Now}/Dragged/Released; composePressed
-  (focus-transition-gated blink restart; triple/double/plain+shift
-  branches; the last-click chain), composeDragged, composeReleased,
-  composeBlinkTick, ChatComposeBlinkActive; composeFieldHitAt +
-  composeHitTest; composeExtendBlockwise/Wordwise. ui/text:
-  MoveStartOfBlock/MoveEndOfBlock (the '\n' boundary scans).
-  tokens: MouseDoubleClickIntervalMs 400 + CursorFlashTimeMs 1000
-  (Qt defaults; the distance gate reuses TouchDragStartDistance 10 —
-  one Qt constant, one token). Routing: pressChat hits the field
-  FIRST (mouse AND touch — a field touch never starts list
-  scrolling), non-field presses break the double-click chain
-  (QApplication's per-widget synthesis law); dragChat/releaseChat
-  route on Grab; ChatPressCanceled clears Grab + MousePressed + the
-  chain. ChatPressed gains Shift (window: e.Modifiers&key.ModShift).
-  Projection: ComposePaneView.CaretOn; the painter gates the caret
-  fill; the window tick + invalidate join ChatComposeBlinkActive.
-- RED -> GREEN after 6 test-side slips of mine (an out-of-contract
-  drag msg, the 400/500/600 sequence was double/triple/double,
-  800->900 was itself a double, the list-press placement between the
-  pair, a double-toggle blink check, the instant-hide assumption) —
-  the engine was right every time; each fix re-traced against the
-  source before touching the test.
-- 14 new tests (12 gui + 2 text), 433 total = 230 ui + 182 gui + 21
-  text. quick GREEN; js/wasm compile ui/... GREEN; comment ban
-  clean; gotd legs OOM on this 4GiB box (§9 rung 7 — CI verify is
-  the gate).

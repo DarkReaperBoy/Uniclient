@@ -102,6 +102,7 @@ type Pane struct {
 	Selected     int
 	Thumb        Thumb
 	ToUpProgress float32
+	Header       HeaderView
 }
 
 func (l List) Pane(v Viewport, width int) Pane {

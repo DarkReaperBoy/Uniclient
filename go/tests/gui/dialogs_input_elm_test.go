@@ -17,16 +17,16 @@ func TestDialogsWheelNotch(t *testing.T) {
 		t.Fatalf("wheel notch x2 = %d, want 120", m.DialogsScroll.Top)
 	}
 	m, _ = Update(m, DialogsWheel{AngleY: -120, Accelerate: true})
-	if m.DialogsScroll.Top != 270 {
-		t.Fatalf("accelerated notch = %d, want 270 (120 + 150)", m.DialogsScroll.Top)
+	if m.DialogsScroll.Top != 243 {
+		t.Fatalf("accelerated notch = %d, want 243 (120 + 123)", m.DialogsScroll.Top)
 	}
 	m, _ = Update(m, DialogsWheel{AngleX: -120, AngleY: -120})
-	if m.DialogsScroll.Top != 270 {
-		t.Fatalf("cross-axis wheel = %d, want 270 (ignored)", m.DialogsScroll.Top)
+	if m.DialogsScroll.Top != 243 {
+		t.Fatalf("cross-axis wheel = %d, want 243 (ignored)", m.DialogsScroll.Top)
 	}
-	m, _ = Update(m, DialogsWheel{AngleY: -1000})
-	if m.DialogsScroll.Top != 692 {
-		t.Fatalf("wheel past end = %d, want 692 (clamped)", m.DialogsScroll.Top)
+	m, _ = Update(m, DialogsWheel{AngleY: -2000})
+	if m.DialogsScroll.Top != 746 {
+		t.Fatalf("wheel past end = %d, want 746 (clamped)", m.DialogsScroll.Top)
 	}
 	m, _ = Update(m, DialogsWheel{AngleY: 2000})
 	if m.DialogsScroll.Top != 0 {
@@ -38,11 +38,17 @@ func TestDialogsWheelLoadMore(t *testing.T) {
 	m := scrolledModel(t, 400, 300, 16)
 	m, cmd := Update(m, DialogsWheel{AngleY: -120})
 	if cmd != nil {
-		t.Fatal("load-more at 60 must not fire (960 < 992)")
+		t.Fatal("load-more at 60 must not fire (798 < 992)")
 	}
 	m, cmd = Update(m, DialogsWheel{AngleY: -120})
+	if cmd != nil {
+		t.Fatal("load-more at 120 must not fire (858 < 992)")
+	}
+	m, _ = Update(m, DialogsWheel{AngleY: -120})
+	m, _ = Update(m, DialogsWheel{AngleY: -120})
+	m, cmd = Update(m, DialogsWheel{AngleY: -120})
 	if cmd == nil {
-		t.Fatal("load-more at 120 must fire (1020 >= 992)")
+		t.Fatal("load-more at 300 must fire (1038 >= 992)")
 	}
 }
 
@@ -53,12 +59,12 @@ func TestDialogsTrackpadScroll(t *testing.T) {
 		t.Fatalf("trackpad dy = %d, want 40", m.DialogsScroll.Top)
 	}
 	m, _ = Update(m, DialogsTrackpadScrolled{PixelY: -40, Accelerate: true})
-	if m.DialogsScroll.Top != 140 {
-		t.Fatalf("trackpad accel = %d, want 140 (40 + 100)", m.DialogsScroll.Top)
+	if m.DialogsScroll.Top != 122 {
+		t.Fatalf("trackpad accel = %d, want 122 (40 + 82)", m.DialogsScroll.Top)
 	}
 	m, _ = Update(m, DialogsTrackpadScrolled{PixelX: -50, PixelY: -40})
-	if m.DialogsScroll.Top != 140 {
-		t.Fatalf("trackpad cross-axis = %d, want 140 (ignored)", m.DialogsScroll.Top)
+	if m.DialogsScroll.Top != 122 {
+		t.Fatalf("trackpad cross-axis = %d, want 122 (ignored)", m.DialogsScroll.Top)
 	}
 }
 
@@ -90,31 +96,31 @@ func TestDialogsPressedBarJumpAndDrag(t *testing.T) {
 	m := scrolledModel(t, 400, 300, 16)
 	m, _ = Update(m, DialogsScrolled{DeltaY: 400})
 	m, _ = Update(m, DialogsPressed{X: 398, Y: 150})
-	if m.DialogsScroll.Top != 346 {
-		t.Fatalf("track press off thumb = %d, want 346 (jump to middle)", m.DialogsScroll.Top)
+	if m.DialogsScroll.Top != 486 {
+		t.Fatalf("track press off thumb = %d, want 486 (jump to middle)", m.DialogsScroll.Top)
 	}
 	if !m.DialogsBar.Dragging || m.DialogsBar.LastY != 150 {
 		t.Fatalf("bar drag state = %+v, want dragging from 150", m.DialogsBar)
 	}
 	m, _ = Update(m, DialogsDragged{X: 398, Y: 160})
-	if m.DialogsScroll.Top != 379 {
-		t.Fatalf("drag +10 = %d, want 379 (346 + 33)", m.DialogsScroll.Top)
+	if m.DialogsScroll.Top != 527 {
+		t.Fatalf("drag +10 = %d, want 527 (486 + 41)", m.DialogsScroll.Top)
 	}
 	m, _ = Update(m, DialogsDragged{X: 398, Y: 170})
-	if m.DialogsScroll.Top != 412 {
-		t.Fatalf("drag +10 = %d, want 412", m.DialogsScroll.Top)
+	if m.DialogsScroll.Top != 568 {
+		t.Fatalf("drag +10 = %d, want 568", m.DialogsScroll.Top)
 	}
 	m, _ = Update(m, DialogsDragged{X: 398, Y: 270})
-	if m.DialogsScroll.Top != 692 {
-		t.Fatalf("drag past end = %d, want 692 (clamped)", m.DialogsScroll.Top)
+	if m.DialogsScroll.Top != 746 {
+		t.Fatalf("drag past end = %d, want 746 (clamped)", m.DialogsScroll.Top)
 	}
 	m, _ = Update(m, DialogsReleased{X: 398, Y: 270})
 	if m.DialogsBar.Dragging {
 		t.Fatal("release must clear bar drag")
 	}
 	m, _ = Update(m, DialogsDragged{X: 398, Y: 280})
-	if m.DialogsScroll.Top != 692 {
-		t.Fatalf("drag after release = %d, want 692 (no-op)", m.DialogsScroll.Top)
+	if m.DialogsScroll.Top != 746 {
+		t.Fatalf("drag after release = %d, want 746 (no-op)", m.DialogsScroll.Top)
 	}
 }
 
@@ -129,13 +135,13 @@ func TestDialogsPressedBarOnThumb(t *testing.T) {
 		t.Fatal("press on thumb must still start the drag")
 	}
 	m, _ = Update(m, DialogsDragged{X: 393, Y: 160})
-	if m.DialogsScroll.Top != 433 {
-		t.Fatalf("thumb drag +10 = %d, want 433 (400 + 33)", m.DialogsScroll.Top)
+	if m.DialogsScroll.Top != 441 {
+		t.Fatalf("thumb drag +10 = %d, want 441 (400 + 41)", m.DialogsScroll.Top)
 	}
 }
 
 func TestDialogsPressedBarHidden(t *testing.T) {
-	m := scrolledModel(t, 400, 300, 4)
+	m := scrolledModel(t, 400, 300, 3)
 	m, _ = Update(m, DialogsPressed{X: 395, Y: 100})
 	if m.DialogsScroll.Top != 0 || m.DialogsBar.Dragging {
 		t.Fatalf("press on hidden bar = top %d dragging %v, want 0 false", m.DialogsScroll.Top, m.DialogsBar.Dragging)
@@ -212,15 +218,15 @@ func TestDialogsPressCanceled(t *testing.T) {
 		t.Fatal("setup: bar must be dragging")
 	}
 	m, _ = Update(m, DialogsDragged{X: 398, Y: 160})
-	if m.DialogsScroll.Top != 379 {
-		t.Fatalf("setup: top = %d, want 379", m.DialogsScroll.Top)
+	if m.DialogsScroll.Top != 527 {
+		t.Fatalf("setup: top = %d, want 527", m.DialogsScroll.Top)
 	}
 	m, _ = Update(m, DialogsPressCanceled{})
 	if m.DialogsBar.Dragging || m.DialogsTouch.Active {
 		t.Fatal("cancel must clear interaction state")
 	}
 	m, _ = Update(m, DialogsDragged{X: 398, Y: 170})
-	if m.DialogsScroll.Top != 379 {
-		t.Fatalf("drag after cancel = %d, want 379 (no-op)", m.DialogsScroll.Top)
+	if m.DialogsScroll.Top != 527 {
+		t.Fatalf("drag after cancel = %d, want 527 (no-op)", m.DialogsScroll.Top)
 	}
 }
