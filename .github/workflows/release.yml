@@ -4,11 +4,11 @@
 # commit (owner's requirement). Produces:
 #   - linux/amd64 + linux/arm64 (stripped, UPX)
 #   - windows/amd64 (pure Go, stripped, UPX)
+#   - android arm64 APK (gogio; the per-push build lives in build.yml)
 #   - a Nix gate: `nix build .#uniclient` + binary smoke run, so
 #     `nix run github:DarkReaperBoy/Uniclient` is proven for this exact
 #     commit on every release (v* tags must also match flake.nix version).
-# The android APK + web (gh-pages wasm) legs return with the rebuilt GUI
-# (AGENTS.md) — until then the binary is the headless engine host.
+# The web (gh-pages) deploy is build.yml's job — releases don't duplicate it.
 # All releases are marked PRE-RELEASE until the owner says otherwise.
 
 name: Release
@@ -168,9 +168,47 @@ jobs:
           path: dist/uniclient-windows-amd64.exe
           if-no-files-found: error
 
+  android:
+    name: Android arm64 (APK)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: go/go.sum
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Install gogio
+        run: go install gioui.org/cmd/gogio@v0.10.0
+      - name: Set up Android SDK + NDK
+        run: |
+          SDKMGR="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMGR" --licenses >/dev/null || true
+          "$SDKMGR" --install "build-tools;35.0.0" "platforms;android-34" "ndk;27.0.12077973" > /dev/null
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
+      - name: Build APK
+        run: |
+          mkdir -p dist
+          cd go
+          ~/go/bin/gogio -target android -arch arm64 -minsdk 24 -tags goolm \
+            -o ../dist/uniclient.apk ./cmd/uniclient
+        env:
+          GOMEMLIMIT: 900MiB
+          GOGC: "30"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: uniclient-android
+          path: dist/uniclient.apk
+          if-no-files-found: error
+
   release:
     name: Publish pre-release
-    needs: [test, nix, linux, windows]
+    needs: [test, nix, linux, windows, android]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -203,4 +241,5 @@ jobs:
             dist/uniclient-linux-amd64
             dist/uniclient-linux-arm64
             dist/uniclient-windows-amd64.exe
+            dist/uniclient.apk
             dist/checksums.txt

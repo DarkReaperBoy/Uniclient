@@ -7,32 +7,69 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: session 403 — the compose field mouse gestures wired
-  end-to-end: press/shift-press/double/triple/drag/release laws +
-  Focused state + caret blink flashTime/2 (off while selected) + GoalX
-  riding every setPosition — mined from qwidgettextcontrol.cpp
-- next: keyboard routing — window key.Event -> the compose msgs (pure
-  fn mapping like WheelDelta; Focused gates it, blur clears it);
-  Enter=send + Up/Down history when empty (customUpDown +
-  history_widget); send-button type crossfade 120ms; real font metrics
-  adapter when the gio shaper lands; DnD press-inside-selection +
-  selection clipboard + drag autoscroll when their models arrive
+- front: session 404 (owner redirect 2026-11-09: "github actions does
+  the building, never the sandbox") — build.yml live: per-push on
+  main, no tests, parallel — web (js/wasm + CI-generated loader:
+  progress/speed/ETA, version-keyed cache, sha256 integrity, offline
+  SW, Telegram bridge -> orphan gh-pages + gz/br kit artifact) +
+  android (gogio arm64 APK); release.yml re-ships the APK on tags;
+  AGENTS §1.22 sandbox invisibility (owner order); Pages re-enabled
+- next: the GUI front resumes — keyboard routing (window key.Event ->
+  the compose msgs; Enter=send + Up/Down history when empty); then D-3
 - owner-waiting: none
-- last-gate: quick GREEN (403 atomic 1); js/wasm compile ui/... GREEN;
-  comment ban clean; 433 tests (230 ui + 182 gui + 21 text) green on
-  the non-gotd legs (gotd OOMs on this 4GiB box, §9 rung 7); boot
-  verifies 42544011545 (23b21e34) + 42544938478 (23277542) SUCCESS
-  job+step; verify 42584000646 (e6aa0bbd) SUCCESS job+step — all 3
-  jobs, every step
+- last-gate: build run <ID> <RESULT> job+step; Pages
+  https://darkreaperboy.github.io/Uniclient/ live; no Go change this
+  slice (comment ban clean; verify 42584000646 stands for e6aa0bbd)
 
 ## Open items
 
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
-| H-2 | verify/release yml | android APK + web (gh-pages) + Xvfb GUI legs parked until the new GUI | AGENTS.md §6/§8; owner re-asked android + web + a telegram-loadable page on 2026-11-09 (while the old repo was believed wiped — the from-scratch rebuild of that context died with the sandbox) | re-add with the GUI build (owner order pending) |
+| H-2 | verify/release yml | CLOSED 2026-11-09 (owner order): android + web legs returned as build.yml (per-push, no tests, parallel); only the Xvfb GUI + Puppeteer web-drive legs stay parked with the rebuilt GUI | AGENTS.md §8; build run <ID> | Xvfb/Puppeteer return when the GUI ships (§6.7) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
 | D-1 | ui/history corner button | down-button unread-count badge (22dp, centered x, top 0 — jump_down_button.cpp paintEvent + historyToDownBadge*) + hover/over colors + ripple deferred: no unread counter in the chat Item model yet, no hover/ripple machinery in the skin yet; replyReturn branch of downClick + loadedAtBottom==false state return with reply-return jumps / below-history pagination | jump_down_button.cpp 33-52, corner_buttons.cpp 139-145 | badge returns with read-state counts; over/ripple with the skin's hover+ripple pass |
 | D-2 | ui/history unread-things buttons | read-marking absent for mentions AND reactions: after a jump the button stays shown (reference hides it when the server marks the thing read — updateUnreadThingsVisibility is server-data-driven); mentionsClick's already-there voice/video media-read branch (5623) deferred — no media model; unread-count badges join D-1's class; poll-votes 4th stack slot returns with a poll model | history_view_corner_buttons.cpp 147-190, 288-345 | returns with engine unread-things events + the media pass |
+| D-3 | build.yml web job | wasm size diet: the js/wasm build ships every core incl. the six raw-TCP backends that can never connect from a browser (§7 web truth) — build-tag exclusion at the engine factory projected <20 MB; also headroom under git's 100 MB file ceiling on gh-pages | v0.9.1 gh-pages uniclient.wasm = 88,659,256 B | one atomic with tests: bootstrap factory js variant + per-core js stubs |
+
+## Session 404 — the owner's CI builder: build.yml + the loader (2026-11-09)
+
+- Owner redirect (chat): "i want github actions to do this, not to
+  actually build it. delete local shit. add to agents.md that i have
+  no access to your local sandbox… configure the whole thing." — the
+  android/web targets are CI products, never sandbox hand-offs.
+  Context: the owner dispatched Release today (run 42589237640,
+  cancelled) and saw no android/web legs — they were parked in H-2
+  pending exactly this order.
+- build.yml (new; push main + v* + dispatch; parallel; ZERO tests —
+  §1.5): web job = the proven v0.10.3 wasm recipe (GOOS=js
+  GOARCH=wasm, -trimpath -s -w, -p 1 GOMEMLIMIT=900MiB) + a
+  CI-generated shell (main stays JS/HTML-free, §1.1): index.html
+  loader — streamed download w/ %, MB, live speed (1.5 s sliding
+  window) + ETA; version-keyed Cache API (same version = zero
+  network, works offline); sha256 integrity pinned at build time
+  (mismatch -> purge + one cache-busted reload); stale-version sweep;
+  sw.js (network-first shell, wasm passthrough — offline boot);
+  Telegram bridge (UA-gated lazy telegram-web-app.js:
+  ready/expand/themeParams -> CSS vars — the telegram-loadable page
+  the owner asked for); console mirror into the boot HUD; canvas
+  MutationObserver overlay drop (v0.10.3 lineage) -> orphan gh-pages
+  force-push (main + tag refs only); web-kit artifact w/ gzip -9 +
+  brotli -q 11 siblings (gzip_static/brotli_static self-hosting).
+  android job = the proven v0.10.3 gogio recipe verbatim
+  (gogio@v0.10.0, NDK 27.0.12077973, build-tools 35.0.0, android-34,
+  arm64, minsdk 24) -> uniclient-android artifact. gogio@v0.10.3
+  install verified locally before writing the job.
+- release.yml: android leg re-added — tag releases ship uniclient.apk
+  again (v0.10.3 parity). README APK/web paragraph updated. AGENTS:
+  §1.4 (gh-pages deploy returned, shell CI-generated), §1.5 (the CI
+  split), §1.22 (sandbox invisibility — owner order), §8 (build.yml +
+  APK on tags), §11 (Pages rung done under this order).
+- Local build artifacts: none existed — fresh sandbox boot (the prior
+  conversation's local APK/web builds died with its sandbox; only
+  .tools/go, the gate toolchain, remains). The /tmp/gobin gogio test
+  install removed.
+- Evidence: build run <ID> <RESULT>; gh-pages orphan; Pages URL; the
+  artifacts. Recorded post-run.
 
 ## Session 403 — the field mouse gestures: the app wiring (2026-11-09)
 
@@ -241,43 +278,3 @@ owner order — that history lives in git if ever needed.
 - 12 new tests (10 gui + 1 text + 1 ui), 410 total = 230 ui + 163 gui
   + 17 text. quick gate GREEN; js/wasm compile ui/... GREEN; comment
   ban clean. Verify <PENDING>.
-
-
-## Session 393 — the floating scroll-date (2026-11-08)
-
-- ScrollDateAnchor + List.ScrollDateAt (stick/pack-bottom-clamp/inPlace per
-  history_inner_widget.cpp 1182-1236 + PaintPreparedDate) + Elm ChatDateState
-  (every Top mutation; upward anchor-change 800ms, day-crossing 3000ms latch,
-  else hide-now; 200ms fade) + painter at stick position with fade alpha.
-  290 PASS. Verify 42499644234 SUCCESS (f27c1bbb). Detail: f27c1bbb + git.
-
-## Session 392 — chat top-edge preload/pagination (2026-11-08)
-
-- PreloadTopNeeded (Top < 2*Height, kPreloadIfLessThanScreens 2) fired from
-  every scroll-class surface; ChatPrepended stores viewport top, ChatMeasured
-  compensates by summed prepended heights (same content rows stay put);
-  MoreAbove = loadedAtTop projection. Deferred: good-for-around anchor scan +
-  bottom edge (need row IDs). 280 PASS. Verify 42496692212 SUCCESS.
-  Detail: 6ba120d5 + git history.
-
-## Session 391 — chat item interaction: tap/press over the message leg (2026-11-08)
-
-- ChatPressState action machine (prepare-select/prepare-drag/selecting/
-  dragging; time-label hit toggles selection-add) + HitBox PointStateOf /
-  TimeHit laws per the reference gesture split. 258 PASS. Verify success.
-  Detail: git history.
-
-## Session 390 — chat scrollbar bar-drag laws (2026-11-08)
-
-- ElasticScrollBar (lib_ui elastic_scroll.cpp:116-406; chat.style 188-202):
-  cut-clamp refreshGeometry, off-thumb press centers the thumb, drag scale +
-  pass-through quirks, dead-zone reversal payback; Elm bar drag + ChatPane
-  Thumb. 238 PASS. Verify 42487726300 SUCCESS. Detail: 8d39d63e + git.
-
-## Session 386 — the Material icon asset library (2026-11-08)
-
-- Canvas law (codegen_style parsed_file.cpp:967-969 + lib_ui MonoIcon): icon part point(x,y) = QMargins(x,y,0,0) — glyph at cell+(x,y), canvas = mask + point; SVG -WxH renders the FULL viewBox into WxH (chatlist 72 -> 18, scale 0.25); PNG coverage = blue channel (blue>127 at @3x, RDP eps 0.75@3x, /3 grid; crack-boundary walk; contour order = component scan then area-desc, holes wind opposite); SVG legs absolute M/L/C/Z flatten, 12 samples/cubic; IoU vs @2x 0.886-0.957; @3x is the trace source (per-DPI hand-tuned bboxes, pinned).
-- 13 glyphs: bot 16x11@(1,3)->17x14, channel 12x11@(3,4)->15x15, forum 19x10@(1,4)->20x14, dialogs sending 11x11@(8,4)->19x15 / sent 12x10@(10,4)->22x14 / received 17x10@(5,4)->22x14, pinned 20x20, chatlist 18x18 x3 (mention/reaction/poll), history sending 11x11@(5,5)->16x16 / sent 13x11@(2,4)->15x15 / received 18x11@(2,4)->20x15.
-- TTL timer (ttl_icon.cpp): pen 1.5 round, solid LEFT half-arc 90..270deg one annulus contour with round caps (bottom cap bulges +x, top -x), dotted right half 9 dots r0.75 pitch 3 anchored 3 o'clock (QPainterPath phase ASSUMED — refine vs a live render someday), text 9px semibold clamped 2 chars.
-- Selection laws: history.SendStateIcon(out, sending, unread) = bottom_info.cpp 287-300; dialogs.SendStateIcon(state); BadgeReaction split from BadgeMention (mention wins when both). paintMessage feeds Out to TimeLabel + fillGlyphs the icon at iconX/iconY (Item gains Sending/Unread).
-- RED 8 -> 2 spec errors fixed by measurement. GREEN 186. d8eedff -> verify 42454857199 SUCCESS (3 jobs, all steps). Detail: git d8eedff5 + this file's history.

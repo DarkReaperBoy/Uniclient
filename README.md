@@ -35,7 +35,10 @@ uniclient -dir ~/.uniclient -password <vault-password> [-events]
 ```
 
 `Ctrl-C` / `SIGTERM` shuts the engine down cleanly. The Android APK and the
-web (WASM) builds return with the rebuilt GUI.
+web (WASM) build are produced by CI: every push to `main` uploads them as
+workflow artifacts (the "Build" workflow), and the web build is live at
+<https://darkreaperboy.github.io/Uniclient/> — they carry the headless
+engine host until the rebuilt GUI lands.
 
 ## Build from source
 

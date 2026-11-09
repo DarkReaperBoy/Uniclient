@@ -1,0 +1,415 @@
+# Uniclient build pipeline — the CI artifact builder.
+# Runs on every push to main (+ v* tags + dispatch), parallel jobs, ZERO
+# tests (testing is verify.yml/release.yml work — never in build).
+#   web     js/wasm + CI-generated shell -> orphan gh-pages + gz/br kit
+#   android gogio arm64 APK (engine host until the rebuilt GUI lands)
+
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: "1.27"
+
+jobs:
+  web:
+    name: Web (WASM → gh-pages)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: go/go.sum
+      - name: Build wasm
+        run: |
+          mkdir -p web-build
+          cd go
+          GOOS=js GOARCH=wasm CGO_ENABLED=0 go build -p 1 -tags goolm \
+            -trimpath -ldflags "-s -w" -o ../web-build/uniclient.wasm ./cmd/uniclient
+        env:
+          GOMEMLIMIT: 900MiB
+          GOGC: "30"
+      - name: Assemble web shell
+        run: |
+          SHA=$(sha256sum web-build/uniclient.wasm | cut -d' ' -f1)
+          BYTES=$(stat -c%s web-build/uniclient.wasm)
+          VER=${GITHUB_SHA:0:12}
+          cp "$(go env GOROOT)/lib/wasm/wasm_exec.js" web-build/wasm_exec.js
+          cat > web-build/index.html <<'HTML'
+          <!doctype html>
+          <html lang="en">
+          <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+          <meta name="color-scheme" content="dark">
+          <meta name="theme-color" content="#101418">
+          <title>Uniclient</title>
+          <link rel="icon" href="data:,">
+          <style>
+            :root { --bg:#101418; --fg:#e8eaed; --dim:#9aa0a6;
+                    --accent:#61d4ff; --barbg:#26313a; }
+            html, body { margin:0; height:100%; background:var(--bg); color:var(--fg);
+              font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+            #boot { position:fixed; inset:0; z-index:10; display:flex; flex-direction:column;
+              align-items:center; justify-content:center; gap:14px; padding:24px;
+              box-sizing:border-box; text-align:center; background:var(--bg); }
+            #boot .logo { font-size:22px; font-weight:600; letter-spacing:.04em; }
+            #status { min-height:1.4em; opacity:.9; font-size:14px; }
+            #bar { width:min(360px,82vw); height:8px; border-radius:99px; background:var(--barbg);
+              overflow:hidden; }
+            #fill { height:100%; width:0%; border-radius:99px;
+              background:linear-gradient(90deg,#3aa0ff,#61d4ff); transition:width .2s ease; }
+            #fill.indet { width:38%; animation:slide 1.2s ease-in-out infinite; }
+            @keyframes slide { 0% { margin-left:-40%; } 100% { margin-left:105%; } }
+            #detail { min-height:1.2em; opacity:.55; font-size:12px;
+              font-variant-numeric:tabular-nums; max-width:92vw; overflow:hidden;
+              text-overflow:ellipsis; white-space:nowrap; }
+            #retry { display:none; padding:8px 20px; border-radius:8px; border:1px solid var(--accent);
+              background:transparent; color:var(--accent); font-size:14px; cursor:pointer; }
+            canvas { display:block; width:100vw; height:100vh; touch-action:none; }
+          </style>
+          </head>
+          <body>
+            <div id="boot">
+              <div class="logo">Uniclient</div>
+              <div id="status">Starting…</div>
+              <div id="bar"><div id="fill" class="indet"></div></div>
+              <div id="detail"></div>
+              <button id="retry">Retry</button>
+              <noscript><p>JavaScript is required to run Uniclient.</p></noscript>
+            </div>
+            <script src="wasm_exec.js"></script>
+            <script>
+            "use strict";
+            (function () {
+              var VER = "@VER@";
+              var WASM_BYTES = @BYTES@;
+              var WASM_SHA256 = "@SHA256@";
+              var WASM_URL = "uniclient.wasm";
+              var CACHE = "uniclient-wasm-" + VER;
+              var RETRY_KEY = "uniclient.reload." + VER;
+
+              function $(id) { return document.getElementById(id); }
+              function fmtMB(n) { return (n / 1048576).toFixed(1) + " MB"; }
+              function fmtBps(n) { return (n / 1048576).toFixed(1) + " MB/s"; }
+              function fmtETA(s) {
+                if (!isFinite(s) || s < 0) return "…";
+                if (s >= 90) return Math.round(s / 60) + " min left";
+                return Math.round(s) + " s left";
+              }
+              function setStatus(text, pct, detail) {
+                $("status").textContent = text;
+                var fill = $("fill");
+                if (pct == null) { fill.className = "indet"; fill.style.width = ""; }
+                else {
+                  fill.className = "";
+                  fill.style.width = Math.max(0, Math.min(100, pct * 100)).toFixed(1) + "%";
+                }
+                if (detail !== undefined) $("detail").textContent = detail;
+              }
+
+              // Same-version boot: the wasm lives in the Cache API keyed by the
+              // build version — zero network, works offline.
+              function haveCaches() { return typeof caches !== "undefined"; }
+              async function cachedWasm() {
+                if (!haveCaches()) return null;
+                try {
+                  var c = await caches.open(CACHE);
+                  var r = await c.match(WASM_URL);
+                  return r ? new Uint8Array(await r.arrayBuffer()) : null;
+                } catch (e) { return null; }
+              }
+              async function storeWasm(bytes) {
+                if (!haveCaches()) return;
+                try {
+                  var c = await caches.open(CACHE);
+                  await c.put(WASM_URL, new Response(bytes.slice(),
+                    { headers: { "content-type": "application/wasm" } }));
+                  var keys = await caches.keys();
+                  await Promise.all(keys.filter(function (k) {
+                    return k.indexOf("uniclient-wasm-") === 0 && k !== CACHE;
+                  }).map(function (k) { return caches.delete(k); }));
+                } catch (e) {}
+              }
+
+              // Streamed download: real bytes, live speed over a ~1.5 s window,
+              // ETA from the window speed. no-store: the Cache API is the cache.
+              async function downloadWasm() {
+                var resp = await fetch(WASM_URL, { cache: "no-store" });
+                if (!resp.ok) throw new Error("HTTP " + resp.status);
+                var total = WASM_BYTES;
+                var chunks = [], got = 0;
+                if (resp.body && resp.body.getReader) {
+                  var reader = resp.body.getReader();
+                  var samples = [{ t: performance.now(), b: 0 }];
+                  for (;;) {
+                    var step = await reader.read();
+                    if (step.done) break;
+                    chunks.push(step.value);
+                    got += step.value.length;
+                    var now = performance.now();
+                    samples.push({ t: now, b: got });
+                    while (samples.length > 2 && now - samples[0].t > 1500) samples.shift();
+                    var span = now - samples[0].t;
+                    var speed = span > 200 ? (got - samples[0].b) / (span / 1000) : 0;
+                    var eta = speed > 1 ? (total - got) / speed : Infinity;
+                    setStatus("Downloading Uniclient…", got / total,
+                      fmtMB(got) + " / " + fmtMB(total) + "  ·  " +
+                      (speed > 104857 ? fmtBps(speed) : "…") + "  ·  " + fmtETA(eta));
+                  }
+                } else {
+                  var all = new Uint8Array(await resp.arrayBuffer());
+                  chunks = [all];
+                  got = all.length;
+                  setStatus("Downloading Uniclient…", 1, fmtMB(got));
+                }
+                var out = new Uint8Array(got), off = 0;
+                for (var i = 0; i < chunks.length; i++) {
+                  out.set(chunks[i], off);
+                  off += chunks[i].length;
+                }
+                return out;
+              }
+
+              async function sha256hex(bytes) {
+                var h = await crypto.subtle.digest("SHA-256", bytes);
+                var u = new Uint8Array(h), s = "";
+                for (var i = 0; i < u.length; i++) s += u[i].toString(16).padStart(2, "0");
+                return s;
+              }
+
+              // Stale shell vs fresh wasm after a deploy: reload once, cache-busted.
+              function reloadOnceFresh() {
+                try {
+                  if (sessionStorage.getItem(RETRY_KEY)) return false;
+                  sessionStorage.setItem(RETRY_KEY, "1");
+                } catch (e) { return false; }
+                location.replace(location.pathname + "?r=" + Date.now());
+                return true;
+              }
+
+              // Telegram in-app browser / Mini App: bridge lazily, theme the HUD.
+              function telegramBridge() {
+                if (!/Telegram/i.test(navigator.userAgent)) return;
+                var s = document.createElement("script");
+                s.src = "https://telegram.org/js/telegram-web-app.js";
+                s.onload = function () {
+                  try {
+                    var tg = window.Telegram && window.Telegram.WebApp;
+                    if (!tg) return;
+                    tg.ready();
+                    tg.expand();
+                    var apply = function () {
+                      var p = tg.themeParams || {}, r = document.documentElement.style;
+                      if (p.bg_color) r.setProperty("--bg", p.bg_color);
+                      if (p.text_color) r.setProperty("--fg", p.text_color);
+                      if (p.hint_color) r.setProperty("--dim", p.hint_color);
+                      if (p.button_color) r.setProperty("--accent", p.button_color);
+                      if (p.secondary_bg_color) r.setProperty("--barbg", p.secondary_bg_color);
+                    };
+                    apply();
+                    if (tg.onEvent) tg.onEvent("themeChanged", apply);
+                  } catch (e) {}
+                };
+                document.head.appendChild(s);
+              }
+
+              // Engine stdout/stderr (wasm_exec pipes them to console) -> HUD.
+              function mirrorConsoleToDetail() {
+                var orig = {
+                  log: console.log, error: console.error,
+                  warn: console.warn, info: console.info
+                };
+                ["log", "error", "warn", "info"].forEach(function (k) {
+                  console[k] = function () {
+                    try {
+                      var parts = [];
+                      for (var i = 0; i < arguments.length; i++) {
+                        var a = arguments[i];
+                        parts.push(typeof a === "string" ? a : JSON.stringify(a));
+                      }
+                      $("detail").textContent = parts.join(" ").slice(0, 200);
+                    } catch (e) {}
+                    orig[k].apply(console, arguments);
+                  };
+                });
+              }
+
+              var running = false;
+              async function boot() {
+                if (running) return;
+                running = true;
+                $("retry").style.display = "none";
+                try {
+                  if (typeof Go === "undefined") throw new Error("wasm_exec.js failed to load");
+                  if (typeof WebAssembly === "undefined") throw new Error("no WebAssembly in this browser");
+                  setStatus("Checking local cache…", null);
+                  var bytes = await cachedWasm();
+                  var state = "downloaded";
+                  if (bytes) state = "cached — no download";
+                  else bytes = await downloadWasm();
+                  setStatus("Verifying download…", 1);
+                  var digest = await sha256hex(bytes);
+                  if (digest !== WASM_SHA256) {
+                    if (haveCaches()) {
+                      try { await caches.delete(CACHE); } catch (e) {}
+                    }
+                    if (reloadOnceFresh()) return;
+                    throw new Error("integrity check failed (sha256 mismatch)");
+                  }
+                  await storeWasm(bytes);
+                  setStatus("Compiling " + fmtMB(bytes.length) + "…", 1,
+                    "v" + VER.slice(0, 7) + "  ·  " + state);
+                  var obs = new MutationObserver(function () {
+                    if (document.querySelector("canvas")) {
+                      $("boot").style.display = "none";
+                      obs.disconnect();
+                    }
+                  });
+                  obs.observe(document.body, { childList: true, subtree: true });
+                  mirrorConsoleToDetail();
+                  telegramBridge();
+                  var go = new Go();
+                  var built = await WebAssembly.instantiate(bytes, go.importObject);
+                  setStatus("Running — Uniclient engine host", null,
+                    "v" + VER.slice(0, 7) + "  ·  " + fmtMB(bytes.length) + "  ·  " + state);
+                  await go.run(built.instance);
+                  throw new Error("Uniclient exited");
+                } catch (e) {
+                  running = false;
+                  setStatus("Uniclient stopped", null, String((e && e.message) || e));
+                  $("retry").style.display = "inline-block";
+                }
+              }
+
+              $("retry").addEventListener("click", function () { boot(); });
+              boot();
+            })();
+            if ("serviceWorker" in navigator) {
+              window.addEventListener("load", function () {
+                navigator.serviceWorker.register("sw.js").catch(function () {});
+              });
+            }
+            </script>
+          </body>
+          </html>
+          HTML
+          cat > web-build/sw.js <<'JS'
+          "use strict";
+          var VER = "@VER@";
+          var CACHE = "uniclient-shell-" + VER;
+          var SHELL = ["./", "index.html", "wasm_exec.js"];
+          self.addEventListener("install", function (e) {
+            e.waitUntil(caches.open(CACHE).then(function (c) {
+              return c.addAll(SHELL);
+            }).then(function () { return self.skipWaiting(); }));
+          });
+          self.addEventListener("activate", function (e) {
+            e.waitUntil(caches.keys().then(function (keys) {
+              return Promise.all(keys.filter(function (k) {
+                return k.indexOf("uniclient-shell-") === 0 && k !== CACHE;
+              }).map(function (k) { return caches.delete(k); }));
+            }).then(function () { return self.clients.claim(); }));
+          });
+          self.addEventListener("fetch", function (e) {
+            var url = new URL(e.request.url);
+            if (url.origin !== location.origin || e.request.method !== "GET") return;
+            if (url.pathname.slice(-15) === "uniclient.wasm") return;
+            e.respondWith((async function () {
+              try {
+                var resp = await fetch(e.request);
+                if (resp && resp.ok) {
+                  var c = await caches.open(CACHE);
+                  c.put(e.request, resp.clone());
+                }
+                return resp;
+              } catch (err) {
+                var hit = await caches.match(e.request, { ignoreSearch: true });
+                if (hit) return hit;
+                throw err;
+              }
+            })());
+          });
+          JS
+          echo "Uniclient web (WASM)" > web-build/.nojekyll
+          sed -i "s|@VER@|$VER|g; s|@BYTES@|$BYTES|g; s|@SHA256@|$SHA|g" \
+            web-build/index.html web-build/sw.js
+          echo "shell assembled: ver=$VER bytes=$BYTES sha256=$SHA"
+      - name: Precompress (gzip_static + brotli_static self-host kit)
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq brotli
+          mkdir -p web-kit
+          cp web-build/index.html web-build/sw.js web-build/wasm_exec.js \
+            web-build/uniclient.wasm web-build/.nojekyll web-kit/
+          cd web-kit
+          for f in index.html sw.js wasm_exec.js uniclient.wasm; do
+            gzip -9kn "$f"
+            brotli -q 11 -c "$f" > "$f.br"
+          done
+          ls -la
+      - uses: actions/upload-artifact@v4
+        with:
+          name: uniclient-web
+          path: web-kit
+          if-no-files-found: error
+      - name: Deploy to gh-pages (orphan branch)
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+        run: |
+          cd web-build
+          git init -q
+          git config user.name "uniclient-ci"
+          git config user.email "ci@uniclient.local"
+          git add -A
+          git commit -qm "Web build for ${{ github.ref_name }} (${{ github.sha }})"
+          git push -qf "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" HEAD:gh-pages
+
+  android:
+    name: Android arm64 (APK)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: go/go.sum
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Install gogio
+        run: go install gioui.org/cmd/gogio@v0.10.0
+      - name: Set up Android SDK + NDK
+        run: |
+          SDKMGR="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMGR" --licenses >/dev/null || true
+          "$SDKMGR" --install "build-tools;35.0.0" "platforms;android-34" "ndk;27.0.12077973" > /dev/null
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973" >> "$GITHUB_ENV"
+      - name: Build APK
+        run: |
+          mkdir -p dist
+          cd go
+          ~/go/bin/gogio -target android -arch arm64 -minsdk 24 -tags goolm \
+            -o ../dist/uniclient.apk ./cmd/uniclient
+        env:
+          GOMEMLIMIT: 900MiB
+          GOGC: "30"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: uniclient-android
+          path: dist/uniclient.apk
+          if-no-files-found: error
