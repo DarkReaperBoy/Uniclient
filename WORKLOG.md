@@ -28,12 +28,13 @@ owner order — that history lives in git if ever needed.
   (build 42622715804) on a device and report (android GUI-default check)
 - last-gate: session 416 — quick gate GREEN on all four atomics (scoped:
   tests/engine 6.3-7.1s, tests/gui, tests/ui; renders/app/window/cmd via
-  windows vet), gofmt + comment ban clean (382 files); CI: Build (161024a8)
-  green, Build (b4e415f6) + Build (2aeebcc4) in flight; Verify 42873080126
-  (d6377325, session-415 head) GREEN; Verify 42880948865 (9d787rba —
-  atomics 1-2) in flight at yield: cross-builds + nix legs green, test leg
-  running; Verify dispatched on 2aeebcc4 (all four atomics) in flight —
-  record both next session
+  windows vet), gofmt + comment ban clean (382 files); CI GATE OF RECORD
+  GREEN: Verify 42882442032 (2aeebcc4, all four atomics) completed success —
+  all 3 jobs + every step (comment ban, gofmt, vet, vet-live, test, race,
+  headless smoke, nix, cross-builds); Build (161024a8) + Build (2aeebcc4) +
+  Verify 42880948865 (9d787rba) + Verify 42873080126 (d6377325) all green;
+  Builds on b4e415f6/9d787rba cancelled by build.yml's own concurrency
+  policy (superseded mid-run, not red); Pages serving
 
 ## Open items
 
