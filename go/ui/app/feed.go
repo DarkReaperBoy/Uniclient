@@ -211,7 +211,14 @@ func (m *Model) setDialogRows(rows []dialogs.Entry, storeFeed bool) {
 	}
 	words := dialogs.SearchWords(m.Search.Text)
 	visible := rows
-	if len(words) > 0 {
+	if m.Search.Text == "@" {
+		visible = make([]dialogs.Entry, 0, len(rows))
+		for _, r := range rows {
+			if r.Mention {
+				visible = append(visible, r)
+			}
+		}
+	} else if len(words) > 0 {
 		visible = make([]dialogs.Entry, 0, len(rows))
 		for _, r := range rows {
 			if dialogs.MatchesNameWords(dialogs.NameWords(r.Name, r.Username), words) {

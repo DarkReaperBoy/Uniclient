@@ -125,6 +125,26 @@ owner order — that history lives in git if ever needed.
   windows vet), js/wasm full-tree build green, gofmt clean, comment ban
   clean (376 files).
 
+- Atomic 4 (the exact-'@' mentions mode — the reference inner widget
+  4414-4417, fetched this session: filter == "@" switches to a mentions
+  list, any other query rides the word law): setDialogRows filters to
+  mention rows (unread_mention_count > 0 through the wire -> Entry.Mention)
+  when Search.Text is exactly "@" — the honest local form of the reference
+  mode (its server-side global results + sections ride the sections front);
+  "@@" / " @" / "@word" stay word queries ("@" splits away, exactly the
+  reference's PrepareSearchWords). Red->green:
+  TestSearchFilterAtSignMentionsMode (rows Alice/-, Bob/1 mention,
+  Carol/3 mentions: '@' -> [Bob Carol] — got [Alice Bob Carol] before;
+  clear -> all; '@@' -> all; '@a' -> [Alice]; ' @' -> all).
+- Gates (atomic 4): quick gate GREEN (scoped: tests/engine 6.4s, tests/gui,
+  tests/ui native; ui/app + window + cmd via windows vet), gofmt clean,
+  comment ban clean (376 files). The search front's matching layer is
+  COMPLETE (query split/fold + index: name/translit/username/layout-switch
+  + the '@' mode); what rides the NEXT front: search-results sections
+  (chats/contacts/global grouping) + the PaintComposeBar zero-callers
+  residual + msg-level unread bars (read-position) + ChatPreloadTopRequested
+  no-op.
+
 ## Session 414 — D-3 closed in two atomics: engine decoupling + the raw-TCP js exclusion (2026-11-10)
 
 - Boot: sandbox recycled — toolchain + module cache survived under ../toolchain

@@ -155,6 +155,47 @@ func TestSearchFilterTranslitAndLayout(t *testing.T) {
 	}
 }
 
+func mentionChatWire(nowMs int64, id, title string, mentions int) string {
+	return fmt.Sprintf(`{"account_id":"tele_02","chat_id":%q,"type":1,"title":%q,`+
+		`"last_msg_text":"hi","last_msg_time":%d,"last_msg_sender":"","last_msg_is_outgoing":false,`+
+		`"last_msg_status":0,"unread_count":0,"unread_mention_count":%d,`+
+		`"is_muted":false,"is_pinned":false,"is_bot":false,"is_forum":false}`,
+		id, title, nowMs-60000, mentions)
+}
+
+func TestSearchFilterAtSignMentionsMode(t *testing.T) {
+	nowMs := localMs(2026, time.November, 30, 15, 0)
+	alice := mentionChatWire(nowMs, "77", "Alice", 0)
+	bob := mentionChatWire(nowMs, "88", "Bob", 1)
+	carol := mentionChatWire(nowMs, "99", "Carol", 3)
+	m := applyEngineEvent(t, feedsModel(t, 1440, 900), chatSnapshotWire("tele_02", alice+","+bob+","+carol, nowMs))
+	if !eqRowNames(filterRowNames(t, m), "Alice", "Bob", "Carol") {
+		t.Fatalf("unfiltered rows = %v", filterRowNames(t, m))
+	}
+	m = typeSearch(t, m, "@")
+	if !eqRowNames(filterRowNames(t, m), "Bob", "Carol") {
+		t.Fatalf("query '@' (the exact mentions mode, reference inner widget 4414) must show the mention rows: %v", filterRowNames(t, m))
+	}
+	m = backspaceSearch(t, m, 1)
+	if !eqRowNames(filterRowNames(t, m), "Alice", "Bob", "Carol") {
+		t.Fatalf("cleared filter rows = %v", filterRowNames(t, m))
+	}
+	m = typeSearch(t, m, "@@")
+	if !eqRowNames(filterRowNames(t, m), "Alice", "Bob", "Carol") {
+		t.Fatalf("query '@@' is a word query with no words, not the mentions mode: %v", filterRowNames(t, m))
+	}
+	m = backspaceSearch(t, m, 2)
+	m = typeSearch(t, m, "@a")
+	if !eqRowNames(filterRowNames(t, m), "Alice") {
+		t.Fatalf("query '@a' is a username word query: %v", filterRowNames(t, m))
+	}
+	m = backspaceSearch(t, m, 2)
+	m = typeSearch(t, m, " @")
+	if !eqRowNames(filterRowNames(t, m), "Alice", "Bob", "Carol") {
+		t.Fatalf("query ' @' is not the exact mentions mode: %v", filterRowNames(t, m))
+	}
+}
+
 func TestSearchFilterGarbageQueryShowsAll(t *testing.T) {
 	m := filteredChatsModel(t)
 	m = typeSearch(t, m, "!!! ")
