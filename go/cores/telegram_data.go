@@ -269,3 +269,28 @@ type ChannelStats struct {
 
 	Graphs []StatsGraphData `json:"graphs"`
 }
+
+type InlineBotResult struct {
+	ID            string `json:"id"`
+	Type          string `json:"type"`
+	Title         string `json:"title"`
+	Description   string `json:"description"`
+	ThumbURL      string `json:"thumb_url,omitempty"`
+	ContentURL    string `json:"content_url,omitempty"`
+	ThumbW        int    `json:"thumb_w,omitempty"`
+	ThumbH        int    `json:"thumb_h,omitempty"`
+	ThumbB64      string `json:"thumb_b64,omitempty"`
+	DocumentID    int64  `json:"document_id,omitempty"`
+	DocumentExtra string `json:"document_extra,omitempty"`
+}
+
+type StatsValue struct {
+	Current  float64 `json:"current"`
+	Previous float64 `json:"previous"`
+}
+
+type StatsGraphData struct {
+	Title string `json:"title"`
+	JSON  string `json:"json,omitempty"`
+	Token string `json:"token,omitempty"`
+}

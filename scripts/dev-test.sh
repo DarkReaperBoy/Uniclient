@@ -26,7 +26,7 @@ echo "== wasm: audio (node exec) =="
 # contracts before trusting a single verdict from the runner.
 "$ROOT/scripts/test-wasm-runner.sh"
 WASM_RUNNER="$ROOT/scripts/wasm-test-runner.sh"
-GOOS=js GOARCH=wasm CGO_ENABLED=0 go test -tags goolm -count=1 -exec "$WASM_RUNNER" ./tests/audio/...
+GOOS=js GOARCH=wasm CGO_ENABLED=0 go test -tags goolm -count=1 -exec "$WASM_RUNNER" ./tests/audio/... ./tests/webbuild
 
 echo "== vet + gofmt =="
 # Native vet for every package that builds without system dev headers.

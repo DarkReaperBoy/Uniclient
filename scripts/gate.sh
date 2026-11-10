@@ -154,7 +154,7 @@ quick() {
         nat=""; js=""
         for p in $pkgs; do
                 case "$p" in
-                        */audio|*/audio/*) js="$js $p" ;;
+                        */audio|*/audio/*|*/webbuild) js="$js $p" ;;
                         *) nat="$nat $p" ;;
                 esac
         done

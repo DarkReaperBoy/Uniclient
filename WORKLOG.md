@@ -7,29 +7,30 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: GUI rebuild (§6); D-3 (wasm size diet) IN PROGRESS — atomic 1
-  landed: the engine no longer speaks concrete cores or gotd —
-  telegramLoginFlow/baleSubmitter/peerBarController/phoneSharer/botPhotoSetter/
-  notifyDelayGetter/langPackGetter/geoTileFetcher capability interfaces replace
-  every *cores.TelegramCore|BaleCore assertion (19 sites, auth.go 12 + 2 bale +
-  cache_users 7); the 21 engine-cache schema types moved to the untagged
-  cores/telegram_data.go (pure structs, zero imports, gotd-free — measured);
-  the two gotd-shaped seams genericized (UploadGetWebFile -> GetGeoWebTile
-  (GeoWebFileQuery) []byte; LangpackGetLanguages -> []LangPackInfo); engine
-  imports no gotd. New pins red->green: tests/engine/engine_decoupling_test.go
-  (gotd-import ban + concrete-core roster ban). next: D-3 atomic 2 — the
-  exclusion itself (build tags + bootstrap factory js variant + webbuild js test)
-- next: D-3 atomic 2
+- front: GUI rebuild (§6); D-3 (wasm size diet) CLOSED (session 414, two
+  atomics): (1) the engine speaks capability interfaces + the shared
+  cores/telegram_data.go schema — never a concrete core or a gotd type;
+  (2) the six raw-TCP families tagged //go:build !js, bootstrap factory
+  build-split (native full 9 / js github+matrix+bale with an honest
+  "cannot connect from a browser" error), the account sweep rides the
+  product list (no js deletions); gotd = 0 packages in the js link graph
+  (go list -deps); wasm plain build 32,837,371 -> 26,714,844 B
+  (-6,122,527 B, -18.6%) — the <20MB projection did not hold: the
+  remaining bulk is the web trio's own deps (mautrix+goolm, bale
+  gRPC-web, pion webrtc) + the rebuilt GUI (gio+fonts) — the honest floor
+  for the current feature set. next front work: W-2 residuals — the
+  search front (transliteration/username/"@"-mentions matching +
+  search-results sections) and PaintComposeBar zero callers
+- next: W-2 residuals (search front)
 - owner-waiting: N-1 — install the uniclient-android APK artifact
   (build 42622715804) on a device and report (android GUI-default check)
-- last-gate: session 414 atomic 1 — quick gate GREEN (scoped: bootstrap,
-  cores, engine, tests/bootstrap 1.0s, tests/cores 59.2s, tests/engine 6.9s;
-  windows vet gio legs), gofmt + comment ban clean (373 files), js/wasm
-  build green; CI record for session 413's pushes: Build #16 (ff00c1e2)
-  + Verify #412 (42838556241, all 3 jobs + steps) green, Build #15 green,
-  Build #14 cancelled by the build.yml cancel-in-progress policy (superseded
-  push — not a red gate), Pages serving; CI dispatch on this push follows
-  (record next session).
+- last-gate: session 414 — quick gate GREEN twice (atomics 1+2: scoped
+  bootstrap/cores/engine + tests trio, tests/cores 59.1s, tests/engine
+  6.7s; js legs: tests/webbuild under the wasm runner + audio
+  regression), gofmt + comment ban clean (376 files), js/wasm full-tree
+  build green; CI for atomic 1's push: Build #17 + Verify #413
+  (42848153096) green on 16466373, Pages #32 serving; CI dispatch on
+  the atomic-2 push follows (record next session)
 
 ## Open items
 
@@ -42,10 +43,10 @@ owner order — that history lives in git if ever needed.
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
 | D-1 | ui/history corner button | down-button unread-count badge (22dp, centered x, top 0 — jump_down_button.cpp paintEvent + historyToDownBadge*) + hover/over colors + ripple deferred: no unread counter in the chat Item model yet, no hover/ripple machinery in the skin yet; replyReturn branch of downClick + loadedAtBottom==false state return with reply-return jumps / below-history pagination | jump_down_button.cpp 33-52, corner_buttons.cpp 139-145 | badge returns with read-state counts; over/ripple with the skin's hover+ripple pass |
 | D-2 | ui/history unread-things buttons | read-marking absent for mentions AND reactions: after a jump the button stays shown (reference hides it when the server marks the thing read — updateUnreadThingsVisibility is server-data-driven); mentionsClick's already-there voice/video media-read branch (5623) deferred — no media model; unread-count badges join D-1's class; poll-votes 4th stack slot returns with a poll model | history_view_corner_buttons.cpp 147-190, 288-345 | returns with engine unread-things events + the media pass |
-| D-3 | build.yml web job | wasm size diet: the js/wasm build ships every core incl. the six raw-TCP backends that can never connect from a browser (§7 web truth) — build-tag exclusion at the engine factory projected <20 MB; also headroom under git's 100 MB file ceiling on gh-pages | headless-host wasm = 31,162,944 B after the keyboard atomic (v0.9.1's old-GUI build was 88,659,256 B) | one atomic with tests: bootstrap factory js variant + per-core js stubs |
+| D-3 | build.yml web job | CLOSED 2026-11-10 (session 414, two atomics — see the session entry for the evidence trail) | gotd = 0 packages in the js link graph; wasm plain build 32,837,371 -> 26,714,844 B (-6,122,527 B, -18.6%); <20MB projection did not hold — remaining bulk = web trio deps (mautrix+goolm, bale gRPC-web, pion webrtc) + the rebuilt GUI (gio+fonts) | done; CI web job ships the trimmed wasm from the atomic-2 push |
 | D-4 | window keys | ATOMIC 2 LANDED (session 413): plain Enter/Return -> ChatComposeSubmitted -> composeSubmittedCmd (guards: open+port+CanSend+non-empty) clears the field and fires ChatPort.Send -> ChatComposeSendRequested{OK,Text}; failed sends restore the field (composeEdit — no data loss); Up/Down arrows = ChatScrolled step 20dp, PageUp/PageDown = 200dp (tokens ScrollKeyStep = WheelNotch/WheelScrollLines/WheelPixelToAngleDelta, ScrollKeyPageStep = 10x — the Qt qabstractslider defaults through the wheel law); CanSend lands on the open transition from the row type (channels read-only — honest default until the writability front carries admin rights); REAL-seam: appport.Send -> engine.SendMessage -> optimistic msg_received -> open-chat append (wire test). Residuals: Up-on-empty-field edit-last rides the messages/edit front (scrolls meanwhile), Ctrl+Up/Down reply-cycle rides the reply front, scroll keys need compose focus — the unfocused chat pane has no key routing yet (window front) | history_widget.cpp 9276-9349 (fetched 2026-11-09) + qabstractslider defaults | IME ranged EditEvents + SelectionCmd/SnippetCmd contract = the mobile/IME front; window-front key routing |
 
-## Session 414 — D-3 atomic 1: the engine speaks interfaces, not cores (2026-11-10)
+## Session 414 — D-3 closed in two atomics: engine decoupling + the raw-TCP js exclusion (2026-11-10)
 
 - Boot: sandbox recycled — toolchain + module cache survived under ../toolchain
   (env.sh re-sourced, go 1.27.1; build cache warm only under the CGO_ENABLED=1
@@ -100,10 +101,66 @@ owner order — that history lives in git if ever needed.
   tests/bootstrap, tests/cores, tests/engine; windows vet gio legs),
   comment ban clean (373 files), js/wasm build green (engine + cores +
   bootstrap + cmd).
-- Next: D-3 atomic 2 — !js build tags on the six raw-TCP families,
-  bootstrap factory js variant (github/matrix/bale trio, honest error for
-  the rest), tests/webbuild js pin under the wasm runner, family-tag
-  source-scan pin, measured size drop.
+- Atomic 2 (the exclusion): the six raw-TCP families tagged
+  //go:build !js — telegram.go, telegram_dice/stats/stream/savedmusic/
+  notify_sound/proximity, irc.go, xmpp.go, deltachat.go, teamspeak.go,
+  mumble.go (dtls_native + calls_debug already carried it); the two
+  now-dead js variants deleted (telegram_dtls_js.go 130 B,
+  telegram_calls_debug_js.go 72 B — no-op siblings of !js files,
+  dead everywhere after the family cut). Fallout fixed in-run: the
+  shared telegram_data.go referenced InlineBotResult (telegram.go) +
+  StatsValue/StatsGraphData (telegram_stats.go) — moved into the island
+  (pure structs); cores/proxy.go was untagged and dragged 17 gotd
+  packages through dcs/mtproxy — split: the shared ProxyConfig +
+  active() stay untagged, the MTProxy machinery (resolver/dialFunc/
+  httpConnectDialFunc/bufferedConn, sole caller telegram.go) moved to
+  cores/telegram_proxy.go (!js). bootstrap split: factory_native.go
+  (!js, the full 9-case switch + vaultSessionStorage + the gotd session
+  import, byte-spliced from bootstrap.go) / factory_js.go (js,
+  webPlatforms trio + honest default error "platform %q cannot connect
+  from a browser"); bootstrap.go keeps the productPlatforms list — the
+  account sweep rides it, so the js build NEVER deletes an account of a
+  build-excluded platform (build exclusion is not deprecation; a raw-TCP
+  account in the web-local vault starts with the honest factory error).
+  SupportedPlatforms() is per-build: js = [github matrix bale] (order
+  pinned). No per-core js stubs — dead code on js by construction;
+  the factory error tells the truth instead.
+- Tests (atomic 2) red->green, both seen RED first: tests/webbuild NEW —
+  platforms_js_test.go (//go:build js; the trio pin under the wasm
+  runner — run 1 printed got [telegram matrix irc xmpp github bale
+  deltachat teamspeak mumble]) + family_tags_test.go (!js; source scan:
+  every telegram*/irc/xmpp/deltachat/teamspeak/mumble file in cores
+  except the telegram_data.go island must open with //go:build !js —
+  run 1 printed "deltachat.go ... not excluded"; + the bootstrap
+  factory_native/factory_js first-line pins + bootstrap.go gotd-free).
+  All existing suites green zero re-pins: tests/cores 59.0s,
+  tests/engine 7.0s, tests/bootstrap 1.1s, tests/webbuild, js legs:
+  tests/webbuild + tests/audio (0.74s regression).
+- Evidence (atomic 2): js link graph — GOOS=js go list -deps
+  ./cmd/uniclient: gotd 0 packages (was 17 before the proxy split;
+  mumble/xmpp/deltachat/teamspeak/irc SDKs 0); wasm plain-flag build
+  (the WORKLOG precedent shape — session-412 numbers were plain-flag;
+  CI's build.yml web job adds -trimpath -ldflags "-s -w" on runners
+  with disk) = 26,714,844 B vs 32,837,371 B (session 412) =
+  -6,122,527 B (-18.6%); the <20 MB projection from the open item did
+  NOT hold — the honest remaining bulk is the web trio's own deps
+  (mautrix+goolm 28 pkgs, bale gRPC-web, pion webrtc for group calls)
+  + the rebuilt GUI (gioui 39 pkgs + gofonts) — the floor for the
+  current feature set; 100 MB gh-pages ceiling headroom restored.
+  dev-test.sh js leg + gate.sh quick js routing extended to
+  tests/webbuild.
+- Machine notes: /tmp+rootfs hit 99% full twice (the trimpath re-key
+  recompiles everything; the windows cross attempt OOM'd gotd as
+  documented §9 rung 7) — /tmp/go-build* pruned between legs; the
+  plain-flag build rides the warm cache.
+- Gates: quick gate GREEN (js leg now includes tests/webbuild: vet +
+  wasm-runner run + the runner self-test), gofmt clean, comment ban
+  clean (376 files), js/wasm full-tree build green, native pure build
+  green, windows cmd cross-build blocked by the /tmp disk ceiling
+  (rung 7 — CI verify cross-build is the gate).
+- Next: W-2 residuals (search front: transliteration/username/
+  "@"-mentions matching + search-results sections; PaintComposeBar
+  zero callers).
 
 ## Session 413 — W-2 wire atomics + D-4 atomic 2: row bumps, ONE payload shape, window keys (2026-11-10)
 
@@ -224,66 +281,3 @@ owner order — that history lives in git if ever needed.
   is the gate; CI record lands next session.
 - Next: msg_received row bump for non-open chats, engine chat_updated
   payload unification, D-4 atomic 2, D-3.
-
-## Session 411 — W-2 the filter atomic: typing filters the dialogs rows (2026-11-10)
-
-- Boot: sandbox recycled to zero — toolchain rebuilt per env.sh (go 1.27.1,
-  module cache refilled ~1.2G), .env re-created from the owner token
-  (gitignored, askpass push intact); no red gate — Build #11 + Verify #409
-  green on 4b3f0906.
-- The filter law MINED from the reference source (§1.17, live blobs via the
-  git API — raw caches proved stale): dialogs_inner_widget.cpp 4408-4417
-  applySearchState (query -> PrepareSearchWords; empty words -> clearFilter
-  = the full list) + 4475-4481 refreshFilterResults (list->filtered(words));
-  dialogs_indexed_list.cpp IndexedList::filtered (every query word must be
-  a startsWith PREFIX of some name word, AND across words, never a
-  mid-word substring); lib_ui text_entity.cpp 1499-1519 PrepareSearchWords
-  (RemoveAccents(trimmed().toLower()), split on the set [\@\s\-\+\(\)\[\]\{\}\
-  <\>\,\.\:\!\_\;\"\'\x0], skip empties — fetched at the PINNED submodule sha
-  42c6f1e8) + data_peer.cpp fillNames 1080-1130 (name words normalized
-  identically). Go port: ui/dialogs/search.go — SearchWords (accent fold
-  via x/text NFD+Mn-strip, v0.41.0 promoted indirect->direct, same version)
-  + MatchesWords (prefix+AND, empty query matches all).
-- App wiring: searchTyped/searchBackspace call reprojectDialogRows;
-  setDialogRows unifies the two row stores (accountRows merge, or the new
-  dialogFeed for the DialogsLoaded seam) -> filter -> selection law;
-  selection = row identity (selectedAccount/selectedChat set at press +
-  reprojection): resolves against the VISIBLE rows, hidden-but-alive keeps
-  the identity (clearing the filter restores the highlight — reference
-  behavior), identity absent from the full rows clears (W-2 data-gone law);
-  identityless rows keep the legacy index law when no filter is active
-  (TestDialogsElmState pins preserved). Scroll clamp + toUp recheck on
-  every reprojection. x/text NFD+Mn-strip folds Latin exactly like the
-  reference table; Cyrillic-accent folding is a µ-edge residual.
-- Tests: tests/ui/dialogs_search_words_test.go NEW (2 law tables: splitter
-  set/NUL/CJK/accent/garbage->empty + prefix/AND/case+accent folds/empty-
-  matches-all); tests/gui/app_search_filter_test.go NEW (11: narrows+
-  widens, garbage keeps the full list, case+accent folds, selection
-  follow+clamp+restore across filter cycles, data-gone clears identity,
-  scroll clamp + toUp hide, open journey through a filtered row via the
-  port, DialogsLoaded feed path + identityless honest drop, snapshot
-  re-applies the active filter, honest empty pane (no prompt when accounts
-  exist), paint smoke both shapes). All existing suites green, zero
-  re-pins.
-- Sandbox note: the Edit tool tab-normalization hit AGAIN (session 410's
-  landmine) on elm.go/feed.go whole-file rewrites — restored byte-pristine
-  from git both times, every edit redone through a byte-exact python
-  patch script; one patch of mine over-unified tabs (2-tab lines -> 1) and
-  was rebuilt from the verified exact string.
-- Driven (§4, the shell assembled from build.yml verbatim, wasm
-  32,176,855 B, agent-browser): 1440x900 — console + page errors EMPTY;
-  split intact (64.27% #FEF7FF + 34.21% #F7F2FA + 1.29% pill); click
-  (100,27) -> focus ring #6750A4 6.95% of the band; typed 'ma' -> 480 band
-  px changed, glyphs 82 px @ x20..71 y24..30, caret follows, placeholder
-  gone; backspace x2 -> cleared clean; prompt 'Add an account' 138 px
-  centered (976,449) = chat-pane center. 390x844 single-pane — 95.47%
-  container + 3.78% pill, ring persists, prompt centered in the list area.
-  BLOCKED-env: live-row filtering needs a real backend (zero accounts on
-  the driven path — the prompt honestly stays); row semantics proven at
-  the engine boundary (wire tests) + the law/app tests. wasm +144,567 B
-  vs session 410 (filter paths + x/text norm).
-- Gates: quick gate GREEN (native vet+test scoped — tests/engine 6.3s,
-  tests/gui, tests/ui, ui/dialogs, ui/history; windows vet for the gio
-  cgo legs), gofmt clean, comment ban clean (370 files), js/wasm build
-  green.
-- Next: chat_updated -> live row updates, D-4 atomic 2, D-3.

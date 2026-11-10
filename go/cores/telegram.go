@@ -1,3 +1,5 @@
+//go:build !js
+
 package cores
 
 import (
@@ -19517,20 +19519,6 @@ func (t *TelegramCore) RequestBotWebView(chatID string, botID string) (string, e
 		return "", err
 	}
 	return result.URL, nil
-}
-
-type InlineBotResult struct {
-	ID            string `json:"id"`
-	Type          string `json:"type"`
-	Title         string `json:"title"`
-	Description   string `json:"description"`
-	ThumbURL      string `json:"thumb_url,omitempty"`
-	ContentURL    string `json:"content_url,omitempty"`
-	ThumbW        int    `json:"thumb_w,omitempty"`
-	ThumbH        int    `json:"thumb_h,omitempty"`
-	ThumbB64      string `json:"thumb_b64,omitempty"`
-	DocumentID    int64  `json:"document_id,omitempty"`
-	DocumentExtra string `json:"document_extra,omitempty"`
 }
 
 func (t *TelegramCore) GetInlineBotResults(botID string, query string) (int, error) {

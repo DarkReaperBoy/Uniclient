@@ -1,3 +1,5 @@
+//go:build !js
+
 package cores
 
 import (
@@ -5,17 +7,6 @@ import (
 
 	"github.com/gotd/td/tg"
 )
-
-type StatsValue struct {
-	Current  float64 `json:"current"`
-	Previous float64 `json:"previous"`
-}
-
-type StatsGraphData struct {
-	Title string `json:"title"`
-	JSON  string `json:"json,omitempty"`
-	Token string `json:"token,omitempty"`
-}
 
 func StatsGraphJSON(g tg.StatsGraphClass) (json, token string) {
 	switch v := g.(type) {
