@@ -358,6 +358,12 @@ const (
 	SearchedBarTextTop = 5
 	FontSearchedBar    = FontBase
 
+	SearchEmptyHeightMin = 220
+	SearchEmptyIconSize  = 100
+	SearchEmptyIconSkip  = 10
+	SearchEmptyPadX      = 10
+	SearchEmptyTextTop   = (SearchEmptyHeightMin-SearchEmptyIconSize)/3 + SearchEmptyIconSize + SearchEmptyIconSkip
+
 	TouchFingerAccuracy            = 3
 	TouchMaxScrollFlick            = 2500
 	TouchMaxScrollAccelerated      = 4000

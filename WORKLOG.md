@@ -152,6 +152,37 @@ owner order — that history lives in git if ever needed.
   render/window/cmd via windows vet), gofmt clean, comment ban clean (382
   files), js/wasm full-tree build green.
 
+- Atomic 4 (the search-EMPTY state — the reference's MakeSearchEmpty widget,
+  chat_search_empty.cpp + dialogs.style 717-720 + lang.strings 8540-8541
+  fetched this session): Filtered state with NOTHING to show (local rows
+  empty, no section bar — resolved-empty or the '@' mode with no mention
+  rows) now paints the honest empty state instead of a blank pane: the
+  220dp band (recentPeersEmptyHeightMin) with 'No Results' (bold,
+  lng_search_tab_no_results) + 'There were no results for "{query}".'
+  (lng_search_tab_no_results_text; the query preview capped at 32 runes —
+  the reference's kQueryPreviewLimit mid(0,32) law) centered at
+  SearchEmptyTextTop = (220-100)/3 + 100 + 10 (the reference's icon-slot
+  formula: icon 100dp at h/3, label below + skip 10 — the lottie icon is
+  banned-cluster, its slot's geometry is the law; a static glyph returns with
+  the icon front), labels width-capped at pane - 2*10 (recentPeersEmptyMargin).
+  dialogs.List gains SearchEmptyShown/Title/Line (Height adds the 220 band —
+  the reference h = searchedOffset + 220) + SearchEmptyQueryPreview (32-rune
+  cap, exported pure law); the Pane carries the composed strings (the app
+  owns user-facing strings — it composes the line); the painter paints the
+  two centered labels (title OnSurface semibold, line OnSurfaceVariant) and
+  the guard order keeps AddAccountPrompt (zero accounts) exclusive with the
+  search empty (armed requires accounts — the app law from atomic 2).
+  red->green: tests/ui dialogs_search_empty_test.go (preview cap table incl.
+  the 32/33 boundary, the 220 height, pane passthrough, the icon-slot
+  formula token pin) — red: fields/tokens missing; tests/gui additions
+  (resolved-empty shows 'No Results' + the line + no section bar;
+  40-char query -> the 32-char preview law; the '@' mode shows it
+  immediately — no loading wait; unresolved stays hidden; paint records
+  without panic). §4: live drive BLOCKED-env (needs accounts).
+- Gates (atomic 4): quick gate GREEN scoped (tests/engine 6.9s, tests/gui,
+  tests/ui native; app/appport/renders/window/cmd via windows vet), gofmt
+  clean, comment ban clean, js/wasm full-tree build green.
+
 ## Session 415 — the search front opens: username wire + reference matching (2026-11-11)
 
 - Boot: sandbox recycled to zero — toolchain rebuilt per env.sh (go 1.27.1,

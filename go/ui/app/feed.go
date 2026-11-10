@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"uniclient/ui/dialogs"
@@ -17,6 +18,7 @@ const (
 
 	SearchGlobalLoadingText = "Loading..."
 	SearchGlobalResultsText = "Global search results"
+	SearchEmptyTitleText    = "No Results"
 
 	ChatKindDM      = 1
 	ChatKindGroup   = 2
@@ -245,6 +247,14 @@ func (m *Model) setDialogRows(rows []dialogs.Entry, storeFeed bool) {
 	m.Dialogs.BarText = SearchGlobalResultsText
 	if len(m.GlobalSearch.Rows) == 0 && loading {
 		m.Dialogs.BarText = SearchGlobalLoadingText
+	}
+	m.Dialogs.SearchEmptyShown = false
+	if query := strings.TrimSpace(m.Search.Text); query != "" &&
+		len(visible) == 0 && !m.Dialogs.GlobalBar {
+		m.Dialogs.SearchEmptyShown = true
+		m.Dialogs.SearchEmptyTitle = SearchEmptyTitleText
+		m.Dialogs.SearchEmptyLine = "There were no results for \"" +
+			dialogs.SearchEmptyQueryPreview(query) + "\"."
 	}
 	m.Dialogs.Selected = -1
 	if m.selectedAccount != "" || m.selectedChat != "" {

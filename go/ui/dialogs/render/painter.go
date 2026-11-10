@@ -204,7 +204,9 @@ func (p *Painter) PaintPane(gtx layout.Context, pane dialogs.Pane, sch material.
 			globalStk.Pop()
 		}
 	}
-	if pane.EmptyText != "" && len(pane.Rows) == 0 && len(pane.Global) == 0 {
+	if pane.SearchEmptyShown && len(pane.Rows) == 0 && len(pane.Global) == 0 && !pane.GlobalBar {
+		p.paintSearchEmpty(gtx, pane, sch)
+	} else if pane.EmptyText != "" && len(pane.Rows) == 0 && len(pane.Global) == 0 {
 		m := p.measure(gtx, fontRegular, unit.Sp(tokens.FontBase), pane.EmptyText)
 		if m.w > 0 {
 			w := int(gtx.Metric.PxToDp(m.w))
@@ -229,6 +231,33 @@ func (p *Painter) PaintPane(gtx layout.Context, pane dialogs.Pane, sch material.
 		W: tokens.ScrollBarWidth - 2*tokens.ScrollBarDeltax,
 		H: pane.Thumb.H,
 	}, tokens.ScrollBarRadius, scrollBarColor)
+}
+
+func (p *Painter) paintSearchEmpty(gtx layout.Context, pane dialogs.Pane, sch material.Scheme) {
+	lineH := tokens.FontBase + 4
+	titleM := p.measure(gtx, fontSemibold, unit.Sp(tokens.FontBase), pane.SearchEmptyTitle)
+	lineM := p.measure(gtx, fontRegular, unit.Sp(tokens.FontBase), pane.SearchEmptyLine)
+	titleW := int(gtx.Metric.PxToDp(titleM.w))
+	lineW := int(gtx.Metric.PxToDp(lineM.w))
+	maxW := pane.Width - 2*tokens.SearchEmptyPadX
+	if titleW > maxW {
+		titleW = maxW
+	}
+	if lineW > maxW {
+		lineW = maxW
+	}
+	p.label(gtx, dialogs.Rect{
+		X: (pane.Width - titleW) / 2,
+		Y: tokens.SearchEmptyTextTop,
+		W: titleW,
+		H: lineH,
+	}, fontSemibold, unit.Sp(tokens.FontBase), pane.SearchEmptyTitle, sch.OnSurface)
+	p.label(gtx, dialogs.Rect{
+		X: (pane.Width - lineW) / 2,
+		Y: tokens.SearchEmptyTextTop + lineH,
+		W: lineW,
+		H: lineH,
+	}, fontRegular, unit.Sp(tokens.FontBase), pane.SearchEmptyLine, sch.OnSurfaceVariant)
 }
 
 func (p *Painter) paintSearchedBar(gtx layout.Context, width int, text string, sch material.Scheme) {

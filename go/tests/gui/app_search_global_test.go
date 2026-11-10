@@ -272,3 +272,83 @@ func TestPaintPaneSearchSectionRecordsWithoutPanic(t *testing.T) {
 	m, _ = Update(m, msg)
 	p.PaintPane(gtx, View(m).Dialogs, sch)
 }
+
+func TestSearchEmptyStateShowsAfterResolution(t *testing.T) {
+	m, port := globalFeedsModel(t)
+	port.perAccount = map[string][]dialogs.Entry{}
+	m, _ = Update(m, SearchTyped{Text: "zz", Now: 1000})
+	if pane := View(m).Dialogs; pane.SearchEmptyShown {
+		t.Fatalf("unresolved search must not show the empty state (the loading bar owns the slot)")
+	}
+	m, cmd := tickSearch(m, 1900)
+	msg, ok := firedSearchGlobal(cmd)
+	if !ok {
+		t.Fatal("the search must fire")
+	}
+	if len(msg.Rows) != 0 {
+		t.Fatalf("the stub must resolve empty")
+	}
+	m, _ = Update(m, msg)
+	pane := View(m).Dialogs
+	if !pane.SearchEmptyShown || pane.SearchEmptyTitle != "No Results" ||
+		pane.SearchEmptyLine != "There were no results for \"zz\"." {
+		t.Fatalf("resolved-empty pane = (%v, %q, %q), want the No Results state", pane.SearchEmptyShown, pane.SearchEmptyTitle, pane.SearchEmptyLine)
+	}
+	if pane.GlobalBar {
+		t.Fatalf("an empty global section must not show its bar")
+	}
+}
+
+func TestSearchEmptyStateQueryPreviewCapped(t *testing.T) {
+	m, port := globalFeedsModel(t)
+	port.perAccount = map[string][]dialogs.Entry{}
+	long := ""
+	for i := 0; i < 40; i++ {
+		m, _ = Update(m, SearchTyped{Text: "a", Now: 1000})
+		long += "a"
+	}
+	m, cmd := tickSearch(m, 1900)
+	msg, ok := firedSearchGlobal(cmd)
+	if !ok {
+		t.Fatal("the search must fire")
+	}
+	m, _ = Update(m, msg)
+	pane := View(m).Dialogs
+	if !pane.SearchEmptyShown {
+		t.Fatalf("no-match search must show the empty state")
+	}
+	wantLine := "There were no results for \"" + long[:32] + "\"."
+	if pane.SearchEmptyLine != wantLine {
+		t.Fatalf("empty-state line = %q, want the 32-char preview law", pane.SearchEmptyLine)
+	}
+}
+
+func TestSearchEmptyStateMentionsModeImmediate(t *testing.T) {
+	m, _ := globalFeedsModel(t)
+	m, _ = Update(m, SearchTyped{Text: "@", Now: 1000})
+	pane := View(m).Dialogs
+	if !pane.SearchEmptyShown || pane.GlobalBar {
+		t.Fatalf("the '@' mode with no mention rows must show the empty state immediately, not a loading bar")
+	}
+	m2, _ := globalFeedsModel(t)
+	m2, _ = Update(m2, SearchTyped{Text: "zz", Now: 1000})
+	if pane2 := View(m2).Dialogs; pane2.SearchEmptyShown {
+		t.Fatalf("unresolved search must not show the empty state")
+	}
+}
+
+func TestPaintPaneSearchEmptyRecordsWithoutPanic(t *testing.T) {
+	p := render.NewPainter()
+	gtx := renderContext()
+	sch := material.SchemeFor(material.Light)
+	m, port := globalFeedsModel(t)
+	port.perAccount = map[string][]dialogs.Entry{}
+	m, _ = Update(m, SearchTyped{Text: "zz", Now: 1000})
+	m, cmd := tickSearch(m, 1900)
+	msg, ok := firedSearchGlobal(cmd)
+	if !ok {
+		t.Fatal("the search must fire")
+	}
+	m, _ = Update(m, msg)
+	p.PaintPane(gtx, View(m).Dialogs, sch)
+}

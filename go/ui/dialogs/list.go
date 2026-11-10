@@ -9,7 +9,21 @@ type List struct {
 	Global    []Entry
 	GlobalBar bool
 	BarText   string
+
+	SearchEmptyShown bool
+	SearchEmptyTitle string
+	SearchEmptyLine  string
 }
+
+func SearchEmptyQueryPreview(query string) string {
+	runes := []rune(query)
+	if len(runes) <= searchEmptyQueryLimit {
+		return query
+	}
+	return string(runes[:searchEmptyQueryLimit])
+}
+
+const searchEmptyQueryLimit = 32
 
 func (l List) RowCount() int {
 	return len(l.Rows) + len(l.Global)
@@ -48,6 +62,9 @@ func (l List) Height(width int) int {
 	total := l.globalHeight(width)
 	for i := range l.Rows {
 		total += l.RowHeight(i, width)
+	}
+	if l.SearchEmptyShown {
+		total += tokens.SearchEmptyHeightMin
 	}
 	return total
 }

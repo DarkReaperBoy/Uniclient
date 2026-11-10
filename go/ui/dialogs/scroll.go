@@ -111,6 +111,10 @@ type Pane struct {
 	GlobalBarY  int
 	BarText     string
 	GlobalFirst int
+
+	SearchEmptyShown bool
+	SearchEmptyTitle string
+	SearchEmptyLine  string
 }
 
 func (l List) Pane(v Viewport, width int) Pane {
@@ -135,6 +139,9 @@ func (l List) Pane(v Viewport, width int) Pane {
 		}
 	}
 	l.fillGlobalPane(&p, v, width)
+	p.SearchEmptyShown = l.SearchEmptyShown
+	p.SearchEmptyTitle = l.SearchEmptyTitle
+	p.SearchEmptyLine = l.SearchEmptyLine
 	return p
 }
 
