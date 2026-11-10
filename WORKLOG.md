@@ -35,7 +35,7 @@ owner order — that history lives in git if ever needed.
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
 | W-1 | ui/app InitialModel | CLOSED 2026-11-09 (session 408): the zero-account scene now paints the frame — dialogs column SurfaceContainerLow vs chat Surface, 54dp header band, the reference-measured search field (7,9,W-18,35 r18) with real focus/typing/backspace/blink; driven live at 1440x900 + 390x844 (pixel scan: pill exact, ring+caret+typed text verified). The residual — the engine-driven add-account affordance — moved to the new front item below | session 408 driven journey | done |
-| W-2 | app/engine bridge | PART: the search matching layer CLOSED (session 415, four atomics — username on the wire + NameWords/MatchesNameWords with translit/keyboard-switch/removeAccents ported 1:1 from the reference + the '@' mentions mode); msg_received row bump + payload unification + chat_updated atomic + filter + feeds landed (sessions 410-413) | session 415 gates | STILL OPEN: PaintComposeBar zero callers, msg-level unread bars need read-position, ChatPreloadTopRequested is a no-op, search-results sections (the visual grouping front) |
+| W-2 | app/engine bridge | PART: the search-results sections front CLOSED (session 416: the matching layer session 415 + the global-search wire + the 28dp searched-bar presentation — Loading/Global search results + the stitched selection law; PaintComposeBar zero-callers ALSO closed session 416 atomic 3); msg_received row bump + payload unification + chat_updated atomic + filter + feeds landed (sessions 410-413) | session 416 gates | STILL OPEN: msg-level unread bars need read-position, ChatPreloadTopRequested is a no-op, the search-EMPTY state (the reference's MakeSearchEmpty widget — local+global both empty after resolution) |
 | N-1 | android APK | GUI-default on android is runtime-unverifiable in-sandbox (no emulator/device); expected: the empty Material surface, not a black zombie | session 405 (js sibling); js live-verified in 406; APK artifact on build 42622715804 | owner installs the uniclient-android APK artifact and reports |
 | H-2 | verify/release yml | CLOSED 2026-11-09 (owner order): android + web legs returned as build.yml (per-push, no tests, parallel); only the Xvfb GUI + Puppeteer web-drive legs stay parked with the rebuilt GUI | AGENTS.md §8; build 42597570851 | Xvfb/Puppeteer return when the GUI ships (§6.7) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
@@ -128,6 +128,29 @@ owner order — that history lives in git if ever needed.
   tests/ui native; app/appport/dialogs/render/window/cmd + renders via windows
   vet), gofmt clean, comment ban clean (380 files), js/wasm full-tree build
   green.
+
+- Atomic 3 (PaintComposeBar GAINS its caller — the W-2 zero-caller seam
+  closed): the rebuilt GUI's compose field was invisible while typing worked
+  (routeComposeKeys + the compose model were live; the paint had zero callers
+  — degraded-UX severity, the input surface painted nowhere). Fix:
+  PaintChatPane restructured — the messages clip (Width x View.Height) now
+  pops BEFORE the compose bar paints: the body (empty text, rows, date badges,
+  down/mentions/reactions buttons, scrollbar) extracted verbatim into
+  paintChatBody so the early returns can't strand the op stack, then
+  PaintComposeBar rides the pane's own coordinate space (its geometry is
+  window-height-based: the field band sits exactly in the viewport's reserved
+  ComposeBarHeight below the messages clip). red->green:
+  tests/ui history_render_paint_pin_test.go — a source-scan pin (the
+  family_tags pattern): PaintChatPane's body must call p.PaintComposeBar —
+  red: 'the W-2 zero-caller seam: the field would be invisible while typing
+  works'; + the gui journey TestOpenedChatCarriesComposePane (press ->
+  ChatLoaded -> CanSend -> ComposePane.Shown) pinning the chain that feeds
+  the bar; TestFeedPaintSmoke re-exercised with a live Compose pane
+  (record-without-panic). §4: live pixel drive BLOCKED-env (needs an open
+  chat -> an account; no add-account surface yet).
+- Gates (atomic 3): quick gate GREEN scoped (tests/gui, tests/ui;
+  render/window/cmd via windows vet), gofmt clean, comment ban clean (382
+  files), js/wasm full-tree build green.
 
 ## Session 415 — the search front opens: username wire + reference matching (2026-11-11)
 

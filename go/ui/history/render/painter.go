@@ -261,11 +261,17 @@ func (p *ChatPainter) PaintChatPane(gtx layout.Context, pane history.ChatPane, s
 	if pane.Width <= 0 || pane.View.Height <= 0 {
 		return
 	}
-	defer clip.Rect{Max: image.Pt(
+	listClip := clip.Rect{Max: image.Pt(
 		gtx.Dp(unit.Dp(pane.Width)),
 		gtx.Dp(unit.Dp(pane.View.Height)),
-	)}.Push(gtx.Ops).Pop()
+	)}.Push(gtx.Ops)
 	event.Op(gtx.Ops, p.Input)
+	p.paintChatBody(gtx, pane, sch)
+	listClip.Pop()
+	p.PaintComposeBar(gtx, pane.Compose, sch)
+}
+
+func (p *ChatPainter) paintChatBody(gtx layout.Context, pane history.ChatPane, sch material.Scheme) {
 	if pane.EmptyText != "" && pane.Count <= 0 {
 		m := p.newMetric(gtx, fontRegular, unit.Sp(tokens.FontBase), pane.EmptyText, 0, 0)
 		if m.width > 0 && m.lineH > 0 {
