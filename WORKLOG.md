@@ -49,6 +49,28 @@ owner order — that history lives in git if ever needed.
 | D-3 | build.yml web job | CLOSED 2026-11-10 (session 414, two atomics — see the session entry for the evidence trail) | gotd = 0 packages in the js link graph; wasm plain build 32,837,371 -> 26,714,844 B (-6,122,527 B, -18.6%); <20MB projection did not hold — remaining bulk = web trio deps (mautrix+goolm, bale gRPC-web, pion webrtc) + the rebuilt GUI (gio+fonts) | done; CI web job ships the trimmed wasm from the atomic-2 push |
 | D-4 | window keys | ATOMIC 2 LANDED (session 413): plain Enter/Return -> ChatComposeSubmitted -> composeSubmittedCmd (guards: open+port+CanSend+non-empty) clears the field and fires ChatPort.Send -> ChatComposeSendRequested{OK,Text}; failed sends restore the field (composeEdit — no data loss); Up/Down arrows = ChatScrolled step 20dp, PageUp/PageDown = 200dp (tokens ScrollKeyStep = WheelNotch/WheelScrollLines/WheelPixelToAngleDelta, ScrollKeyPageStep = 10x — the Qt qabstractslider defaults through the wheel law); CanSend lands on the open transition from the row type (channels read-only — honest default until the writability front carries admin rights); REAL-seam: appport.Send -> engine.SendMessage -> optimistic msg_received -> open-chat append (wire test). Residuals: Up-on-empty-field edit-last rides the messages/edit front (scrolls meanwhile), Ctrl+Up/Down reply-cycle rides the reply front, scroll keys need compose focus — the unfocused chat pane has no key routing yet (window front) | history_widget.cpp 9276-9349 (fetched 2026-11-09) + qabstractslider defaults | IME ranged EditEvents + SelectionCmd/SnippetCmd contract = the mobile/IME front; window-front key routing |
 
+## Session 415 — the search front opens: username wire + reference matching (2026-11-11)
+
+- Boot: sandbox recycled to zero — toolchain rebuilt per env.sh (go 1.27.1,
+  module cache refilled), .env re-created from the owner token (gitignored,
+  askpass push intact). Machine: cold build cache cost paid once (gotd's tg
+  serial compile; vet leg re-key, documented §9 rung-7 shape — converges on
+  re-run, cache carries progress).
+- Atomic 1 (chat_updated carries the row's username): emitChatUpdate's SELECT
+  omitted chats.username, so every row-replace event (read state, mute, pin,
+  title, row bumps...) emitted username "" — a violation of the session-413
+  unified full-row law and the seam the search front needs (a username-matched
+  row would lose its handle on the first chat_updated). Fix: c.username into
+  the SELECT + scan. Test red->green:
+  TestChatRowWireCarriesUsername (SyncChats a dialog with Username "devcrew"
+  -> REAL read-state HandleUpdate -> captured chat_snapshot AND chat_updated
+  bytes both decode username=devcrew). Red seen first: 'chat_updated must
+  carry the full row's username: got "", want devcrew' (the snapshot leg
+  already passed — GetChatList always selected it).
+- Gates: quick gate GREEN (scoped: bootstrap, engine, tests/bootstrap,
+  tests/engine 6.3s, appport + window + cmd via windows vet), gofmt clean,
+  comment ban clean (376 files).
+
 ## Session 414 — D-3 closed in two atomics: engine decoupling + the raw-TCP js exclusion (2026-11-10)
 
 - Boot: sandbox recycled — toolchain + module cache survived under ../toolchain

@@ -1581,7 +1581,7 @@ func (e *Engine) emitChatUpdate(accountID, chatID string) {
                         COALESCE(u.is_bot, 0), COALESCE(u.is_contact, 0), COALESCE(u.is_blocked, 0),
                         c.unread_mark, c.unread_mention_count, c.unread_reaction_count,
                         c.is_verified, c.is_scam, c.is_fake, c.is_admin, c.is_creator,
-                        c.ttl_period
+                        c.ttl_period, c.username
                  FROM chats c
                  LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
                  WHERE c.account_id = ? AND c.chat_id = ?`, accountID, chatID)
@@ -1593,6 +1593,7 @@ func (e *Engine) emitChatUpdate(accountID, chatID string) {
 	var isMuted, isPinned, isArchived, lastMsgIsOutgoing, isBot int
 	var isContact, isBlocked int
 	var unreadMark, isVerified, isScam, isFake, isAdminInt, isCreatorInt int
+	var usernameN sql.NullString
 
 	err := row.Scan(
 		&c.AccountID, &c.ChatID, &c.Type, &c.Title, &avatarPath,
@@ -1602,7 +1603,7 @@ func (e *Engine) emitChatUpdate(accountID, chatID string) {
 		&draftText, &memberCount, &parentID, &isBot, &isContact, &isBlocked,
 		&unreadMark, &c.UnreadMentionCount, &c.UnreadReactionCount,
 		&isVerified, &isScam, &isFake, &isAdminInt, &isCreatorInt,
-		&c.TtlPeriod,
+		&c.TtlPeriod, &usernameN,
 	)
 	if err != nil {
 		return
@@ -1634,6 +1635,7 @@ func (e *Engine) emitChatUpdate(accountID, chatID string) {
 	c.IsFake = isFake == 1
 	c.IsAdmin = isAdminInt == 1
 	c.IsCreator = isCreatorInt == 1
+	c.Username = usernameN.String
 
 	if c.Type == ChatTypeDMVal {
 		e.accountsMu.RLock()

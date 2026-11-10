@@ -207,6 +207,55 @@ func TestChatUpdatedWireRefreshesRows(t *testing.T) {
 	}
 }
 
+func TestChatRowWireCarriesUsername(t *testing.T) {
+	e := newTestEngine(t)
+	msgTs := time.Date(2026, time.November, 30, 14, 2, 0, 0, time.Local).UnixMilli()
+	dialog := wireDialog("m1", "release notes", msgTs)
+	dialog.Username = "devcrew"
+	snapshotRaw := findEvent(t, e, EventChatSnapshot, func() {
+		if err := e.SyncChats("a1", []cores.Dialog{dialog}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	updatedRaw := findEvent(t, e, EventChatUpdated, func() {
+		e.HandleUpdate("a1", cores.Update{
+			Type:   cores.UpdateReadState,
+			ChatID: "c1",
+			ReadState: &cores.ReadState{
+				MyLastRead: "m1",
+			},
+		})
+	})
+	wireUsername := func(t *testing.T, raw []byte, event string) string {
+		t.Helper()
+		var env snapshotEnvelope
+		if err := json.Unmarshal(raw, &env); err != nil {
+			t.Fatalf("%s envelope: %v", event, err)
+		}
+		var d struct {
+			Chats []struct {
+				Username string `json:"username"`
+			} `json:"chats"`
+			Chat struct {
+				Username string `json:"username"`
+			} `json:"chat"`
+		}
+		if err := json.Unmarshal(env.Data, &d); err != nil {
+			t.Fatalf("%s payload: %v", event, err)
+		}
+		if len(d.Chats) == 1 {
+			return d.Chats[0].Username
+		}
+		return d.Chat.Username
+	}
+	if got := wireUsername(t, snapshotRaw, "chat_snapshot"); got != "devcrew" {
+		t.Fatalf("chat_snapshot username = %q, want devcrew", got)
+	}
+	if got := wireUsername(t, updatedRaw, "chat_updated"); got != "devcrew" {
+		t.Fatalf("chat_updated must carry the full row's username: got %q, want devcrew", got)
+	}
+}
+
 func TestGetMessagesPortEmptyChat(t *testing.T) {
 	e := newTestEngine(t)
 	port := appport.For(e.Engine)
