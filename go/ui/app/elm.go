@@ -329,6 +329,9 @@ type Model struct {
 	openLoaded        bool
 	chatJumpBottom    bool
 	accountRows       map[string][]dialogs.Entry
+	dialogFeed        []dialogs.Entry
+	selectedAccount   string
+	selectedChat      string
 }
 
 func InitialModel() Model {
@@ -375,16 +378,11 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		m.Running = false
 		return m, nil
 	case DialogsLoaded:
-		m.Dialogs.Rows = msg.Rows
-		if m.Dialogs.Selected >= len(msg.Rows) {
-			m.Dialogs.Selected = -1
-		}
-		m.DialogsScroll.Top = m.clampDialogsScroll(m.DialogsScroll.Top)
-		m.dialogsToUpCheck()
+		m.setDialogRows(msg.Rows, true)
 		return m, m.loadMoreCmd()
 	case DialogRowPressed:
 		if msg.Index >= 0 && msg.Index < len(m.Dialogs.Rows) {
-			m.Dialogs.Selected = msg.Index
+			m.selectDialogRow(msg.Index)
 		}
 		return m, nil
 	case DialogsScrolled:
@@ -624,7 +622,7 @@ func (m *Model) pressDialogs(msg DialogsPressed) (Model, Cmd) {
 		return *m, nil
 	}
 	if idx := m.Dialogs.RowAt(msg.Y+m.DialogsScroll.Top, width); idx >= 0 {
-		m.Dialogs.Selected = idx
+		m.selectDialogRow(idx)
 	}
 	return *m, m.openCmdAfterPress(prev)
 }
@@ -739,7 +737,7 @@ func (m *Model) releaseDialogs(msg DialogsReleased) {
 	if tap {
 		m.DialogsTouch = TouchDrag{}
 		if idx := m.Dialogs.RowAt(msg.Y+m.DialogsScroll.Top, m.Columns().Dialogs); idx >= 0 {
-			m.Dialogs.Selected = idx
+			m.selectDialogRow(idx)
 		}
 	}
 }

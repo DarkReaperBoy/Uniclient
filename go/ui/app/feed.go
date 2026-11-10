@@ -124,23 +124,65 @@ func (m Model) applyChatSnapshot(env engineEnvelope) (Model, Cmd) {
 }
 
 func (m *Model) reprojectDialogRows() {
-	var prev dialogs.Entry
-	if m.Dialogs.Selected >= 0 && m.Dialogs.Selected < len(m.Dialogs.Rows) {
-		prev = m.Dialogs.Rows[m.Dialogs.Selected]
+	rows := m.dialogFeed
+	if len(m.accountRows) > 0 {
+		rows = make([]dialogs.Entry, 0, len(m.accountRows))
+		for _, acc := range m.Accounts {
+			rows = append(rows, m.accountRows[acc.ID]...)
+		}
 	}
-	rows := make([]dialogs.Entry, 0, len(m.accountRows))
-	for _, acc := range m.Accounts {
-		rows = append(rows, m.accountRows[acc.ID]...)
+	m.setDialogRows(rows, false)
+}
+
+func (m *Model) selectDialogRow(idx int) {
+	m.Dialogs.Selected = idx
+	m.selectedAccount, m.selectedChat = "", ""
+	if idx >= 0 && idx < len(m.Dialogs.Rows) {
+		m.selectedAccount = m.Dialogs.Rows[idx].Account
+		m.selectedChat = m.Dialogs.Rows[idx].ChatID
 	}
-	m.Dialogs.Rows = rows
+}
+
+func dialogRowsContain(rows []dialogs.Entry, account, chat string) bool {
+	for _, r := range rows {
+		if r.Account == account && r.ChatID == chat {
+			return true
+		}
+	}
+	return false
+}
+
+func (m *Model) setDialogRows(rows []dialogs.Entry, storeFeed bool) {
+	prevIdx := m.Dialogs.Selected
+	if storeFeed {
+		m.dialogFeed = rows
+	}
+	words := dialogs.SearchWords(m.Search.Text)
+	visible := rows
+	if len(words) > 0 {
+		visible = make([]dialogs.Entry, 0, len(rows))
+		for _, r := range rows {
+			if dialogs.MatchesWords(r.Name, words) {
+				visible = append(visible, r)
+			}
+		}
+	}
+	m.Dialogs.Rows = visible
 	m.Dialogs.Selected = -1
-	if prev.Account != "" {
-		for i := range rows {
-			if rows[i].Account == prev.Account && rows[i].ChatID == prev.ChatID {
+	if m.selectedAccount != "" || m.selectedChat != "" {
+		for i, r := range visible {
+			if r.Account == m.selectedAccount && r.ChatID == m.selectedChat {
 				m.Dialogs.Selected = i
 				break
 			}
 		}
+		if m.Dialogs.Selected < 0 && !dialogRowsContain(rows, m.selectedAccount, m.selectedChat) {
+			m.selectedAccount, m.selectedChat = "", ""
+		}
+	} else if len(words) == 0 && prevIdx >= 0 && prevIdx < len(visible) {
+		m.Dialogs.Selected = prevIdx
+		m.selectedAccount = visible[prevIdx].Account
+		m.selectedChat = visible[prevIdx].ChatID
 	}
 	m.DialogsScroll.Top = m.clampDialogsScroll(m.DialogsScroll.Top)
 	m.dialogsToUpCheck()
