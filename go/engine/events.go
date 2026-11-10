@@ -369,11 +369,10 @@ func (e *Engine) handleNewMessage(accountID, chatID string, msg *cores.Message) 
 		thumbB64 = att.ThumbB64
 	}
 	e.EnsureChatExists(accountID, chatID, msg)
-	e.updateChatLastMessage(accountID, chatID, msg.ID, preview, msg.SenderName, msg.Timestamp.UnixMilli(), msg.IsOutgoing, msgStatusFromCore(msg.Status), mediaType, thumbB64)
-
 	if !e.isActiveChat(accountID, chatID) {
 		e.incrementUnread(accountID, chatID)
 	}
+	e.updateChatLastMessage(accountID, chatID, msg.ID, preview, msg.SenderName, msg.Timestamp.UnixMilli(), msg.IsOutgoing, msgStatusFromCore(msg.Status), mediaType, thumbB64)
 
 	e.emitEvent(EventMsgReceived, accountID, MsgReceivedEvent{
 		AccountID: accountID,

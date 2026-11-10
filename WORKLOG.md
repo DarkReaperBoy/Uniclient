@@ -7,35 +7,31 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: GUI rebuild (§6); W-2 chat_updated atomic landed (session 412):
-  full-payload chat_updated events drive live dialogs-row updates — the
-  ONE snapshotRow mapping path, replace-or-insert per account
-  (copy-on-write), the engine list law re-derived locally (is_pinned
-  DESC, last_msg_time DESC — GetChatList ORDER BY; stable ties keep wire
-  order, message-less rows bottom; Entry.SortTime), snapshot-equivalence
-  pinned; the active filter + identity selection re-apply (selection
-  follows a moved row); bare-map legacy payloads (JoinChannel/
-  DeleteChatHistory) drop until the engine-side unification atomic.
-  next front work: msg_received row bump for non-open chats, then D-4
-  atomic 2, then D-3
-- next: msg_received rows, engine payload unification, D-4 atomic 2, D-3
+- front: GUI rebuild (§6); W-2 msg_received row-bump atomic landed (session
+  413): handleNewMessage increments unread BEFORE the row-update emit, so the
+  ONE chat_updated per incoming message carries the full bumped row
+  (preview/date/unread/move) and rides the session-412 UI path — REAL-seam
+  wire test: HandleUpdate new message in a non-open chat -> chat_updated
+  bytes -> app rows (unread 2->3, "alice: live wire" preview, move to top,
+  items untouched). next front work: engine chat_updated payload
+  unification (bare-map legacy payloads JoinChannel/DeleteChatHistory), then
+  D-4 atomic 2, then D-3
+- next: engine payload unification, D-4 atomic 2, D-3
 - owner-waiting: N-1 — install the uniclient-android APK artifact
   (build 42622715804) on a device and report (android GUI-default check)
-- last-gate: session 412 — quick gate GREEN (native vet+test scoped —
-  tests/engine 6.7s, tests/gui, tests/ui, ui/dialogs, ui/history;
-  windows vet gio legs), gofmt + comment ban clean (370 files), js/wasm
-  32,837,371 B builds green; BLOCKED-env driven rows (no backend in the
-  sandbox — the seam proven at the engine boundary: real HandleUpdate
-  JSON -> real chat_updated bytes -> app rows); gotd windows cross-build
-  compile OOM = documented §9 rung-7 machine limit, CI verify is the
-  gate; CI dispatch on this push follows (record next session).
+- last-gate: session 413 — quick gate GREEN (scoped: engine, tests/engine
+  6.4s, tests/bootstrap, bootstrap + windows vet gio legs), gofmt + comment
+  ban clean (370 files), js/wasm build green; CI record for session 412's
+  push: Build 42803562918 (5 jobs) + Verify 42803582751 (3 jobs, steps)
+  all green on ed008c69, Pages 42804202730 serving; CI dispatch on this
+  push follows (record next session).
 
 ## Open items
 
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
 | W-1 | ui/app InitialModel | CLOSED 2026-11-09 (session 408): the zero-account scene now paints the frame — dialogs column SurfaceContainerLow vs chat Surface, 54dp header band, the reference-measured search field (7,9,W-18,35 r18) with real focus/typing/backspace/blink; driven live at 1440x900 + 390x844 (pixel scan: pill exact, ring+caret+typed text verified). The residual — the engine-driven add-account affordance — moved to the new front item below | session 408 driven journey | done |
-| W-2 | app/engine bridge | PART: chat_updated atomic landed (session 412 — full-payload chat_updated drives live row content: ONE snapshotRow mapping path, replace-or-insert into accountRows, engine list law sorted locally (pinned DESC, last_msg_time DESC), filter+identity-selection reapplied, snapshot-equivalence pinned; legacy bare-map payloads (JoinChannel/DeleteChatHistory) drop — engine-side unification open); filter atomic landed (session 411 — typed search filters the rows: mined reference law SearchWords/MatchesWords in ui/dialogs/search.go, word-prefix + accent/case fold + AND, garbage query = full list; selection = row identity across filter cycles, restore-on-clear, data-gone clears); feeds atomic landed (session 410); STILL OPEN: PaintComposeBar zero callers, msg_received for a non-open chat never bumps its row (preview/date/unread/move), msg-level unread bars need read-position, ChatPreloadTopRequested is a no-op, transliteration/username/"@"-mentions matching + the search-results sections ride the search front | session 412 wire + law tests | msg_received row bump + engine payload unification; then D-4 atomic 2 |
+| W-2 | app/engine bridge | PART: msg_received row bump landed (session 413 — engine emits the full bumped row: handleNewMessage increments unread before the row-update emit, ONE chat_updated per incoming message with preview/date/unread/move; REAL-seam wire test pins HandleUpdate -> chat_updated bytes -> app rows for a non-open chat); chat_updated atomic landed (session 412 — full-payload chat_updated drives live row content: ONE snapshotRow mapping path, replace-or-insert into accountRows, engine list law sorted locally (pinned DESC, last_msg_time DESC), filter+identity-selection reapplied, snapshot-equivalence pinned; bare-map legacy payloads (JoinChannel/DeleteChatHistory) drop until the engine unification); filter atomic landed (session 411 — typed search filters the rows: SearchWords/MatchesWords law in ui/dialogs/search.go, word-prefix + accent/case fold + AND, selection = row identity across filter cycles); feeds atomic landed (session 410); STILL OPEN: PaintComposeBar zero callers, engine payload unification (bare-map legacy payloads still drop UI-side), msg-level unread bars need read-position, ChatPreloadTopRequested is a no-op, transliteration/username/"@"-mentions matching + the search-results sections ride the search front | session 413 wire test | engine payload unification; then D-4 atomic 2 |
 | N-1 | android APK | GUI-default on android is runtime-unverifiable in-sandbox (no emulator/device); expected: the empty Material surface, not a black zombie | session 405 (js sibling); js live-verified in 406; APK artifact on build 42622715804 | owner installs the uniclient-android APK artifact and reports |
 | H-2 | verify/release yml | CLOSED 2026-11-09 (owner order): android + web legs returned as build.yml (per-push, no tests, parallel); only the Xvfb GUI + Puppeteer web-drive legs stay parked with the rebuilt GUI | AGENTS.md §8; build 42597570851 | Xvfb/Puppeteer return when the GUI ships (§6.7) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
@@ -43,6 +39,66 @@ owner order — that history lives in git if ever needed.
 | D-2 | ui/history unread-things buttons | read-marking absent for mentions AND reactions: after a jump the button stays shown (reference hides it when the server marks the thing read — updateUnreadThingsVisibility is server-data-driven); mentionsClick's already-there voice/video media-read branch (5623) deferred — no media model; unread-count badges join D-1's class; poll-votes 4th stack slot returns with a poll model | history_view_corner_buttons.cpp 147-190, 288-345 | returns with engine unread-things events + the media pass |
 | D-3 | build.yml web job | wasm size diet: the js/wasm build ships every core incl. the six raw-TCP backends that can never connect from a browser (§7 web truth) — build-tag exclusion at the engine factory projected <20 MB; also headroom under git's 100 MB file ceiling on gh-pages | headless-host wasm = 31,162,944 B after the keyboard atomic (v0.9.1's old-GUI build was 88,659,256 B) | one atomic with tests: bootstrap factory js variant + per-core js stubs |
 | D-4 | window keys — atomic 2 | Enter=submit (ShouldSubmit law: default Enter-mode = plain Enter/Return submits, Shift/Ctrl+Return newline — already mapped) -> ChatComposeSubmitted + send-request seam (ChatBottomRequested-pattern) + field clear; Up/Down/PageUp/PageDown = history scroll (never compose cursor moves — customUpDown law); Up on EMPTY field + canWrite + !edit + !reply -> edit last editable message, else scroll; Ctrl+Up/Down -> reply prev/next (reply front) | AyuGramDesktop dev history_widget.cpp 9276-9349 (fetched 2026-11-09): Down always _scroll->keyPressEvent; Up scrolls unless field empty && canWrite && !_editMsgId && !_replyTo, then lastEditableMessage() -> editMessage else scroll; PageUp/PageDown always scroll; Enter -> ShouldSubmit(sendSubmitWay, mods); Qt key scroll = SliderSingleStep/PageStep (qabstractscrollarea.cpp 1215-1220; qabstractslider.cpp 180: defaults singleStep 1 pageStep 10 — but our own wheel law 120-angle notch = 60px = WheelScrollLines 3 => singleStep = 20px = WheelNotchAngleDelta/WheelScrollLines/WheelPixelToAngleDelta); IME ranged EditEvents + SelectionCmd/SnippetCmd contract = the mobile/IME front | atomic 2: ChatComposeSubmitted + ChatComposeSendRequested + scroll keys with the 20px singleStep law; edit-last rides the messages/edit front |
+
+## Session 413 — W-2 the msg_received row-bump atomic: incoming messages carry the unread (2026-11-10)
+
+- Boot: sandbox recycled to zero — toolchain rebuilt per env.sh (go 1.27.1,
+  module cache refilled 1.1G), .env re-created from the owner token
+  (gitignored, askpass push intact); CI for session 412's push recorded
+  green: Build 42803562918 all five jobs + Verify 42803582751 all jobs+steps
+  on ed008c69, Pages 42804202730 serving.
+- The defect: handleNewMessage ran updateChatLastMessage (which emits
+  chat_updated — the event the UI row path rides) BEFORE incrementUnread,
+  so the bumped row's unread badge lagged by exactly one message;
+  preview/date/move already worked (session 412 path). UI-side synthesis
+  rated <7 (duplicates engine law: unread counters, group preview needs
+  chat type the msg_received payload lacks) — replaced, not patched:
+  engine reorder, ONE event carrying the full authoritative DB row.
+- Tests red->green: tests/engine/app_chat_wire_test.go +1 REAL-seam
+  (TestNewMessageWireBumpsNonOpenChatRow: snapshot seeds c1 unread 2
+  below newer c2; REAL HandleUpdate new message in non-open c1 ->
+  captured chat_updated bytes -> app rows: unread 2->3, preview
+  "alice: live wire", date FormatDialogsDate against the captured
+  envelope ts, c1 moves to top, non-open chat grows no items; + the
+  plainDialog helper). Red seen first: "the bumped row must carry the
+  incremented unread, got 2, want 3". All existing suites green, zero
+  re-pins.
+- Gates: quick gate GREEN (scoped: engine, tests/engine 6.4s,
+  tests/bootstrap, bootstrap; gio cgo legs via windows vet —
+  cmd/uniclient, ui/appport, ui/window), gofmt clean, comment ban clean
+  (370 files), js/wasm build green. tests/gui out of scope by
+  construction — the wire seam (raw JSON bytes) keeps ui/app engine-free.
+- Next: engine chat_updated payload unification, D-4 atomic 2, D-3.
+
+## Session 413 — W-2 the msg_received row-bump atomic: incoming messages carry the unread (2026-11-10)
+
+- Boot: sandbox recycled to zero — toolchain rebuilt per env.sh (go 1.27.1,
+  module cache refilled 1.1G), .env re-created from the owner token
+  (gitignored, askpass push intact); CI for session 412's push recorded
+  green: Build 42803562918 all five jobs + Verify 42803582751 all jobs+steps
+  on ed008c69, Pages 42804202730 serving.
+- The defect: handleNewMessage ran updateChatLastMessage (which emits
+  chat_updated — the event the UI row path rides) BEFORE incrementUnread,
+  so the bumped row's unread badge lagged by exactly one message;
+  preview/date/move already worked (session 412 path). UI-side synthesis
+  rated <7 (duplicates engine law: unread counters, group preview needs
+  chat type the msg_received payload lacks) — replaced, not patched:
+  engine reorder, ONE event carrying the full authoritative DB row.
+- Tests red->green: tests/engine/app_chat_wire_test.go +1 REAL-seam
+  (TestNewMessageWireBumpsNonOpenChatRow: snapshot seeds c1 unread 2
+  below newer c2; REAL HandleUpdate new message in non-open c1 ->
+  captured chat_updated bytes -> app rows: unread 2->3, preview
+  "alice: live wire", date FormatDialogsDate against the captured
+  envelope ts, c1 moves to top, non-open chat grows no items; + the
+  plainDialog helper). Red seen first: "the bumped row must carry the
+  incremented unread, got 2, want 3". All existing suites green, zero
+  re-pins.
+- Gates: quick gate GREEN (scoped: engine, tests/engine 6.4s,
+  tests/bootstrap, bootstrap; gio cgo legs via windows vet —
+  cmd/uniclient, ui/appport, ui/window), gofmt clean, comment ban clean
+  (370 files), js/wasm build green. tests/gui out of scope by
+  construction — the wire seam (raw JSON bytes) keeps ui/app engine-free.
+- Next: engine chat_updated payload unification, D-4 atomic 2, D-3.
 
 ## Session 412 — W-2 the chat_updated atomic: live row content updates (2026-11-10)
 
@@ -156,87 +212,3 @@ owner order — that history lives in git if ever needed.
   cgo legs), gofmt clean, comment ban clean (370 files), js/wasm build
   green.
 - Next: chat_updated -> live row updates, D-4 atomic 2, D-3.
-
-## Session 410 — W-2 the feeds atomic: chat data flows through the pump (2026-11-10)
-
-- Boot: sandbox recycled to zero (toolchain + 1.1G module cache survived
-  under ../toolchain — env.sh re-sourced, go mod download green); .env
-  re-created from the owner token (gitignored, askpass push intact); no red
-  gate — Verify #408 + Build #10 green on ea26393e, head 76e623fd was
-  doc-only (paths filter skips WORKLOG pushes).
-- The feeds atomic (W-2's named next step: chat_snapshot events -> dialogs
-  rows + chat rows via the pump): applyEngineEvent became a typed router
-  (account_list | chat_snapshot | msg_received); chat_snapshot decodes into
-  per-account rows kept in Model.accountRows (copy-on-write map; merged
-  projection iterates Accounts in sort order — deterministic; snapshots for
-  unknown accounts drop; empty chats clear the account honestly); dialogs
-  Entry gained identity (Account, ChatID, Group) so selection survives row
-  replacement (Selected follows the same (account, chat) identity, clamps
-  to -1 when gone). The open journey: press (mouse or touch-tap) on a new
-  selection -> openCmdAfterPress sets Open/openGroup/openLoaded=false and
-  returns a Cmd through the new app.ChatPort seam; window.Run wires
-  appport.For(eng) (engine.GetMessages -> WireMessage, newest-N window
-  reversed to oldest-first — the engine's default DESC order stays
-  untouched); the Cmd returns ChatLoaded{Msgs, Items, Now}; Update stores
-  the feed (chatMsgs = the open chat's source of truth, Items = pure
-  projection) and jumps to bottom through chatJumpBottom consumed in
-  ChatMeasured (fresh open always; live append only when at bottom).
-  msg_received for the open chat appends through the same FeedItems
-  projection (grouping + dividers re-derived from source); other chats
-  ignored (their row updates = chat_updated, next atomic). Portless press =
-  selection only (no fake open); failed Messages() = nil Cmd (window skips
-  nil now) — no fake content.
-- Item/date laws MINED from the reference source (§1.17, AyuGramDesktop dev):
-  dialogs row date = Ui::FormatDialogsDate (format_values.cpp 526-542 — same
-  day OR within 20 h -> HH:MM; else < 7 calendar days -> weekday short
-  (langDayOfWeek, lang.strings Mon..Sun); else M/D/YY — QLocale en_US short,
-  pinned as the product's English locale); day divider = langDayOfMonthFull
-  (lang_keys.cpp: "{month} {day}" full month names, ", {year}" only when
-  langDateMaybeWithYear says far (|Δyear|>1, or ±1 year with month gap > 3));
-  message grouping = kAttachMessageToPreviousSecondsDelta 900 (history_view_
-  element.cpp:107,2439 — same sender, same day, < 900 s, no service/divider
-  between; strict <); dialogs preview = lng_dialogs_text_from_wrapped +
-  lng_dialogs_text_with_from (lang.strings:5144 — "Sender: text" for
-  group/topic rows only); bubble time = locale short time -> pinned HH:MM
-  (24 h, matches the existing test pins). FromName only on group incoming.
-  Failed send states have no dialogs.SendState slot yet -> hidden (residual).
-- Tests: tests/gui/app_feeds_test.go NEW (13: snapshot projection + identity,
-  outgoing read SendState, per-account replace + account-order merge +
-  unknown-account drop, empty-chats clear, ignored cases (malformed/bad
-  data/not-obj/unknown-type/no-payload), selection follow + clamp, open
-  journey incl. tall-history bottom jump, nil-port safety, same-row no
-  reload, FeedItems grouping/divider/service/day-change/900 s-exact law
-  table, msg_received append + attachment recompute + non-open ignore,
-  at-bottom append stays at bottom, date-law tables, paint smoke rows +
-  items through the real painters); tests/engine/app_chat_wire_test.go NEW
-  (4: REAL SyncChats -> captured chat_snapshot JSON -> app.Update -> rows
-  (the wire field names proven, not assumed); appport.For -> GetMessages ->
-  WireMessage mapping + oldest-first contract; REAL HandleUpdate(new
-  message) -> captured msg_received JSON -> app append into the open chat;
-  empty chat -> ok, zero messages). Deliberate contract note: the port owns
-  the oldest-first order (engine default path stays DESC). All existing
-  suites green with zero re-pins.
-- Sandbox note: the Edit tool normalized tab-indented Go sources to spaces
-  on patch (whole-file rewrites) — caught by gofmt -l + git diff, tree
-  restored byte-pristine and the edits redone through a byte-exact patch
-  script; core.autocrlf/fileMode now false in the local config.
-- Driven (§4, the shell assembled from build.yml verbatim, wasm
-  32,032,288 B, agent-browser): console + page errors EMPTY; 1440x900 —
-  split intact (64.13% #FEF7FF + 34.62% #F7F2FA + 1.19% #E6E0E9 pill),
-  search placeholder 21 px @ 20..58 x 21..30, "Add an account" prompt
-  84 px @ 935..1019 x 445..454 center (977,450) = chat-pane center
-  exactly; 390x844 single-pane — 96.31% container + 3.46% pill, prompt
-  center (195,448) = list-area center (195,449). BLOCKED-env: live rows
-  need a real backend (no accounts on the driven path — the login front
-  does not exist); the wire is proven at the engine boundary instead
-  (real emit -> real JSON -> app decode), CI verify rides along.
-- Gates: quick gate GREEN (native vet+test scoped — tests/engine 6.7s,
-  tests/gui, tests/ui, dialogs, history; windows vet for the gio cgo
-  legs), gofmt clean, comment ban clean (367 files), js/wasm full build
-  green. Residuals logged: msg-level unread bars (read-position front),
-  MoreAbove pagination (ChatPreloadTopRequested no-op), media messages
-  render caption-only until the media front, single-pane open needs the
-  route-stack front, chat_updated row updates next atomic. wasm
-  +833,272 B vs session 409 (new feed paths).
-- Next: filter semantics atomic, chat_updated rows, D-4 atomic 2, D-3.
-

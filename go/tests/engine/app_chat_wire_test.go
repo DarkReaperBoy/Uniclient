@@ -215,3 +215,76 @@ func TestGetMessagesPortEmptyChat(t *testing.T) {
 		t.Fatalf("empty chat must be ok with zero messages: ok=%v msgs=%d", ok, len(msgs))
 	}
 }
+
+func plainDialog(id, title, msgID, text string, msgTs int64, unread int) cores.Dialog {
+	return cores.Dialog{
+		ID:          id,
+		Type:        cores.ChatTypeGroup,
+		Title:       title,
+		LastMessage: &cores.Message{ID: msgID, ChatID: id, SenderID: "u1", SenderName: "bob", Text: text, Timestamp: time.UnixMilli(msgTs), Status: cores.MessageStatusSent},
+		UnreadCount: unread,
+	}
+}
+
+func TestNewMessageWireBumpsNonOpenChatRow(t *testing.T) {
+	e := newTestEngine(t)
+	c1Ts := time.Date(2026, time.November, 30, 12, 0, 0, 0, time.Local).UnixMilli()
+	c2Ts := time.Date(2026, time.November, 30, 14, 0, 0, 0, time.Local).UnixMilli()
+	liveTs := c2Ts + 3600000
+	snapshotRaw := findEvent(t, e, EventChatSnapshot, func() {
+		if err := e.SyncChats("a1", []cores.Dialog{
+			plainDialog("c1", "Dev Crew", "m1", "release notes", c1Ts, 2),
+			plainDialog("c2", "Quiet", "m9", "old stuff", c2Ts, 0),
+		}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	updatedRaw := findEvent(t, e, EventChatUpdated, func() {
+		e.HandleUpdate("a1", cores.Update{
+			Type:   cores.UpdateNewMessage,
+			ChatID: "c1",
+			Message: &cores.Message{
+				ID:         "live2",
+				ChatID:     "c1",
+				SenderID:   "u1",
+				SenderName: "alice",
+				Text:       "live wire",
+				Timestamp:  time.UnixMilli(liveTs),
+				Status:     cores.MessageStatusSent,
+			},
+		})
+	})
+	m := app.InitialModel()
+	m.Accounts = []app.Account{{ID: "a1", SortOrder: 0}}
+	next, _ := app.Update(m, app.EngineEventMsg{Data: snapshotRaw})
+	if len(next.Dialogs.Rows) != 2 {
+		t.Fatalf("snapshot rows = %d, want 2", len(next.Dialogs.Rows))
+	}
+	if next.Dialogs.Rows[0].ChatID != "c2" {
+		t.Fatalf("c2 holds the top slot before the bump: %+v", next.Dialogs.Rows)
+	}
+	next, _ = app.Update(next, app.EngineEventMsg{Data: updatedRaw})
+	if len(next.Dialogs.Rows) != 2 {
+		t.Fatalf("update rows = %d, want 2", len(next.Dialogs.Rows))
+	}
+	row := next.Dialogs.Rows[0]
+	if row.ChatID != "c1" {
+		t.Fatalf("the bumped chat must move to the top: %+v", row)
+	}
+	if row.Unread != 3 {
+		t.Fatalf("the bumped row must carry the incremented unread, got %d, want 3", row.Unread)
+	}
+	if row.Preview != "alice: live wire" {
+		t.Fatalf("bumped row preview = %q, want %q", row.Preview, "alice: live wire")
+	}
+	var env snapshotEnvelope
+	if err := json.Unmarshal(updatedRaw, &env); err != nil {
+		t.Fatalf("chat_updated envelope: %v", err)
+	}
+	if want := app.FormatDialogsDate(time.UnixMilli(liveTs), time.UnixMilli(env.TimestampMs)); row.Date != want {
+		t.Fatalf("bumped row date = %q, want %q", row.Date, want)
+	}
+	if next.Chat.Items != nil {
+		t.Fatalf("a non-open chat must not grow items: %d", len(next.Chat.Items))
+	}
+}
