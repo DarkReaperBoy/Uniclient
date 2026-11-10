@@ -25,7 +25,10 @@ owner order — that history lives in git if ever needed.
   @ 935..1019 x 445..454 center (977,450) = chat-pane center, W-1 placeholder
   + pill intact (64.13% Surface + 34.62% container + 1.19% pill); 390x844
   prompt center (195,448) = list-area center (195,449); console + page errors
-  empty both shapes. CI on ea26393e still the record (head was doc-only).
+  empty both shapes. CI on 4b3f0906: Build #11 (42780364759) all five jobs
+  + Verify #409 (42780429420) all jobs+steps GREEN (comment ban, gofmt,
+  vet, live vet, test, race, headless smoke, windows + js/wasm cross,
+  nix) + Pages deploy #27 (e354e265) fresh.
 
 ## Open items
 
