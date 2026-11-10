@@ -19,8 +19,9 @@ owner order — that history lives in git if ever needed.
   windows vet gio legs), gofmt + comment ban clean, js/wasm 31,199,016 B;
   driven under the real CI shell: console + errors clean, prompt centered
   chat pane 1440x900 (89 px @ 971,450) + dialogs pane 390x844 (96 px @
-  189,449), W-1 ring intact, localStorage vault created; CI: Build #9 on
-  a257c378 GREEN (42665034482) + Pages #25; verify dispatch pending
+  189,449), W-1 ring intact, localStorage vault created; CI on ea26393e:
+  Build #10 (42761044592) all five jobs + Verify #408 (42761066747) all
+  jobs+steps GREEN (incl. the headless engine smoke + race + nix)
 
 ## Open items
 
