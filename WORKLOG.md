@@ -7,28 +7,32 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: GUI rebuild (§6); W-2 bridge atomic landed (session 409): the
-  gui path boots the engine, the pump feeds Msgs, Accounts in Model, the
-  zero-account "Add an account" prompt paints; next front work: the
-  dialogs/chat feeds (chat_snapshot -> rows), then the search filter
-  semantics, then D-4 atomic 2
-- next: feeds, filter semantics, D-4 atomic 2, D-3
+- front: GUI rebuild (§6); W-2 feeds atomic landed (session 410): the pump now
+  decodes chat_snapshot -> dialogs rows (per-account replace, merge in account
+  order, selection follows identity) and msg_received for the open chat -> live
+  append with re-derived grouping/dividers; row press opens the chat through
+  the new ChatPort seam (appport.For(engine) wired in window.Run, portless
+  press = selection only); item projection pinned to the mined reference laws
+  next front work: the search filter semantics (rows exist -> filter), then
+  chat_updated live row updates, then D-4 atomic 2
+- next: filter semantics, chat_updated rows, D-4 atomic 2, D-3
 - owner-waiting: N-1 — install the uniclient-android APK artifact
   (build 42622715804) on a device and report (android GUI-default check)
-- last-gate: session 409 — quick gate GREEN (native vet+test scoped,
-  windows vet gio legs), gofmt + comment ban clean, js/wasm 31,199,016 B;
-  driven under the real CI shell: console + errors clean, prompt centered
-  chat pane 1440x900 (89 px @ 971,450) + dialogs pane 390x844 (96 px @
-  189,449), W-1 ring intact, localStorage vault created; CI on ea26393e:
-  Build #10 (42761044592) all five jobs + Verify #408 (42761066747) all
-  jobs+steps GREEN (incl. the headless engine smoke + race + nix)
+- last-gate: session 410 — quick gate GREEN (native vet+test scoped —
+  tests/engine 6.7s, tests/gui, tests/ui, dialogs, history; windows vet gio
+  legs), gofmt + comment ban clean (367 files); js/wasm 32,032,288 B (CI
+  recipe) driven under the real CI shell on localhost: 1440x900 prompt 84 px
+  @ 935..1019 x 445..454 center (977,450) = chat-pane center, W-1 placeholder
+  + pill intact (64.13% Surface + 34.62% container + 1.19% pill); 390x844
+  prompt center (195,448) = list-area center (195,449); console + page errors
+  empty both shapes. CI on ea26393e still the record (head was doc-only).
 
 ## Open items
 
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
 | W-1 | ui/app InitialModel | CLOSED 2026-11-09 (session 408): the zero-account scene now paints the frame — dialogs column SurfaceContainerLow vs chat Surface, 54dp header band, the reference-measured search field (7,9,W-18,35 r18) with real focus/typing/backspace/blink; driven live at 1440x900 + 390x844 (pixel scan: pill exact, ring+caret+typed text verified). The residual — the engine-driven add-account affordance — moved to the new front item below | session 408 driven journey | done |
-| W-2 | app/engine bridge | PART: the bridge atomic landed (session 409 — gui path boots bootstrap.Init, Subscribe replay -> pump goroutine -> EngineEventMsg -> Accounts in Model; the honest zero-account prompt driven live both pane shapes); STILL OPEN: nothing feeds DialogsLoaded/ChatLoaded from the engine (grep: still test-only senders), the search field filters nothing yet, PaintComposeBar still has zero callers | session 409 driven journey | the feeds atomic: chat_snapshot events -> dialogs rows + chat rows via the pump; then the filter semantics atomic (rows exist -> filter pinned by tests) |
+| W-2 | app/engine bridge | PART: feeds atomic landed (session 410 — chat_snapshot -> rows via the pump with identity, open journey via ChatPort -> ChatLoaded -> bottom jump, msg_received live append; the wire proven against the real engine: SyncChats -> real JSON -> app rows, HandleUpdate -> real msg_received JSON -> app append); STILL OPEN: the search field filters nothing yet, PaintComposeBar still has zero callers, chat_updated row updates unconsumed, msg-level unread bars need read-position, ChatPreloadTopRequested is a no-op (MoreAbove always false) | session 410 driven journey + wire tests | the filter semantics atomic (rows exist -> filter pinned by tests); then chat_updated -> live row content updates |
 | N-1 | android APK | GUI-default on android is runtime-unverifiable in-sandbox (no emulator/device); expected: the empty Material surface, not a black zombie | session 405 (js sibling); js live-verified in 406; APK artifact on build 42622715804 | owner installs the uniclient-android APK artifact and reports |
 | H-2 | verify/release yml | CLOSED 2026-11-09 (owner order): android + web legs returned as build.yml (per-push, no tests, parallel); only the Xvfb GUI + Puppeteer web-drive legs stay parked with the rebuilt GUI | AGENTS.md §8; build 42597570851 | Xvfb/Puppeteer return when the GUI ships (§6.7) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
@@ -36,6 +40,89 @@ owner order — that history lives in git if ever needed.
 | D-2 | ui/history unread-things buttons | read-marking absent for mentions AND reactions: after a jump the button stays shown (reference hides it when the server marks the thing read — updateUnreadThingsVisibility is server-data-driven); mentionsClick's already-there voice/video media-read branch (5623) deferred — no media model; unread-count badges join D-1's class; poll-votes 4th stack slot returns with a poll model | history_view_corner_buttons.cpp 147-190, 288-345 | returns with engine unread-things events + the media pass |
 | D-3 | build.yml web job | wasm size diet: the js/wasm build ships every core incl. the six raw-TCP backends that can never connect from a browser (§7 web truth) — build-tag exclusion at the engine factory projected <20 MB; also headroom under git's 100 MB file ceiling on gh-pages | headless-host wasm = 31,162,944 B after the keyboard atomic (v0.9.1's old-GUI build was 88,659,256 B) | one atomic with tests: bootstrap factory js variant + per-core js stubs |
 | D-4 | window keys — atomic 2 | Enter=submit (ShouldSubmit law: default Enter-mode = plain Enter/Return submits, Shift/Ctrl+Return newline — already mapped) -> ChatComposeSubmitted + send-request seam (ChatBottomRequested-pattern) + field clear; Up/Down/PageUp/PageDown = history scroll (never compose cursor moves — customUpDown law); Up on EMPTY field + canWrite + !edit + !reply -> edit last editable message, else scroll; Ctrl+Up/Down -> reply prev/next (reply front) | AyuGramDesktop dev history_widget.cpp 9276-9349 (fetched 2026-11-09): Down always _scroll->keyPressEvent; Up scrolls unless field empty && canWrite && !_editMsgId && !_replyTo, then lastEditableMessage() -> editMessage else scroll; PageUp/PageDown always scroll; Enter -> ShouldSubmit(sendSubmitWay, mods); Qt key scroll = SliderSingleStep/PageStep (qabstractscrollarea.cpp 1215-1220; qabstractslider.cpp 180: defaults singleStep 1 pageStep 10 — but our own wheel law 120-angle notch = 60px = WheelScrollLines 3 => singleStep = 20px = WheelNotchAngleDelta/WheelScrollLines/WheelPixelToAngleDelta); IME ranged EditEvents + SelectionCmd/SnippetCmd contract = the mobile/IME front | atomic 2: ChatComposeSubmitted + ChatComposeSendRequested + scroll keys with the 20px singleStep law; edit-last rides the messages/edit front |
+
+## Session 410 — W-2 the feeds atomic: chat data flows through the pump (2026-11-10)
+
+- Boot: sandbox recycled to zero (toolchain + 1.1G module cache survived
+  under ../toolchain — env.sh re-sourced, go mod download green); .env
+  re-created from the owner token (gitignored, askpass push intact); no red
+  gate — Verify #408 + Build #10 green on ea26393e, head 76e623fd was
+  doc-only (paths filter skips WORKLOG pushes).
+- The feeds atomic (W-2's named next step: chat_snapshot events -> dialogs
+  rows + chat rows via the pump): applyEngineEvent became a typed router
+  (account_list | chat_snapshot | msg_received); chat_snapshot decodes into
+  per-account rows kept in Model.accountRows (copy-on-write map; merged
+  projection iterates Accounts in sort order — deterministic; snapshots for
+  unknown accounts drop; empty chats clear the account honestly); dialogs
+  Entry gained identity (Account, ChatID, Group) so selection survives row
+  replacement (Selected follows the same (account, chat) identity, clamps
+  to -1 when gone). The open journey: press (mouse or touch-tap) on a new
+  selection -> openCmdAfterPress sets Open/openGroup/openLoaded=false and
+  returns a Cmd through the new app.ChatPort seam; window.Run wires
+  appport.For(eng) (engine.GetMessages -> WireMessage, newest-N window
+  reversed to oldest-first — the engine's default DESC order stays
+  untouched); the Cmd returns ChatLoaded{Msgs, Items, Now}; Update stores
+  the feed (chatMsgs = the open chat's source of truth, Items = pure
+  projection) and jumps to bottom through chatJumpBottom consumed in
+  ChatMeasured (fresh open always; live append only when at bottom).
+  msg_received for the open chat appends through the same FeedItems
+  projection (grouping + dividers re-derived from source); other chats
+  ignored (their row updates = chat_updated, next atomic). Portless press =
+  selection only (no fake open); failed Messages() = nil Cmd (window skips
+  nil now) — no fake content.
+- Item/date laws MINED from the reference source (§1.17, AyuGramDesktop dev):
+  dialogs row date = Ui::FormatDialogsDate (format_values.cpp 526-542 — same
+  day OR within 20 h -> HH:MM; else < 7 calendar days -> weekday short
+  (langDayOfWeek, lang.strings Mon..Sun); else M/D/YY — QLocale en_US short,
+  pinned as the product's English locale); day divider = langDayOfMonthFull
+  (lang_keys.cpp: "{month} {day}" full month names, ", {year}" only when
+  langDateMaybeWithYear says far (|Δyear|>1, or ±1 year with month gap > 3));
+  message grouping = kAttachMessageToPreviousSecondsDelta 900 (history_view_
+  element.cpp:107,2439 — same sender, same day, < 900 s, no service/divider
+  between; strict <); dialogs preview = lng_dialogs_text_from_wrapped +
+  lng_dialogs_text_with_from (lang.strings:5144 — "Sender: text" for
+  group/topic rows only); bubble time = locale short time -> pinned HH:MM
+  (24 h, matches the existing test pins). FromName only on group incoming.
+  Failed send states have no dialogs.SendState slot yet -> hidden (residual).
+- Tests: tests/gui/app_feeds_test.go NEW (13: snapshot projection + identity,
+  outgoing read SendState, per-account replace + account-order merge +
+  unknown-account drop, empty-chats clear, ignored cases (malformed/bad
+  data/not-obj/unknown-type/no-payload), selection follow + clamp, open
+  journey incl. tall-history bottom jump, nil-port safety, same-row no
+  reload, FeedItems grouping/divider/service/day-change/900 s-exact law
+  table, msg_received append + attachment recompute + non-open ignore,
+  at-bottom append stays at bottom, date-law tables, paint smoke rows +
+  items through the real painters); tests/engine/app_chat_wire_test.go NEW
+  (4: REAL SyncChats -> captured chat_snapshot JSON -> app.Update -> rows
+  (the wire field names proven, not assumed); appport.For -> GetMessages ->
+  WireMessage mapping + oldest-first contract; REAL HandleUpdate(new
+  message) -> captured msg_received JSON -> app append into the open chat;
+  empty chat -> ok, zero messages). Deliberate contract note: the port owns
+  the oldest-first order (engine default path stays DESC). All existing
+  suites green with zero re-pins.
+- Sandbox note: the Edit tool normalized tab-indented Go sources to spaces
+  on patch (whole-file rewrites) — caught by gofmt -l + git diff, tree
+  restored byte-pristine and the edits redone through a byte-exact patch
+  script; core.autocrlf/fileMode now false in the local config.
+- Driven (§4, the shell assembled from build.yml verbatim, wasm
+  32,032,288 B, agent-browser): console + page errors EMPTY; 1440x900 —
+  split intact (64.13% #FEF7FF + 34.62% #F7F2FA + 1.19% #E6E0E9 pill),
+  search placeholder 21 px @ 20..58 x 21..30, "Add an account" prompt
+  84 px @ 935..1019 x 445..454 center (977,450) = chat-pane center
+  exactly; 390x844 single-pane — 96.31% container + 3.46% pill, prompt
+  center (195,448) = list-area center (195,449). BLOCKED-env: live rows
+  need a real backend (no accounts on the driven path — the login front
+  does not exist); the wire is proven at the engine boundary instead
+  (real emit -> real JSON -> app decode), CI verify rides along.
+- Gates: quick gate GREEN (native vet+test scoped — tests/engine 6.7s,
+  tests/gui, tests/ui, dialogs, history; windows vet for the gio cgo
+  legs), gofmt clean, comment ban clean (367 files), js/wasm full build
+  green. Residuals logged: msg-level unread bars (read-position front),
+  MoreAbove pagination (ChatPreloadTopRequested no-op), media messages
+  render caption-only until the media front, single-pane open needs the
+  route-stack front, chat_updated row updates next atomic. wasm
+  +833,272 B vs session 409 (new feed paths).
+- Next: filter semantics atomic, chat_updated rows, D-4 atomic 2, D-3.
 
 ## Session 409 — W-2 the engine->UI bridge: the gui path is live (2026-11-10)
 
@@ -157,137 +244,3 @@ owner order — that history lives in git if ever needed.
   empty lists until the bridge lands); STATE records Build #8; W-1
   CLOSED, W-2 opened (the engine->UI bridge — the add-account
   affordance needs it; the search filter semantics ride it too).
-
-## Session 407 — the md truth audit (owner order) + the whitescreen verdict (2026-11-09)
-
-- Owner redirect: "make sure the md files are correct before you proceed
-  to fix anything" — audit first, zero code changes; the question set
-  (linux/windows builds, the whitescreen, CI parallelism, ayugram
-  cloning, per-commit testing) answered from evidence below.
-- Boot: the local clone sat STALE at 5bf5b4e2 — origin/main had moved to
-  dc2385e0 (session 406: .gitignore anchor, the stuck-boot fix 4069813b,
-  shell/README syncs, the .env auth law 9d437e10, the keyboard atomic
-  90be7905). Pulled; both mds re-read at the tip. Working tree: 383
-  mode-only flips (sandbox-restore artifact, 0 content diffs) —
-  core.fileMode=false; nothing unpushed.
-- Audit verdict — every checkable claim traced TRUE: test counts (ui 230
-  / gui 186 / text 21, static grep); build 42629204319 SUCCESS (run
-  page: head 90be790, 4m37s); release.yml ships linux amd64+arm64 +
-  windows + android (TAG-gated; latest tag v0.10.3 — that is why recent
-  runs show no linux/windows: per-push Build is web+android, §1.5);
-  build jobs parallel (no needs chain); ui/tokens 487 lines (AyuGram =
-  the FREE GPLv3 desktop repo; measurements only, zero code copy §6.8);
-  AGENTS §1.4 == main.go:21 guiDefault; live Pages 200,
-  WASM_BYTES == content-length == 31,162,944.
-- Corrected in this commit: STATE's "Pages live on VER 90be790587cb"
-  (true at its 13:58Z write) — a DISPATCHED Build #6 (14:54:20Z, manual,
-  unrecorded) redeployed main@dc2385e0: live VER dc2385e08410, recorded
-  now; AGENTS §1.5/§8 now state the paths filter (doc-only pushes skip);
-  README's web paragraph says what the page looks like today; sessions
-  405/406 reordered newest-first; session 402 pruned for the line cap.
-- The whitescreen verdict ("idk if it is me"): NOT the owner. Live drive
-  (agent-browser, the real URL, 1440x900 + 390x844): boots — canvas 1,
-  HUD display:none, "Running — Uniclient", VER dc2385e08410, sha pin
-  match, console clean — but the viewport is 100.0% ONE color #FEF7FF
-  (pixel scan) at BOTH sizes: the zero-account InitialModel paints
-  background only. Working as built; indistinguishable from broken =
-  W-1 (degraded UX). The prior stuck-boot (headless default blocking on
-  js signals) was real — fixed 4069813b, verified then.
-- Gap admitted + closed: 90be7905 (user-facing) landed without a §4
-  browser drive; this drive closes it — boots clean, the flat surface
-  is the residual finding (W-1).
-- Second atomic (owner question, mds already green): build.yml gains
-  linux (amd64+arm64 matrix — the release.yml cgo recipe verbatim,
-  Gio client libs) + windows (pure-Go cross) jobs — five parallel
-  runs, no needs-chain; per-push artifacts now cover every platform.
-  The "why no linux+windows" answer: they were always tag-gated in
-  release.yml (latest tag v0.10.3 = the last shipped set); the §1.5
-  per-push Build was web+android only until now. README artifacts
-  sentence updated in-commit.
-
-## Session 406 — the push: stuck-boot fix live, Pages verified (2026-11-09)
-
-- Owner provided the GitHub token → stored in `.env` per owner order
-  (gitignored `.env*`, never committed/printed/pushed). AGENTS §0.2 +
-  scripts/git-askpass.sh (GIT_ASKPASS helper sourcing .env) committed
-  BEFORE the push — owner order "update agents.md before you push",
-  so future sessions never hunt for a token that is already there.
-- Pushed 9d437e10 = session 405's four commits + the auth docs;
-  fast-forward 5bf5b4e2..9d437e10, remote URL stayed token-free.
-- CI build 42622715804 (9d437e10) SUCCESS at job AND step level: web
-  job (wasm 31,153,413 B, shell VER 9d437e104379 sha aaa9fb15…, gz/br
-  kit artifact, gh-pages orphan deploy ddb9dee9) + android job (gogio
-  arm64 APK artifact).
-- Live verification (§4, the owner's exact report path, agent-browser/
-  playwright chromium): https://darkreaperboy.github.io/Uniclient/ at
-  1440x900 AND 390x844 — HUD display:none, canvasCount 1, canvas
-  pixel-sampled 254,247,255 = #FEF7FF material Light Surface (the
-  zero-account InitialModel), status "Running — Uniclient" detail
-  "v9d437e1 · 29.7 MB · downloaded", console + page errors clean.
-  The stuck-boot report is closed end-to-end; the js leg of the fix is
-  live-confirmed (android stays N-1, NEEDS_OWNER).
-- Toolchain: sandbox had recycled again — Go 1.27.3 reinstalled per the
-  env.sh recipe, module cache symlinked from the surviving ~/go/pkg
-  (966 MB), go mod download green.
-- Atomic 2 of the session (keyboard routing, slice 1 — the compose
-  field takes keyboard input): ui/window routeComposeKeys — gio focus
-  mirroring (Model Focused&&CanSend <-> key.FocusCmd on the chat input
-  tag + SoftKeyboardCmd on transitions, the touch platforms' keyboard),
-  key.FocusFilter EditEvents -> app.ComposeEditMsg (empty-range text ->
-  ChatComposeTyped; ranged IME edits nil until the IME front),
-  key.Filter{Focus: tag, Optional: Shift|Ctrl} key.Events ->
-  app.ComposeKeyMsg (State Press only, Alt/Super dropped): arrows /
-  Home/End / Ctrl-word / Shift-select / Backspace/Delete / Ctrl+A /
-  Shift+Return and Ctrl+Return -> newline (tdesktop Enter-mode default);
-  plain Return + Up/Down/PageUp/PageDown/Escape/Tab intentionally unmapped
-  (chat-surface keys — D-4 atomic 2). ChatComposeFocusLost on gio
-  FocusEvent loss: Focused+CursorOn drop, text/cursor survive, re-press
-  refocuses. Laws verified in source this session: gio xkb DispatchKey
-  (xkb_unix.go 199-212: printable + no Ctrl/Alt/Super -> EditEvent,
-  letters' key.Event Names upper-cased = shortcuts only), gio filter
-  matching (io/input/key.go 264-277: undeclared modifiers never match —
-  hence Optional: Shift|Ctrl), js backend (os_js.go 570-594: Return
-  preventDefault -> no EditEvent newline, key.Event only). 4 new tests
-  (mapping table + ignores + edit + focus-lost journey): tests/gui 186,
-  UI trio 437 = 230 ui + 186 gui + 21 text.
-- Next: D-4 atomic 2 (Enter submit + history scroll keys), then D-3.
-
-## Session 405 — the web stuck-boot fix: GUI default on no-argv platforms (2026-11-09)
-
-- Owner report (chat): "the web page doesn't load, idk if it is only
-  me or it is a bug." Reproduced in headless chromium (playwright
-  1.57 / agent-browser) against the live Pages URL: shell + wasm +
-  sha256 all serve (31,153,413 B, hash matches the pin), the engine
-  boots ("uniclient engine ready (dir /uniclient)" mirrored into the
-  HUD), then the headless host blocks on <-sig forever — js has no
-  signals; canvasCount 0, boot HUD display:flex after 50 s. A bug,
-  not the owner's connection.
-- Root cause: the rebuilt main.go made headless the default mode and
-  build.yml's web job built that default; v0.10.3's web build WAS the
-  GUI (no flag at all — git show v0.10.3:go/cmd/uniclient/main.go).
-  Fix: guiDefault = GOOS js or android — the no-argv platforms
-  (browser tabs, gogio APKs) have no flags and no signals, a headless
-  default there is a zombie surface; desktop keeps headless as its
-  default (a real flag there, §1.3). 2-line diff, main.go only.
-- Verification (§4): the fixed wasm built with the exact CI recipe
-  (gate build, 31,153,413 B) served under the real CI shell on
-  localhost: chromium 1440x900 AND 390x844 — HUD display:none,
-  canvasCount 1, canvas pixel-sampled 254,247,255 = material Light
-  Surface 0xFE,0xF7,0xFF, i.e. the honest zero-account InitialModel
-  scene (no demo data, §1.9); console clean; the 390 re-boot also
-  exercised the same-version Cache API path (zero-network boot).
-  Android kept the same flip but stays runtime-unverified here -> N-1.
-- Gates: gofmt clean, comment-ban clean, js/wasm full build green;
-  linux-cgo build env-blocked (no libwayland-dev, no root) and the
-  windows cross-build OOM'd on gotd tg (the known 4 GiB box limit) —
-  both are CI legs (verify/release); build.yml's js job is the same
-  recipe. Second atomic: the generated shell's pre-canvas status
-  "Running — Uniclient engine host" -> "Running — Uniclient" (the
-  GUI boots there now; one build.yml line).
-- AGENTS §1.4 + §8 + build.yml header synced in-commit — the old
-  "ships the headless engine host until the GUI lands" wording is
-  the law that produced the stuck boot.
-- Next: push (token waited), watch the CI build run + the Pages
-  deploy, verify the live URL in chromium, then the GUI front:
-  keyboard routing.
-

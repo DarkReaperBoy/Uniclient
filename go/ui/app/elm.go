@@ -3,6 +3,7 @@ package app
 import (
 	"image/color"
 	"math"
+	"time"
 
 	"uniclient/ui/dialogs"
 	"uniclient/ui/history"
@@ -100,6 +101,7 @@ func (DialogsTick) isMsg() {}
 
 type ChatLoaded struct {
 	Items     []history.Item
+	Msgs      []WireMessage
 	MoreAbove bool
 	Now       int
 }
@@ -319,6 +321,14 @@ type Model struct {
 	ChatPress         ChatPressState
 	Search            SearchState
 	Accounts          []Account
+	Open              ChatRef
+	OpenValid         bool
+	port              ChatPort
+	chatMsgs          []WireMessage
+	openGroup         bool
+	openLoaded        bool
+	chatJumpBottom    bool
+	accountRows       map[string][]dialogs.Entry
 }
 
 func InitialModel() Model {
@@ -390,7 +400,8 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 			m.Columns().Dialogs, m.DialogsScroll.Height, msg.Accelerate)
 		return m.scrollClassic(dy, msg.Now), m.loadMoreCmd()
 	case DialogsPressed:
-		return m.pressDialogs(msg), nil
+		next, cmd := m.pressDialogs(msg)
+		return next, cmd
 	case DialogsHeaderPressed:
 		m.pressDialogsHeader(msg)
 		return m, nil
@@ -399,8 +410,9 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 	case DialogsDragged:
 		return m.dragDialogs(msg), m.loadMoreCmd()
 	case DialogsReleased:
+		prev := m.Dialogs.Selected
 		m.releaseDialogs(msg)
-		return m, nil
+		return m, m.openCmdAfterPress(prev)
 	case DialogsPressCanceled:
 		m.DialogsBar = BarDrag{}
 		m.DialogsTouch.Active = false
@@ -433,6 +445,11 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		m.ChatScroll.Top = m.Chat.ClampOffset(m.ChatScroll.Top, m.ChatScroll)
 		m.chatMentionsCheck()
 		m.chatReactionsCheck()
+		m.chatMsgs = msg.Msgs
+		if m.OpenValid && !m.openLoaded {
+			m.openLoaded = true
+			m.chatJumpBottom = true
+		}
 		return m, nil
 	case ChatPrepended:
 		m.nowMs = msg.Now
@@ -456,7 +473,10 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		m.Chat.Heights = msg.Heights
 		m.Chat.Hits = msg.Hits
 		m.ChatDirty = false
-		if m.ChatPrependRows > 0 {
+		if m.chatJumpBottom {
+			m.chatJumpBottom = false
+			m.ChatScroll.Top = m.Chat.MaxOffset(m.ChatScroll)
+		} else if m.ChatPrependRows > 0 {
 			shift := 0
 			for i := 0; i < m.ChatPrependRows && i < len(m.Chat.Heights); i++ {
 				shift += m.Chat.Heights[i]
@@ -562,14 +582,15 @@ func (m *Model) scrollClassic(dy, now int) Model {
 	return *m
 }
 
-func (m *Model) pressDialogs(msg DialogsPressed) Model {
+func (m *Model) pressDialogs(msg DialogsPressed) (Model, Cmd) {
+	prev := m.Dialogs.Selected
 	m.nowMs = msg.Now
 	m.searchBlur()
 	if m.dialogsToUpHitAt(msg.X, msg.Y) {
 		m.DialogsBar = BarDrag{}
 		m.DialogsTouch = TouchDrag{}
 		m.DialogsToUpPress = true
-		return *m
+		return *m, nil
 	}
 	width := m.Columns().Dialogs
 	if !msg.Touch && width > tokens.ScrollBarWidth && msg.X >= width-tokens.ScrollBarWidth {
@@ -581,7 +602,7 @@ func (m *Model) pressDialogs(msg DialogsPressed) Model {
 					m.Dialogs.BarTrackJump(m.DialogsScroll, width, m.DialogsScroll.Height, msg.Y))
 				m.dialogsToUpCheck()
 			}
-			return *m
+			return *m, nil
 		}
 	}
 	if msg.Touch {
@@ -600,12 +621,36 @@ func (m *Model) pressDialogs(msg DialogsPressed) Model {
 		}
 		m.DialogsTouch = d
 		m.applyTouchDelta(0, 0, dialogs.PhaseBegin, msg.Now)
-		return *m
+		return *m, nil
 	}
 	if idx := m.Dialogs.RowAt(msg.Y+m.DialogsScroll.Top, width); idx >= 0 {
 		m.Dialogs.Selected = idx
 	}
-	return *m
+	return *m, m.openCmdAfterPress(prev)
+}
+
+func (m *Model) openCmdAfterPress(prev int) Cmd {
+	if m.Dialogs.Selected == prev || m.port == nil ||
+		m.Dialogs.Selected < 0 || m.Dialogs.Selected >= len(m.Dialogs.Rows) {
+		return nil
+	}
+	row := m.Dialogs.Rows[m.Dialogs.Selected]
+	if row.Account == "" || row.ChatID == "" {
+		return nil
+	}
+	m.Open = ChatRef{Account: row.Account, ID: row.ChatID}
+	m.OpenValid = true
+	m.openGroup = row.Group
+	m.openLoaded = false
+	port, group := m.port, row.Group
+	account, chat := row.Account, row.ChatID
+	return func() Msg {
+		msgs, ok := port.Messages(account, chat, chatHistoryLimit)
+		if !ok {
+			return nil
+		}
+		return ChatLoaded{Msgs: msgs, Items: FeedItems(msgs, time.Now(), group), Now: int(time.Now().UnixMilli())}
+	}
 }
 
 func (m *Model) dragDialogs(msg DialogsDragged) Model {

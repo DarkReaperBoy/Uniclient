@@ -17,6 +17,7 @@ import (
 
 	"uniclient/engine"
 	"uniclient/ui/app"
+	"uniclient/ui/appport"
 	"uniclient/ui/dialogs/render"
 	chatrender "uniclient/ui/history/render"
 	"uniclient/ui/material"
@@ -36,7 +37,7 @@ func Run(eng *engine.Engine) error {
 		gioapp.MinSize(unit.Dp(tokens.WindowMinWidth), unit.Dp(tokens.WindowMinHeight)),
 	)
 	msgs := make(chan app.Msg, msgQueueDepth)
-	appModel := app.InitialModel()
+	appModel := app.InitialModel().WithPort(appport.For(eng))
 	painter := render.NewPainter()
 	chatPainter := chatrender.NewChatPainter()
 	events := make(chan []byte, engineEventQueueDepth)
@@ -69,7 +70,9 @@ func Run(eng *engine.Engine) error {
 		appModel, cmd = app.Update(appModel, msg)
 		if cmd != nil {
 			go func(c app.Cmd) {
-				msgs <- c()
+				if msg := c(); msg != nil {
+					msgs <- msg
+				}
 				w.Invalidate()
 			}(cmd)
 		}

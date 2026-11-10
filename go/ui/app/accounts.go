@@ -26,15 +26,31 @@ const (
 )
 
 func (m Model) applyEngineEvent(data []byte) (Model, Cmd) {
-	var env struct {
-		Type string          `json:"type"`
-		Data json.RawMessage `json:"data"`
-	}
-	if json.Unmarshal(data, &env) != nil || env.Type != engineEventAccountList {
+	var env engineEnvelope
+	if json.Unmarshal(data, &env) != nil {
 		return m, nil
 	}
+	switch env.Type {
+	case engineEventAccountList:
+		return m.applyAccountList(env.Data)
+	case engineEventChatSnapshot:
+		return m.applyChatSnapshot(env)
+	case engineEventMsgReceived:
+		return m.applyMsgReceived(env)
+	}
+	return m, nil
+}
+
+type engineEnvelope struct {
+	Type        string          `json:"type"`
+	AccountID   string          `json:"account_id"`
+	TimestampMs int64           `json:"timestamp_ms"`
+	Data        json.RawMessage `json:"data"`
+}
+
+func (m Model) applyAccountList(data []byte) (Model, Cmd) {
 	var accounts []Account
-	if json.Unmarshal(env.Data, &accounts) != nil {
+	if json.Unmarshal(data, &accounts) != nil {
 		return m, nil
 	}
 	sort.Slice(accounts, func(i, j int) bool {

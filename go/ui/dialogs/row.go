@@ -56,6 +56,9 @@ type Entry struct {
 	Tagged      bool
 	Forum       bool
 	Tags        []string
+	Account     string
+	ChatID      string
+	Group       bool
 }
 
 type Metrics struct {
