@@ -28,9 +28,12 @@ owner order — that history lives in git if ever needed.
   bootstrap/cores/engine + tests trio, tests/cores 59.1s, tests/engine
   6.7s; js legs: tests/webbuild under the wasm runner + audio
   regression), gofmt + comment ban clean (376 files), js/wasm full-tree
-  build green; CI for atomic 1's push: Build #17 + Verify #413
-  (42848153096) green on 16466373, Pages #32 serving; CI dispatch on
-  the atomic-2 push follows (record next session)
+  build green; CI green on BOTH pushes: atomic 1 (16466373) Build #17 +
+  Verify #413 (42848153096) + Pages #32; atomic 2 (cbec4ef7) Build #18
+  (all 5 jobs) + Verify #414 (42851639961, all 3 jobs + steps) +
+  Pages #33 — the live deployed wasm (CI shape, trimpath + -s -w) =
+  26,194,302 B, serving at the Pages URL (was 17 gotd packages in the
+  js graph; now zero)
 
 ## Open items
 
