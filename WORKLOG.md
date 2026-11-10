@@ -7,31 +7,31 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: GUI rebuild (§6); W-2 msg_received row-bump atomic landed (session
-  413): handleNewMessage increments unread BEFORE the row-update emit, so the
-  ONE chat_updated per incoming message carries the full bumped row
-  (preview/date/unread/move) and rides the session-412 UI path — REAL-seam
-  wire test: HandleUpdate new message in a non-open chat -> chat_updated
-  bytes -> app rows (unread 2->3, "alice: live wire" preview, move to top,
-  items untouched). next front work: engine chat_updated payload
-  unification (bare-map legacy payloads JoinChannel/DeleteChatHistory), then
-  D-4 atomic 2, then D-3
-- next: engine payload unification, D-4 atomic 2, D-3
+- front: GUI rebuild (§6); W-2 engine wire atomics landed (session 413):
+  (1) msg_received row bump — handleNewMessage increments unread BEFORE the
+  row-update emit, the ONE chat_updated per incoming message carries the
+  full bumped row (preview/date/unread/move) and rides the session-412 UI
+  path; (2) chat_updated payload unification — JoinChannel and ClearHistory
+  now emit emitChatUpdate's full row instead of the legacy bare map the UI
+  had to drop: ONE wire shape for chat_updated, the UI drop guard now
+  covers only malformed shapes. next front work: D-4 atomic 2 (window
+  keys), then D-3 (wasm size diet)
+- next: D-4 atomic 2, D-3
 - owner-waiting: N-1 — install the uniclient-android APK artifact
   (build 42622715804) on a device and report (android GUI-default check)
-- last-gate: session 413 — quick gate GREEN (scoped: engine, tests/engine
-  6.4s, tests/bootstrap, bootstrap + windows vet gio legs), gofmt + comment
-  ban clean (370 files), js/wasm build green; CI record for session 412's
-  push: Build 42803562918 (5 jobs) + Verify 42803582751 (3 jobs, steps)
-  all green on ed008c69, Pages 42804202730 serving; CI dispatch on this
-  push follows (record next session).
+- last-gate: session 413 — quick gate GREEN twice (scoped: engine,
+  tests/engine 6.4s, tests/bootstrap, bootstrap + windows vet gio legs),
+  gofmt + comment ban clean (370 files), js/wasm build green; CI record
+  for session 412's push: Build 42803562918 (5 jobs) + Verify 42803582751
+  (3 jobs, steps) all green on ed008c69, Pages 42804202730 serving; CI
+  dispatch on this push follows (record next session).
 
 ## Open items
 
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
 | W-1 | ui/app InitialModel | CLOSED 2026-11-09 (session 408): the zero-account scene now paints the frame — dialogs column SurfaceContainerLow vs chat Surface, 54dp header band, the reference-measured search field (7,9,W-18,35 r18) with real focus/typing/backspace/blink; driven live at 1440x900 + 390x844 (pixel scan: pill exact, ring+caret+typed text verified). The residual — the engine-driven add-account affordance — moved to the new front item below | session 408 driven journey | done |
-| W-2 | app/engine bridge | PART: msg_received row bump landed (session 413 — engine emits the full bumped row: handleNewMessage increments unread before the row-update emit, ONE chat_updated per incoming message with preview/date/unread/move; REAL-seam wire test pins HandleUpdate -> chat_updated bytes -> app rows for a non-open chat); chat_updated atomic landed (session 412 — full-payload chat_updated drives live row content: ONE snapshotRow mapping path, replace-or-insert into accountRows, engine list law sorted locally (pinned DESC, last_msg_time DESC), filter+identity-selection reapplied, snapshot-equivalence pinned; bare-map legacy payloads (JoinChannel/DeleteChatHistory) drop until the engine unification); filter atomic landed (session 411 — typed search filters the rows: SearchWords/MatchesWords law in ui/dialogs/search.go, word-prefix + accent/case fold + AND, selection = row identity across filter cycles); feeds atomic landed (session 410); STILL OPEN: PaintComposeBar zero callers, engine payload unification (bare-map legacy payloads still drop UI-side), msg-level unread bars need read-position, ChatPreloadTopRequested is a no-op, transliteration/username/"@"-mentions matching + the search-results sections ride the search front | session 413 wire test | engine payload unification; then D-4 atomic 2 |
+| W-2 | app/engine bridge | PART: msg_received row bump landed (session 413 — engine emits the full bumped row: handleNewMessage increments unread before the row-update emit, ONE chat_updated per incoming message with preview/date/unread/move; REAL-seam wire test pins HandleUpdate -> chat_updated bytes -> app rows for a non-open chat); payload unification landed (session 413 — JoinChannel/ClearHistory emit emitChatUpdate's full row; ONE chat_updated wire shape); chat_updated atomic landed (session 412 — full-payload chat_updated drives live row content: ONE snapshotRow mapping path, replace-or-insert into accountRows, engine list law sorted locally (pinned DESC, last_msg_time DESC), filter+identity-selection reapplied, snapshot-equivalence pinned); filter atomic landed (session 411 — typed search filters the rows: SearchWords/MatchesWords law in ui/dialogs/search.go, word-prefix + accent/case fold + AND, selection = row identity across filter cycles); feeds atomic landed (session 410); STILL OPEN: PaintComposeBar zero callers, msg-level unread bars need read-position, ChatPreloadTopRequested is a no-op, transliteration/username/"@"-mentions matching + the search-results sections ride the search front | session 413 wire tests | D-4 atomic 2 |
 | N-1 | android APK | GUI-default on android is runtime-unverifiable in-sandbox (no emulator/device); expected: the empty Material surface, not a black zombie | session 405 (js sibling); js live-verified in 406; APK artifact on build 42622715804 | owner installs the uniclient-android APK artifact and reports |
 | H-2 | verify/release yml | CLOSED 2026-11-09 (owner order): android + web legs returned as build.yml (per-push, no tests, parallel); only the Xvfb GUI + Puppeteer web-drive legs stay parked with the rebuilt GUI | AGENTS.md §8; build 42597570851 | Xvfb/Puppeteer return when the GUI ships (§6.7) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
@@ -63,12 +63,25 @@ owner order — that history lives in git if ever needed.
   plainDialog helper). Red seen first: "the bumped row must carry the
   incremented unread, got 2, want 3". All existing suites green, zero
   re-pins.
-- Gates: quick gate GREEN (scoped: engine, tests/engine 6.4s,
+- Atomic 2 (payload unification): JoinChannel + ClearHistory were the last
+  bare-map chat_updated emitters ({"account_id","chat_id"}) — shapes the UI
+  decodes to an empty ChatID and drops. Both now call emitChatUpdate: the
+  full row re-read from the DB, ONE wire shape for chat_updated; no-row
+  still emits nothing (emitChatUpdate's Scan-err early return). Tests
+  red->green: tests/engine/app_chat_wire_test.go +1 REAL-seam
+  (TestJoinChannelAndClearHistoryEmitFullRowChatUpdated: stub core with
+  JoinChannel/DeleteChatHistory -> SyncChats seeds the row -> REAL
+  JoinChannel/ClearHistory -> captured chat_updated decodes chat_id/
+  title/unread/last_msg_text through the {chat} shape -> app rows survive
+  both events; red seen first: 'JoinChannel must emit the unified
+  full-row payload, got: {"account_id":"a1","chat_id":"c1"}'). No other
+  consumer pinned the legacy shape (grep-verified).
+- Gates: quick gate GREEN twice (scoped: engine, tests/engine 6.4s,
   tests/bootstrap, bootstrap; gio cgo legs via windows vet —
   cmd/uniclient, ui/appport, ui/window), gofmt clean, comment ban clean
   (370 files), js/wasm build green. tests/gui out of scope by
   construction — the wire seam (raw JSON bytes) keeps ui/app engine-free.
-- Next: engine chat_updated payload unification, D-4 atomic 2, D-3.
+- Next: D-4 atomic 2, D-3.
 
 ## Session 413 — W-2 the msg_received row-bump atomic: incoming messages carry the unread (2026-11-10)
 
@@ -93,12 +106,25 @@ owner order — that history lives in git if ever needed.
   plainDialog helper). Red seen first: "the bumped row must carry the
   incremented unread, got 2, want 3". All existing suites green, zero
   re-pins.
-- Gates: quick gate GREEN (scoped: engine, tests/engine 6.4s,
+- Atomic 2 (payload unification): JoinChannel + ClearHistory were the last
+  bare-map chat_updated emitters ({"account_id","chat_id"}) — shapes the UI
+  decodes to an empty ChatID and drops. Both now call emitChatUpdate: the
+  full row re-read from the DB, ONE wire shape for chat_updated; no-row
+  still emits nothing (emitChatUpdate's Scan-err early return). Tests
+  red->green: tests/engine/app_chat_wire_test.go +1 REAL-seam
+  (TestJoinChannelAndClearHistoryEmitFullRowChatUpdated: stub core with
+  JoinChannel/DeleteChatHistory -> SyncChats seeds the row -> REAL
+  JoinChannel/ClearHistory -> captured chat_updated decodes chat_id/
+  title/unread/last_msg_text through the {chat} shape -> app rows survive
+  both events; red seen first: 'JoinChannel must emit the unified
+  full-row payload, got: {"account_id":"a1","chat_id":"c1"}'). No other
+  consumer pinned the legacy shape (grep-verified).
+- Gates: quick gate GREEN twice (scoped: engine, tests/engine 6.4s,
   tests/bootstrap, bootstrap; gio cgo legs via windows vet —
   cmd/uniclient, ui/appport, ui/window), gofmt clean, comment ban clean
   (370 files), js/wasm build green. tests/gui out of scope by
   construction — the wire seam (raw JSON bytes) keeps ui/app engine-free.
-- Next: engine chat_updated payload unification, D-4 atomic 2, D-3.
+- Next: D-4 atomic 2, D-3.
 
 ## Session 412 — W-2 the chat_updated atomic: live row content updates (2026-11-10)
 

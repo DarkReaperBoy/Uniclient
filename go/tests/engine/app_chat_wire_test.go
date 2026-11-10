@@ -288,3 +288,78 @@ func TestNewMessageWireBumpsNonOpenChatRow(t *testing.T) {
 		t.Fatalf("a non-open chat must not grow items: %d", len(next.Chat.Items))
 	}
 }
+
+type fullRowPayload struct {
+	Chat struct {
+		ChatID      string `json:"chat_id"`
+		Title       string `json:"title"`
+		UnreadCount int    `json:"unread_count"`
+		LastMsgText string `json:"last_msg_text"`
+	} `json:"chat"`
+}
+
+type joinClearStub struct {
+	cores.StubCore
+}
+
+func (joinClearStub) JoinChannel(chatID string) error       { return nil }
+func (joinClearStub) DeleteChatHistory(chatID string) error { return nil }
+
+func TestJoinChannelAndClearHistoryEmitFullRowChatUpdated(t *testing.T) {
+	e := newTestEngine(t)
+	if err := e.AttachAccount("a1", "telegram", joinClearStub{}); err != nil {
+		t.Fatal(err)
+	}
+	msgTs := time.Date(2026, time.November, 30, 14, 2, 0, 0, time.Local).UnixMilli()
+	snapshotRaw := findEvent(t, e, EventChatSnapshot, func() {
+		if err := e.SyncChats("a1", []cores.Dialog{plainDialog("c1", "Dev Crew", "m1", "release notes", msgTs, 2)}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	m := app.InitialModel()
+	m.Accounts = []app.Account{{ID: "a1", SortOrder: 0}}
+	seeded, _ := app.Update(m, app.EngineEventMsg{Data: snapshotRaw})
+	if len(seeded.Dialogs.Rows) != 1 {
+		t.Fatalf("snapshot rows = %d, want 1", len(seeded.Dialogs.Rows))
+	}
+	joinedRaw := findEvent(t, e, EventChatUpdated, func() {
+		if err := e.JoinChannel("a1", "c1"); err != nil {
+			t.Fatal(err)
+		}
+	})
+	var joinedEnv snapshotEnvelope
+	if err := json.Unmarshal(joinedRaw, &joinedEnv); err != nil {
+		t.Fatalf("join chat_updated envelope: %v", err)
+	}
+	var joined fullRowPayload
+	if err := json.Unmarshal(joinedEnv.Data, &joined); err != nil {
+		t.Fatalf("join chat_updated data: %v", err)
+	}
+	if joined.Chat.ChatID != "c1" || joined.Chat.Title != "Dev Crew" || joined.Chat.UnreadCount != 2 || joined.Chat.LastMsgText != "release notes" {
+		t.Fatalf("JoinChannel must emit the unified full-row payload, got: %s", joinedEnv.Data)
+	}
+	next, _ := app.Update(seeded, app.EngineEventMsg{Data: joinedRaw})
+	if len(next.Dialogs.Rows) != 1 || next.Dialogs.Rows[0].ChatID != "c1" {
+		t.Fatalf("the unified join payload must ride the app row path: %+v", next.Dialogs.Rows)
+	}
+	clearedRaw := findEvent(t, e, EventChatUpdated, func() {
+		if err := e.ClearHistory("a1", "c1", false); err != nil {
+			t.Fatal(err)
+		}
+	})
+	var clearedEnv snapshotEnvelope
+	if err := json.Unmarshal(clearedRaw, &clearedEnv); err != nil {
+		t.Fatalf("clear chat_updated envelope: %v", err)
+	}
+	var cleared fullRowPayload
+	if err := json.Unmarshal(clearedEnv.Data, &cleared); err != nil {
+		t.Fatalf("clear chat_updated data: %v", err)
+	}
+	if cleared.Chat.ChatID != "c1" || cleared.Chat.Title != "Dev Crew" {
+		t.Fatalf("ClearHistory must emit the unified full-row payload, got: %s", clearedEnv.Data)
+	}
+	after, _ := app.Update(next, app.EngineEventMsg{Data: clearedRaw})
+	if len(after.Dialogs.Rows) != 1 || after.Dialogs.Rows[0].ChatID != "c1" {
+		t.Fatalf("the unified clear payload must ride the app row path: %+v", after.Dialogs.Rows)
+	}
+}

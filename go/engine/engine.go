@@ -1237,10 +1237,7 @@ func (e *Engine) JoinChannel(accountID, chatID string) error {
 
 	e.db.Exec("UPDATE chats SET not_joined = 0 WHERE account_id = ? AND chat_id = ?", accountID, chatID)
 
-	e.emitEvent(EventChatUpdated, accountID, map[string]string{
-		"account_id": accountID,
-		"chat_id":    chatID,
-	})
+	e.emitChatUpdate(accountID, chatID)
 
 	return nil
 }
@@ -1375,10 +1372,7 @@ func (e *Engine) ClearHistory(accountID, chatID string, revoke bool) error {
 	e.db.Exec("DELETE FROM messages WHERE account_id = ? AND chat_id = ?", accountID, chatID)
 	e.db.Exec("DELETE FROM media WHERE account_id = ? AND chat_id = ?", accountID, chatID)
 
-	e.emitEvent(EventChatUpdated, accountID, map[string]string{
-		"account_id": accountID,
-		"chat_id":    chatID,
-	})
+	e.emitChatUpdate(accountID, chatID)
 
 	return nil
 }
