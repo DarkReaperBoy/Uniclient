@@ -732,3 +732,7 @@ func TestDialogsRowHeightCoversPress(t *testing.T) {
 		t.Fatalf("press Y=10 assumes row height > 10, got %d", tokens.DialogsRowHeight)
 	}
 }
+
+func (p *fakeChatPort) SearchGlobalChats(accountID, query string) ([]dialogs.Entry, bool) {
+	return nil, false
+}

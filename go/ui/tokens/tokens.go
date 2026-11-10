@@ -351,6 +351,7 @@ const (
 
 	MouseDoubleClickIntervalMs = 400
 	CursorFlashTimeMs          = 1000
+	SearchRequestDelayMs       = 900
 
 	TouchFingerAccuracy            = 3
 	TouchMaxScrollFlick            = 2500

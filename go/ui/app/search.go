@@ -67,6 +67,7 @@ func (m *Model) searchTyped(msg SearchTyped) {
 	m.nowMs = msg.Now
 	m.Search.Text = m.Search.Text[:m.Search.Cursor] + msg.Text + m.Search.Text[m.Search.Cursor:]
 	m.Search.Cursor += len(msg.Text)
+	m.resetSearchGlobalOnText(msg.Now)
 	m.reprojectDialogRows()
 }
 
@@ -78,6 +79,7 @@ func (m *Model) searchBackspace(msg SearchBackspace) {
 	_, size := utf8.DecodeLastRuneInString(m.Search.Text[:m.Search.Cursor])
 	m.Search.Text = m.Search.Text[:m.Search.Cursor-size] + m.Search.Text[m.Search.Cursor:]
 	m.Search.Cursor -= size
+	m.resetSearchGlobalOnText(msg.Now)
 	m.reprojectDialogRows()
 }
 

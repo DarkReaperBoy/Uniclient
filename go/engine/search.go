@@ -197,7 +197,7 @@ func (e *Engine) SearchChats(query string, limit int) ([]ChatInfo, error) {
 		`SELECT c.account_id, c.chat_id, c.type, c.title, c.avatar_path,
                         c.last_msg_id, c.last_msg_text, c.last_msg_time, c.last_msg_sender,
                         c.last_msg_is_outgoing, c.last_msg_status, c.last_msg_media_type, c.last_msg_thumb_b64,
-                        c.unread_count, c.is_muted, c.is_pinned, c.is_archived,
+                        c.unread_count, c.is_muted, c.is_pinned, c.is_archived, c.mute_until,
                         c.draft_text, c.member_count, c.parent_id,
                         COALESCE(u.is_bot, 0), COALESCE(u.is_contact, 0), COALESCE(u.is_blocked, 0),
                         c.unread_mark, c.unread_mention_count, c.unread_reaction_count,
@@ -207,7 +207,7 @@ func (e *Engine) SearchChats(query string, limit int) ([]ChatInfo, error) {
                         c.story_count, c.has_unread_story, c.is_forum,
                         c.write_restriction_type, c.write_restriction_text,
                         c.not_joined, c.join_request, c.can_post, c.is_admin, c.is_creator, c.no_forwards, c.username,
-                        0, c.has_active_call
+                        0, c.has_active_call, c.theme_emoticon, c.wallpaper_json
                  FROM chats c
                  LEFT JOIN users u ON c.account_id = u.account_id AND c.chat_id = u.user_id AND c.type = 1
                  WHERE c.title LIKE '%' || ? || '%'
@@ -236,16 +236,9 @@ func (e *Engine) SearchGlobalChats(accountID, query string, limit int) ([]ChatIn
 	if !ok || acc.Core == nil {
 		return nil, fmt.Errorf("account not found: %s", accountID)
 	}
-	type globalSearcher interface {
-		SearchGlobal(query string, opts cores.PaginationOpts) ([]cores.Dialog, error)
-	}
-	gs, ok := acc.Core.(globalSearcher)
-	if !ok {
-		return e.SearchChats(query, limit)
-	}
-	dialogs, err := gs.SearchGlobal(query, cores.PaginationOpts{Limit: limit})
+	dialogs, err := acc.Core.SearchGlobal(query, cores.PaginationOpts{Limit: limit})
 	if err != nil {
-		return e.SearchChats(query, limit)
+		return nil, err
 	}
 	var result []ChatInfo
 	for _, d := range dialogs {
@@ -254,6 +247,7 @@ func (e *Engine) SearchGlobalChats(accountID, query string, limit int) ([]ChatIn
 			ChatID:    d.ID,
 			Title:     d.Title,
 			Type:      chatTypeToInt(d.Type),
+			Username:  d.Username,
 		})
 	}
 	return result, nil

@@ -15,10 +15,10 @@ const (
 	engineEventChatUpdated  = "chat_updated"
 	engineEventMsgReceived  = "msg_received"
 
-	chatKindDM      = 1
-	chatKindGroup   = 2
-	chatKindChannel = 3
-	chatKindTopic   = 4
+	ChatKindDM      = 1
+	ChatKindGroup   = 2
+	ChatKindChannel = 3
+	ChatKindTopic   = 4
 
 	msgWireStatusSending   = 1
 	msgWireStatusSent      = 2
@@ -48,7 +48,15 @@ type WireMessage struct {
 type ChatPort interface {
 	Messages(accountID, chatID string, limit int) ([]WireMessage, bool)
 	Send(accountID, chatID, text string) bool
+	SearchGlobalChats(accountID, query string) ([]dialogs.Entry, bool)
 }
+
+type SearchGlobalLoaded struct {
+	Query string
+	Rows  []dialogs.Entry
+}
+
+func (SearchGlobalLoaded) isMsg() {}
 
 func (m Model) WithPort(p ChatPort) Model {
 	m.port = p
@@ -260,14 +268,14 @@ func snapshotRow(c snapshotChat, accountID string, now time.Time) dialogs.Entry 
 		Reaction:    c.UnreadReactionCount > 0,
 		Pinned:      c.IsPinned,
 		SortTime:    c.LastMsgTime,
-		Group:       c.Type == chatKindGroup || c.Type == chatKindTopic,
+		Group:       c.Type == ChatKindGroup || c.Type == ChatKindTopic,
 	}
 	switch {
 	case c.IsForum:
 		e.ChatType = dialogs.ChatForum
-	case c.Type == chatKindChannel:
+	case c.Type == ChatKindChannel:
 		e.ChatType = dialogs.ChatChannel
-	case c.Type == chatKindDM && c.IsBot:
+	case c.Type == ChatKindDM && c.IsBot:
 		e.ChatType = dialogs.ChatBot
 	default:
 		e.ChatType = dialogs.ChatPlain
@@ -282,7 +290,7 @@ func snapshotRow(c snapshotChat, accountID string, now time.Time) dialogs.Entry 
 
 func snapshotPreview(c snapshotChat) string {
 	if c.LastMsgSender != "" && c.LastMsgText != "" &&
-		(c.Type == chatKindGroup || c.Type == chatKindTopic) {
+		(c.Type == ChatKindGroup || c.Type == ChatKindTopic) {
 		return c.LastMsgSender + ": " + c.LastMsgText
 	}
 	return c.LastMsgText

@@ -44,6 +44,49 @@ owner order — that history lives in git if ever needed.
 | D-3 | build.yml web job | CLOSED 2026-11-10 (session 414, two atomics — see the session entry for the evidence trail) | gotd = 0 packages in the js link graph; wasm plain build 32,837,371 -> 26,714,844 B (-6,122,527 B, -18.6%); <20MB projection did not hold — remaining bulk = web trio deps (mautrix+goolm, bale gRPC-web, pion webrtc) + the rebuilt GUI (gio+fonts) | done; CI web job ships the trimmed wasm from the atomic-2 push |
 | D-4 | window keys | ATOMIC 2 LANDED (session 413): plain Enter/Return -> ChatComposeSubmitted -> composeSubmittedCmd (guards: open+port+CanSend+non-empty) clears the field and fires ChatPort.Send -> ChatComposeSendRequested{OK,Text}; failed sends restore the field (composeEdit — no data loss); Up/Down arrows = ChatScrolled step 20dp, PageUp/PageDown = 200dp (tokens ScrollKeyStep = WheelNotch/WheelScrollLines/WheelPixelToAngleDelta, ScrollKeyPageStep = 10x — the Qt qabstractslider defaults through the wheel law); CanSend lands on the open transition from the row type (channels read-only — honest default until the writability front carries admin rights); REAL-seam: appport.Send -> engine.SendMessage -> optimistic msg_received -> open-chat append (wire test). Residuals: Up-on-empty-field edit-last rides the messages/edit front (scrolls meanwhile), Ctrl+Up/Down reply-cycle rides the reply front, scroll keys need compose focus — the unfocused chat pane has no key routing yet (window front) | history_widget.cpp 9276-9349 (fetched 2026-11-09) + qabstractslider defaults | IME ranged EditEvents + SelectionCmd/SnippetCmd contract = the mobile/IME front; window-front key routing |
 
+## Session 416 — search-results sections: the global-search wire + presentation (2026-11-11)
+
+- Boot: sync clean (main == origin, all session-415 pushes landed), Build (d6377325)
+  42873030894 + Pages 42873536058 green; Verify 42873080126 still in flight at boot
+  (cross-builds + nix legs green, test leg running) — result recorded at yield.
+  Reference research fetched this session (AyuGramDesktop dev + lib_ui master-ui):
+  dialogs_inner_widget.cpp paint flow + offsets, dialogs.style searchedBar tokens,
+  colors.palette, dialogs_widget.cpp kSearchRequestDelay, lang.strings labels.
+
+- Atomic 1 (the global-search wire — engine + port + app law): engine
+  SearchGlobalChats carries Username and NO LONGER falls back to local rows on a
+  core error (a failing server search is an honest error; the old fallback would
+  have shown local rows duplicated under the section) — the redundant
+  globalSearcher type-assertion deleted (SearchGlobal is on the Core interface);
+  telegram SearchGlobal carries Username (users + channels). BONUS BUG found by
+  probe + fixed (pre-existing): SearchChats's SELECT was 3 columns short of
+  scanChats's 51 destinations (mute_until, theme_emoticon, wallpaper_json) — the
+  local chat search ALWAYS errored `expected 48 destination arguments in Scan,
+  not 51`, masked until now by the removed fallback consuming its error.
+  ChatPort gains SearchGlobalChats(accountID, query) — ChatInfo → dialogs.Entry
+  rows; the preview law is the reference's search-row text law
+  (paintPeerSearchResult 2010-2040): `@username`, username-less rows show
+  `ID: <id>`. App: GlobalSearchState (TypedAt/Fired/Resolved/Query/Rows) +
+  SearchGlobalLoaded msg + the 900ms debounce (the reference's kSearchRequestDelay,
+  dialogs_widget.cpp:122) riding DialogsTick (SearchGlobalPending keeps the window
+  frame loop flowing while armed) + one Cmd looping the model's accounts in order
+  (50-page, the reference kSearchPerPage) + stale-drop on query mismatch + the
+  exact-'@' mentions mode never fires (the reference would fire contacts.search
+  for the literal '@' — degenerate; our call: the mentions mode is a local view)
+  + full reset when the text empties. Red->green: engine
+  TestSearchGlobalChatsCarriesUsername (red: Username "") +
+  TestSearchChatsScansFullRow (red: the scan mismatch) +
+  TestSearchGlobalChatsCoreErrorIsHonest (red proven by re-adding the fallback
+  against the fixed SearchChats: 'must surface its error, not local rows') +
+  TestSearchGlobalPortMapsRows (red: method missing); gui journey pins
+  TestSearchGlobalDebounceFiresOnceAndResolves (fire at exactly 900ms, per-account
+  order, resolve, no re-fire) + MentionsModeNeverFires + StaleResultsDropped +
+  ClearsWithText + RetypingRefires (re-arm honors the full delay again).
+  ChatKind* exported (the wire contract shared app/appport).
+- Gates (atomic 1): quick gate GREEN scoped (tests/engine 7.0s, tests/gui,
+  tests/ui, bootstrap, cores 59s; app/appport/window/cmd + renders via windows
+  vet), gofmt clean, comment ban clean (379 files), js/wasm full-tree build green.
+
 ## Session 415 — the search front opens: username wire + reference matching (2026-11-11)
 
 - Boot: sandbox recycled to zero — toolchain rebuilt per env.sh (go 1.27.1,

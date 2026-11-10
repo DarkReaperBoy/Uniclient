@@ -100,7 +100,7 @@ func Run(eng *engine.Engine) error {
 				lastW, lastH = dpW, dpH
 				handle(app.Resized{Width: dpW, Height: dpH})
 			}
-			if appModel.KineticActive() || appModel.ChatDateActive() || appModel.ChatDownActive() || appModel.ChatMentionsActive() || appModel.ChatReactionsActive() || appModel.DialogsToUpActive() || appModel.ChatComposeBlinkActive() || appModel.SearchBlinkActive() {
+			if appModel.KineticActive() || appModel.ChatDateActive() || appModel.ChatDownActive() || appModel.ChatMentionsActive() || appModel.ChatReactionsActive() || appModel.DialogsToUpActive() || appModel.ChatComposeBlinkActive() || appModel.SearchBlinkActive() || appModel.SearchGlobalPending() {
 				handle(app.DialogsTick{Now: int(time.Now().UnixMilli())})
 				handle(app.ChatTick{Now: int(time.Now().UnixMilli())})
 			}
@@ -128,7 +128,7 @@ func Run(eng *engine.Engine) error {
 				w.Perform(system.ActionClose)
 			}
 			e.Frame(gtx.Ops)
-			if appModel.KineticActive() || appModel.ChatDateActive() || appModel.ChatDownActive() || appModel.ChatMentionsActive() || appModel.ChatReactionsActive() || appModel.DialogsToUpActive() || appModel.ChatComposeBlinkActive() || appModel.SearchBlinkActive() {
+			if appModel.KineticActive() || appModel.ChatDateActive() || appModel.ChatDownActive() || appModel.ChatMentionsActive() || appModel.ChatReactionsActive() || appModel.DialogsToUpActive() || appModel.ChatComposeBlinkActive() || appModel.SearchBlinkActive() || appModel.SearchGlobalPending() {
 				w.Invalidate()
 			}
 		}

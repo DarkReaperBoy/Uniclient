@@ -30502,7 +30502,7 @@ func (t *TelegramCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog
 		if user, ok := u.(*tg.User); ok {
 			dialogs = append(dialogs, Dialog{
 				ID: strconv.FormatInt(user.ID, 10), Title: strings.TrimSpace(user.FirstName + " " + user.LastName),
-				Type: ChatTypeDM, Platform: tgPlatform,
+				Type: ChatTypeDM, Username: user.Username, Platform: tgPlatform,
 			})
 		}
 	}
@@ -30520,7 +30520,7 @@ func (t *TelegramCore) SearchGlobal(query string, opts PaginationOpts) ([]Dialog
 			}
 			dialogs = append(dialogs, Dialog{
 				ID: strconv.FormatInt(-1000000000000-ch.ID, 10), Title: ch.Title,
-				Type: ctype, Platform: tgPlatform,
+				Type: ctype, Username: ch.Username, Platform: tgPlatform,
 			})
 		}
 	}

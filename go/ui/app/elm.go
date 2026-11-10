@@ -320,6 +320,7 @@ type Model struct {
 	ChatSelection     history.Selection
 	ChatPress         ChatPressState
 	Search            SearchState
+	GlobalSearch      GlobalSearchState
 	Accounts          []Account
 	Open              ChatRef
 	OpenValid         bool
@@ -424,7 +425,14 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		m.dialogsTick(msg.Now)
 		m.dialogsToUpTick(msg.Now)
 		m.searchBlinkTick(msg.Now)
-		return m, m.loadMoreCmd()
+		cmd := m.searchGlobalTick(msg.Now)
+		if cmd == nil {
+			cmd = m.loadMoreCmd()
+		}
+		return m, cmd
+	case SearchGlobalLoaded:
+		m.nowMs = int(time.Now().UnixMilli())
+		return m.applySearchGlobalLoaded(msg)
 	case DialogsLoadMoreRequested:
 		return m, nil
 	case ChatLoaded:

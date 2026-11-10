@@ -7,6 +7,7 @@ import (
 	"gioui.org/io/key"
 
 	. "uniclient/ui/app"
+	"uniclient/ui/dialogs"
 )
 
 type submitPort struct {
@@ -176,4 +177,8 @@ func TestChatScrollKeysMoveHistory(t *testing.T) {
 	if m.ChatScroll.Top != 180 {
 		t.Fatalf("down at the bottom edge = %d, want clamp 180", m.ChatScroll.Top)
 	}
+}
+
+func (p *submitPort) SearchGlobalChats(accountID, query string) ([]dialogs.Entry, bool) {
+	return nil, false
 }
