@@ -24,6 +24,9 @@ func (m Model) SearchGlobalLoading() bool {
 }
 
 func (m Model) globalSearchArmed() bool {
+	if len(m.Accounts) == 0 {
+		return false
+	}
 	text := strings.TrimSpace(m.Search.Text)
 	return text != "" && text != "@"
 }
@@ -65,14 +68,15 @@ func (m *Model) searchGlobalCmd() Cmd {
 	}
 }
 
-func (m Model) applySearchGlobalLoaded(msg SearchGlobalLoaded) (Model, Cmd) {
+func (m *Model) applySearchGlobalLoaded(msg SearchGlobalLoaded) (Model, Cmd) {
 	if msg.Query != strings.TrimSpace(m.Search.Text) {
-		return m, nil
+		return *m, nil
 	}
 	m.GlobalSearch.Resolved = true
 	m.GlobalSearch.Query = msg.Query
 	m.GlobalSearch.Rows = msg.Rows
-	return m, nil
+	m.reprojectDialogRows()
+	return *m, nil
 }
 
 func (m Model) accountIDs() []string {

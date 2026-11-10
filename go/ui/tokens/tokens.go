@@ -353,6 +353,11 @@ const (
 	CursorFlashTimeMs          = 1000
 	SearchRequestDelayMs       = 900
 
+	SearchedBarHeight  = 28
+	SearchedBarPadX    = 14
+	SearchedBarTextTop = 5
+	FontSearchedBar    = FontBase
+
 	TouchFingerAccuracy            = 3
 	TouchMaxScrollFlick            = 2500
 	TouchMaxScrollAccelerated      = 4000

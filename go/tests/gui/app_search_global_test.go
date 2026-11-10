@@ -5,6 +5,9 @@ import (
 
 	. "uniclient/ui/app"
 	"uniclient/ui/dialogs"
+	"uniclient/ui/dialogs/render"
+	"uniclient/ui/material"
+	. "uniclient/ui/tokens"
 )
 
 type searchGlobalPort struct {
@@ -169,4 +172,103 @@ func TestSearchGlobalRetypingRefires(t *testing.T) {
 	if msg.Query != "al" {
 		t.Fatalf("refired query = %q, want al", msg.Query)
 	}
+}
+
+func TestSearchGlobalSectionStitchesIntoPane(t *testing.T) {
+	m, _ := globalFeedsModel(t)
+	m, _ = Update(m, SearchTyped{Text: "al", Now: 1000})
+	loading := View(m).Dialogs
+	if !loading.GlobalBar || loading.BarText != "Loading..." {
+		t.Fatalf("unresolved search pane = (bar %v, %q), want the loading bar", loading.GlobalBar, loading.BarText)
+	}
+	if len(loading.Global) != 0 {
+		t.Fatalf("loading pane global rows = %+v, want none", loading.Global)
+	}
+	m, cmd := tickSearch(m, 1900)
+	msg, ok := firedSearchGlobal(cmd)
+	if !ok {
+		t.Fatal("the search must fire")
+	}
+	m, _ = Update(m, msg)
+	loaded := View(m).Dialogs
+	if !loaded.GlobalBar || loaded.BarText != "Global search results" {
+		t.Fatalf("resolved pane = (bar %v, %q), want the results bar", loaded.GlobalBar, loaded.BarText)
+	}
+	if len(loaded.Global) != 2 || loaded.Global[0].Name != "Pal" || loaded.Global[1].Name != "Work" {
+		t.Fatalf("resolved pane global rows = %+v", loaded.Global)
+	}
+	if loaded.GlobalBarY != 0 {
+		t.Fatalf("resolved pane bar Y = %d, want 0 (no local rows match 'al' here)", loaded.GlobalBarY)
+	}
+	if len(loaded.GlobalRowYs) != 2 || loaded.GlobalRowYs[0] != SearchedBarHeight {
+		t.Fatalf("resolved pane global row Ys = %v", loaded.GlobalRowYs)
+	}
+	m, _ = Update(m, SearchBackspace{Now: 2000})
+	m, _ = Update(m, SearchBackspace{Now: 2000})
+	cleared := View(m).Dialogs
+	if cleared.GlobalBar || cleared.Global != nil || cleared.BarText != "" {
+		t.Fatalf("cleared pane = (bar %v, %q, rows %v), want no section", cleared.GlobalBar, cleared.BarText, cleared.Global)
+	}
+}
+
+func TestSearchGlobalRowSelectionOpensChat(t *testing.T) {
+	m, port := globalFeedsModel(t)
+	port.perAccount["tele_02"] = []dialogs.Entry{{Account: "tele_02", ChatID: "g1", Name: "Work", ChatType: dialogs.ChatPlain}}
+	m, _ = Update(m, SearchTyped{Text: "wo", Now: 1000})
+	m, cmd := tickSearch(m, 1900)
+	msg, ok := firedSearchGlobal(cmd)
+	if !ok {
+		t.Fatal("the search must fire")
+	}
+	m, _ = Update(m, msg)
+	pane := View(m).Dialogs
+	if len(pane.Global) != 2 || pane.Global[1].ChatID != "g1" {
+		t.Fatalf("pane global = %+v, want Pal + the Work row", pane.Global)
+	}
+	port.account, port.chat = "", ""
+	m, cmd = Update(m, DialogsPressed{X: 20, Y: 100, Now: 2100})
+	if m.Dialogs.Selected != 1 {
+		t.Fatalf("global row press selected = %d, want 1 (the stitched Work row)", m.Dialogs.Selected)
+	}
+	if cmd == nil {
+		t.Fatal("pressing a global row must fire the open cmd")
+	}
+	if _, ok := cmd().(ChatLoaded); !ok {
+		t.Fatalf("open cmd must load the global chat, got %T", cmd())
+	}
+	if port.account != "tele_02" || port.chat != "g1" {
+		t.Fatalf("open cmd drove (%q, %q), want the global row's chat", port.account, port.chat)
+	}
+}
+
+func TestSearchGlobalNoAccountsNeverArms(t *testing.T) {
+	m, port := globalFeedsModel(t)
+	m = applyEngineEvent(t, bridgeModel(t, 1440, 900), accountListEmptyWire)
+	m = m.WithPort(port)
+	m, _ = Update(m, SearchTyped{Text: "al", Now: 1000})
+	if m.SearchGlobalLoading() {
+		t.Fatalf("zero accounts: the search must not arm a global section")
+	}
+	m, cmd := tickSearch(m, 6000)
+	if _, ok := firedSearchGlobal(cmd); ok {
+		t.Fatalf("zero accounts: no search may fire")
+	}
+}
+
+func TestPaintPaneSearchSectionRecordsWithoutPanic(t *testing.T) {
+	p := render.NewPainter()
+	gtx := renderContext()
+	sch := material.SchemeFor(material.Light)
+	m, port := globalFeedsModel(t)
+	port.perAccount["tele_02"] = []dialogs.Entry{{Account: "tele_02", ChatID: "g1", Name: "Work", ChatType: dialogs.ChatPlain}}
+	p.PaintPane(gtx, View(m).Dialogs, sch)
+	m, _ = Update(m, SearchTyped{Text: "wo", Now: 1000})
+	p.PaintPane(gtx, View(m).Dialogs, sch)
+	m, cmd := tickSearch(m, 1900)
+	msg, ok := firedSearchGlobal(cmd)
+	if !ok {
+		t.Fatal("the search must fire")
+	}
+	m, _ = Update(m, msg)
+	p.PaintPane(gtx, View(m).Dialogs, sch)
 }

@@ -104,6 +104,13 @@ type Pane struct {
 	ToUpProgress float32
 	Header       HeaderView
 	EmptyText    string
+
+	Global      []Entry
+	GlobalRowYs []int
+	GlobalBar   bool
+	GlobalBarY  int
+	BarText     string
+	GlobalFirst int
 }
 
 func (l List) Pane(v Viewport, width int) Pane {
@@ -114,21 +121,43 @@ func (l List) Pane(v Viewport, width int) Pane {
 		Thumb:    l.ScrollbarThumb(v, width, v.Height),
 	}
 	first, last := l.VisibleRows(v, width)
-	if last <= first {
-		return p
+	if last > first {
+		p.First = first
+		p.Rows = l.Rows[first:last]
+		off := 0
+		for i := 0; i < first; i++ {
+			off += l.RowHeight(i, width)
+		}
+		p.RowYs = make([]int, last-first)
+		for i := first; i < last; i++ {
+			p.RowYs[i-first] = off
+			off += l.RowHeight(i, width)
+		}
 	}
-	p.First = first
-	p.Rows = l.Rows[first:last]
-	off := 0
-	for i := 0; i < first; i++ {
-		off += l.RowHeight(i, width)
-	}
-	p.RowYs = make([]int, last-first)
-	for i := first; i < last; i++ {
-		p.RowYs[i-first] = off
-		off += l.RowHeight(i, width)
-	}
+	l.fillGlobalPane(&p, v, width)
 	return p
+}
+
+func (l List) fillGlobalPane(p *Pane, v Viewport, width int) {
+	if !l.GlobalBar {
+		return
+	}
+	p.GlobalBar = true
+	p.GlobalBarY = l.Height(width) - l.globalHeight(width)
+	p.BarText = l.BarText
+	narrow := width < tokens.ColumnMinWidthLeft/2
+	y := p.GlobalBarY + tokens.SearchedBarHeight
+	for k := range l.Global {
+		h := rowHeight(l.Global[k], narrow)
+		if y+h > v.Top && y < v.Top+v.Height {
+			if len(p.Global) == 0 {
+				p.GlobalFirst = len(l.Rows) + k
+			}
+			p.Global = append(p.Global, l.Global[k])
+			p.GlobalRowYs = append(p.GlobalRowYs, y)
+		}
+		y += h
+	}
 }
 
 func (l List) ScrollbarThumb(v Viewport, width, trackH int) Thumb {

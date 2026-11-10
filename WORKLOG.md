@@ -87,6 +87,48 @@ owner order — that history lives in git if ever needed.
   tests/ui, bootstrap, cores 59s; app/appport/window/cmd + renders via windows
   vet), gofmt clean, comment ban clean (379 files), js/wasm full-tree build green.
 
+- Atomic 2 (the sections presentation — the reference's results layout,
+  dialogs_inner_widget.cpp paint flow): Filtered state = local rows (bare, no
+  header — the reference paints _filterResults headerless) then ONE section
+  slot: the 28dp searched bar (st::searchedBarHeight/Font/Position from
+  dialogs.style 805-807 -> tokens SearchedBarHeight=28/SearchedBarPadX=14/
+  SearchedBarTextTop=5/FontSearchedBar=FontBase; bar bg SurfaceContainer over
+  the dialogs SurfaceContainerLow — the Material read of searchedBarBg
+  windowBgOver-over-dialogsBg; bar fg OnSurfaceVariant — windowSubTextFgOver)
+  showing 'Loading...' while unresolved-with-no-rows (lng_contacts_loading) or
+  'Global search results' when rows exist (lng_search_global_results — stale
+  rows persist under the results bar until replaced, exactly the reference's
+  keep-until-received law) + global rows (same dialog-row painting, stitched
+  after the bar). dialogs.List gains Global/GlobalBar/BarText with the geometry
+  law in one place: Height = local + 28 + global rows; RowAt walks the stitched
+  space, the bar itself returns -1 (not selectable); EntryAt/RowCount expose the
+  stitch; Pane carries Global/GlobalRowYs/GlobalBarY/BarText/GlobalFirst with
+  the same absolute-Y projection + viewport clipping as local rows; the
+  scrollbar/MaxOffset cover the sectioned height automatically. App stitches
+  m.GlobalSearch into the List in setDialogRows (loading = armed && !resolved,
+  armed now requires accounts — a zero-account search never arms, fixing the
+  eternal-loading-bar seam atomic 1 would have shown on the empty live page);
+  the stitched selection law: DialogRowPressed/openCmdAfterPress/selectDialogRow
+  use RowCount/EntryAt; selection retention extends to global rows (a selected
+  global chat survives reprojections); applySearchGlobalLoaded reprojects.
+  red->green: tests/ui dialogs_search_sections_test.go (Heights incl. bar-only,
+  RowAt incl. the bar's -1, EntryAt/RowCount, Pane geometry + partial
+  visibility + no-bar, scrollbar coverage) — red: fields/tokens missing;
+  tests/gui app_search_global_test.go additions (pane stitches Loading... ->
+  results bar + rows + clear drops the section; press on a global row selects +
+  fires the open cmd driving port.Messages with the global row's account/chat —
+  the full journey; zero accounts never arms; PaintPane records the sectioned
+  pane without panic at all three states).
+  §4 evidence: the gui journey drives the app model through the real
+  press->open seam; the live wasm page cannot drive the section (zero accounts,
+  no add-account surface yet) — BLOCKED-env, the section seam is pinned at the
+  pane/paint-op level; the in-sandbox pixel decode needs a GPU/window the VM
+  lacks (gio cgo legs ride CI) — the bar's geometry is token-pinned instead.
+- Gates (atomic 2): quick gate GREEN scoped (tests/engine 7.1s, tests/gui,
+  tests/ui native; app/appport/dialogs/render/window/cmd + renders via windows
+  vet), gofmt clean, comment ban clean (380 files), js/wasm full-tree build
+  green.
+
 ## Session 415 — the search front opens: username wire + reference matching (2026-11-11)
 
 - Boot: sandbox recycled to zero — toolchain rebuilt per env.sh (go 1.27.1,

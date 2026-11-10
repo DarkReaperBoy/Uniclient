@@ -15,6 +15,9 @@ const (
 	engineEventChatUpdated  = "chat_updated"
 	engineEventMsgReceived  = "msg_received"
 
+	SearchGlobalLoadingText = "Loading..."
+	SearchGlobalResultsText = "Global search results"
+
 	ChatKindDM      = 1
 	ChatKindGroup   = 2
 	ChatKindChannel = 3
@@ -197,9 +200,10 @@ func (m *Model) reprojectDialogRows() {
 func (m *Model) selectDialogRow(idx int) {
 	m.Dialogs.Selected = idx
 	m.selectedAccount, m.selectedChat = "", ""
-	if idx >= 0 && idx < len(m.Dialogs.Rows) {
-		m.selectedAccount = m.Dialogs.Rows[idx].Account
-		m.selectedChat = m.Dialogs.Rows[idx].ChatID
+	if idx >= 0 && idx < m.Dialogs.RowCount() {
+		row := m.Dialogs.EntryAt(idx)
+		m.selectedAccount = row.Account
+		m.selectedChat = row.ChatID
 	}
 }
 
@@ -235,6 +239,13 @@ func (m *Model) setDialogRows(rows []dialogs.Entry, storeFeed bool) {
 		}
 	}
 	m.Dialogs.Rows = visible
+	loading := m.SearchGlobalLoading()
+	m.Dialogs.Global = m.GlobalSearch.Rows
+	m.Dialogs.GlobalBar = len(m.GlobalSearch.Rows) > 0 || loading
+	m.Dialogs.BarText = SearchGlobalResultsText
+	if len(m.GlobalSearch.Rows) == 0 && loading {
+		m.Dialogs.BarText = SearchGlobalLoadingText
+	}
 	m.Dialogs.Selected = -1
 	if m.selectedAccount != "" || m.selectedChat != "" {
 		for i, r := range visible {
@@ -243,7 +254,16 @@ func (m *Model) setDialogRows(rows []dialogs.Entry, storeFeed bool) {
 				break
 			}
 		}
-		if m.Dialogs.Selected < 0 && !dialogRowsContain(rows, m.selectedAccount, m.selectedChat) {
+		if m.Dialogs.Selected < 0 {
+			for i, r := range m.Dialogs.Global {
+				if r.Account == m.selectedAccount && r.ChatID == m.selectedChat {
+					m.Dialogs.Selected = len(visible) + i
+					break
+				}
+			}
+		}
+		if m.Dialogs.Selected < 0 && !dialogRowsContain(rows, m.selectedAccount, m.selectedChat) &&
+			!globalRowsContain(m.Dialogs.Global, m.selectedAccount, m.selectedChat) {
 			m.selectedAccount, m.selectedChat = "", ""
 		}
 	} else if len(words) == 0 && prevIdx >= 0 && prevIdx < len(visible) {
@@ -253,6 +273,15 @@ func (m *Model) setDialogRows(rows []dialogs.Entry, storeFeed bool) {
 	}
 	m.DialogsScroll.Top = m.clampDialogsScroll(m.DialogsScroll.Top)
 	m.dialogsToUpCheck()
+}
+
+func globalRowsContain(rows []dialogs.Entry, account, chat string) bool {
+	for _, r := range rows {
+		if r.Account == account && r.ChatID == chat {
+			return true
+		}
+	}
+	return false
 }
 
 func snapshotRow(c snapshotChat, accountID string, now time.Time) dialogs.Entry {

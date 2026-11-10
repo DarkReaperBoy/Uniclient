@@ -188,7 +188,23 @@ func (p *Painter) PaintPane(gtx layout.Context, pane dialogs.Pane, sch material.
 		p.PaintRow(gtx, pane.Rows[i], pane.Width, sch, state)
 		rowStk.Pop()
 	}
-	if pane.EmptyText != "" && len(pane.Rows) == 0 {
+	if pane.GlobalBar {
+		if pane.GlobalBarY+tokens.SearchedBarHeight > pane.View.Top && pane.GlobalBarY < pane.View.Top+pane.View.Height {
+			barStk := op.Offset(image.Pt(0, gtx.Dp(unit.Dp(pane.GlobalBarY-pane.View.Top)))).Push(gtx.Ops)
+			p.paintSearchedBar(gtx, pane.Width, pane.BarText, sch)
+			barStk.Pop()
+		}
+		for j := range pane.Global {
+			state := RowNormal
+			if pane.GlobalFirst+j == pane.Selected {
+				state = RowSelected
+			}
+			globalStk := op.Offset(image.Pt(0, gtx.Dp(unit.Dp(pane.GlobalRowYs[j]-pane.View.Top)))).Push(gtx.Ops)
+			p.PaintRow(gtx, pane.Global[j], pane.Width, sch, state)
+			globalStk.Pop()
+		}
+	}
+	if pane.EmptyText != "" && len(pane.Rows) == 0 && len(pane.Global) == 0 {
 		m := p.measure(gtx, fontRegular, unit.Sp(tokens.FontBase), pane.EmptyText)
 		if m.w > 0 {
 			w := int(gtx.Metric.PxToDp(m.w))
@@ -213,6 +229,20 @@ func (p *Painter) PaintPane(gtx layout.Context, pane dialogs.Pane, sch material.
 		W: tokens.ScrollBarWidth - 2*tokens.ScrollBarDeltax,
 		H: pane.Thumb.H,
 	}, tokens.ScrollBarRadius, scrollBarColor)
+}
+
+func (p *Painter) paintSearchedBar(gtx layout.Context, width int, text string, sch material.Scheme) {
+	fillRRect(gtx, dialogs.Rect{X: 0, Y: 0, W: width, H: tokens.SearchedBarHeight}, 0, sch.SurfaceContainer)
+	if text == "" {
+		return
+	}
+	barTextHeight := tokens.FontSearchedBar + 4
+	p.label(gtx, dialogs.Rect{
+		X: tokens.SearchedBarPadX,
+		Y: tokens.SearchedBarTextTop,
+		W: width - 2*tokens.SearchedBarPadX,
+		H: barTextHeight,
+	}, fontRegular, unit.Sp(tokens.FontSearchedBar), text, sch.OnSurfaceVariant)
 }
 
 func (p *Painter) paintHeader(gtx layout.Context, hd dialogs.HeaderView, sch material.Scheme) {

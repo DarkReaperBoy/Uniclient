@@ -383,7 +383,7 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		m.setDialogRows(msg.Rows, true)
 		return m, m.loadMoreCmd()
 	case DialogRowPressed:
-		if msg.Index >= 0 && msg.Index < len(m.Dialogs.Rows) {
+		if msg.Index >= 0 && msg.Index < m.Dialogs.RowCount() {
 			m.selectDialogRow(msg.Index)
 		}
 		return m, nil
@@ -647,10 +647,10 @@ func (m *Model) pressDialogs(msg DialogsPressed) (Model, Cmd) {
 
 func (m *Model) openCmdAfterPress(prev int) Cmd {
 	if m.Dialogs.Selected == prev || m.port == nil ||
-		m.Dialogs.Selected < 0 || m.Dialogs.Selected >= len(m.Dialogs.Rows) {
+		m.Dialogs.Selected < 0 || m.Dialogs.Selected >= m.Dialogs.RowCount() {
 		return nil
 	}
-	row := m.Dialogs.Rows[m.Dialogs.Selected]
+	row := m.Dialogs.EntryAt(m.Dialogs.Selected)
 	if row.Account == "" || row.ChatID == "" {
 		return nil
 	}
