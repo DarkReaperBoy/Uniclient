@@ -266,6 +266,19 @@ func (p *ChatPainter) PaintChatPane(gtx layout.Context, pane history.ChatPane, s
 		gtx.Dp(unit.Dp(pane.View.Height)),
 	)}.Push(gtx.Ops).Pop()
 	event.Op(gtx.Ops, p.Input)
+	if pane.EmptyText != "" && pane.Count <= 0 {
+		m := p.newMetric(gtx, fontRegular, unit.Sp(tokens.FontBase), pane.EmptyText, 0, 0)
+		if m.width > 0 && m.lineH > 0 {
+			w := int(gtx.Metric.PxToDp(m.width))
+			h := int(gtx.Metric.PxToDp(m.lineH))
+			p.label(gtx, history.Geometry{
+				Left:   (pane.Width - w) / 2,
+				Top:    (pane.View.Height - h) / 2,
+				Width:  w,
+				Height: h,
+			}, fontRegular, unit.Sp(tokens.FontBase), pane.EmptyText, sch.OnSurfaceVariant)
+		}
+	}
 	if pane.Count <= 0 {
 		return
 	}

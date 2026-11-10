@@ -318,6 +318,7 @@ type Model struct {
 	ChatSelection     history.Selection
 	ChatPress         ChatPressState
 	Search            SearchState
+	Accounts          []Account
 }
 
 func InitialModel() Model {
@@ -393,6 +394,8 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 	case DialogsHeaderPressed:
 		m.pressDialogsHeader(msg)
 		return m, nil
+	case EngineEventMsg:
+		return m.applyEngineEvent(msg.Data)
 	case DialogsDragged:
 		return m.dragDialogs(msg), m.loadMoreCmd()
 	case DialogsReleased:
@@ -1497,5 +1500,12 @@ func View(m Model) Scene {
 	s.Chat.MentionsProgress = m.ChatMentions.Progress
 	s.Chat.ReactionsProgress = m.ChatReactions.Progress
 	s.Chat.Compose = m.ComposePane()
+	if len(m.Accounts) == 0 {
+		if cols := m.Columns(); cols.Dialogs < m.Width {
+			s.Chat.EmptyText = AddAccountPrompt
+		} else {
+			s.Dialogs.EmptyText = AddAccountPrompt
+		}
+	}
 	return s
 }

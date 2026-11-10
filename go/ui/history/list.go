@@ -154,6 +154,7 @@ type ChatPane struct {
 	MentionsProgress  float32
 	ReactionsProgress float32
 	Compose           ComposePaneView
+	EmptyText         string
 }
 
 func (l List) Pane(v Viewport, width int) ChatPane {

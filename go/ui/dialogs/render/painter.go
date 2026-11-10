@@ -188,6 +188,19 @@ func (p *Painter) PaintPane(gtx layout.Context, pane dialogs.Pane, sch material.
 		p.PaintRow(gtx, pane.Rows[i], pane.Width, sch, state)
 		rowStk.Pop()
 	}
+	if pane.EmptyText != "" && len(pane.Rows) == 0 {
+		m := p.measure(gtx, fontRegular, unit.Sp(tokens.FontBase), pane.EmptyText)
+		if m.w > 0 {
+			w := int(gtx.Metric.PxToDp(m.w))
+			h := int(gtx.Metric.PxToDp(m.ascent + m.descent))
+			p.label(gtx, dialogs.Rect{
+				X: (pane.Width - w) / 2,
+				Y: (pane.View.Height - h) / 2,
+				W: w,
+				H: h,
+			}, fontRegular, unit.Sp(tokens.FontBase), pane.EmptyText, sch.OnSurfaceVariant)
+		}
+	}
 	p.paintToUpButton(gtx, pane, sch)
 	listClip.Pop()
 	stk.Pop()

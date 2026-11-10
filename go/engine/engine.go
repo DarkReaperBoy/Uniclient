@@ -305,13 +305,20 @@ func (e *Engine) UseMediaDir(dir string) error {
 }
 
 func (e *Engine) SetEventCallback(cb func([]byte)) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	e.eventCBs = nil
-	if cb != nil {
-		e.cbSeq++
-		e.eventCBs = map[int]func([]byte){e.cbSeq: cb}
+	if cb == nil {
+		e.mu.Lock()
+		e.eventCBs = nil
+		e.mu.Unlock()
+		return
 	}
+	snap := e.accountListEvent()
+	e.mu.Lock()
+	if snap != nil {
+		cb(snap)
+	}
+	e.cbSeq++
+	e.eventCBs = map[int]func([]byte){e.cbSeq: cb}
+	e.mu.Unlock()
 }
 
 type EventSubscription struct {
@@ -323,14 +330,19 @@ func (e *Engine) Subscribe(cb func([]byte)) *EventSubscription {
 	if cb == nil {
 		return nil
 	}
+	snap := e.accountListEvent()
 	e.mu.Lock()
-	defer e.mu.Unlock()
+	if snap != nil {
+		cb(snap)
+	}
+	e.cbSeq++
 	if e.eventCBs == nil {
 		e.eventCBs = make(map[int]func([]byte))
 	}
-	e.cbSeq++
 	e.eventCBs[e.cbSeq] = cb
-	return &EventSubscription{id: e.cbSeq, e: e}
+	id := e.cbSeq
+	e.mu.Unlock()
+	return &EventSubscription{id: id, e: e}
 }
 
 func (s *EventSubscription) Unsubscribe() {

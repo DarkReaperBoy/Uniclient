@@ -15,6 +15,7 @@ import (
 	"gioui.org/op/paint"
 	"gioui.org/unit"
 
+	"uniclient/engine"
 	"uniclient/ui/app"
 	"uniclient/ui/dialogs/render"
 	chatrender "uniclient/ui/history/render"
@@ -26,7 +27,9 @@ const msgQueueDepth = 64
 
 const wheelScrollScale = 1 << 30
 
-func Run() error {
+const engineEventQueueDepth = 256
+
+func Run(eng *engine.Engine) error {
 	w := new(gioapp.Window)
 	w.Option(
 		gioapp.Size(unit.Dp(tokens.WindowDefaultWidth), unit.Dp(tokens.WindowDefaultHeight)),
@@ -36,6 +39,31 @@ func Run() error {
 	appModel := app.InitialModel()
 	painter := render.NewPainter()
 	chatPainter := chatrender.NewChatPainter()
+	events := make(chan []byte, engineEventQueueDepth)
+	done := make(chan struct{})
+	defer close(done)
+	sub := eng.Subscribe(func(data []byte) {
+		select {
+		case events <- data:
+		default:
+		}
+	})
+	defer sub.Unsubscribe()
+	go func() {
+		for {
+			select {
+			case data := <-events:
+				select {
+				case msgs <- app.EngineEventMsg{Data: data}:
+				case <-done:
+					return
+				}
+				w.Invalidate()
+			case <-done:
+				return
+			}
+		}
+	}()
 	handle := func(msg app.Msg) {
 		var cmd app.Cmd
 		appModel, cmd = app.Update(appModel, msg)

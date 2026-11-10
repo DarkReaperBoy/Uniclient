@@ -185,7 +185,21 @@ func (e *Engine) emitConnState(accountID string, state ConnState, errMsg string)
 }
 
 func (e *Engine) emitAccountList() {
-	e.emitEvent(EventAccountList, "", e.ListAccounts())
+	if b := e.accountListEvent(); b != nil {
+		e.PushEvent(b)
+	}
+}
+
+func (e *Engine) accountListEvent() []byte {
+	b, err := json.Marshal(EngineEvent{
+		Type:      EventAccountList,
+		Timestamp: time.Now().UnixMilli(),
+		Data:      e.ListAccounts(),
+	})
+	if err != nil {
+		return nil
+	}
+	return b
 }
 
 type typingKey struct {

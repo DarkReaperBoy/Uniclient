@@ -22,13 +22,6 @@ func main() {
 	gui := flag.Bool("gui", guiDefault, "run the GUI window instead of the headless engine loop")
 	flag.Parse()
 
-	if *gui {
-		if err := window.Run(); err != nil {
-			log.Fatalf("gui: %v", err)
-		}
-		return
-	}
-
 	eng, err := bootstrap.Init(
 		*dir,
 		filepath.Join(*dir, "cache"),
@@ -44,6 +37,13 @@ func main() {
 			log.Printf("engine shutdown: %v", err)
 		}
 	}()
+
+	if *gui {
+		if err := window.Run(eng); err != nil {
+			log.Fatalf("gui: %v", err)
+		}
+		return
+	}
 
 	if *events {
 		sub := eng.Subscribe(func(data []byte) {

@@ -7,27 +7,27 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: GUI rebuild (§6); the W-1 chrome slice landed (session
-  408 — the zero-account scene paints the frame); next front work:
-  the search filter semantics, then the engine->UI bridge (the
-  account-driven empty state), then D-4 atomic 2
-- next: filter semantics, engine bridge, D-4 atomic 2, D-3; token in
-  .env (§0.2)
+- front: GUI rebuild (§6); W-2 bridge atomic landed (session 409): the
+  gui path boots the engine, the pump feeds Msgs, Accounts in Model, the
+  zero-account "Add an account" prompt paints; next front work: the
+  dialogs/chat feeds (chat_snapshot -> rows), then the search filter
+  semantics, then D-4 atomic 2
+- next: feeds, filter semantics, D-4 atomic 2, D-3
 - owner-waiting: N-1 — install the uniclient-android APK artifact
   (build 42622715804) on a device and report (android GUI-default check)
-- last-gate: session 408 local — quick gate GREEN (native vet+test,
-  windows vet), comment ban clean, js/wasm build 31,183,083 B driven
-  under the real CI shell on localhost: 1440x900 + 390x844 panes/band/
-  pill painted, click->ring+caret, typed "ab" + caret follows + blink
-  ON/off at 500ms, geometry pixel-exact (pill 7..502 x 9..43); CI push
-  run dispatched after the commit (record in next session)
+- last-gate: session 409 — quick gate GREEN (native vet+test scoped,
+  windows vet gio legs), gofmt + comment ban clean, js/wasm 31,199,016 B;
+  driven under the real CI shell: console + errors clean, prompt centered
+  chat pane 1440x900 (89 px @ 971,450) + dialogs pane 390x844 (96 px @
+  189,449), W-1 ring intact, localStorage vault created; CI: Build #9 on
+  a257c378 GREEN (42665034482) + Pages #25; verify dispatch pending
 
 ## Open items
 
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
 | W-1 | ui/app InitialModel | CLOSED 2026-11-09 (session 408): the zero-account scene now paints the frame — dialogs column SurfaceContainerLow vs chat Surface, 54dp header band, the reference-measured search field (7,9,W-18,35 r18) with real focus/typing/backspace/blink; driven live at 1440x900 + 390x844 (pixel scan: pill exact, ring+caret+typed text verified). The residual — the engine-driven add-account affordance — moved to the new front item below | session 408 driven journey | done |
-| W-2 | app/engine bridge | the GUI runs window.Run() with ZERO engine wiring — no bootstrap.Init on the gui path, nothing ever sends DialogsLoaded/ChatLoaded (grep: test-only senders); the search field filters nothing yet; the honest account-driven empty state ("add an account") needs the pump: engine events -> Msgs, account list in Model, dialogs/chat feeds | session 408 recon (PaintComposeBar also has zero callers — the compose bar is painted by nobody) | the bridge atomic: gui path boots the engine, pump goroutine, Accounts in Model; then the search filter semantics atomic (rows exist -> filter pinned by tests) |
+| W-2 | app/engine bridge | PART: the bridge atomic landed (session 409 — gui path boots bootstrap.Init, Subscribe replay -> pump goroutine -> EngineEventMsg -> Accounts in Model; the honest zero-account prompt driven live both pane shapes); STILL OPEN: nothing feeds DialogsLoaded/ChatLoaded from the engine (grep: still test-only senders), the search field filters nothing yet, PaintComposeBar still has zero callers | session 409 driven journey | the feeds atomic: chat_snapshot events -> dialogs rows + chat rows via the pump; then the filter semantics atomic (rows exist -> filter pinned by tests) |
 | N-1 | android APK | GUI-default on android is runtime-unverifiable in-sandbox (no emulator/device); expected: the empty Material surface, not a black zombie | session 405 (js sibling); js live-verified in 406; APK artifact on build 42622715804 | owner installs the uniclient-android APK artifact and reports |
 | H-2 | verify/release yml | CLOSED 2026-11-09 (owner order): android + web legs returned as build.yml (per-push, no tests, parallel); only the Xvfb GUI + Puppeteer web-drive legs stay parked with the rebuilt GUI | AGENTS.md §8; build 42597570851 | Xvfb/Puppeteer return when the GUI ships (§6.7) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
@@ -35,6 +35,49 @@ owner order — that history lives in git if ever needed.
 | D-2 | ui/history unread-things buttons | read-marking absent for mentions AND reactions: after a jump the button stays shown (reference hides it when the server marks the thing read — updateUnreadThingsVisibility is server-data-driven); mentionsClick's already-there voice/video media-read branch (5623) deferred — no media model; unread-count badges join D-1's class; poll-votes 4th stack slot returns with a poll model | history_view_corner_buttons.cpp 147-190, 288-345 | returns with engine unread-things events + the media pass |
 | D-3 | build.yml web job | wasm size diet: the js/wasm build ships every core incl. the six raw-TCP backends that can never connect from a browser (§7 web truth) — build-tag exclusion at the engine factory projected <20 MB; also headroom under git's 100 MB file ceiling on gh-pages | headless-host wasm = 31,162,944 B after the keyboard atomic (v0.9.1's old-GUI build was 88,659,256 B) | one atomic with tests: bootstrap factory js variant + per-core js stubs |
 | D-4 | window keys — atomic 2 | Enter=submit (ShouldSubmit law: default Enter-mode = plain Enter/Return submits, Shift/Ctrl+Return newline — already mapped) -> ChatComposeSubmitted + send-request seam (ChatBottomRequested-pattern) + field clear; Up/Down/PageUp/PageDown = history scroll (never compose cursor moves — customUpDown law); Up on EMPTY field + canWrite + !edit + !reply -> edit last editable message, else scroll; Ctrl+Up/Down -> reply prev/next (reply front) | AyuGramDesktop dev history_widget.cpp 9276-9349 (fetched 2026-11-09): Down always _scroll->keyPressEvent; Up scrolls unless field empty && canWrite && !_editMsgId && !_replyTo, then lastEditableMessage() -> editMessage else scroll; PageUp/PageDown always scroll; Enter -> ShouldSubmit(sendSubmitWay, mods); Qt key scroll = SliderSingleStep/PageStep (qabstractscrollarea.cpp 1215-1220; qabstractslider.cpp 180: defaults singleStep 1 pageStep 10 — but our own wheel law 120-angle notch = 60px = WheelScrollLines 3 => singleStep = 20px = WheelNotchAngleDelta/WheelScrollLines/WheelPixelToAngleDelta); IME ranged EditEvents + SelectionCmd/SnippetCmd contract = the mobile/IME front | atomic 2: ChatComposeSubmitted + ChatComposeSendRequested + scroll keys with the 20px singleStep law; edit-last rides the messages/edit front |
+
+## Session 409 — W-2 the engine->UI bridge: the gui path is live (2026-11-10)
+
+- Boot: sandbox recycled to zero (toolchain rebuilt per env.sh, module
+  cache refilled); CI gap closed: Build #9 (42665034482, a257c378) all
+  jobs SUCCESS + Pages deploy #25 green — session 408's push.
+- W-2 bridge atomic (the gui path had ZERO engine wiring): main.go boots
+  bootstrap.Init on BOTH paths now (gui returns before the signal wait);
+  window.Run(eng) subscribes and pumps engine JSON -> app.EngineEventMsg
+  (raw chan 256 deep, non-blocking send on the emitter callback, single
+  pump goroutine -> msgs + Invalidate, done channel closes at destroy);
+  Subscribe/SetEventCallback replay the account snapshot to the new
+  callback FIRST (snapshot marshaled before e.mu, cb called under e.mu:
+  emitters serialize through PushEvent so the replay-before-register
+  order is airtight; the pump callback must stay non-blocking —
+  contract); app decodes the account_list wire into Model.Accounts
+  (sort_order, id tiebreak) and projects the honest zero-account state:
+  len(Accounts)==0 -> "Add an account" centered in the chat pane
+  (two-pane) or the dialogs list area (single-pane), FontBase
+  OnSurfaceVariant; the add-account BUTTON stays hidden until the login
+  front exists (§1.9 dead-button ban). emitAccountList refolded onto
+  accountListEvent (one marshal path).
+- Tests: tests/gui/app_engine_bridge_test.go NEW (11: wire decode +
+  order, empty/unknown/malformed/bad-data ignored, prompt projection at
+  both pane shapes, accounts-present no prompt, InitialModel nil, paint
+  smoke both renderers both shapes); tests/engine events re-pinned for
+  the replay (deliberate behavior change — subscriber counts now include
+  it) + 2 new replay-contract tests (first-and-fresh, nil-clears).
+- Driven (§4, the shell assembled from build.yml verbatim, wasm
+  31,199,016 B, agent-browser): console + page errors EMPTY; 1440x900 —
+  split intact (64.27% Surface + 34.41% container + 1.26% pill),
+  placeholder 52 px @ 20..58 x 21..30, prompt 89 px @ 933..1019 x
+  445..454 center (971,450) = chat-pane center; click (100,27) -> ring
+  2004 px @ 5..504 x 7..45 (the 2dp law, W-1 intact); 390x844 — prompt
+  96 px @ 150..237 x 444..453 center (189,449) = list-area center;
+  localStorage uniclient.vault created by the engine boot.
+- Gates: quick gate GREEN (native vet+test scoped — tests/engine 6.1s,
+  tests/gui, tests/ui, tests/bootstrap all ok; windows vet for the gio
+  cgo legs), gofmt clean, comment ban clean (363 files). README web
+  paragraph updated (the bridge landed). BLOCKED-env: the native
+  headless/gui drive needs the X11 cgo libs — CI verify covers it.
+- Next: feeds atomic (chat_snapshot -> rows via the pump), then filter
+  semantics; D-4 atomic 2; D-3.
 
 ## Session 408 — full recon (owner order) + W-1 closed: the zero-account frame (2026-11-09)
 
