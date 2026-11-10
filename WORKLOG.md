@@ -14,14 +14,18 @@ owner order — that history lives in git if ever needed.
   path; (2) chat_updated payload unification — JoinChannel and ClearHistory
   now emit emitChatUpdate's full row instead of the legacy bare map the UI
   had to drop: ONE wire shape for chat_updated, the UI drop guard now
-  covers only malformed shapes. next front work: D-4 atomic 2 (window
-  keys), then D-3 (wasm size diet)
-- next: D-4 atomic 2, D-3
+  covers only malformed shapes; (3) D-4 atomic 2 window keys — plain
+  Enter submits through the ChatPort.Send seam (field clears, failed
+  sends restore the text), Up/Down/PageUp/PageDown scroll the history by
+  the wheel-law singleStep 20dp / pageStep 200dp, CanSend lands on open
+  from the row type (broadcast channels read-only). next front work: D-3
+  (wasm size diet — build-tag js stubs for the six raw-TCP cores)
+- next: D-3
 - owner-waiting: N-1 — install the uniclient-android APK artifact
   (build 42622715804) on a device and report (android GUI-default check)
-- last-gate: session 413 — quick gate GREEN twice (scoped: engine,
-  tests/engine 6.4s, tests/bootstrap, bootstrap + windows vet gio legs),
-  gofmt + comment ban clean (370 files), js/wasm build green; CI record
+- last-gate: session 413 — quick gate GREEN three times (scoped: engine, tests/engine 6.4s,
+  tests/gui, tests/ui, ui/* + windows vet gio legs), gofmt + comment
+  ban clean (371 files), js/wasm build green; CI record
   for session 412's push: Build 42803562918 (5 jobs) + Verify 42803582751
   (3 jobs, steps) all green on ed008c69, Pages 42804202730 serving; CI
   dispatch on this push follows (record next session).
@@ -38,93 +42,77 @@ owner order — that history lives in git if ever needed.
 | D-1 | ui/history corner button | down-button unread-count badge (22dp, centered x, top 0 — jump_down_button.cpp paintEvent + historyToDownBadge*) + hover/over colors + ripple deferred: no unread counter in the chat Item model yet, no hover/ripple machinery in the skin yet; replyReturn branch of downClick + loadedAtBottom==false state return with reply-return jumps / below-history pagination | jump_down_button.cpp 33-52, corner_buttons.cpp 139-145 | badge returns with read-state counts; over/ripple with the skin's hover+ripple pass |
 | D-2 | ui/history unread-things buttons | read-marking absent for mentions AND reactions: after a jump the button stays shown (reference hides it when the server marks the thing read — updateUnreadThingsVisibility is server-data-driven); mentionsClick's already-there voice/video media-read branch (5623) deferred — no media model; unread-count badges join D-1's class; poll-votes 4th stack slot returns with a poll model | history_view_corner_buttons.cpp 147-190, 288-345 | returns with engine unread-things events + the media pass |
 | D-3 | build.yml web job | wasm size diet: the js/wasm build ships every core incl. the six raw-TCP backends that can never connect from a browser (§7 web truth) — build-tag exclusion at the engine factory projected <20 MB; also headroom under git's 100 MB file ceiling on gh-pages | headless-host wasm = 31,162,944 B after the keyboard atomic (v0.9.1's old-GUI build was 88,659,256 B) | one atomic with tests: bootstrap factory js variant + per-core js stubs |
-| D-4 | window keys — atomic 2 | Enter=submit (ShouldSubmit law: default Enter-mode = plain Enter/Return submits, Shift/Ctrl+Return newline — already mapped) -> ChatComposeSubmitted + send-request seam (ChatBottomRequested-pattern) + field clear; Up/Down/PageUp/PageDown = history scroll (never compose cursor moves — customUpDown law); Up on EMPTY field + canWrite + !edit + !reply -> edit last editable message, else scroll; Ctrl+Up/Down -> reply prev/next (reply front) | AyuGramDesktop dev history_widget.cpp 9276-9349 (fetched 2026-11-09): Down always _scroll->keyPressEvent; Up scrolls unless field empty && canWrite && !_editMsgId && !_replyTo, then lastEditableMessage() -> editMessage else scroll; PageUp/PageDown always scroll; Enter -> ShouldSubmit(sendSubmitWay, mods); Qt key scroll = SliderSingleStep/PageStep (qabstractscrollarea.cpp 1215-1220; qabstractslider.cpp 180: defaults singleStep 1 pageStep 10 — but our own wheel law 120-angle notch = 60px = WheelScrollLines 3 => singleStep = 20px = WheelNotchAngleDelta/WheelScrollLines/WheelPixelToAngleDelta); IME ranged EditEvents + SelectionCmd/SnippetCmd contract = the mobile/IME front | atomic 2: ChatComposeSubmitted + ChatComposeSendRequested + scroll keys with the 20px singleStep law; edit-last rides the messages/edit front |
+| D-4 | window keys | ATOMIC 2 LANDED (session 413): plain Enter/Return -> ChatComposeSubmitted -> composeSubmittedCmd (guards: open+port+CanSend+non-empty) clears the field and fires ChatPort.Send -> ChatComposeSendRequested{OK,Text}; failed sends restore the field (composeEdit — no data loss); Up/Down arrows = ChatScrolled step 20dp, PageUp/PageDown = 200dp (tokens ScrollKeyStep = WheelNotch/WheelScrollLines/WheelPixelToAngleDelta, ScrollKeyPageStep = 10x — the Qt qabstractslider defaults through the wheel law); CanSend lands on the open transition from the row type (channels read-only — honest default until the writability front carries admin rights); REAL-seam: appport.Send -> engine.SendMessage -> optimistic msg_received -> open-chat append (wire test). Residuals: Up-on-empty-field edit-last rides the messages/edit front (scrolls meanwhile), Ctrl+Up/Down reply-cycle rides the reply front, scroll keys need compose focus — the unfocused chat pane has no key routing yet (window front) | history_widget.cpp 9276-9349 (fetched 2026-11-09) + qabstractslider defaults | IME ranged EditEvents + SelectionCmd/SnippetCmd contract = the mobile/IME front; window-front key routing |
 
-## Session 413 — W-2 the msg_received row-bump atomic: incoming messages carry the unread (2026-11-10)
-
-- Boot: sandbox recycled to zero — toolchain rebuilt per env.sh (go 1.27.1,
-  module cache refilled 1.1G), .env re-created from the owner token
-  (gitignored, askpass push intact); CI for session 412's push recorded
-  green: Build 42803562918 all five jobs + Verify 42803582751 all jobs+steps
-  on ed008c69, Pages 42804202730 serving.
-- The defect: handleNewMessage ran updateChatLastMessage (which emits
-  chat_updated — the event the UI row path rides) BEFORE incrementUnread,
-  so the bumped row's unread badge lagged by exactly one message;
-  preview/date/move already worked (session 412 path). UI-side synthesis
-  rated <7 (duplicates engine law: unread counters, group preview needs
-  chat type the msg_received payload lacks) — replaced, not patched:
-  engine reorder, ONE event carrying the full authoritative DB row.
-- Tests red->green: tests/engine/app_chat_wire_test.go +1 REAL-seam
-  (TestNewMessageWireBumpsNonOpenChatRow: snapshot seeds c1 unread 2
-  below newer c2; REAL HandleUpdate new message in non-open c1 ->
-  captured chat_updated bytes -> app rows: unread 2->3, preview
-  "alice: live wire", date FormatDialogsDate against the captured
-  envelope ts, c1 moves to top, non-open chat grows no items; + the
-  plainDialog helper). Red seen first: "the bumped row must carry the
-  incremented unread, got 2, want 3". All existing suites green, zero
-  re-pins.
-- Atomic 2 (payload unification): JoinChannel + ClearHistory were the last
-  bare-map chat_updated emitters ({"account_id","chat_id"}) — shapes the UI
-  decodes to an empty ChatID and drops. Both now call emitChatUpdate: the
-  full row re-read from the DB, ONE wire shape for chat_updated; no-row
-  still emits nothing (emitChatUpdate's Scan-err early return). Tests
-  red->green: tests/engine/app_chat_wire_test.go +1 REAL-seam
-  (TestJoinChannelAndClearHistoryEmitFullRowChatUpdated: stub core with
-  JoinChannel/DeleteChatHistory -> SyncChats seeds the row -> REAL
-  JoinChannel/ClearHistory -> captured chat_updated decodes chat_id/
-  title/unread/last_msg_text through the {chat} shape -> app rows survive
-  both events; red seen first: 'JoinChannel must emit the unified
-  full-row payload, got: {"account_id":"a1","chat_id":"c1"}'). No other
-  consumer pinned the legacy shape (grep-verified).
-- Gates: quick gate GREEN twice (scoped: engine, tests/engine 6.4s,
-  tests/bootstrap, bootstrap; gio cgo legs via windows vet —
-  cmd/uniclient, ui/appport, ui/window), gofmt clean, comment ban clean
-  (370 files), js/wasm build green. tests/gui out of scope by
-  construction — the wire seam (raw JSON bytes) keeps ui/app engine-free.
-- Next: D-4 atomic 2, D-3.
-
-## Session 413 — W-2 the msg_received row-bump atomic: incoming messages carry the unread (2026-11-10)
+## Session 413 — W-2 wire atomics + D-4 atomic 2: row bumps, ONE payload shape, window keys (2026-11-10)
 
 - Boot: sandbox recycled to zero — toolchain rebuilt per env.sh (go 1.27.1,
   module cache refilled 1.1G), .env re-created from the owner token
   (gitignored, askpass push intact); CI for session 412's push recorded
   green: Build 42803562918 all five jobs + Verify 42803582751 all jobs+steps
-  on ed008c69, Pages 42804202730 serving.
-- The defect: handleNewMessage ran updateChatLastMessage (which emits
-  chat_updated — the event the UI row path rides) BEFORE incrementUnread,
-  so the bumped row's unread badge lagged by exactly one message;
-  preview/date/move already worked (session 412 path). UI-side synthesis
-  rated <7 (duplicates engine law: unread counters, group preview needs
-  chat type the msg_received payload lacks) — replaced, not patched:
-  engine reorder, ONE event carrying the full authoritative DB row.
-- Tests red->green: tests/engine/app_chat_wire_test.go +1 REAL-seam
-  (TestNewMessageWireBumpsNonOpenChatRow: snapshot seeds c1 unread 2
-  below newer c2; REAL HandleUpdate new message in non-open c1 ->
-  captured chat_updated bytes -> app rows: unread 2->3, preview
-  "alice: live wire", date FormatDialogsDate against the captured
-  envelope ts, c1 moves to top, non-open chat grows no items; + the
-  plainDialog helper). Red seen first: "the bumped row must carry the
-  incremented unread, got 2, want 3". All existing suites green, zero
-  re-pins.
-- Atomic 2 (payload unification): JoinChannel + ClearHistory were the last
-  bare-map chat_updated emitters ({"account_id","chat_id"}) — shapes the UI
-  decodes to an empty ChatID and drops. Both now call emitChatUpdate: the
-  full row re-read from the DB, ONE wire shape for chat_updated; no-row
-  still emits nothing (emitChatUpdate's Scan-err early return). Tests
-  red->green: tests/engine/app_chat_wire_test.go +1 REAL-seam
-  (TestJoinChannelAndClearHistoryEmitFullRowChatUpdated: stub core with
-  JoinChannel/DeleteChatHistory -> SyncChats seeds the row -> REAL
-  JoinChannel/ClearHistory -> captured chat_updated decodes chat_id/
-  title/unread/last_msg_text through the {chat} shape -> app rows survive
-  both events; red seen first: 'JoinChannel must emit the unified
-  full-row payload, got: {"account_id":"a1","chat_id":"c1"}'). No other
-  consumer pinned the legacy shape (grep-verified).
-- Gates: quick gate GREEN twice (scoped: engine, tests/engine 6.4s,
-  tests/bootstrap, bootstrap; gio cgo legs via windows vet —
-  cmd/uniclient, ui/appport, ui/window), gofmt clean, comment ban clean
-  (370 files), js/wasm build green. tests/gui out of scope by
+  on ed008c69, Pages 42804202730 serving. (Doc fix in-run: the atomic-2
+  commit accidentally shipped this entry duplicated — rebuilt single here.)
+- Atomic 1 (msg_received row bump): handleNewMessage ran
+  updateChatLastMessage (which emits chat_updated — the event the UI row
+  path rides) BEFORE incrementUnread, so a bumped row's unread badge
+  lagged by exactly one message; preview/date/move already worked
+  (session 412 path). UI-side synthesis rated <7 (duplicates engine law:
+  unread counters, group preview needs chat type the msg_received payload
+  lacks) — replaced, not patched: engine reorder, ONE event carrying the
+  full authoritative DB row. Test red->green:
+  TestNewMessageWireBumpsNonOpenChatRow (snapshot seeds c1 unread 2 below
+  newer c2; REAL HandleUpdate new message in non-open c1 -> captured
+  chat_updated bytes -> app rows: unread 2->3, preview "alice: live wire",
+  date vs the captured envelope ts, c1 moves to top, non-open chat grows
+  no items). Red seen first: "the bumped row must carry the incremented
+  unread, got 2, want 3".
+- Atomic 2 (chat_updated payload unification): JoinChannel + ClearHistory
+  were the last bare-map chat_updated emitters ({"account_id","chat_id"}) —
+  shapes the UI decodes to an empty ChatID and drops. Both now call
+  emitChatUpdate: the full row re-read from the DB, ONE wire shape for
+  chat_updated; no-row still emits nothing (Scan-err early return). Test
+  red->green: TestJoinChannelAndClearHistoryEmitFullRowChatUpdated (stub
+  core with JoinChannel/DeleteChatHistory -> SyncChats seeds the row ->
+  REAL JoinChannel/ClearHistory -> captured chat_updated decodes
+  chat_id/title/unread/last_msg_text through the {chat} shape -> app rows
+  survive both events). Red seen first: 'JoinChannel must emit the
+  unified full-row payload, got: {"account_id":"a1","chat_id":"c1"}'.
+  No other consumer pinned the legacy shape (grep-verified).
+- Atomic 3 (D-4 atomic 2, window keys): ComposeKeyMsg maps plain
+  Enter/Return -> ChatComposeSubmitted (Ctrl/Shift+Return keep the newline
+  law), Up/Down/PageUp/PageDown -> ChatScrolled deltas through tokens
+  ScrollKeyStep (=WheelNotchAngleDelta/WheelScrollLines/WheelPixelToAngleDelta
+  = 20) and ScrollKeyPageStep (=10x = 200) — the customUpDown law: vertical
+  arrows NEVER move the compose caret. Update: ChatComposeSubmitted ->
+  composeSubmittedCmd guards (open + port + CanSend + non-empty) -> clears
+  the field (composeEdit("",0)) -> Cmd fires ChatPort.Send ->
+  ChatComposeSendRequested{OK,Text}; failure restores the field text (no
+  data loss). ChatPort gains Send; appport delegates to engine.SendMessage;
+  the optimistic message lands in the open chat through the REAL
+  msg_received wire (wire test pins items +1, Out, Sending). CanSend
+  wiring: openCmdAfterPress captures row.ChatType != ChatChannel ->
+  openCanSend; ChatLoaded lands it on the open transition (broadcast
+  channels read-only — the honest default until the writability front
+  carries admin rights). Regression caught by the gate and fixed in-run:
+  ChatLoaded initially set CanSend on EVERY replay, stomping unit-journey
+  preconditions (compose_elm viewport/resize pins) — moved inside the
+  openLoaded transition (CanSend changes on open, not on content reload).
+- Tests red->green (atomic 3): compose_keys_test.go table +7 (submit,
+  arrows, page steps) with the ignore list re-pinned (7 now-mapped keys
+  leave it — the law changed, pins updated in-commit);
+  compose_submit_test.go NEW (5: send+clear journey with a recording fake
+  port, failure restores, guards (no open / read-only / portless /
+  empty), CanSend-from-row-type open journey, scroll-key clamp table);
+  app_chat_wire_test.go +1 REAL-seam (port.Send -> optimistic
+  msg_received -> open-chat append). BLOCKED-env: the driven wasm page
+  cannot reach the compose (zero accounts -> no open chat) — the seam is
+  proven at the wire boundary instead, session-410 precedent.
+- Gates: quick gate GREEN three times (scoped: engine, tests/engine 6.4s,
+  tests/bootstrap, bootstrap; then tests/gui, tests/ui, ui/* — gio cgo
+  legs via windows vet), gofmt clean, comment ban clean (371 files),
+  js/wasm build green. tests/gui out of scope for the engine atomics by
   construction — the wire seam (raw JSON bytes) keeps ui/app engine-free.
-- Next: D-4 atomic 2, D-3.
+- Next: D-3.
 
 ## Session 412 — W-2 the chat_updated atomic: live row content updates (2026-11-10)
 

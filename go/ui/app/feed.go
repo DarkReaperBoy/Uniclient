@@ -47,6 +47,7 @@ type WireMessage struct {
 
 type ChatPort interface {
 	Messages(accountID, chatID string, limit int) ([]WireMessage, bool)
+	Send(accountID, chatID, text string) bool
 }
 
 func (m Model) WithPort(p ChatPort) Model {

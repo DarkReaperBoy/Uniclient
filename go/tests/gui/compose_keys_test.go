@@ -39,6 +39,15 @@ func TestComposeKeyMsgMapsControlKeys(t *testing.T) {
 		{key.NameReturn, key.ModShift, ChatComposeTyped{Text: "\n", Now: 1000}},
 		{key.NameReturn, key.ModCtrl, ChatComposeTyped{Text: "\n", Now: 1000}},
 		{key.NameEnter, key.ModShift, ChatComposeTyped{Text: "\n", Now: 1000}},
+		{key.NameReturn, 0, ChatComposeSubmitted{Now: 1000}},
+		{key.NameEnter, 0, ChatComposeSubmitted{Now: 1000}},
+		{key.NameUpArrow, 0, ChatScrolled{DeltaY: -20, Now: 1000}},
+		{key.NameDownArrow, 0, ChatScrolled{DeltaY: 20, Now: 1000}},
+		{key.NameUpArrow, key.ModShift, ChatScrolled{DeltaY: -20, Now: 1000}},
+		{key.NameUpArrow, key.ModCtrl, ChatScrolled{DeltaY: -20, Now: 1000}},
+		{key.NameDownArrow, key.ModCtrl, ChatScrolled{DeltaY: 20, Now: 1000}},
+		{key.NamePageUp, 0, ChatScrolled{DeltaY: -200, Now: 1000}},
+		{key.NamePageDown, 0, ChatScrolled{DeltaY: 200, Now: 1000}},
 	}
 	for _, c := range cases {
 		if got := composeKey(c.name, c.mods); got != c.want {
@@ -52,13 +61,6 @@ func TestComposeKeyMsgIgnoresNonFieldKeys(t *testing.T) {
 		name key.Name
 		mods key.Modifiers
 	}{
-		{key.NameUpArrow, 0},
-		{key.NameDownArrow, 0},
-		{key.NameUpArrow, key.ModShift},
-		{key.NamePageUp, 0},
-		{key.NamePageDown, 0},
-		{key.NameReturn, 0},
-		{key.NameEnter, 0},
 		{key.NameEscape, 0},
 		{key.NameTab, 0},
 		{"a", 0},

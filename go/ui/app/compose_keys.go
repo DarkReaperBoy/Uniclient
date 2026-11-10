@@ -1,6 +1,10 @@
 package app
 
-import "gioui.org/io/key"
+import (
+	"gioui.org/io/key"
+
+	"uniclient/ui/tokens"
+)
 
 func ComposeKeyMsg(e key.Event, now int) Msg {
 	if e.State != key.Press {
@@ -40,7 +44,15 @@ func ComposeKeyMsg(e key.Event, now int) Msg {
 		if ctrl || shift {
 			return ChatComposeTyped{Text: "\n", Now: now}
 		}
-		return nil
+		return ChatComposeSubmitted{Now: now}
+	case key.NameUpArrow:
+		return ChatScrolled{DeltaY: -tokens.ScrollKeyStep, Now: now}
+	case key.NameDownArrow:
+		return ChatScrolled{DeltaY: tokens.ScrollKeyStep, Now: now}
+	case key.NamePageUp:
+		return ChatScrolled{DeltaY: -tokens.ScrollKeyPageStep, Now: now}
+	case key.NamePageDown:
+		return ChatScrolled{DeltaY: tokens.ScrollKeyPageStep, Now: now}
 	case "A":
 		if ctrl {
 			return ChatComposeSelectAll{}

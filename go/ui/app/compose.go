@@ -66,6 +66,19 @@ type ChatComposeTyped struct {
 
 func (ChatComposeTyped) isMsg() {}
 
+type ChatComposeSubmitted struct {
+	Now int
+}
+
+func (ChatComposeSubmitted) isMsg() {}
+
+type ChatComposeSendRequested struct {
+	OK   bool
+	Text string
+}
+
+func (ChatComposeSendRequested) isMsg() {}
+
 type ChatComposeBackspace struct {
 	Word bool
 	Now  int

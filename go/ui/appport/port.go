@@ -36,3 +36,8 @@ func (p chatPort) Messages(accountID, chatID string, limit int) ([]app.WireMessa
 	}
 	return out, true
 }
+
+func (p chatPort) Send(accountID, chatID, text string) bool {
+	_, err := p.eng.SendMessage(accountID, chatID, text, "", nil, false, 0, "", "", false, false, false, false, false)
+	return err == nil
+}

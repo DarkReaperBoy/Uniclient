@@ -363,3 +363,40 @@ func TestJoinChannelAndClearHistoryEmitFullRowChatUpdated(t *testing.T) {
 		t.Fatalf("the unified clear payload must ride the app row path: %+v", after.Dialogs.Rows)
 	}
 }
+
+func TestSendPortDrivesOptimisticMessage(t *testing.T) {
+	e := newTestEngine(t)
+	if err := e.AttachAccount("a1", "telegram", joinClearStub{}); err != nil {
+		t.Fatal(err)
+	}
+	msgTs := time.Date(2026, time.November, 30, 14, 2, 0, 0, time.Local).UnixMilli()
+	if err := e.SyncChats("a1", []cores.Dialog{plainDialog("c1", "Dev Crew", "m1", "release notes", msgTs, 2)}); err != nil {
+		t.Fatal(err)
+	}
+	port := appport.For(e.Engine)
+	msgs, ok := port.Messages("a1", "c1", 50)
+	if !ok || len(msgs) != 0 {
+		t.Fatalf("port messages = (%d, %v), want the empty chat", len(msgs), ok)
+	}
+	raw := findEvent(t, e, EventMsgReceived, func() {
+		if !port.Send("a1", "c1", "sent from key") {
+			t.Fatal("port.Send must report success on the optimistic insert")
+		}
+	})
+	m := app.InitialModel()
+	m.Accounts = []app.Account{{ID: "a1", SortOrder: 0}}
+	m = m.WithPort(port)
+	m.Open = app.ChatRef{Account: "a1", ID: "c1"}
+	m.OpenValid = true
+	next, _ := app.Update(m, app.EngineEventMsg{Data: raw})
+	if len(next.Chat.Items) != 1 {
+		t.Fatalf("the optimistic send must append to the open chat, items = %d", len(next.Chat.Items))
+	}
+	item := next.Chat.Items[len(next.Chat.Items)-1]
+	if item.Text != "sent from key" || !item.Out {
+		t.Fatalf("optimistic item = %+v, want outgoing \"sent from key\"", item)
+	}
+	if !item.Sending {
+		t.Fatal("the optimistic item must ride the Sending state")
+	}
+}

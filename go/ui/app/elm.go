@@ -326,6 +326,7 @@ type Model struct {
 	port              ChatPort
 	chatMsgs          []WireMessage
 	openGroup         bool
+	openCanSend       bool
 	openLoaded        bool
 	chatJumpBottom    bool
 	accountRows       map[string][]dialogs.Entry
@@ -447,6 +448,7 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		if m.OpenValid && !m.openLoaded {
 			m.openLoaded = true
 			m.chatJumpBottom = true
+			m.ChatCompose.CanSend = m.openCanSend
 		}
 		return m, nil
 	case ChatPrepended:
@@ -525,6 +527,14 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		return m, m.chatPreloadCmd()
 	case ChatComposeTyped:
 		m.composeTyped(msg)
+		return m, nil
+	case ChatComposeSubmitted:
+		m.nowMs = msg.Now
+		return m, m.composeSubmittedCmd()
+	case ChatComposeSendRequested:
+		if !msg.OK {
+			m.composeEdit(msg.Text, len([]rune(msg.Text)))
+		}
 		return m, nil
 	case SearchTyped:
 		m.searchTyped(msg)
@@ -639,6 +649,7 @@ func (m *Model) openCmdAfterPress(prev int) Cmd {
 	m.Open = ChatRef{Account: row.Account, ID: row.ChatID}
 	m.OpenValid = true
 	m.openGroup = row.Group
+	m.openCanSend = row.ChatType != dialogs.ChatChannel
 	m.openLoaded = false
 	port, group := m.port, row.Group
 	account, chat := row.Account, row.ChatID
@@ -648,6 +659,19 @@ func (m *Model) openCmdAfterPress(prev int) Cmd {
 			return nil
 		}
 		return ChatLoaded{Msgs: msgs, Items: FeedItems(msgs, time.Now(), group), Now: int(time.Now().UnixMilli())}
+	}
+}
+
+func (m *Model) composeSubmittedCmd() Cmd {
+	if !m.OpenValid || m.port == nil || !m.ChatCompose.CanSend || m.ChatCompose.Text == "" {
+		return nil
+	}
+	text := m.ChatCompose.Text
+	account, chat := m.Open.Account, m.Open.ID
+	port := m.port
+	m.composeEdit("", 0)
+	return func() Msg {
+		return ChatComposeSendRequested{OK: port.Send(account, chat, text), Text: text}
 	}
 }
 

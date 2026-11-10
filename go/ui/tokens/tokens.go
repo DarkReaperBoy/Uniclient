@@ -346,6 +346,9 @@ const (
 	WheelNotchAngleDelta   = 120
 	TouchDragStartDistance = 10
 
+	ScrollKeyStep     = WheelNotchAngleDelta / WheelScrollLines / WheelPixelToAngleDelta
+	ScrollKeyPageStep = 10 * ScrollKeyStep
+
 	MouseDoubleClickIntervalMs = 400
 	CursorFlashTimeMs          = 1000
 

@@ -27,6 +27,10 @@ func (p *fakeChatPort) Messages(accountID, chatID string, limit int) ([]WireMess
 	return p.msgs, p.ok
 }
 
+func (p *fakeChatPort) Send(accountID, chatID, text string) bool {
+	return true
+}
+
 func feedsModel(t *testing.T, w, h int) Model {
 	t.Helper()
 	m := bridgeModel(t, w, h)
