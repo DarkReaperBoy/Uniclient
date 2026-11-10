@@ -17,21 +17,6 @@ type StatsGraphData struct {
 	Token string `json:"token,omitempty"`
 }
 
-type ChannelStats struct {
-	MinDate int `json:"min_date"`
-	MaxDate int `json:"max_date"`
-
-	Followers        StatsValue `json:"followers"`
-	ViewsPerPost     StatsValue `json:"views_per_post"`
-	SharesPerPost    StatsValue `json:"shares_per_post"`
-	ReactionsPerPost StatsValue `json:"reactions_per_post"`
-	ViewsPerStory    StatsValue `json:"views_per_story"`
-	SharesPerStory   StatsValue `json:"shares_per_story"`
-	NotifPercent     float64    `json:"notif_percent"`
-
-	Graphs []StatsGraphData `json:"graphs"`
-}
-
 func StatsGraphJSON(g tg.StatsGraphClass) (json, token string) {
 	switch v := g.(type) {
 	case *tg.StatsGraph:

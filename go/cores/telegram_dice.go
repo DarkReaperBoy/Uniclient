@@ -7,20 +7,6 @@ import (
 	"github.com/gotd/td/tg"
 )
 
-type DiceSticker struct {
-	Value    int
-	FileID   string
-	Extra    string
-	ThumbB64 string
-	Width    int
-	Height   int
-}
-
-type DiceStickersResult struct {
-	Emoji    string
-	Stickers []DiceSticker
-}
-
 func DiceValueFromEmoticon(emoticon string) int {
 	switch emoticon {
 	case "#":

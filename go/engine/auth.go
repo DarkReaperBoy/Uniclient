@@ -133,7 +133,7 @@ func (e *Engine) SubmitAuthInput(accountID, input string) (*AuthState, error) {
 	flow.state = next
 
 	if next.State == AuthStateQR {
-		if tc, ok := flow.core.(*cores.TelegramCore); ok {
+		if tc, ok := flow.core.(telegramLoginFlow); ok {
 			tc.SetQRRefreshCallback(func() { go e.onQRTokenUpdate(accountID) })
 		}
 	}
@@ -144,6 +144,30 @@ func (e *Engine) SubmitAuthInput(accountID, input string) (*AuthState, error) {
 
 	e.emitEvent(EventAuthState, accountID, next)
 	return next, nil
+}
+
+type telegramLoginFlow interface {
+	StartQRAuth() (string, int, error)
+	SetQRRefreshCallback(cb func())
+	RefreshQRToken() (string, int, bool, error)
+	AuthCodeInfo() (bool, string, string, int, int)
+	VerifyEmailDuringAuth(code string) (int, bool, int, error)
+	SendVerifyEmailCodeDuringAuth(email string) (string, int, error)
+	SubmitSignUp(firstName, lastName string) error
+	SubmitPhoneCodeAfterEmail(code string) error
+	SubmitOTP(code string) error
+	Submit2FAAfterEmail(password string) error
+	Submit2FA(password string) error
+	ResetPasswordDuringAuth() (map[string]interface{}, error)
+	RequestRecoveryDuringAuth() (string, error)
+	ResendOTPCode() error
+	NoTelegramCode() (int, int, error)
+	Get2FAStateDuringAuth() (bool, string, error)
+}
+
+type baleSubmitter interface {
+	SubmitOTP(code string) error
+	Submit2FA(password string) error
 }
 
 func (e *Engine) onQRTokenUpdate(accountID string) {
@@ -160,7 +184,7 @@ func (e *Engine) onQRTokenUpdate(accountID string) {
 	if flow.state == nil || flow.state.State != AuthStateQR {
 		return
 	}
-	tc, ok := flow.core.(*cores.TelegramCore)
+	tc, ok := flow.core.(telegramLoginFlow)
 	if !ok {
 		return
 	}
@@ -265,7 +289,7 @@ func (e *Engine) SwitchAuthMethod(accountID, method string) (*AuthState, error) 
 	flow.state = next
 
 	if next.State == AuthStateQR {
-		if tc, ok := flow.core.(*cores.TelegramCore); ok {
+		if tc, ok := flow.core.(telegramLoginFlow); ok {
 			tc.SetQRRefreshCallback(func() { go e.onQRTokenUpdate(accountID) })
 		}
 	}
@@ -422,7 +446,7 @@ func advanceTelegram(flow *AuthFlow, input string, base *AuthState) (*AuthState,
 			base.Hint = "123456:ABC-DEF..."
 			return base, nil
 		case "qr_code":
-			tc, ok := flow.core.(*cores.TelegramCore)
+			tc, ok := flow.core.(telegramLoginFlow)
 			if !ok {
 				base.State = AuthStateError
 				base.Message = "QR login only supported for Telegram"
@@ -451,7 +475,7 @@ func advanceTelegram(flow *AuthFlow, input string, base *AuthState) (*AuthState,
 			return base, nil
 		}
 	case AuthStateQR:
-		tc, ok := flow.core.(*cores.TelegramCore)
+		tc, ok := flow.core.(telegramLoginFlow)
 		if !ok {
 			return nil, fmt.Errorf("expected TelegramCore for QR refresh")
 		}
@@ -497,7 +521,7 @@ func advanceTelegram(flow *AuthFlow, input string, base *AuthState) (*AuthState,
 			}
 			return base, nil
 		}
-		tc, ok := flow.core.(*cores.TelegramCore)
+		tc, ok := flow.core.(telegramLoginFlow)
 		if !ok {
 			return nil, fmt.Errorf("expected TelegramCore for phone auth")
 		}
@@ -513,7 +537,7 @@ func advanceTelegram(flow *AuthFlow, input string, base *AuthState) (*AuthState,
 		}
 		return telegramOTPState(tc, base), nil
 	case AuthStateOTP:
-		tc, ok := flow.core.(*cores.TelegramCore)
+		tc, ok := flow.core.(telegramLoginFlow)
 		if !ok {
 			return nil, fmt.Errorf("expected TelegramCore for OTP")
 		}
@@ -604,7 +628,7 @@ func advanceTelegram(flow *AuthFlow, input string, base *AuthState) (*AuthState,
 		return tryAuth(flow, base)
 	case AuthState2FA:
 		if input == "__request_recovery" {
-			tc, ok := flow.core.(*cores.TelegramCore)
+			tc, ok := flow.core.(telegramLoginFlow)
 			if !ok {
 				return nil, fmt.Errorf("expected TelegramCore for recovery request")
 			}
@@ -619,7 +643,7 @@ func advanceTelegram(flow *AuthFlow, input string, base *AuthState) (*AuthState,
 			return base, nil
 		}
 		if input == "__reset_account" {
-			tc, ok := flow.core.(*cores.TelegramCore)
+			tc, ok := flow.core.(telegramLoginFlow)
 			if !ok {
 				return nil, fmt.Errorf("expected TelegramCore for account reset")
 			}
@@ -640,7 +664,7 @@ func advanceTelegram(flow *AuthFlow, input string, base *AuthState) (*AuthState,
 		}
 		flow.collected["2fa"] = input
 		if flow.collected["method"] != "bot_token" {
-			tc, ok := flow.core.(*cores.TelegramCore)
+			tc, ok := flow.core.(telegramLoginFlow)
 			if !ok {
 				return nil, fmt.Errorf("expected TelegramCore for 2FA submit")
 			}
@@ -657,7 +681,7 @@ func advanceTelegram(flow *AuthFlow, input string, base *AuthState) (*AuthState,
 		}
 		return tryAuth(flow, base)
 	case AuthStateEmail:
-		tc, ok := flow.core.(*cores.TelegramCore)
+		tc, ok := flow.core.(telegramLoginFlow)
 		if !ok {
 			return nil, fmt.Errorf("expected TelegramCore for email setup")
 		}
@@ -681,7 +705,7 @@ func advanceTelegram(flow *AuthFlow, input string, base *AuthState) (*AuthState,
 		base.EmailPatternSetup = pattern
 		return base, nil
 	case AuthStateSignUp:
-		tc, ok := flow.core.(*cores.TelegramCore)
+		tc, ok := flow.core.(telegramLoginFlow)
 		if !ok {
 			return nil, fmt.Errorf("expected TelegramCore for signup")
 		}
@@ -719,7 +743,7 @@ func telegramReadyState(flow *AuthFlow, base *AuthState) *AuthState {
 	return base
 }
 
-func applyTelegram2FAState(tc *cores.TelegramCore, base *AuthState) {
+func applyTelegram2FAState(tc telegramLoginFlow, base *AuthState) {
 	hasRecovery, hint, err := tc.Get2FAStateDuringAuth()
 	if err != nil {
 		base.HasRecovery = false
@@ -731,7 +755,7 @@ func applyTelegram2FAState(tc *cores.TelegramCore, base *AuthState) {
 	}
 }
 
-func telegramOTPState(tc *cores.TelegramCore, base *AuthState) *AuthState {
+func telegramOTPState(tc telegramLoginFlow, base *AuthState) *AuthState {
 	byTg, fragURL, emailPattern, timeout, length := tc.AuthCodeInfo()
 	if length <= 0 {
 		length = 5
@@ -817,7 +841,7 @@ func advanceBale(flow *AuthFlow, input string, base *AuthState) (*AuthState, err
 		return base, nil
 	case AuthStateOTP:
 		flow.collected["otp"] = input
-		bc, ok := flow.core.(*cores.BaleCore)
+		bc, ok := flow.core.(baleSubmitter)
 		if !ok {
 			return nil, fmt.Errorf("expected BaleCore for OTP submit")
 		}
@@ -842,7 +866,7 @@ func advanceBale(flow *AuthFlow, input string, base *AuthState) (*AuthState, err
 		return nil, err
 	case AuthState2FA:
 		flow.collected["2fa"] = input
-		bc, ok := flow.core.(*cores.BaleCore)
+		bc, ok := flow.core.(baleSubmitter)
 		if !ok {
 			return nil, fmt.Errorf("expected BaleCore for 2FA submit")
 		}

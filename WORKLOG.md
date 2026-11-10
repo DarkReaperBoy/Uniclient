@@ -7,28 +7,29 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: GUI rebuild (§6); W-2 engine wire atomics landed (session 413):
-  (1) msg_received row bump — handleNewMessage increments unread BEFORE the
-  row-update emit, the ONE chat_updated per incoming message carries the
-  full bumped row (preview/date/unread/move) and rides the session-412 UI
-  path; (2) chat_updated payload unification — JoinChannel and ClearHistory
-  now emit emitChatUpdate's full row instead of the legacy bare map the UI
-  had to drop: ONE wire shape for chat_updated, the UI drop guard now
-  covers only malformed shapes; (3) D-4 atomic 2 window keys — plain
-  Enter submits through the ChatPort.Send seam (field clears, failed
-  sends restore the text), Up/Down/PageUp/PageDown scroll the history by
-  the wheel-law singleStep 20dp / pageStep 200dp, CanSend lands on open
-  from the row type (broadcast channels read-only). next front work: D-3
-  (wasm size diet — build-tag js stubs for the six raw-TCP cores)
-- next: D-3
+- front: GUI rebuild (§6); D-3 (wasm size diet) IN PROGRESS — atomic 1
+  landed: the engine no longer speaks concrete cores or gotd —
+  telegramLoginFlow/baleSubmitter/peerBarController/phoneSharer/botPhotoSetter/
+  notifyDelayGetter/langPackGetter/geoTileFetcher capability interfaces replace
+  every *cores.TelegramCore|BaleCore assertion (19 sites, auth.go 12 + 2 bale +
+  cache_users 7); the 21 engine-cache schema types moved to the untagged
+  cores/telegram_data.go (pure structs, zero imports, gotd-free — measured);
+  the two gotd-shaped seams genericized (UploadGetWebFile -> GetGeoWebTile
+  (GeoWebFileQuery) []byte; LangpackGetLanguages -> []LangPackInfo); engine
+  imports no gotd. New pins red->green: tests/engine/engine_decoupling_test.go
+  (gotd-import ban + concrete-core roster ban). next: D-3 atomic 2 — the
+  exclusion itself (build tags + bootstrap factory js variant + webbuild js test)
+- next: D-3 atomic 2
 - owner-waiting: N-1 — install the uniclient-android APK artifact
   (build 42622715804) on a device and report (android GUI-default check)
-- last-gate: session 413 — quick gate GREEN three times (scoped: engine, tests/engine 6.4s,
-  tests/gui, tests/ui, ui/* + windows vet gio legs), gofmt + comment
-  ban clean (371 files), js/wasm build green; CI record
-  for session 412's push: Build 42803562918 (5 jobs) + Verify 42803582751
-  (3 jobs, steps) all green on ed008c69, Pages 42804202730 serving; CI
-  dispatch on this push follows (record next session).
+- last-gate: session 414 atomic 1 — quick gate GREEN (scoped: bootstrap,
+  cores, engine, tests/bootstrap 1.0s, tests/cores 59.2s, tests/engine 6.9s;
+  windows vet gio legs), gofmt + comment ban clean (373 files), js/wasm
+  build green; CI record for session 413's pushes: Build #16 (ff00c1e2)
+  + Verify #412 (42838556241, all 3 jobs + steps) green, Build #15 green,
+  Build #14 cancelled by the build.yml cancel-in-progress policy (superseded
+  push — not a red gate), Pages serving; CI dispatch on this push follows
+  (record next session).
 
 ## Open items
 
@@ -43,6 +44,66 @@ owner order — that history lives in git if ever needed.
 | D-2 | ui/history unread-things buttons | read-marking absent for mentions AND reactions: after a jump the button stays shown (reference hides it when the server marks the thing read — updateUnreadThingsVisibility is server-data-driven); mentionsClick's already-there voice/video media-read branch (5623) deferred — no media model; unread-count badges join D-1's class; poll-votes 4th stack slot returns with a poll model | history_view_corner_buttons.cpp 147-190, 288-345 | returns with engine unread-things events + the media pass |
 | D-3 | build.yml web job | wasm size diet: the js/wasm build ships every core incl. the six raw-TCP backends that can never connect from a browser (§7 web truth) — build-tag exclusion at the engine factory projected <20 MB; also headroom under git's 100 MB file ceiling on gh-pages | headless-host wasm = 31,162,944 B after the keyboard atomic (v0.9.1's old-GUI build was 88,659,256 B) | one atomic with tests: bootstrap factory js variant + per-core js stubs |
 | D-4 | window keys | ATOMIC 2 LANDED (session 413): plain Enter/Return -> ChatComposeSubmitted -> composeSubmittedCmd (guards: open+port+CanSend+non-empty) clears the field and fires ChatPort.Send -> ChatComposeSendRequested{OK,Text}; failed sends restore the field (composeEdit — no data loss); Up/Down arrows = ChatScrolled step 20dp, PageUp/PageDown = 200dp (tokens ScrollKeyStep = WheelNotch/WheelScrollLines/WheelPixelToAngleDelta, ScrollKeyPageStep = 10x — the Qt qabstractslider defaults through the wheel law); CanSend lands on the open transition from the row type (channels read-only — honest default until the writability front carries admin rights); REAL-seam: appport.Send -> engine.SendMessage -> optimistic msg_received -> open-chat append (wire test). Residuals: Up-on-empty-field edit-last rides the messages/edit front (scrolls meanwhile), Ctrl+Up/Down reply-cycle rides the reply front, scroll keys need compose focus — the unfocused chat pane has no key routing yet (window front) | history_widget.cpp 9276-9349 (fetched 2026-11-09) + qabstractslider defaults | IME ranged EditEvents + SelectionCmd/SnippetCmd contract = the mobile/IME front; window-front key routing |
+
+## Session 414 — D-3 atomic 1: the engine speaks interfaces, not cores (2026-11-10)
+
+- Boot: sandbox recycled — toolchain + module cache survived under ../toolchain
+  (env.sh re-sourced, go 1.27.1; build cache warm only under the CGO_ENABLED=1
+  recipe — a CGO_ENABLED=0 run re-keys the whole cache and OOMs on gotd's tg;
+  use the dev-test/gate recipe), .env intact (gitignored, askpass push intact).
+  CI for session 413's pushes recorded: Build #15 (c5cd8751) + Build #16
+  (ff00c1e2) green, Verify #412 (42838556241) all 3 jobs + steps green on
+  ff00c1e2, Build #14 (2dc365c8) cancelled by build.yml's own
+  cancel-in-progress concurrency policy (superseded mid-run — not a red
+  gate), Pages builds serving.
+- The law (D-3 precondition, rated: the concrete-assertion engine was <7/10
+  against the §6.3/§7 capability law — replaced, not patched): the engine
+  projects per-core features through interfaces and never references a
+  concrete core or a core SDK type — otherwise no build-tag core exclusion
+  can ever shrink the js link graph. Research (identifier-definition map,
+  engine vs the six raw-TCP families): 19 concrete assertions
+  (auth.go 12 telegram + 2 bale; cache_users.go 7), 21 engine-cache schema
+  types defined inside the telegram family (all pure structs, gotd-free —
+  regex-audited), exactly one gotd import in the whole engine
+  (cache_users.go, the GetMapTile tg web-file request + LangPackGetLanguages
+  tg return).
+- Change: telegramLoginFlow (16 methods, the login machine) + baleSubmitter
+  in engine/auth.go; peerBarController/phoneSharer/botPhotoSetter/
+  notifyDelayGetter/langPackGetter/geoTileFetcher in engine/cache_users.go —
+  house-pattern interfaces at their call sites; every assertion target
+  swapped, zero behavior deltas (wrong-core paths return the same errors);
+  the 26-method surface maps 1:1 onto the real signatures (extracted, not
+  transcribed). cores/telegram_data.go NEW (untagged): JoinAsPeerInfo,
+  AdminLogEvent, ChatPermissionFlags, DefaultBannedRights, ParticipantExtra,
+  BotCommandEntry, InlineBotResults, ForumTopicIconInfo, ChannelUsernameInfo,
+  PasskeyInfo, CloudPasswordState, PasswordResetResult, ChatNotifySettings,
+  PeerColorEntry, CloudThemeInfo, ChatThemeInfo, WallpaperInfo,
+  CallHistoryEntry (telegram.go) + DiceSticker, DiceStickersResult
+  (telegram_dice.go) + ChannelStats (telegram_stats.go) + the two new seams
+  GeoWebFileQuery and LangPackInfo. Telegram methods reshaped:
+  UploadGetWebFile(*tg.UploadGetWebFileRequest) (*tg.UploadWebFile) ->
+  GetGeoWebTile(GeoWebFileQuery) ([]byte, error) (the engine's clamp law
+  stays engine-side; the tg request build moves core-side);
+  LangpackGetLanguages -> []LangPackInfo (field-mapped). Engine's gotd
+  import deleted.
+- Tests: tests/engine/engine_decoupling_test.go NEW, seen RED first —
+  TestEngineImportsNoCoreSDK (cache_users.go "github.com/gotd/td/tg") and
+  TestEngineAssertsNoConcreteCore (auth.go:136 *cores.TelegramCore; the
+  pinned roster covers all 10 concrete cores — a new core joins by
+  extending the pin) — then GREEN. All existing suites green zero re-pins:
+  tests/engine 6.9s, tests/bootstrap 1.0s, tests/cores 59.3s (telegram
+  scripted-server legs through the reshaped seams included). Edits via
+  byte-exact python patch (sessions 410-412 landmine) with count-verified
+  anchors; gofmt fixed three authored-file nits (alignment, import blank,
+  test-file tabs) — gofmt -l . clean.
+- Gates: quick gate GREEN (scoped: bootstrap, cores, engine,
+  tests/bootstrap, tests/cores, tests/engine; windows vet gio legs),
+  comment ban clean (373 files), js/wasm build green (engine + cores +
+  bootstrap + cmd).
+- Next: D-3 atomic 2 — !js build tags on the six raw-TCP families,
+  bootstrap factory js variant (github/matrix/bale trio, honest error for
+  the rest), tests/webbuild js pin under the wasm runner, family-tag
+  source-scan pin, measured size drop.
 
 ## Session 413 — W-2 wire atomics + D-4 atomic 2: row bumps, ONE payload shape, window keys (2026-11-10)
 

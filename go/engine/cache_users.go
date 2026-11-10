@@ -11,8 +11,6 @@ import (
 	"time"
 
 	"uniclient/cores"
-
-	"github.com/gotd/td/tg"
 )
 
 type CachedUser struct {
@@ -1102,12 +1100,37 @@ func (e *Engine) ReportSpam(accountID, chatID string) error {
 	return nil
 }
 
+type peerBarController interface {
+	GetPeerBarSettings(chatID string) (string, error)
+	HidePeerSettingsBar(chatID string) error
+}
+
+type phoneSharer interface {
+	SharePhoneWithPeer(chatID string) error
+}
+
+type botPhotoSetter interface {
+	SetBotPhoto(chatID string, pngData []byte) error
+}
+
+type notifyDelayGetter interface {
+	GetNotifyDelayConfig() (int, int, int, error)
+}
+
+type langPackGetter interface {
+	LangpackGetLanguages(langpack string) ([]cores.LangPackInfo, error)
+}
+
+type geoTileFetcher interface {
+	GetGeoWebTile(q cores.GeoWebFileQuery) ([]byte, error)
+}
+
 func (e *Engine) GetPeerBarSettings(accountID, chatID string) (string, error) {
 	acc, ok := e.getAccount(accountID)
 	if !ok || acc.Core == nil {
 		return "{}", nil
 	}
-	tc, ok := acc.Core.(*cores.TelegramCore)
+	tc, ok := acc.Core.(peerBarController)
 	if !ok {
 		return "{}", nil
 	}
@@ -1119,7 +1142,7 @@ func (e *Engine) SharePhoneWithPeer(accountID, chatID string) error {
 	if !ok || acc.Core == nil {
 		return fmt.Errorf("account not found: %s", accountID)
 	}
-	tc, ok := acc.Core.(*cores.TelegramCore)
+	tc, ok := acc.Core.(phoneSharer)
 	if !ok {
 		return fmt.Errorf("share phone not supported for this platform")
 	}
@@ -1131,7 +1154,7 @@ func (e *Engine) SetBotPhoto(accountID, chatID, filePath string) error {
 	if !ok || acc.Core == nil {
 		return fmt.Errorf("account not found: %s", accountID)
 	}
-	tc, ok := acc.Core.(*cores.TelegramCore)
+	tc, ok := acc.Core.(botPhotoSetter)
 	if !ok {
 		return fmt.Errorf("set bot photo not supported for this platform")
 	}
@@ -1147,7 +1170,7 @@ func (e *Engine) HidePeerSettingsBar(accountID, chatID string) error {
 	if !ok || acc.Core == nil {
 		return fmt.Errorf("account not found: %s", accountID)
 	}
-	tc, ok := acc.Core.(*cores.TelegramCore)
+	tc, ok := acc.Core.(peerBarController)
 	if !ok {
 		return nil
 	}
@@ -1179,7 +1202,7 @@ func (e *Engine) GetNotifyConfig(accountID string) (map[string]int, error) {
 	if !ok || acc.Core == nil {
 		return nil, fmt.Errorf("account not found: %s", accountID)
 	}
-	tc, ok := acc.Core.(*cores.TelegramCore)
+	tc, ok := acc.Core.(notifyDelayGetter)
 	if !ok {
 		return defaults, nil
 	}
@@ -2379,11 +2402,11 @@ func (e *Engine) GetLanguages(accountID string) ([]LanguageInfo, error) {
 	if core == nil {
 		return nil, fmt.Errorf("account not found")
 	}
-	tc, ok := core.(*cores.TelegramCore)
+	lg, ok := core.(langPackGetter)
 	if !ok {
 		return nil, fmt.Errorf("not supported")
 	}
-	langs, err := tc.LangpackGetLanguages("tdesktop")
+	langs, err := lg.LangpackGetLanguages("tdesktop")
 	if err != nil {
 		return nil, err
 	}
@@ -2467,7 +2490,7 @@ func (e *Engine) GetMapTile(accountID string, lat, lon float64, accessHash int64
 	if !ok || acc.Core == nil {
 		return nil, fmt.Errorf("account %q not connected", accountID)
 	}
-	tc, ok := acc.Core.(*cores.TelegramCore)
+	fetcher, ok := acc.Core.(geoTileFetcher)
 	if !ok {
 		return nil, fmt.Errorf("map tiles only supported for Telegram accounts")
 	}
@@ -2490,26 +2513,15 @@ func (e *Engine) GetMapTile(accountID string, lat, lon float64, accessHash int64
 	} else if zoom > 20 {
 		zoom = 20
 	}
-
-	geoPoint := &tg.InputGeoPoint{Lat: lat, Long: lon}
-	location := &tg.InputWebFileGeoPointLocation{
-		GeoPoint:   geoPoint,
+	return fetcher.GetGeoWebTile(cores.GeoWebFileQuery{
+		Lat:        lat,
+		Long:       lon,
 		AccessHash: accessHash,
 		W:          clampedW,
 		H:          clampedH,
 		Zoom:       zoom,
 		Scale:      scale,
-	}
-
-	result, err := tc.UploadGetWebFile(&tg.UploadGetWebFileRequest{
-		Location: location,
-		Offset:   0,
-		Limit:    1048576,
 	})
-	if err != nil {
-		return nil, err
-	}
-	return result.Bytes, nil
 }
 
 type connectedBotsGetter interface {

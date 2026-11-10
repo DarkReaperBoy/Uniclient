@@ -9430,14 +9430,6 @@ func (t *TelegramCore) GetGroupCall(chatID string) (*CallSession, error) {
 	return cs, nil
 }
 
-type JoinAsPeerInfo struct {
-	ID        string `json:"id"`
-	Title     string `json:"title"`
-	Subtitle  string `json:"subtitle"`
-	IsSelf    bool   `json:"is_self"`
-	IsChannel bool   `json:"is_channel"`
-}
-
 func (t *TelegramCore) GetGroupCallJoinAsPeers(chatID string) ([]JoinAsPeerInfo, error) {
 	t.mu.RLock()
 	if !t.authed || t.api == nil {
@@ -14093,20 +14085,6 @@ func (t *TelegramCore) SetSlowMode(chatID string, seconds int) error {
 	return err
 }
 
-type AdminLogEvent struct {
-	ID         int64                  `json:"id"`
-	Date       int                    `json:"date"`
-	UserID     int64                  `json:"user_id"`
-	UserName   string                 `json:"user_name"`
-	Action     string                 `json:"action"`
-	Detail     string                 `json:"detail"`
-	OldValue   string                 `json:"old_value,omitempty"`
-	NewValue   string                 `json:"new_value,omitempty"`
-	MessageID  int                    `json:"message_id,omitempty"`
-	MsgText    string                 `json:"msg_text,omitempty"`
-	ActionData map[string]interface{} `json:"action_data,omitempty"`
-}
-
 func (t *TelegramCore) GetAdminLogEvents(chatID string, limit int, query string, maxID int64, filters map[string]bool, admins []string) ([]AdminLogEvent, error) {
 	api, ctx, err := t.WithAPI()
 	if err != nil {
@@ -17001,72 +16979,6 @@ func (t *TelegramCore) GetFullChannel(chatID string) (*Dialog, error) {
 	return d, nil
 }
 
-type ChatPermissionFlags struct {
-	SlowmodeSeconds       int      `json:"slowmode_seconds"`
-	JoinToSend            bool     `json:"join_to_send"`
-	NoForwards            bool     `json:"no_forwards"`
-	JoinRequest           bool     `json:"join_request"`
-	IsForum               bool     `json:"is_forum"`
-	Antispam              bool     `json:"antispam"`
-	Signatures            bool     `json:"signatures"`
-	SignatureProfiles     bool     `json:"signature_profiles"`
-	PreHistoryHidden      bool     `json:"pre_history_hidden"`
-	NoTranslations        bool     `json:"no_translations"`
-	HasUsername           bool     `json:"has_username"`
-	LinkedChatID          string   `json:"linked_chat_id"`
-	PendingRequestsCount  int      `json:"pending_requests_count"`
-	BoostLevel            int      `json:"boost_level"`
-	IsMegagroup           bool     `json:"is_megagroup"`
-	IsBroadcast           bool     `json:"is_broadcast"`
-	IsGigagroup           bool     `json:"is_gigagroup"`
-	AmCreator             bool     `json:"am_creator"`
-	HasAdminRights        bool     `json:"has_admin_rights"`
-	CanViewStats          bool     `json:"can_view_stats"`
-	AdminCanChangeInfo    bool     `json:"admin_can_change_info"`
-	CanAddAdmins          bool     `json:"can_add_admins"`
-	CanBanUsers           bool     `json:"can_ban_users"`
-	CanInviteUsers        bool     `json:"can_invite_users"`
-	CanViewParticipants   bool     `json:"can_view_participants"`
-	ParticipantsHidden    bool     `json:"participants_hidden"`
-	CanSetStickers        bool     `json:"can_set_stickers"`
-	AutoTranslateMinLevel int      `json:"auto_translate_min_level"`
-	MigratedFromChatID    string   `json:"migrated_from_chat_id"`
-	DirectMessagesEnabled bool     `json:"direct_messages_enabled"`
-	DirectMessagesStars   int64    `json:"direct_messages_stars"`
-	StarRefJoinAllowed    bool     `json:"starref_join_allowed"`
-	AdminCanPost          bool     `json:"admin_can_post"`
-	ReactionsUniqMax      int      `json:"reactions_uniq_max"`
-	ReactionsMaxCount     int      `json:"reactions_max_count"`
-	PaidReactionsEnabled  bool     `json:"paid_reactions_enabled"`
-	ForumTabs             bool     `json:"forum_tabs"`
-	HasLocation           bool     `json:"has_location"`
-	ReactionsMode         string   `json:"reactions_mode"`
-	ReactionsAllowed      []string `json:"reactions_allowed"`
-	AntispamGroupSizeMin  int      `json:"antispam_group_size_min"`
-	MemberCount           int      `json:"member_count"`
-}
-
-type DefaultBannedRights struct {
-	SendPlain        bool  `json:"send_plain"`
-	SendPhotos       bool  `json:"send_photos"`
-	SendVideos       bool  `json:"send_videos"`
-	SendRoundvideos  bool  `json:"send_roundvideos"`
-	SendAudios       bool  `json:"send_audios"`
-	SendVoices       bool  `json:"send_voices"`
-	SendDocs         bool  `json:"send_docs"`
-	SendStickers     bool  `json:"send_stickers"`
-	EmbedLinks       bool  `json:"embed_links"`
-	SendPolls        bool  `json:"send_polls"`
-	InviteUsers      bool  `json:"invite_users"`
-	ManageTopics     bool  `json:"manage_topics"`
-	PinMessages      bool  `json:"pin_messages"`
-	EditRank         bool  `json:"edit_rank"`
-	ChangeInfo       bool  `json:"change_info"`
-	SlowmodeSeconds  int   `json:"slowmode_seconds"`
-	BoostsUnrestrict int   `json:"boosts_unrestrict"`
-	ChargeStars      int64 `json:"charge_stars"`
-}
-
 func computeWriteRestriction(personalRights *tg.ChatBannedRights, defaultRights tg.ChatBannedRights) (int, string) {
 	if personalRights != nil && personalRights.ViewMessages {
 		return 1, "Sorry, this group is not accessible."
@@ -17649,18 +17561,6 @@ func (t *TelegramCore) GetParticipants(chatID string, limit int) ([]User, error)
 		}
 	}
 	return users, nil
-}
-
-type ParticipantExtra struct {
-	CustomRank   string
-	PromotedBy   int64
-	PromotedDate int
-	IsSelf       bool
-	IsCreator    bool
-	CanEditAdmin bool
-	CanRestrict  bool
-	BannedRights *DefaultBannedRights
-	BannedUntil  int
 }
 
 func bannedRightsFromTG(br tg.ChatBannedRights) *DefaultBannedRights {
@@ -18748,15 +18648,6 @@ func (t *TelegramCore) GetFullUser(userID string) (*User, error) {
 	return nil, ErrNotFound
 }
 
-type BotCommandEntry struct {
-	Command     string `json:"command"`
-	Description string `json:"description"`
-	BotID       string `json:"bot_id"`
-	BotName     string `json:"bot_name"`
-	BotUsername string `json:"bot_username"`
-	AvatarB64   string `json:"avatar_b64,omitempty"`
-}
-
 func (t *TelegramCore) GetChatBotCommands(chatID string) ([]BotCommandEntry, error) {
 	api, ctx, err := t.WithAPI()
 	if err != nil {
@@ -19640,15 +19531,6 @@ type InlineBotResult struct {
 	ThumbB64      string `json:"thumb_b64,omitempty"`
 	DocumentID    int64  `json:"document_id,omitempty"`
 	DocumentExtra string `json:"document_extra,omitempty"`
-}
-
-type InlineBotResults struct {
-	QueryID       int64             `json:"query_id"`
-	NextOffset    string            `json:"next_offset"`
-	Gallery       bool              `json:"gallery"`
-	Results       []InlineBotResult `json:"results"`
-	SwitchPM      string            `json:"switch_pm,omitempty"`
-	SwitchPMParam string            `json:"switch_pm_param,omitempty"`
 }
 
 func (t *TelegramCore) GetInlineBotResults(botID string, query string) (int, error) {
@@ -20939,12 +20821,6 @@ func (t *TelegramCore) GetPassword() (*tg.AccountPassword, error) {
 	return api.AccountGetPassword(ctx)
 }
 
-type PasskeyInfo struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	Date int    `json:"date"`
-}
-
 func (t *TelegramCore) GetPasskeyList() ([]PasskeyInfo, error) {
 	api, ctx, err := t.WithAPI()
 	if err != nil {
@@ -20959,21 +20835,6 @@ func (t *TelegramCore) GetPasskeyList() ([]PasskeyInfo, error) {
 		out[i] = PasskeyInfo{ID: pk.ID, Name: pk.Name, Date: pk.Date}
 	}
 	return out, nil
-}
-
-type CloudPasswordState struct {
-	HasPassword             bool   `json:"hasPassword"`
-	HasRecovery             bool   `json:"hasRecovery"`
-	Hint                    string `json:"hint"`
-	EmailUnconfirmedPattern string `json:"emailUnconfirmedPattern"`
-	PendingResetDate        int    `json:"pendingResetDate"`
-	LoginEmailPattern       string `json:"loginEmailPattern"`
-}
-
-type PasswordResetResult struct {
-	Done      bool `json:"done"`
-	UntilDate int  `json:"untilDate"`
-	RetryDate int  `json:"retryDate"`
 }
 
 func (t *TelegramCore) GetCloudPasswordState() (CloudPasswordState, error) {
@@ -22375,11 +22236,6 @@ func (t *TelegramCore) GetPublicLinksLimits() (freeLimit, premiumLimit int, err 
 	return freeLimit, premiumLimit, nil
 }
 
-type ForumTopicIconInfo struct {
-	DocumentID int64  `json:"document_id"`
-	Emoji      string `json:"emoji"`
-}
-
 func (t *TelegramCore) GetForumTopicDefaultIcons() ([]ForumTopicIconInfo, error) {
 	api, ctx, err := t.WithAPI()
 	if err != nil {
@@ -22412,12 +22268,6 @@ func (t *TelegramCore) GetForumTopicDefaultIcons() ([]ForumTopicIconInfo, error)
 		}
 	}
 	return icons, nil
-}
-
-type ChannelUsernameInfo struct {
-	Username string `json:"username"`
-	Active   bool   `json:"active"`
-	Editable bool   `json:"editable"`
 }
 
 func (t *TelegramCore) GetChannelUsernames(chatID string) ([]ChannelUsernameInfo, error) {
@@ -25870,29 +25720,6 @@ func (t *TelegramCore) HelpGetPeerColors(hash int) (tg.HelpPeerColorsClass, erro
 	return api.HelpGetPeerColors(ctx, hash)
 }
 
-type PeerColorEntry struct {
-	ColorID         int   `json:"color_id"`
-	DayColors       []int `json:"day_colors"`
-	NightColors     []int `json:"night_colors"`
-	Hidden          bool  `json:"hidden"`
-	ChannelMinLevel int   `json:"channel_min_level"`
-	GroupMinLevel   int   `json:"group_min_level"`
-}
-
-type CloudThemeInfo struct {
-	ID          int64  `json:"id"`
-	AccessHash  int64  `json:"access_hash"`
-	Title       string `json:"title"`
-	Slug        string `json:"slug"`
-	IsCreator   bool   `json:"is_creator"`
-	DocumentId  int64  `json:"document_id"`
-	AccentColor int    `json:"accent_color"`
-	BgColor     int    `json:"bg_color"`
-	SentColor   int    `json:"sent_color"`
-	RecvColor   int    `json:"recv_color"`
-	IsDark      bool   `json:"is_dark"`
-}
-
 func inflateStrippedThumb(stripped []byte) []byte {
 	if len(stripped) < 3 {
 		return stripped
@@ -25960,26 +25787,6 @@ func inflateStrippedThumb(stripped []byte) []byte {
 	result = append(result, stripped[3:]...)
 	result = append(result, footer...)
 	return result
-}
-
-type WallpaperInfo struct {
-	ID         int64  `json:"id"`
-	Slug       string `json:"slug"`
-	Pattern    bool   `json:"pattern"`
-	Dark       bool   `json:"dark"`
-	Default    bool   `json:"default"`
-	Creator    bool   `json:"creator,omitempty"`
-	Colors     []int  `json:"colors,omitempty"`
-	Rotation   int    `json:"rotation"`
-	Blurred    bool   `json:"blurred"`
-	Motion     bool   `json:"motion,omitempty"`
-	Intensity  int    `json:"intensity,omitempty"`
-	AccessHash int64  `json:"access_hash,omitempty"`
-	ThumbB64   string `json:"thumb_b64,omitempty"`
-	IsPhoto    bool   `json:"is_photo,omitempty"`
-	DocID      int64  `json:"doc_id,omitempty"`
-	DocHash    int64  `json:"doc_hash,omitempty"`
-	DocRef     string `json:"doc_ref,omitempty"`
 }
 
 func (t *TelegramCore) WallpaperFromWire(wp tg.WallPaperClass) WallpaperInfo {
@@ -26166,16 +25973,6 @@ func (t *TelegramCore) DownloadWallpaperDocument(docID int64, accessHash int64, 
 		return nil, fmt.Errorf("download wallpaper doc: %w", err)
 	}
 	return buf.Bytes(), nil
-}
-
-type ChatThemeInfo struct {
-	Emoticon         string `json:"emoticon"`
-	ID               int64  `json:"id"`
-	IsDark           bool   `json:"is_dark"`
-	AccentColor      int    `json:"accent_color"`
-	MessageColors    []int  `json:"message_colors,omitempty"`
-	BgColors         []int  `json:"bg_colors,omitempty"`
-	PatternIntensity int    `json:"pattern_intensity,omitempty"`
 }
 
 func (t *TelegramCore) GetChatThemesList() ([]ChatThemeInfo, error) {
@@ -26506,12 +26303,27 @@ func (t *TelegramCore) ensurePreAuthAPI() (*tg.Client, context.Context, error) {
 	return api, ctx, nil
 }
 
-func (t *TelegramCore) LangpackGetLanguages(langpack string) ([]tg.LangPackLanguage, error) {
+func (t *TelegramCore) LangpackGetLanguages(langpack string) ([]LangPackInfo, error) {
 	api, ctx, err := t.ensurePreAuthAPI()
 	if err != nil {
 		return nil, err
 	}
-	return api.LangpackGetLanguages(ctx, langpack)
+	langs, err := api.LangpackGetLanguages(ctx, langpack)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]LangPackInfo, 0, len(langs))
+	for _, l := range langs {
+		result = append(result, LangPackInfo{
+			LangCode:   l.LangCode,
+			Name:       l.Name,
+			NativeName: l.NativeName,
+			Official:   l.Official,
+			Rtl:        l.Rtl,
+			Beta:       l.Beta,
+		})
+	}
+	return result, nil
 }
 
 func (t *TelegramCore) LangpackGetStrings(request *tg.LangpackGetStringsRequest) ([]tg.LangPackStringClass, error) {
@@ -26715,18 +26527,6 @@ func (t *TelegramCore) ClearCallHistory(revoke bool) error {
 		}
 	}
 	return nil
-}
-
-type CallHistoryEntry struct {
-	MsgID      string `json:"msg_id"`
-	PeerID     string `json:"peer_id"`
-	PeerName   string `json:"peer_name"`
-	AvatarPath string `json:"avatar_path,omitempty"`
-	Timestamp  int64  `json:"timestamp"`
-	Duration   int    `json:"duration"`
-	IsOutgoing bool   `json:"is_outgoing"`
-	IsMissed   bool   `json:"is_missed"`
-	IsVideo    bool   `json:"is_video"`
 }
 
 func (t *TelegramCore) GetCallHistory(offsetID int, limit int) ([]CallHistoryEntry, error) {
@@ -29425,12 +29225,27 @@ func (t *TelegramCore) UploadGetFileHashes(request *tg.UploadGetFileHashesReques
 	return api.UploadGetFileHashes(ctx, request)
 }
 
-func (t *TelegramCore) UploadGetWebFile(request *tg.UploadGetWebFileRequest) (*tg.UploadWebFile, error) {
+func (t *TelegramCore) GetGeoWebTile(q GeoWebFileQuery) ([]byte, error) {
 	api, ctx, err := t.WithAPI()
 	if err != nil {
 		return nil, err
 	}
-	return api.UploadGetWebFile(ctx, request)
+	result, err := api.UploadGetWebFile(ctx, &tg.UploadGetWebFileRequest{
+		Location: &tg.InputWebFileGeoPointLocation{
+			GeoPoint:   &tg.InputGeoPoint{Lat: q.Lat, Long: q.Long},
+			AccessHash: q.AccessHash,
+			W:          q.W,
+			H:          q.H,
+			Zoom:       q.Zoom,
+			Scale:      q.Scale,
+		},
+		Offset: 0,
+		Limit:  1048576,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result.Bytes, nil
 }
 
 func (t *TelegramCore) UploadReuploadCDNFile(request *tg.UploadReuploadCDNFileRequest) ([]tg.FileHash, error) {
@@ -31174,13 +30989,6 @@ func (t *TelegramCore) MuteChatFor(chatID string, durationSeconds int32) error {
 		Settings: settings,
 	})
 	return err
-}
-
-type ChatNotifySettings struct {
-	Muted        bool
-	MuteUntil    int32
-	SoundOn      bool
-	ShowPreviews bool
 }
 
 func NotifySoundOn(s tg.NotificationSoundClass) bool {
