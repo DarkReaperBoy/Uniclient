@@ -116,6 +116,45 @@ func TestSearchFilterMatchesUsername(t *testing.T) {
 	}
 }
 
+func TestSearchFilterTranslitAndLayout(t *testing.T) {
+	nowMs := localMs(2026, time.November, 30, 15, 0)
+	dima := usernameChatWire(nowMs, "77", "Дима", "")
+	privet := usernameChatWire(nowMs, "88", "Привет Мир", "")
+	latin := usernameChatWire(nowMs, "99", "Dima", "")
+	m := applyEngineEvent(t, feedsModel(t, 1440, 900), chatSnapshotWire("tele_02", dima+","+privet+","+latin, nowMs))
+	if !eqRowNames(filterRowNames(t, m), "Дима", "Привет Мир", "Dima") {
+		t.Fatalf("unfiltered rows = %v", filterRowNames(t, m))
+	}
+	m = typeSearch(t, m, "dima")
+	if !eqRowNames(filterRowNames(t, m), "Дима", "Dima") {
+		t.Fatalf("query 'dima' must match the translit of Дима and the latin Dima: %v", filterRowNames(t, m))
+	}
+	m = backspaceSearch(t, m, 4)
+	m = typeSearch(t, m, "ghbdtn")
+	if !eqRowNames(filterRowNames(t, m), "Привет Мир") {
+		t.Fatalf("query 'ghbdtn' (wrong keyboard layout) must match Привет: %v", filterRowNames(t, m))
+	}
+	m = backspaceSearch(t, m, 6)
+	m = typeSearch(t, m, "lbvf")
+	if !eqRowNames(filterRowNames(t, m), "Дима") {
+		t.Fatalf("query 'lbvf' must match Дима through the layout switch: %v", filterRowNames(t, m))
+	}
+	m = backspaceSearch(t, m, 4)
+	m = typeSearch(t, m, "вшьф")
+	if !eqRowNames(filterRowNames(t, m), "Дима", "Dima") {
+		t.Fatalf("query 'вшьф' matches Dima and Дима (whose translit 'Dima' switches to the same word): %v", filterRowNames(t, m))
+	}
+	m = backspaceSearch(t, m, 4)
+	m = typeSearch(t, m, "дима")
+	if !eqRowNames(filterRowNames(t, m), "Дима") {
+		t.Fatalf("query 'дима' matches the cyrillic name directly: %v", filterRowNames(t, m))
+	}
+	m = backspaceSearch(t, m, 4)
+	if !eqRowNames(filterRowNames(t, m), "Дима", "Привет Мир", "Dima") {
+		t.Fatalf("cleared filter rows = %v", filterRowNames(t, m))
+	}
+}
+
 func TestSearchFilterGarbageQueryShowsAll(t *testing.T) {
 	m := filteredChatsModel(t)
 	m = typeSearch(t, m, "!!! ")

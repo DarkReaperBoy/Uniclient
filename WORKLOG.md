@@ -90,6 +90,41 @@ owner order — that history lives in git if ever needed.
   tests/ui, ui/dialogs, ui/history native; ui/app + renders + window + cmd
   via windows vet), gofmt clean, comment ban clean (376 files).
 
+- Atomic 3 (the reference matching law completes — translit + keyboard
+  layout, fillNames seams 2/3, tdesktop core/utils.cpp + data_peer.cpp
+  fetched this session): translitRusEng (the 5 word overrides + 6
+  double-letter pairs + the full single-letter Cyrillic map, ported
+  verbatim), rusKeyboardLayoutSwitch (eng<->rus AND eng<->ukr row maps,
+  32 positions incl. the [] ;' , . slots, both cases both directions; rus
+  == ukr -> single variant, else both space-joined), hasRussianLetters
+  ([а-яА-ЯёЁ]); NameWords = words of [folded name, translit if Cyrillic,
+  username] + the layout switch of the whole joined string — the reference
+  compounding pinned (Дима -> translit 'Dima' -> switch 'вшьф', so a
+  wrong-layout query matches both the Cyrillic row and its Latin twin).
+  BONUS BUG FOUND + FIXED (pre-existing, session-411): foldAccents was
+  NFD+Mn-strip — it destroyed й (breve) -> и and, per the reference's own
+  RemoveOneAccent table (case 1105), DIVERGED on ё (ours kept it, the
+  reference folds ё->е BEFORE translit — 'Соловьёв' indexes 'solovyev'
+  through the ье->ye double, not 'solovyov'). Replaced with removeAccents,
+  a mechanical 1:1 port of lib_ui's RemoveOneAccent table (695 entries
+  extracted programmatically from the fetched source — zero hand-typing) +
+  the IsDiacritic drop law (Mn + U+0674 + U+FC7E-FC89); й survives, ё
+  folds, Latin accents fold, unmapped scripts pass through. Red->green:
+  TestNameWordsTranslitLaw + TestNameWordsKeyboardLayoutLaw (index pins
+  incl. the ukr divergent slots ъ/ы/э <-> ї/і/є: 'S' -> ы AND і) +
+  TestSearchFilterTranslitAndLayout (driven journeys: 'dima' -> [Дима,
+  Dima], 'ghbdtn' -> [Привет Мир], 'lbvf' -> [Дима], 'вшьф' -> [Дима,
+  Dima]); red seen: NameWords("Дима","") = [дима] want dima inside;
+  NameWords("Привет","") = [привет] want ghbdtn; gui 'dima' -> [Dima].
+  The username-law dedup pin updated in-commit to the full index law
+  (NameWords("Alice Smith","alice") = [alice smith фдшсу ыьшер іьшер] —
+  Smith's s hits the divergent slot). NOTE: the й-breve corruption was
+  invisible before this session because nothing indexed Cyrillic names.
+- Gates (atomic 3): quick gate GREEN (scoped: tests/engine 6.3s, tests/gui,
+  tests/ui, ui/dialogs, ui/history native; renders + window + cmd via
+  windows vet), js/wasm full-tree build green, gofmt clean, comment ban
+  clean (376 files).
+
 ## Session 414 — D-3 closed in two atomics: engine decoupling + the raw-TCP js exclusion (2026-11-10)
 
 - Boot: sandbox recycled — toolchain + module cache survived under ../toolchain

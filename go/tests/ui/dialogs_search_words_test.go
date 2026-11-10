@@ -69,12 +69,12 @@ func TestNameWordsUsernameLaw(t *testing.T) {
 
 func TestNameWordsDedup(t *testing.T) {
 	index := NameWords("Alice", "alice")
-	if len(index) != 1 || index[0] != "alice" {
-		t.Fatalf("NameWords(Alice, alice) = %v, want [alice]", index)
+	if len(index) != 2 || index[0] != "alice" || index[1] != "фдшсу" {
+		t.Fatalf("NameWords(Alice, alice) = %v, want [alice фдшсу]", index)
 	}
 	index = NameWords("Alice Smith", "alice")
-	if len(index) != 2 || index[0] != "alice" || index[1] != "smith" {
-		t.Fatalf("NameWords(Alice Smith, alice) = %v, want [alice smith]", index)
+	if len(index) != 5 || index[0] != "alice" || index[1] != "smith" || index[2] != "фдшсу" || index[3] != "ыьшер" || index[4] != "іьшер" {
+		t.Fatalf("NameWords(Alice Smith, alice) = %v, want [alice smith фдшсу ыьшер іьшер]", index)
 	}
 	index = NameWords("", "")
 	if len(index) != 0 {
@@ -110,6 +110,97 @@ func TestMatchesNameWordsPrefixLaw(t *testing.T) {
 		got := MatchesNameWords(NameWords(tc.title, ""), SearchWords(tc.query))
 		if got != tc.want {
 			t.Fatalf("%s: MatchesNameWords(NameWords(%q, \"\"), %q) = %v, want %v", tc.name, tc.title, tc.query, got, tc.want)
+		}
+	}
+}
+
+func indexHas(index []string, want ...string) bool {
+	for _, w := range want {
+		found := false
+		for _, nw := range index {
+			if nw == w {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}
+
+func TestNameWordsTranslitLaw(t *testing.T) {
+	cases := []struct {
+		name  string
+		title string
+		words []string
+	}{
+		{"cyrillic name translits", "Дима", []string{"dima", "дима"}},
+		{"word override upper", "Александр", []string{"alexander"}},
+		{"word override lower", "александр", []string{"alexander"}},
+		{"double кс folds to x", "Макс", []string{"max"}},
+		{"double ий folds to y", "Дмитрий", []string{"dmitry"}},
+		{"ё folds to е then ье doubles to ye", "Соловьёв", []string{"соловьев", "solovyev"}},
+		{"ukrainian letters carry", "Євген", []string{"yevgen"}},
+	}
+	for _, tc := range cases {
+		if got := NameWords(tc.title, ""); !indexHas(got, tc.words...) {
+			t.Fatalf("%s: NameWords(%q, \"\") = %v, want %v inside", tc.name, tc.title, got, tc.words)
+		}
+	}
+	match := []struct {
+		title string
+		query string
+		want  bool
+	}{
+		{"Дима", "dima", true},
+		{"Дима", "dim", true},
+		{"Дмитрий", "dmi", true},
+		{"Dima", "дима", false},
+		{"Привет", "priv", true},
+	}
+	for _, tc := range match {
+		got := MatchesNameWords(NameWords(tc.title, ""), SearchWords(tc.query))
+		if got != tc.want {
+			t.Fatalf("MatchesNameWords(NameWords(%q, \"\"), %q) = %v, want %v", tc.title, tc.query, got, tc.want)
+		}
+	}
+}
+
+func TestNameWordsKeyboardLayoutLaw(t *testing.T) {
+	cases := []struct {
+		name  string
+		title string
+		words []string
+	}{
+		{"cyrillic name carries eng layout", "Привет", []string{"ghbdtn"}},
+		{"latin name carries rus layout", "Dima", []string{"вшьф"}},
+		{"mixed case name carries layout", "Мария", []string{"vfhbz"}},
+		{"translit twin carries its switch", "Дима", []string{"lbvf", "вшьф"}},
+		{"divergent ukr slot splits into both", "ъыэ", []string{"s", "ъыэ"}},
+		{"divergent eng s gives ы and і", "S", []string{"ы", "і"}},
+	}
+	for _, tc := range cases {
+		if got := NameWords(tc.title, ""); !indexHas(got, tc.words...) {
+			t.Fatalf("%s: NameWords(%q, \"\") = %v, want %v inside", tc.name, tc.title, got, tc.words)
+		}
+	}
+	match := []struct {
+		title string
+		query string
+		want  bool
+	}{
+		{"Привет", "ghbdtn", true},
+		{"Дима", "lbvf", true},
+		{"Dima", "вшьф", true},
+		{"Привет", "ghbd", true},
+		{"Привет", "ghbdtnx", false},
+	}
+	for _, tc := range match {
+		got := MatchesNameWords(NameWords(tc.title, ""), SearchWords(tc.query))
+		if got != tc.want {
+			t.Fatalf("MatchesNameWords(NameWords(%q, \"\"), %q) = %v, want %v", tc.title, tc.query, got, tc.want)
 		}
 	}
 }
