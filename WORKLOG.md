@@ -26,8 +26,10 @@ owner order — that history lives in git if ever needed.
   clean (ring #6750A4, glyphs 'ma' 82 px @ x20..71, caret follows,
   backspace clears; prompt center (976,449) = chat-pane center), 390x844
   single-pane clean; console + page errors EMPTY both shapes. CI on
-  4b3f0906: Build #11 + Verify #409 GREEN (this push rides the next
-  dispatch).
+  e627f27a (session 411's push): Build #12 (42794239998) all five jobs
+  + Verify #410 (42794272952) all jobs+steps GREEN (comment ban, gofmt,
+  vet, live vet, test, race, headless smoke, windows + js/wasm cross,
+  nix) + Pages deploy (42794891393) fresh.
 
 ## Open items
 
