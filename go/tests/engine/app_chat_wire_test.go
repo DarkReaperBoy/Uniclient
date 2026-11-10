@@ -162,6 +162,51 @@ func TestMsgReceivedWireAppendsToOpenChat(t *testing.T) {
 	}
 }
 
+func TestChatUpdatedWireRefreshesRows(t *testing.T) {
+	e := newTestEngine(t)
+	msgTs := time.Date(2026, time.November, 30, 14, 2, 0, 0, time.Local).UnixMilli()
+	snapshotRaw := findEvent(t, e, EventChatSnapshot, func() {
+		if err := e.SyncChats("a1", []cores.Dialog{wireDialog("m1", "release notes", msgTs)}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	updatedRaw := findEvent(t, e, EventChatUpdated, func() {
+		e.HandleUpdate("a1", cores.Update{
+			Type:   cores.UpdateReadState,
+			ChatID: "c1",
+			ReadState: &cores.ReadState{
+				MyLastRead: "m1",
+			},
+		})
+	})
+	m := app.InitialModel()
+	m.Accounts = []app.Account{{ID: "a1", SortOrder: 0}}
+	next, _ := app.Update(m, app.EngineEventMsg{Data: snapshotRaw})
+	if len(next.Dialogs.Rows) != 1 {
+		t.Fatalf("snapshot rows = %d, want 1", len(next.Dialogs.Rows))
+	}
+	if next.Dialogs.Rows[0].Unread != 5 {
+		t.Fatalf("snapshot row unread = %d, want 5 before the read state", next.Dialogs.Rows[0].Unread)
+	}
+	next, _ = app.Update(next, app.EngineEventMsg{Data: updatedRaw})
+	if len(next.Dialogs.Rows) != 1 {
+		t.Fatalf("update rows = %d, want 1", len(next.Dialogs.Rows))
+	}
+	row := next.Dialogs.Rows[0]
+	if row.Unread != 0 {
+		t.Fatalf("real read-state update must clear the unread counter: %+v", row)
+	}
+	if !row.UnreadMark || !row.Mention || !row.Reaction {
+		t.Fatalf("mention/reaction/mark are tracked apart from read state and must persist: %+v", row)
+	}
+	if row.Name != "Dev Crew" || row.Preview != "bob: release notes" || !row.Pinned {
+		t.Fatalf("real read-state update must keep the rest of the row: %+v", row)
+	}
+	if next.Dialogs.Selected != -1 {
+		t.Fatalf("update without a selection must not select: %d", next.Dialogs.Selected)
+	}
+}
+
 func TestGetMessagesPortEmptyChat(t *testing.T) {
 	e := newTestEngine(t)
 	port := appport.For(e.Engine)

@@ -406,6 +406,258 @@ func appendLive(t *testing.T, m Model, nowMs int64, id, text string, ts int64) M
 		`,"status":2,"is_outgoing":false,"is_service":false}}}`)
 }
 
+func chatUpdatedWire(accountID string, chat string, nowMs int64) string {
+	return fmt.Sprintf(`{"type":"chat_updated","account_id":%q,"timestamp_ms":%d,"data":{"chat":%s}}`,
+		accountID, nowMs, chat)
+}
+
+func TestChatUpdatedReplacesRowContent(t *testing.T) {
+	nowMs := localMs(2026, time.November, 30, 15, 0)
+	alice := snapshotChats(nowMs, "77", "Alice", "hi", 1, "", false, 0, 2, false)
+	bob := snapshotChats(nowMs, "88", "Bob", "yo", 1, "", false, 0, 0, false)
+	m := applyEngineEvent(t, feedsModel(t, 1440, 900), chatSnapshotWire("tele_02", alice+","+bob, nowMs))
+	updated := fmt.Sprintf(`{"account_id":"tele_02","chat_id":"77","type":1,"title":"Alice Smith",`+
+		`"last_msg_text":"new message","last_msg_time":%d,"last_msg_sender":"",`+
+		`"last_msg_is_outgoing":false,"last_msg_status":2,"unread_count":0,`+
+		`"unread_mention_count":1,"unread_mark":true,"is_muted":true,"is_pinned":false,`+
+		`"is_bot":false,"is_forum":false}`, localMs(2026, time.November, 30, 14, 30))
+	m = applyEngineEvent(t, m, chatUpdatedWire("tele_02", updated, nowMs))
+	if len(m.Dialogs.Rows) != 2 {
+		t.Fatalf("update must not change row count, rows = %d", len(m.Dialogs.Rows))
+	}
+	row := m.Dialogs.Rows[1]
+	if row.Name != "Alice Smith" || row.Preview != "new message" || row.Unread != 0 ||
+		!row.UnreadMark || !row.Mention || !row.UnreadMuted {
+		t.Fatalf("updated row content wrong: %+v", row)
+	}
+	if row.Date != "14:30" {
+		t.Fatalf("updated row date = %q, want 14:30", row.Date)
+	}
+	other := m.Dialogs.Rows[0]
+	if other.Name != "Bob" || other.Preview != "yo" || other.Unread != 0 || other.UnreadMark {
+		t.Fatalf("untouched row mutated: %+v", other)
+	}
+}
+
+func TestChatUpdatedMovesRowByEngineListLaw(t *testing.T) {
+	nowMs := localMs(2026, time.November, 30, 15, 0)
+	older := fmt.Sprintf(`{"account_id":"tele_02","chat_id":"77","type":1,"title":"Alice",`+
+		`"last_msg_text":"old","last_msg_time":%d,"last_msg_is_outgoing":false,`+
+		`"last_msg_status":2,"unread_count":0,"is_muted":false,"is_pinned":false,`+
+		`"is_bot":false,"is_forum":false}`, localMs(2026, time.November, 30, 14, 0))
+	newest := fmt.Sprintf(`{"account_id":"tele_02","chat_id":"88","type":1,"title":"Bob",`+
+		`"last_msg_text":"newest","last_msg_time":%d,"last_msg_is_outgoing":false,`+
+		`"last_msg_status":2,"unread_count":0,"is_muted":false,"is_pinned":false,`+
+		`"is_bot":false,"is_forum":false}`, localMs(2026, time.November, 30, 14, 59))
+	m := applyEngineEvent(t, feedsModel(t, 1440, 900), chatSnapshotWire("tele_02", older+","+newest, nowMs))
+	if m.Dialogs.Rows[0].ChatID != "88" {
+		t.Fatalf("test setup: newest row must start on top, got %+v", m.Dialogs.Rows)
+	}
+	bumped := fmt.Sprintf(`{"account_id":"tele_02","chat_id":"77","type":1,"title":"Alice",`+
+		`"last_msg_text":"just landed","last_msg_time":%d,"last_msg_is_outgoing":false,`+
+		`"last_msg_status":2,"unread_count":1,"is_muted":false,"is_pinned":false,`+
+		`"is_bot":false,"is_forum":false}`, nowMs-10000)
+	m = applyEngineEvent(t, m, chatUpdatedWire("tele_02", bumped, nowMs))
+	if m.Dialogs.Rows[0].ChatID != "77" || m.Dialogs.Rows[1].ChatID != "88" {
+		t.Fatalf("fresher last message must move the row on top: %+v", m.Dialogs.Rows)
+	}
+	if m.Dialogs.Rows[0].Preview != "just landed" {
+		t.Fatalf("moved row must carry the new preview: %+v", m.Dialogs.Rows[0])
+	}
+}
+
+func TestChatUpdatedPinnedLaw(t *testing.T) {
+	nowMs := localMs(2026, time.November, 30, 15, 0)
+	pinned := fmt.Sprintf(`{"account_id":"tele_02","chat_id":"77","type":1,"title":"Pinned Old",`+
+		`"last_msg_text":"old","last_msg_time":%d,"last_msg_is_outgoing":false,`+
+		`"last_msg_status":2,"unread_count":0,"is_pinned":true,"is_bot":false,"is_forum":false}`,
+		localMs(2026, time.November, 30, 10, 0))
+	fresh := fmt.Sprintf(`{"account_id":"tele_02","chat_id":"88","type":1,"title":"Fresh",`+
+		`"last_msg_text":"newest","last_msg_time":%d,"last_msg_is_outgoing":false,`+
+		`"last_msg_status":2,"unread_count":0,"is_pinned":false,"is_bot":false,"is_forum":false}`,
+		nowMs-5000)
+	m := applyEngineEvent(t, feedsModel(t, 1440, 900), chatSnapshotWire("tele_02", pinned+","+fresh, nowMs))
+	if m.Dialogs.Rows[0].ChatID != "77" {
+		t.Fatalf("test setup: pinned row must start on top: %+v", m.Dialogs.Rows)
+	}
+	newestUnpinned := fmt.Sprintf(`{"account_id":"tele_02","chat_id":"88","type":1,"title":"Fresh",`+
+		`"last_msg_text":"even newer","last_msg_time":%d,"last_msg_is_outgoing":false,`+
+		`"last_msg_status":2,"unread_count":0,"is_pinned":false,"is_bot":false,"is_forum":false}`,
+		nowMs-1000)
+	m = applyEngineEvent(t, m, chatUpdatedWire("tele_02", newestUnpinned, nowMs))
+	if m.Dialogs.Rows[0].ChatID != "77" || m.Dialogs.Rows[1].ChatID != "88" {
+		t.Fatalf("pinned row must stay above a newer unpinned row: %+v", m.Dialogs.Rows)
+	}
+	nowPinned := fmt.Sprintf(`{"account_id":"tele_02","chat_id":"88","type":1,"title":"Fresh",`+
+		`"last_msg_text":"even newer","last_msg_time":%d,"last_msg_is_outgoing":false,`+
+		`"last_msg_status":2,"unread_count":0,"is_pinned":true,"is_bot":false,"is_forum":false}`,
+		nowMs-1000)
+	m = applyEngineEvent(t, m, chatUpdatedWire("tele_02", nowPinned, nowMs))
+	if m.Dialogs.Rows[0].ChatID != "88" || m.Dialogs.Rows[1].ChatID != "77" {
+		t.Fatalf("newly pinned newer row must rise above the older pinned: %+v", m.Dialogs.Rows)
+	}
+}
+
+func TestChatUpdatedInsertsNewChatRow(t *testing.T) {
+	nowMs := localMs(2026, time.November, 30, 15, 0)
+	alice := snapshotChats(nowMs, "77", "Alice", "hi", 1, "", false, 0, 0, false)
+	m := applyEngineEvent(t, feedsModel(t, 1440, 900), chatSnapshotWire("tele_02", alice, nowMs))
+	stranger := fmt.Sprintf(`{"account_id":"tele_02","chat_id":"55","type":1,"title":"Stranger",`+
+		`"last_msg_text":"hello there","last_msg_time":%d,"last_msg_is_outgoing":false,`+
+		`"last_msg_status":2,"unread_count":1,"is_muted":false,"is_pinned":false,`+
+		`"is_bot":false,"is_forum":false}`, nowMs-30000)
+	m = applyEngineEvent(t, m, chatUpdatedWire("tele_02", stranger, nowMs))
+	if len(m.Dialogs.Rows) != 2 {
+		t.Fatalf("update for an unseen chat must insert a row, rows = %d", len(m.Dialogs.Rows))
+	}
+	if m.Dialogs.Rows[0].ChatID != "55" || m.Dialogs.Rows[0].Name != "Stranger" ||
+		m.Dialogs.Rows[0].Unread != 1 || m.Dialogs.Rows[1].ChatID != "77" {
+		t.Fatalf("inserted row must sort by last message time: %+v", m.Dialogs.Rows)
+	}
+}
+
+func TestChatUpdatedDroppedWithoutSnapshot(t *testing.T) {
+	nowMs := localMs(2026, time.November, 30, 15, 0)
+	m := feedsModel(t, 1440, 900)
+	stranger := snapshotChats(nowMs, "55", "Stranger", "hi", 1, "", false, 0, 0, false)
+	m = applyEngineEvent(t, m, chatUpdatedWire("tele_02", stranger, nowMs))
+	if len(m.Dialogs.Rows) != 0 {
+		t.Fatalf("update before any snapshot must not fabricate rows: %+v", m.Dialogs.Rows)
+	}
+}
+
+func TestChatUpdatedDroppedShapes(t *testing.T) {
+	nowMs := localMs(2026, time.November, 30, 15, 0)
+	alice := snapshotChats(nowMs, "77", "Alice", "hi", 1, "", false, 0, 0, false)
+	base := applyEngineEvent(t, feedsModel(t, 1440, 900), chatSnapshotWire("tele_02", alice, nowMs))
+	for name, wire := range map[string]string{
+		"empty-data":  `{"type":"chat_updated","account_id":"tele_02","timestamp_ms":1,"data":{}}`,
+		"chat-null":   `{"type":"chat_updated","account_id":"tele_02","timestamp_ms":1,"data":{"chat":null}}`,
+		"legacy-keys": `{"type":"chat_updated","account_id":"tele_02","timestamp_ms":1,"data":{"account_id":"tele_02","chat_id":"77"}}`,
+		"bad-data":    `{"type":"chat_updated","account_id":"tele_02","timestamp_ms":1,"data":{"chat":"no"}}`,
+		"no-payload":  `{"type":"chat_updated","account_id":"tele_02","timestamp_ms":1}`,
+		"no-chat-id":  `{"type":"chat_updated","account_id":"tele_02","timestamp_ms":1,"data":{"chat":{"title":"No ID","unread_count":9}}}`,
+		"unknown-acc": chatUpdatedWire("ghost_09", snapshotChats(nowMs, "77", "Alice", "hi", 1, "", false, 0, 0, false), nowMs),
+	} {
+		next := applyEngineEvent(t, base, wire)
+		if len(next.Dialogs.Rows) != 1 || next.Dialogs.Rows[0].ChatID != "77" ||
+			next.Dialogs.Rows[0].Unread != 0 {
+			t.Fatalf("%s mutated rows: %+v", name, next.Dialogs.Rows)
+		}
+	}
+}
+
+func TestChatUpdatedSelectionFollowsMovedRow(t *testing.T) {
+	nowMs := localMs(2026, time.November, 30, 15, 0)
+	older := fmt.Sprintf(`{"account_id":"tele_02","chat_id":"77","type":1,"title":"Alice",`+
+		`"last_msg_text":"old","last_msg_time":%d,"last_msg_is_outgoing":false,`+
+		`"last_msg_status":2,"unread_count":0,"is_muted":false,"is_pinned":false,`+
+		`"is_bot":false,"is_forum":false}`, localMs(2026, time.November, 30, 14, 0))
+	newer := fmt.Sprintf(`{"account_id":"tele_02","chat_id":"88","type":1,"title":"Bob",`+
+		`"last_msg_text":"newest","last_msg_time":%d,"last_msg_is_outgoing":false,`+
+		`"last_msg_status":2,"unread_count":0,"is_muted":false,"is_pinned":false,`+
+		`"is_bot":false,"is_forum":false}`, localMs(2026, time.November, 30, 14, 59))
+	m := applyEngineEvent(t, feedsModel(t, 1440, 900), chatSnapshotWire("tele_02", older+","+newer, nowMs))
+	m, _ = Update(m, DialogRowPressed{Index: 1})
+	if m.Dialogs.Selected != 1 || m.Dialogs.Rows[1].ChatID != "77" {
+		t.Fatalf("test setup: selection wrong: idx=%d chat=%q", m.Dialogs.Selected, m.Dialogs.Rows[m.Dialogs.Selected].ChatID)
+	}
+	bumped := fmt.Sprintf(`{"account_id":"tele_02","chat_id":"77","type":1,"title":"Alice",`+
+		`"last_msg_text":"bumped","last_msg_time":%d,"last_msg_is_outgoing":false,`+
+		`"last_msg_status":2,"unread_count":0,"is_muted":false,"is_pinned":false,`+
+		`"is_bot":false,"is_forum":false}`, nowMs-10000)
+	m = applyEngineEvent(t, m, chatUpdatedWire("tele_02", bumped, nowMs))
+	if m.Dialogs.Selected != 0 || m.Dialogs.Rows[0].ChatID != "77" {
+		t.Fatalf("selection must follow the moved row: idx=%d chat=%q", m.Dialogs.Selected,
+			m.Dialogs.Rows[max(m.Dialogs.Selected, 0)].ChatID)
+	}
+}
+
+func TestChatUpdatedReAppliesSearchFilter(t *testing.T) {
+	nowMs := localMs(2026, time.November, 30, 15, 0)
+	alice := snapshotChats(nowMs, "77", "Alice", "a", 1, "", false, 0, 0, false)
+	bob := snapshotChats(nowMs, "88", "Bob", "b", 1, "", false, 0, 0, false)
+	m := applyEngineEvent(t, feedsModel(t, 1440, 900), chatSnapshotWire("tele_02", alice+","+bob, nowMs))
+	m, _ = Update(m, SearchTyped{Text: "bob"})
+	if len(m.Dialogs.Rows) != 1 || m.Dialogs.Rows[0].ChatID != "88" {
+		t.Fatalf("test setup: filter must hide Alice: %+v", m.Dialogs.Rows)
+	}
+	renamed := fmt.Sprintf(`{"account_id":"tele_02","chat_id":"77","type":1,"title":"Bob Smith",`+
+		`"last_msg_text":"a","last_msg_time":%d,"last_msg_is_outgoing":false,`+
+		`"last_msg_status":2,"unread_count":0,"is_muted":false,"is_pinned":false,`+
+		`"is_bot":false,"is_forum":false}`, localMs(2026, time.November, 30, 14, 58))
+	m = applyEngineEvent(t, m, chatUpdatedWire("tele_02", renamed, nowMs))
+	if len(m.Dialogs.Rows) != 2 {
+		t.Fatalf("rename must re-apply the filter, rows = %d", len(m.Dialogs.Rows))
+	}
+	if m.Dialogs.Rows[0].ChatID != "88" || m.Dialogs.Rows[1].ChatID != "77" ||
+		m.Dialogs.Rows[1].Name != "Bob Smith" {
+		t.Fatalf("filtered order wrong after rename: %+v", m.Dialogs.Rows)
+	}
+	m, _ = Update(m, SearchBackspace{})
+	if len(m.Dialogs.Rows) != 2 || m.Dialogs.Rows[0].ChatID != "88" {
+		t.Fatalf("clearing the filter must restore the full list: %+v", m.Dialogs.Rows)
+	}
+}
+
+func TestChatUpdatedSnapshotEquivalence(t *testing.T) {
+	nowMs := localMs(2026, time.November, 30, 15, 0)
+	alice := snapshotChats(nowMs, "77", "Alice", "old", 1, "", false, 0, 0, false)
+	m := applyEngineEvent(t, feedsModel(t, 1440, 900), chatSnapshotWire("tele_02", alice, nowMs))
+	moved := fmt.Sprintf(`{"account_id":"tele_02","chat_id":"77","type":1,"title":"Alice",`+
+		`"last_msg_text":"renamed msg","last_msg_time":%d,"last_msg_is_outgoing":false,`+
+		`"last_msg_status":2,"unread_count":4,"is_muted":true,"is_pinned":false,`+
+		`"is_bot":false,"is_forum":false}`, nowMs-10000)
+	m = applyEngineEvent(t, m, chatUpdatedWire("tele_02", moved, nowMs))
+	inserted := fmt.Sprintf(`{"account_id":"tele_02","chat_id":"55","type":1,"title":"Stranger",`+
+		`"last_msg_text":"hello","last_msg_time":%d,"last_msg_is_outgoing":false,`+
+		`"last_msg_status":2,"unread_count":1,"is_muted":false,"is_pinned":false,`+
+		`"is_bot":false,"is_forum":false}`, localMs(2026, time.November, 30, 13, 0))
+	m = applyEngineEvent(t, m, chatUpdatedWire("tele_02", inserted, nowMs))
+	if len(m.Dialogs.Rows) != 2 {
+		t.Fatalf("update chain must keep two rows: %+v", m.Dialogs.Rows)
+	}
+	aliceAfter := fmt.Sprintf(`{"account_id":"tele_02","chat_id":"77","type":1,"title":"Alice",`+
+		`"last_msg_text":"renamed msg","last_msg_time":%d,"last_msg_is_outgoing":false,`+
+		`"last_msg_status":2,"unread_count":4,"is_muted":true,"is_pinned":false,`+
+		`"is_bot":false,"is_forum":false}`, nowMs-10000)
+	refreshed := applyEngineEvent(t, feedsModel(t, 1440, 900),
+		chatSnapshotWire("tele_02", aliceAfter+","+inserted, nowMs))
+	for i := range m.Dialogs.Rows {
+		live, fresh := m.Dialogs.Rows[i], refreshed.Dialogs.Rows[i]
+		if live.Name != fresh.Name || live.Preview != fresh.Preview || live.Date != fresh.Date ||
+			live.Unread != fresh.Unread || live.UnreadMuted != fresh.UnreadMuted ||
+			live.ChatID != fresh.ChatID || live.Account != fresh.Account {
+			t.Fatalf("row %d drifts from the snapshot equivalence: live=%+v fresh=%+v", i, live, fresh)
+		}
+	}
+}
+
+func TestChatUpdatedMapsEventBadges(t *testing.T) {
+	nowMs := localMs(2026, time.November, 30, 15, 0)
+	group := fmt.Sprintf(snapshotGroupWireTmpl, localMs(2026, time.November, 30, 14, 2))
+	m := applyEngineEvent(t, feedsModel(t, 1440, 900), chatSnapshotWire("tele_02", group, nowMs))
+	row := m.Dialogs.Rows[0]
+	if row.Unread != 5 || !row.UnreadMark || !row.Mention || !row.Reaction {
+		t.Fatalf("test setup: badges missing: %+v", row)
+	}
+	read := fmt.Sprintf(`{"account_id":"tele_02","chat_id":"-400","type":2,"title":"Dev Crew",`+
+		`"last_msg_text":"release notes","last_msg_time":%d,"last_msg_sender":"bob",`+
+		`"last_msg_is_outgoing":false,"last_msg_status":2,"unread_count":0,`+
+		`"unread_mention_count":0,"unread_reaction_count":0,"unread_mark":false,`+
+		`"is_muted":true,"is_pinned":true,"is_bot":false,"is_forum":true}`,
+		localMs(2026, time.November, 30, 14, 2))
+	m = applyEngineEvent(t, m, chatUpdatedWire("tele_02", read, nowMs))
+	row = m.Dialogs.Rows[0]
+	if row.Unread != 0 || row.UnreadMark || row.Mention || row.Reaction {
+		t.Fatalf("the event badge fields must replace the row's: %+v", row)
+	}
+	if row.Name != "Dev Crew" || row.Preview != "bob: release notes" || !row.Pinned ||
+		row.ChatType != dialogs.ChatForum {
+		t.Fatalf("non-badge content must survive the read update: %+v", row)
+	}
+}
+
 func TestFormatDialogsDateLaw(t *testing.T) {
 	loc := time.UTC
 	cases := []struct {

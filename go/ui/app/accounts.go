@@ -35,6 +35,8 @@ func (m Model) applyEngineEvent(data []byte) (Model, Cmd) {
 		return m.applyAccountList(env.Data)
 	case engineEventChatSnapshot:
 		return m.applyChatSnapshot(env)
+	case engineEventChatUpdated:
+		return m.applyChatUpdated(env)
 	case engineEventMsgReceived:
 		return m.applyMsgReceived(env)
 	}

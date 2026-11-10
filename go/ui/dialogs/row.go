@@ -48,6 +48,7 @@ type Entry struct {
 	Reaction    bool
 	Poll        bool
 	Pinned      bool
+	SortTime    int64
 	Online      bool
 	TTL         bool
 	TTLSec      int

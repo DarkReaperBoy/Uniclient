@@ -2,6 +2,7 @@ package app
 
 import (
 	"encoding/json"
+	"sort"
 	"strconv"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 
 const (
 	engineEventChatSnapshot = "chat_snapshot"
+	engineEventChatUpdated  = "chat_updated"
 	engineEventMsgReceived  = "msg_received"
 
 	chatKindDM      = 1
@@ -75,6 +77,10 @@ type snapshotData struct {
 	Chats []snapshotChat `json:"chats"`
 }
 
+type chatUpdatedData struct {
+	Chat snapshotChat `json:"chat"`
+}
+
 type receivedMessage struct {
 	MsgID       string `json:"msg_id"`
 	SenderID    string `json:"sender_id"`
@@ -113,14 +119,58 @@ func (m Model) applyChatSnapshot(env engineEnvelope) (Model, Cmd) {
 	for _, c := range d.Chats {
 		rows = append(rows, snapshotRow(c, env.AccountID, now))
 	}
-	fresh := make(map[string][]dialogs.Entry, len(m.accountRows)+1)
-	for id, r := range m.accountRows {
-		fresh[id] = r
-	}
-	fresh[env.AccountID] = rows
-	m.accountRows = fresh
+	sortDialogRows(rows)
+	m.accountRows = storeAccountRows(m.accountRows, env.AccountID, rows)
 	m.reprojectDialogRows()
 	return m, nil
+}
+
+func (m Model) applyChatUpdated(env engineEnvelope) (Model, Cmd) {
+	var d chatUpdatedData
+	if json.Unmarshal(env.Data, &d) != nil || d.Chat.ChatID == "" {
+		return m, nil
+	}
+	rows, known := m.accountRows[env.AccountID]
+	if !known {
+		return m, nil
+	}
+	fresh := make([]dialogs.Entry, len(rows))
+	copy(fresh, rows)
+	entry := snapshotRow(d.Chat, env.AccountID, time.UnixMilli(env.TimestampMs))
+	at := len(fresh)
+	for i := range fresh {
+		if fresh[i].ChatID == d.Chat.ChatID {
+			at = i
+			break
+		}
+	}
+	if at < len(fresh) {
+		fresh[at] = entry
+	} else {
+		fresh = append(fresh, entry)
+	}
+	sortDialogRows(fresh)
+	m.accountRows = storeAccountRows(m.accountRows, env.AccountID, fresh)
+	m.reprojectDialogRows()
+	return m, nil
+}
+
+func sortDialogRows(rows []dialogs.Entry) {
+	sort.SliceStable(rows, func(i, j int) bool {
+		if rows[i].Pinned != rows[j].Pinned {
+			return rows[i].Pinned
+		}
+		return rows[i].SortTime > rows[j].SortTime
+	})
+}
+
+func storeAccountRows(current map[string][]dialogs.Entry, accountID string, rows []dialogs.Entry) map[string][]dialogs.Entry {
+	fresh := make(map[string][]dialogs.Entry, len(current)+1)
+	for id, r := range current {
+		fresh[id] = r
+	}
+	fresh[accountID] = rows
+	return fresh
 }
 
 func (m *Model) reprojectDialogRows() {
@@ -199,6 +249,7 @@ func snapshotRow(c snapshotChat, accountID string, now time.Time) dialogs.Entry 
 		Mention:     c.UnreadMentionCount > 0,
 		Reaction:    c.UnreadReactionCount > 0,
 		Pinned:      c.IsPinned,
+		SortTime:    c.LastMsgTime,
 		Group:       c.Type == chatKindGroup || c.Type == chatKindTopic,
 	}
 	switch {
