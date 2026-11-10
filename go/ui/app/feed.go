@@ -62,6 +62,7 @@ type snapshotChat struct {
 	LastMsgText         string `json:"last_msg_text"`
 	LastMsgTime         int64  `json:"last_msg_time"`
 	LastMsgSender       string `json:"last_msg_sender"`
+	Username            string `json:"username"`
 	LastMsgIsOutgoing   bool   `json:"last_msg_is_outgoing"`
 	LastMsgStatus       int    `json:"last_msg_status"`
 	UnreadCount         int    `json:"unread_count"`
@@ -213,7 +214,7 @@ func (m *Model) setDialogRows(rows []dialogs.Entry, storeFeed bool) {
 	if len(words) > 0 {
 		visible = make([]dialogs.Entry, 0, len(rows))
 		for _, r := range rows {
-			if dialogs.MatchesWords(r.Name, words) {
+			if dialogs.MatchesNameWords(dialogs.NameWords(r.Name, r.Username), words) {
 				visible = append(visible, r)
 			}
 		}
@@ -244,6 +245,7 @@ func snapshotRow(c snapshotChat, accountID string, now time.Time) dialogs.Entry 
 		Account:     accountID,
 		ChatID:      c.ChatID,
 		Name:        c.Title,
+		Username:    c.Username,
 		Unread:      c.UnreadCount,
 		UnreadMark:  c.UnreadMark,
 		UnreadMuted: c.IsMuted,

@@ -75,6 +75,47 @@ func TestSearchFilterNarrowsAndWidens(t *testing.T) {
 	}
 }
 
+func usernameChatWire(nowMs int64, id, title, username string) string {
+	return fmt.Sprintf(`{"account_id":"tele_02","chat_id":%q,"type":1,"title":%q,"username":%q,`+
+		`"last_msg_text":"hi","last_msg_time":%d,"last_msg_sender":"","last_msg_is_outgoing":false,`+
+		`"last_msg_status":0,"unread_count":0,"is_muted":false,"is_pinned":false,"is_bot":false,"is_forum":false}`,
+		id, title, username, nowMs-60000)
+}
+
+func TestSearchFilterMatchesUsername(t *testing.T) {
+	nowMs := localMs(2026, time.November, 30, 15, 0)
+	alice := usernameChatWire(nowMs, "77", "Alice", "alice")
+	bob := usernameChatWire(nowMs, "88", "Bob", "bobby")
+	carol := usernameChatWire(nowMs, "99", "Carol", "")
+	m := applyEngineEvent(t, feedsModel(t, 1440, 900), chatSnapshotWire("tele_02", alice+","+bob+","+carol, nowMs))
+	if !eqRowNames(filterRowNames(t, m), "Alice", "Bob", "Carol") {
+		t.Fatalf("unfiltered rows = %v", filterRowNames(t, m))
+	}
+	m = typeSearch(t, m, "bobby")
+	if !eqRowNames(filterRowNames(t, m), "Bob") {
+		t.Fatalf("query 'bobby' must match the row's username: %v", filterRowNames(t, m))
+	}
+	m = backspaceSearch(t, m, 5)
+	m = typeSearch(t, m, "@bob")
+	if !eqRowNames(filterRowNames(t, m), "Bob") {
+		t.Fatalf("query '@bob' must match the username (the reference splits on '@'): %v", filterRowNames(t, m))
+	}
+	m = backspaceSearch(t, m, 4)
+	m = typeSearch(t, m, "alice")
+	if !eqRowNames(filterRowNames(t, m), "Alice") {
+		t.Fatalf("query 'alice' matches name and username: %v", filterRowNames(t, m))
+	}
+	m = backspaceSearch(t, m, 5)
+	m = typeSearch(t, m, "carol")
+	if !eqRowNames(filterRowNames(t, m), "Carol") {
+		t.Fatalf("query 'carol' matches the name-only row: %v", filterRowNames(t, m))
+	}
+	m = backspaceSearch(t, m, 5)
+	if !eqRowNames(filterRowNames(t, m), "Alice", "Bob", "Carol") {
+		t.Fatalf("cleared filter rows = %v", filterRowNames(t, m))
+	}
+}
+
 func TestSearchFilterGarbageQueryShowsAll(t *testing.T) {
 	m := filteredChatsModel(t)
 	m = typeSearch(t, m, "!!! ")

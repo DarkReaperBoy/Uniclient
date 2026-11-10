@@ -71,6 +71,25 @@ owner order — that history lives in git if ever needed.
   tests/engine 6.3s, appport + window + cmd via windows vet), gofmt clean,
   comment ban clean (376 files).
 
+- Atomic 2 (search matches usernames — the reference's fillNames seam 1/2,
+  tdesktop data_peer.cpp fetched this session): the row search index gains the
+  username — NameWords(name, username) []string + MatchesNameWords(index,
+  words) replace MatchesWords (one law, one API; the name-only signature
+  cannot express the row's searchable identity); SearchWords stays (query
+  side — the reference splits '@' as a word splitter, so '@bob' IS a username
+  query). Entry.Username; snapshotChat decodes json:"username" (the wire
+  carried it since GetChatList — the app dropped it); the filter projects
+  through NameWords. Red->green, red seen on the CURRENT code first:
+  TestSearchFilterMatchesUsername (wire rows Alice/@alice, Bob/@bobby,
+  Carol/- -> 'bobby' -> [Bob]: got [] before the change); + dialogs-level
+  pins TestNameWordsUsernameLaw (10 cases: username-only/name-only queries,
+  '@' split, AND-law across name+username, prefix miss, dedup) +
+  TestNameWordsDedup; the prefix-law table reshaped to the new API with
+  identical assertions.
+- Gates (atomic 2): quick gate GREEN (scoped: tests/engine 6.4s, tests/gui,
+  tests/ui, ui/dialogs, ui/history native; ui/app + renders + window + cmd
+  via windows vet), gofmt clean, comment ban clean (376 files).
+
 ## Session 414 — D-3 closed in two atomics: engine decoupling + the raw-TCP js exclusion (2026-11-10)
 
 - Boot: sandbox recycled — toolchain + module cache survived under ../toolchain

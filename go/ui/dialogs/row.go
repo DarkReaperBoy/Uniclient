@@ -38,6 +38,7 @@ const (
 
 type Entry struct {
 	Name        string
+	Username    string
 	Preview     string
 	Date        string
 	Photo       image.Image

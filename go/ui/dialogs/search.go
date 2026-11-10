@@ -46,14 +46,35 @@ func SearchWords(query string) []string {
 	return strings.FieldsFunc(folded, searchSplitRune)
 }
 
-func MatchesWords(name string, words []string) bool {
+func dedupWords(words []string) []string {
+	seen := make(map[string]struct{}, len(words))
+	out := words[:0]
+	for _, w := range words {
+		if _, dup := seen[w]; dup {
+			continue
+		}
+		seen[w] = struct{}{}
+		out = append(out, w)
+	}
+	return out
+}
+
+func NameWords(name, username string) []string {
+	parts := make([]string, 0, 3)
+	parts = append(parts, foldAccents(name))
+	if username != "" {
+		parts = append(parts, foldAccents(username))
+	}
+	return dedupWords(SearchWords(strings.Join(parts, " ")))
+}
+
+func MatchesNameWords(index, words []string) bool {
 	if len(words) == 0 {
 		return true
 	}
-	nameWords := SearchWords(name)
 	for _, w := range words {
 		found := false
-		for _, nw := range nameWords {
+		for _, nw := range index {
 			if strings.HasPrefix(nw, w) {
 				found = true
 				break
