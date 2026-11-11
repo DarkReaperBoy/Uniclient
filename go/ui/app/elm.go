@@ -110,7 +110,7 @@ type ChatLoaded struct {
 func (ChatLoaded) isMsg() {}
 
 type ChatPrepended struct {
-	Items     []history.Item
+	Msgs      []WireMessage
 	MoreAbove bool
 	Now       int
 }
@@ -465,11 +465,18 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 	case ChatPrepended:
 		m.nowMs = msg.Now
 		m.ChatMoreAbove = msg.MoreAbove
-		if len(msg.Items) > 0 {
+		if len(msg.Msgs) > 0 {
+			pageItems := FeedItems(msg.Msgs, m.openReadInbox, time.UnixMilli(int64(msg.Now)), m.openGroup)
+			if pageHasUnreadBar(pageItems) {
+				for i := range m.Chat.Items {
+					m.Chat.Items[i].UnreadBar = ""
+				}
+			}
 			m.ChatPrependTop = m.ChatScroll.Top
-			m.ChatPrependRows = len(msg.Items)
-			m.ChatDate.LastRow += len(msg.Items)
-			m.Chat.Items = append(append([]history.Item(nil), msg.Items...), m.Chat.Items...)
+			m.ChatPrependRows = len(msg.Msgs)
+			m.ChatDate.LastRow += len(msg.Msgs)
+			m.chatMsgs = append(append([]WireMessage(nil), msg.Msgs...), m.chatMsgs...)
+			m.Chat.Items = append(pageItems, m.Chat.Items...)
 			m.Chat.Heights = nil
 			m.Chat.Hits = nil
 			m.ChatSelection = nil
@@ -583,7 +590,7 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 	case ChatBottomRequested:
 		return m, nil
 	case ChatPreloadTopRequested:
-		return m, nil
+		return m, m.chatPreloadTopCmd()
 	}
 	return m, nil
 }
@@ -670,7 +677,7 @@ func (m *Model) openCmdAfterPress(prev int) Cmd {
 		if !ok {
 			return nil
 		}
-		return ChatLoaded{Msgs: msgs, ReadInbox: readInbox, Items: FeedItems(msgs, readInbox, time.Now(), group), Now: int(time.Now().UnixMilli())}
+		return ChatLoaded{Msgs: msgs, ReadInbox: readInbox, MoreAbove: len(msgs) == chatHistoryLimit, Items: FeedItems(msgs, readInbox, time.Now(), group), Now: int(time.Now().UnixMilli())}
 	}
 }
 
@@ -898,6 +905,41 @@ func (m Model) chatPreloadCmd() Cmd {
 		return nil
 	}
 	return func() Msg { return ChatPreloadTopRequested{} }
+}
+
+func (m Model) chatPreloadTopCmd() Cmd {
+	if m.port == nil || !m.OpenValid || !m.openLoaded || !m.ChatMoreAbove || len(m.chatMsgs) == 0 {
+		return nil
+	}
+	port, account, chat := m.port, m.Open.Account, m.Open.ID
+	beforeMs := m.chatMsgs[0].TimestampMs + 1
+	loaded := make(map[string]struct{}, len(m.chatMsgs))
+	for _, wm := range m.chatMsgs {
+		loaded[wm.ID] = struct{}{}
+	}
+	return func() Msg {
+		page, ok := port.MessagesBefore(account, chat, beforeMs, chatHistoryLimit)
+		if !ok {
+			return nil
+		}
+		fresh := make([]WireMessage, 0, len(page))
+		for _, wm := range page {
+			if _, dup := loaded[wm.ID]; dup {
+				continue
+			}
+			fresh = append(fresh, wm)
+		}
+		return ChatPrepended{Msgs: fresh, MoreAbove: len(page) == chatHistoryLimit && len(fresh) > 0, Now: int(time.Now().UnixMilli())}
+	}
+}
+
+func pageHasUnreadBar(items []history.Item) bool {
+	for i := range items {
+		if items[i].UnreadBar != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func (m *Model) chatViewportChanged(oldTop int) {

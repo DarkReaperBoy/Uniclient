@@ -53,6 +53,7 @@ type WireMessage struct {
 
 type ChatPort interface {
 	Messages(accountID, chatID string, limit int) ([]WireMessage, bool)
+	MessagesBefore(accountID, chatID string, beforeMs int64, limit int) ([]WireMessage, bool)
 	Send(accountID, chatID, text string) bool
 	SearchGlobalChats(accountID, query string) ([]dialogs.Entry, bool)
 }

@@ -85,7 +85,7 @@ func TestChatPreloadScrollTriggerAndBoundary(t *testing.T) {
 	m, _ := Update(InitialModel(), Resized{Width: 800, Height: 120})
 	m, _ = Update(m, ChatLoaded{Items: preloadItems(4), MoreAbove: true})
 	m, _ = Update(m, ChatMeasured{Heights: uniformHeights(4, 50)})
-	m, _ = Update(m, ChatPrepended{Items: preloadItems(20), MoreAbove: true})
+	m, _ = Update(m, ChatPrepended{Msgs: preloadMsgs(20, 1000000), MoreAbove: true})
 	m, cmd := Update(m, ChatMeasured{Heights: uniformHeights(24, 50)})
 	if m.ChatScroll.Top != 1000 {
 		t.Fatalf("compensated top = %d, want 1000", m.ChatScroll.Top)
@@ -110,7 +110,7 @@ func TestChatWheelAndTrackpadPreload(t *testing.T) {
 	m, _ := Update(InitialModel(), Resized{Width: 800, Height: 120})
 	m, _ = Update(m, ChatLoaded{Items: preloadItems(4), MoreAbove: true})
 	m, _ = Update(m, ChatMeasured{Heights: uniformHeights(4, 50)})
-	m, _ = Update(m, ChatPrepended{Items: preloadItems(20), MoreAbove: true})
+	m, _ = Update(m, ChatPrepended{Msgs: preloadMsgs(20, 1000000), MoreAbove: true})
 	m, _ = Update(m, ChatMeasured{Heights: uniformHeights(24, 50)})
 	if m.ChatScroll.Top != 1000 {
 		t.Fatalf("setup: top = %d, want 1000", m.ChatScroll.Top)
@@ -122,7 +122,7 @@ func TestChatWheelAndTrackpadPreload(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("wheel fling to top must fire the preload cmd")
 	}
-	m, _ = Update(m, ChatPrepended{Items: preloadItems(20), MoreAbove: true})
+	m, _ = Update(m, ChatPrepended{Msgs: preloadMsgs(20, 1000000), MoreAbove: true})
 	m, cmd = Update(m, ChatMeasured{Heights: uniformHeights(44, 50)})
 	if m.ChatScroll.Top != 1000 {
 		t.Fatalf("setup: compensated top = %d, want 1000 (0 + 20*50)", m.ChatScroll.Top)
@@ -137,7 +137,7 @@ func TestChatTickPreloadDuringFling(t *testing.T) {
 	m, _ := Update(InitialModel(), Resized{Width: 800, Height: 120})
 	m, _ = Update(m, ChatLoaded{Items: preloadItems(4), MoreAbove: true})
 	m, _ = Update(m, ChatMeasured{Heights: uniformHeights(4, 50)})
-	m, _ = Update(m, ChatPrepended{Items: preloadItems(20), MoreAbove: true})
+	m, _ = Update(m, ChatPrepended{Msgs: preloadMsgs(20, 1000000), MoreAbove: true})
 	m, _ = Update(m, ChatMeasured{Heights: uniformHeights(24, 50)})
 	m, _ = Update(m, ChatScrolled{DeltaY: -760})
 	if m.ChatScroll.Top != 240 {
@@ -158,7 +158,7 @@ func TestChatDragPreloadDuringTouchScroll(t *testing.T) {
 	m, _ := Update(InitialModel(), Resized{Width: 800, Height: 120})
 	m, _ = Update(m, ChatLoaded{Items: preloadItems(4), MoreAbove: true})
 	m, _ = Update(m, ChatMeasured{Heights: uniformHeights(4, 50)})
-	m, _ = Update(m, ChatPrepended{Items: preloadItems(20), MoreAbove: true})
+	m, _ = Update(m, ChatPrepended{Msgs: preloadMsgs(20, 1000000), MoreAbove: true})
 	m, _ = Update(m, ChatMeasured{Heights: uniformHeights(24, 50)})
 	m, _ = Update(m, ChatScrolled{DeltaY: -760})
 	m.ChatTouch = TouchDrag{Active: true, Scrolling: true, State: dialogs.TouchScrollManual,
@@ -176,7 +176,7 @@ func TestChatResizedPreload(t *testing.T) {
 	m, _ := Update(InitialModel(), Resized{Width: 800, Height: 120})
 	m, _ = Update(m, ChatLoaded{Items: preloadItems(4), MoreAbove: true})
 	m, _ = Update(m, ChatMeasured{Heights: uniformHeights(4, 50)})
-	m, _ = Update(m, ChatPrepended{Items: preloadItems(20), MoreAbove: true})
+	m, _ = Update(m, ChatPrepended{Msgs: preloadMsgs(20, 1000000), MoreAbove: true})
 	m, _ = Update(m, ChatMeasured{Heights: uniformHeights(24, 50)})
 	m, _ = Update(m, ChatScrolled{DeltaY: -850})
 	if m.ChatScroll.Top != 150 {
@@ -216,7 +216,7 @@ func TestChatPrependCompensation(t *testing.T) {
 	if m.ChatScroll.Top != 60 {
 		t.Fatalf("setup: top = %d, want 60", m.ChatScroll.Top)
 	}
-	m, _ = Update(m, ChatPrepended{Items: preloadItems(3), MoreAbove: true})
+	m, _ = Update(m, ChatPrepended{Msgs: preloadMsgs(3, 1000000), MoreAbove: true})
 	if !m.ChatDirty || m.Chat.Heights != nil || m.Chat.Hits != nil {
 		t.Fatal("prepend must invalidate measurement")
 	}
@@ -267,7 +267,7 @@ func TestChatLoadedResetsPreloadState(t *testing.T) {
 	m, _ := Update(InitialModel(), Resized{Width: 800, Height: 120})
 	m, _ = Update(m, ChatLoaded{Items: preloadItems(4), MoreAbove: true})
 	m, _ = Update(m, ChatMeasured{Heights: uniformHeights(4, 50)})
-	m, _ = Update(m, ChatPrepended{Items: preloadItems(3), MoreAbove: true})
+	m, _ = Update(m, ChatPrepended{Msgs: preloadMsgs(3, 1000000), MoreAbove: true})
 	m, _ = Update(m, ChatLoaded{Items: preloadItems(2), MoreAbove: false})
 	if m.ChatMoreAbove {
 		t.Fatal("reload must take more-above from the message")

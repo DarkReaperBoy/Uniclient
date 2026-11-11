@@ -2,6 +2,7 @@ package tests
 
 import (
 	"testing"
+	"time"
 
 	. "uniclient/ui/app"
 	"uniclient/ui/history"
@@ -229,11 +230,12 @@ func TestScrollDatePrependKeepsAnchor(t *testing.T) {
 	if m.ChatDate.LastRow != 3 {
 		t.Fatalf("setup: anchor row = %d, want 3", m.ChatDate.LastRow)
 	}
-	older := []history.Item{
-		{Kind: history.ItemMessage, Text: "z1", DateText: "Dec 31", TimeText: "09:00"},
-		{Kind: history.ItemMessage, Text: "z2", DateText: "Dec 31", TimeText: "09:01"},
+	dec31 := time.Date(2025, time.December, 31, 9, 0, 0, 0, time.Local)
+	older := []WireMessage{
+		{ID: "z1", SenderID: "u1", SenderName: "Zed", Text: "z1", TimestampMs: dec31.UnixMilli(), Status: 2},
+		{ID: "z2", SenderID: "u1", SenderName: "Zed", Text: "z2", TimestampMs: dec31.Add(time.Minute).UnixMilli(), Status: 2},
 	}
-	m, _ = Update(m, ChatPrepended{Items: older, MoreAbove: false})
+	m, _ = Update(m, ChatPrepended{Msgs: older, MoreAbove: false})
 	if m.ChatDate.LastRow != 5 {
 		t.Fatalf("prepend must translate the anchor row, got %d, want 5", m.ChatDate.LastRow)
 	}

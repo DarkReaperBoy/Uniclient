@@ -174,7 +174,7 @@ func TestChatMentionsResetsOnChatSwitch(t *testing.T) {
 func TestChatMentionsPrependKeepsShown(t *testing.T) {
 	m := mentionsModel(t, 12, 40)
 	m, _ = Update(m, ChatTick{Now: 250})
-	m, _ = Update(m, ChatPrepended{Items: downChatItems(5), MoreAbove: true})
+	m, _ = Update(m, ChatPrepended{Msgs: preloadMsgs(5, 1000000), MoreAbove: true})
 	if !m.ChatMentions.Shown || m.ChatMentions.Progress != 1 {
 		t.Fatalf("after prepend: %+v, want still shown settled", m.ChatMentions)
 	}

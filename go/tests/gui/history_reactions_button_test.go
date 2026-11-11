@@ -175,7 +175,7 @@ func TestChatReactionsResetsOnChatSwitch(t *testing.T) {
 func TestChatReactionsPrependKeepsShown(t *testing.T) {
 	m := reactionsModel(t, 7, -1, 40)
 	m, _ = Update(m, ChatTick{Now: 150})
-	m, _ = Update(m, ChatPrepended{Items: downChatItems(5), MoreAbove: true})
+	m, _ = Update(m, ChatPrepended{Msgs: preloadMsgs(5, 1000000), MoreAbove: true})
 	if !m.ChatReactions.Shown || m.ChatReactions.Progress != 1 {
 		t.Fatalf("after prepend: %+v, want still shown settled", m.ChatReactions)
 	}

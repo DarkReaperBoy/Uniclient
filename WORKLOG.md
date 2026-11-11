@@ -22,23 +22,25 @@ owner order — that history lives in git if ever needed.
   bar), applyMsgReceived keeps the bar on the first unread, applyChatUpdated
   re-derives the open chat live (a read advance moves or drops the bar,
   ChatDirty re-measure)
-- next: ChatPreloadTopRequested's no-op (the last W-2 residual) or the D-1
-  down-button unread-count badge; owner redirect wins
+- next: the D-1 down-button unread-count badge (the read position + the
+  row's unread count now flow — the badge's inputs exist) or the next §6.2
+  capability seam; owner redirect wins
 - owner-waiting: N-1 — install the uniclient-android APK artifact
   (build 42622715804) on a device and report (android GUI-default check)
-- last-gate: session 417 — quick gate GREEN scoped (tests/engine 6.6s,
-  tests/gui, tests/ui, tests/bootstrap, cores 58s native; app/appport/
-  dialogs-render/history-render/window/cmd via windows vet), gofmt + comment
-  ban clean (385 files); js/wasm full-tree build green; session-416 gates
-  stand (Verify 42882442032 GREEN at job AND step level); verify dispatched
-  for this push — record the run next session
+- last-gate: session 417 — CI GATE OF RECORD GREEN: Verify 42943763854
+  (05cdba03, atomic 1) completed success — all 3 jobs (test/vet/gofmt/
+  smoke, nix, cross-builds); quick gates GREEN scoped on both atomics
+  (tests/engine 6.6s, tests/gui, tests/ui, tests/bootstrap, cores 58s;
+  app/appport/window/cmd/renders via windows vet), gofmt + comment ban
+  clean (387 files), js/wasm full-tree build green; verify for the
+  atomic-2 push dispatched at yield — record next session
 
 ## Open items
 
 | ID | where | what | evidence | next step |
 |---|---|---|---|---|
 | W-1 | ui/app InitialModel | CLOSED 2026-11-09 (session 408): the zero-account scene now paints the frame — dialogs column SurfaceContainerLow vs chat Surface, 54dp header band, the reference-measured search field (7,9,W-18,35 r18) with real focus/typing/backspace/blink; driven live at 1440x900 + 390x844 (pixel scan: pill exact, ring+caret+typed text verified). The residual — the engine-driven add-account affordance — moved to the new front item below | session 408 driven journey | done |
-| W-2 | app/engine bridge | PART: the read-position front CLOSED (session 417: read_inbox_max_id rides the whole wire — Dialog/DB/ChatInfo/snapshot/chat_updated/SearchChats + the monotonic MAX law; Entry.ReadInbox → ChatLoaded{ReadInbox} → FeedItems bar law + live re-derive on read advance); the search-results sections front CLOSED (session 416: matching layer 415 + global-search wire + 28dp searched-bar + stitched selection + PaintComposeBar zero-callers + search-EMPTY state); msg_received row bump + payload unification + chat_updated atomic + filter + feeds landed (sessions 410-413) | session 417 gates | STILL OPEN: ChatPreloadTopRequested is a no-op (the last residual — history pagination above the fold) |
+| W-2 | app/engine bridge | CLOSED 2026-11-11 (sessions 410-417): the read-position front (session 417: read_inbox_max_id rides the whole wire — Dialog/DB/ChatInfo/snapshot/chat_updated/SearchChats + the monotonic MAX law; Entry.ReadInbox → ChatLoaded{ReadInbox} → FeedItems bar law + live re-derive on read advance) AND the above-the-fold pagination (session 417 atomic 2: ChatPort.MessagesBefore + the +1 same-ms-inclusive cursor + ID-dedup + the no-progress loop breaker + ChatPrepended{Msgs} re-derives its own items with the one-bar compose law); the search-results sections front CLOSED (session 416); msg_received row bump + payload unification + chat_updated atomic + filter + feeds landed (sessions 410-413) | session 417 gates | done |
 | N-1 | android APK | GUI-default on android is runtime-unverifiable in-sandbox (no emulator/device); expected: the empty Material surface, not a black zombie | session 405 (js sibling); js live-verified in 406; APK artifact on build 42622715804 | owner installs the uniclient-android APK artifact and reports |
 | H-2 | verify/release yml | CLOSED 2026-11-09 (owner order): android + web legs returned as build.yml (per-push, no tests, parallel); only the Xvfb GUI + Puppeteer web-drive legs stay parked with the rebuilt GUI | AGENTS.md §8; build 42597570851 | Xvfb/Puppeteer return when the GUI ships (§6.7) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
@@ -99,6 +101,43 @@ owner order — that history lives in git if ever needed.
   clean (385 files), js/wasm full-tree build green. Existing suites all
   green (app_feeds/app_chat_wire updated mechanically for the FeedItems
   signature).
+
+- Atomic 2 (the LAST W-2 residual — ChatPreloadTopRequested was a no-op:
+  the armed request fetched nothing, and MoreAbove was never true in the
+  real flow): ChatPort gains MessagesBefore(accountID, chatID, beforeMs,
+  limit) — appport rides GetMessages's beforeMs branch, one shared
+  wireMessages mapper (chronological, same reverse-once law as Messages);
+  the cursor law: beforeMs = oldest-loaded ts + 1 (the engine's strict `<`
+  becomes same-ms-inclusive — telegram's second-granularity timestamps make
+  same-second siblings common; the boundary message rides the page and the
+  app DEDUPS by loaded msg-ID — no skips, no duplicates); openCmdAfterPress
+  sets MoreAbove from the full-page cursor (len == chatHistoryLimit);
+  ChatPreloadTopRequested → chatPreloadTopCmd (guards: port + open + loaded
+  + MoreAbove + non-empty window; the fetch + dedup live in the Cmd —
+  engine-owned timing) → ChatPrepended{Msgs, MoreAbove, Now}; the loop
+  breaker: MoreAbove = full page AND fresh > 0 (an all-duplicate page
+  closes the cursor — termination proven); ChatPrepended re-derives the
+  page's OWN items via FeedItems (the page owns date dividers/attachment
+  inside itself; the cross-page attachment/divider seam is the known
+  pre-existing residual riding the messages/edit front) with the ONE-BAR
+  compose law: a page carrying an unread bar clears the existing items'
+  bars first (the older first-unread is THE first unread — never two bars);
+  chatMsgs grows prepend-only (window pruning rides a future front).
+  red->green: tests/engine/messages_before_test.go (120-msg history: newest
+  50 -> older 50 ids 22..71 with the boundary inclusive -> final 22 ->
+  strict-below-oldest empty; chronological order + unknown chat ok-empty);
+  tests/gui/app_preload_wire_test.go journeys (open carries the full-page
+  cursor; request → cmd fetch → ChatPrepended with beforeMs == oldest+1,
+  items 60, cursor closed on short page, full page keeps it; boundary msg
+  deduped; all-duplicate page terminates; gates: no-cursor/no-port never
+  fetch; the bar moves to the older page's first unread with exactly one
+  bar total). Existing ChatPrepended constructors migrated mechanically
+  (preload/mentions/reactions/scroll-date + the three port fakes gain
+  MessagesBefore).
+- Gates (atomic 2): quick gate GREEN scoped (tests/engine 6.6s, tests/gui
+  0.04s, tests/ui, tests/bootstrap 0.9s; app/appport/window/cmd/renders
+  via windows vet), gofmt clean, comment ban clean (387 files), js/wasm
+  full-tree build green.
 
 ## Session 416 — search-results sections: the global-search wire + presentation (2026-11-11)
 

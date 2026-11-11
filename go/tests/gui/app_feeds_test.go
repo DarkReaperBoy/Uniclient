@@ -736,3 +736,7 @@ func TestDialogsRowHeightCoversPress(t *testing.T) {
 func (p *fakeChatPort) SearchGlobalChats(accountID, query string) ([]dialogs.Entry, bool) {
 	return nil, false
 }
+
+func (p *fakeChatPort) MessagesBefore(accountID, chatID string, beforeMs int64, limit int) ([]WireMessage, bool) {
+	return nil, false
+}

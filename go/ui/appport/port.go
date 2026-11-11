@@ -21,6 +21,21 @@ func (p chatPort) Messages(accountID, chatID string, limit int) ([]app.WireMessa
 	if err != nil {
 		return nil, false
 	}
+	return wireMessages(msgs), true
+}
+
+func (p chatPort) MessagesBefore(accountID, chatID string, beforeMs int64, limit int) ([]app.WireMessage, bool) {
+	if beforeMs <= 0 {
+		return nil, true
+	}
+	msgs, err := p.eng.GetMessages(accountID, chatID, beforeMs, 0, limit)
+	if err != nil {
+		return nil, false
+	}
+	return wireMessages(msgs), true
+}
+
+func wireMessages(msgs []engine.CachedMessage) []app.WireMessage {
 	out := make([]app.WireMessage, 0, len(msgs))
 	for _, cm := range msgs {
 		out = append(out, app.WireMessage{
@@ -37,7 +52,7 @@ func (p chatPort) Messages(accountID, chatID string, limit int) ([]app.WireMessa
 	for i, j := 0, len(out)-1; i < j; i, j = i+1, j-1 {
 		out[i], out[j] = out[j], out[i]
 	}
-	return out, true
+	return out
 }
 
 func (p chatPort) Send(accountID, chatID, text string) bool {

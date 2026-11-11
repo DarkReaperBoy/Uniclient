@@ -182,3 +182,7 @@ func TestChatScrollKeysMoveHistory(t *testing.T) {
 func (p *submitPort) SearchGlobalChats(accountID, query string) ([]dialogs.Entry, bool) {
 	return nil, false
 }
+
+func (p *submitPort) MessagesBefore(accountID, chatID string, beforeMs int64, limit int) ([]WireMessage, bool) {
+	return nil, false
+}
