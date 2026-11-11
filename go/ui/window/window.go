@@ -100,15 +100,15 @@ func Run(eng *engine.Engine) error {
 				lastW, lastH = dpW, dpH
 				handle(app.Resized{Width: dpW, Height: dpH})
 			}
-			if appModel.KineticActive() || appModel.ChatDateActive() || appModel.ChatDownActive() || appModel.ChatMentionsActive() || appModel.ChatReactionsActive() || appModel.ChatRippleActive() || appModel.DialogsRippleActive() || appModel.DialogsToUpActive() || appModel.ChatComposeBlinkActive() || appModel.SearchBlinkActive() || appModel.SearchGlobalPending() {
+			if appModel.KineticActive() || appModel.ChatDateActive() || appModel.ChatDownActive() || appModel.ChatMentionsActive() || appModel.ChatReactionsActive() || appModel.ChatRippleActive() || appModel.DialogsRippleActive() || appModel.DialogsToUpActive() || appModel.MenuActive() || appModel.ChatComposeBlinkActive() || appModel.SearchBlinkActive() || appModel.SearchGlobalPending() {
 				handle(app.DialogsTick{Now: int(time.Now().UnixMilli())})
 				handle(app.ChatTick{Now: int(time.Now().UnixMilli())})
 			}
 			gtx := gioapp.NewContext(&ops, e)
-			routeInput(gtx, painter.Input, e.Metric, handle)
+			routeInput(gtx, painter.Input, e.Metric, appModel, handle)
 			routeSearchKeys(gtx, painter.Input, appModel, &searchFocus, handle)
 			if cols := appModel.Columns(); cols.Chat > 0 && cols.Dialogs < appModel.Width {
-				routeChatInput(gtx, chatPainter.Input, e.Metric, cols.Dialogs, &chatPrimary, handle)
+				routeChatInput(gtx, chatPainter.Input, e.Metric, appModel, cols.Dialogs, &chatPrimary, handle)
 				routeComposeKeys(gtx, chatPainter.Input, appModel, &keyFocus, handle)
 			}
 			if appModel.ChatDirty {
@@ -124,11 +124,12 @@ func Run(eng *engine.Engine) error {
 				chatPainter.PaintChatPane(gtx, scene.Chat, material.SchemeFor(material.Light))
 				stk.Pop()
 			}
+			painter.PaintMenu(gtx, scene.Menu, material.SchemeFor(material.Light))
 			if !appModel.Running {
 				w.Perform(system.ActionClose)
 			}
 			e.Frame(gtx.Ops)
-			if appModel.KineticActive() || appModel.ChatDateActive() || appModel.ChatDownActive() || appModel.ChatMentionsActive() || appModel.ChatReactionsActive() || appModel.ChatRippleActive() || appModel.DialogsRippleActive() || appModel.DialogsToUpActive() || appModel.ChatComposeBlinkActive() || appModel.SearchBlinkActive() || appModel.SearchGlobalPending() {
+			if appModel.KineticActive() || appModel.ChatDateActive() || appModel.ChatDownActive() || appModel.ChatMentionsActive() || appModel.ChatReactionsActive() || appModel.ChatRippleActive() || appModel.DialogsRippleActive() || appModel.DialogsToUpActive() || appModel.MenuActive() || appModel.ChatComposeBlinkActive() || appModel.SearchBlinkActive() || appModel.SearchGlobalPending() {
 				w.Invalidate()
 			}
 		}
@@ -139,7 +140,7 @@ func pxToDp(metric unit.Metric, v float32) int {
 	return int(metric.PxToDp(int(math.Round(float64(v)))))
 }
 
-func routeInput(gtx layout.Context, tag *render.InputArea, metric unit.Metric, handle func(app.Msg)) {
+func routeInput(gtx layout.Context, tag *render.InputArea, metric unit.Metric, model app.Model, handle func(app.Msg)) {
 	filter := pointer.Filter{
 		Target:  tag,
 		Kinds:   pointer.Press | pointer.Move | pointer.Drag | pointer.Release | pointer.Scroll | pointer.Cancel | pointer.Leave,
@@ -157,9 +158,15 @@ func routeInput(gtx layout.Context, tag *render.InputArea, metric unit.Metric, h
 		}
 		switch e.Kind {
 		case pointer.Press:
-			gtx.Execute(pointer.GrabCmd{Tag: tag, ID: e.PointerID})
 			x, y := pxToDp(metric, e.Position.X), pxToDp(metric, e.Position.Y)
 			now := int(time.Now().UnixMilli())
+			if scrim, eat := model.MenuPressRoute(x, y); scrim || eat {
+				if scrim {
+					handle(app.MenuScrimPressed{Now: now})
+				}
+				continue
+			}
+			gtx.Execute(pointer.GrabCmd{Tag: tag, ID: e.PointerID})
 			if y < tokens.TopBarHeight {
 				handle(app.DialogsHeaderPressed{X: x, Y: y, Now: now})
 				continue
@@ -210,7 +217,7 @@ func scrollMessage(e pointer.Event, metric unit.Metric) app.Msg {
 	}
 }
 
-func routeChatInput(gtx layout.Context, tag *chatrender.InputArea, metric unit.Metric, dialogsDp int, chatPrimary *bool, handle func(app.Msg)) {
+func routeChatInput(gtx layout.Context, tag *chatrender.InputArea, metric unit.Metric, model app.Model, dialogsDp int, chatPrimary *bool, handle func(app.Msg)) {
 	filter := pointer.Filter{
 		Target:  tag,
 		Kinds:   pointer.Press | pointer.Move | pointer.Drag | pointer.Release | pointer.Scroll | pointer.Cancel | pointer.Leave,
@@ -228,6 +235,12 @@ func routeChatInput(gtx layout.Context, tag *chatrender.InputArea, metric unit.M
 		}
 		switch e.Kind {
 		case pointer.Press:
+			if scrim, eat := model.MenuPressRoute(pxToDp(metric, e.Position.X), pxToDp(metric, e.Position.Y)); scrim || eat {
+				if scrim {
+					handle(app.MenuScrimPressed{Now: int(time.Now().UnixMilli())})
+				}
+				continue
+			}
 			if e.Source == pointer.Touch {
 				gtx.Execute(pointer.GrabCmd{Tag: tag, ID: e.PointerID})
 				handle(app.ChatPressed{

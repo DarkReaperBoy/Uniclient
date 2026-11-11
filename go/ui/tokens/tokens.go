@@ -59,6 +59,19 @@ const (
 	MainMenuButtonIconLeft       = 21
 	MainMenuButtonToggleSkip     = 19
 
+	MainMenuToggleSize          = 40
+	MainMenuToggleX             = DialogsFilterPadX
+	MainMenuToggleY             = (TopBarHeight - MainMenuToggleSize) / 2
+	DialogsFilterLeftWithMenu   = DialogsFilterPadX + MainMenuToggleSize + DialogsFilterPadX
+	MainMenuSlideDurationMs     = 200
+	MainMenuScrimAlpha          = float32(0x7f) / 255
+	MainMenuShadowWidth         = 8
+	MainMenuAccountUserpicSize  = 26
+	MainMenuAccountRingLine     = 2
+	MainMenuAccountIconLeft     = 23
+	MainMenuAccountRowHeight    = 36
+	MainMenuFooterVersionBottom = 17
+
 	FontBase  = 13
 	FontBox   = 14
 	EmojiSize = 18
@@ -485,13 +498,27 @@ func easeOutQuint(t float32) float32 {
 	return 1 - u*u*u*u*u
 }
 
+func EaseOutCirc(t float32) float32 {
+	if t <= 0 {
+		return 0
+	}
+	if t >= 1 {
+		return 1
+	}
+	return float32(math.Sqrt(float64(2*t - t*t)))
+}
+
 func RippleMaxRadius(originX, originY int) int {
+	return RippleMaxRadiusIn(HistoryToDownCircleSize, HistoryToDownCircleSize, originX, originY)
+}
+
+func RippleMaxRadiusIn(boxW, boxH, originX, originY int) int {
 	best := 0.0
 	for _, corner := range [4][2]int{
 		{0, 0},
-		{HistoryToDownCircleSize, 0},
-		{0, HistoryToDownCircleSize},
-		{HistoryToDownCircleSize, HistoryToDownCircleSize},
+		{boxW, 0},
+		{0, boxH},
+		{boxW, boxH},
 	} {
 		dx := float64(originX - corner[0])
 		dy := float64(originY - corner[1])
@@ -514,8 +541,12 @@ func rippleShown(now, started int) float32 {
 }
 
 func RippleView(st RippleState, now int) Ripple {
+	return RippleViewIn(HistoryToDownCircleSize, HistoryToDownCircleSize, st, now)
+}
+
+func RippleViewIn(boxW, boxH int, st RippleState, now int) Ripple {
 	v := Ripple{OriginX: st.OriginX, OriginY: st.OriginY, Alpha: 1,
-		Radius: int(math.Round(float64(RippleMaxRadius(st.OriginX, st.OriginY)) * float64(rippleShown(now, st.Started))))}
+		Radius: int(math.Round(float64(RippleMaxRadiusIn(boxW, boxH, st.OriginX, st.OriginY)) * float64(rippleShown(now, st.Started))))}
 	if !st.Fading {
 		return v
 	}

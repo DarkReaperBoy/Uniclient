@@ -278,6 +278,7 @@ func (p *Painter) paintHeader(gtx layout.Context, hd dialogs.HeaderView, sch mat
 	if hd.Band.W <= 0 {
 		return
 	}
+	p.paintMenuToggle(gtx, hd, sch)
 	if hd.Field.W <= 0 {
 		return
 	}
@@ -324,6 +325,204 @@ func (p *Painter) paintFieldLine(gtx layout.Context, field dialogs.Rect, fnt fon
 		W: field.W - tokens.DialogsFilterTextLeft - rightPad,
 		H: textH,
 	}, fnt, size, s, col)
+}
+
+func (p *Painter) paintMenuToggle(gtx layout.Context, hd dialogs.HeaderView, sch material.Scheme) {
+	box := hd.Toggle
+	if box.W <= 0 {
+		return
+	}
+	if hd.ToggleHover || (hd.ToggleRipple.Alpha > 0 && hd.ToggleRipple.Radius > 0) {
+		defer clip.UniformRRect(pxRect(gtx, box), 0).Push(gtx.Ops).Pop()
+		if hd.ToggleHover {
+			paint.Fill(gtx.Ops, withAlpha(sch.OnSurfaceVariant, tokens.StateLayerHoverAlpha))
+		}
+		if hd.ToggleRipple.Alpha > 0 && hd.ToggleRipple.Radius > 0 {
+			r := hd.ToggleRipple
+			cx := box.X + r.OriginX
+			cy := box.Y + r.OriginY
+			fillCircle(gtx, dialogs.Rect{
+				X: cx - r.Radius,
+				Y: cy - r.Radius,
+				W: 2 * r.Radius,
+				H: 2 * r.Radius,
+			}, withAlpha(sch.OnSurfaceVariant, tokens.StateLayerRippleAlpha*r.Alpha))
+		}
+	}
+	fillGlyph(gtx, box.X, box.Y, icons.DialogsMenu, sch.OnSurfaceVariant)
+}
+
+func (p *Painter) PaintMenu(gtx layout.Context, menu dialogs.MenuView, sch material.Scheme) {
+	if menu.Slide <= 0 || menu.Width <= 0 || menu.Height <= 0 {
+		return
+	}
+	panelW := int(math.Round(float64(menu.Width) * float64(menu.Slide)))
+	if panelW > menu.WindowW {
+		panelW = menu.WindowW
+	}
+	if panelW > 0 {
+		scrim := dialogs.Rect{X: panelW, Y: 0, W: menu.WindowW - panelW, H: menu.Height}
+		if scrim.W > 0 {
+			fillRRect(gtx, scrim, 0, withAlpha(sch.Scrim, tokens.MainMenuScrimAlpha*menu.Fade))
+		}
+	}
+	dx := panelW - menu.Width
+	stk := op.Offset(image.Pt(gtx.Dp(unit.Dp(dx)), 0)).Push(gtx.Ops)
+	clipRect := clip.Rect{Max: image.Pt(
+		gtx.Dp(unit.Dp(panelW+tokens.MainMenuShadowWidth)),
+		gtx.Dp(unit.Dp(menu.Height)),
+	)}.Push(gtx.Ops)
+	shadowClip := clip.Rect{
+		Min: image.Pt(gtx.Dp(unit.Dp(menu.Width)), 0),
+		Max: image.Pt(gtx.Dp(unit.Dp(menu.Width+tokens.MainMenuShadowWidth)), gtx.Dp(unit.Dp(menu.Height))),
+	}.Push(gtx.Ops)
+	paint.LinearGradientOp{
+		Stop1:  f32.Pt(float32(gtx.Dp(unit.Dp(menu.Width))), 0),
+		Color1: menuShadowColor,
+		Stop2:  f32.Pt(float32(gtx.Dp(unit.Dp(menu.Width+tokens.MainMenuShadowWidth))), 0),
+		Color2: color.NRGBA{A: 0},
+	}.Add(gtx.Ops)
+	paint.PaintOp{}.Add(gtx.Ops)
+	shadowClip.Pop()
+	fillRRect(gtx, dialogs.Rect{X: 0, Y: 0, W: menu.Width, H: menu.Height}, 0, sch.SurfaceContainerLow)
+	p.paintMenuCover(gtx, menu, sch)
+	p.paintMenuRows(gtx, menu, sch)
+	p.paintMenuFooter(gtx, menu, sch)
+	clipRect.Pop()
+	stk.Pop()
+}
+
+var menuShadowColor = color.NRGBA{R: 0x00, G: 0x00, B: 0x00, A: 0x18}
+
+func (p *Painter) paintMenuCover(gtx layout.Context, menu dialogs.MenuView, sch material.Scheme) {
+	fillRRect(gtx, dialogs.Rect{
+		X: 0,
+		Y: tokens.MainMenuCoverHeight,
+		W: menu.Width,
+		H: 1,
+	}, 0, sch.OutlineVariant)
+	if !menu.CoverHasAccount {
+		return
+	}
+	avatar := dialogs.Rect{
+		X: tokens.MainMenuUserpicLeft,
+		Y: tokens.MainMenuUserpicTop,
+		W: tokens.MainMenuUserpicSize,
+		H: tokens.MainMenuUserpicSize,
+	}
+	p.paintMenuAvatar(gtx, avatar, menu.CoverName, sch)
+	if menu.CoverName != "" {
+		p.paintMenuTextTop(gtx, dialogs.Rect{
+			X: tokens.MainMenuCoverNameLeft,
+			Y: tokens.MainMenuCoverNameTop,
+			W: menu.Width - tokens.MainMenuCoverNameLeft - tokens.MainMenuButtonPadRight,
+		}, fontSemibold, menu.CoverName, sch.OnSurface)
+	}
+	if menu.CoverStatus != "" {
+		p.paintMenuTextTop(gtx, dialogs.Rect{
+			X: tokens.MainMenuCoverStatusLeft,
+			Y: tokens.MainMenuCoverStatusTop,
+			W: menu.Width - tokens.MainMenuCoverStatusLeft - tokens.MainMenuButtonPadRight,
+		}, fontRegular, menu.CoverStatus, sch.OnSurfaceVariant)
+	}
+}
+
+func (p *Painter) paintMenuRows(gtx layout.Context, menu dialogs.MenuView, sch material.Scheme) {
+	if len(menu.Rows) == 0 {
+		return
+	}
+	full := dialogs.MenuAccountUserpicFullSize()
+	skip := dialogs.MenuAccountSkip()
+	left := dialogs.MenuAccountUserpicLeft()
+	for i, row := range menu.Rows {
+		y := dialogs.MenuRowY(i)
+		if row.Name != "" {
+			p.paintMenuText(gtx, dialogs.Rect{
+				X: tokens.MainMenuButtonPadLeft,
+				Y: y,
+				W: menu.Width - tokens.MainMenuButtonPadLeft - tokens.MainMenuButtonPadRight,
+				H: tokens.MainMenuAccountRowHeight,
+			}, fontSemibold, row.Name, sch.OnSurface)
+		}
+		box := dialogs.Rect{X: left, Y: y + (tokens.MainMenuAccountRowHeight-full)/2, W: full, H: full}
+		if row.Active {
+			fillCircle(gtx, box, sch.Primary)
+			fillCircle(gtx, dialogs.Rect{X: box.X + tokens.MainMenuAccountRingLine, Y: box.Y + tokens.MainMenuAccountRingLine,
+				W: full - 2*tokens.MainMenuAccountRingLine, H: full - 2*tokens.MainMenuAccountRingLine}, sch.SurfaceContainerLow)
+		}
+		p.paintMenuAvatar(gtx, dialogs.Rect{X: box.X + skip, Y: box.Y + skip,
+			W: tokens.MainMenuAccountUserpicSize, H: tokens.MainMenuAccountUserpicSize}, row.Name, sch)
+	}
+	sepY := dialogs.MenuSeparatorY(len(menu.Rows))
+	fillRRect(gtx, dialogs.Rect{X: 0, Y: sepY, W: menu.Width, H: 1}, 0, sch.OutlineVariant)
+}
+
+func (p *Painter) paintMenuFooter(gtx layout.Context, menu dialogs.MenuView, sch material.Scheme) {
+	if menu.FooterName != "" {
+		m := p.measure(gtx, fontSemibold, unit.Sp(tokens.FontBase), menu.FooterName)
+		textH := int(gtx.Metric.PxToDp(m.ascent + m.descent))
+		p.label(gtx, dialogs.Rect{
+			X: tokens.MainMenuFooterLeft,
+			Y: menu.Height - tokens.MainMenuFooterTelegramBottom - textH,
+			W: menu.Width - tokens.MainMenuFooterLeft - tokens.MainMenuButtonPadRight,
+			H: textH,
+		}, fontSemibold, unit.Sp(tokens.FontBase), menu.FooterName, sch.OnSurfaceVariant)
+	}
+	if menu.FooterVersion != "" {
+		m := p.measure(gtx, fontRegular, unit.Sp(tokens.FontBase), menu.FooterVersion)
+		textH := int(gtx.Metric.PxToDp(m.ascent + m.descent))
+		p.label(gtx, dialogs.Rect{
+			X: tokens.MainMenuFooterLeft,
+			Y: menu.Height - tokens.MainMenuFooterVersionBottom - textH,
+			W: menu.Width - tokens.MainMenuFooterLeft - tokens.MainMenuButtonPadRight,
+			H: textH,
+		}, fontRegular, unit.Sp(tokens.FontBase), menu.FooterVersion, sch.OnSurfaceVariant)
+	}
+}
+
+func (p *Painter) paintMenuText(gtx layout.Context, r dialogs.Rect, fnt font.Font, s string, col color.NRGBA) {
+	m := p.measure(gtx, fnt, unit.Sp(tokens.FontBase), s)
+	textH := int(gtx.Metric.PxToDp(m.ascent + m.descent))
+	p.label(gtx, dialogs.Rect{
+		X: r.X,
+		Y: r.Y + (r.H-textH)/2,
+		W: r.W,
+		H: textH,
+	}, fnt, unit.Sp(tokens.FontBase), s, col)
+}
+
+func (p *Painter) paintMenuTextTop(gtx layout.Context, r dialogs.Rect, fnt font.Font, s string, col color.NRGBA) {
+	m := p.measure(gtx, fnt, unit.Sp(tokens.FontBase), s)
+	textH := int(gtx.Metric.PxToDp(m.ascent + m.descent))
+	p.label(gtx, dialogs.Rect{
+		X: r.X,
+		Y: r.Y,
+		W: r.W,
+		H: textH,
+	}, fnt, unit.Sp(tokens.FontBase), s, col)
+}
+
+func (p *Painter) paintMenuAvatar(gtx layout.Context, r dialogs.Rect, name string, sch material.Scheme) {
+	col := userpicColor(name, sch)
+	fillCircle(gtx, r, col)
+	init := initials(name)
+	if init == "" {
+		return
+	}
+	size := unit.Sp(r.W * 13 / 33)
+	m := p.measure(gtx, fontSemibold, size, init)
+	fg := color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff}
+	if luma(col) > 128 {
+		fg = darkInk
+	}
+	w := int(gtx.Metric.PxToDp(m.w))
+	h := int(gtx.Metric.PxToDp(m.ascent + m.descent))
+	p.label(gtx, dialogs.Rect{
+		X: r.X + (r.W-w)/2,
+		Y: r.Y + (r.H-h)/2,
+		W: w,
+		H: h,
+	}, fontSemibold, size, init, fg)
 }
 
 var toUpShadowColor = color.NRGBA{R: 0x00, G: 0x00, B: 0x00, A: 0x28}

@@ -9,17 +9,19 @@ owner order — that history lives in git if ever needed.
 
 - front: GUI rebuild (§6); the engine-driven add-account affordance (W-1's
   residual — the product is unusable without it; every §4 live drive is
-  BLOCKED-env on "no add-account surface"): the main-menu drawer first
-  (reference-measured), then the Add Account button + backend picker + the
-  port/engine wire, then the auth surface (StartAuth/SubmitAuthInput)
-- next: session 419 atomic 1 — the main-menu surface (toggle+panel+scrim+
-  open/close+account rows+cover/footer, hover/ripple skin on the toggle)
+  BLOCKED-env on "no add-account surface"): stage 1 (the main-menu
+  surface) LANDED session 419 atomic 1; next: stage 2 — the Add Account
+  button + backend picker + the port/engine wire (engine.AddAccount ->
+  picker rows), then stage 3 — the auth surface (StartAuth/
+  SubmitAuthInput)
+- next: session 419 atomic 2 — the add-account row (mainMenuAddAccount-
+  Button law) + the backend picker panel + the appport.AddAccount wire
 - owner-waiting: N-1 — install the uniclient-android APK artifact
   (build 42622715804) on a device and report (android GUI-default check)
-- last-gate: session 418 CI GATE OF RECORD GREEN — Verify 42971364147
-  (head 35354292) all 3 jobs success (Test&vet&gofmt&smoke / Cross-builds
-  windows+js / Nix flake; only the tag-match step skipped by design), Build
-  42971351623 success, pages build 42971527859 success
+- last-gate: session 419 atomic 1 local gates GREEN (scoped quick gate:
+  tests/engine 6.6s + tests/gui + tests/ui + windows vet; gofmt; comment
+  ban 396 files; js/wasm full tree); CI dispatch pending — record the
+  Verify run id when watched
 
 ## Open items
 
@@ -34,6 +36,102 @@ owner order — that history lives in git if ever needed.
 | D-2 | ui/history unread-things buttons | read-marking absent for mentions AND reactions: after a jump the button stays shown (reference hides it when the server marks the thing read — updateUnreadThingsVisibility is server-data-driven); mentionsClick's already-there voice/video media-read branch (5623) deferred — no media model; unread-count badges join D-1's class; poll-votes 4th stack slot returns with a poll model | history_view_corner_buttons.cpp 147-190, 288-345 | returns with engine unread-things events + the media pass |
 | D-3 | build.yml web job | CLOSED 2026-11-10 (session 414, two atomics — see the session entry for the evidence trail) | gotd = 0 packages in the js link graph; wasm plain build 32,837,371 -> 26,714,844 B (-6,122,527 B, -18.6%); <20MB projection did not hold — remaining bulk = web trio deps (mautrix+goolm, bale gRPC-web, pion webrtc) + the rebuilt GUI (gio+fonts) | done; CI web job ships the trimmed wasm from the atomic-2 push |
 | D-4 | window keys | ATOMIC 2 LANDED (session 413): plain Enter/Return -> ChatComposeSubmitted -> composeSubmittedCmd (guards: open+port+CanSend+non-empty) clears the field and fires ChatPort.Send -> ChatComposeSendRequested{OK,Text}; failed sends restore the field (composeEdit — no data loss); Up/Down arrows = ChatScrolled step 20dp, PageUp/PageDown = 200dp (tokens ScrollKeyStep = WheelNotch/WheelScrollLines/WheelPixelToAngleDelta, ScrollKeyPageStep = 10x — the Qt qabstractslider defaults through the wheel law); CanSend lands on the open transition from the row type (channels read-only — honest default until the writability front carries admin rights); REAL-seam: appport.Send -> engine.SendMessage -> optimistic msg_received -> open-chat append (wire test). Residuals: Up-on-empty-field edit-last rides the messages/edit front (scrolls meanwhile), Ctrl+Up/Down reply-cycle rides the reply front, scroll keys need compose focus — the unfocused chat pane has no key routing yet (window front) | history_widget.cpp 9276-9349 (fetched 2026-11-09) + qabstractslider defaults | IME ranged EditEvents + SelectionCmd/SnippetCmd contract = the mobile/IME front; window-front key routing |
+
+## Session 419 — the main-menu surface: the drawer that will carry add-account (2026-11-11)
+
+- Boot: fresh-sandbox recovery — repo re-cloned (public clone, remote URL
+  token-free), Go 1.27.1 re-installed per scripts/env.sh (toolchain +
+  module cache refilled), token in .env (never printed, gitignored),
+  identity agent@uniclient; sync clean (main == origin at 120526f1).
+- Reference mined FIRST (§1.17), in-session: tdesktop dev HEAD
+  window/window_main_menu.cpp (the panel structure: LayerWidget, cover
+  134 + accounts SlideWrap + separator + menu + footer; parentResized =
+  274 x parent height anchored left; paintEvent = one flat bg, no cover
+  gradient), window_main_menu.style (the cover/footer pins),
+  window.style 108-123 (mainMenuUserpic 48; mainMenuButton padding
+  61,11,20,9 iconLeft 21; mainMenuAddAccountButton iconLeft 23;
+  mainMenuAccountSize 26 / Line 2), settings_information.cpp 1011-1081
+  + 810-882 (the Add Account button + the account-row userpic law:
+  skip = 2*line+1, full = 26+10 = 36, active ring = windowBgActive
+  stroke), dialogs.style 287-298 (dialogsMenuToggle IconButton 40x40,
+  ripple area = the full square), dialogs_widget.cpp 4655-4713 (the
+  header law: no filters -> filterLeft = 7+40+7 = 54, toggle at
+  dialogsFilterPadding 7, field right margin 11, toggle centered in the
+  54 band), lib_ui layers.style 37/71 (boxDuration 200, boxRoundShadow
+  radius 8), lib_ui layer_widget.cpp 171-223 (setMainMenuShown:
+  easeOutCirc slide both directions; the dim: linear on hide /
+  easeOutCirc on show; the scrim rect sits right of the panel),
+  lib_ui colors.palette 129 (layerBg #0000007f — the scrim), lib_ui
+  animation_value.cpp 75-85 (easeOutCirc = delta*sqrt(1-(dt-1)^2)),
+  lib_ui buttons.cpp 176-215 (RippleButton RectMask — the toggle's
+  ripple mask is a SQUARE), lib_ui widgets.style 703-714
+  (defaultRippleAnimationBgOver = the 650/200 pins). The tokens file
+  already carried an earlier session's main-menu table (274/134/48/26/
+  103/6/80/25/38/61-11-20-9) — verified against the fresh mining, every
+  value stands; MainMenuUserpicSize 48 confirmed at window.style:108.
+- Atomic 1 (ONE change — the main-menu surface, W-1's stage 1): TOKENS —
+  the toggle/header/slide/scrim/accounts pins (toggle 40x40 at (7,7),
+  DialogsFilterLeftWithMenu 54, slide 200ms, scrim 0x7f/255, shadow 8,
+  account row height 36 = 11+9+16dp line, version bottom 17) +
+  EaseOutCirc + RippleMaxRadiusIn/RippleViewIn (the ripple machinery
+  gains its box parameter; the legacy 42-circle API delegates unchanged
+  — the pins in tokens_ripple_test.go hold). ICONS — DialogsMenu (the
+  Material menu glyph: 3 bars x 3-21 at y 6/11/16, 24-cell at (8,8)
+  centered in the 40dp button). DIALOGS — HeaderLayout carries the
+  Toggle rect and the field shifts to x=54 (the reference header law —
+  the W-1 field pin 7,9,W-18 updated deliberately to 54,9,W-65 in this
+  commit); HeaderToggleHit; MenuView/MenuAccountRow + the account-row
+  geometry helpers (full 36 box at left 17, skip 5, MenuRowY, the
+  separator law). APP — MenuState (slide + fade progress; easeOutCirc
+  slide both directions; the dim linear-on-hide — the reference layer
+  law); the toggle machinery rides the REAL seams: pressDialogsHeader's
+  toggle branch (press = ripple at the box-relative origin + search
+  blur), releaseDialogs' MenuTogglePress branch (release-in =
+  menuSetOpen, release-out = ripple fade only — the lastStop law),
+  DialogsPressCanceled clears, dragDialogs drives MenuToggleHover from
+  mouse moves only (silenced while the menu is visible — the panel
+  covers the toggle; touch never hovers), DialogsLeft clears,
+  DialogsTick rides menuTick + menuToggleRippleTick; MenuScrimPressed
+  closes; MenuPressRoute (scrim beyond 274 / eaten inside — the layer
+  eats clicks); MenuActive joins the window tick clock; MenuPane
+  projects the cover (context account = the open chat's account else
+  accounts[0]: avatar 48 + name + the conn-state word), the rows (name +
+  active ring, live from account_list events), the footer ("Uniclient"
+  + version 0.10.3 matching flake.nix; ldflags stamping rides the
+  release front). WINDOW — routeInput/routeChatInput consult
+  MenuPressRoute first (scrim closes, panel presses eaten);
+  PaintMenu paints last over both panes. PAINTER — paintMenuToggle
+  (Material state layers: hover 8% + ripple 12% OnSurfaceVariant in the
+  SQUARE mask + the glyph), PaintMenu (the scrim right of the panel,
+  the panel slides from the left edge with an 8dp right-edge gradient
+  shadow, cover avatar + name + status, account rows with the 26dp
+  avatar + 2dp Primary active ring, OutlineVariant separators, the
+  bottom-anchored footer pair). red->green:
+  tests/ui/menu_tokens_test.go (the fresh pins + EaseOutCirc values +
+  RippleMaxRadiusIn square-box cases + the legacy API pin +
+  HeaderLayout toggle/field at 440 and 390 + HeaderToggleHit + the
+  glyph bounds/cell) + tests/gui/app_menu_test.go journeys (header
+  press arms the ripple + blurs search; field press still focuses;
+  release-in opens with the 0.866 half-slide pin + end 1; release-out
+  no-open + fade clear; cancel clears; the ripple show curve 22dp
+  @130ms; scrim close: 0.134 half-slide + 0.5 linear half-fade + end 0;
+  MenuPressRoute scrim/eat/closed; hover set/clear/touch-never/leave +
+  open clears + silenced while open; cover + rows from account_list
+  (Pals offline context, Work second, ring on the context account
+  only); the cover follows the open chat's account; footer pinned;
+  closed/open projections; rows live on account-list changes; paint
+  journey PaintPane + PaintMenu open and mid-hide). Existing pins
+  updated deliberately: dialogs_header_elm_test.go field x 7->54
+  (geometry + single-pane + press points 20,20 -> 100,26; band-press
+  point -> 2,2 — the toggle band now owns x 7..47).
+- Gates: quick gate GREEN scoped (tests/engine 6.6s, tests/gui 0.06s,
+  tests/ui; app/appport/dialogs-render/history-render/window/cmd via
+  windows vet), gofmt clean, comment ban clean (396 files), js/wasm
+  full-tree build green. §4 live pixel drive BLOCKED-env (gio
+  Linux-native needs the xkb/wayland libs this VM cannot install; no
+  add-account surface yet) — the journeys drive the real press->open->
+  scrim->close seam through Update/View and the paint journey executes
+  the real PaintMenu path; CI verify.yml is the gate of record.
 
 ## Session 418 — the skin's hover+ripple machinery: chat corner buttons (2026-11-11)
 

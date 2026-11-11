@@ -27,23 +27,35 @@ func TestDialogsHeaderGeometry(t *testing.T) {
 		t.Fatalf("band = %+v, want {0 0 %d %d}", hd.Band, paneW, tokens.TopBarHeight)
 	}
 	wantField := dialogs.Rect{
-		X: tokens.DialogsFilterPadX,
+		X: tokens.DialogsFilterLeftWithMenu,
 		Y: (tokens.TopBarHeight - tokens.DialogsFilterHeight) / 2,
-		W: paneW - tokens.DialogsFilterPadX - (tokens.DialogsFilterSkip + tokens.DialogsFilterPadX),
+		W: paneW - tokens.DialogsFilterLeftWithMenu - (tokens.DialogsFilterSkip + tokens.DialogsFilterPadX),
 		H: tokens.DialogsFilterHeight,
 	}
 	if hd.Field != wantField {
 		t.Fatalf("field = %+v, want %+v", hd.Field, wantField)
 	}
-	if wantField.H != 35 || wantField.X != 7 || wantField.Y != 9 {
+	if wantField.H != 35 || wantField.X != 54 || wantField.Y != 9 {
 		t.Fatalf("measured geometry drifted: %+v", wantField)
+	}
+	wantToggle := dialogs.Rect{
+		X: tokens.MainMenuToggleX,
+		Y: tokens.MainMenuToggleY,
+		W: tokens.MainMenuToggleSize,
+		H: tokens.MainMenuToggleSize,
+	}
+	if hd.Toggle != wantToggle {
+		t.Fatalf("toggle = %+v, want %+v", hd.Toggle, wantToggle)
+	}
+	if wantToggle.X != 7 || wantToggle.Y != 7 || wantToggle.W != 40 || wantToggle.H != 40 {
+		t.Fatalf("measured toggle geometry drifted: %+v", wantToggle)
 	}
 }
 
 func TestDialogsHeaderGeometrySinglePane(t *testing.T) {
 	m := headerModel(t, 390, 844)
 	hd := View(m).Dialogs.Header
-	if hd.Band.W != 390 || hd.Field.W != 390-18 {
+	if hd.Band.W != 390 || hd.Field.W != 390-65 {
 		t.Fatalf("single pane: band %+v field %+v", hd.Band, hd.Field)
 	}
 }
@@ -91,7 +103,7 @@ func TestDialogsHeaderPressLeavesListUntouched(t *testing.T) {
 	if m.Dialogs.Selected != 1 {
 		t.Fatalf("setup: selected = %d", m.Dialogs.Selected)
 	}
-	m, _ = Update(m, DialogsHeaderPressed{X: 30, Y: 20, Now: 1000})
+	m, _ = Update(m, DialogsHeaderPressed{X: 2, Y: 2, Now: 1000})
 	if m.Dialogs.Selected != 1 || m.DialogsTouch.Active || m.DialogsBar.Dragging || m.DialogsToUpPress {
 		t.Fatalf("band press touched list: sel=%d touch=%+v bar=%+v toUp=%v",
 			m.Dialogs.Selected, m.DialogsTouch, m.DialogsBar, m.DialogsToUpPress)
@@ -103,7 +115,7 @@ func TestDialogsHeaderPressLeavesListUntouched(t *testing.T) {
 
 func TestSearchTypedAndBackspace(t *testing.T) {
 	m := headerModel(t, 800, 600)
-	m, _ = Update(m, DialogsHeaderPressed{X: 20, Y: 20, Now: 1000})
+	m, _ = Update(m, DialogsHeaderPressed{X: 100, Y: 26, Now: 1000})
 	m, _ = Update(m, SearchTyped{Text: "te", Now: 1100})
 	if m.Search.Text != "te" || m.Search.Cursor != 2 {
 		t.Fatalf("typed: %+v", m.Search)
@@ -129,7 +141,7 @@ func TestSearchTypedAndBackspace(t *testing.T) {
 
 func TestSearchBlink(t *testing.T) {
 	m := headerModel(t, 800, 600)
-	m, _ = Update(m, DialogsHeaderPressed{X: 20, Y: 20, Now: 1000})
+	m, _ = Update(m, DialogsHeaderPressed{X: 100, Y: 26, Now: 1000})
 	if !m.Search.CursorOn || !m.SearchBlinkActive() {
 		t.Fatalf("focus should light caret")
 	}
@@ -161,7 +173,7 @@ func TestSearchBlink(t *testing.T) {
 
 func TestSearchFocusLostMsg(t *testing.T) {
 	m := headerModel(t, 800, 600)
-	m, _ = Update(m, DialogsHeaderPressed{X: 20, Y: 20, Now: 1000})
+	m, _ = Update(m, DialogsHeaderPressed{X: 100, Y: 26, Now: 1000})
 	m, _ = Update(m, SearchTyped{Text: "a", Now: 1100})
 	m, _ = Update(m, SearchFocusLost{})
 	if m.Search.Focused || m.Search.CursorOn {
@@ -195,7 +207,7 @@ func TestZeroAccountScenePaintsHeader(t *testing.T) {
 
 func TestSearchViewProjection(t *testing.T) {
 	m := headerModel(t, 800, 600)
-	m, _ = Update(m, DialogsHeaderPressed{X: 20, Y: 20, Now: 1000})
+	m, _ = Update(m, DialogsHeaderPressed{X: 100, Y: 26, Now: 1000})
 	m, _ = Update(m, SearchTyped{Text: "ab", Now: 1100})
 	m, _ = Update(m, DialogsTick{Now: 1500})
 	hd := View(m).Dialogs.Header
@@ -210,7 +222,7 @@ func TestPaintDialogsHeaderRecordsWithoutPanic(t *testing.T) {
 	sch := material.SchemeFor(material.Light)
 	m := headerModel(t, 800, 600)
 	p.PaintPane(gtx, View(m).Dialogs, sch)
-	m, _ = Update(m, DialogsHeaderPressed{X: 20, Y: 20, Now: 1000})
+	m, _ = Update(m, DialogsHeaderPressed{X: 100, Y: 26, Now: 1000})
 	m, _ = Update(m, SearchTyped{Text: "abc", Now: 1100})
 	p.PaintPane(gtx, View(m).Dialogs, sch)
 	m, _ = Update(m, DialogsLoaded{Rows: toUpEntries(30)})

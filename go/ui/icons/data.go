@@ -448,3 +448,19 @@ var composeSmileGlyph = Glyph{
 	},
 }
 var ComposeSmile = Icon{Glyph: composeSmileGlyph, Cell: Cell{W: 40, H: 40, X: 15, Y: 17}}
+
+var dialogsMenuGlyph = Glyph{
+	W: 24, H: 24,
+	Paths: [][]Vertex{
+		{
+			{3, 6}, {21, 6}, {21, 8}, {3, 8},
+		},
+		{
+			{3, 11}, {21, 11}, {21, 13}, {3, 13},
+		},
+		{
+			{3, 16}, {21, 16}, {21, 18}, {3, 18},
+		},
+	},
+}
+var DialogsMenu = Icon{Glyph: dialogsMenuGlyph, Cell: Cell{W: 24, H: 24, X: 8, Y: 8}}

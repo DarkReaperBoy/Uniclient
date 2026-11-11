@@ -56,6 +56,10 @@ func (m *Model) searchBlur() {
 
 func (m *Model) pressDialogsHeader(msg DialogsHeaderPressed) {
 	m.nowMs = msg.Now
+	if dialogs.HeaderToggleHit(m.Columns().Dialogs, msg.X, msg.Y) {
+		m.pressMenuToggle(msg.X, msg.Y, msg.Now)
+		return
+	}
 	if dialogs.HeaderFieldHit(m.Columns().Dialogs, msg.X, msg.Y) {
 		m.searchFocus(msg.Now)
 		return

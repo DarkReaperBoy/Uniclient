@@ -322,6 +322,10 @@ type Model struct {
 	HasDialogs        bool
 	ThirdPane         bool
 	Running           bool
+	Menu              MenuState
+	MenuTogglePress   bool
+	MenuToggleHover   bool
+	MenuToggleRipple  tokens.RippleState
 	Dialogs           dialogs.List
 	DialogsScroll     dialogs.Viewport
 	DialogsTouch      TouchDrag
@@ -447,6 +451,7 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		return m, m.openCmdAfterPress(prev)
 	case DialogsLeft:
 		m.DialogsHover = false
+		m.MenuToggleHover = false
 		return m, nil
 	case DialogsPressCanceled:
 		m.DialogsBar = BarDrag{}
@@ -455,12 +460,20 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		m.DialogsTouch.State = dialogs.TouchScrollManual
 		m.DialogsToUpPress = false
 		m.DialogsRipple = tokens.RippleState{}
+		m.MenuTogglePress = false
+		m.MenuToggleRipple = tokens.RippleState{}
+		return m, nil
+	case MenuScrimPressed:
+		m.nowMs = msg.Now
+		m.menuSetOpen(false, msg.Now)
 		return m, nil
 	case DialogsTick:
 		m.nowMs = msg.Now
 		m.dialogsTick(msg.Now)
 		m.dialogsToUpTick(msg.Now)
 		m.dialogsRippleTick(msg.Now)
+		m.menuTick(msg.Now)
+		m.menuToggleRippleTick(msg.Now)
 		m.searchBlinkTick(msg.Now)
 		cmd := m.searchGlobalTick(msg.Now)
 		if cmd == nil {
@@ -743,6 +756,7 @@ func (m *Model) dragDialogs(msg DialogsDragged) Model {
 	m.nowMs = msg.Now
 	if !msg.Touch {
 		m.DialogsHover = m.dialogsToUpHitAt(msg.X, msg.Y)
+		m.MenuToggleHover = !m.MenuVisible() && dialogs.HeaderToggleHit(m.Columns().Dialogs, msg.X, msg.Y+tokens.TopBarHeight)
 	}
 	if m.DialogsBar.Dragging {
 		dy := msg.Y - m.DialogsBar.LastY
@@ -800,6 +814,10 @@ func sampleTouchSpeed(d TouchDrag, x, y, now int) TouchDrag {
 func (m *Model) releaseDialogs(msg DialogsReleased) {
 	m.nowMs = msg.Now
 	m.DialogsBar = BarDrag{}
+	if m.MenuTogglePress {
+		m.releaseMenuToggle(msg.X, msg.Y+tokens.TopBarHeight, msg.Now)
+		return
+	}
 	if m.DialogsToUpPress {
 		m.DialogsToUpPress = false
 		m.dialogsRippleRelease(msg.Now)
@@ -1743,6 +1761,7 @@ func (m Model) shrinkDialogsAndThird(dialogs, third int) (int, int) {
 type Scene struct {
 	Background color.NRGBA
 	Dialogs    dialogs.Pane
+	Menu       dialogs.MenuView
 	Chat       history.ChatPane
 }
 
@@ -1761,7 +1780,12 @@ func View(m Model) Scene {
 		s.Dialogs.Header.Focused = m.Search.Focused
 		s.Dialogs.Header.CaretOn = m.Search.CursorOn
 		s.Dialogs.Header.Placeholder = m.Search.Placeholder
+		s.Dialogs.Header.ToggleHover = m.MenuToggleHover
+		if m.MenuToggleRipple != (tokens.RippleState{}) {
+			s.Dialogs.Header.ToggleRipple = tokens.RippleViewIn(tokens.MainMenuToggleSize, tokens.MainMenuToggleSize, m.MenuToggleRipple, m.nowMs)
+		}
 	}
+	s.Menu = m.MenuPane()
 	s.Chat = m.Chat.Pane(m.ChatScroll, m.Columns().Chat)
 	s.Chat.ThumbDragging = m.ChatBar.Dragging
 	s.Chat.DateAlpha = m.ChatDate.Alpha
