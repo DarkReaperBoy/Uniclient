@@ -102,6 +102,8 @@ type Pane struct {
 	Selected     int
 	Thumb        Thumb
 	ToUpProgress float32
+	ToUpHover    bool
+	ToUpRipple   tokens.Ripple
 	Header       HeaderView
 	EmptyText    string
 

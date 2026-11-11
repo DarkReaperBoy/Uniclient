@@ -74,12 +74,17 @@ type DialogsPressed struct {
 func (DialogsPressed) isMsg() {}
 
 type DialogsDragged struct {
-	X   int
-	Y   int
-	Now int
+	X     int
+	Y     int
+	Touch bool
+	Now   int
 }
 
 func (DialogsDragged) isMsg() {}
+
+type DialogsLeft struct{}
+
+func (DialogsLeft) isMsg() {}
 
 type DialogsReleased struct {
 	X   int
@@ -324,6 +329,8 @@ type Model struct {
 	DialogsOverscroll dialogs.Overscroll
 	DialogsToUp       DialogsToUpState
 	DialogsToUpPress  bool
+	DialogsHover      bool
+	DialogsRipple     tokens.RippleState
 	Chat              history.List
 	ChatScroll        history.Viewport
 	ChatMoreAbove     bool
@@ -438,17 +445,22 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		prev := m.Dialogs.Selected
 		m.releaseDialogs(msg)
 		return m, m.openCmdAfterPress(prev)
+	case DialogsLeft:
+		m.DialogsHover = false
+		return m, nil
 	case DialogsPressCanceled:
 		m.DialogsBar = BarDrag{}
 		m.DialogsTouch.Active = false
 		m.DialogsTouch.Scrolling = false
 		m.DialogsTouch.State = dialogs.TouchScrollManual
 		m.DialogsToUpPress = false
+		m.DialogsRipple = tokens.RippleState{}
 		return m, nil
 	case DialogsTick:
 		m.nowMs = msg.Now
 		m.dialogsTick(msg.Now)
 		m.dialogsToUpTick(msg.Now)
+		m.dialogsRippleTick(msg.Now)
 		m.searchBlinkTick(msg.Now)
 		cmd := m.searchGlobalTick(msg.Now)
 		if cmd == nil {
@@ -647,6 +659,7 @@ func (m *Model) pressDialogs(msg DialogsPressed) (Model, Cmd) {
 		m.DialogsBar = BarDrag{}
 		m.DialogsTouch = TouchDrag{}
 		m.DialogsToUpPress = true
+		m.dialogsRippleStart(msg.X, msg.Y)
 		return *m, nil
 	}
 	width := m.Columns().Dialogs
@@ -728,6 +741,9 @@ func (m *Model) composeSubmittedCmd() Cmd {
 
 func (m *Model) dragDialogs(msg DialogsDragged) Model {
 	m.nowMs = msg.Now
+	if !msg.Touch {
+		m.DialogsHover = m.dialogsToUpHitAt(msg.X, msg.Y)
+	}
 	if m.DialogsBar.Dragging {
 		dy := msg.Y - m.DialogsBar.LastY
 		m.DialogsBar.LastY = msg.Y
@@ -786,6 +802,7 @@ func (m *Model) releaseDialogs(msg DialogsReleased) {
 	m.DialogsBar = BarDrag{}
 	if m.DialogsToUpPress {
 		m.DialogsToUpPress = false
+		m.dialogsRippleRelease(msg.Now)
 		if m.dialogsToUpHitAt(msg.X, msg.Y) {
 			m.DialogsScroll.Top = m.clampDialogsScroll(0)
 			m.dialogsToUpCheck()
@@ -868,6 +885,36 @@ func (m Model) dialogsMaxOffset() int {
 func (m *Model) dialogsToUpHitAt(x, y int) bool {
 	return dialogs.ToUpHit(m.Columns().Dialogs, m.DialogsScroll.Height,
 		m.DialogsToUp.Progress, x, y)
+}
+
+func (m *Model) dialogsRippleStart(x, y int) {
+	g := dialogs.ToUpGeometry(m.Columns().Dialogs, m.DialogsScroll.Height, m.DialogsToUp.Progress)
+	m.DialogsRipple = tokens.RippleState{
+		OriginX: x - g.X - tokens.HistoryToDownCircleX,
+		OriginY: y - g.Y - tokens.HistoryToDownCircleY,
+		Started: m.nowMs,
+	}
+}
+
+func (m *Model) dialogsRippleRelease(now int) {
+	if m.DialogsRipple == (tokens.RippleState{}) || m.DialogsRipple.Fading {
+		return
+	}
+	m.DialogsRipple.Fading = true
+	m.DialogsRipple.FadeStarted = now
+}
+
+func (m *Model) dialogsRippleTick(now int) {
+	if m.DialogsRipple == (tokens.RippleState{}) {
+		return
+	}
+	if m.DialogsRipple.Fading && now-m.DialogsRipple.FadeStarted >= tokens.HistoryToDownRippleHideMs {
+		m.DialogsRipple = tokens.RippleState{}
+	}
+}
+
+func (m Model) DialogsRippleActive() bool {
+	return m.DialogsRipple != (tokens.RippleState{})
 }
 
 func (m *Model) dialogsToUpCheck() {
@@ -1704,6 +1751,10 @@ func View(m Model) Scene {
 	if m.HasDialogs {
 		s.Dialogs = m.Dialogs.Pane(m.DialogsScroll, m.Columns().Dialogs)
 		s.Dialogs.ToUpProgress = m.DialogsToUp.Progress
+		s.Dialogs.ToUpHover = m.DialogsHover
+		if m.DialogsRipple != (tokens.RippleState{}) {
+			s.Dialogs.ToUpRipple = tokens.RippleView(m.DialogsRipple, m.nowMs)
+		}
 		s.Dialogs.Header = dialogs.HeaderLayout(m.Columns().Dialogs)
 		s.Dialogs.Header.Text = m.Search.Text
 		s.Dialogs.Header.Cursor = m.Search.Cursor

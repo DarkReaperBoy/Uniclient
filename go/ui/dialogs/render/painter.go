@@ -346,6 +346,7 @@ func (p *Painter) paintToUpButton(gtx layout.Context, pane dialogs.Pane, sch mat
 	shadow.Y += 2
 	fillCircle(gtx, shadow, toUpShadowColor)
 	fillCircle(gtx, circle, sch.PrimaryContainer)
+	paintToUpFeedback(gtx, circle, pane.ToUpHover, pane.ToUpRipple, sch)
 	strokeToUpArrow(gtx, g.X, g.Y, sch.OnPrimaryContainer)
 }
 
@@ -669,6 +670,37 @@ func pxRect(gtx layout.Context, r dialogs.Rect) image.Rectangle {
 func fillRRect(gtx layout.Context, r dialogs.Rect, radius int, col color.NRGBA) {
 	defer clip.UniformRRect(pxRect(gtx, r), gtx.Dp(unit.Dp(radius))).Push(gtx.Ops).Pop()
 	paint.Fill(gtx.Ops, col)
+}
+
+func paintToUpFeedback(gtx layout.Context, circle dialogs.Rect, hover bool, ripple tokens.Ripple, sch material.Scheme) {
+	if !hover && ripple.Alpha <= 0 {
+		return
+	}
+	defer clip.Ellipse(pxRect(gtx, circle)).Push(gtx.Ops).Pop()
+	if hover {
+		paint.Fill(gtx.Ops, withAlpha(sch.OnPrimaryContainer, tokens.StateLayerHoverAlpha))
+	}
+	if ripple.Alpha > 0 && ripple.Radius > 0 {
+		cx := circle.X + ripple.OriginX
+		cy := circle.Y + ripple.OriginY
+		fillCircle(gtx, dialogs.Rect{
+			X: cx - ripple.Radius,
+			Y: cy - ripple.Radius,
+			W: 2 * ripple.Radius,
+			H: 2 * ripple.Radius,
+		}, withAlpha(sch.OnPrimaryContainer, tokens.StateLayerRippleAlpha*ripple.Alpha))
+	}
+}
+
+func withAlpha(c color.NRGBA, a float32) color.NRGBA {
+	if a >= 1 {
+		return c
+	}
+	if a <= 0 {
+		return color.NRGBA{A: 0}
+	}
+	c.A = uint8(float32(c.A) * a)
+	return c
 }
 
 func fillCircle(gtx layout.Context, r dialogs.Rect, col color.NRGBA) {

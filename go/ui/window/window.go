@@ -100,7 +100,7 @@ func Run(eng *engine.Engine) error {
 				lastW, lastH = dpW, dpH
 				handle(app.Resized{Width: dpW, Height: dpH})
 			}
-			if appModel.KineticActive() || appModel.ChatDateActive() || appModel.ChatDownActive() || appModel.ChatMentionsActive() || appModel.ChatReactionsActive() || appModel.ChatRippleActive() || appModel.DialogsToUpActive() || appModel.ChatComposeBlinkActive() || appModel.SearchBlinkActive() || appModel.SearchGlobalPending() {
+			if appModel.KineticActive() || appModel.ChatDateActive() || appModel.ChatDownActive() || appModel.ChatMentionsActive() || appModel.ChatReactionsActive() || appModel.ChatRippleActive() || appModel.DialogsRippleActive() || appModel.DialogsToUpActive() || appModel.ChatComposeBlinkActive() || appModel.SearchBlinkActive() || appModel.SearchGlobalPending() {
 				handle(app.DialogsTick{Now: int(time.Now().UnixMilli())})
 				handle(app.ChatTick{Now: int(time.Now().UnixMilli())})
 			}
@@ -128,7 +128,7 @@ func Run(eng *engine.Engine) error {
 				w.Perform(system.ActionClose)
 			}
 			e.Frame(gtx.Ops)
-			if appModel.KineticActive() || appModel.ChatDateActive() || appModel.ChatDownActive() || appModel.ChatMentionsActive() || appModel.ChatReactionsActive() || appModel.ChatRippleActive() || appModel.DialogsToUpActive() || appModel.ChatComposeBlinkActive() || appModel.SearchBlinkActive() || appModel.SearchGlobalPending() {
+			if appModel.KineticActive() || appModel.ChatDateActive() || appModel.ChatDownActive() || appModel.ChatMentionsActive() || appModel.ChatReactionsActive() || appModel.ChatRippleActive() || appModel.DialogsRippleActive() || appModel.DialogsToUpActive() || appModel.ChatComposeBlinkActive() || appModel.SearchBlinkActive() || appModel.SearchGlobalPending() {
 				w.Invalidate()
 			}
 		}
@@ -142,7 +142,7 @@ func pxToDp(metric unit.Metric, v float32) int {
 func routeInput(gtx layout.Context, tag *render.InputArea, metric unit.Metric, handle func(app.Msg)) {
 	filter := pointer.Filter{
 		Target:  tag,
-		Kinds:   pointer.Press | pointer.Move | pointer.Drag | pointer.Release | pointer.Scroll | pointer.Cancel,
+		Kinds:   pointer.Press | pointer.Move | pointer.Drag | pointer.Release | pointer.Scroll | pointer.Cancel | pointer.Leave,
 		ScrollX: pointer.ScrollRange{Min: -wheelScrollScale, Max: wheelScrollScale},
 		ScrollY: pointer.ScrollRange{Min: -wheelScrollScale, Max: wheelScrollScale},
 	}
@@ -171,7 +171,9 @@ func routeInput(gtx layout.Context, tag *render.InputArea, metric unit.Metric, h
 				Now:   now,
 			})
 		case pointer.Move, pointer.Drag:
-			handle(app.DialogsDragged{X: pxToDp(metric, e.Position.X), Y: pxToDp(metric, e.Position.Y) - tokens.TopBarHeight, Now: int(time.Now().UnixMilli())})
+			handle(app.DialogsDragged{X: pxToDp(metric, e.Position.X), Y: pxToDp(metric, e.Position.Y) - tokens.TopBarHeight, Touch: e.Source == pointer.Touch, Now: int(time.Now().UnixMilli())})
+		case pointer.Leave:
+			handle(app.DialogsLeft{})
 		case pointer.Release:
 			handle(app.DialogsReleased{X: pxToDp(metric, e.Position.X), Y: pxToDp(metric, e.Position.Y) - tokens.TopBarHeight, Now: int(time.Now().UnixMilli())})
 		case pointer.Cancel:

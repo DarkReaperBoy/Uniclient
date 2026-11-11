@@ -114,6 +114,32 @@ owner order — that history lives in git if ever needed.
   unchanged in value. quick gate GREEN scoped; gofmt + comment ban clean;
   js/wasm full-tree build green.
 
+- Atomic 3 (the dialogs to-up button adopts the machinery — D-1's residual
+  site, same skin law): MODEL — DialogsHover bool + DialogsRipple
+  tokens.RippleState; DialogsDragged carries Touch (window.go sources
+  e.Source — touch never hovers), dragDialogs drives hover from every mouse
+  move/drag via dialogsToUpHitAt; pressDialogs' to-up branch starts the
+  ripple at the press point in circle-box coords; releaseDialogs fades on
+  release-in-or-out; DialogsPressCanceled clears instantly;
+  dialogsRippleTick rides DialogsTick (fade-end clear);
+  DialogsRippleActive joins the window tick/Invalidate conditions;
+  DialogsLeft (new msg; routeInput's filter gains pointer.Leave — gio
+  delivers Leave to the dialogs tag when the cursor leaves the dialogs
+  hit region, including into the chat pane) clears hover; View projects
+  ToUpHover + ToUpRipple gated on the active state (a zero RippleState is
+  not a no-op — RippleView(zero) is a full ripple). PANE — dialogs.Pane
+  gains ToUpHover/ToUpRipple. PAINTER — paintToUpFeedback: the circle
+  ellipse mask, hover fill OnPrimaryContainer@8%, ripple ellipse@
+  12%*alpha nested under the mask, painted between circle and arrow (a
+  local withAlpha joins the painter's local helpers). red->green:
+  tests/gui/dialogs_to_up_hover_test.go (hover set/clear via mouse
+  DialogsDragged, touch never hovers, DialogsLeft clears; press → origin
+  (21,9) radius 0 alpha 1 + DialogsRippleActive; mid-show; release →
+  mid-fade → fade-end clear; release-outside still fades without the jump;
+  cancel clears; press off-button no ripple; paint journey PaintPane with
+  hover+ripple). quick gate GREEN scoped; gofmt + comment ban clean;
+  js/wasm full-tree build green.
+
 ## Session 417 — the read-position front: the unread bars ride the engine's read position (2026-11-11)
 
 - Boot: fresh-sandbox recovery — repo re-cloned, Go 1.27.1 re-installed per
