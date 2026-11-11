@@ -7,24 +7,19 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: GUI rebuild (§6); the skin's hover+ripple machinery LANDED (session
-  418, one atomic — D-1's residual): the chat corner buttons (down/mentions/
-  reactions) paint Material state layers — hover OnPrimaryContainer@8% on
-  mouse-over (ChatDragged carries Touch, hover skips touch; pointer.Leave →
-  ChatLeft clears; ChatHover via chatCornerAt reactions>mentions>down) and
-  the reference ripple law (press origin in circle-box coords, radius 0→
-  farthest-corner of the 42dp area, easeOutQuint 650ms show, linear 200ms
-  fade on release-in-or-out, cancel clears; clipped to the circle mask,
-  OnPrimaryContainer@12%; ChatRippleState in the Model, ChatRippleActive
-  drives the tick clock; View projects RippleView per button)
-- next: D-1's dialogs to-up adoption of the same machinery (the second
-  TwoIconButton site) or the next §6.2 capability seam; owner redirect wins
+- front: GUI rebuild (§6); the engine-driven add-account affordance (W-1's
+  residual — the product is unusable without it; every §4 live drive is
+  BLOCKED-env on "no add-account surface"): the main-menu drawer first
+  (reference-measured), then the Add Account button + backend picker + the
+  port/engine wire, then the auth surface (StartAuth/SubmitAuthInput)
+- next: session 419 atomic 1 — the main-menu surface (toggle+panel+scrim+
+  open/close+account rows+cover/footer, hover/ripple skin on the toggle)
 - owner-waiting: N-1 — install the uniclient-android APK artifact
   (build 42622715804) on a device and report (android GUI-default check)
-- last-gate: session 418 — quick gate GREEN scoped in-sandbox (tests/engine
-  6.8s, tests/gui, tests/ui; app/appport/dialogs-render/history-render/
-  window/cmd via windows vet), gofmt + comment ban clean (391 files), js/wasm
-  full-tree build green; CI gate of record Verify run pending at push
+- last-gate: session 418 CI GATE OF RECORD GREEN — Verify 42971364147
+  (head 35354292) all 3 jobs success (Test&vet&gofmt&smoke / Cross-builds
+  windows+js / Nix flake; only the tag-match step skipped by design), Build
+  42971351623 success, pages build 42971527859 success
 
 ## Open items
 
@@ -35,7 +30,7 @@ owner order — that history lives in git if ever needed.
 | N-1 | android APK | GUI-default on android is runtime-unverifiable in-sandbox (no emulator/device); expected: the empty Material surface, not a black zombie | session 405 (js sibling); js live-verified in 406; APK artifact on build 42622715804 | owner installs the uniclient-android APK artifact and reports |
 | H-2 | verify/release yml | CLOSED 2026-11-09 (owner order): android + web legs returned as build.yml (per-push, no tests, parallel); only the Xvfb GUI + Puppeteer web-drive legs stay parked with the rebuilt GUI | AGENTS.md §8; build 42597570851 | Xvfb/Puppeteer return when the GUI ships (§6.7) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
-| D-1 | ui/history corner button | hover/over + ripple LANDED for the chat corner buttons (session 418: Material state layers — hover 8%, ripple 12% — plus the reference ripple law on all three buttons; see the session entry for the wire); residual: the dialogs to-up button (the second TwoIconButton site) adopts the same machinery; replyReturn branch of downClick + loadedAtBottom==false state return with reply-return jumps / below-history pagination | jump_down_button.cpp 41-67 (dev HEAD), corner_buttons.cpp 300-306, lib_ui ripple_animation.cpp, widgets.style defaultRippleAnimation, chat_helpers.style 1207-1222 | adopt the machinery on the dialogs to-up button; replyReturn rides the reply front |
+| D-1 | ui/history corner button | hover/over + ripple LANDED everywhere the skin has TwoIconButton sites (session 418 atomics 1+3: all three chat corner buttons AND the dialogs to-up button paint Material state layers + the reference ripple law; see the session entry for the wire); the ripple primitives live in ui/tokens | jump_down_button.cpp 41-67 (dev HEAD), corner_buttons.cpp 300-306, lib_ui ripple_animation.cpp, widgets.style defaultRippleAnimation, chat_helpers.style 1207-1222, dialogs.style dialogsMenuToggle 284-296 | residuals: replyReturn branch of downClick + loadedAtBottom==false state return ride the reply/pagination fronts |
 | D-2 | ui/history unread-things buttons | read-marking absent for mentions AND reactions: after a jump the button stays shown (reference hides it when the server marks the thing read — updateUnreadThingsVisibility is server-data-driven); mentionsClick's already-there voice/video media-read branch (5623) deferred — no media model; unread-count badges join D-1's class; poll-votes 4th stack slot returns with a poll model | history_view_corner_buttons.cpp 147-190, 288-345 | returns with engine unread-things events + the media pass |
 | D-3 | build.yml web job | CLOSED 2026-11-10 (session 414, two atomics — see the session entry for the evidence trail) | gotd = 0 packages in the js link graph; wasm plain build 32,837,371 -> 26,714,844 B (-6,122,527 B, -18.6%); <20MB projection did not hold — remaining bulk = web trio deps (mautrix+goolm, bale gRPC-web, pion webrtc) + the rebuilt GUI (gio+fonts) | done; CI web job ships the trimmed wasm from the atomic-2 push |
 | D-4 | window keys | ATOMIC 2 LANDED (session 413): plain Enter/Return -> ChatComposeSubmitted -> composeSubmittedCmd (guards: open+port+CanSend+non-empty) clears the field and fires ChatPort.Send -> ChatComposeSendRequested{OK,Text}; failed sends restore the field (composeEdit — no data loss); Up/Down arrows = ChatScrolled step 20dp, PageUp/PageDown = 200dp (tokens ScrollKeyStep = WheelNotch/WheelScrollLines/WheelPixelToAngleDelta, ScrollKeyPageStep = 10x — the Qt qabstractslider defaults through the wheel law); CanSend lands on the open transition from the row type (channels read-only — honest default until the writability front carries admin rights); REAL-seam: appport.Send -> engine.SendMessage -> optimistic msg_received -> open-chat append (wire test). Residuals: Up-on-empty-field edit-last rides the messages/edit front (scrolls meanwhile), Ctrl+Up/Down reply-cycle rides the reply front, scroll keys need compose focus — the unfocused chat pane has no key routing yet (window front) | history_widget.cpp 9276-9349 (fetched 2026-11-09) + qabstractslider defaults | IME ranged EditEvents + SelectionCmd/SnippetCmd contract = the mobile/IME front; window-front key routing |
