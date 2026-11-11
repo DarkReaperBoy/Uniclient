@@ -103,6 +103,17 @@ owner order — that history lives in git if ever needed.
   surface yet) — same class as session 417; journeys drive the real
   press→ripple→release seam through Update/View.
 
+- Atomic 2 (pure refactor, the enabler for the dialogs adoption): the ripple
+  primitives moved from ui/history to ui/tokens — Ripple/RippleState/
+  RippleMaxRadius/RippleView/easeOutQuint live with the other pinned skin
+  laws (the durations are the reference pins, the state-layer alphas the
+  Material pins, the math is table law); history/dialogs both already
+  import tokens so no new dependency edge; ChatPane/App/painter references
+  migrated mechanically (history.Ripple* -> tokens.Ripple*), the pins moved
+  tests/ui/history_corner_hover_test.go -> tests/ui/tokens_ripple_test.go
+  unchanged in value. quick gate GREEN scoped; gofmt + comment ban clean;
+  js/wasm full-tree build green.
+
 ## Session 417 — the read-position front: the unread bars ride the engine's read position (2026-11-11)
 
 - Boot: fresh-sandbox recovery — repo re-cloned, Go 1.27.1 re-installed per

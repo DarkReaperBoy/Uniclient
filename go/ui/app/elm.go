@@ -281,7 +281,7 @@ const (
 
 type ChatRippleState struct {
 	Button ChatCorner
-	history.RippleState
+	tokens.RippleState
 }
 
 type ChatMentionsState struct {
@@ -1501,7 +1501,7 @@ func (m Model) chatCornerGeometry(corner ChatCorner) history.Geometry {
 
 func (m *Model) chatRippleStart(corner ChatCorner, x, y int) {
 	g := m.chatCornerGeometry(corner)
-	m.ChatRipple = ChatRippleState{Button: corner, RippleState: history.RippleState{
+	m.ChatRipple = ChatRippleState{Button: corner, RippleState: tokens.RippleState{
 		OriginX: x - g.Left - tokens.HistoryToDownCircleX,
 		OriginY: y - g.Top - tokens.HistoryToDownCircleY,
 		Started: m.nowMs,
@@ -1723,11 +1723,11 @@ func View(m Model) Scene {
 	s.Chat.ReactionsHover = m.ChatHover == CornerReactions
 	switch m.ChatRipple.Button {
 	case CornerDown:
-		s.Chat.DownRipple = history.RippleView(m.ChatRipple.RippleState, m.nowMs)
+		s.Chat.DownRipple = tokens.RippleView(m.ChatRipple.RippleState, m.nowMs)
 	case CornerMentions:
-		s.Chat.MentionsRipple = history.RippleView(m.ChatRipple.RippleState, m.nowMs)
+		s.Chat.MentionsRipple = tokens.RippleView(m.ChatRipple.RippleState, m.nowMs)
 	case CornerReactions:
-		s.Chat.ReactionsRipple = history.RippleView(m.ChatRipple.RippleState, m.nowMs)
+		s.Chat.ReactionsRipple = tokens.RippleView(m.ChatRipple.RippleState, m.nowMs)
 	}
 	s.Chat.Compose = m.ComposePane()
 	if len(m.Accounts) == 0 {

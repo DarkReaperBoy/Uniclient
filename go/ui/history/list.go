@@ -153,13 +153,13 @@ type ChatPane struct {
 	DownProgress      float32
 	DownBadgeText     string
 	DownHover         bool
-	DownRipple        Ripple
+	DownRipple        tokens.Ripple
 	MentionsProgress  float32
 	MentionsHover     bool
-	MentionsRipple    Ripple
+	MentionsRipple    tokens.Ripple
 	ReactionsProgress float32
 	ReactionsHover    bool
-	ReactionsRipple   Ripple
+	ReactionsRipple   tokens.Ripple
 	Compose           ComposePaneView
 	EmptyText         string
 }

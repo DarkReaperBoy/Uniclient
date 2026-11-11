@@ -733,7 +733,7 @@ func (p *ChatPainter) paintReactionsButton(gtx layout.Context, pane history.Chat
 	fillGlyph(gtx, g.Left, g.Top, icons.HistoryReaction, sch.OnPrimaryContainer)
 }
 
-func paintCornerFeedback(gtx layout.Context, circle history.Geometry, hover bool, ripple history.Ripple, sch material.Scheme) {
+func paintCornerFeedback(gtx layout.Context, circle history.Geometry, hover bool, ripple tokens.Ripple, sch material.Scheme) {
 	if !hover && ripple.Alpha <= 0 {
 		return
 	}

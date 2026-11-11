@@ -465,6 +465,72 @@ var DefaultMainMenu = []MainMenuEntry{
 	{Kind: MenuToggle, ID: "ghost_mode", Label: "Ghost Mode", Icon: "ayuGhostIcon"},
 }
 
+type Ripple struct {
+	OriginX int
+	OriginY int
+	Radius  int
+	Alpha   float32
+}
+
+type RippleState struct {
+	OriginX     int
+	OriginY     int
+	Started     int
+	Fading      bool
+	FadeStarted int
+}
+
+func easeOutQuint(t float32) float32 {
+	u := 1 - t
+	return 1 - u*u*u*u*u
+}
+
+func RippleMaxRadius(originX, originY int) int {
+	best := 0.0
+	for _, corner := range [4][2]int{
+		{0, 0},
+		{HistoryToDownCircleSize, 0},
+		{0, HistoryToDownCircleSize},
+		{HistoryToDownCircleSize, HistoryToDownCircleSize},
+	} {
+		dx := float64(originX - corner[0])
+		dy := float64(originY - corner[1])
+		if d := dx*dx + dy*dy; d > best {
+			best = d
+		}
+	}
+	return int(math.Round(math.Sqrt(best)))
+}
+
+func rippleShown(now, started int) float32 {
+	d := now - started
+	if d <= 0 {
+		return 0
+	}
+	if d >= HistoryToDownRippleShowMs {
+		return 1
+	}
+	return easeOutQuint(float32(d) / float32(HistoryToDownRippleShowMs))
+}
+
+func RippleView(st RippleState, now int) Ripple {
+	v := Ripple{OriginX: st.OriginX, OriginY: st.OriginY, Alpha: 1,
+		Radius: int(math.Round(float64(RippleMaxRadius(st.OriginX, st.OriginY)) * float64(rippleShown(now, st.Started))))}
+	if !st.Fading {
+		return v
+	}
+	d := now - st.FadeStarted
+	if d <= 0 {
+		return v
+	}
+	if d >= HistoryToDownRippleHideMs {
+		v.Alpha = 0
+		return v
+	}
+	v.Alpha = 1 - float32(d)/float32(HistoryToDownRippleHideMs)
+	return v
+}
+
 func MenuItemHeightFor(fontPx int) int {
 	return fontPx + MenuItemPadTop + MenuItemPadBottom
 }
