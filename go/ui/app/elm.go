@@ -103,6 +103,7 @@ type ChatLoaded struct {
 	Items     []history.Item
 	Msgs      []WireMessage
 	ReadInbox int
+	Unread    int
 	MoreAbove bool
 	Now       int
 }
@@ -329,6 +330,7 @@ type Model struct {
 	chatMsgs          []WireMessage
 	openGroup         bool
 	openReadInbox     int
+	openUnread        int
 	openCanSend       bool
 	openLoaded        bool
 	chatJumpBottom    bool
@@ -456,6 +458,7 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		m.chatReactionsCheck()
 		m.chatMsgs = msg.Msgs
 		m.openReadInbox = msg.ReadInbox
+		m.openUnread = msg.Unread
 		if m.OpenValid && !m.openLoaded {
 			m.openLoaded = true
 			m.chatJumpBottom = true
@@ -668,16 +671,17 @@ func (m *Model) openCmdAfterPress(prev int) Cmd {
 	m.OpenValid = true
 	m.openGroup = row.Group
 	m.openReadInbox = row.ReadInbox
+	m.openUnread = row.Unread
 	m.openCanSend = row.ChatType != dialogs.ChatChannel
 	m.openLoaded = false
-	port, group, readInbox := m.port, row.Group, row.ReadInbox
+	port, group, readInbox, unread := m.port, row.Group, row.ReadInbox, row.Unread
 	account, chat := row.Account, row.ChatID
 	return func() Msg {
 		msgs, ok := port.Messages(account, chat, chatHistoryLimit)
 		if !ok {
 			return nil
 		}
-		return ChatLoaded{Msgs: msgs, ReadInbox: readInbox, MoreAbove: len(msgs) == chatHistoryLimit, Items: FeedItems(msgs, readInbox, time.Now(), group), Now: int(time.Now().UnixMilli())}
+		return ChatLoaded{Msgs: msgs, ReadInbox: readInbox, Unread: unread, MoreAbove: len(msgs) == chatHistoryLimit, Items: FeedItems(msgs, readInbox, time.Now(), group), Now: int(time.Now().UnixMilli())}
 	}
 }
 
@@ -1618,6 +1622,7 @@ func View(m Model) Scene {
 	s.Chat.ThumbDragging = m.ChatBar.Dragging
 	s.Chat.DateAlpha = m.ChatDate.Alpha
 	s.Chat.DownProgress = m.ChatDown.Progress
+	s.Chat.DownBadgeText = tokens.FormatUnreadCounter(m.openUnread, false, false)
 	s.Chat.MentionsProgress = m.ChatMentions.Progress
 	s.Chat.ReactionsProgress = m.ChatReactions.Progress
 	s.Chat.Compose = m.ComposePane()

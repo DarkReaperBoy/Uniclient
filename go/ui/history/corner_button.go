@@ -62,6 +62,19 @@ func DownButtonHit(paneWidth, paneHeight int, progress float32, x, y int) bool {
 	return x >= g.Left && x < g.Left+g.Width && y >= g.Top && y < g.Top+g.Height
 }
 
+func DownBadgeGeometry(button Geometry, textWidth int) Geometry {
+	w := textWidth + 2*tokens.HistoryToDownBadgePadding
+	if w < tokens.HistoryToDownBadgeSize {
+		w = tokens.HistoryToDownBadgeSize
+	}
+	return Geometry{
+		Left:   button.Left + (button.Width-w)/2,
+		Top:    button.Top,
+		Width:  w,
+		Height: tokens.HistoryToDownBadgeSize,
+	}
+}
+
 func (l List) firstUnreadMentionRow() int {
 	for i := range l.Items {
 		if l.Items[i].UnreadMention {

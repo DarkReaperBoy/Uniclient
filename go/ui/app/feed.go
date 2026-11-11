@@ -170,13 +170,17 @@ func (m Model) applyChatUpdated(env engineEnvelope) (Model, Cmd) {
 	sortDialogRows(fresh)
 	m.accountRows = storeAccountRows(m.accountRows, env.AccountID, fresh)
 	m.reprojectDialogRows()
-	m.applyOpenReadPosition(entry, env.TimestampMs)
+	m.applyOpenChatRow(entry, env.TimestampMs)
 	return m, nil
 }
 
-func (m *Model) applyOpenReadPosition(entry dialogs.Entry, nowMs int64) {
+func (m *Model) applyOpenChatRow(entry dialogs.Entry, nowMs int64) {
 	if !m.OpenValid || !m.openLoaded || entry.Account != m.Open.Account ||
-		entry.ChatID != m.Open.ID || entry.ReadInbox == m.openReadInbox {
+		entry.ChatID != m.Open.ID {
+		return
+	}
+	m.openUnread = entry.Unread
+	if entry.ReadInbox == m.openReadInbox {
 		return
 	}
 	m.openReadInbox = entry.ReadInbox

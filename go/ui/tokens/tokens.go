@@ -313,6 +313,8 @@ const (
 	HistoryToDownArrowCenterY = 38
 	HistoryToDownShownAfter   = 480
 	HistoryToDownDurationMs   = 150
+	HistoryToDownBadgeSize    = 22
+	HistoryToDownBadgePadding = 5
 
 	HistoryUnreadThingsSkip = 4
 	HistoryReplyHeight      = 49

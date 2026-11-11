@@ -151,6 +151,7 @@ type ChatPane struct {
 	DateText          string
 	DateAlpha         float32
 	DownProgress      float32
+	DownBadgeText     string
 	MentionsProgress  float32
 	ReactionsProgress float32
 	Compose           ComposePaneView

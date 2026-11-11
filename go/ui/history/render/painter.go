@@ -34,6 +34,7 @@ type ChatPainter struct {
 var (
 	fontRegular  = font.Font{Typeface: "Go"}
 	fontSemibold = font.Font{Typeface: "Go", Weight: font.Medium}
+	fontBold     = font.Font{Typeface: "Go", Weight: font.Bold}
 )
 
 var inShadow = color.NRGBA{R: 0x74, G: 0x8e, B: 0xa2, A: 0x29}
@@ -676,6 +677,13 @@ func (p *ChatPainter) paintDownButton(gtx layout.Context, pane history.ChatPane,
 	fillEllipse(gtx, shadow, downShadowColor)
 	fillEllipse(gtx, circle, sch.PrimaryContainer)
 	strokeDownArrow(gtx, g.Left, g.Top, sch.OnPrimaryContainer)
+	if pane.DownBadgeText == "" {
+		return
+	}
+	m := p.newMetric(gtx, fontBold, unit.Sp(tokens.FontDialogsUnread), pane.DownBadgeText, 0, 0)
+	badge := history.DownBadgeGeometry(g, m.width)
+	fillRRect(gtx, badge, tokens.HistoryToDownBadgeSize/2, sch.Primary)
+	p.label(gtx, badge, fontBold, unit.Sp(tokens.FontDialogsUnread), pane.DownBadgeText, sch.OnPrimary)
 }
 
 func (p *ChatPainter) paintMentionsButton(gtx layout.Context, pane history.ChatPane, sch material.Scheme) {
