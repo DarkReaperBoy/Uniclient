@@ -32,8 +32,9 @@ owner order — that history lives in git if ever needed.
   smoke, nix, cross-builds); quick gates GREEN scoped on both atomics
   (tests/engine 6.6s, tests/gui, tests/ui, tests/bootstrap, cores 58s;
   app/appport/window/cmd/renders via windows vet), gofmt + comment ban
-  clean (387 files), js/wasm full-tree build green; verify for the
-  atomic-2 push dispatched at yield — record next session
+  clean (387 files), js/wasm full-tree build green; Verify 42945731210
+  (4b1d88f3, atomic 2) + Build 42945626236 in flight at yield — record
+  next session
 
 ## Open items
 
