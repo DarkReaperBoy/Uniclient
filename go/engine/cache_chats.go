@@ -33,6 +33,7 @@ type ChatInfo struct {
 	LastMsgMediaType     int    `json:"last_msg_media_type,omitempty"`
 	LastMsgThumbB64      string `json:"last_msg_thumb_b64,omitempty"`
 	UnreadCount          int    `json:"unread_count"`
+	ReadInboxMaxID       int    `json:"read_inbox_max_id,omitempty"`
 	IsMuted              bool   `json:"is_muted"`
 	IsPinned             bool   `json:"is_pinned"`
 	IsArchived           bool   `json:"is_archived"`
@@ -111,7 +112,7 @@ func (e *Engine) GetUnifiedChatList(limit, offset int) ([]ChatInfo, error) {
 		`SELECT c.account_id, c.chat_id, c.type, c.title, c.avatar_path,
                         c.last_msg_id, c.last_msg_text, c.last_msg_time, c.last_msg_sender,
                         c.last_msg_is_outgoing, c.last_msg_status, c.last_msg_media_type, c.last_msg_thumb_b64,
-                        c.unread_count, c.is_muted, c.is_pinned, c.is_archived, c.mute_until,
+                        c.unread_count, c.read_inbox_max_id, c.is_muted, c.is_pinned, c.is_archived, c.mute_until,
                         c.draft_text, c.member_count, c.parent_id,
                         COALESCE(u.is_bot, 0), COALESCE(u.is_contact, 0), COALESCE(u.is_blocked, 0),
                         c.unread_mark, c.unread_mention_count, c.unread_reaction_count,
@@ -151,7 +152,7 @@ func (e *Engine) GetChatList(accountID string, archived bool, limit, offset int)
 		`SELECT c.account_id, c.chat_id, c.type, c.title, c.avatar_path,
                         c.last_msg_id, c.last_msg_text, c.last_msg_time, c.last_msg_sender,
                         c.last_msg_is_outgoing, c.last_msg_status, c.last_msg_media_type, c.last_msg_thumb_b64,
-                        c.unread_count, c.is_muted, c.is_pinned, c.is_archived, c.mute_until,
+                        c.unread_count, c.read_inbox_max_id, c.is_muted, c.is_pinned, c.is_archived, c.mute_until,
                         c.draft_text, c.member_count, c.parent_id,
                         COALESCE(u.is_bot, 0), COALESCE(u.is_contact, 0), COALESCE(u.is_blocked, 0),
                         c.unread_mark, c.unread_mention_count, c.unread_reaction_count,
@@ -225,7 +226,7 @@ func scanChats(rows *sql.Rows) ([]ChatInfo, error) {
 			&c.AccountID, &c.ChatID, &c.Type, &c.Title, &avatarPath,
 			&lastMsgID, &lastMsgText, &lastMsgTime, &lastMsgSender,
 			&lastMsgIsOutgoing, &c.LastMsgStatus, &c.LastMsgMediaType, &lastMsgThumbB64,
-			&c.UnreadCount, &isMuted, &isPinned, &isArchived, &c.MuteUntil,
+			&c.UnreadCount, &c.ReadInboxMaxID, &isMuted, &isPinned, &isArchived, &c.MuteUntil,
 			&draftText, &memberCount, &parentID, &isBot, &isContact, &isBlocked,
 			&unreadMark, &c.UnreadMentionCount, &c.UnreadReactionCount,
 			&isVerified, &isScam, &isFake,
@@ -315,7 +316,7 @@ func (e *Engine) UpsertChat(accountID string, d cores.Dialog) error {
 		`INSERT INTO chats (account_id, chat_id, type, title, last_msg_id, last_msg_text,
                                      last_msg_time, last_msg_sender, last_msg_is_outgoing,
                                      last_msg_status, last_msg_media_type, last_msg_thumb_b64,
-                                     unread_count, is_muted, is_pinned,
+                                     unread_count, read_inbox_max_id, is_muted, is_pinned,
                                      is_archived, member_count, parent_id,
                                      unread_mark, unread_mention_count, unread_reaction_count,
                                      is_verified, is_scam, is_fake,
@@ -323,7 +324,7 @@ func (e *Engine) UpsertChat(accountID string, d cores.Dialog) error {
                                      emoji_status_id, story_count, has_unread_story, is_forum,
                                      write_restriction_type, write_restriction_text,
                                      not_joined, join_request, can_post, is_admin, is_creator, no_forwards, username, has_active_call, access_hash, updated_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                  ON CONFLICT(account_id, chat_id) DO UPDATE SET
                      type = excluded.type,
                      title = excluded.title,
@@ -336,6 +337,7 @@ func (e *Engine) UpsertChat(accountID string, d cores.Dialog) error {
                      last_msg_media_type = CASE WHEN excluded.last_msg_time > COALESCE(chats.last_msg_time, 0) THEN excluded.last_msg_media_type ELSE chats.last_msg_media_type END,
                      last_msg_thumb_b64 = CASE WHEN excluded.last_msg_time > COALESCE(chats.last_msg_time, 0) THEN excluded.last_msg_thumb_b64 ELSE chats.last_msg_thumb_b64 END,
                      unread_count = excluded.unread_count,
+                     read_inbox_max_id = MAX(excluded.read_inbox_max_id, chats.read_inbox_max_id),
                      is_muted = excluded.is_muted,
                      mute_until = CASE WHEN excluded.is_muted = 0 THEN 0 ELSE chats.mute_until END,
                      is_pinned = excluded.is_pinned,
@@ -370,7 +372,7 @@ func (e *Engine) UpsertChat(accountID string, d cores.Dialog) error {
                      updated_at = excluded.updated_at`,
 		accountID, d.ID, chatType, d.Title, lastMsgID, lastMsgText,
 		lastMsgTime, lastMsgSender, lastMsgIsOutgoing, lastMsgStatus, lastMsgMediaType, lastMsgThumbB64,
-		d.UnreadCount, boolToInt(d.IsMuted), boolToInt(d.IsPinned),
+		d.UnreadCount, d.ReadInboxMaxID, boolToInt(d.IsMuted), boolToInt(d.IsPinned),
 		boolToInt(d.IsArchived), d.MemberCount, d.ParentID,
 		boolToInt(d.UnreadMark), d.UnreadMentionCount, d.UnreadReactionCount,
 		boolToInt(d.IsVerified), boolToInt(d.IsScam), boolToInt(d.IsFake),
@@ -1576,7 +1578,7 @@ func (e *Engine) emitChatUpdate(accountID, chatID string) {
 		`SELECT c.account_id, c.chat_id, c.type, c.title, c.avatar_path,
                         c.last_msg_id, c.last_msg_text, c.last_msg_time, c.last_msg_sender,
                         c.last_msg_is_outgoing, c.last_msg_status, c.last_msg_media_type, c.last_msg_thumb_b64,
-                        c.unread_count, c.is_muted, c.is_pinned, c.is_archived, c.mute_until,
+                        c.unread_count, c.read_inbox_max_id, c.is_muted, c.is_pinned, c.is_archived, c.mute_until,
                         c.draft_text, c.member_count, c.parent_id,
                         COALESCE(u.is_bot, 0), COALESCE(u.is_contact, 0), COALESCE(u.is_blocked, 0),
                         c.unread_mark, c.unread_mention_count, c.unread_reaction_count,
@@ -1599,7 +1601,7 @@ func (e *Engine) emitChatUpdate(accountID, chatID string) {
 		&c.AccountID, &c.ChatID, &c.Type, &c.Title, &avatarPath,
 		&lastMsgID, &lastMsgText, &lastMsgTime, &lastMsgSender,
 		&lastMsgIsOutgoing, &c.LastMsgStatus, &c.LastMsgMediaType, &lastMsgThumbB64,
-		&c.UnreadCount, &isMuted, &isPinned, &isArchived, &c.MuteUntil,
+		&c.UnreadCount, &c.ReadInboxMaxID, &isMuted, &isPinned, &isArchived, &c.MuteUntil,
 		&draftText, &memberCount, &parentID, &isBot, &isContact, &isBlocked,
 		&unreadMark, &c.UnreadMentionCount, &c.UnreadReactionCount,
 		&isVerified, &isScam, &isFake, &isAdminInt, &isCreatorInt,

@@ -19,6 +19,7 @@ const (
 	SearchGlobalLoadingText = "Loading..."
 	SearchGlobalResultsText = "Global search results"
 	SearchEmptyTitleText    = "No Results"
+	UnreadBarText           = "Unread messages"
 
 	ChatKindDM      = 1
 	ChatKindGroup   = 2
@@ -79,6 +80,7 @@ type snapshotChat struct {
 	LastMsgIsOutgoing   bool   `json:"last_msg_is_outgoing"`
 	LastMsgStatus       int    `json:"last_msg_status"`
 	UnreadCount         int    `json:"unread_count"`
+	ReadInboxMaxID      int    `json:"read_inbox_max_id"`
 	IsMuted             bool   `json:"is_muted"`
 	IsPinned            bool   `json:"is_pinned"`
 	IsBot               bool   `json:"is_bot"`
@@ -167,7 +169,20 @@ func (m Model) applyChatUpdated(env engineEnvelope) (Model, Cmd) {
 	sortDialogRows(fresh)
 	m.accountRows = storeAccountRows(m.accountRows, env.AccountID, fresh)
 	m.reprojectDialogRows()
+	m.applyOpenReadPosition(entry, env.TimestampMs)
 	return m, nil
+}
+
+func (m *Model) applyOpenReadPosition(entry dialogs.Entry, nowMs int64) {
+	if !m.OpenValid || !m.openLoaded || entry.Account != m.Open.Account ||
+		entry.ChatID != m.Open.ID || entry.ReadInbox == m.openReadInbox {
+		return
+	}
+	m.openReadInbox = entry.ReadInbox
+	m.Chat.Items = FeedItems(m.chatMsgs, m.openReadInbox, time.UnixMilli(nowMs), m.openGroup)
+	m.Chat.Heights = nil
+	m.Chat.Hits = nil
+	m.ChatDirty = true
 }
 
 func sortDialogRows(rows []dialogs.Entry) {
@@ -301,6 +316,7 @@ func snapshotRow(c snapshotChat, accountID string, now time.Time) dialogs.Entry 
 		Name:        c.Title,
 		Username:    c.Username,
 		Unread:      c.UnreadCount,
+		ReadInbox:   c.ReadInboxMaxID,
 		UnreadMark:  c.UnreadMark,
 		UnreadMuted: c.IsMuted,
 		Mention:     c.UnreadMentionCount > 0,
@@ -373,7 +389,7 @@ func (m Model) applyMsgReceived(env engineEnvelope) (Model, Cmd) {
 	fresh = append(fresh, m.chatMsgs...)
 	fresh = append(fresh, wm)
 	m.chatMsgs = fresh
-	m.Chat.Items = FeedItems(fresh, time.UnixMilli(env.TimestampMs), m.openGroup)
+	m.Chat.Items = FeedItems(fresh, m.openReadInbox, time.UnixMilli(env.TimestampMs), m.openGroup)
 	m.Chat.Heights = nil
 	m.Chat.Hits = nil
 	m.ChatDirty = true
@@ -383,11 +399,12 @@ func (m Model) applyMsgReceived(env engineEnvelope) (Model, Cmd) {
 	return m, nil
 }
 
-func FeedItems(msgs []WireMessage, now time.Time, group bool) []history.Item {
+func FeedItems(msgs []WireMessage, readInbox int, now time.Time, group bool) []history.Item {
 	items := make([]history.Item, 0, len(msgs))
 	prevTs := int64(0)
 	prevSender := ""
 	prevMessage := false
+	barShown := false
 	for _, wm := range msgs {
 		it := history.Item{Kind: history.ItemMessage, Text: wm.Text}
 		if wm.Service {
@@ -399,6 +416,10 @@ func FeedItems(msgs []WireMessage, now time.Time, group bool) []history.Item {
 			if group && !wm.Out && wm.SenderName != "" {
 				it.FromName = wm.SenderName
 			}
+		}
+		if !barShown && readInbox > 0 && !wm.Out && msgIDBeyondRead(readInbox, wm.ID) {
+			it.UnreadBar = UnreadBarText
+			barShown = true
 		}
 		divider := len(items) == 0 || !sameLocalDay(prevTs, wm.TimestampMs)
 		if divider {
@@ -414,6 +435,14 @@ func FeedItems(msgs []WireMessage, now time.Time, group bool) []history.Item {
 		prevMessage = !wm.Service
 	}
 	return items
+}
+
+func msgIDBeyondRead(readInbox int, id string) bool {
+	n, err := strconv.ParseInt(id, 10, 64)
+	if err != nil {
+		return false
+	}
+	return n > int64(readInbox)
 }
 
 var weekdayShort = [...]string{"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}

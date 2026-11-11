@@ -186,6 +186,8 @@ type Dialog struct {
 	AvatarB64            string   `json:"avatar_b64,omitempty"`
 	LastMessage          *Message `json:"last_message,omitempty"`
 	UnreadCount          int      `json:"unread_count"`
+	ReadInboxMaxID       int      `json:"read_inbox_max_id,omitempty"`
+	ReadOutboxMaxID      int      `json:"read_outbox_max_id,omitempty"`
 	IsMuted              bool     `json:"is_muted"`
 	IsPinned             bool     `json:"is_pinned"`
 	IsArchived           bool     `json:"is_archived"`

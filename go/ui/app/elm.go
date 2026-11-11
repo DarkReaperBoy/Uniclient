@@ -102,6 +102,7 @@ func (DialogsTick) isMsg() {}
 type ChatLoaded struct {
 	Items     []history.Item
 	Msgs      []WireMessage
+	ReadInbox int
 	MoreAbove bool
 	Now       int
 }
@@ -327,6 +328,7 @@ type Model struct {
 	port              ChatPort
 	chatMsgs          []WireMessage
 	openGroup         bool
+	openReadInbox     int
 	openCanSend       bool
 	openLoaded        bool
 	chatJumpBottom    bool
@@ -453,6 +455,7 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		m.chatMentionsCheck()
 		m.chatReactionsCheck()
 		m.chatMsgs = msg.Msgs
+		m.openReadInbox = msg.ReadInbox
 		if m.OpenValid && !m.openLoaded {
 			m.openLoaded = true
 			m.chatJumpBottom = true
@@ -657,16 +660,17 @@ func (m *Model) openCmdAfterPress(prev int) Cmd {
 	m.Open = ChatRef{Account: row.Account, ID: row.ChatID}
 	m.OpenValid = true
 	m.openGroup = row.Group
+	m.openReadInbox = row.ReadInbox
 	m.openCanSend = row.ChatType != dialogs.ChatChannel
 	m.openLoaded = false
-	port, group := m.port, row.Group
+	port, group, readInbox := m.port, row.Group, row.ReadInbox
 	account, chat := row.Account, row.ChatID
 	return func() Msg {
 		msgs, ok := port.Messages(account, chat, chatHistoryLimit)
 		if !ok {
 			return nil
 		}
-		return ChatLoaded{Msgs: msgs, Items: FeedItems(msgs, time.Now(), group), Now: int(time.Now().UnixMilli())}
+		return ChatLoaded{Msgs: msgs, ReadInbox: readInbox, Items: FeedItems(msgs, readInbox, time.Now(), group), Now: int(time.Now().UnixMilli())}
 	}
 }
 

@@ -12766,6 +12766,8 @@ func (t *TelegramCore) extractDialogs(dlgs []tg.DialogClass, msgs []tg.MessageCl
 
 		dialog := Dialog{
 			UnreadCount:         dlg.UnreadCount,
+			ReadInboxMaxID:      dlg.ReadInboxMaxID,
+			ReadOutboxMaxID:     dlg.ReadOutboxMaxID,
 			UnreadMark:          dlg.UnreadMark,
 			UnreadMentionCount:  dlg.UnreadMentionsCount,
 			UnreadReactionCount: dlg.UnreadReactionsCount,

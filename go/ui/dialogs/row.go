@@ -43,6 +43,7 @@ type Entry struct {
 	Date        string
 	Photo       image.Image
 	Unread      int
+	ReadInbox   int
 	UnreadMark  bool
 	UnreadMuted bool
 	Mention     bool

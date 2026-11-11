@@ -288,7 +288,7 @@ func TestFeedItemsProjection(t *testing.T) {
 		{ID: "m6", SenderID: "u2", SenderName: "Bob", Text: "six", TimestampMs: base + 1802000, Status: 2},
 		{ID: "m7", SenderID: "u2", SenderName: "Bob", Text: "seven", TimestampMs: localMs(2026, time.December, 1, 9, 30), Status: 2},
 	}
-	items := FeedItems(msgs, now, true)
+	items := FeedItems(msgs, 0, now, true)
 	if len(items) != 7 {
 		t.Fatalf("items = %d, want 7", len(items))
 	}
@@ -335,7 +335,7 @@ func TestFeedItemsProjection(t *testing.T) {
 	if items[1].FromName != "" {
 		t.Fatalf("outgoing group FromName must stay empty, got %q", items[1].FromName)
 	}
-	dmItems := FeedItems(msgs[:2], now, false)
+	dmItems := FeedItems(msgs[:2], 0, now, false)
 	if dmItems[0].FromName != "" {
 		t.Fatalf("dm FromName must stay empty, got %q", dmItems[0].FromName)
 	}
@@ -717,7 +717,7 @@ func TestFeedPaintSmoke(t *testing.T) {
 	items := FeedItems([]WireMessage{
 		{ID: "m1", SenderID: "u1", SenderName: "Alice", Text: "hello world", TimestampMs: nowMs - 60000, Status: 2},
 		{ID: "m2", SenderID: "u1", SenderName: "Alice", Text: "grouped", TimestampMs: nowMs, Status: 2, Out: true},
-	}, time.UnixMilli(nowMs), true)
+	}, 0, time.UnixMilli(nowMs), true)
 	m, _ = Update(m, ChatLoaded{Items: items})
 	scene := View(m)
 	p.PaintPane(gtx, scene.Dialogs, sch)

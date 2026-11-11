@@ -149,6 +149,7 @@ var migrations = []func(*sql.Tx) error{
 	migrateV55,
 	migrateV56,
 	migrateV57,
+	migrateV58,
 }
 
 func migrateV45(tx *sql.Tx) error {
@@ -271,6 +272,15 @@ func migrateV57(tx *sql.Tx) error {
 	return nil
 }
 
+func migrateV58(tx *sql.Tx) error {
+	if _, err := tx.Exec(`ALTER TABLE chats ADD COLUMN read_inbox_max_id INTEGER NOT NULL DEFAULT 0`); err != nil {
+		if !strings.Contains(err.Error(), "duplicate column") {
+			return err
+		}
+	}
+	return nil
+}
+
 func migrateV53(tx *sql.Tx) error {
 	if _, err := tx.Exec(`ALTER TABLE messages ADD COLUMN comments_count INTEGER NOT NULL DEFAULT 0`); err != nil {
 		if !strings.Contains(err.Error(), "duplicate column") {
@@ -359,6 +369,7 @@ func migrateV1(tx *sql.Tx) error {
                         last_msg_sender TEXT,
                         last_msg_is_outgoing INTEGER NOT NULL DEFAULT 0,
                         unread_count  INTEGER NOT NULL DEFAULT 0,
+                        read_inbox_max_id INTEGER NOT NULL DEFAULT 0,
                         is_muted      INTEGER NOT NULL DEFAULT 0,
                         is_pinned     INTEGER NOT NULL DEFAULT 0,
                         is_archived   INTEGER NOT NULL DEFAULT 0,

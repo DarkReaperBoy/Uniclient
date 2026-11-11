@@ -118,7 +118,7 @@ func TestGetMessagesPortFeedsItems(t *testing.T) {
 	if msgs[0].Status != 2 {
 		t.Fatalf("seeded status = %d, want 2 (column default)", msgs[0].Status)
 	}
-	items := app.FeedItems(msgs, time.UnixMilli(4000), false)
+	items := app.FeedItems(msgs, 0, time.UnixMilli(4000), false)
 	if len(items) != 3 || items[0].Text != "m1" || !items[0].AttachedBottom || !items[1].AttachedTop {
 		t.Fatalf("items projection wrong: %+v", items)
 	}

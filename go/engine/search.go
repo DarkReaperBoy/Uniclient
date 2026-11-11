@@ -197,7 +197,7 @@ func (e *Engine) SearchChats(query string, limit int) ([]ChatInfo, error) {
 		`SELECT c.account_id, c.chat_id, c.type, c.title, c.avatar_path,
                         c.last_msg_id, c.last_msg_text, c.last_msg_time, c.last_msg_sender,
                         c.last_msg_is_outgoing, c.last_msg_status, c.last_msg_media_type, c.last_msg_thumb_b64,
-                        c.unread_count, c.is_muted, c.is_pinned, c.is_archived, c.mute_until,
+                        c.unread_count, c.read_inbox_max_id, c.is_muted, c.is_pinned, c.is_archived, c.mute_until,
                         c.draft_text, c.member_count, c.parent_id,
                         COALESCE(u.is_bot, 0), COALESCE(u.is_contact, 0), COALESCE(u.is_blocked, 0),
                         c.unread_mark, c.unread_mention_count, c.unread_reaction_count,

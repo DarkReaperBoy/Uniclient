@@ -536,12 +536,19 @@ func (e *Engine) handleDeleteMessage(accountID, chatID, msgID string) {
 }
 
 func (e *Engine) handleReadState(accountID, chatID string, rs *cores.ReadState) {
-	if rs.MyLastRead != "" {
+	if rs.MyLastRead == "" {
+		return
+	}
+	if pos, err := strconv.Atoi(rs.MyLastRead); err == nil {
+		e.db.Exec(
+			"UPDATE chats SET unread_count = 0, read_inbox_max_id = MAX(read_inbox_max_id, ?) WHERE account_id = ? AND chat_id = ?",
+			pos, accountID, chatID)
+	} else {
 		e.db.Exec(
 			"UPDATE chats SET unread_count = 0 WHERE account_id = ? AND chat_id = ?",
 			accountID, chatID)
-		e.emitChatUpdate(accountID, chatID)
 	}
+	e.emitChatUpdate(accountID, chatID)
 }
 
 func (e *Engine) handleUserStatus(accountID, userID string, online bool, kind string, lastSeenMs int64) {
