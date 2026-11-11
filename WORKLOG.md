@@ -27,15 +27,15 @@ owner order — that history lives in git if ever needed.
   redirect wins
 - owner-waiting: N-1 — install the uniclient-android APK artifact
   (build 42622715804) on a device and report (android GUI-default check)
-- last-gate: session 417 — CI GATE OF RECORD GREEN: Verify 42943763854
-  (05cdba03, atomic 1) completed success — all 3 jobs (test/vet/gofmt/
-  smoke, nix, cross-builds); Build 42945626236 (4b1d88f3) completed
-  success; quick gates GREEN scoped on all three atomics (tests/engine
-  6.6s, tests/gui, tests/ui, tests/bootstrap, cores 58s; app/appport/
-  window/cmd/renders via windows vet), gofmt + comment ban clean, js/wasm
-  full-tree build green; Verify 42945731210 (4b1d88f3, atomic 2) +
-  Verify 42946952451 (05e897af, atomic 3) + Build 42946898075 in flight
-  at yield — record next session
+- last-gate: session 417 — CI GATE OF RECORD GREEN on ALL THREE atomics:
+  Verify 42943763854 (05cdba03, atomic 1) + Verify 42945731210 (4b1d88f3,
+  atomic 2) + Verify 42946952451 (05e897af, atomic 3) all completed
+  success at job AND step level (test/vet/gofmt/smoke, nix, cross-builds);
+  Builds 42945626236 (4b1d88f3) + 42946898075 (05e897af) success; Pages
+  serving; quick gates GREEN scoped in-sandbox on all three atomics
+  (tests/engine 6.6s, tests/gui, tests/ui, tests/bootstrap, cores 58s;
+  app/appport/window/cmd/renders via windows vet), gofmt + comment ban
+  clean, js/wasm full-tree build green
 
 ## Open items
 
