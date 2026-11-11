@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#101418">
+<title>Uniclient</title>
+<link rel="icon" href="data:,">
+<style>
+  :root { --bg:#101418; --fg:#e8eaed; --dim:#9aa0a6;
+          --accent:#61d4ff; --barbg:#26313a; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--fg);
+    font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  #boot { position:fixed; inset:0; z-index:10; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:14px; padding:24px;
+    box-sizing:border-box; text-align:center; background:var(--bg); }
+  #boot .logo { font-size:22px; font-weight:600; letter-spacing:.04em; }
+  #status { min-height:1.4em; opacity:.9; font-size:14px; }
+  #bar { width:min(360px,82vw); height:8px; border-radius:99px; background:var(--barbg);
+    overflow:hidden; }
+  #fill { height:100%; width:0%; border-radius:99px;
+    background:linear-gradient(90deg,#3aa0ff,#61d4ff); transition:width .2s ease; }
+  #fill.indet { width:38%; animation:slide 1.2s ease-in-out infinite; }
+  @keyframes slide { 0% { margin-left:-40%; } 100% { margin-left:105%; } }
+  #detail { min-height:1.2em; opacity:.55; font-size:12px;
+    font-variant-numeric:tabular-nums; max-width:92vw; overflow:hidden;
+    text-overflow:ellipsis; white-space:nowrap; }
+  #retry { display:none; padding:8px 20px; border-radius:8px; border:1px solid var(--accent);
+    background:transparent; color:var(--accent); font-size:14px; cursor:pointer; }
+  canvas { display:block; width:100vw; height:100vh; touch-action:none; }
+</style>
+</head>
+<body>
+  <div id="boot">
+    <div class="logo">Uniclient</div>
+    <div id="status">Starting…</div>
+    <div id="bar"><div id="fill" class="indet"></div></div>
+    <div id="detail"></div>
+    <button id="retry">Retry</button>
+    <noscript><p>JavaScript is required to run Uniclient.</p></noscript>
+  </div>
+  <script src="wasm_exec.js"></script>
+  <script>
+  "use strict";
+  (function () {
+    var VER = "b7ad867ed046";
+    var WASM_BYTES = 26236276;
+    var WASM_SHA256 = "cc8d74c68e42eff79c34b1965c9df06bb785d58e3c8e45d55b3386f7a0b19fb0";
+    var WASM_URL = "uniclient.wasm";
+    var CACHE = "uniclient-wasm-" + VER;
+    var RETRY_KEY = "uniclient.reload." + VER;
+
+    function $(id) { return document.getElementById(id); }
+    function fmtMB(n) { return (n / 1048576).toFixed(1) + " MB"; }
+    function fmtBps(n) { return (n / 1048576).toFixed(1) + " MB/s"; }
+    function fmtETA(s) {
+      if (!isFinite(s) || s < 0) return "…";
+      if (s >= 90) return Math.round(s / 60) + " min left";
+      return Math.round(s) + " s left";
+    }
+    function setStatus(text, pct, detail) {
+      $("status").textContent = text;
+      var fill = $("fill");
+      if (pct == null) { fill.className = "indet"; fill.style.width = ""; }
+      else {
+        fill.className = "";
+        fill.style.width = Math.max(0, Math.min(100, pct * 100)).toFixed(1) + "%";
+      }
+      if (detail !== undefined) $("detail").textContent = detail;
+    }
+
+    // Same-version boot: the wasm lives in the Cache API keyed by the
+    // build version — zero network, works offline.
+    function haveCaches() { return typeof caches !== "undefined"; }
+    async function cachedWasm() {
+      if (!haveCaches()) return null;
+      try {
+        var c = await caches.open(CACHE);
+        var r = await c.match(WASM_URL);
+        return r ? new Uint8Array(await r.arrayBuffer()) : null;
+      } catch (e) { return null; }
+    }
+    async function storeWasm(bytes) {
+      if (!haveCaches()) return;
+      try {
+        var c = await caches.open(CACHE);
+        await c.put(WASM_URL, new Response(bytes.slice(),
+          { headers: { "content-type": "application/wasm" } }));
+        var keys = await caches.keys();
+        await Promise.all(keys.filter(function (k) {
+          return k.indexOf("uniclient-wasm-") === 0 && k !== CACHE;
+        }).map(function (k) { return caches.delete(k); }));
+      } catch (e) {}
+    }
+
+    // Streamed download: real bytes, live speed over a ~1.5 s window,
+    // ETA from the window speed. no-store: the Cache API is the cache.
+    async function downloadWasm() {
+      var resp = await fetch(WASM_URL, { cache: "no-store" });
+      if (!resp.ok) throw new Error("HTTP " + resp.status);
+      var total = WASM_BYTES;
+      var chunks = [], got = 0;
+      if (resp.body && resp.body.getReader) {
+        var reader = resp.body.getReader();
+        var samples = [{ t: performance.now(), b: 0 }];
+        for (;;) {
+          var step = await reader.read();
+          if (step.done) break;
+          chunks.push(step.value);
+          got += step.value.length;
+          var now = performance.now();
+          samples.push({ t: now, b: got });
+          while (samples.length > 2 && now - samples[0].t > 1500) samples.shift();
+          var span = now - samples[0].t;
+          var speed = span > 200 ? (got - samples[0].b) / (span / 1000) : 0;
+          var eta = speed > 1 ? (total - got) / speed : Infinity;
+          setStatus("Downloading Uniclient…", got / total,
+            fmtMB(got) + " / " + fmtMB(total) + "  ·  " +
+            (speed > 104857 ? fmtBps(speed) : "…") + "  ·  " + fmtETA(eta));
+        }
+      } else {
+        var all = new Uint8Array(await resp.arrayBuffer());
+        chunks = [all];
+        got = all.length;
+        setStatus("Downloading Uniclient…", 1, fmtMB(got));
+      }
+      var out = new Uint8Array(got), off = 0;
+      for (var i = 0; i < chunks.length; i++) {
+        out.set(chunks[i], off);
+        off += chunks[i].length;
+      }
+      return out;
+    }
+
+    async function sha256hex(bytes) {
+      var h = await crypto.subtle.digest("SHA-256", bytes);
+      var u = new Uint8Array(h), s = "";
+      for (var i = 0; i < u.length; i++) s += u[i].toString(16).padStart(2, "0");
+      return s;
+    }
+
+    // Stale shell vs fresh wasm after a deploy: reload once, cache-busted.
+    function reloadOnceFresh() {
+      try {
+        if (sessionStorage.getItem(RETRY_KEY)) return false;
+        sessionStorage.setItem(RETRY_KEY, "1");
+      } catch (e) { return false; }
+      location.replace(location.pathname + "?r=" + Date.now());
+      return true;
+    }
+
+    // Telegram in-app browser / Mini App: bridge lazily, theme the HUD.
+    function telegramBridge() {
+      if (!/Telegram/i.test(navigator.userAgent)) return;
+      var s = document.createElement("script");
+      s.src = "https://telegram.org/js/telegram-web-app.js";
+      s.onload = function () {
+        try {
+          var tg = window.Telegram && window.Telegram.WebApp;
+          if (!tg) return;
+          tg.ready();
+          tg.expand();
+          var apply = function () {
+            var p = tg.themeParams || {}, r = document.documentElement.style;
+            if (p.bg_color) r.setProperty("--bg", p.bg_color);
+            if (p.text_color) r.setProperty("--fg", p.text_color);
+            if (p.hint_color) r.setProperty("--dim", p.hint_color);
+            if (p.button_color) r.setProperty("--accent", p.button_color);
+            if (p.secondary_bg_color) r.setProperty("--barbg", p.secondary_bg_color);
+          };
+          apply();
+          if (tg.onEvent) tg.onEvent("themeChanged", apply);
+        } catch (e) {}
+      };
+      document.head.appendChild(s);
+    }
+
+    // Engine stdout/stderr (wasm_exec pipes them to console) -> HUD.
+    function mirrorConsoleToDetail() {
+      var orig = {
+        log: console.log, error: console.error,
+        warn: console.warn, info: console.info
+      };
+      ["log", "error", "warn", "info"].forEach(function (k) {
+        console[k] = function () {
+          try {
+            var parts = [];
+            for (var i = 0; i < arguments.length; i++) {
+              var a = arguments[i];
+              parts.push(typeof a === "string" ? a : JSON.stringify(a));
+            }
+            $("detail").textContent = parts.join(" ").slice(0, 200);
+          } catch (e) {}
+          orig[k].apply(console, arguments);
+        };
+      });
+    }
+
+    var running = false;
+    async function boot() {
+      if (running) return;
+      running = true;
+      $("retry").style.display = "none";
+      try {
+        if (typeof Go === "undefined") throw new Error("wasm_exec.js failed to load");
+        if (typeof WebAssembly === "undefined") throw new Error("no WebAssembly in this browser");
+        setStatus("Checking local cache…", null);
+        var bytes = await cachedWasm();
+        var state = "downloaded";
+        if (bytes) state = "cached — no download";
+        else bytes = await downloadWasm();
+        setStatus("Verifying download…", 1);
+        var digest = await sha256hex(bytes);
+        if (digest !== WASM_SHA256) {
+          if (haveCaches()) {
+            try { await caches.delete(CACHE); } catch (e) {}
+          }
+          if (reloadOnceFresh()) return;
+          throw new Error("integrity check failed (sha256 mismatch)");
+        }
+        await storeWasm(bytes);
+        setStatus("Compiling " + fmtMB(bytes.length) + "…", 1,
+          "v" + VER.slice(0, 7) + "  ·  " + state);
+        var obs = new MutationObserver(function () {
+          if (document.querySelector("canvas")) {
+            $("boot").style.display = "none";
+            obs.disconnect();
+          }
+        });
+        obs.observe(document.body, { childList: true, subtree: true });
+        mirrorConsoleToDetail();
+        telegramBridge();
+        var go = new Go();
+        var built = await WebAssembly.instantiate(bytes, go.importObject);
+        setStatus("Running — Uniclient", null,
+          "v" + VER.slice(0, 7) + "  ·  " + fmtMB(bytes.length) + "  ·  " + state);
+        await go.run(built.instance);
+        throw new Error("Uniclient exited");
+      } catch (e) {
+        running = false;
+        setStatus("Uniclient stopped", null, String((e && e.message) || e));
+        $("retry").style.display = "inline-block";
+      }
+    }
+
+    $("retry").addEventListener("click", function () { boot(); });
+    boot();
+  })();
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("sw.js").catch(function () {});
+    });
+  }
+  </script>
+</body>
+</html>
