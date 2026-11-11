@@ -316,6 +316,12 @@ const (
 	HistoryToDownBadgeSize    = 22
 	HistoryToDownBadgePadding = 5
 
+	HistoryToDownRippleShowMs = 650
+	HistoryToDownRippleHideMs = 200
+
+	StateLayerHoverAlpha  = 0.08
+	StateLayerRippleAlpha = 0.12
+
 	HistoryUnreadThingsSkip = 4
 	HistoryReplyHeight      = 49
 

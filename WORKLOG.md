@@ -7,35 +7,24 @@ owner order — that history lives in git if ever needed.
 
 ## STATE
 
-- front: GUI rebuild (§6); the READ-POSITION front CLOSED (session 417, one
-  atomic): the msg-level unread bars ride the engine's read position — cores
-  Dialog carries ReadInboxMaxID/ReadOutboxMaxID (tg extractDialogs fills
-  them), the chats table gains read_inbox_max_id (migration V58) with the
-  MONOTONIC upsert law (a stale dialog list never regresses it),
-  handleReadState advances it on numeric MyLastRead (non-numeric keeps the
-  counter-only law), ChatInfo/snapshot/chat_updated/SearchChats carry it;
-  app law: Entry.ReadInbox rides the dialogs row (the row IS the live
-  read-position projection — no port method, no TOCTOU), openCmdAfterPress
-  captures it, ChatLoaded{ReadInbox} stores openReadInbox, FeedItems(msgs,
-  readInbox, ...) paints 'Unread messages' on the first !Out message with a
-  numeric id beyond the position (0/unknown or non-numeric ids → honestly no
-  bar), applyMsgReceived keeps the bar on the first unread, applyChatUpdated
-  re-derives the open chat live (a read advance moves or drops the bar,
-  ChatDirty re-measure)
-- next: the D-1 residuals (hover/over colors + ripple with the skin's
-  hover pass; replyReturn jumps) or the next §6.2 capability seam; owner
-  redirect wins
+- front: GUI rebuild (§6); the skin's hover+ripple machinery LANDED (session
+  418, one atomic — D-1's residual): the chat corner buttons (down/mentions/
+  reactions) paint Material state layers — hover OnPrimaryContainer@8% on
+  mouse-over (ChatDragged carries Touch, hover skips touch; pointer.Leave →
+  ChatLeft clears; ChatHover via chatCornerAt reactions>mentions>down) and
+  the reference ripple law (press origin in circle-box coords, radius 0→
+  farthest-corner of the 42dp area, easeOutQuint 650ms show, linear 200ms
+  fade on release-in-or-out, cancel clears; clipped to the circle mask,
+  OnPrimaryContainer@12%; ChatRippleState in the Model, ChatRippleActive
+  drives the tick clock; View projects RippleView per button)
+- next: D-1's dialogs to-up adoption of the same machinery (the second
+  TwoIconButton site) or the next §6.2 capability seam; owner redirect wins
 - owner-waiting: N-1 — install the uniclient-android APK artifact
   (build 42622715804) on a device and report (android GUI-default check)
-- last-gate: session 417 — CI GATE OF RECORD GREEN on ALL THREE atomics:
-  Verify 42943763854 (05cdba03, atomic 1) + Verify 42945731210 (4b1d88f3,
-  atomic 2) + Verify 42946952451 (05e897af, atomic 3) all completed
-  success at job AND step level (test/vet/gofmt/smoke, nix, cross-builds);
-  Builds 42945626236 (4b1d88f3) + 42946898075 (05e897af) success; Pages
-  serving; quick gates GREEN scoped in-sandbox on all three atomics
-  (tests/engine 6.6s, tests/gui, tests/ui, tests/bootstrap, cores 58s;
-  app/appport/window/cmd/renders via windows vet), gofmt + comment ban
-  clean, js/wasm full-tree build green
+- last-gate: session 418 — quick gate GREEN scoped in-sandbox (tests/engine
+  6.8s, tests/gui, tests/ui; app/appport/dialogs-render/history-render/
+  window/cmd via windows vet), gofmt + comment ban clean (391 files), js/wasm
+  full-tree build green; CI gate of record Verify run pending at push
 
 ## Open items
 
@@ -46,10 +35,73 @@ owner order — that history lives in git if ever needed.
 | N-1 | android APK | GUI-default on android is runtime-unverifiable in-sandbox (no emulator/device); expected: the empty Material surface, not a black zombie | session 405 (js sibling); js live-verified in 406; APK artifact on build 42622715804 | owner installs the uniclient-android APK artifact and reports |
 | H-2 | verify/release yml | CLOSED 2026-11-09 (owner order): android + web legs returned as build.yml (per-push, no tests, parallel); only the Xvfb GUI + Puppeteer web-drive legs stay parked with the rebuilt GUI | AGENTS.md §8; build 42597570851 | Xvfb/Puppeteer return when the GUI ships (§6.7) |
 | H-3 | engine/cores API | 301+1 identifiers exported purely for the tests move (API noise: TsParseInit1, TsTrackRecvPID; audio's MicStop folded to micStop in session 368) | commit 27faa5a4, session 368 | fold into real APIs or de-export when tests are reworked during the GUI rebuild |
-| D-1 | ui/history corner button | ATOMIC 1 LANDED (session 417): the down-button unread-count badge — 22dp, centered x, top 0 (jump_down_button.cpp paintEvent + historyToDownBadge*); Model.openUnread rides the row (captured at open, live via chat_updated), pane.DownBadgeText projects FormatUnreadCounter, the painter paints the pill (Primary/OnPrimary, the dialogs badge skin law) over the button; hover/over colors + ripple deferred: no hover/ripple machinery in the skin yet; replyReturn branch of downClick + loadedAtBottom==false state return with reply-return jumps / below-history pagination | jump_down_button.cpp 33-52, corner_buttons.cpp 139-145 | over/ripple with the skin's hover+ripple pass |
+| D-1 | ui/history corner button | hover/over + ripple LANDED for the chat corner buttons (session 418: Material state layers — hover 8%, ripple 12% — plus the reference ripple law on all three buttons; see the session entry for the wire); residual: the dialogs to-up button (the second TwoIconButton site) adopts the same machinery; replyReturn branch of downClick + loadedAtBottom==false state return with reply-return jumps / below-history pagination | jump_down_button.cpp 41-67 (dev HEAD), corner_buttons.cpp 300-306, lib_ui ripple_animation.cpp, widgets.style defaultRippleAnimation, chat_helpers.style 1207-1222 | adopt the machinery on the dialogs to-up button; replyReturn rides the reply front |
 | D-2 | ui/history unread-things buttons | read-marking absent for mentions AND reactions: after a jump the button stays shown (reference hides it when the server marks the thing read — updateUnreadThingsVisibility is server-data-driven); mentionsClick's already-there voice/video media-read branch (5623) deferred — no media model; unread-count badges join D-1's class; poll-votes 4th stack slot returns with a poll model | history_view_corner_buttons.cpp 147-190, 288-345 | returns with engine unread-things events + the media pass |
 | D-3 | build.yml web job | CLOSED 2026-11-10 (session 414, two atomics — see the session entry for the evidence trail) | gotd = 0 packages in the js link graph; wasm plain build 32,837,371 -> 26,714,844 B (-6,122,527 B, -18.6%); <20MB projection did not hold — remaining bulk = web trio deps (mautrix+goolm, bale gRPC-web, pion webrtc) + the rebuilt GUI (gio+fonts) | done; CI web job ships the trimmed wasm from the atomic-2 push |
 | D-4 | window keys | ATOMIC 2 LANDED (session 413): plain Enter/Return -> ChatComposeSubmitted -> composeSubmittedCmd (guards: open+port+CanSend+non-empty) clears the field and fires ChatPort.Send -> ChatComposeSendRequested{OK,Text}; failed sends restore the field (composeEdit — no data loss); Up/Down arrows = ChatScrolled step 20dp, PageUp/PageDown = 200dp (tokens ScrollKeyStep = WheelNotch/WheelScrollLines/WheelPixelToAngleDelta, ScrollKeyPageStep = 10x — the Qt qabstractslider defaults through the wheel law); CanSend lands on the open transition from the row type (channels read-only — honest default until the writability front carries admin rights); REAL-seam: appport.Send -> engine.SendMessage -> optimistic msg_received -> open-chat append (wire test). Residuals: Up-on-empty-field edit-last rides the messages/edit front (scrolls meanwhile), Ctrl+Up/Down reply-cycle rides the reply front, scroll keys need compose focus — the unfocused chat pane has no key routing yet (window front) | history_widget.cpp 9276-9349 (fetched 2026-11-09) + qabstractslider defaults | IME ranged EditEvents + SelectionCmd/SnippetCmd contract = the mobile/IME front; window-front key routing |
+
+## Session 418 — the skin's hover+ripple machinery: chat corner buttons (2026-11-11)
+
+- Boot: fresh-sandbox recovery — repo re-cloned (remote URL kept token-free),
+  Go 1.27.1 re-installed per scripts/env.sh (toolchain + module cache
+  refilled), token in .env (never printed, gitignored), identity
+  agent@uniclient; sync clean (main == origin at 885b4e61); CI green at
+  head (Verify 42946952451 + Build 42946898075 + pages serving).
+- Reference mined FIRST (§1.17), in-session: jump_down_button.cpp dev HEAD
+  41-67 (over||down → over icon variants, paintRipple between below/above
+  layers, EllipseMask(42) — the ripple area IS the painted circle:
+  rippleAreaPosition(5,15) == HistoryToDownCircleX/Y, rippleAreaSize 42 ==
+  CircleSize); corner_buttons.cpp 300-306 (downClick: Ctrl||!replyReturn →
+  UnreadMessagePosition else replyReturn — the replyReturn branch rides
+  the reply front, not this atomic); lib_ui ripple_animation.cpp (radius 0→
+  farthest-corner of the mask box, show easeOutQuint, release → linear
+  opacity fade while the radius keeps growing, add()/lastStop/clearState
+  lifecycle); widgets.style 703-707 (defaultRippleAnimation show 650ms hide
+  200ms); chat_helpers.style 1207-1222 (TwoIconButton 52x62, ripple area
+  law). Skin law (§6): Material state layers own the colors — hover 8%,
+  ripple 12% (M3 interaction states), OnPrimaryContainer over the
+  PrimaryContainer circle.
+- Atomic 1 (ONE change — hover + ripple on all three chat corner buttons):
+  TOKENS — HistoryToDownRippleShowMs 650 / HideMs 200 (the reference pins),
+  StateLayerHoverAlpha 0.08 / StateLayerRippleAlpha 0.12 (the Material
+  pins). HISTORY — Ripple/RippleState/RippleMaxRadius/RippleView
+  (easeOutQuint, radius = round(max*shown), alpha linear fade) +
+  ChatPane gains per-button Down/Mentions/Reactions Hover+Ripple fields.
+  APP — ChatCorner enum + ChatRippleState (Button + history.RippleState);
+  Model.ChatHover/ChatRipple; dragChat updates hover from every mouse
+  move/drag (ChatDragged carries Touch — touch never hovers; window.go
+  sources e.Source), chatCornerAt hit order reactions>mentions>down (the
+  paint order's mirror); pressChat starts the ripple at the press point in
+  circle-box coords on each corner branch; releaseChat fades it on
+  release-in-or-out (chatRippleRelease — the reference lastStop law);
+  ChatPressCanceled clears instantly (clearState); ChatTick advances
+  chatRippleTick (fade-end clear); ChatLoaded resets both; ChatLeft (new
+  msg, window.go routes pointer.Leave — gio delivers Leave to the chat
+  input area on cursor exit) clears hover; ChatRippleActive joins the
+  window tick/Invalidate conditions. VIEW — hover bools per button +
+  RippleView projection per the ripple's owning button. PAINTER —
+  paintCornerFeedback: the 42dp circle ellipse mask, hover fill
+  OnPrimaryContainer@8%, ripple ellipse at origin radius r@
+  12%*alpha nested under the mask (the reference's mask law — the ripple
+  never spills outside the round button), painted between the circle and
+  the arrow/glyph/badge (the reference's below/above layer order).
+  red->green: tests/ui/history_corner_hover_test.go (token pins 650/200/
+  0.08/0.12; RippleMaxRadius corner 59 / center 30 / outside 74 / (9,17) 41;
+  easeOutQuint show 20@130ms→29@half→30@end; fade linear 1→0.5@100ms→0
+  @200ms with radius still growing 25→29→30) + tests/gui/
+  app_corner_hover_test.go journeys (hover set/move-clear via mouse
+  ChatDragged, touch-move never hovers, ChatLeft clears; press → origin
+  (9,17) radius 0 alpha 1 + ChatRippleActive; mid-show radius>0;
+  release → mid-fade alpha ∈ (0,1) → fade-end clear; release-outside still
+  fades without the click jump; cancel clears; press off-button no ripple;
+  mentions-button ripple owns its pane slot only; chat switch resets
+  hover+ripple; paint journey PaintChatPane with hover+growing ripple).
+- Gates: quick gate GREEN scoped (tests/engine 6.8s, tests/gui, tests/ui;
+  app/appport/dialogs-render/history-render/window/cmd via windows vet),
+  gofmt clean, comment ban clean (391 files), js/wasm full-tree build
+  green. §4 live pixel drive BLOCKED-env (needs an account; no add-account
+  surface yet) — same class as session 417; journeys drive the real
+  press→ripple→release seam through Update/View.
 
 ## Session 417 — the read-position front: the unread bars ride the engine's read position (2026-11-11)
 

@@ -152,8 +152,14 @@ type ChatPane struct {
 	DateAlpha         float32
 	DownProgress      float32
 	DownBadgeText     string
+	DownHover         bool
+	DownRipple        Ripple
 	MentionsProgress  float32
+	MentionsHover     bool
+	MentionsRipple    Ripple
 	ReactionsProgress float32
+	ReactionsHover    bool
+	ReactionsRipple   Ripple
 	Compose           ComposePaneView
 	EmptyText         string
 }

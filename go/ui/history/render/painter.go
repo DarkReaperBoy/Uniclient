@@ -676,6 +676,7 @@ func (p *ChatPainter) paintDownButton(gtx layout.Context, pane history.ChatPane,
 	shadow.Top += 2
 	fillEllipse(gtx, shadow, downShadowColor)
 	fillEllipse(gtx, circle, sch.PrimaryContainer)
+	paintCornerFeedback(gtx, circle, pane.DownHover, pane.DownRipple, sch)
 	strokeDownArrow(gtx, g.Left, g.Top, sch.OnPrimaryContainer)
 	if pane.DownBadgeText == "" {
 		return
@@ -705,6 +706,7 @@ func (p *ChatPainter) paintMentionsButton(gtx layout.Context, pane history.ChatP
 	shadow.Top += 2
 	fillEllipse(gtx, shadow, downShadowColor)
 	fillEllipse(gtx, circle, sch.PrimaryContainer)
+	paintCornerFeedback(gtx, circle, pane.MentionsHover, pane.MentionsRipple, sch)
 	fillGlyph(gtx, g.Left, g.Top, icons.HistoryMention, sch.OnPrimaryContainer)
 }
 
@@ -727,7 +729,34 @@ func (p *ChatPainter) paintReactionsButton(gtx layout.Context, pane history.Chat
 	shadow.Top += 2
 	fillEllipse(gtx, shadow, downShadowColor)
 	fillEllipse(gtx, circle, sch.PrimaryContainer)
+	paintCornerFeedback(gtx, circle, pane.ReactionsHover, pane.ReactionsRipple, sch)
 	fillGlyph(gtx, g.Left, g.Top, icons.HistoryReaction, sch.OnPrimaryContainer)
+}
+
+func paintCornerFeedback(gtx layout.Context, circle history.Geometry, hover bool, ripple history.Ripple, sch material.Scheme) {
+	if !hover && ripple.Alpha <= 0 {
+		return
+	}
+	rect := image.Rect(
+		gtx.Dp(unit.Dp(circle.Left)),
+		gtx.Dp(unit.Dp(circle.Top)),
+		gtx.Dp(unit.Dp(circle.Left+circle.Width)),
+		gtx.Dp(unit.Dp(circle.Top+circle.Height)),
+	)
+	defer clip.Ellipse(rect).Push(gtx.Ops).Pop()
+	if hover {
+		paint.Fill(gtx.Ops, withAlpha(sch.OnPrimaryContainer, tokens.StateLayerHoverAlpha))
+	}
+	if ripple.Alpha > 0 && ripple.Radius > 0 {
+		cx := circle.Left + ripple.OriginX
+		cy := circle.Top + ripple.OriginY
+		fillEllipse(gtx, history.Geometry{
+			Left:   cx - ripple.Radius,
+			Top:    cy - ripple.Radius,
+			Width:  2 * ripple.Radius,
+			Height: 2 * ripple.Radius,
+		}, withAlpha(sch.OnPrimaryContainer, tokens.StateLayerRippleAlpha*ripple.Alpha))
+	}
 }
 
 func fillEllipse(gtx layout.Context, r history.Geometry, col color.NRGBA) {

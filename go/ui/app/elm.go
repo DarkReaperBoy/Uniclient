@@ -167,12 +167,17 @@ type ChatPressed struct {
 func (ChatPressed) isMsg() {}
 
 type ChatDragged struct {
-	X   int
-	Y   int
-	Now int
+	X     int
+	Y     int
+	Touch bool
+	Now   int
 }
 
 func (ChatDragged) isMsg() {}
+
+type ChatLeft struct{}
+
+func (ChatLeft) isMsg() {}
 
 type ChatReleased struct {
 	X   int
@@ -265,6 +270,20 @@ type ChatDownState struct {
 	Progress float32
 }
 
+type ChatCorner uint8
+
+const (
+	CornerNone ChatCorner = iota
+	CornerDown
+	CornerMentions
+	CornerReactions
+)
+
+type ChatRippleState struct {
+	Button ChatCorner
+	history.RippleState
+}
+
 type ChatMentionsState struct {
 	Shown    bool
 	Anim     bool
@@ -314,6 +333,8 @@ type Model struct {
 	ChatDown          ChatDownState
 	ChatMentions      ChatMentionsState
 	ChatReactions     ChatReactionsState
+	ChatHover         ChatCorner
+	ChatRipple        ChatRippleState
 	ChatCompose       ChatComposeState
 	nowMs             int
 	ChatTouch         TouchDrag
@@ -449,6 +470,8 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		m.ChatDown = ChatDownState{}
 		m.ChatMentions = ChatMentionsState{}
 		m.ChatReactions = ChatReactionsState{}
+		m.ChatHover = CornerNone
+		m.ChatRipple = ChatRippleState{}
 		m.Chat.Heights = nil
 		m.Chat.Hits = nil
 		m.ChatSelection = nil
@@ -528,10 +551,14 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 	case ChatReleased:
 		m.releaseChat(msg)
 		return m, nil
+	case ChatLeft:
+		m.ChatHover = CornerNone
+		return m, nil
 	case ChatPressCanceled:
 		m.ChatBar = BarDrag{}
 		m.ChatTouch = TouchDrag{}
 		m.ChatPress = ChatPressState{Row: -1}
+		m.ChatRipple = ChatRippleState{}
 		m.ChatCompose.MousePressed = false
 		m.ChatCompose.Grab = false
 		m.ChatCompose.LastClickSet = false
@@ -543,6 +570,7 @@ func Update(m Model, msg Msg) (Model, Cmd) {
 		m.chatDownTick(msg.Now)
 		m.chatMentionsTick(msg.Now)
 		m.chatReactionsTick(msg.Now)
+		m.chatRippleTick(msg.Now)
 		m.composePlaceholderTick(msg.Now)
 		m.composeBlinkTick(msg.Now)
 		return m, m.chatPreloadCmd()
@@ -1223,18 +1251,21 @@ func (m *Model) pressChat(msg ChatPressed) Model {
 		m.ChatBar = BarDrag{}
 		m.ChatTouch = TouchDrag{}
 		m.ChatPress = ChatPressState{Row: -1, X: msg.X, Y: msg.Y, ReactionPress: true}
+		m.chatRippleStart(CornerReactions, msg.X, msg.Y)
 		return *m
 	}
 	if m.chatMentionsHitAt(msg.X, msg.Y) {
 		m.ChatBar = BarDrag{}
 		m.ChatTouch = TouchDrag{}
 		m.ChatPress = ChatPressState{Row: -1, X: msg.X, Y: msg.Y, MentionsPress: true}
+		m.chatRippleStart(CornerMentions, msg.X, msg.Y)
 		return *m
 	}
 	if m.chatDownHitAt(msg.X, msg.Y) {
 		m.ChatBar = BarDrag{}
 		m.ChatTouch = TouchDrag{}
 		m.ChatPress = ChatPressState{Row: -1, X: msg.X, Y: msg.Y, DownPress: true}
+		m.chatRippleStart(CornerDown, msg.X, msg.Y)
 		return *m
 	}
 	if !msg.Touch {
@@ -1325,6 +1356,9 @@ func (m *Model) finishChatPress(press ChatPressState, x, y int) {
 
 func (m *Model) dragChat(msg ChatDragged) Model {
 	m.nowMs = msg.Now
+	if !msg.Touch {
+		m.ChatHover = m.chatCornerAt(msg.X, msg.Y)
+	}
 	if m.ChatCompose.Grab {
 		m.composeDragged(ChatComposeDragged{X: msg.X, Y: msg.Y, Now: msg.Now})
 		return *m
@@ -1394,14 +1428,17 @@ func (m *Model) releaseChat(msg ChatReleased) {
 		press := m.ChatPress
 		m.ChatPress = ChatPressState{Row: -1}
 		if press.ReactionPress {
+			m.chatRippleRelease(msg.Now)
 			m.chatReactionsClick(msg.X, msg.Y)
 			return
 		}
 		if press.MentionsPress {
+			m.chatRippleRelease(msg.Now)
 			m.chatMentionsClick(msg.X, msg.Y)
 			return
 		}
 		if press.DownPress {
+			m.chatRippleRelease(msg.Now)
 			m.chatDownClick(msg.X, msg.Y)
 			return
 		}
@@ -1434,6 +1471,62 @@ func (m *Model) releaseChat(msg ChatReleased) {
 func (m *Model) chatDownHitAt(x, y int) bool {
 	return history.DownButtonHit(m.Columns().Chat, m.ChatScroll.Height,
 		m.ChatDown.Progress, x, y)
+}
+
+func (m Model) chatCornerAt(x, y int) ChatCorner {
+	if m.chatReactionsHitAt(x, y) {
+		return CornerReactions
+	}
+	if m.chatMentionsHitAt(x, y) {
+		return CornerMentions
+	}
+	if m.chatDownHitAt(x, y) {
+		return CornerDown
+	}
+	return CornerNone
+}
+
+func (m Model) chatCornerGeometry(corner ChatCorner) history.Geometry {
+	switch corner {
+	case CornerReactions:
+		return history.ReactionsButtonGeometry(m.Columns().Chat, m.ChatScroll.Height,
+			m.ChatReactions.Progress, m.ChatDown.Progress, m.ChatMentions.Progress)
+	case CornerMentions:
+		return history.MentionsButtonGeometry(m.Columns().Chat, m.ChatScroll.Height,
+			m.ChatMentions.Progress, m.ChatDown.Progress)
+	default:
+		return history.DownButtonGeometry(m.Columns().Chat, m.ChatScroll.Height, m.ChatDown.Progress)
+	}
+}
+
+func (m *Model) chatRippleStart(corner ChatCorner, x, y int) {
+	g := m.chatCornerGeometry(corner)
+	m.ChatRipple = ChatRippleState{Button: corner, RippleState: history.RippleState{
+		OriginX: x - g.Left - tokens.HistoryToDownCircleX,
+		OriginY: y - g.Top - tokens.HistoryToDownCircleY,
+		Started: m.nowMs,
+	}}
+}
+
+func (m *Model) chatRippleRelease(now int) {
+	if m.ChatRipple.Button == CornerNone || m.ChatRipple.Fading {
+		return
+	}
+	m.ChatRipple.Fading = true
+	m.ChatRipple.FadeStarted = now
+}
+
+func (m *Model) chatRippleTick(now int) {
+	if m.ChatRipple.Button == CornerNone {
+		return
+	}
+	if m.ChatRipple.Fading && now-m.ChatRipple.FadeStarted >= tokens.HistoryToDownRippleHideMs {
+		m.ChatRipple = ChatRippleState{}
+	}
+}
+
+func (m Model) ChatRippleActive() bool {
+	return m.ChatRipple.Button != CornerNone
 }
 
 func (m *Model) chatMentionsHitAt(x, y int) bool {
@@ -1625,6 +1718,17 @@ func View(m Model) Scene {
 	s.Chat.DownBadgeText = tokens.FormatUnreadCounter(m.openUnread, false, false)
 	s.Chat.MentionsProgress = m.ChatMentions.Progress
 	s.Chat.ReactionsProgress = m.ChatReactions.Progress
+	s.Chat.DownHover = m.ChatHover == CornerDown
+	s.Chat.MentionsHover = m.ChatHover == CornerMentions
+	s.Chat.ReactionsHover = m.ChatHover == CornerReactions
+	switch m.ChatRipple.Button {
+	case CornerDown:
+		s.Chat.DownRipple = history.RippleView(m.ChatRipple.RippleState, m.nowMs)
+	case CornerMentions:
+		s.Chat.MentionsRipple = history.RippleView(m.ChatRipple.RippleState, m.nowMs)
+	case CornerReactions:
+		s.Chat.ReactionsRipple = history.RippleView(m.ChatRipple.RippleState, m.nowMs)
+	}
 	s.Chat.Compose = m.ComposePane()
 	if len(m.Accounts) == 0 {
 		if cols := m.Columns(); cols.Dialogs < m.Width {
